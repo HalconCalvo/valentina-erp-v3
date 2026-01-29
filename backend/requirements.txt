@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+sqlmodel
+pydantic-settings
+python-multipart
+python-jose[cryptography]
+passlib[bcrypt]
+# Driver para Postgres (lo usaremos en Cloud, pero lo instalamos de una vez)
+psycopg2-binary

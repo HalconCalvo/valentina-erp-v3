@@ -1,0 +1,28 @@
+# .gitignore
+
+# --- SISTEMA ---
+__pycache__/
+*.py[cod]
+venv/
+.env
+.DS_Store
+node_modules/
+dist/
+build/
+coverage/
+
+# --- BASE DE DATOS LOCAL ---
+*.db
+*.sqlite3
+*.sqlite
+
+# --- ARCHIVOS DE DATOS Y DOCUMENTOS (Se quedan en tu Mac) ---
+*.csv
+*.xlsx
+*.xls
+*.pdf
+*.docx
+PROJECT_CONTEXT.md
+
+# --- LOGS ---
+*.log
