@@ -1,85 +1,111 @@
 from datetime import timedelta
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlmodel import Session, SQLModel, select 
+from sqlmodel import Session, select
+from pydantic import BaseModel  # <--- 1. IMPORTAR ESTO
 
-# --- IMPORTACIONES ---
-from app.core import security
 from app.core.config import settings
-from app.core.database import get_session 
-from app.models.users import User
-
-# Nota: Eliminamos el import externo de Token para evitar conflictos
-# from app.schemas.auth_schema import Token 
+from app.core.database import get_session
+from app.core.security import create_access_token, get_password_hash, verify_password
+# from app.models.auth import Token  <--- YA NO USAREMOS ESTE MODELO SIMPLE
+from app.models.users import User, UserRole  
 
 router = APIRouter()
 
-# --- 1. DEFINIMOS EL ESQUEMA DE RESPUESTA AQUÍ MISMO ---
-# Esto garantiza que FastAPI sepa qué campos devolver al frontend
-class TokenResponse(SQLModel):
+# --- 2. DEFINIR EL NUEVO MODELO DE RESPUESTA ---
+# Esto le dice al Frontend: "Te voy a dar el token Y ADEMÁS tus datos"
+class TokenResponse(BaseModel):
     access_token: str
     token_type: str
-    # Campos extra para el frontend:
     user_id: int
     role: str
     full_name: str
     email: str
 
-# --- HELPER FUNCTION LOCAL ---
-def authenticate_user(db: Session, email: str, password: str):
-    """Busca al usuario y verifica su password"""
-    # Usamos sintaxis compatible con SQLModel (select)
-    statement = select(User).where(User.email == email)
-    user = db.exec(statement).first()
-    
-    if not user:
-        return None
-    if not security.verify_password(password, user.hashed_password):
-        return None
-    return user
-
-# --- ENDPOINT DE LOGIN ---
-# IMPORTANTE: La ruta debe coincidir con la del frontend (/login/access-token)
-@router.post("/access-token", response_model=TokenResponse)
+@router.post("/access-token", response_model=TokenResponse) # <--- 3. USAR EL NUEVO MODELO
 def login_access_token(
-    db: Session = Depends(get_session),
+    session: Session = Depends(get_session), 
     form_data: OAuth2PasswordRequestForm = Depends()
 ) -> Any:
     """
-    OAuth2 compatible token login, get an access token for future requests
+    OAuth2 compatible token login.
+    Devuelve token + datos del usuario (rol, nombre) para actualizar el Frontend.
     """
-    # 1. Autenticar
-    user = authenticate_user(db, email=form_data.username, password=form_data.password)
-    
+    # 1. Buscar usuario por email
+    try:
+        user = session.exec(
+            select(User).where(User.email == form_data.username)
+        ).first()
+    except Exception as e:
+        print(f"Error DB en Login: {e}")
+        raise HTTPException(status_code=500, detail="Error de conexión con base de datos")
+
+    # 2. Validar credenciales
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Correo o contraseña incorrectos",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
+        raise HTTPException(status_code=400, detail="Email o contraseña incorrectos")
+        
+    if not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Email o contraseña incorrectos")
+
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Usuario inactivo")
 
-    # 2. Definir expiración
-    # Si settings.ACCESS_TOKEN_EXPIRE_MINUTES falla, usa 720 (12 horas)
-    expire_minutes = getattr(settings, 'ACCESS_TOKEN_EXPIRE_MINUTES', 720)
-    access_token_expires = timedelta(minutes=expire_minutes)
+    # 3. Crear token
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     
-    # 3. Crear Token y Retornar datos PLANOS
-    # Esto coincide exactamente con lo que espera LoginPage.tsx
+    # Obtener string del rol (Manejo seguro de Enum)
+    role_str = user.role.value if hasattr(user.role, 'value') else str(user.role)
+
+    # 4. RETORNAR PAQUETE COMPLETO
     return {
-        "access_token": security.create_access_token(
-            subject=user.id, 
-            expires_delta=access_token_expires
+        "access_token": create_access_token(
+            subject=user.email, expires_delta=access_token_expires,
+            user_id=user.id,
+            user_role=role_str
         ),
         "token_type": "bearer",
-        
-        # DATOS PLANOS (Sin anidar en "user")
+        # Datos extra para que el Frontend actualice el menú lateral
         "user_id": user.id,
-        "role": user.role,
+        "role": role_str,
         "full_name": user.full_name,
         "email": user.email
     }
+
+# ==========================================
+# 🚑 RUTA DE EMERGENCIA (ASCENSO A DIRECTOR)
+# ==========================================
+# @router.get("/rescue/create-admin")
+# def create_rescue_admin(session: Session = Depends(get_session)):
+#    """
+#    Crea o actualiza al usuario admin@valentina.com con rol de DIRECTOR.
+#    """
+#    email = "admin@valentina.com"
+#    password = "admin123" 
+    
+#    existing_user = session.exec(select(User).where(User.email == email)).first()
+    
+#    try:
+#        if existing_user:
+#            existing_user.hashed_password = get_password_hash(password)
+#            existing_user.is_active = True
+#            existing_user.role = UserRole.DIRECTOR 
+#            session.add(existing_user)
+#            session.commit()
+#            return {"success": True, "message": f"Usuario actualizado. Rol: DIRECTOR. Pass: {password}"}
+        
+#        else:
+#            admin_user = User(
+#                email=email,
+#                hashed_password=get_password_hash(password),
+#                full_name="Director General",
+#                role=UserRole.DIRECTOR,
+#                is_active=True
+#            )
+#            session.add(admin_user)
+#            session.commit()
+#            return {"success": True, "message": f"Usuario CREADO como DIRECTOR: {password}"}
+            
+#    except Exception as e:
+#        return {"success": False, "error": str(e)}

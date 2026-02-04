@@ -1,0 +1,28 @@
+# --- SISTEMA Y GIT ---
+.git/
+.gitignore
+.gcloudignore
+.DS_Store
+venv/
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# --- BASE DE DATOS LOCAL ---
+*.db
+*.sqlite
+*.sqlite3
+
+# --- DOCUMENTOS Y DATOS (Se quedan en tu Mac) ---
+*.csv
+*.xlsx
+*.xls
+*.pdf
+*.docx
+PROJECT_CONTEXT.md
+
+# --- EL INTRUSO (CRÍTICO: No subir esto) ---
+Y/
+google-cloud-sdk/

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
     Save, Plus, Trash2, Package, Edit, 
-    AlertTriangle, CheckCircle2, Calculator 
+    AlertTriangle, CheckCircle2, Calculator, Calendar, Clock 
 } from 'lucide-react';
 
 import { useProviders } from '../hooks/useProviders';
@@ -22,14 +22,14 @@ const InventoryReceptionPage: React.FC = () => {
     const [header, setHeader] = useState({
         provider_id: 0,
         invoice_number: '',
-        invoice_date: new Date().toISOString().split('T')[0],
-        // NUEVO: Fecha de Vencimiento para Cuentas por Pagar
+        invoice_date: new Date().toISOString().split('T')[0], // Fecha Hoy por defecto
         due_date: '', 
         total_amount: 0,
         notes: ''
     });
 
     const [items, setItems] = useState<ReceptionItem[]>([]);
+    const [selectedCreditDays, setSelectedCreditDays] = useState<number>(0); // Estado visual para mostrar días
     
     const [lineItem, setLineItem] = useState({
         material_id: 0,
@@ -47,6 +47,30 @@ const InventoryReceptionPage: React.FC = () => {
         fetchMaterials();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); 
+
+    // --- ✨ AUTOMATIZACIÓN DE FECHAS (NUEVO) ---
+    // Cada vez que cambia el Proveedor o la Fecha de Factura, recalculamos el Vencimiento.
+    useEffect(() => {
+        if (header.provider_id && header.invoice_date) {
+            const provider = providers.find(p => p.id === header.provider_id);
+            if (provider) {
+                const days = provider.credit_days || 0;
+                setSelectedCreditDays(days);
+
+                // Cálculo seguro de fechas (evitando problemas de zona horaria)
+                const parts = header.invoice_date.split('-'); // [YYYY, MM, DD]
+                const baseDate = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+                
+                // Sumar días de crédito
+                baseDate.setDate(baseDate.getDate() + days);
+                
+                const calculatedDueDate = baseDate.toISOString().split('T')[0];
+                
+                setHeader(prev => ({ ...prev, due_date: calculatedDueDate }));
+            }
+        }
+    }, [header.provider_id, header.invoice_date, providers]);
+
 
     // --- CÁLCULOS ---
     const filteredMaterials = useMemo(() => {
@@ -167,12 +191,12 @@ const InventoryReceptionPage: React.FC = () => {
                 ...header,
                 total_amount: Number(header.total_amount),
                 provider_id: Number(header.provider_id),
-                // Si está vacío el vencimiento, enviamos null para que el backend asuma "Contado"
                 due_date: header.due_date ? header.due_date : undefined,
                 items: items
             });
             alert("✅ Recepción Registrada Correctamente.");
             setItems([]);
+            // Reset al estado inicial
             setHeader({
                 provider_id: 0,
                 invoice_number: '',
@@ -213,6 +237,7 @@ const InventoryReceptionPage: React.FC = () => {
             {/* HEADER CARD: DATOS GENERALES Y FINANCIEROS */}
             <Card className="p-6 grid grid-cols-1 md:grid-cols-5 gap-6 bg-white shadow-sm border-slate-200">
                 
+                {/* 1. PROVEEDOR */}
                 <div className="md:col-span-2">
                     <label className="block text-sm font-bold text-slate-700 mb-1">Proveedor *</label>
                     <select 
@@ -222,11 +247,12 @@ const InventoryReceptionPage: React.FC = () => {
                     >
                         <option value={0}>-- Seleccionar Proveedor --</option>
                         {providers?.map(p => (
-                            <option key={p.id} value={p.id}>{p.business_name}</option>
+                            <option key={p.id} value={p.id}>{p.business_name} ({p.credit_days} días)</option>
                         )) || <option disabled>Cargando...</option>}
                     </select>
                 </div>
 
+                {/* 2. FOLIO FACTURA */}
                 <div>
                     <label className="block text-sm font-bold text-slate-700 mb-1">Folio Factura *</label>
                     <Input 
@@ -236,20 +262,21 @@ const InventoryReceptionPage: React.FC = () => {
                     />
                 </div>
 
-                {/* NUEVO CAMPO: FECHA VENCIMIENTO */}
+                {/* 3. FECHA FACTURA (AHORA SÍ LA PEDIMOS) */}
                 <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-1">Vencimiento (Crédito)</label>
+                    <label className="block text-sm font-bold text-slate-700 mb-1 flex items-center gap-1">
+                        <Calendar size={14}/> Fecha Factura
+                    </label>
                     <Input 
                         type="date"
-                        title="Si se deja vacío, se considera CONTADO (Vence hoy)"
-                        value={header.due_date} 
-                        onChange={(e) => setHeader({...header, due_date: e.target.value})}
-                        className="text-slate-600"
+                        value={header.invoice_date} 
+                        onChange={(e) => setHeader({...header, invoice_date: e.target.value})}
                     />
                 </div>
 
+                {/* 4. TOTAL */}
                 <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-1">Total Factura (Neto) *</label>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">Total (Neto) *</label>
                     <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
                         <Input 
@@ -261,6 +288,20 @@ const InventoryReceptionPage: React.FC = () => {
                         />
                     </div>
                 </div>
+
+                {/* 5. VENCIMIENTO (Calculado Automáticamente) */}
+                <div className="md:col-span-1 bg-slate-50 p-2 rounded border border-slate-200">
+                    <label className="block text-xs font-bold text-slate-500 mb-1 flex items-center gap-1 uppercase">
+                        <Clock size={12}/> Vencimiento
+                    </label>
+                    <div className="font-mono font-bold text-slate-700">
+                        {header.due_date || '-'}
+                    </div>
+                    <div className="text-[10px] text-indigo-600 font-medium mt-1">
+                        {selectedCreditDays > 0 ? `Crédito: ${selectedCreditDays} días` : 'Contado / Inmediato'}
+                    </div>
+                </div>
+
             </Card>
 
             <div className="flex flex-col lg:flex-row gap-6">

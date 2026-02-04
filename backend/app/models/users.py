@@ -41,3 +41,5 @@ class UserCreate(UserBase):
 # 5. Público (Output del API - Oculta el password)
 class UserPublic(UserBase):
     id: int
+    # AGREGAMOS ESTO EXPLÍCITAMENTE PARA FORZAR QUE SE ENVÍE
+    commission_rate: float | None = 0.0

@@ -1,33 +1,68 @@
 import os
-from sqlmodel import SQLModel, create_engine, Session
+from sqlmodel import SQLModel, create_engine, Session, select
+from passlib.context import CryptContext
 
-# 1. IMPORTACIÓN DE MODELOS
-# Importamos explícitamente los archivos donde están las tablas.
-# Esto es OBLIGATORIO para que SQLModel sepa qué tablas crear.
-from app.models import material, foundations
+# --- IMPORTANTE: Registramos todos los modelos ---
+from app.models import users, auth, foundations, inventory, sales, design, finance
+from app.models.users import User 
 
-# 2. CONFIGURACIÓN DE LA BASE DE DATOS (Auto-contenida)
-# Calculamos la ruta absoluta para que no importa desde dónde ejecutes el terminal,
-# siempre encuentre la DB en "backend/sgp_v3.db"
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SQLITE_FILE_NAME = "sgp_v3.db"
-DATABASE_URL = f"sqlite:///{os.path.join(BASE_DIR, SQLITE_FILE_NAME)}"
+# --- CONFIGURACIÓN DE CONEXIÓN ---
+DATABASE_URL_ENV = os.getenv("DATABASE_URL")
 
-# Ajuste para evitar errores de hilos en SQLite
-connect_args = {"check_same_thread": False}
+if DATABASE_URL_ENV:
+    # Nube (Cloud Run)
+    SQLALCHEMY_DATABASE_URL = DATABASE_URL_ENV
+    connect_args = {"check_same_thread": False} if "sqlite" in DATABASE_URL_ENV else {}
+else:
+    # Local (Mac)
+    SQLALCHEMY_DATABASE_URL = "sqlite:///./local_dev.db"
+    connect_args = {"check_same_thread": False}
 
-# 3. CREACIÓN DEL MOTOR
-engine = create_engine(DATABASE_URL, echo=True, connect_args=connect_args)
+# Crear el motor
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    echo=False,
+    connect_args=connect_args
+)
 
+# Configuración de hash (BCRYPT)
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# 1. FUNCIÓN DE ARRANQUE
 def create_db_and_tables():
-    """
-    Crea las tablas definidas en los modelos importados arriba.
-    """
-    print(f"--> Conectando a BD en: {DATABASE_URL}")
+    # Crea las tablas
     SQLModel.metadata.create_all(engine)
-    print("--> Tablas verificadas/creadas con éxito.")
+    
+    # --- AUTO-CREACIÓN DE DIRECTOR ---
+    with Session(engine) as session:
+        user = session.exec(select(User).where(User.email == "admin@example.com")).first()
+        
+        if not user:
+            print("--> ⚠️  Base de datos vacía. Calculando credenciales...")
+            try:
+                # AHORA SÍ: Dejamos que el sistema calcule el hash con sus propias reglas
+                # Gracias al fix de requirements.txt, esto ya no fallará.
+                secure_password = pwd_context.hash("admin")
+                
+                admin_user = User(
+                    email="admin@example.com",
+                    hashed_password=secure_password,
+                    full_name="Director General",
+                    is_active=True,
+                    is_superuser=True,
+                    role="DIRECTOR"  # <--- ROL CORRECTO
+                )
+                session.add(admin_user)
+                session.commit()
+                print("--> ✅ Usuario DIRECTOR creado exitosamente (Pass: admin).")
+            except Exception as e:
+                print(f"--> Error creando usuario: {e}")
+                pass
 
+# 2. FUNCIÓN DE SESIÓN
 def get_session():
-    """Dependency para inyectar sesión en los endpoints"""
     with Session(engine) as session:
         yield session
+
+# 3. ALIAS
+get_db = get_session

@@ -1,12 +1,13 @@
 import os
 from io import BytesIO
+from urllib.request import urlopen  # <--- VITAL PARA LEER DE LA NUBE
 from reportlab.lib.pagesizes import LETTER
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image, KeepTogether
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib.enums import TA_RIGHT, TA_LEFT
-from reportlab.lib.utils import ImageReader # <--- 1. NUEVO IMPORT NECESARIO
+from reportlab.lib.utils import ImageReader
 
 class PDFGenerator:
     def __init__(self):
@@ -40,8 +41,8 @@ class PDFGenerator:
 
         self.styles.add(ParagraphStyle(
             name='DateStyle',
-            parent=self.styles['Normal'],
-            fontSize=10,
+            parent=self.styles['Normal'], 
+            fontSize=10, 
             alignment=TA_RIGHT
         ))
 
@@ -56,22 +57,22 @@ class PDFGenerator:
 
         # Datos de la empresa
         company_name = getattr(config, 'company_name', '')
-        company_address = getattr(config, 'company_address', '')
-        company_phone = getattr(config, 'company_phone', '')
-        company_email = getattr(config, 'company_email', '')
-        company_website = getattr(config, 'company_website', '')
+        company_address = getattr(config, 'company_address', '') # Asumiendo que existe en el modelo o se agregará
+        company_phone = getattr(config, 'company_phone', '')     # Asumiendo que existe
+        company_email = getattr(config, 'company_email', '')     # Asumiendo que existe
+        company_website = getattr(config, 'company_website', '') # Asumiendo que existe
 
         footer_text = f"{company_name}"
         if company_address:
             footer_text += f" | {company_address}"
         
         contact_text = ""
-        if company_phone:
-            contact_text += f"Tel: {company_phone} "
-        if company_email:
-            contact_text += f"| Email: {company_email} "
-        if company_website:
-            contact_text += f"| Web: {company_website}"
+        contact_parts = []
+        if company_phone: contact_parts.append(f"Tel: {company_phone}")
+        if company_email: contact_parts.append(f"Email: {company_email}")
+        if company_website: contact_parts.append(f"Web: {company_website}")
+        
+        contact_text = " | ".join(contact_parts)
 
         # Centrado
         canvas.drawCentredString(LETTER[0]/2.0, 35, footer_text)
@@ -107,41 +108,62 @@ class PDFGenerator:
         except:
             date_str = "Fecha no disponible"
 
-        # --- 2. ENCABEZADO Y LOGO ---
-        logo_path = None
+        # --- 2. ENCABEZADO Y LOGO (VERSIÓN CLOUD) ---
+        logo_image_obj = None # Variable para guardar la imagen en RAM
+        
         if hasattr(config, 'logo_path') and config.logo_path:
-            filename = config.logo_path.split("/")[-1]
-            local_path = os.path.join(os.getcwd(), "static", "uploads", filename)
-            if os.path.exists(local_path):
-                logo_path = local_path
+            logo_url = config.logo_path
+            
+            # CASO 1: Es una URL de Google Cloud (http/https)
+            if logo_url.startswith("http"):
+                try:
+                    # Descargamos la imagen a la memoria RAM (BytesIO)
+                    with urlopen(logo_url) as response:
+                        img_data = response.read()
+                    logo_image_obj = BytesIO(img_data)
+                except Exception as e:
+                    print(f"Advertencia: No se pudo descargar el logo desde la nube: {e}")
+                    logo_image_obj = None
+            
+            # CASO 2: Es un archivo local (Desarrollo local)
+            elif os.path.exists(logo_url):
+                 logo_image_obj = logo_url # ReportLab acepta rutas de archivo directas
 
         header_content = []
         company_title = getattr(config, 'company_name', 'Empresa')
         
-        if logo_path:
-            # 2. LÓGICA DE ESCALADO PROPORCIONAL
-            # Leemos las dimensiones reales de la imagen
-            img_reader = ImageReader(logo_path)
-            orig_w, orig_h = img_reader.getSize()
-            aspect = orig_h / float(orig_w)
+        if logo_image_obj:
+            try:
+                # 2. LÓGICA DE ESCALADO PROPORCIONAL
+                img_reader = ImageReader(logo_image_obj)
+                orig_w, orig_h = img_reader.getSize()
+                aspect = orig_h / float(orig_w)
 
-            # Definimos la "caja" máxima donde queremos que quepa el logo
-            # Le damos más espacio: hasta 2.5 pulgadas de ancho y 1.2 de alto
-            max_w = 2.5 * inch
-            max_h = 1.2 * inch
+                # Caja máxima
+                max_w = 2.5 * inch
+                max_h = 1.2 * inch
 
-            # Calculamos nuevas dimensiones
-            new_w = max_w
-            new_h = new_w * aspect
+                new_w = max_w
+                new_h = new_w * aspect
 
-            # Si la altura calculada excede el máximo, restringimos por altura
-            if new_h > max_h:
-                new_h = max_h
-                new_w = new_h / aspect
+                if new_h > max_h:
+                    new_h = max_h
+                    new_w = new_h / aspect
 
-            img = Image(logo_path, width=new_w, height=new_h)
-            img.hAlign = 'LEFT'
-            header_content.append([img, Paragraph(date_str, self.styles['DateStyle'])])
+                # Si es un BytesIO, necesitamos regresar el cursor al inicio para que Image lo lea
+                if isinstance(logo_image_obj, BytesIO):
+                    logo_image_obj.seek(0)
+
+                img = Image(logo_image_obj, width=new_w, height=new_h)
+                img.hAlign = 'LEFT'
+                header_content.append([img, Paragraph(date_str, self.styles['DateStyle'])])
+            except Exception as e:
+                # Si falla la imagen, ponemos texto
+                print(f"Error procesando imagen para PDF: {e}")
+                header_content.append([
+                    Paragraph(f"<b>{company_title}</b>", self.styles['Heading3']), 
+                    Paragraph(date_str, self.styles['DateStyle'])
+                ])
         else:
             header_content.append([
                 Paragraph(f"<b>{company_title}</b>", self.styles['Heading3']), 
@@ -150,7 +172,7 @@ class PDFGenerator:
 
         header_table = Table(header_content, colWidths=[3.5*inch, 3.5*inch])
         header_table.setStyle(TableStyle([
-            ('VALIGN', (0,0), (-1,-1), 'TOP'), # Alineación superior para que fecha y logo coincidan arriba
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
             ('ALIGN', (1,0), (1,0), 'RIGHT'),
             ('LEFTPADDING', (0,0), (-1,-1), 0),
             ('RIGHTPADDING', (0,0), (-1,-1), 0),
@@ -159,10 +181,7 @@ class PDFGenerator:
         elements.append(Spacer(1, 20))
 
         # --- 3. CLIENTE ---
-        client_name = getattr(client, 'full_name', '')
-        if not client_name:
-            client_name = "Cliente General"
-            
+        client_name = getattr(client, 'full_name', '') or "Cliente General"
         client_contact = getattr(client, 'contact_name', '') or 'Quien corresponda'
         
         client_block = [
@@ -203,9 +222,9 @@ class PDFGenerator:
                     f"${subtotal:,.2f}"
                 ])
 
-        subtotal_val = getattr(order, 'subtotal', 0)
-        tax_val = getattr(order, 'tax_amount', 0)
-        total_val = getattr(order, 'total_price', 0)
+        subtotal_val = getattr(order, 'subtotal', 0) or 0.0
+        tax_val = getattr(order, 'tax_amount', 0) or 0.0
+        total_val = getattr(order, 'total_price', 0) or 0.0
 
         data.append(['', '', 'SUBTOTAL:', f"${subtotal_val:,.2f}"])
         data.append(['', '', 'IVA:', f"${tax_val:,.2f}"])

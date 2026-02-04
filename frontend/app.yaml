@@ -1,0 +1,13 @@
+runtime: nodejs22
+service: web
+
+handlers:
+  # Servir archivos estáticos generados
+  - url: /(.*\.(js|css|png|jpg|svg|json|ico|txt))$
+    static_files: dist/\1
+    upload: dist/.*\.(js|css|png|jpg|svg|json|ico|txt)$
+
+  # Redirección para React Router (SPA)
+  - url: /.*
+    static_files: dist/index.html
+    upload: dist/index.html

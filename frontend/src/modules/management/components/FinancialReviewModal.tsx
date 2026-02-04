@@ -28,7 +28,6 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
     const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
 
     // --- MODO SOLO LECTURA ---
-    // Bloqueamos edición si la orden ya fue vendida, rechazada o cancelada.
     const isReadOnly = useMemo(() => {
         if (!order) return true;
         return [
@@ -49,28 +48,49 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
             const data = await salesService.getOrderDetail(id);
             setOrder(data);
             
-            // 1. Cargar Comisión
             let loadedCommission = data.applied_commission_percent || 0;
-            if (loadedCommission > 0 && loadedCommission < 1) loadedCommission *= 100;
+            if (loadedCommission > 0 && loadedCommission < 1) {
+                loadedCommission = loadedCommission * 100;
+            }
+            
             setCommissionPercent(Number(loadedCommission.toFixed(2)));
 
-            // 2. Cargar/Calcular Márgenes Individuales
+            // 1. Cargar Márgenes Individuales
             const calculatedMargins = data.items.map(item => {
                 const cost = item.frozen_unit_cost || 0;
                 const price = item.unit_price || 0;
                 
-                if (cost === 0 || price === 0) return 45; // Default de seguridad
+                const realCommissionFactor = 1 + (loadedCommission / 100);
+                const basePrice = price / realCommissionFactor;
 
-                // Ingeniería inversa: (Precio / Costo) - 1
-                const impliedMargin = ((price / cost) - 1) * 100;
+                if (cost === 0 || basePrice === 0) return 40; // Default fallback
+
+                const impliedMargin = ((basePrice / cost) - 1) * 100;
                 return Number(impliedMargin.toFixed(2));
             });
 
             setItemMargins(calculatedMargins);
 
-            // Calcular promedio para el slider global inicial
-            const avgMargin = calculatedMargins.reduce((a, b) => a + b, 0) / (calculatedMargins.length || 1);
-            setGlobalMargin(Number(avgMargin.toFixed(2)));
+            // 2. Calcular Margen Ponderado Inicial (No promedio simple)
+            let totalCost = 0;
+            let totalBasePrice = 0;
+            
+            data.items.forEach((item, i) => {
+                const qty = item.quantity || 1;
+                const cost = item.frozen_unit_cost || 0;
+                const margin = calculatedMargins[i];
+                // Reconstruimos el precio base desde el margen calculado
+                const price = cost * (1 + (margin / 100));
+
+                totalCost += (cost * qty);
+                totalBasePrice += (price * qty);
+            });
+
+            const initialWeightedMargin = totalCost > 0 
+                ? ((totalBasePrice - totalCost) / totalCost) * 100
+                : 0;
+
+            setGlobalMargin(Number(initialWeightedMargin.toFixed(2)));
 
         } catch (error) {
             console.error("Error cargando orden:", error);
@@ -82,73 +102,106 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
     };
 
     // --- HANDLERS ---
+    
+    // 1. CONTROL MAESTRO: Si muevo el slider, aplico parejo a todos (Reset)
     const handleGlobalMarginChange = (val: number) => {
-        if (isReadOnly) return; // Bloqueo
-        setGlobalMargin(val);
+        if (isReadOnly) return;
+        
+        const safeVal = isNaN(val) ? 0 : val;
+        setGlobalMargin(safeVal);
+        
         if (order) {
-            const newMargins = new Array(order.items.length).fill(val);
+            const newMargins = new Array(order.items.length).fill(safeVal);
             setItemMargins(newMargins);
         }
     };
 
+    // 2. CONTROL INDIVIDUAL: Si cambio uno, calculo el PONDERADO REAL
     const handleItemMarginChange = (index: number, val: number) => {
-        if (isReadOnly) return; // Bloqueo
+        if (isReadOnly || !order) return;
+        const safeVal = isNaN(val) ? 0 : val;
+
         const newMargins = [...itemMargins];
-        newMargins[index] = val;
+        newMargins[index] = safeVal;
         setItemMargins(newMargins);
+
+        // --- LÓGICA DE PROMEDIO PONDERADO REAL ---
+        let totalCost = 0;
+        let totalBasePrice = 0;
+
+        order.items.forEach((item, i) => {
+            const qty = item.quantity || 1;
+            const cost = item.frozen_unit_cost || 0;
+            
+            // Usamos el margen nuevo para este ítem, o el existente para los demás
+            const margin = newMargins[i]; 
+            
+            // Precio Base simulado con este margen
+            const price = cost * (1 + (margin / 100));
+
+            totalCost += (cost * qty);
+            totalBasePrice += (price * qty);
+        });
+
+        // Fórmula de Utilidad Real: (VentaTotal - CostoTotal) / CostoTotal
+        const weightedAvg = totalCost > 0 
+            ? ((totalBasePrice - totalCost) / totalCost) * 100
+            : 0;
+
+        setGlobalMargin(Number(weightedAvg.toFixed(2)));
     };
 
-    // --- MOTOR DE SIMULACIÓN FINANCIERA ---
+    // --- MOTOR DE SIMULACIÓN ---
     const simulation = useMemo(() => {
         if (!order || itemMargins.length === 0) return null;
 
         let totalBaseCost = 0;   
-        let subtotalBase = 0;    
-        let finalSubtotal = 0;   
-
+        let sumOfItems = 0;    
+        
         const simulatedItems = order.items.map((item, index) => {
             const cost = item.frozen_unit_cost || 0;
             totalBaseCost += (cost * item.quantity);
 
             const specificMargin = itemMargins[index] || 0;
 
-            // 1. Precio Base (Costo + Margen Individual)
+            // 1. Precio Base
             const marginMultiplier = 1 + (specificMargin / 100);
             const baseUnitPrice = cost * marginMultiplier;
-            subtotalBase += (baseUnitPrice * item.quantity);
+            
+            sumOfItems += (baseUnitPrice * item.quantity);
 
-            // 2. Precio Final (+ Comisión Global como Add-on)
+            // 2. Precio Final
             const commissionMultiplier = 1 + (commissionPercent / 100);
             const finalUnitPrice = baseUnitPrice * commissionMultiplier;
             
-            const lineTotal = finalUnitPrice * item.quantity;
-            finalSubtotal += lineTotal;
-
             return {
                 ...item,
                 usedMargin: specificMargin,
-                newUnitPrice: finalUnitPrice, 
-                lineTotal
+                baseUnitPrice: baseUnitPrice, 
+                newUnitPrice: finalUnitPrice,
             };
         });
 
-        const commissionAmount = finalSubtotal - subtotalBase;
-        const netUtility = finalSubtotal - totalBaseCost - commissionAmount;
-
+        const commissionAmount = sumOfItems * (commissionPercent / 100);
+        const subtotal = sumOfItems + commissionAmount;
+        
         const taxRate = order.subtotal > 0 ? (order.tax_amount / order.subtotal) : 0.16; 
-        const newTaxAmount = finalSubtotal * taxRate;
-        const newTotal = finalSubtotal + newTaxAmount;
+        const taxAmount = subtotal * taxRate;
+        const total = subtotal + taxAmount;
+
+        const netUtility = subtotal - commissionAmount - totalBaseCost;
 
         const realWeightedMargin = totalBaseCost > 0 
-            ? ((subtotalBase - totalBaseCost) / totalBaseCost) * 100 
+            ? ((sumOfItems - totalBaseCost) / totalBaseCost) * 100 
             : 0;
 
         return {
             totalBaseCost,
-            finalSubtotal,
-            newTaxAmount,
-            newTotal,
+            sumOfItems,
             commissionAmount,
+            subtotal,
+            taxAmount,
+            total,
             netUtility,
             realWeightedMargin,
             simulatedItems
@@ -166,7 +219,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
 
     const handleAuthorize = async () => {
         if (!order || !simulation) return;
-        if (!window.confirm("✅ ¿AUTORIZAR COTIZACIÓN?\n\nAl confirmar:\n1. Se guardarán los precios definidos.\n2. El estatus cambiará a 'AUTORIZADA'.\n3. El vendedor podrá enviarla al cliente.")) return;
+        if (!window.confirm("¿Confirmar Autorización de Precios?")) return;
 
         setProcessing(true);
         try {
@@ -174,19 +227,21 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                 product_name: i.product_name,
                 origin_version_id: i.origin_version_id,
                 quantity: i.quantity,
-                unit_price: Number(i.newUnitPrice.toFixed(2)), 
+                unit_price: Number(i.baseUnitPrice.toFixed(2)), 
                 frozen_unit_cost: i.frozen_unit_cost,
                 cost_snapshot: i.cost_snapshot
             }));
 
+            const commissionToSend = commissionPercent; 
+
             await salesService.updateOrder(order.id, {
                 status: SalesOrderStatus.ACCEPTED, 
                 applied_margin_percent: Number(simulation.realWeightedMargin.toFixed(2)), 
-                applied_commission_percent: commissionPercent,
+                applied_commission_percent: commissionToSend, 
                 items: updatedItems,
-                subtotal: simulation.finalSubtotal,
-                tax_amount: simulation.newTaxAmount,
-                total_price: simulation.newTotal
+                subtotal: simulation.subtotal,
+                tax_amount: simulation.taxAmount,
+                total_price: simulation.total
             });
 
             onOrderUpdated();
@@ -201,7 +256,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
 
     const handleReject = async () => {
         if (!order) return;
-        if (!window.confirm("❌ ¿RECHAZAR Cotización?\n\nSe devolverá a Ventas para correcciones.")) return;
+        if (!window.confirm("¿Rechazar cotización?")) return;
         setProcessing(true);
         try {
             await salesService.rejectOrder(order.id);
@@ -226,8 +281,8 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                     <div>
                         <h2 className="text-lg font-bold flex items-center gap-2">
                             <Calculator size={20} className="text-emerald-400"/> 
-                            Ingeniería Financiera (Auditoría)
-                            {isReadOnly && <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded ml-2 flex items-center gap-1"><Lock size={10}/> MODO SOLO LECTURA</span>}
+                            Ingeniería Financiera
+                            {isReadOnly && <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded ml-2 flex items-center gap-1"><Lock size={10}/> SOLO LECTURA</span>}
                         </h2>
                         <p className="text-xs text-slate-400">
                              Folio #{order?.id} • Proyecto: <span className="text-white font-medium">{order?.project_name}</span>
@@ -241,15 +296,12 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                 {/* BODY */}
                 <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
                     
-                    {/* COLUMNA IZQUIERDA: DETALLE TÉCNICO & MICROMANAGEMENT */}
+                    {/* COLUMNA IZQUIERDA: DETALLE TÉCNICO */}
                     <div className="flex-1 overflow-y-auto p-4 border-r border-slate-200 bg-white">
                         <div className="flex justify-between items-center mb-3">
                             <h3 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
-                                <Layers size={14}/> Gestión de Márgenes por Producto
+                                <Layers size={14}/> Partidas ({order?.items.length})
                             </h3>
-                            <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-1 rounded">
-                                {order?.items.length} Partidas
-                            </span>
                         </div>
                         
                         <div className="space-y-3">
@@ -257,7 +309,6 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                 <div key={index} className="border border-slate-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
                                     <div className={`flex items-center p-3 gap-2 ${expandedItems.has(index) ? 'bg-slate-50 border-b border-slate-200' : ''}`}>
                                         
-                                        {/* 1. Toggle & Nombre */}
                                         <div className="flex items-center gap-2 flex-1 min-w-[180px]">
                                             <button onClick={() => toggleExpand(index)} className="text-slate-400 hover:text-indigo-600">
                                                 {expandedItems.has(index) ? <ChevronDown size={16}/> : <ChevronRight size={16}/>}
@@ -272,16 +323,16 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                             </div>
                                         </div>
 
-                                        {/* 2. MARGEN INDIVIDUAL */}
+                                        {/* MARGEN INDIVIDUAL */}
                                         <div className="flex flex-col items-center px-2 border-l border-slate-100">
                                             <label className="text-[9px] font-bold text-slate-400 mb-1">MARGEN %</label>
                                             <div className="relative w-20">
                                                 <input 
                                                     type="number" 
-                                                    step="0.5"
+                                                    step="0.01" 
                                                     disabled={isReadOnly}
                                                     value={itemMargins[index]}
-                                                    onChange={(e) => handleItemMarginChange(index, Number(e.target.value))}
+                                                    onChange={(e) => handleItemMarginChange(index, parseFloat(e.target.value))}
                                                     className={`w-full text-center font-bold text-sm border rounded py-1 outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-100 disabled:text-slate-500 ${
                                                         !isReadOnly && itemMargins[index] < 30 ? 'text-red-600 bg-red-50 border-red-200' : 'text-indigo-700 border-indigo-200'
                                                     }`}
@@ -289,7 +340,6 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                             </div>
                                         </div>
 
-                                        {/* 3. COSTO UNITARIO */}
                                         <div className="w-24 text-center hidden md:block border-l border-r border-slate-100 mx-2">
                                             <div className="text-[9px] text-slate-400 uppercase">Costo Unit.</div>
                                             <div className="font-mono font-bold text-slate-800 text-sm">
@@ -297,11 +347,10 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                             </div>
                                         </div>
 
-                                        {/* 4. PRECIO FINAL */}
                                         <div className="w-28 text-right pl-2">
-                                            <div className="text-[9px] text-slate-400 uppercase">Precio Venta</div>
-                                            <div className="font-mono font-black text-emerald-700 text-sm">
-                                                {formatCurrency(item.newUnitPrice)}
+                                            <div className="text-[9px] text-slate-400 uppercase">Precio Base</div>
+                                            <div className="font-mono font-bold text-slate-600 text-sm">
+                                                {formatCurrency(item.baseUnitPrice)}
                                             </div>
                                         </div>
                                     </div>
@@ -310,7 +359,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                     {expandedItems.has(index) && (
                                         <div className="bg-slate-50 p-3 shadow-inner text-xs">
                                             {item.cost_snapshot?.ingredients ? (
-                                                <div className="max-h-40 overflow-y-auto custom-scrollbar">
+                                                <div className="max-h-40 overflow-y-auto">
                                                     <table className="w-full">
                                                         <thead className="text-slate-400 text-left bg-slate-100 border-b border-slate-200">
                                                             <tr>
@@ -332,16 +381,6 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                                                 </tr>
                                                             ))}
                                                         </tbody>
-                                                        <tfoot className="border-t border-slate-300 bg-slate-100">
-                                                            <tr>
-                                                                <td colSpan={3} className="pt-2 pb-2 text-right font-bold text-slate-500 text-[10px] uppercase tracking-wider">
-                                                                    Costo Unitario Real:
-                                                                </td>
-                                                                <td className="pt-2 pb-2 text-right font-mono font-black text-slate-800 pr-2 text-sm bg-slate-200/30">
-                                                                    {formatCurrency(item.frozen_unit_cost)}
-                                                                </td>
-                                                            </tr>
-                                                        </tfoot>
                                                     </table>
                                                 </div>
                                             ) : (
@@ -370,15 +409,23 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                             <RefreshCcw size={10} className="text-slate-400"/>
                                             Aplicar Margen a Todo (%)
                                         </label>
-                                        <span className="text-indigo-600 font-black text-xs">{globalMargin}%</span>
                                     </div>
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-2">
                                         <input 
-                                            type="range" min="0" max="100" step="0.5"
+                                            type="range" min="0" max="100" 
+                                            step="0.01" 
                                             disabled={isReadOnly}
-                                            value={globalMargin}
-                                            onChange={(e) => handleGlobalMarginChange(Number(e.target.value))}
+                                            value={globalMargin} // Enlace directo al estado
+                                            onChange={(e) => handleGlobalMarginChange(parseFloat(e.target.value))}
                                             className="flex-1 h-2 bg-indigo-100 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                                        />
+                                        <input 
+                                            type="number" 
+                                            step="0.01" 
+                                            disabled={isReadOnly}
+                                            value={globalMargin} // Enlace directo al estado
+                                            onChange={(e) => handleGlobalMarginChange(parseFloat(e.target.value))}
+                                            className="w-16 p-1 text-right text-xs font-bold border rounded border-indigo-200 text-indigo-700 outline-none"
                                         />
                                     </div>
                                 </div>
@@ -387,7 +434,6 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                 <div className={isReadOnly ? 'opacity-50 pointer-events-none' : ''}>
                                     <div className="flex justify-between items-center mb-1">
                                         <label className="text-xs font-bold text-slate-600">Comisión Vendedor (Add-on)</label>
-                                        <span className="text-amber-600 font-black text-xs">{commissionPercent}%</span>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <input 
@@ -410,31 +456,37 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                         </div>
 
                         {/* RESULTADOS GLOBALES */}
-                        <div className="flex-1 space-y-3">
+                        <div className="flex-1 space-y-3 bg-white p-4 rounded-xl border border-slate-200">
                             <div className="flex justify-between text-sm">
-                                <span className="text-slate-500">Costo Producción:</span>
-                                <span className="font-mono text-slate-700">{formatCurrency(simulation.totalBaseCost)}</span>
+                                <span className="text-slate-500">Suma Importes:</span>
+                                <span className="font-mono text-slate-700">{formatCurrency(simulation.sumOfItems)}</span>
                             </div>
                             
                             <div className="flex justify-between text-sm">
-                                <span className="text-slate-500 flex items-center gap-1"><Plus size={10}/> Comisión Total:</span>
-                                <span className="font-mono text-amber-600">+{formatCurrency(simulation.commissionAmount)}</span>
+                                <span className="text-amber-600 font-medium flex items-center gap-1"><Plus size={10}/> Comisión ({(commissionPercent).toFixed(1)}%):</span>
+                                <span className="font-mono text-amber-600 font-bold">{formatCurrency(simulation.commissionAmount)}</span>
                             </div>
 
-                            <div className="flex justify-between text-sm border-t border-slate-300 pt-2">
-                                <span className="text-slate-700 font-bold">Precio Final Cliente:</span>
-                                <span className="font-mono font-black text-indigo-700 text-lg">{formatCurrency(simulation.finalSubtotal)}</span>
+                            <div className="flex justify-between text-sm border-t border-dashed border-slate-200 pt-2">
+                                <span className="text-slate-700 font-bold">Subtotal:</span>
+                                <span className="font-mono font-bold text-slate-800">{formatCurrency(simulation.subtotal)}</span>
                             </div>
-                            
-                            <div className="bg-slate-800 p-4 rounded-lg text-white mt-4 shadow-lg border border-slate-600">
-                                <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Utilidad Neta Real</div>
-                                <div className={`text-3xl font-black font-mono mt-1 ${simulation.netUtility > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                    {formatCurrency(simulation.netUtility)}
-                                </div>
-                                <div className="flex justify-between items-center mt-2 border-t border-slate-700 pt-2">
-                                    <span className="text-[10px] text-slate-400">Margen Ponderado:</span>
-                                    <span className={`text-sm font-bold ${simulation.realWeightedMargin >= 30 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                                        {simulation.realWeightedMargin.toFixed(2)}%
+
+                            <div className="flex justify-between text-sm">
+                                <span className="text-slate-500">IVA:</span>
+                                <span className="font-mono text-slate-500">{formatCurrency(simulation.taxAmount)}</span>
+                            </div>
+
+                            <div className="flex justify-between text-lg border-t-2 border-slate-800 pt-2 mt-1">
+                                <span className="text-slate-900 font-black">TOTAL:</span>
+                                <span className="font-mono font-black text-emerald-600">{formatCurrency(simulation.total)}</span>
+                            </div>
+
+                            <div className="mt-4 pt-2 border-t border-slate-100">
+                                <div className="flex justify-between items-center text-xs">
+                                    <span className="text-slate-400 uppercase font-bold">Utilidad Neta Real:</span>
+                                    <span className={`font-mono font-bold ${simulation.netUtility > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                        {formatCurrency(simulation.netUtility)} ({simulation.realWeightedMargin.toFixed(1)}%)
                                     </span>
                                 </div>
                             </div>
@@ -464,7 +516,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                             ) : (
                                 <div className="bg-slate-200 p-4 rounded-lg text-center text-slate-500 text-sm font-medium border border-slate-300">
                                     <Lock size={20} className="mx-auto mb-2 text-slate-400"/>
-                                    Esta cotización está cerrada y no puede modificarse.
+                                    Cotización cerrada / vendida.
                                 </div>
                             )}
                         </div>

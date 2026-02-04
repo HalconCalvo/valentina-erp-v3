@@ -1,14 +1,15 @@
-import shutil
 import time
 import csv
 import io
 import os
 import math  # Para el redondeo (Ceiling)
-from pathlib import Path
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, status
 from sqlmodel import Session, select
-from sqlalchemy.exc import IntegrityError 
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func
+from google.cloud import storage  # <--- LIBRERÍA DE GOOGLE
+
 from app.core.database import get_session
 
 # --- MODELOS ---
@@ -18,11 +19,9 @@ from app.models.material import Material
 router = APIRouter()
 
 # -----------------------------------------------------------------------------
-# UTILIDAD: Definición de Rutas Físicas
+# CONSTANTES CLOUD
 # -----------------------------------------------------------------------------
-BASE_DIR = Path(os.getcwd())
-UPLOADS_DIR = BASE_DIR / "static" / "uploads"
-UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+BUCKET_NAME = "valentina-erp-v3-assets"  # <--- TU CUBETA REAL
 
 # ==========================================
 # 1. CONFIGURACIÓN GLOBAL & IDENTIDAD
@@ -55,6 +54,7 @@ def update_global_config(config_in: GlobalConfig, session: Session = Depends(get
     config_data = config_in.model_dump(exclude_unset=True)
     config_data.pop("id", None)
     
+    # Evitar borrar el logo si no se envía nada nuevo
     if "logo_path" in config_data:
          if config_data["logo_path"] is None:
              config_data.pop("logo_path")
@@ -72,42 +72,44 @@ async def upload_company_logo(
     file: UploadFile = File(...),
     session: Session = Depends(get_session)
 ):
+    # 1. Validar formato
     if file.content_type not in ["image/jpeg", "image/png", "image/webp", "image/svg+xml"]:
         raise HTTPException(status_code=400, detail="Formato inválido. Use PNG, JPG o SVG.")
 
+    # 2. Generar nombre único
     file_ext = file.filename.split(".")[-1]
     filename = f"logo_{int(time.time())}.{file_ext}"
-    file_dest = UPLOADS_DIR / filename
     
     try:
-        with open(file_dest, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-    except Exception as e:
-        print(f"Error escritura disco: {e}")
-        raise HTTPException(status_code=500, detail="Error interno al guardar imagen.")
+        # 3. CONEXIÓN A GOOGLE CLOUD STORAGE
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(BUCKET_NAME)
+        blob = bucket.blob(filename)
 
+        # 4. Subir archivo (Regresamos el puntero al inicio por seguridad)
+        await file.seek(0)
+        blob.upload_from_file(file.file, content_type=file.content_type)
+        
+        # 5. Generar URL Pública de Google
+        web_url = f"https://storage.googleapis.com/{BUCKET_NAME}/{filename}"
+
+    except Exception as e:
+        print(f"Error subiendo a Google Cloud: {e}")
+        raise HTTPException(status_code=500, detail=f"Error al subir imagen a la nube: {str(e)}")
+
+    # 6. Guardar URL en Base de Datos
     db_config = session.exec(select(GlobalConfig)).first()
     if not db_config:
         db_config = GlobalConfig(company_name="Empresa Nueva")
         session.add(db_config)
 
-    if db_config.logo_path:
-        try:
-            old_filename = db_config.logo_path.split("/")[-1]
-            old_file_path = UPLOADS_DIR / old_filename
-            if old_file_path.exists():
-                old_file_path.unlink()
-        except Exception:
-            pass 
-
-    web_url = f"http://localhost:8000/static/uploads/{filename}"
     db_config.logo_path = web_url
     
     session.add(db_config)
     session.commit()
     session.refresh(db_config)
 
-    return {"url": web_url, "message": "Logo actualizado exitosamente"}
+    return {"url": web_url, "message": "Logo actualizado exitosamente en la Nube"}
 
 # ==========================================
 # 2. PROVEEDORES

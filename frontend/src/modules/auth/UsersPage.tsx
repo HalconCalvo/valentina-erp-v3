@@ -34,15 +34,15 @@ export default function UsersPage() {
 
   const [form, setForm] = useState(initialForm);
 
-  // --- HELPER DE COLORES (Exactamente igual al Sidebar) ---
+  // --- HELPER DE COLORES ---
   const getRoleBadgeClasses = (role: string) => {
       switch(role) {
-          case 'DIRECTOR': return 'bg-slate-900 text-white border-slate-700'; // Negro
-          case 'ADMIN': return 'bg-indigo-100 text-indigo-700 border-indigo-200'; // Índigo
-          case 'SALES': return 'bg-emerald-100 text-emerald-700 border-emerald-200'; // Verde
-          case 'DESIGN': return 'bg-pink-100 text-pink-700 border-pink-200'; // Rosa
-          case 'WAREHOUSE': return 'bg-orange-100 text-orange-800 border-orange-200'; // Naranja
-          case 'PRODUCTION': return 'bg-blue-100 text-blue-700 border-blue-200'; // Azul
+          case 'DIRECTOR': return 'bg-slate-900 text-white border-slate-700';
+          case 'ADMIN': return 'bg-indigo-100 text-indigo-700 border-indigo-200';
+          case 'SALES': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+          case 'DESIGN': return 'bg-pink-100 text-pink-700 border-pink-200';
+          case 'WAREHOUSE': return 'bg-orange-100 text-orange-800 border-orange-200';
+          case 'PRODUCTION': return 'bg-blue-100 text-blue-700 border-blue-200';
           default: return 'bg-slate-100 text-slate-700 border-slate-200';
       }
   };
@@ -271,16 +271,21 @@ export default function UsersPage() {
                 </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
+                {/* LÓGICA BLINDADA:
+                    1. Si está cargando -> Spinner
+                    2. Si users ES UN ARRAY y TIENE DATOS -> Renderiza
+                    3. Si users NO es array o está vacío -> Mensaje de vacío
+                */}
                 {loading ? (
                     <tr><td colSpan={5} className="p-8 text-center text-slate-400">Cargando usuarios...</td></tr>
-                ) : users.map(user => (
+                ) : Array.isArray(users) && users.length > 0 ? (
+                    users.map(user => (
                     <tr key={user.id} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-6 py-4 text-slate-400 text-xs font-mono">#{user.id}</td>
                         <td className="px-6 py-4">
                             <div className="flex flex-col">
                                 <span className="font-semibold text-slate-900 text-sm flex items-center gap-2">
                                     {user.full_name}
-                                    {/* BADGE DE COMISIÓN */}
                                     {user.role === 'SALES' && (
                                         <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200 font-bold font-mono flex items-center gap-0.5">
                                            <Percent size={8}/> {user.commission_rate}%
@@ -291,7 +296,6 @@ export default function UsersPage() {
                             </div>
                         </td>
                         
-                        {/* COLUMNA DE ROL CON COLOR CORRECTO */}
                         <td className="px-6 py-4">
                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded border text-[10px] font-bold uppercase tracking-wide ${getRoleBadgeClasses(user.role)}`}>
                                 {getRoleIcon(user.role)}
@@ -325,7 +329,14 @@ export default function UsersPage() {
                             </button>
                         </td>
                     </tr>
-                ))}
+                ))) : (
+                    <tr>
+                        <td colSpan={5} className="p-12 text-center text-slate-400 flex flex-col items-center justify-center">
+                            <UserCog size={48} className="mb-2 opacity-20"/>
+                            <span className="text-sm font-medium">No hay usuarios registrados aún.</span>
+                        </td>
+                    </tr>
+                )}
             </tbody>
         </table>
       </div>

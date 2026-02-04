@@ -4,7 +4,7 @@ import {
     Plus, DollarSign, Pencil, Trash2, User, Eye, 
     Send, CheckCircle, AlertTriangle, RefreshCw, Mail, 
     LayoutDashboard, Archive, History, ThumbsDown, Clock, Activity, Wallet, 
-    Check, XCircle, FilterX 
+    Check, XCircle, FilterX, FileText 
 } from 'lucide-react'; 
 
 import { useSales } from '../hooks/useSales';
@@ -30,7 +30,7 @@ const SalesDashboardPage: React.FC = () => {
     // Pestañas principales
     const [activeTab, setActiveTab] = useState<'active' | 'drafts' | 'history'>('active');
     
-    // NUEVO: Filtro Específico (Para cuando das clic a la tarjeta)
+    // Filtro Específico (Para cuando das clic a la tarjeta)
     const [specificStatusFilter, setSpecificStatusFilter] = useState<SalesOrderStatus | null>(null);
 
     const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
@@ -85,13 +85,12 @@ const SalesDashboardPage: React.FC = () => {
         return [];
     }, [orders, userRole, currentUserId]);
 
-    // 3. AUTO-DETECTAR PESTAÑA (Solo al inicio)
+    // 3. AUTO-DETECTAR PESTAÑA
     useEffect(() => {
         if (loadingSales) return;
         const hasActive = myOrders.some(o => o.status === SalesOrderStatus.SENT || o.status === SalesOrderStatus.ACCEPTED || o.status === SalesOrderStatus.CHANGE_REQUESTED);
         const hasDrafts = myOrders.some(o => o.status === SalesOrderStatus.DRAFT || o.status === SalesOrderStatus.REJECTED);
         
-        // Solo cambiar si no hay filtro manual activo
         if (!hasActive && hasDrafts && activeTab === 'active' && !specificStatusFilter) {
             setActiveTab('drafts');
         }
@@ -104,7 +103,7 @@ const SalesDashboardPage: React.FC = () => {
         const currentYear = now.getFullYear();
         
         const soldOrders = myOrders.filter(o => o.status === SalesOrderStatus.SOLD);
-        const sentOrders = myOrders.filter(o => o.status === SalesOrderStatus.SENT); // Filtramos las SENT aparte
+        const sentOrders = myOrders.filter(o => o.status === SalesOrderStatus.SENT); 
 
         const monthlyOrders = soldOrders.filter(o => {
             if (!o.created_at) return false;
@@ -118,25 +117,25 @@ const SalesDashboardPage: React.FC = () => {
             return sum + ((o.total_price || 0) * commissionRate);
         }, 0);
 
-        // Calculamos el monto total de las pendientes
         const pendingAuthAmount = sentOrders.reduce((sum, o) => sum + (o.total_price || 0), 0);
 
         return {
             drafts: myOrders.filter(o => o.status === SalesOrderStatus.DRAFT || o.status === SalesOrderStatus.REJECTED).length,
             inReview: sentOrders.length,
-            inReviewAmount: pendingAuthAmount, // <--- NUEVO DATO AGREGADO
+            inReviewAmount: pendingAuthAmount,
+            // Agregamos el conteo de ventas del mes para equilibrar el diseño
+            monthlyCount: monthlyOrders.length, 
             monthlyRevenue: monthlyRevenue,
             monthlyCommissions: monthlyCommissions
         };
     }, [myOrders]); 
 
-    // 5. FILTRADO POR PESTAÑA + FILTRO INTELIGENTE
+    // 5. FILTRADO
     const filteredOrders = useMemo(() => {
         if (!myOrders) return [];
 
         let baseList = [];
         
-        // A) Selección de Pestaña Base
         switch (activeTab) {
             case 'active': 
                 baseList = myOrders.filter(o => o.status === SalesOrderStatus.SENT || o.status === SalesOrderStatus.ACCEPTED || o.status === SalesOrderStatus.CHANGE_REQUESTED);
@@ -150,7 +149,6 @@ const SalesDashboardPage: React.FC = () => {
             default: baseList = [];
         }
 
-        // B) Aplicar Filtro Específico (Si se hizo clic en una tarjeta)
         if (specificStatusFilter) {
             return baseList.filter(o => o.status === specificStatusFilter);
         }
@@ -160,16 +158,24 @@ const SalesDashboardPage: React.FC = () => {
 
     // --- MANEJADORES DE UI ---
     
-    // Función para limpiar filtros al cambiar de pestaña manual
-    const handleTabChange = (tab: 'active' | 'drafts' | 'history') => {
-        setActiveTab(tab);
-        setSpecificStatusFilter(null); // Limpiar filtro específico
+    // Helper para formato de moneda (Igual que en Home y Gerencia)
+    const formatCurrency = (amount: number) => {
+        return amount.toLocaleString('es-MX', {
+            style: 'currency',
+            currency: 'MXN',
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
     };
 
-    // Función al dar clic en la tarjeta "Por Autorizar"
+    const handleTabChange = (tab: 'active' | 'drafts' | 'history') => {
+        setActiveTab(tab);
+        setSpecificStatusFilter(null);
+    };
+
     const handleCardClickReview = () => {
         setActiveTab('active');
-        setSpecificStatusFilter(SalesOrderStatus.SENT); // FORZAR mostrar solo SENT
+        setSpecificStatusFilter(SalesOrderStatus.SENT);
     };
 
     const handleAction = async (action: () => Promise<void>, confirmMsg?: string) => {
@@ -187,7 +193,6 @@ const SalesDashboardPage: React.FC = () => {
         salesService.downloadPDF(id);
     };
 
-    // Helpers Visuales
     const getClientName = (clientId: number) => {
         const client = clients.find(c => c.id === clientId);
         return client ? client.full_name : `Cliente ID: ${clientId}`;
@@ -235,6 +240,8 @@ const SalesDashboardPage: React.FC = () => {
 
             {/* KPI Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                
+                {/* 1. BORRADORES (SE MANTIENE EL CERO SIEMPRE) */}
                 <Card 
                     className={`p-4 border-l-4 shadow-sm cursor-pointer transition-all ${activeTab === 'drafts' ? 'bg-slate-50 ring-2 ring-slate-200' : 'bg-white'} border-l-slate-400`} 
                     onClick={() => handleTabChange('drafts')}
@@ -244,7 +251,7 @@ const SalesDashboardPage: React.FC = () => {
                     <div className="text-[10px] text-slate-400 mt-1">Clic para ver</div>
                 </Card>
                 
-                {/* --- SEGUNDO CUADRO: POR AUTORIZAR (MODIFICADO) --- */}
+                {/* 2. POR AUTORIZAR (OCULTAR 0) */}
                 <Card 
                     className={`p-4 border-l-4 shadow-sm cursor-pointer transition-all ${specificStatusFilter === SalesOrderStatus.SENT ? 'bg-amber-50 ring-2 ring-amber-200' : 'bg-white'} border-l-amber-500`} 
                     onClick={handleCardClickReview}
@@ -254,32 +261,57 @@ const SalesDashboardPage: React.FC = () => {
                         {specificStatusFilter === SalesOrderStatus.SENT && <Activity size={14} className="text-amber-500 animate-pulse"/>}
                     </div>
                     
-                    {/* Estructura Flex: Izquierda Cantidad, Derecha Dinero */}
-                    <div className="flex flex-row items-baseline justify-between">
-                        {/* Cantidad (Izquierda) */}
-                        <div className="text-2xl font-black text-amber-600">
-                            {kpiData.inReview}
-                        </div>
-                        {/* Importe (Derecha - Color Naranja) */}
-                        <div className="text-2xl font-black text-orange-600">
-                            {kpiData.inReviewAmount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 2 })}
+                    <div className="flex flex-row items-baseline mt-1">
+                        {/* Contador Ocultable */}
+                        {kpiData.inReview > 0 && (
+                            <div className="text-2xl font-black text-amber-600/60">{kpiData.inReview}</div>
+                        )}
+                        {/* Dinero Alineado Derecha */}
+                        <div className="ml-auto text-2xl font-black text-orange-600">
+                            {formatCurrency(kpiData.inReviewAmount)}
                         </div>
                     </div>
 
                     <div className="text-[10px] text-slate-400 mt-1">Requieren firma Dirección</div>
                 </Card>
 
+                {/* 3. VENTAS MES (OCULTAR 0) */}
                 <Card className="p-4 bg-white border-l-4 border-l-emerald-500 shadow-sm">
-                    <div className="text-xs text-slate-500 uppercase font-bold">Ventas Mes ($)</div>
-                    <div className="text-2xl font-black text-emerald-600">{kpiData.monthlyRevenue.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 2 })}</div>
+                    <div className="flex justify-between items-start">
+                        <div className="text-xs text-slate-500 uppercase font-bold">Ventas Mes</div>
+                        <DollarSign size={14} className="text-emerald-500"/>
+                    </div>
+                    
+                    <div className="flex flex-row items-baseline mt-1">
+                        {/* Contador Ocultable */}
+                        {kpiData.monthlyCount > 0 && (
+                            <div className="text-2xl font-black text-emerald-600/50">{kpiData.monthlyCount}</div>
+                        )}
+                        {/* Dinero Alineado Derecha */}
+                        <div className="ml-auto text-2xl font-black text-emerald-600">
+                            {formatCurrency(kpiData.monthlyRevenue)}
+                        </div>
+                    </div>
                     <div className="text-[10px] text-slate-400 mt-1">Cerradas este mes</div>
                 </Card>
+
+                {/* 4. COMISIONES MES (OCULTAR 0) */}
                 <Card className="p-4 bg-white border-l-4 border-l-indigo-500 shadow-sm">
                     <div className="flex items-center justify-between">
                         <div className="text-xs text-slate-500 uppercase font-bold">Comisiones Mes</div>
                         <Wallet size={14} className="text-indigo-400"/>
                     </div>
-                    <div className="text-2xl font-black text-indigo-600">{kpiData.monthlyCommissions.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 2 })}</div>
+                    
+                    <div className="flex flex-row items-baseline mt-1">
+                        {/* Contador Ocultable */}
+                        {kpiData.monthlyCount > 0 && (
+                             <div className="text-2xl font-black text-indigo-600/50">{kpiData.monthlyCount}</div>
+                        )}
+                        {/* Dinero Alineado Derecha */}
+                        <div className="ml-auto text-2xl font-black text-indigo-600">
+                            {formatCurrency(kpiData.monthlyCommissions)}
+                        </div>
+                    </div>
                     <div className="text-[10px] text-slate-400 mt-1">Ganancia estimada</div>
                 </Card>
             </div>
@@ -292,7 +324,6 @@ const SalesDashboardPage: React.FC = () => {
                     <button onClick={() => handleTabChange('history')} className={`px-4 py-1.5 text-xs font-bold rounded-md flex items-center gap-2 transition-all ${activeTab === 'history' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><History size={14}/> Histórico Cerrado</button>
                 </div>
 
-                {/* Aviso visual de filtro activo */}
                 {specificStatusFilter === SalesOrderStatus.SENT && (
                     <div className="flex items-center gap-2 bg-amber-50 text-amber-800 text-xs px-3 py-1.5 rounded-full border border-amber-200 animate-fadeIn">
                         <FilterX size={12}/>
@@ -340,11 +371,9 @@ const SalesDashboardPage: React.FC = () => {
                                     <td className="px-6 py-4 text-center">{renderStatusBadge(order.status as SalesOrderStatus)}</td>
                                     <td className="px-6 py-4 text-right font-mono font-bold text-slate-700">${order.total_price?.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
                                     
-                                    {/* --- COLUMNA DE ACCIONES --- */}
                                     <td className="px-6 py-4 text-center">
                                         <div className="flex justify-center items-center gap-2">
                                             
-                                            {/* A) BORRADORES (Solo Ventas y Admin) */}
                                             {(order.status === SalesOrderStatus.DRAFT || order.status === SalesOrderStatus.CHANGE_REQUESTED || order.status === SalesOrderStatus.REJECTED) && (
                                                 <>
                                                     <button onClick={() => handleAction(() => salesService.requestAuth(order.id), "¿Enviar a revisión?")} disabled={processingId === order.id} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg" title="Enviar a Revisión"><Send size={18} /></button>
@@ -353,53 +382,46 @@ const SalesDashboardPage: React.FC = () => {
                                                 </>
                                             )}
 
-                                            {/* B) EN REVISIÓN (Aquí entra el Director) */}
                                             {order.status === SalesOrderStatus.SENT && (
                                                 <div className="flex gap-2 bg-amber-50 p-1 rounded-lg border border-amber-100">
-                                                    {/* Botón Ver (Para Todos) */}
                                                     <button onClick={() => setSelectedOrderId(order.id)} className="p-2 text-slate-600 hover:bg-white rounded shadow-sm" title="Ver Detalles"><Eye size={18} /></button>
-                                                    
-                                                    {/* BOTONES EXCLUSIVOS DIRECTOR/ADMIN */}
                                                     {(userRole === 'DIRECTOR' || userRole === 'ADMIN') && (
                                                         <>
                                                             <div className="w-px bg-amber-200 mx-1"></div>
-                                                            <button 
-                                                                onClick={() => handleAction(() => salesService.authorizeOrder(order.id), "¿Autorizar esta cotización?")} 
-                                                                className="p-2 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 rounded transition-colors"
-                                                                title="Autorizar"
-                                                            >
-                                                                <Check size={18} strokeWidth={3} />
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => handleAction(() => salesService.requestChanges(order.id), "¿Devolver a Ventas para ajustes?")} 
-                                                                className="p-2 text-orange-500 hover:bg-orange-100 hover:text-orange-700 rounded transition-colors"
-                                                                title="Solicitar Cambios"
-                                                            >
-                                                                <RefreshCw size={18} />
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => handleAction(() => salesService.rejectOrder(order.id), "¿Rechazar definitivamente?")} 
-                                                                className="p-2 text-slate-400 hover:bg-red-100 hover:text-red-600 rounded transition-colors"
-                                                                title="Rechazar"
-                                                            >
-                                                                <XCircle size={18} />
-                                                            </button>
+                                                            <button onClick={() => handleAction(() => salesService.authorizeOrder(order.id), "¿Autorizar esta cotización?")} className="p-2 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 rounded transition-colors" title="Autorizar"><Check size={18} strokeWidth={3} /></button>
+                                                            <button onClick={() => handleAction(() => salesService.requestChanges(order.id), "¿Devolver a Ventas para ajustes?")} className="p-2 text-orange-500 hover:bg-orange-100 hover:text-orange-700 rounded transition-colors" title="Solicitar Cambios"><RefreshCw size={18} /></button>
+                                                            <button onClick={() => handleAction(() => salesService.rejectOrder(order.id), "¿Rechazar definitivamente?")} className="p-2 text-slate-400 hover:bg-red-100 hover:text-red-600 rounded transition-colors" title="Rechazar"><XCircle size={18} /></button>
                                                         </>
                                                     )}
                                                 </div>
                                             )}
 
-                                            {/* C) AUTORIZADA (Listo para cliente) */}
                                             {order.status === SalesOrderStatus.ACCEPTED && (
-                                                <div className="flex gap-1 p-1 bg-slate-50 border border-slate-200 rounded-lg shadow-sm">
-                                                    <button onClick={() => handleSendEmail(order.id)} className="p-2 text-slate-600 hover:bg-blue-100 hover:text-blue-700 rounded" title="Descargar PDF / Email"><Mail size={18} /></button>
+                                                <div className="flex gap-1 p-1 bg-green-50 border border-green-100 rounded-lg shadow-sm">
+                                                    {/* 1. Ver / Descargar PDF */}
+                                                    <button onClick={() => handleSendEmail(order.id)} className="p-2 text-slate-600 hover:bg-blue-100 hover:text-blue-700 rounded" title="Descargar PDF">
+                                                        <FileText size={18} />
+                                                    </button>
+                                                    
+                                                    {/* 2. Cliente Aceptó (Vender) */}
+                                                    <button onClick={() => handleAction(() => salesService.markAsSold(order.id), "¿Confirmar que el cliente aceptó? Se generará la Orden de Venta.")} className="p-2 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 rounded shadow-sm" title="Cliente Aceptó (Vender)">
+                                                        <DollarSign size={18} />
+                                                    </button>
+
                                                     <div className="w-px bg-slate-300 mx-1"></div>
-                                                    <button onClick={() => handleAction(() => salesService.markAsSold(order.id), "¿Confirmar Venta?")} className="p-2 bg-emerald-600 text-white hover:bg-emerald-700 rounded shadow-sm" title="Marcar como Vendida"><DollarSign size={18} /></button>
-                                                    <button onClick={() => handleAction(() => salesService.markAsLost(order.id), "¿Marcar Perdida?")} className="p-2 text-slate-400 hover:bg-red-100 hover:text-red-600 rounded" title="Marcar como Perdida"><ThumbsDown size={18} /></button>
+                                                    
+                                                    {/* 3. Modificar (Re-enviar) */}
+                                                    <button onClick={() => navigate(`/sales/edit/${order.id}`)} className="p-2 text-amber-600 hover:bg-amber-100 rounded" title="Modificar (Re-enviar a Dirección)">
+                                                        <Pencil size={18} />
+                                                    </button>
+                                                    
+                                                    {/* 4. Eliminar */}
+                                                    <button onClick={() => handleAction(() => salesService.deleteOrder(order.id), "¿Seguro que deseas eliminar esta cotización autorizada?")} className="p-2 text-slate-400 hover:bg-red-100 hover:text-red-600 rounded" title="Eliminar">
+                                                        <Trash2 size={18} />
+                                                    </button>
                                                 </div>
                                             )}
 
-                                            {/* D) HISTÓRICO (Vendida o Perdida) */}
                                             {(order.status === SalesOrderStatus.SOLD || order.status === SalesOrderStatus.CLIENT_REJECTED) && (
                                                  <button onClick={() => setSelectedOrderId(order.id)} className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg"><Eye size={18} /></button>
                                             )}

@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Union, Optional
 from pydantic import AnyHttpUrl, validator
 from pydantic_settings import BaseSettings
 
@@ -6,20 +6,13 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "SGP V3 ERP"
     API_V1_STR: str = "/api/v1"
     
-    # Clave por defecto para DEV (En Prod se sobreescribe con .env)
     SECRET_KEY: str = "DESARROLLO_SECRET_KEY_INSEGURA_SOLO_LOCAL"
-    
-    # --- AGREGA ESTA LÍNEA ---
     ALGORITHM: str = "HS256"
-    # -------------------------
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8 
     
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 días
-    
-    # Cors origins: Por defecto permitimos localhost para Vite
-    BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = [
-        "http://localhost:5173",
-        "http://127.0.0.1:5173"
-    ]
+    # --- CORS DINÁMICO ---
+    # Esto leerá la lista del .env
+    BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = []
 
     @validator("BACKEND_CORS_ORIGINS", pre=True)
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> Union[List[str], str]:
@@ -29,11 +22,15 @@ class Settings(BaseSettings):
             return v
         raise ValueError(v)
 
-    # Base de Datos: Por defecto SQLite local
     DATABASE_URL: str = "sqlite:///./sgp_v3.db"
+
+    # Google Cloud
+    GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = None
+    GOOGLE_CLOUD_BUCKET_NAME: Optional[str] = None
 
     class Config:
         case_sensitive = True
         env_file = ".env"
+        extra = "ignore" # Ignora variables extra en el .env
 
 settings = Settings()

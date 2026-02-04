@@ -25,6 +25,19 @@ class SalesOrderStatus(str, enum.Enum):
     COMPLETED = "COMPLETED"
     CANCELLED = "CANCELLED"
 
+# --- NUEVOS ENUMS PARA COBRANZA ---
+class PaymentStatus(str, enum.Enum):
+    PENDING = "PENDING"     # No se ha pagado nada (Rojo)
+    PARTIAL = "PARTIAL"     # Anticipo o parcialidades (Naranja)
+    PAID = "PAID"           # Liquidada al 100% (Verde)
+
+class PaymentMethod(str, enum.Enum):
+    TRANSFERENCIA = "TRANSFERENCIA"
+    EFECTIVO = "EFECTIVO"
+    CHEQUE = "CHEQUE"
+    TARJETA = "TARJETA"
+    OTRO = "OTRO"
+
 # ==========================================
 # 2. MODELO DE PARTIDAS (ITEMS)
 # ==========================================
@@ -59,9 +72,8 @@ class SalesOrder(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     
     # Relaciones
-    client_id: int
-    tax_rate_id: int
-    # --- NUEVO CAMPO: VENDEDOR ASIGNADO ---
+    client_id: int = Field(foreign_key="clients_v2.id")
+    tax_rate_id: int = Field(foreign_key="tax_rates.id")
     user_id: Optional[int] = Field(default=None, foreign_key="users.id") 
     
     # Datos Generales
@@ -72,10 +84,10 @@ class SalesOrder(SQLModel, table=True):
     valid_until: datetime
     delivery_date: Optional[datetime] = None
     
-    # Financiero
+    # Financiero Venta
     applied_margin_percent: float = Field(default=0.0)
     applied_tolerance_percent: float = Field(default=0.0)
-    applied_commission_percent: float = Field(default=0.0) # Ya existía, perfecto.
+    applied_commission_percent: float = Field(default=0.0)
     
     currency: str = Field(default="MXN")
     
@@ -84,11 +96,42 @@ class SalesOrder(SQLModel, table=True):
     tax_amount: float = Field(default=0.0)
     total_price: float = Field(default=0.0)
     
+    # --- NUEVOS CAMPOS PARA CUENTAS POR COBRAR ---
+    outstanding_balance: float = Field(default=0.0) # Saldo pendiente de cobro
+    payment_status: PaymentStatus = Field(default=PaymentStatus.PENDING)
+
     # Extras
     notes: Optional[str] = None
     conditions: Optional[str] = None
     external_invoice_ref: Optional[str] = None
     is_warranty: bool = Field(default=False)
 
-    # Relación
+    # Relaciones
     items: List[SalesOrderItem] = Relationship(back_populates="order", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
+    payments: List["CustomerPayment"] = Relationship(back_populates="order") # <--- NUEVA RELACIÓN
+
+# ==========================================
+# 4. MODELO DE COBROS (NUEVO)
+# ==========================================
+class CustomerPayment(SQLModel, table=True):
+    __tablename__ = "customer_payments"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    
+    # Relación con la Orden de Venta
+    sales_order_id: int = Field(foreign_key="sales_orders.id")
+    
+    # Datos del Pago
+    amount: float
+    payment_date: datetime
+    payment_method: PaymentMethod = Field(default=PaymentMethod.TRANSFERENCIA)
+    
+    reference: Optional[str] = None # Referencia SPEI / Cheque
+    notes: Optional[str] = None
+    
+    # Auditoría
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_by_user_id: int
+    
+    # Relaciones
+    order: Optional[SalesOrder] = Relationship(back_populates="payments")

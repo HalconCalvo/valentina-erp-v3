@@ -1,54 +1,69 @@
-from datetime import datetime
-from typing import Any
-from fastapi import APIRouter
-from sqlmodel import select
+from datetime import date
+from typing import Any, Dict
+from fastapi import APIRouter, Depends
+from sqlmodel import SQLModel, select
 
-from app.core.deps import SessionDep
-from app.models.inventory import PurchaseInvoice
-from app.schemas.inventory_schema import AccountsPayableStats
+from app.core.database import get_session
+# --- CORRECCIÓN 1: Importar desde FINANCE ---
+from app.models.finance import PurchaseInvoice, InvoiceStatus
+
+# Definimos el Schema de respuesta localmente (o podrías importarlo de schemas)
+class AccountsPayableStats(SQLModel):
+    total_payable: float
+    overdue_amount: float
+    upcoming_amount: float
+    breakdown_by_age: Dict[str, float]
 
 router = APIRouter()
 
 @router.get("/accounts-payable-summary", response_model=AccountsPayableStats)
-def get_accounts_payable_summary(session: SessionDep) -> Any:
+def get_accounts_payable_summary(session: Any = Depends(get_session)) -> Any:
     """
     Reporte Financiero de Cuentas por Pagar (Pasivos).
     Calcula la deuda total y la desglosa por antigüedad de saldos (vencimiento).
     """
-    
-    # 1. Consultar facturas vivas (Pendientes o Parciales)
-    # Ignoramos las pagadas ("PAID")
-    statement = select(PurchaseInvoice).where(PurchaseInvoice.payment_status != "PAID")
+    # 1. Consultar facturas vivas (No Pagadas y No Canceladas)
+    # --- CORRECCIÓN 2: Usar el Enum InvoiceStatus y el campo 'status' ---
+    statement = select(PurchaseInvoice).where(
+        PurchaseInvoice.status != InvoiceStatus.PAID,
+        PurchaseInvoice.status != InvoiceStatus.CANCELLED
+    )
     invoices = session.exec(statement).all()
 
     # 2. Inicializar contadores
     total_payable = 0.0
-    overdue_amount = 0.0 # Vencido
-    upcoming_amount = 0.0 # Por vencer (Corriente)
+    overdue_amount = 0.0 
+    upcoming_amount = 0.0 
     
     breakdown = {
-        "current": 0.0, # No ha vencido
-        "1-30": 0.0,    # Vencido hace 1 a 30 días
+        "current": 0.0, 
+        "1-30": 0.0,    
         "31-60": 0.0,
         "61-90": 0.0,
-        "+90": 0.0      # Problema crítico
+        "+90": 0.0      
     }
 
-    now = datetime.now()
+    # --- CORRECCIÓN 3: Usar date.today() para ser compatible con el modelo ---
+    today = date.today()
 
     # 3. Procesar lógica de antigüedad
     for inv in invoices:
-        # Usamos el saldo pendiente, no el total original (por si hubo abonos parciales)
+        # Usamos el campo directo, ya sabemos que existe
         balance = inv.outstanding_balance
+        
+        # Si el saldo es 0 o negativo (error de datos), lo ignoramos
+        if balance <= 0:
+            continue
+
         total_payable += balance
 
         # Calcular días de vencimiento
-        # Si due_date es hoy o futuro, days_overdue será <= 0
+        # El modelo garantiza due_date, pero por seguridad validamos
         if inv.due_date:
-            delta = now - inv.due_date
+            # Ambos son 'date', la resta es segura
+            delta = today - inv.due_date
             days_overdue = delta.days
         else:
-            # Si por error no hay fecha, asumimos que venció hoy
             days_overdue = 0
 
         if days_overdue <= 0:

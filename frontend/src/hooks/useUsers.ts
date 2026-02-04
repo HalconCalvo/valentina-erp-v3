@@ -1,15 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
-// Ajustamos la importación a relativa para evitar errores de alias
+// Corregimos el nombre del archivo si tenias un typo (axios-client vs axios-clinet)
 import client from '../api/axios-client';
 
-// Definimos la interfaz aquí mismo para no depender de archivos externos por ahora
 export interface User {
     id: number;
     email: string;
     full_name: string;
     role: string;
     is_active: boolean;
-    commission_rate?: number; // <--- NUEVO CAMPO AGREGADO
+    commission_rate?: number;
 }
 
 export function useUsers() {
@@ -21,12 +20,13 @@ export function useUsers() {
     const fetchUsers = useCallback(async () => {
         setLoading(true);
         try {
-            // Nota: La barra final '/' es importante si FastAPI así lo define
-            const res = await client.get<User[]>('/auth/users/');
+            // FIX: Ruta correcta es '/users/' (Sin /auth)
+            const res = await client.get<User[]>('/users/');
             setUsers(res.data);
             setError(null);
         } catch (err: any) {
             console.error(err);
+            // Evitamos mostrar error si es solo que está vacío al inicio
             setError('Error al cargar usuarios.');
         } finally {
             setLoading(false);
@@ -36,7 +36,8 @@ export function useUsers() {
     // POST: Crear
     const createUser = async (payload: any) => {
         try {
-            await client.post('/auth/users/', payload);
+            // FIX: Ruta correcta es '/users/'
+            await client.post('/users/', payload);
             await fetchUsers(); 
             return { success: true };
         } catch (err: any) {
@@ -46,10 +47,11 @@ export function useUsers() {
         }
     };
 
-    // PUT: Actualizar (Edición de rol, nombre o password)
+    // PUT: Actualizar
     const updateUser = async (id: number, user: any) => {
         try {
-            await client.put(`/auth/users/${id}`, user);
+            // FIX: Ruta correcta
+            await client.put(`/users/${id}`, user);
             await fetchUsers();
             return { success: true };
         } catch (err: any) {
@@ -62,7 +64,8 @@ export function useUsers() {
     // DELETE: Eliminar
     const deleteUser = async (id: number) => {
         try {
-            await client.delete(`/auth/users/${id}`);
+            // FIX: Ruta correcta
+            await client.delete(`/users/${id}`);
             await fetchUsers();
             return { success: true };
         } catch (err: any) {
@@ -80,7 +83,7 @@ export function useUsers() {
         users,
         loading,
         error,
-        fetchUsers, // Exportamos esto para el botón de refrescar manual
+        fetchUsers,
         createUser,
         updateUser,
         deleteUser

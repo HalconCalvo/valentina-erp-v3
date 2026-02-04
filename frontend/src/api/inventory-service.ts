@@ -4,15 +4,16 @@ import { ReceptionCreatePayload, InventoryReception } from '../types/inventory';
 // --- TIPOS NUEVOS (Reporte Financiero) ---
 export interface AccountsPayableStats {
     total_payable: number;
+    total_documents: number; // <--- ¡AGREGADO! El contador de facturas
     overdue_amount: number;
     upcoming_amount: number;
     breakdown_by_age: {
-        current: number;
+        current?: number;       // Lo puse opcional (?) por si el backend no lo envía explícitamente como "current"
         "1-30": number;
         "31-60": number;
-        "61-90": number;
+        "61-90"?: number;       // Opcional para flexibilidad
         "+90": number;
-        [key: string]: number;
+        [key: string]: number | undefined;
     };
 }
 
@@ -35,10 +36,11 @@ export const inventoryService = {
 
     /**
      * NUEVO: Obtiene el reporte financiero de Cuentas por Pagar (KPIs + Antigüedad)
-     * Conecta con GET /analytics/accounts-payable-summary
+     * NOTA: Se actualizó la URL para coincidir con inventory.py
      */
     getAccountsPayableSummary: async (): Promise<AccountsPayableStats> => {
-        const response = await axiosClient.get('/analytics/accounts-payable-summary');
+        // CORREGIDO: Apuntamos al endpoint que acabamos de crear en inventory.py
+        const response = await axiosClient.get('/inventory/financial-summary');
         return response.data;
     }
 };

@@ -1,374 +1,478 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
 import { 
-    TrendingUp, AlertTriangle, CheckCircle, Clock, 
-    DollarSign, ThumbsDown, RefreshCw, Package, 
-    Settings, Edit, FileText, Activity, 
-    CalendarDays, Wallet, TrendingDown, LayoutDashboard, History, ListFilter
+    TrendingDown, Users, DollarSign, 
+    AlertTriangle, Calendar, ArrowRight, Filter, CheckSquare,
+    FileText, CheckCircle2, X, Clock, Trash2, Edit2
 } from 'lucide-react';
-
-// Hooks & Services
-import { useSales } from '../../sales/hooks/useSales'; 
-import { useMaterials } from '../../foundations/hooks/useMaterials';
-import { inventoryService, AccountsPayableStats } from '../../../api/inventory-service';
-
-// Types & UI
-import { SalesOrderStatus } from '../../../types/sales';
 import Card from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
-import { FinancialReviewModal } from '../components/FinancialReviewModal';
+import Badge from '../../../components/ui/Badge';
+import { financeService } from '../../../api/finance-service';
+import { AccountsPayableStats, PendingInvoice, SupplierPayment, PaymentRequestPayload } from '../../../types/finance';
+import { PaymentRequestModal } from '../components/PaymentRequestModal';
+
+// Tipos para controlar la navegación interna
+type DashboardSection = 'INVENTORY' | 'PAYROLL' | 'EXPENSES' | 'PAYABLE' | null;
+type PayableFilter = 'THIS_FRIDAY' | 'NEXT_15_DAYS' | 'FUTURE' | null;
+type PayableViewMode = 'TO_REQUEST' | 'REQUESTED';
 
 const ManagementDashboard: React.FC = () => {
-    const navigate = useNavigate();
-    
-    // 1. DATA: VENTAS
-    const { orders, fetchOrders, loading: loadingSales } = useSales();
-    const safeOrders = Array.isArray(orders) ? orders : [];
-    
-    // 2. DATA: INVENTARIO
-    const { materials, loading: loadingMats } = useMaterials();
+    // --- ESTADOS ---
+    const [stats, setStats] = useState<AccountsPayableStats | null>(null);
+    const [invoices, setInvoices] = useState<PendingInvoice[]>([]);
+    const [sentRequests, setSentRequests] = useState<SupplierPayment[]>([]); 
+    const [loading, setLoading] = useState(false);
 
-    // 3. DATA: CUENTAS POR PAGAR (Backend Real)
-    const [apStats, setApStats] = useState<AccountsPayableStats | null>(null);
-    const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+    // Navegación Interactiva
+    const [activeSection, setActiveSection] = useState<DashboardSection>(null);
+    const [payableViewMode, setPayableViewMode] = useState<PayableViewMode>('TO_REQUEST'); 
+    const [activeFilter, setActiveFilter] = useState<PayableFilter>(null);
     
-    // 4. UI: TABS DE FILTRADO
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'pipeline' | 'history'>('dashboard');
+    // Modal de Pago (Creación y Edición)
+    const [selectedInvoice, setSelectedInvoice] = useState<PendingInvoice | null>(null);
+    const [editingRequest, setEditingRequest] = useState<SupplierPayment | null>(null);
 
+    // --- CARGA DE DATOS INICIALES (KPIs) ---
     useEffect(() => {
-        fetchOrders();
-        
-        inventoryService.getAccountsPayableSummary()
-            .then(data => setApStats(data))
-            .catch(err => console.error("Error cargando finanzas:", err));
+        loadStats();
+    }, []);
 
-    }, [fetchOrders]);
-
-    // --- FECHAS ---
-    const now = new Date();
-    const currentMonth = now.getMonth(); 
-    const currentYear = now.getFullYear();
-    const currentMonthName = now.toLocaleString('es-MX', { month: 'long' });
-
-    // --- CÁLCULOS KPI GLOBALES (Independientes del Tab) ---
-    const pendingOrders = safeOrders.filter(o => o.status === SalesOrderStatus.SENT);
-    const pendingAmount = pendingOrders.reduce((acc, curr) => acc + (curr.total_price || 0), 0);
-    
-    const approvedOrdersThisMonth = safeOrders.filter(o => {
-        const isSold = o.status === SalesOrderStatus.ACCEPTED || o.status === SalesOrderStatus.SOLD;
-        const orderDate = o.created_at ? new Date(o.created_at) : new Date();
-        const isCurrentMonth = orderDate.getMonth() === currentMonth && orderDate.getFullYear() === currentYear;
-        return isSold && isCurrentMonth;
-    });
-    const approvedAmountMonth = approvedOrdersThisMonth.reduce((acc, curr) => acc + (curr.total_price || 0), 0);
-
-    const receivableOrders = safeOrders.filter(o => o.status === SalesOrderStatus.ACCEPTED);
-    const receivableAmount = receivableOrders.reduce((acc, curr) => acc + (curr.total_price || 0), 0);
-    
-    const loading = loadingSales || loadingMats;
-    const hasPending = pendingOrders.length > 0;
-
-    // --- FILTRADO POR PESTAÑA ---
-    const filteredOrders = useMemo(() => {
-        // Excluimos borradores en todas las vistas
-        const baseOrders = safeOrders.filter(o => o.status !== SalesOrderStatus.DRAFT);
-        
-        switch (activeTab) {
-            case 'dashboard':
-                // AHORA (Antes Tablero): Lo urgente + Resultados del Mes
-                return baseOrders.filter(o => {
-                    const isUrgent = o.status === SalesOrderStatus.SENT || o.status === SalesOrderStatus.CHANGE_REQUESTED;
-                    
-                    // Resultados del mes (Vendido o Perdido)
-                    const orderDate = o.created_at ? new Date(o.created_at) : new Date();
-                    const isThisMonth = orderDate.getMonth() === currentMonth && orderDate.getFullYear() === currentYear;
-                    const isResult = (o.status === SalesOrderStatus.SOLD || o.status === SalesOrderStatus.REJECTED || o.status === SalesOrderStatus.CLIENT_REJECTED) && isThisMonth;
-                    
-                    // También incluimos las "En Espera" para tener visión completa
-                    const isWaiting = o.status === SalesOrderStatus.ACCEPTED;
-
-                    return isUrgent || isWaiting || isResult;
-                });
-            
-            case 'pipeline':
-                // EN SEGUIMIENTO: Solo lo que está vivo en la cancha (Autorizadas o en Ajustes)
-                return baseOrders.filter(o => 
-                    o.status === SalesOrderStatus.ACCEPTED || 
-                    o.status === SalesOrderStatus.CHANGE_REQUESTED
-                );
-            
-            case 'history':
-                // HISTÓRICO: Todo lo cerrado (Vendido o Perdido) de cualquier fecha
-                return baseOrders.filter(o => 
-                    o.status === SalesOrderStatus.SOLD || 
-                    o.status === SalesOrderStatus.REJECTED || 
-                    o.status === SalesOrderStatus.CLIENT_REJECTED
-                );
-
-            default:
-                return baseOrders;
-        }
-    }, [safeOrders, activeTab, currentMonth, currentYear]);
-
-    // --- BADGES (SEMÁFORO INTELIGENTE) ---
-    const renderStatusBadge = (status: SalesOrderStatus) => {
-        switch (status) {
-            // INTENSIDAD ALTA (Naranja/Ámbar) - Acción Requerida
-            case SalesOrderStatus.SENT:
-                return <span className="px-2 py-1 bg-amber-100 text-amber-800 rounded border border-amber-200 text-xs font-bold flex items-center gap-1 w-fit"><AlertTriangle size={12}/> POR AUTORIZAR</span>;
-            case SalesOrderStatus.CHANGE_REQUESTED:
-                return <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded border border-orange-200 text-xs font-bold flex items-center gap-1 w-fit"><RefreshCw size={12}/> EN AJUSTES</span>;
-            
-            // INTENSIDAD MEDIA (Azul) - Flujo Normal / Espera
-            case SalesOrderStatus.ACCEPTED:
-                return <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded border border-blue-200 text-xs font-bold flex items-center gap-1 w-fit"><Clock size={12}/> AUTORIZADA / ESPERA</span>;
-            
-            // INTENSIDAD BAJA (Verde) - Éxito
-            case SalesOrderStatus.SOLD:
-                return <span className="px-2 py-1 bg-emerald-100 text-emerald-800 rounded border border-emerald-200 text-xs font-bold flex items-center gap-1 w-fit shadow-sm"><DollarSign size={12}/> VENDIDA</span>;
-            
-            // INTENSIDAD APAGADA (Gris) - Muertas
-            case SalesOrderStatus.CLIENT_REJECTED:
-                return <span className="px-2 py-1 bg-slate-100 text-slate-500 rounded border border-slate-200 text-xs font-bold flex items-center gap-1 w-fit"><ThumbsDown size={12}/> PERDIDA</span>;
-            case SalesOrderStatus.REJECTED: // Rechazo interno (Gerencia)
-                return <span className="px-2 py-1 bg-slate-100 text-slate-400 rounded border border-slate-200 text-xs font-bold w-fit">CANCELADA</span>;
-            
-            default:
-                return <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded text-xs w-fit">{status}</span>;
+    const loadStats = async () => {
+        try {
+            const data = await financeService.getPayableDashboardStats();
+            setStats(data);
+        } catch (error) {
+            console.error("Error cargando KPIs:", error);
         }
     };
 
+    // --- CARGA DE DATOS ---
+    useEffect(() => {
+        if (activeSection === 'PAYABLE') {
+            refreshData();
+        }
+    }, [activeSection, payableViewMode]);
+
+    const refreshData = async () => {
+        setLoading(true);
+        try {
+            const [invoicesData, requestsData] = await Promise.all([
+                financeService.getPendingInvoices(),
+                financeService.getPendingApprovals()
+            ]);
+            setInvoices(invoicesData);
+            setSentRequests(requestsData);
+            loadStats(); 
+        } catch (error) {
+            console.error("Error al refrescar datos", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // --- LÓGICA DE FILTRADO (Viernes de Corte) ---
+    const getFilteredInvoices = () => {
+        if (!activeFilter) return [];
+
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        
+        const dayOfWeek = today.getDay(); 
+        let daysUntilFriday = 5 - dayOfWeek;
+        if (dayOfWeek === 6) { daysUntilFriday = 6; }
+        
+        const cutoffDate = new Date(today);
+        cutoffDate.setDate(today.getDate() + daysUntilFriday);
+        cutoffDate.setHours(23, 59, 59, 999);
+
+        const nextPeriodLimit = new Date(cutoffDate);
+        nextPeriodLimit.setDate(cutoffDate.getDate() + 15);
+
+        return invoices.filter(inv => {
+            const dueDate = new Date(inv.due_date + 'T12:00:00'); 
+            if (activeFilter === 'THIS_FRIDAY') return dueDate <= cutoffDate;
+            if (activeFilter === 'NEXT_15_DAYS') return dueDate > cutoffDate && dueDate <= nextPeriodLimit;
+            if (activeFilter === 'FUTURE') return dueDate > nextPeriodLimit;
+            return false;
+        });
+    };
+
+    const filteredData = getFilteredInvoices();
+
+    // --- FORMATO ---
+    const formatCurrency = (amount: number) => 
+        amount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+    
+    const formatDate = (dateStr: string) => {
+        if (!dateStr) return "-";
+        if (dateStr.includes('T')) return new Date(dateStr).toLocaleDateString('es-MX', {day: '2-digit', month: '2-digit'});
+        const [year, month, day] = dateStr.split('-');
+        return `${day}/${month}/${year}`;
+    };
+
+    // --- ACCIONES ---
+    const handleEditRequest = (req: SupplierPayment) => {
+        const relatedInvoice = invoices.find(inv => 
+            inv.invoice_number === req.invoice_folio && inv.provider_name === req.provider_name
+        );
+        setSelectedInvoice(relatedInvoice || null);
+        setEditingRequest(req);
+    };
+
+    const handleModalSubmit = async (payload: PaymentRequestPayload) => {
+        try {
+            if (editingRequest) {
+                await financeService.updatePaymentRequest(editingRequest.id, payload);
+                alert("✅ Solicitud actualizada correctamente.");
+            } else {
+                await financeService.requestPayment(payload);
+                alert("✅ Solicitud enviada a Dirección.");
+            }
+            closeModal();
+            refreshData();
+        } catch (e) {
+            alert("❌ Error al procesar la solicitud.");
+        }
+    };
+
+    const handleCancelRequest = async (id: number) => {
+        if(!confirm("¿Estás seguro de cancelar esta solicitud? Se eliminará y el saldo volverá a estar disponible.")) return;
+        try {
+            await financeService.cancelPaymentRequest(id);
+            refreshData();
+        } catch (e) {
+            alert("Error al cancelar la solicitud.");
+        }
+    };
+
+    const closeModal = () => {
+        setSelectedInvoice(null);
+        setEditingRequest(null);
+    };
+
+    // --- CÁLCULOS DE TOTALES ---
+    const totalDebt = (stats?.overdue_amount || 0) + (stats?.next_period_amount || 0) + (stats?.future_amount || 0);
+    const pendingApprovals = stats?.total_pending_approval || 0;
+    const totalDocuments = (stats?.overdue_count || 0) + (stats?.next_period_count || 0) + (stats?.future_count || 0);
+
     return (
-        <div className="p-6 max-w-7xl mx-auto space-y-8 pb-24">
+        <div className="p-8 max-w-7xl mx-auto pb-24 space-y-8 animate-fadeIn">
             
             {/* HEADER */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-slate-200 pb-4 gap-4">
-                <div>
-                    <h1 className="text-3xl font-black text-slate-900 flex items-center gap-2 tracking-tight">
-                        <Activity className="text-indigo-600" /> Torre de Control
-                    </h1>
-                    <p className="text-slate-500 text-sm mt-1">
-                        Visión global: Auditoría de Ventas y Flujo de Caja Operativo.
-                    </p>
-                </div>
-                <div className="text-right bg-slate-50 px-4 py-2 rounded-lg border border-slate-100">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Fecha de Corte</p>
-                    <p className="text-sm font-bold text-slate-700 font-mono">{new Date().toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                </div>
+            <div>
+                <h1 className="text-3xl font-black text-slate-800">Panel de Gerencia</h1>
+                <p className="text-slate-500">Visión Estratégica y Flujo de Efectivo.</p>
             </div>
 
-            {/* KPI CARDS (Se mantienen igual) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* --- NIVEL 1: TARJETAS SUPERIORES --- */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 
-                {/* 1. POR AUTORIZAR */}
-                <Card className={`p-5 border-l-4 ${hasPending ? 'border-l-amber-500' : 'border-l-emerald-500'} bg-white shadow-sm relative overflow-hidden group hover:shadow-lg transition-all`}>
+                {/* 1. COTIZACIONES */}
+                <Card className="p-4 opacity-60 grayscale cursor-not-allowed border-l-4 border-l-slate-400 bg-white h-full">
                     <div className="flex justify-between items-start">
-                        <div>
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                {hasPending ? 'Pendiente Autorizar' : 'Bandeja al Día'}
-                            </p>
-                            <h3 className="text-2xl font-black text-slate-800 mt-1">
-                                ${pendingAmount.toLocaleString('es-MX', { maximumFractionDigits: 0 })}
-                            </h3>
-                            <p className={`text-xs ${hasPending ? 'text-amber-600' : 'text-emerald-600'} font-bold mt-2 flex items-center gap-1`}>
-                                <Clock size={12}/> {pendingOrders.length} cotizaciones
-                            </p>
-                        </div>
-                        <div className={`p-2 ${hasPending ? 'bg-amber-50 text-amber-500' : 'bg-emerald-50 text-emerald-500'} rounded`}>
-                            {hasPending ? <AlertTriangle size={20}/> : <CheckCircle size={20}/>}
-                        </div>
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Cotizaciones</p>
+                        <CheckSquare size={14} className="text-slate-400" />
+                    </div>
+                    <div className="mt-1">
+                        <h3 className="text-xl font-bold text-slate-700">Por Autorizar</h3>
+                        <p className="text-[10px] text-slate-400 mt-1">Próximamente</p>
                     </div>
                 </Card>
 
-                {/* 2. VENTAS DEL MES */}
-                <Card className="p-5 border-l-4 border-l-emerald-500 bg-white shadow-sm relative overflow-hidden group hover:shadow-lg transition-all">
+                {/* 2. VENTAS MES */}
+                <Card className="p-4 opacity-60 grayscale cursor-not-allowed border-l-4 border-l-indigo-400 bg-white h-full">
                     <div className="flex justify-between items-start">
-                        <div>
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                Ventas {currentMonthName}
-                            </p>
-                            <h3 className="text-2xl font-black text-slate-800 mt-1">
-                                ${approvedAmountMonth.toLocaleString('es-MX', { maximumFractionDigits: 0 })}
-                            </h3>
-                            <p className="text-xs text-emerald-600 font-bold mt-2 flex items-center gap-1">
-                                <CalendarDays size={12}/> {approvedOrdersThisMonth.length} cierres
-                            </p>
-                        </div>
-                        <div className="p-2 bg-emerald-50 rounded text-emerald-500"><DollarSign size={20}/></div>
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Facturación</p>
+                        <DollarSign size={14} className="text-indigo-400" />
+                    </div>
+                    <div className="mt-1">
+                        <h3 className="text-xl font-bold text-slate-700">Ventas del Mes</h3>
+                        <p className="text-[10px] text-slate-400 mt-1">Próximamente</p>
                     </div>
                 </Card>
 
-                {/* 3. CUENTAS POR COBRAR */}
-                <Card 
-                    onClick={() => alert("Próximamente: Reporte de Antigüedad de Saldos (Clientes).")}
-                    className="p-5 border-l-4 border-l-emerald-500 bg-white shadow-sm relative overflow-hidden group hover:shadow-lg transition-all cursor-pointer"
-                >
+                {/* 3. INGRESOS */}
+                <Card className="p-4 opacity-60 grayscale cursor-not-allowed border-l-4 border-l-emerald-400 bg-white h-full">
                     <div className="flex justify-between items-start">
-                        <div>
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Cuentas por Cobrar</p>
-                            <h3 className="text-2xl font-black text-slate-800 mt-1">
-                                ${receivableAmount.toLocaleString('es-MX', { maximumFractionDigits: 0 })}
-                            </h3>
-                            <p className="text-xs text-emerald-600 font-bold mt-2 flex items-center gap-1">
-                                <Wallet size={12}/> {receivableOrders.length} proyectos activos
-                            </p>
-                        </div>
-                        <div className="p-2 bg-emerald-50 rounded text-emerald-500 group-hover:bg-emerald-100 transition-colors">
-                            <TrendingUp size={20}/>
-                        </div>
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Ingresos</p>
+                        <Users size={14} className="text-emerald-400" />
+                    </div>
+                    <div className="mt-1">
+                        <h3 className="text-xl font-bold text-slate-700">Ctas. por Cobrar</h3>
+                        <p className="text-[10px] text-slate-400 mt-1">Próximamente</p>
                     </div>
                 </Card>
 
-                {/* 4. CUENTAS POR PAGAR */}
+                {/* 4. CUENTAS POR PAGAR (TARJETA PRINCIPAL) */}
                 <Card 
                     onClick={() => {
-                         if (!apStats) return;
-                         alert(`DETALLE DE VENCIMIENTOS PROVEEDORES:\n\n` +
-                               `🟢 Corriente: $${apStats.upcoming_amount.toLocaleString()}\n` +
-                               `🔴 Vencido Total: $${apStats.overdue_amount.toLocaleString()}\n\n` +
-                               `-- Desglose Vencido --\n` +
-                               `1-30 días: $${apStats.breakdown_by_age["1-30"].toLocaleString()}\n` +
-                               `31-60 días: $${apStats.breakdown_by_age["31-60"].toLocaleString()}\n` +
-                               `+90 días: $${apStats.breakdown_by_age["+90"].toLocaleString()}`);
+                        setActiveSection(activeSection === 'PAYABLE' ? null : 'PAYABLE');
+                        setActiveFilter(null);
+                        setPayableViewMode('TO_REQUEST');
                     }}
-                    className="p-5 border-l-4 border-l-red-500 bg-white shadow-sm relative overflow-hidden group hover:shadow-lg transition-all cursor-pointer"
+                    className={`p-4 cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-red-500 transform hover:-translate-y-1 h-full
+                    ${activeSection === 'PAYABLE' ? 'ring-2 ring-red-500 bg-slate-50 shadow-md' : 'bg-white shadow-sm'}`}
                 >
-                     <div className="flex justify-between items-start">
-                        <div>
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Cuentas por Pagar</p>
-                            
-                            <h3 className="text-2xl font-black text-slate-800 mt-1">
-                                ${ (apStats?.total_payable || 0).toLocaleString('es-MX', { maximumFractionDigits: 0 }) }
-                            </h3>
-                            
-                            {apStats && apStats.overdue_amount > 0 ? (
-                                <p className="text-xs text-red-600 font-bold mt-2 flex items-center gap-1 animate-pulse">
-                                    <AlertTriangle size={12}/> Vencido: ${apStats.overdue_amount.toLocaleString()}
-                                </p>
-                            ) : (
-                                <p className="text-xs text-slate-400 font-bold mt-2 flex items-center gap-1">
-                                    <CheckCircle size={12}/> Al corriente
-                                </p>
+                    <div className="flex justify-between items-start">
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Cuentas x Pagar</p>
+                        <TrendingDown size={14} className="text-red-500" />
+                    </div>
+                    
+                    {/* FLEX para alinear: Contador Docs (Izq) - Dinero (Der) */}
+                    <div className="flex flex-row items-baseline mt-1 justify-between w-full">
+                        {totalDocuments > 0 ? (
+                            <div className="text-2xl font-black text-red-600/50 animate-pulse">
+                                {totalDocuments}
+                            </div>
+                        ) : (
+                             <div></div>
+                        )}
+                        
+                        {/* Importe Alineado a la Derecha con text-xl */}
+                        <div className="text-xl font-black text-red-600 text-right">
+                            {formatCurrency(totalDebt)}
+                        </div>
+                    </div>
+
+                    {pendingApprovals > 0 ? (
+                        <p className="text-[10px] text-red-600 font-bold mt-1 flex items-center gap-1">
+                            <Clock size={10}/> {pendingApprovals} solicitudes
+                        </p>
+                    ) : (
+                        <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                            <CheckCircle2 size={10}/> Al día
+                        </p>
+                    )}
+                </Card>
+            </div>
+
+            {/* --- NIVEL 2: MÓDULO DE PAGOS --- */}
+            {activeSection === 'PAYABLE' && (
+                <div className="animate-in slide-in-from-top-4 duration-300 relative mt-6 pt-6 border-t border-slate-200">
+                    <button onClick={() => setActiveSection(null)} className="absolute -top-3 -right-2 p-2 bg-white shadow-md rounded-full text-slate-400 hover:text-red-500 z-10"><X size={20}/></button>
+
+                    {/* TABS DE NAVEGACIÓN */}
+                    <div className="flex items-center space-x-1 mb-6 bg-slate-100 p-1 rounded-lg w-fit">
+                        <button onClick={() => setPayableViewMode('TO_REQUEST')} className={`px-4 py-2 text-sm font-bold rounded-md transition-all flex items-center gap-2 ${payableViewMode === 'TO_REQUEST' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                            <TrendingDown size={16}/> Por Solicitar
+                        </button>
+                        <button onClick={() => setPayableViewMode('REQUESTED')} className={`px-4 py-2 text-sm font-bold rounded-md transition-all flex items-center gap-2 ${payableViewMode === 'REQUESTED' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                            <Clock size={16}/> En Espera de Autorización {pendingApprovals > 0 && <span className="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded-full">{pendingApprovals}</span>}
+                        </button>
+                    </div>
+
+                    {/* --- VISTA 1: POR SOLICITAR --- */}
+                    {payableViewMode === 'TO_REQUEST' && (
+                        <>
+                            <div className="flex items-center gap-2 text-slate-400 text-sm font-bold tracking-wide mb-4">
+                                <TrendingDown size={16}/> <span>Flujo de Efectivo: Seleccione una tarjeta para auditar</span>
+                            </div>
+
+                            {/* TARJETAS SEMÁFORO (Diseño Final) */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                
+                                {/* ROJA */}
+                                <Card 
+                                    onClick={() => setActiveFilter('THIS_FRIDAY')}
+                                    className={`p-6 cursor-pointer border transition-all group relative overflow-hidden
+                                    ${activeFilter === 'THIS_FRIDAY' 
+                                        ? 'bg-gradient-to-br from-red-600 to-red-700 text-white shadow-xl scale-105 border-transparent' 
+                                        : 'bg-white border-slate-200 hover:border-red-400 hover:shadow-md'}`}
+                                >
+                                    <div className="relative z-10">
+                                        <div className="flex justify-between items-center mb-4">
+                                            <span className={`text-xs font-bold uppercase tracking-wider ${activeFilter === 'THIS_FRIDAY' ? 'text-red-100' : 'text-red-600'}`}>
+                                                <AlertTriangle className="inline mr-1 mb-1" size={14}/> Pago Inmediato
+                                            </span>
+                                        </div>
+                                        <p className={`text-sm mb-2 ${activeFilter === 'THIS_FRIDAY' ? 'text-red-100' : 'text-slate-400'}`}>
+                                            Vencido + Este Viernes
+                                        </p>
+                                        
+                                        {/* FILA DE DATOS (Contador Izq / Dinero Der - Ambos text-xl) */}
+                                        <div className="flex items-end justify-between">
+                                            <div className={`text-xl font-bold leading-none ${activeFilter === 'THIS_FRIDAY' ? 'text-red-200' : 'text-slate-300'}`}>
+                                                {stats?.overdue_count || 0}
+                                            </div>
+                                            <div className={`text-xl font-black text-right ${activeFilter === 'THIS_FRIDAY' ? 'text-white' : 'text-slate-800'}`}>
+                                                {formatCurrency(stats?.overdue_amount || 0)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </Card>
+
+                                {/* NARANJA */}
+                                <Card 
+                                    onClick={() => setActiveFilter('NEXT_15_DAYS')}
+                                    className={`p-6 cursor-pointer border transition-all group relative overflow-hidden
+                                    ${activeFilter === 'NEXT_15_DAYS' 
+                                        ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-xl scale-105 border-transparent' 
+                                        : 'bg-white border-slate-200 hover:border-orange-400 hover:shadow-md'}`}
+                                >
+                                    <div className="relative z-10">
+                                        <div className="flex justify-between items-center mb-4">
+                                            <span className={`text-xs font-bold uppercase tracking-wider ${activeFilter === 'NEXT_15_DAYS' ? 'text-orange-100' : 'text-orange-600'}`}>
+                                                <Calendar className="inline mr-1 mb-1" size={14}/> Proyección Corta
+                                            </span>
+                                        </div>
+                                        <p className={`text-sm mb-2 ${activeFilter === 'NEXT_15_DAYS' ? 'text-orange-100' : 'text-slate-400'}`}>
+                                            Siguientes 15 Días
+                                        </p>
+                                        
+                                        <div className="flex items-end justify-between">
+                                            <div className={`text-xl font-bold leading-none ${activeFilter === 'NEXT_15_DAYS' ? 'text-orange-200' : 'text-slate-300'}`}>
+                                                {stats?.next_period_count || 0}
+                                            </div>
+                                            <div className={`text-xl font-black text-right ${activeFilter === 'NEXT_15_DAYS' ? 'text-white' : 'text-slate-800'}`}>
+                                                {formatCurrency(stats?.next_period_amount || 0)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </Card>
+
+                                {/* VERDE */}
+                                <Card 
+                                    onClick={() => setActiveFilter('FUTURE')}
+                                    className={`p-6 cursor-pointer border transition-all group relative overflow-hidden
+                                    ${activeFilter === 'FUTURE' 
+                                        ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-xl scale-105 border-transparent' 
+                                        : 'bg-white border-slate-200 hover:border-emerald-400 hover:shadow-md'}`}
+                                >
+                                    <div className="relative z-10">
+                                        <div className="flex justify-between items-center mb-4">
+                                            <span className={`text-xs font-bold uppercase tracking-wider ${activeFilter === 'FUTURE' ? 'text-emerald-100' : 'text-emerald-600'}`}>
+                                                <ArrowRight className="inline mr-1 mb-1" size={14}/> Largo Plazo
+                                            </span>
+                                        </div>
+                                        <p className={`text-sm mb-2 ${activeFilter === 'FUTURE' ? 'text-emerald-100' : 'text-slate-400'}`}>
+                                            Vencimientos Futuros
+                                        </p>
+                                        
+                                        <div className="flex items-end justify-between">
+                                            <div className={`text-xl font-bold leading-none ${activeFilter === 'FUTURE' ? 'text-emerald-200' : 'text-slate-300'}`}>
+                                                {stats?.future_count || 0}
+                                            </div>
+                                            <div className={`text-xl font-black text-right ${activeFilter === 'FUTURE' ? 'text-white' : 'text-slate-800'}`}>
+                                                {formatCurrency(stats?.future_amount || 0)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </Card>
+                            </div>
+
+                            {/* TABLA DE AUDITORÍA */}
+                            {activeFilter && (
+                                <div className="animate-in slide-in-from-bottom-4 duration-500 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden mt-8">
+                                    <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4">
+                                        <h3 className="font-bold text-slate-700 flex items-center gap-2 text-lg">
+                                            <Filter size={18} className="text-slate-400"/> Auditoría: 
+                                            <span className={`uppercase ml-1 font-black px-2 py-0.5 rounded text-sm ${activeFilter === 'THIS_FRIDAY' ? 'bg-red-100 text-red-700' : activeFilter === 'NEXT_15_DAYS' ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                                {activeFilter === 'THIS_FRIDAY' ? 'Pago Inmediato' : activeFilter === 'NEXT_15_DAYS' ? 'Proyección 15 Días' : 'Futuros'}
+                                            </span>
+                                        </h3>
+                                        <Badge variant="secondary" className="text-sm px-3 py-1">{filteredData.length} Documentos</Badge>
+                                    </div>
+
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm text-left">
+                                            <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-100">
+                                                <tr><th className="px-6 py-4">Proveedor</th><th className="px-6 py-4">Factura</th><th className="px-6 py-4">Vencimiento</th><th className="px-6 py-4 text-right">Saldo Disponible</th><th className="px-6 py-4 text-center">Acción</th></tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50">
+                                                {loading ? (
+                                                    <tr><td colSpan={5} className="text-center py-12 text-slate-400">Cargando datos...</td></tr>
+                                                ) : filteredData.length === 0 ? (
+                                                    <tr><td colSpan={5} className="text-center py-12 text-slate-400 italic">No hay documentos pendientes.</td></tr>
+                                                ) : (
+                                                    filteredData.map((inv) => {
+                                                        const pendingRequestsForThisInvoice = sentRequests.filter(
+                                                            req => req.invoice_folio === inv.invoice_number && req.provider_name === inv.provider_name
+                                                        );
+                                                        const moneyAlreadyRequested = pendingRequestsForThisInvoice.reduce((sum, req) => sum + req.amount, 0);
+                                                        const realAvailableBalance = inv.outstanding_balance - moneyAlreadyRequested;
+                                                        const isFullyRequested = realAvailableBalance <= 0.01; 
+
+                                                        return (
+                                                            <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
+                                                                <td className="px-6 py-4 font-bold text-slate-700">{inv.provider_name}</td>
+                                                                <td className="px-6 py-4"><span className="font-mono bg-slate-100 px-2 py-1 rounded text-slate-600 text-xs">{inv.invoice_number}</span></td>
+                                                                <td className="px-6 py-4 text-slate-600"><div className="flex items-center gap-2"><Calendar size={14} className="text-slate-400"/>{formatDate(inv.due_date)}</div></td>
+                                                                <td className="px-6 py-4 text-right">
+                                                                    <div className="font-black text-slate-800">{formatCurrency(realAvailableBalance)}</div>
+                                                                    {moneyAlreadyRequested > 0 && <div className="text-[10px] text-amber-600 italic">(-{formatCurrency(moneyAlreadyRequested)} en espera)</div>}
+                                                                </td>
+                                                                <td className="px-6 py-4 text-center">
+                                                                    <Button 
+                                                                        size="sm" 
+                                                                        className={`shadow-sm ${isFullyRequested ? 'bg-slate-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}
+                                                                        disabled={isFullyRequested}
+                                                                        onClick={() => !isFullyRequested && setSelectedInvoice({...inv, outstanding_balance: realAvailableBalance})}
+                                                                    >
+                                                                        {isFullyRequested ? 'En Proceso' : <><CheckCircle2 size={16} className="mr-1"/> Solicitar</>}
+                                                                    </Button>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
                             )}
+                        </>
+                    )}
 
-                        </div>
-                        <div className="p-2 bg-red-50 rounded text-red-500 group-hover:bg-red-100 transition-colors">
-                            <TrendingDown size={20}/>
-                        </div>
-                    </div>
-                </Card>
-            </div>
-
-            {/* TABLA DE AUDITORÍA CON PESTAÑAS */}
-            <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                        <FileText size={20} className="text-slate-400"/> Auditoría de Operaciones
-                    </h3>
-
-                    {/* CONTROL DE PESTAÑAS */}
-                    <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
-                        {/* AQUÍ ESTÁ EL CAMBIO: 'AHORA' */}
-                        <button
-                            onClick={() => setActiveTab('dashboard')}
-                            className={`px-4 py-1.5 text-xs font-bold rounded-md flex items-center gap-2 transition-all ${activeTab === 'dashboard' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                            <LayoutDashboard size={14}/> Ahora
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('pipeline')}
-                            className={`px-4 py-1.5 text-xs font-bold rounded-md flex items-center gap-2 transition-all ${activeTab === 'pipeline' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                            <ListFilter size={14}/> En Seguimiento
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('history')}
-                            className={`px-4 py-1.5 text-xs font-bold rounded-md flex items-center gap-2 transition-all ${activeTab === 'history' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                            <History size={14}/> Histórico Cerrado
-                        </button>
-                    </div>
-                </div>
-
-                <Card className="overflow-hidden bg-white shadow-sm border border-slate-200 min-h-[300px]">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left">
-                            <thead className="bg-slate-50 text-slate-500 font-bold text-xs uppercase border-b border-slate-200">
-                                <tr>
-                                    <th className="px-6 py-4">Folio</th>
-                                    <th className="px-6 py-4">Cliente / Proyecto</th>
-                                    <th className="px-6 py-4 text-center">Estatus</th>
-                                    <th className="px-6 py-4 text-right">Monto Venta</th>
-                                    <th className="px-6 py-4 text-center">Gestión</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {loading ? (
-                                    <tr><td colSpan={5} className="p-8 text-center text-slate-400">Calculando indicadores...</td></tr>
-                                ) : filteredOrders.length === 0 ? (
-                                    <tr><td colSpan={5} className="p-12 text-center text-slate-400 italic">No hay registros en esta vista.</td></tr>
-                                ) : filteredOrders.map((order) => (
-                                    <tr key={order.id} className="hover:bg-slate-50 transition-colors">
-                                        <td className="px-6 py-4 font-bold text-slate-800">#{order.id}</td>
-                                        <td className="px-6 py-4">
-                                            <div className="font-medium text-slate-900">{order.project_name}</div>
-                                            <div className="text-xs text-slate-500">
-                                                {new Date(order.created_at || Date.now()).toLocaleDateString('es-MX')} 
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 text-center">{renderStatusBadge(order.status as SalesOrderStatus)}</td>
-                                        <td className="px-6 py-4 text-right">
-                                            <div className="font-bold text-slate-800 text-base">
-                                                ${order.total_price?.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                                            </div>
-                                            <div className="text-[10px] text-slate-400">
-                                                Margen: {order.applied_margin_percent}%
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 text-center">
-                                            
-                                            {/* BOTONES DE ACCIÓN SEGÚN ESTATUS */}
-
-                                            {/* AUDITAR (Solo Gerente en Pendientes) */}
-                                            {order.status === SalesOrderStatus.SENT && (
-                                                <Button 
-                                                    size="sm"
-                                                    className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-200 transition-all hover:scale-105"
-                                                    onClick={() => setSelectedOrderId(order.id)}
-                                                >
-                                                    <Settings size={14} className="mr-2"/> Auditar
-                                                </Button>
+                    {/* --- VISTA 2: SOLICITUDES ENVIADAS --- */}
+                    {payableViewMode === 'REQUESTED' && (
+                        <div className="animate-in slide-in-from-right-4 duration-300">
+                            <div className="bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden">
+                                <div className="p-4 bg-indigo-50 border-b border-indigo-100 flex justify-between items-center">
+                                    <h3 className="font-bold text-indigo-800 flex items-center gap-2 text-lg"><Clock className="text-indigo-600"/> Solicitudes en Espera de Dirección</h3>
+                                    <Badge variant="secondary" className="bg-white text-indigo-700 border border-indigo-200">{sentRequests.length} Solicitudes</Badge>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm text-left">
+                                        <thead className="text-xs text-indigo-800 uppercase bg-indigo-50/50 border-b border-indigo-100">
+                                            <tr><th className="px-6 py-4">Proveedor</th><th className="px-6 py-4">Detalle Factura</th><th className="px-6 py-4">Monto Solicitado</th><th className="px-6 py-4">Fecha Solicitud</th><th className="px-6 py-4 text-center">Acciones</th></tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            {loading ? (
+                                                <tr><td colSpan={5} className="text-center py-12 text-slate-400">Cargando solicitudes...</td></tr>
+                                            ) : sentRequests.length === 0 ? (
+                                                <tr><td colSpan={5} className="text-center py-12 text-slate-400 italic">No hay solicitudes pendientes de aprobación.</td></tr>
+                                            ) : (
+                                                sentRequests.map((req) => (
+                                                    <tr key={req.id} className="hover:bg-slate-50 transition-colors">
+                                                        <td className="px-6 py-4 font-bold text-slate-700">{req.provider_name}</td>
+                                                        <td className="px-6 py-4"><div className="flex flex-col"><span className="font-mono text-xs text-slate-500">Folio: {req.invoice_folio}</span>{req.notes && <span className="text-[10px] text-amber-600 mt-1 italic">"{req.notes}"</span>}</div></td>
+                                                        <td className="px-6 py-4 font-black text-slate-800">{formatCurrency(req.amount)}</td>
+                                                        <td className="px-6 py-4 text-slate-500">{new Date(req.created_at).toLocaleDateString('es-MX')}</td>
+                                                        <td className="px-6 py-4 text-center">
+                                                            <div className="flex items-center justify-center gap-2">
+                                                                <button onClick={() => handleEditRequest(req)} title="Editar Solicitud" className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"><Edit2 size={16}/></button>
+                                                                <button onClick={() => handleCancelRequest(req.id)} title="Cancelar Solicitud" className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"><Trash2 size={16}/></button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))
                                             )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                 </div>
+            )}
 
-                                            {/* VER DETALLE (Para seguimiento o histórico) */}
-                                            {order.status !== SalesOrderStatus.SENT && (
-                                                <Button 
-                                                    size="sm"
-                                                    variant="secondary"
-                                                    className="border-slate-300 hover:bg-slate-100 text-slate-600"
-                                                    onClick={() => setSelectedOrderId(order.id)}
-                                                >
-                                                    <FileText size={14} className="mr-2"/> Detalle
-                                                </Button>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </Card>
-            </div>
-
-            {/* MODAL */}
-            {selectedOrderId && (
-                <FinancialReviewModal 
-                    orderId={selectedOrderId}
-                    onClose={() => setSelectedOrderId(null)}
-                    onOrderUpdated={() => {
-                        setSelectedOrderId(null);
-                        fetchOrders();
-                    }}
+            {/* MODAL DE SOLICITUD (CREAR / EDITAR) */}
+            {(selectedInvoice || editingRequest) && (
+                <PaymentRequestModal 
+                    invoice={selectedInvoice || undefined}
+                    existingRequest={editingRequest || undefined}
+                    onClose={closeModal}
+                    onSubmit={handleModalSubmit}
                 />
             )}
         </div>

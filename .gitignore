@@ -16,7 +16,7 @@ coverage/
 *.sqlite3
 *.sqlite
 
-# --- ARCHIVOS DE DATOS Y DOCUMENTOS (Se quedan en tu Mac) ---
+# --- ARCHIVOS DE DATOS Y DOCUMENTOS ---
 *.csv
 *.xlsx
 *.xls
@@ -26,3 +26,7 @@ PROJECT_CONTEXT.md
 
 # --- LOGS ---
 *.log
+
+# --- HERRAMIENTAS EXTERNAS (El "Intruso") ---
+Y/
+google-cloud-sdk/

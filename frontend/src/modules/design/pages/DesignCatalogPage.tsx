@@ -2,7 +2,8 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDesign } from '../hooks/useDesign';
 import { useClients } from '../../foundations/hooks/useClients'; 
-import client, { API_URL } from '../../../api/axios-client'; 
+// --- CORRECCIÓN 1: Quitamos API_URL de aquí para que no marque error amarillo ---
+import client from '../../../api/axios-client'; 
 import { 
     Edit, Trash2, Plus, Search, 
     ChevronDown, ChevronRight, Layers, 
@@ -22,11 +23,10 @@ import ExportButton from '../../../components/ui/ExportButton';
 const DesignCatalogPage: React.FC = () => {
     const navigate = useNavigate();
     
-    // --- SEGURIDAD (CORREGIDO) ---
+    // --- SEGURIDAD ---
     const [userRole, setUserRole] = useState('ADMIN');
     
     useEffect(() => {
-        // IMPORTANTE: Forzamos mayúsculas para que coincida con 'SALES'
         const role = (localStorage.getItem('user_role') || 'ADMIN').toUpperCase();
         setUserRole(role);
     }, []);
@@ -82,8 +82,9 @@ const DesignCatalogPage: React.FC = () => {
         finally { if (fileInputRef.current) fileInputRef.current.value = ''; setUploadingId(null); }
     };
 
+    // --- CORRECCIÓN CRÍTICA Y DIAGNÓSTICO ---
     const handleViewBlueprint = (path: string) => {
-        const baseUrl = API_URL.replace('/api/v1', ''); setViewingBlueprintUrl(`${baseUrl}/static/${path}`);
+        setViewingBlueprintUrl(path); 
     };
 
     const closeBlueprintModal = () => setViewingBlueprintUrl(null);
@@ -143,8 +144,6 @@ const DesignCatalogPage: React.FC = () => {
     };
 
     const handleOpenProduct = async (masterId: number, versions: any[]) => {
-        // SEGURIDAD: Ventas NO puede entrar a ver recetas (costos)
-        // Ahora sí funcionará porque isSales será true para vendedores
         if (isSales) {
             alert("🔒 Acceso Restringido: Solo Ingeniería puede ver los detalles técnicos y costos.");
             return;
@@ -266,7 +265,6 @@ const DesignCatalogPage: React.FC = () => {
                                                                 </td>
                                                                 <td className="px-4 py-3 text-right">
                                                                     <div className="flex justify-end gap-2">
-                                                                        {/* VISOR DE PLANOS (VISIBLE PARA TODOS) */}
                                                                         {product.blueprint_path ? (
                                                                             <div className={`flex gap-1 mr-2 ${!isSales ? 'border-r border-slate-200 pr-2' : ''}`}>
                                                                                 <button onClick={(e) => { e.stopPropagation(); handleViewBlueprint(product.blueprint_path!); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded" title="Ver Plano"><FileText size={16}/></button>

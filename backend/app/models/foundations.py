@@ -26,8 +26,6 @@ class GlobalConfig(SQLModel, table=True):
     company_phone: Optional[str] = None
     company_email: Optional[str] = None
     company_website: Optional[str] = None
-    
-    # MANTENEMOS EL NOMBRE ORIGINAL DE LA BD
     logo_path: Optional[str] = None 
     
     # Reglas de Negocio
@@ -36,9 +34,9 @@ class GlobalConfig(SQLModel, table=True):
     quote_validity_days: int
     default_edgebanding_factor: float
 
-    # --- NUEVOS CAMPOS: METAS FINANCIERAS (Dashboard) ---
-    annual_sales_target: float = Field(default=0.0) # Meta del año en curso
-    last_year_sales: float = Field(default=0.0)     # Referencia histórica
+    # Metas Financieras
+    annual_sales_target: float = Field(default=0.0)
+    last_year_sales: float = Field(default=0.0)
     
     # Relaciones
     default_tax_rate_id: Optional[int] = Field(default=None, foreign_key="tax_rates.id")
@@ -58,15 +56,34 @@ class Provider(SQLModel, table=True):
     materials: List["Material"] = Relationship(back_populates="provider")
 
 class Client(SQLModel, table=True):
-    __tablename__ = "clients"
+    __tablename__ = "clients_v2"
     id: Optional[int] = Field(default=None, primary_key=True)
     full_name: str = Field(index=True)
     rfc_tax_id: Optional[str] = None
     email: str
     phone: str
     fiscal_address: Optional[str] = None
+    
+    # --- CONTACTO PRINCIPAL ---
     contact_name: Optional[str] = None
     contact_phone: Optional[str] = None
+    contact_dept: Optional[str] = None  # <--- NUEVO: Departamento
+
+    # --- CONTACTO 2 ---
+    contact2_name: Optional[str] = None
+    contact2_phone: Optional[str] = None
+    contact2_dept: Optional[str] = None
+
+    # --- CONTACTO 3 ---
+    contact3_name: Optional[str] = None
+    contact3_phone: Optional[str] = None
+    contact3_dept: Optional[str] = None
+
+    # --- CONTACTO 4 ---
+    contact4_name: Optional[str] = None
+    contact4_phone: Optional[str] = None
+    contact4_dept: Optional[str] = None
+
     notes: Optional[str] = None
     registration_date: datetime = Field(default_factory=datetime.now)
     is_active: bool = Field(default=True)

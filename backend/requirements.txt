@@ -1,9 +1,18 @@
 fastapi
-uvicorn[standard]
-sqlmodel
+uvicorn
+gunicorn
+pydantic
 pydantic-settings
+sqlalchemy
+sqlmodel
+psycopg2-binary
+asyncpg
 python-multipart
 python-jose[cryptography]
-passlib[bcrypt]
-# Driver para Postgres (lo usaremos en Cloud, pero lo instalamos de una vez)
-psycopg2-binary
+passlib==1.7.4
+python-dotenv
+requests
+google-cloud-storage
+pillow
+reportlab
+bcrypt==4.0.1

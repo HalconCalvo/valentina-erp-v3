@@ -20,7 +20,7 @@ export default function MaterialsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Estados de Seguridad
-  const [userRole, setUserRole] = useState('ADMIN');
+  const [userRole, setUserRole] = useState(''); // Iniciamos vacío por seguridad
   
   // Estados de UI/Formulario
   const [showForm, setShowForm] = useState(false);
@@ -40,20 +40,26 @@ export default function MaterialsPage() {
 
   // 2. EFECTOS
   useEffect(() => {
-    const role = (localStorage.getItem('user_role') || 'ADMIN').toUpperCase();
+    // Normalizamos el rol a Mayúsculas y sin espacios para evitar errores
+    const role = (localStorage.getItem('user_role') || '').toUpperCase().trim();
     setUserRole(role);
   }, []);
 
   // 3. LOGICA DE ACCESO (MATRIZ DE SEGURIDAD)
-  const isSales = userRole === 'SALES';
-  const isDesign = userRole === 'DESIGN';
-  const isProduction = userRole === 'PRODUCTION';
+  const isSales = userRole === 'SALES' || userRole === 'VENTAS';
+  
+  // Detectamos variantes de Diseño
+  const isDesign = ['DESIGN', 'DISEÑO', 'DISENO'].includes(userRole);
   
   // SOLO LECTURA: Diseño y Producción pueden ver pero no editar
+  const isProduction = ['PRODUCTION', 'PRODUCCION', 'PRODUCCIÓN'].includes(userRole);
   const isReadOnly = isDesign || isProduction; 
   
-  // OCULTAR DINERO: Solo Diseño no ve costos. Producción SÍ los ve.
-  const hideFinancials = isDesign;
+  // LOGICA FINANCIERA (CORREGIDA):
+  // En lugar de preguntar "¿Quién NO ve?", preguntamos "¿Quién SÍ ve?".
+  // Solo ADMIN y PRODUCTION (si aplica) ven costos. Diseño NO entra en esta lista.
+  // Si userRole está vacío (cargando), por seguridad es false.
+  const showFinancials = ['ADMIN', 'ADMINISTRADOR', 'DIRECTION', 'DIRECCION', 'PRODUCTION', 'PRODUCCION'].includes(userRole);
 
   // 4. MEMOS (Columnas)
   const columns = useMemo<ColumnDef<Material>[]>(() => {
@@ -80,7 +86,17 @@ export default function MaterialsPage() {
       },
       {
         accessorKey: "name", 
-        header: "Nombre",
+        header: ({ column }) => {
+          return (
+            <button
+              className="flex items-center gap-1 hover:text-indigo-600 transition-colors"
+              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            >
+              Nombre
+              <ArrowUpDown className="h-3 w-3" />
+            </button>
+          )
+        },
         enableHiding: true, 
       },
       {
@@ -155,15 +171,25 @@ export default function MaterialsPage() {
       }
     ];
 
-    if (!hideFinancials) {
+    // LÓGICA CORREGIDA: Solo insertamos la columna si showFinancials es TRUE
+    if (showFinancials) {
         cols.push({
             accessorKey: "current_cost",
             header: () => <div className="text-right">Costo</div>,
-            cell: ({ row }) => (
-                <div className="text-right font-medium text-slate-900">
-                    ${(row.original.current_cost || 0).toFixed(2)}
-                </div>
-            )
+            cell: ({ row }) => {
+                const amount = parseFloat(row.getValue("current_cost") || "0");
+                const formatted = new Intl.NumberFormat("es-MX", {
+                    style: "currency",
+                    currency: "MXN",
+                    minimumFractionDigits: 2
+                }).format(amount);
+
+                return (
+                    <div className="text-right font-medium text-slate-900">
+                        {formatted}
+                    </div>
+                )
+            }
         });
     }
 
@@ -187,7 +213,7 @@ export default function MaterialsPage() {
     }
 
     return cols;
-  }, [isReadOnly, hideFinancials]);
+  }, [isReadOnly, showFinancials]); // Dependencia actualizada a showFinancials
 
   // -------------------------------------------------------------
   // 5. CANDADO DE SEGURIDAD (Ventas no pasa)
@@ -207,7 +233,8 @@ export default function MaterialsPage() {
       "Stock Físico": m.physical_stock || 0,
       "Unidad Uso": m.usage_unit,
       "Ruta": m.production_route,
-      ...(!hideFinancials && {
+      // Lógica corregida para Excel también
+      ...(showFinancials && {
         "Costo Unitario": m.current_cost,
         "Valor Inventario": (m.physical_stock || 0) * m.current_cost
       })
@@ -276,7 +303,8 @@ export default function MaterialsPage() {
 
     const payload = {
         ...form,
-        current_cost: hideFinancials ? (form.current_cost || 0) : form.current_cost,
+        // Protegemos el envío de costos si no se tienen permisos
+        current_cost: showFinancials ? form.current_cost : (form.current_cost || 0),
         associated_element_sku: form.associated_element_sku?.trim() === '' ? null : form.associated_element_sku
     };
 
@@ -315,7 +343,7 @@ export default function MaterialsPage() {
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
             Catálogo de Materiales
             {isReadOnly && <span className="text-[10px] bg-slate-100 text-slate-500 border border-slate-200 px-2 py-0.5 rounded-full flex items-center gap-1"><Lock size={10}/> SOLO LECTURA</span>}
-            {hideFinancials && <span className="text-[10px] bg-red-50 text-red-500 border border-red-100 px-2 py-0.5 rounded-full flex items-center gap-1"><EyeOff size={10}/> COSTOS OCULTOS</span>}
+            {!showFinancials && <span className="text-[10px] bg-red-50 text-red-500 border border-red-100 px-2 py-0.5 rounded-full flex items-center gap-1"><EyeOff size={10}/> COSTOS OCULTOS</span>}
           </h1>
           <p className="text-sm text-slate-500">Gestión de insumos y agrupación dinámica.</p>
         </div>
@@ -417,7 +445,7 @@ export default function MaterialsPage() {
                         <input className="input-std border-dashed" value={form.associated_element_sku || ''} onChange={e => setForm({...form, associated_element_sku: e.target.value})} />
                     </div>
 
-                    {!hideFinancials && (
+                    {showFinancials && (
                         <div className="md:col-span-2">
                             <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><DollarSign size={12}/> Costo Compra</label>
                             <input type="number" step="0.01" className="input-std font-bold text-slate-700" value={form.current_cost} onChange={e => setForm({...form, current_cost: parseFloat(e.target.value)})} />

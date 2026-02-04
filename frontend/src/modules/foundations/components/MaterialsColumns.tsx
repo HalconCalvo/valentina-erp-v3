@@ -1,9 +1,17 @@
 import { ColumnDef } from "@tanstack/react-table"
-import { Material } from "../../../types/foundations" // Importando TU tipo real
-import { ArrowUpDown } from "lucide-react" // Icono para el sort
-import { Button } from "../../../components/ui/Button" // Tu botón existente
+import { Material } from "../../../types/foundations"
+import { ArrowUpDown } from "lucide-react"
+import { Button } from "../../../components/ui/Button"
 
-export const columns: ColumnDef<Material>[] = [
+// --- LOGICA DE SEGURIDAD ---
+// Leemos el rol directamente del navegador para filtrar columnas estáticas
+const userRole = (localStorage.getItem('user_role') || '').toUpperCase();
+
+// Definimos quién NO debe ver dinero (Lista Negra)
+const hideFinancials = ['DESIGN', 'DISEÑO', 'DISENO'].includes(userRole);
+
+// Definimos todas las columnas posibles
+const allColumns: ColumnDef<Material>[] = [
   {
     accessorKey: "sku",
     header: ({ column }) => {
@@ -60,8 +68,7 @@ export const columns: ColumnDef<Material>[] = [
       )
     },
     cell: ({ row }) => {
-        const stock = parseFloat(row.getValue("physical_stock"));
-        // Lógica visual: Rojo si es 0 o menos
+        const stock = parseFloat(row.getValue("physical_stock") || "0");
         const colorClass = stock <= 0 ? "text-red-600 font-bold" : "text-gray-900";
         return <div className={`text-right ${colorClass}`}>{stock}</div>
     },
@@ -70,7 +77,7 @@ export const columns: ColumnDef<Material>[] = [
     accessorKey: "current_cost",
     header: () => <div className="text-right">Costo Ref.</div>,
     cell: ({ row }) => {
-      const amount = parseFloat(row.getValue("current_cost"))
+      const amount = parseFloat(row.getValue("current_cost") || "0")
       const formatted = new Intl.NumberFormat("es-MX", {
         style: "currency",
         currency: "MXN",
@@ -79,4 +86,14 @@ export const columns: ColumnDef<Material>[] = [
       return <div className="text-right font-medium">{formatted}</div>
     },
   },
-]
+  // Si existiera una columna "importe" o "total" aquí, la lógica de abajo también la eliminaría.
+];
+
+// --- EXPORTACIÓN FILTRADA ---
+// Aquí ocurre la magia: Si hideFinancials es TRUE, eliminamos 'current_cost'
+export const columns = allColumns.filter(col => {
+    if (hideFinancials && (col.accessorKey === 'current_cost' || col.accessorKey === 'total_cost')) {
+        return false; // No mostrar
+    }
+    return true; // Mostrar el resto
+});

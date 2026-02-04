@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
-import { Plus, Layers, Square, Package, Activity, Lock, Unlock, Save } from "lucide-react"; 
+import { Plus, Layers, Square, Package, Activity, Lock, Unlock, Save, EyeOff } from "lucide-react"; 
 import { VersionComponent, VersionStatus } from "../../../types/design";
 import { Material } from "../../../types/foundations";
 
@@ -32,6 +32,15 @@ export const VersionRecipeForm = ({
   
   const [internalStatus, setInternalStatus] = useState<VersionStatus>(VersionStatus.DRAFT);
   const [monitor, setMonitor] = useState({ boardsTotal: 0, producTotal: 0 });
+
+  // --- LOGICA DE SEGURIDAD ESTRICTA (LISTA BLANCA) ---
+  // 1. Detectamos el rol del usuario
+  const userRole = (localStorage.getItem('user_role') || '').toUpperCase();
+  
+  // 2. ¿Quién tiene permiso de ver dinero?
+  // SOLO Administración y Dirección.
+  // CORRECCIÓN: Se agrega 'DIRECTOR' explícitamente a la lista.
+  const showFinancials = ['ADMIN', 'ADMINISTRADOR', 'DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
 
   const FACTOR = (edgebandingFactor && edgebandingFactor > 0) ? edgebandingFactor : 25.00;
 
@@ -127,7 +136,7 @@ export const VersionRecipeForm = ({
   return (
     <form onSubmit={handleSubmit((data) => onSave(data.components, internalStatus))} className="pb-2">
       
-      {/* HEADER: Monitor y Semáforo SIN BOTÓN AZUL */}
+      {/* HEADER: Monitor y Semáforo */}
       <div className="mb-6 bg-amber-50 border border-amber-200 rounded-lg p-3 shadow-sm sticky top-0 z-20 flex flex-col lg:flex-row gap-4 lg:items-center justify-between">
          <div className="flex items-center gap-4">
              <div className="flex items-center gap-2 font-bold uppercase text-xs text-amber-900">
@@ -161,6 +170,13 @@ export const VersionRecipeForm = ({
               <Lock size={14} /> <span>Receta en modo <b>Solo Lectura</b>. Cambia a Borrador para editar.</span>
           </div>
       )}
+      
+      {/* Aviso informativo de seguridad (Opcional, solo para que Diseño sepa por qué no ve precios) */}
+      {!showFinancials && (
+         <div className="mb-4 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded text-xs flex items-center gap-2">
+            <EyeOff size={14} /> <span>Modo Operativo: Información financiera oculta por seguridad.</span>
+         </div>
+      )}
 
       {/* CUERPO DEL FORMULARIO */}
       {Object.entries(groupedFields).map(([sectionName, sectionFields]) => (
@@ -171,14 +187,26 @@ export const VersionRecipeForm = ({
                 </div>
             </div>
             <div className="divide-y divide-slate-100 bg-white">
+                {/* HEADERS DE TABLA */}
                 <div className="grid grid-cols-12 gap-2 px-3 py-2 bg-slate-50/50 text-[10px] uppercase font-bold text-slate-400">
                     <div className="col-span-2">SKU</div>
-                    <div className="col-span-6">Descripción / Artículo</div>
+                    
+                    {/* COLUMNA ELÁSTICA: Si no hay $$$ (2 col), Descripción crece de 6 a 8 columnas */}
+                    <div className={showFinancials ? "col-span-6" : "col-span-8"}>Descripción / Artículo</div>
+                    
                     <div className="col-span-1 text-center">Cant.</div>
                     <div className="col-span-1 text-center">Unidad</div>
-                    <div className="col-span-1 text-right">Costo</div>
-                    <div className="col-span-1 text-right">Importe</div>
+                    
+                    {/* Solo mostramos headers de dinero si showFinancials es TRUE */}
+                    {showFinancials && (
+                        <>
+                            <div className="col-span-1 text-right">Costo</div>
+                            <div className="col-span-1 text-right">Importe</div>
+                        </>
+                    )}
                 </div>
+
+                {/* FILAS DE DATOS */}
                 {sectionFields.map((field) => {
                     const idx = field.originalIndex;
                     const val = watchedComponents?.[idx];
@@ -189,18 +217,27 @@ export const VersionRecipeForm = ({
                     return (
                         <div key={field.id} className="grid grid-cols-12 gap-2 px-3 py-1 items-center hover:bg-slate-50">
                             <div className="col-span-2 text-xs font-mono text-slate-500 truncate">{mat?.sku || "---"}</div>
-                            <div className="col-span-6">
+                            
+                            {/* Descripción ajustada dinámicamente */}
+                            <div className={showFinancials ? "col-span-6" : "col-span-8"}>
                                 <select {...register(`components.${idx}.material_id`)} disabled={isReadOnly} className="w-full text-xs bg-transparent border-none truncate disabled:cursor-not-allowed">
                                     <option value={0}>Seleccionar...</option>
                                     {materials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                                 </select>
                             </div>
+
                             <div className="col-span-1">
                                 <input type="number" step="0.01" disabled={isReadOnly} {...register(`components.${idx}.quantity`)} onChange={(e) => handleQuantityChange(idx, e.target.value)} className="w-full text-center text-xs border rounded h-6 disabled:bg-slate-100"/>
                             </div>
                             <div className="col-span-1 text-center text-[10px] text-slate-400">{mat?.usage_unit || "-"}</div>
-                            <div className="col-span-1 text-right text-[10px] text-slate-500 font-mono">{mat ? `$${cost.toFixed(2)}` : "-"}</div>
-                            <div className="col-span-1 text-right text-xs font-bold font-mono">{total > 0 ? `$${total.toFixed(2)}` : "-"}</div>
+                            
+                            {/* Solo mostramos valores de dinero si showFinancials es TRUE */}
+                            {showFinancials && (
+                                <>
+                                    <div className="col-span-1 text-right text-[10px] text-slate-500 font-mono">{mat ? `$${cost.toFixed(2)}` : "-"}</div>
+                                    <div className="col-span-1 text-right text-xs font-bold font-mono">{total > 0 ? `$${total.toFixed(2)}` : "-"}</div>
+                                </>
+                            )}
                         </div>
                     );
                 })}
@@ -216,10 +253,15 @@ export const VersionRecipeForm = ({
       {/* FOOTER VERDE */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-3 shadow-lg z-30 md:pl-64 flex justify-between items-center px-4">
           <div className="text-right flex items-center gap-4 ml-auto">
-             <div>
-                <div className="text-[10px] text-slate-400 uppercase font-bold">Costo Total</div>
-                <div className="text-2xl font-black text-emerald-600">${totalCost.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</div>
-             </div>
+             
+             {/* Ocultamos el Costo Total del pie de página si no hay permisos */}
+             {showFinancials && (
+                 <div>
+                    <div className="text-[10px] text-slate-400 uppercase font-bold">Costo Total</div>
+                    <div className="text-2xl font-black text-emerald-600">${totalCost.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</div>
+                 </div>
+             )}
+
              <button type="submit" disabled={isLoading} className="bg-emerald-600 hover:bg-emerald-700 text-white py-2 px-6 rounded-lg font-bold shadow-md flex items-center gap-2 disabled:bg-slate-400">
                 {isLoading ? 'Guardando...' : 'Guardar Receta'} <Save size={18} />
              </button>

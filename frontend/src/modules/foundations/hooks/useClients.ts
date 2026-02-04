@@ -3,18 +3,35 @@ import { useState, useEffect, useCallback } from 'react';
 import client from '../../../api/axios-client';
 
 export interface Client {
-  id?: number;
-  full_name: string;
-  rfc_tax_id?: string;
-  email: string;
-  phone: string;
-  // CAMPOS V3
-  fiscal_address?: string;
-  contact_name?: string;
-  contact_phone?: string;
-  notes?: string;
-  registration_date?: string;
-  is_active?: boolean;
+    id?: number;
+    full_name: string;
+    rfc_tax_id?: string;
+    email: string;
+    phone: string;
+    fiscal_address?: string;
+    
+    // Contacto 1
+    contact_name?: string;
+    contact_phone?: string;
+    contact_dept?: string; // Nuevo
+    
+    // Contacto 2
+    contact2_name?: string;
+    contact2_phone?: string;
+    contact2_dept?: string;
+
+    // Contacto 3
+    contact3_name?: string;
+    contact3_phone?: string;
+    contact3_dept?: string;
+
+    // Contacto 4
+    contact4_name?: string;
+    contact4_phone?: string;
+    contact4_dept?: string;
+
+    notes?: string;
+    is_active?: boolean;
 }
 
 export const useClients = () => {

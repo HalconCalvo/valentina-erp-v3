@@ -9,7 +9,7 @@ import {
 
 import { useFoundations } from '../../modules/foundations/hooks/useFoundations';
 
-const API_URL = "http://localhost:8000";
+const API_URL = "https://valentina-erp-v3.uc.r.appspot.com";
 
 // 1. DEFINICIÓN DE ROLES
 type UserRole = 'DIRECTOR' | 'ADMIN' | 'SALES' | 'DESIGN' | 'WAREHOUSE' | 'PRODUCTION';

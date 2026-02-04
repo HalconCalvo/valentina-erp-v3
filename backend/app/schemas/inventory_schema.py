@@ -14,7 +14,6 @@ class ReceptionCreate(SQLModel):
     invoice_number: str
     invoice_date: datetime
     # NUEVO CAMPO: Necesario para cuentas por pagar (Vencimiento)
-    # Lo dejo Optional por ahora para compatibilidad, pero debería ser requerido a futuro
     due_date: Optional[datetime] = None 
     
     total_amount: float # Suma total de factura para validación
@@ -56,6 +55,7 @@ class PurchaseInvoiceRead(SQLModel):
 # Schema para el KPI del Dashboard (Resumen ejecutivo)
 class AccountsPayableStats(SQLModel):
     total_payable: float # Deuda Total
+    total_documents: int # <--- NUEVO CAMPO AGREGADO (Contador de facturas)
     overdue_amount: float # Deuda Vencida
     upcoming_amount: float # Por vencer en 30 días
     breakdown_by_age: Dict[str, float] # Ej: {"1-30": 5000, "31-60": 2000, "+90": 0}

@@ -1,15 +1,18 @@
 import axios from 'axios';
 
-// Definimos la URL base
-export const API_URL = 'http://localhost:8000/api/v1'; 
+// --- CONFIGURACIÓN AUTOMÁTICA ---
+// Vite decidirá si usa la URL de .env.development o .env.production
+// ¡Ya no toques esta línea nunca más!
+export const API_URL = import.meta.env.VITE_API_URL;
 
 const client = axios.create({
     baseURL: API_URL,
-    // ELIMINAMOS 'headers' para no forzar Content-Type.
-    // Axios lo detectará automáticamente.
+    headers: {
+        'Content-Type': 'application/json',
+    },
 });
 
-// Interceptor para inyectar el Token (Si ya estás logueado)
+// Interceptor para inyectar el Token
 client.interceptors.request.use((config) => {
     const token = localStorage.getItem('token');
     if (token) {
@@ -22,10 +25,10 @@ client.interceptors.request.use((config) => {
 client.interceptors.response.use(
     response => response,
     error => {
-        // Opcional: Si el token expiró (401), podrías limpiar el localStorage aquí
+        // Si el token expiró, podríamos redirigir al login
         if (error.response && error.response.status === 401) {
-            // localStorage.removeItem('token');
-            // window.location.href = '/login';
+             console.warn("Sesión expirada o no autorizada");
+             // Opcional: window.location.href = '/login';
         }
         return Promise.reject(error);
     }

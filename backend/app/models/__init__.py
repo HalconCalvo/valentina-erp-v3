@@ -1,20 +1,20 @@
 # Modelos Base (NÚCLEO ESTABILIZADO)
-# Importamos Material y su Enum desde su archivo independiente
 from .material import Material, ProductionRoute
 from .foundations import GlobalConfig, Provider, Client, TaxRate
 from .users import User, UserCreate, UserUpdate, UserPublic
 
 # Módulo de Diseño (INGENIERÍA)
-# Ya activamos los modelos reales
 from .design import ProductMaster, ProductVersion, VersionComponent, VersionStatus
 
 # Módulo de Ventas (COTIZADOR / ÓRDENES)
-# Activamos la arquitectura unificada (Sin Quotes, solo Orders)
 from .sales import SalesOrder, SalesOrderItem, SalesOrderStatus
 
 # Módulo de Inventario (OPERACIONES / ALMACÉN)
-# Nuevos modelos para Recepción de Compra y Movimientos
 from .inventory import InventoryReception, InventoryTransaction
+
+# --- Módulo de Finanzas (NUEVO) ---
+# ¡Esto es lo que faltaba para que Alembic cree las tablas!
+from .finance import PurchaseInvoice, SupplierPayment, InvoiceStatus, PaymentStatus
 
 # Exportación explícita para Alembic/SQLModel
 __all__ = [
@@ -38,5 +38,11 @@ __all__ = [
 
     # Inventario
     "InventoryReception",
-    "InventoryTransaction"
+    "InventoryTransaction",
+
+    # Finanzas
+    "PurchaseInvoice",
+    "SupplierPayment",
+    "InvoiceStatus",
+    "PaymentStatus"
 ]
