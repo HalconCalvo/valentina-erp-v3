@@ -1,14 +1,14 @@
-import time
 import csv
 import io
 import math
+from uuid import uuid4  # <--- AGREGADO PARA NOMBRES ÚNICOS
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
 from sqlmodel import Session, select
 from sqlalchemy.exc import IntegrityError
 
 from app.core.database import get_session
-from app.services.cloud_storage import upload_to_gcs  # <--- IMPORTAMOS TU NUEVO SERVICIO
+from app.services.cloud_storage import upload_to_gcs  # <--- LA TUBERÍA BLINDADA
 
 # --- MODELOS ---
 from app.models.foundations import GlobalConfig, Provider, Client, TaxRate
@@ -42,12 +42,17 @@ def get_global_config(session: Session = Depends(get_session)):
 def update_global_config(config_in: GlobalConfig, session: Session = Depends(get_session)):
     db_config = session.exec(select(GlobalConfig)).first()
     if not db_config:
-        raise HTTPException(status_code=404, detail="Configuración no encontrada")
+        # Si no existe, lo creamos al vuelo
+        db_config = GlobalConfig(**config_in.dict(exclude={"id"}))
+        session.add(db_config)
+        session.commit()
+        session.refresh(db_config)
+        return db_config
     
     config_data = config_in.model_dump(exclude_unset=True)
     config_data.pop("id", None)
     
-    # Evitar borrar el logo si no se envía nada nuevo (o si viene null)
+    # PROTECCIÓN: Evitar borrar el logo si el frontend manda null
     if "logo_path" in config_data:
          if config_data["logo_path"] is None:
              config_data.pop("logo_path")
@@ -60,29 +65,34 @@ def update_global_config(config_in: GlobalConfig, session: Session = Depends(get
     session.refresh(db_config)
     return db_config
 
+# --- SUBIDA DE LOGO CORREGIDA (Igual que Design) ---
 @router.post("/config/upload-logo")
 async def upload_company_logo(
     file: UploadFile = File(...),
     session: Session = Depends(get_session)
 ):
     """
-    Sube el logo a Google Cloud Storage y guarda la URL en la BD.
+    Sube el logo a Google Cloud Storage y actualiza la configuración.
     """
     # 1. Validar formato
     if file.content_type not in ["image/jpeg", "image/png", "image/webp", "image/svg+xml"]:
         raise HTTPException(status_code=400, detail="Formato inválido. Use PNG, JPG o SVG.")
 
-    # 2. Generar nombre único para que no se sobrescriban
+    # 2. Generar nombre único (UUID para evitar caché)
     file_ext = file.filename.split(".")[-1]
-    filename = f"logos/logo_{int(time.time())}.{file_ext}"
+    filename = f"logos/logo_{uuid4().hex[:8]}.{file_ext}"
     
-    # 3. USAR EL SERVICIO DE NUBE (Aquí está la magia)
+    # 3. Reiniciar puntero del archivo (Seguridad)
+    await file.seek(0)
+
+    # 4. USAR EL SERVICIO DE NUBE
+    # Pasamos content_type explícitamente para que el navegador lo muestre y no lo descargue
     public_url = upload_to_gcs(file.file, filename, content_type=file.content_type)
 
     if not public_url:
-        raise HTTPException(status_code=500, detail="Error al subir la imagen a Google Cloud Storage.")
+        raise HTTPException(status_code=500, detail="Error al subir la imagen a Google Cloud.")
 
-    # 4. Guardar URL en Base de Datos
+    # 5. Guardar URL en Base de Datos
     db_config = session.exec(select(GlobalConfig)).first()
     if not db_config:
         db_config = GlobalConfig(company_name="Empresa Nueva")
@@ -94,7 +104,7 @@ async def upload_company_logo(
     session.commit()
     session.refresh(db_config)
 
-    return {"url": public_url, "message": "Logo actualizado exitosamente en la Nube"}
+    return {"url": public_url, "message": "Logo actualizado exitosamente"}
 
 # ==========================================
 # 2. PROVEEDORES
@@ -293,7 +303,7 @@ async def import_materials_csv(
     csv_reader = csv.DictReader(io.StringIO(csv_string), delimiter=delimiter)
     summary = {"processed": 0, "created": 0, "updated": 0, "errors": []}
 
-    # CACHÉ DE PROVEEDORES (Para no consultar la BD en cada fila)
+    # CACHÉ DE PROVEEDORES
     provider_cache = {}
 
     def parse_money(value):
@@ -312,7 +322,7 @@ async def import_materials_csv(
 
             sku_val = clean_row['sku'].upper()
             
-            # --- LÓGICA DE PROVEEDOR ---
+            # PROVEEDOR
             provider_name_raw = clean_row.get('proveedor') or clean_row.get('provider')
             final_provider_id = None
 
@@ -324,28 +334,21 @@ async def import_materials_csv(
                     final_provider_id = provider_cache[p_key]
                 else:
                     existing_prov = session.exec(select(Provider).where(Provider.business_name == p_name_clean)).first()
-                    
                     if existing_prov:
                         final_provider_id = existing_prov.id
                     else:
-                        new_prov = Provider(
-                            business_name=p_name_clean,
-                            credit_days=0,
-                            is_active=True
-                        )
+                        new_prov = Provider(business_name=p_name_clean, credit_days=0, is_active=True)
                         session.add(new_prov)
                         session.commit()
                         session.refresh(new_prov)
                         final_provider_id = new_prov.id
-                    
                     provider_cache[p_key] = final_provider_id
 
-            # --- LÓGICA DE COSTOS SGP V3 ---
+            # COSTOS SGP V3
             raw_factor = parse_money(clean_row.get('conversion_factor'))
             conversion_factor = raw_factor if raw_factor > 0 else 1.0
             
             purchase_price = parse_money(clean_row.get('current_cost'))
-            
             raw_unit_cost = purchase_price / conversion_factor
             final_unit_cost = math.ceil(raw_unit_cost * 100) / 100
             
