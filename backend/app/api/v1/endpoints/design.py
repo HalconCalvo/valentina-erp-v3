@@ -18,7 +18,8 @@ from app.models.design import (
     ProductMaster, ProductVersion, VersionComponent, VersionStatus
 )
 from app.models.material import Material 
-from app.models.foundations import Client 
+from app.models.foundations import Client
+from app.services.cloud_storage import upload_to_gcs
 
 # Schemas
 from app.schemas.design_schema import (
@@ -317,7 +318,7 @@ def rename_product_category(
     return {"message": "Categoría corregida", "updated_products": count}
 
 # ==========================================
-# 8. SUBIR PLANO / IMAGEN AL MASTER (NUBE)
+# 8. SUBIR PLANO / IMAGEN AL MASTER (NUBE) - VERSIÓN CORREGIDA
 # ==========================================
 @router.post("/masters/{master_id}/blueprint")
 async def upload_master_blueprint(
@@ -326,47 +327,34 @@ async def upload_master_blueprint(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user)
 ):
+    """
+    Sube un plano (PDF) o imagen al producto maestro.
+    Usa la tubería centralizada 'upload_to_gcs'.
+    """
     master = session.get(ProductMaster, master_id)
     if not master:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
 
+    # 1. Definir nombre del archivo
+    # Usamos uuid para evitar colisiones
     file_extension = blueprint.filename.split(".")[-1]
     filename = f"{master_id}_{uuid4().hex[:6]}.{file_extension}"
-    blob_name = f"blueprints/{filename}" 
+    blob_name = f"blueprints/{filename}"
 
-    try:
-        # Borrar anterior si existe
-        if master.blueprint_path and "storage.googleapis.com" in master.blueprint_path:
-            try:
-                old_filename = master.blueprint_path.split("/")[-1]
-                old_blob_name = f"blueprints/{old_filename}"
-                storage_client = storage.Client()
-                bucket = storage_client.bucket(BUCKET_NAME)
-                old_blob = bucket.blob(old_blob_name)
-                old_blob.delete()
-            except Exception:
-                pass 
+    # 2. Subir usando nuestra herramienta BLINDADA
+    # Aquí pasamos explícitamente el content_type para que acepte PDF y JPG
+    public_url = upload_to_gcs(blueprint.file, blob_name, content_type=blueprint.content_type)
 
-        # Subir nuevo
-        storage_client = storage.Client()
-        bucket = storage_client.bucket(BUCKET_NAME)
-        blob = bucket.blob(blob_name)
-
-        await blueprint.seek(0)
-        blob.upload_from_file(blueprint.file, content_type=blueprint.content_type)
-        
-        web_url = f"https://storage.googleapis.com/{BUCKET_NAME}/{blob_name}"
-
-    except Exception as e:
-        print(f"Error subiendo plano a Cloud: {e}")
-        raise HTTPException(status_code=500, detail=f"Error al subir plano: {str(e)}")
+    if not public_url:
+        raise HTTPException(status_code=500, detail="Error al subir el archivo a Google Cloud")
     
-    master.blueprint_path = web_url
+    # 3. Guardar la URL en la base de datos
+    master.blueprint_path = public_url
     session.add(master)
     session.commit()
     session.refresh(master)
 
-    return {"message": "Plano subido correctamente a la Nube", "path": web_url}
+    return {"message": "Archivo subido correctamente", "path": public_url}
 
 @router.delete("/masters/{master_id}/blueprint")
 def delete_master_blueprint(
@@ -378,20 +366,15 @@ def delete_master_blueprint(
     if not master:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
 
-    if master.blueprint_path and "storage.googleapis.com" in master.blueprint_path:
-        try:
-            filename = master.blueprint_path.split("/")[-1]
-            blob_name = f"blueprints/{filename}"
-            storage_client = storage.Client()
-            bucket = storage_client.bucket(BUCKET_NAME)
-            blob = bucket.blob(blob_name)
-            blob.delete()
-        except Exception as e:
-            print(f"Error borrando de Cloud: {e}")
+    # Nota: Por seguridad, solo borramos la referencia en la BD.
+    # El archivo en la nube se puede quedar como histórico o borrarse manualmente.
+    # Si quieres borrarlo de la nube, necesitaríamos una función 'delete_from_gcs' en el futuro.
     
     master.blueprint_path = None
     session.add(master)
     session.commit()
     session.refresh(master)
 
-    return {"message": "Plano eliminado correctamente"}
+    return {"message": "Referencia al plano eliminada correctamente"}
+
+

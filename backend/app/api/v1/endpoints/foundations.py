@@ -1,27 +1,20 @@
 import time
 import csv
 import io
-import os
-import math  # Para el redondeo (Ceiling)
-from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, status
+import math
+from typing import List
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
 from sqlmodel import Session, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import func
-from google.cloud import storage  # <--- LIBRERÍA DE GOOGLE
 
 from app.core.database import get_session
+from app.services.cloud_storage import upload_to_gcs  # <--- IMPORTAMOS TU NUEVO SERVICIO
 
 # --- MODELOS ---
 from app.models.foundations import GlobalConfig, Provider, Client, TaxRate
 from app.models.material import Material
 
 router = APIRouter()
-
-# -----------------------------------------------------------------------------
-# CONSTANTES CLOUD
-# -----------------------------------------------------------------------------
-BUCKET_NAME = "valentina-erp-v3-assets"  # <--- TU CUBETA REAL
 
 # ==========================================
 # 1. CONFIGURACIÓN GLOBAL & IDENTIDAD
@@ -54,7 +47,7 @@ def update_global_config(config_in: GlobalConfig, session: Session = Depends(get
     config_data = config_in.model_dump(exclude_unset=True)
     config_data.pop("id", None)
     
-    # Evitar borrar el logo si no se envía nada nuevo
+    # Evitar borrar el logo si no se envía nada nuevo (o si viene null)
     if "logo_path" in config_data:
          if config_data["logo_path"] is None:
              config_data.pop("logo_path")
@@ -72,44 +65,36 @@ async def upload_company_logo(
     file: UploadFile = File(...),
     session: Session = Depends(get_session)
 ):
+    """
+    Sube el logo a Google Cloud Storage y guarda la URL en la BD.
+    """
     # 1. Validar formato
     if file.content_type not in ["image/jpeg", "image/png", "image/webp", "image/svg+xml"]:
         raise HTTPException(status_code=400, detail="Formato inválido. Use PNG, JPG o SVG.")
 
-    # 2. Generar nombre único
+    # 2. Generar nombre único para que no se sobrescriban
     file_ext = file.filename.split(".")[-1]
-    filename = f"logo_{int(time.time())}.{file_ext}"
+    filename = f"logos/logo_{int(time.time())}.{file_ext}"
     
-    try:
-        # 3. CONEXIÓN A GOOGLE CLOUD STORAGE
-        storage_client = storage.Client()
-        bucket = storage_client.bucket(BUCKET_NAME)
-        blob = bucket.blob(filename)
+    # 3. USAR EL SERVICIO DE NUBE (Aquí está la magia)
+    public_url = upload_to_gcs(file.file, filename, content_type=file.content_type)
 
-        # 4. Subir archivo (Regresamos el puntero al inicio por seguridad)
-        await file.seek(0)
-        blob.upload_from_file(file.file, content_type=file.content_type)
-        
-        # 5. Generar URL Pública de Google
-        web_url = f"https://storage.googleapis.com/{BUCKET_NAME}/{filename}"
+    if not public_url:
+        raise HTTPException(status_code=500, detail="Error al subir la imagen a Google Cloud Storage.")
 
-    except Exception as e:
-        print(f"Error subiendo a Google Cloud: {e}")
-        raise HTTPException(status_code=500, detail=f"Error al subir imagen a la nube: {str(e)}")
-
-    # 6. Guardar URL en Base de Datos
+    # 4. Guardar URL en Base de Datos
     db_config = session.exec(select(GlobalConfig)).first()
     if not db_config:
         db_config = GlobalConfig(company_name="Empresa Nueva")
         session.add(db_config)
 
-    db_config.logo_path = web_url
+    db_config.logo_path = public_url
     
     session.add(db_config)
     session.commit()
     session.refresh(db_config)
 
-    return {"url": web_url, "message": "Logo actualizado exitosamente en la Nube"}
+    return {"url": public_url, "message": "Logo actualizado exitosamente en la Nube"}
 
 # ==========================================
 # 2. PROVEEDORES
@@ -309,7 +294,6 @@ async def import_materials_csv(
     summary = {"processed": 0, "created": 0, "updated": 0, "errors": []}
 
     # CACHÉ DE PROVEEDORES (Para no consultar la BD en cada fila)
-    # Estructura: {'NOMBRE_MAYUSCULAS': provider_id}
     provider_cache = {}
 
     def parse_money(value):
@@ -328,40 +312,35 @@ async def import_materials_csv(
 
             sku_val = clean_row['sku'].upper()
             
-            # --- A. LÓGICA INTELIGENTE DE PROVEEDOR ---
-            # Buscamos 'proveedor' (español) o 'provider' (inglés)
+            # --- LÓGICA DE PROVEEDOR ---
             provider_name_raw = clean_row.get('proveedor') or clean_row.get('provider')
             final_provider_id = None
 
             if provider_name_raw:
                 p_name_clean = provider_name_raw.strip()
-                p_key = p_name_clean.upper() # Clave para el caché
+                p_key = p_name_clean.upper()
 
-                # 1. ¿Está en memoria?
                 if p_key in provider_cache:
                     final_provider_id = provider_cache[p_key]
                 else:
-                    # 2. Buscar en BD
                     existing_prov = session.exec(select(Provider).where(Provider.business_name == p_name_clean)).first()
                     
                     if existing_prov:
                         final_provider_id = existing_prov.id
                     else:
-                        # 3. CREAR NUEVO (Auto-Alta)
                         new_prov = Provider(
                             business_name=p_name_clean,
-                            credit_days=0, # Valor por defecto seguro
+                            credit_days=0,
                             is_active=True
                         )
                         session.add(new_prov)
-                        session.commit() # ¡Commit inmediato para obtener ID!
+                        session.commit()
                         session.refresh(new_prov)
                         final_provider_id = new_prov.id
                     
-                    # Guardar en caché para la siguiente vez
                     provider_cache[p_key] = final_provider_id
 
-            # --- B. LÓGICA DE COSTOS SGP V3 ---
+            # --- LÓGICA DE COSTOS SGP V3 ---
             raw_factor = parse_money(clean_row.get('conversion_factor'))
             conversion_factor = raw_factor if raw_factor > 0 else 1.0
             
@@ -369,8 +348,6 @@ async def import_materials_csv(
             
             raw_unit_cost = purchase_price / conversion_factor
             final_unit_cost = math.ceil(raw_unit_cost * 100) / 100
-            
-            # -----------------------------------------------------
             
             material_data = {
                 "sku": sku_val,
@@ -380,10 +357,7 @@ async def import_materials_csv(
                 "usage_unit": clean_row.get('usage_unit', 'Pieza'),
                 "conversion_factor": conversion_factor,
                 "current_cost": final_unit_cost,
-                
-                # AQUI USAMOS EL ID CALCULADO (O None si venía vacío)
                 "provider_id": final_provider_id,
-                
                 "physical_stock": 0.0,
                 "committed_stock": 0.0,
                 "associated_element_sku": clean_row.get('associated_element_sku', None),
@@ -398,10 +372,8 @@ async def import_materials_csv(
 
             if existing_mat:
                 for k, v in material_data.items():
-                    # No sobreescribimos stock ni la relación proveedor si ya existe y el CSV viene vacío
                     if k in ["physical_stock", "committed_stock"]: continue 
                     if k == "provider_id" and v is None: continue 
-                    
                     setattr(existing_mat, k, v)
                 session.add(existing_mat)
                 summary["updated"] += 1
