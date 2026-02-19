@@ -45,6 +45,7 @@ export interface SalesOrder {
     // Relaciones
     client_id: number;
     tax_rate_id: number;
+    user_id?: number; // <-- Agregado para consistencia con Backend
     
     // Datos Generales
     project_name: string;
@@ -56,12 +57,15 @@ export interface SalesOrder {
     // Reglas de Negocio & Financieras
     applied_margin_percent: number;      // Margen Global o Ponderado
     applied_tolerance_percent: number;
-    applied_commission_percent?: number; // Comisión del vendedor (Add-on)
+    applied_commission_percent?: number; // Tasa de comisión (ej: 0.05)
     
     // Totales (Calculados por Backend)
     subtotal?: number;
     tax_amount?: number;
     total_price?: number;
+    
+    // --- CAMPO NUEVO: IMPORTE REAL ---
+    commission_amount?: number; // El dinero exacto de la comisión
     
     // Extras
     currency: string;

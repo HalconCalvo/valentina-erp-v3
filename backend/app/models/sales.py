@@ -89,6 +89,9 @@ class SalesOrder(SQLModel, table=True):
     applied_tolerance_percent: float = Field(default=0.0)
     applied_commission_percent: float = Field(default=0.0)
     
+    # --- NUEVO CAMPO: IMPORTE REAL DE COMISIÓN ---
+    commission_amount: float = Field(default=0.0) 
+
     currency: str = Field(default="MXN")
     
     # Totales
@@ -108,7 +111,7 @@ class SalesOrder(SQLModel, table=True):
 
     # Relaciones
     items: List[SalesOrderItem] = Relationship(back_populates="order", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
-    payments: List["CustomerPayment"] = Relationship(back_populates="order") # <--- NUEVA RELACIÓN
+    payments: List["CustomerPayment"] = Relationship(back_populates="order")
 
 # ==========================================
 # 4. MODELO DE COBROS (NUEVO)

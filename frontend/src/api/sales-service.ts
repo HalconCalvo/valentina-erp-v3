@@ -55,7 +55,7 @@ export const salesService = {
     },
 
     /**
-     * Descarga el PDF de la Cotización desde el Backend.
+     * Descarga el PDF de la Cotización desde el Backend (Fuerza la descarga del archivo).
      */
     downloadPDF: async (orderId: number, fileName: string = 'Cotizacion.pdf') => {
         const url = `${API_ROUTES.SALES.ORDER_DETAIL(orderId)}/pdf`;
@@ -81,6 +81,17 @@ export const salesService = {
             console.error("Error descargando PDF:", error);
             throw error;
         }
+    },
+
+    /**
+     * Obtiene el BLOB del PDF para previsualización (NO descarga, solo retorna los datos).
+     */
+    getPdfPreview: async (orderId: number): Promise<Blob> => {
+        const url = `${API_ROUTES.SALES.ORDER_DETAIL(orderId)}/pdf`;
+        const response = await axiosClient.get(url, {
+            responseType: 'blob',
+        });
+        return response.data; // Retorna el Blob directamente para usarlo en un iframe o visor
     },
 
     // =========================================================

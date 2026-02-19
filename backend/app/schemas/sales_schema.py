@@ -60,8 +60,9 @@ class SalesOrderRead(SalesOrderBase):
     tax_amount: float
     total_price: float
     
-    # --- ¡ESTA ES LA SOLUCIÓN! ---
-    # Agregamos este campo para que el Frontend sepa quién creó la orden
+    # --- CAMPO NUEVO AGREGADO ---
+    commission_amount: float = 0.0
+    
     user_id: Optional[int] = None 
     
     items: List[SalesOrderItemRead] = []

@@ -59,7 +59,7 @@ export default function MaterialsPage() {
   // En lugar de preguntar "¿Quién NO ve?", preguntamos "¿Quién SÍ ve?".
   // Solo ADMIN y PRODUCTION (si aplica) ven costos. Diseño NO entra en esta lista.
   // Si userRole está vacío (cargando), por seguridad es false.
-  const showFinancials = ['ADMIN', 'ADMINISTRADOR', 'DIRECTION', 'DIRECCION', 'PRODUCTION', 'PRODUCCION'].includes(userRole);
+  const showFinancials = ['ADMIN', 'ADMINISTRADOR', 'DIRECTOR', 'DIRECCION', 'DIRECTION', 'PRODUCTION', 'PRODUCCION'].includes(userRole);
 
   // 4. MEMOS (Columnas)
   const columns = useMemo<ColumnDef<Material>[]>(() => {

@@ -60,8 +60,10 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                 const cost = item.frozen_unit_cost || 0;
                 const price = item.unit_price || 0;
                 
-                const realCommissionFactor = 1 + (loadedCommission / 100);
-                const basePrice = price / realCommissionFactor;
+                // --- CORRECCIÓN CRÍTICA ---
+                // Antes dividíamos el precio entre la comisión, lo que bajaba el valor a $16k.
+                // Ahora respetamos el precio tal cual viene de la base de datos ($17k).
+                const basePrice = price; 
 
                 if (cost === 0 || basePrice === 0) return 40; // Default fallback
 
@@ -486,7 +488,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                 <div className="flex justify-between items-center text-xs">
                                     <span className="text-slate-400 uppercase font-bold">Utilidad Neta Real:</span>
                                     <span className={`font-mono font-bold ${simulation.netUtility > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                        {formatCurrency(simulation.netUtility)} ({simulation.realWeightedMargin.toFixed(1)}%)
+                                        {formatCurrency(simulation.netUtility)} ({simulation.realWeightedMargin.toFixed(2)}%)
                                     </span>
                                 </div>
                             </div>

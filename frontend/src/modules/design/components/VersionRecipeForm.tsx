@@ -38,8 +38,6 @@ export const VersionRecipeForm = ({
   const userRole = (localStorage.getItem('user_role') || '').toUpperCase();
   
   // 2. ¿Quién tiene permiso de ver dinero?
-  // SOLO Administración y Dirección.
-  // CORRECCIÓN: Se agrega 'DIRECTOR' explícitamente a la lista.
   const showFinancials = ['ADMIN', 'ADMINISTRADOR', 'DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
 
   const FACTOR = (edgebandingFactor && edgebandingFactor > 0) ? edgebandingFactor : 25.00;
@@ -133,6 +131,16 @@ export const VersionRecipeForm = ({
       });
   }
 
+  // Helper para formatear dinero bonito ($1,250.00)
+  const formatMoney = (amount: number) => {
+    return amount.toLocaleString('es-MX', {
+        style: 'currency',
+        currency: 'MXN',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+  };
+
   return (
     <form onSubmit={handleSubmit((data) => onSave(data.components, internalStatus))} className="pb-2">
       
@@ -171,7 +179,7 @@ export const VersionRecipeForm = ({
           </div>
       )}
       
-      {/* Aviso informativo de seguridad (Opcional, solo para que Diseño sepa por qué no ve precios) */}
+      {/* Aviso informativo de seguridad */}
       {!showFinancials && (
          <div className="mb-4 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded text-xs flex items-center gap-2">
             <EyeOff size={14} /> <span>Modo Operativo: Información financiera oculta por seguridad.</span>
@@ -191,7 +199,7 @@ export const VersionRecipeForm = ({
                 <div className="grid grid-cols-12 gap-2 px-3 py-2 bg-slate-50/50 text-[10px] uppercase font-bold text-slate-400">
                     <div className="col-span-2">SKU</div>
                     
-                    {/* COLUMNA ELÁSTICA: Si no hay $$$ (2 col), Descripción crece de 6 a 8 columnas */}
+                    {/* COLUMNA ELÁSTICA */}
                     <div className={showFinancials ? "col-span-6" : "col-span-8"}>Descripción / Artículo</div>
                     
                     <div className="col-span-1 text-center">Cant.</div>
@@ -214,6 +222,7 @@ export const VersionRecipeForm = ({
                     const cost = getUsageCost(mat as Material);
                     const qty = parseFloat(String(val?.quantity || 0));
                     const total = Math.ceil((cost * qty) * 100) / 100;
+                    
                     return (
                         <div key={field.id} className="grid grid-cols-12 gap-2 px-3 py-1 items-center hover:bg-slate-50">
                             <div className="col-span-2 text-xs font-mono text-slate-500 truncate">{mat?.sku || "---"}</div>
@@ -231,11 +240,15 @@ export const VersionRecipeForm = ({
                             </div>
                             <div className="col-span-1 text-center text-[10px] text-slate-400">{mat?.usage_unit || "-"}</div>
                             
-                            {/* Solo mostramos valores de dinero si showFinancials es TRUE */}
+                            {/* AQUÍ ESTÁ EL CAMBIO DE FORMATO */}
                             {showFinancials && (
                                 <>
-                                    <div className="col-span-1 text-right text-[10px] text-slate-500 font-mono">{mat ? `$${cost.toFixed(2)}` : "-"}</div>
-                                    <div className="col-span-1 text-right text-xs font-bold font-mono">{total > 0 ? `$${total.toFixed(2)}` : "-"}</div>
+                                    <div className="col-span-1 text-right text-[10px] text-slate-500 font-mono">
+                                        {mat ? formatMoney(cost) : "-"}
+                                    </div>
+                                    <div className="col-span-1 text-right text-xs font-bold font-mono">
+                                        {total > 0 ? formatMoney(total) : "-"}
+                                    </div>
                                 </>
                             )}
                         </div>
@@ -258,7 +271,7 @@ export const VersionRecipeForm = ({
              {showFinancials && (
                  <div>
                     <div className="text-[10px] text-slate-400 uppercase font-bold">Costo Total</div>
-                    <div className="text-2xl font-black text-emerald-600">${totalCost.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</div>
+                    <div className="text-2xl font-black text-emerald-600">{formatMoney(totalCost)}</div>
                  </div>
              )}
 

@@ -121,13 +121,22 @@ def create_sales_order(
             )
             session.add(db_item)
 
-        # 2. CÁLCULO FINANCIERO CORREGIDO
-        commission_money = items_sum * applied_commission
-        final_subtotal = items_sum + commission_money
+        # 2. CÁLCULO FINANCIERO (LÓGICA DIRECTA Y UNIFORME)
         
+        # Importe Comisión = Suma de Partidas * % Comisión
+        commission_amount = items_sum * applied_commission
+        
+        # Subtotal (Base Imponible) = Suma Partidas + Comisión
+        final_subtotal = items_sum + commission_amount
+        
+        # Impuesto = Subtotal * Tasa
         tax_amount = final_subtotal * tax_rate.rate
+        
+        # Total = Subtotal + Impuesto
         total_price = final_subtotal + tax_amount
 
+        # Guardamos valores (Todo se llama igual ahora)
+        db_order.commission_amount = commission_amount 
         db_order.subtotal = final_subtotal 
         db_order.tax_amount = tax_amount
         db_order.total_price = total_price
@@ -195,7 +204,7 @@ def update_sales_order(
         update_data = order_update.model_dump(exclude_unset=True)
         items_data = update_data.pop("items", None) 
         
-        # PERMISO DIRECTOR: Si es Director, permitimos cambiar estatus (para el botón Autorizar)
+        # PERMISO DIRECTOR
         user_role = current_user.role.upper() if current_user.role else "SALES"
         if user_role not in ["DIRECTOR", "ADMIN"]:
             if "status" in update_data:
@@ -262,19 +271,26 @@ def update_sales_order(
                 )
                 session.add(new_db_item)
             
-            # --- CÁLCULO FINANCIERO CORREGIDO ---
-            # Usamos la comisión ya normalizada en db_order
+            # --- CÁLCULO FINANCIERO UPDATE (UNIFORME) ---
+            # 1. Recuperamos comisión
             commission_val = db_order.applied_commission_percent or 0.0
             
-            commission_money = items_sum * commission_val
-            final_subtotal = items_sum + commission_money
+            # 2. Calculamos importe comisión
+            commission_amount = items_sum * commission_val
             
+            # 3. Subtotal = Items + Comisión
+            final_subtotal = items_sum + commission_amount
+            
+            # 4. Impuestos
             tax_rate = session.get(TaxRate, db_order.tax_rate_id)
             tax_rate_val = tax_rate.rate if tax_rate else 0.16
-
             tax_amount = final_subtotal * tax_rate_val
+            
+            # 5. Total
             total_price = final_subtotal + tax_amount
 
+            # 6. Guardar
+            db_order.commission_amount = commission_amount 
             db_order.subtotal = final_subtotal
             db_order.tax_amount = tax_amount
             db_order.total_price = total_price
@@ -296,7 +312,7 @@ def update_sales_order(
         print(f"CRITICAL ERROR UPDATING ORDER: {str(e)}") 
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
 
-# ... (El resto de endpoints request-auth, authorize, pdf, delete IGUAL) ...
+# ... (Resto de endpoints request-auth, authorize, pdf, delete IGUAL) ...
 @router.post("/orders/{order_id}/request-auth", response_model=SalesOrderRead)
 def request_order_authorization(
     order_id: int,
