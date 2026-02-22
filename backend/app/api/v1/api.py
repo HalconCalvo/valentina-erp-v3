@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 # 1. IMPORTAMOS ANALYTICS Y EL NUEVO MÓDULO 'USERS'
-from app.api.v1.endpoints import foundations, auth, users, design, sales, inventory, login, analytics
+from app.api.v1.endpoints import foundations, auth, users, design, sales, inventory, login, treasury, analytics
 from app.api.v1.endpoints import finance
 
 api_router = APIRouter()
@@ -22,3 +22,4 @@ api_router.include_router(inventory.router, prefix="/inventory", tags=["inventor
 # 2. ANALYTICS & FINANZAS
 api_router.include_router(analytics.router, prefix="/analytics", tags=["analytics"])
 api_router.include_router(finance.router, prefix="/finance", tags=["finance"])
+api_router.include_router(treasury.router, prefix="/treasury", tags=["Treasury"])

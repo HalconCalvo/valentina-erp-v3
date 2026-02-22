@@ -22,7 +22,7 @@ class Settings(BaseSettings):
             return v
         raise ValueError(v)
 
-    DATABASE_URL: str = "sqlite:///./sgp_v3.db"
+    DATABASE_URL: str = "sqlite:///./local_dev.db"
 
     # Google Cloud
     GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = None

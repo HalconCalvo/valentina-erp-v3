@@ -6,7 +6,7 @@ from app.models.material import Material, ProductionRoute
 from app.core.config import settings
 
 # Conexión directa a la BD SQLite
-sqlite_url = "sqlite:///sgp_v3.db"
+sqlite_url = "sqlite:///local_dev.db"
 engine = create_engine(sqlite_url)
 
 def create_initial_data():

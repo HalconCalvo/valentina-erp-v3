@@ -34,6 +34,9 @@ import InventoryReceptionPage from './modules/foundations/pages/InventoryRecepti
 // 7. GERENCIA
 import ManagementDashboard from './modules/management/pages/ManagementDashboard';
 
+// 8. TESORERÍA
+import { TreasuryPage } from './modules/treasury/pages/TreasuryPage';
+
 // --- GUARDIA DE SEGURIDAD ---
 const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
   const token = localStorage.getItem('token');
@@ -80,6 +83,9 @@ function App() {
 
             {/* Inventario */}
             <Route path="/inventory/reception" element={<InventoryReceptionPage />} />
+
+            {/* Tesorería */}
+            <Route path="/treasury" element={<TreasuryPage />} />
 
             {/* Gerencia */}
             <Route path="/management" element={<ManagementDashboard />} />

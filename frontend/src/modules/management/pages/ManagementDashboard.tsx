@@ -1,35 +1,45 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
     TrendingDown, Users, DollarSign, 
     AlertTriangle, Calendar, ArrowRight, Filter, CheckSquare,
-    CheckCircle2, X, Clock, Trash2, Edit2, Search
+    CheckCircle2, X, Clock, Trash2, Edit2, Search, Check
 } from 'lucide-react';
 import Card from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
 import Badge from '../../../components/ui/Badge';
 import { financeService } from '../../../api/finance-service';
 import { salesService } from '../../../api/sales-service';
+import { treasuryService } from '../../../api/treasury-service';
 import { AccountsPayableStats, PendingInvoice, SupplierPayment, PaymentRequestPayload } from '../../../types/finance';
 import { SalesOrderStatus, SalesOrder } from '../../../types/sales';
+import { BankAccount } from '../../../types/treasury'; 
 import { PaymentRequestModal } from '../components/PaymentRequestModal';
+import { PaymentExecutionModal } from '../components/PaymentExecutionModal';
+import { PaymentApprovalModal } from '../components/PaymentApprovalModal';
 
-// Tipos para controlar la navegación interna
 type DashboardSection = 'INVENTORY' | 'PAYROLL' | 'EXPENSES' | 'PAYABLE' | 'QUOTES' | null;
 type PayableFilter = 'THIS_FRIDAY' | 'NEXT_15_DAYS' | 'FUTURE' | null;
 type PayableViewMode = 'TO_REQUEST' | 'REQUESTED';
 
 const ManagementDashboard: React.FC = () => {
     const navigate = useNavigate();
+    const location = useLocation();
+
+    // --- SEGURIDAD: Leer el Rol ---
+    const userRole = (localStorage.getItem('user_role') || '').toUpperCase().trim();
+    const isDirector = ['ADMIN', 'ADMINISTRADOR', 'DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
 
     // --- ESTADOS ---
     const [stats, setStats] = useState<AccountsPayableStats | null>(null);
     const [invoices, setInvoices] = useState<PendingInvoice[]>([]);
+    
     const [sentRequests, setSentRequests] = useState<SupplierPayment[]>([]); 
-    
-    // Estados para Cotizaciones
+    const [approvedRequests, setApprovedRequests] = useState<SupplierPayment[]>([]);
+    const [approvedPaymentsCount, setApprovedPaymentsCount] = useState(0);
+
+    const [accounts, setAccounts] = useState<BankAccount[]>([]); 
     const [pendingQuotes, setPendingQuotes] = useState<SalesOrder[]>([]);
-    
     const [loading, setLoading] = useState(false);
 
     // Navegación Interactiva
@@ -37,16 +47,35 @@ const ManagementDashboard: React.FC = () => {
     const [payableViewMode, setPayableViewMode] = useState<PayableViewMode>('TO_REQUEST'); 
     const [activeFilter, setActiveFilter] = useState<PayableFilter>(null);
     
-    // Modal de Pago (Creación y Edición)
+    // Modales
     const [selectedInvoice, setSelectedInvoice] = useState<PendingInvoice | null>(null);
     const [editingRequest, setEditingRequest] = useState<SupplierPayment | null>(null);
+    const [showExecutionModal, setShowExecutionModal] = useState(false);
+    const [showApprovalModal, setShowApprovalModal] = useState(false);
 
-    // --- CARGA DE DATOS INICIALES (KPIs) ---
+    // --- CARGA DE DATOS INICIALES ---
     useEffect(() => {
         loadStats();
         loadPendingQuotesCount();
-    }, []);
+        loadAccounts(); 
+        if (location.state && location.state.openSection) {
+            setActiveSection(location.state.openSection as DashboardSection);
+            window.history.replaceState({}, document.title); 
+        }
+    }, [location.state]);
 
+    // --- RADAR INVISIBLE (AUTO-REFRESCO CADA 15 SEGUNDOS) ---
+    useEffect(() => {
+        const intervalId = setInterval(() => {
+            loadStats();
+            loadPendingQuotesCount();
+            if (activeSection === 'PAYABLE') {
+                refreshPayableData(false); // false = actualiza por detrás sin mostrar pantallita de "Cargando..."
+            }
+        }, 15000);
+        return () => clearInterval(intervalId);
+    }, [activeSection, payableViewMode]);
+    
     const loadStats = async () => {
         try {
             const data = await financeService.getPayableDashboardStats();
@@ -65,34 +94,49 @@ const ManagementDashboard: React.FC = () => {
         }
     };
 
+    const loadAccounts = async () => {
+        try {
+            const accs = await treasuryService.getAccounts();
+            setAccounts(accs);
+        } catch (error) {
+            console.error("Error cargando cuentas de tesorería:", error);
+        }
+    };
+
     // --- CARGA DE DATOS AL ENTRAR A SECCIÓN ---
     useEffect(() => {
         if (activeSection === 'PAYABLE') {
-            refreshPayableData();
+            refreshPayableData(true);
         }
         if (activeSection === 'QUOTES') {
             loadPendingQuotesCount();
         }
     }, [activeSection, payableViewMode]);
 
-    const refreshPayableData = async () => {
-        setLoading(true);
+    const refreshPayableData = async (showSpinner = true) => {
+        if (showSpinner) setLoading(true);
         try {
-            const [invoicesData, requestsData] = await Promise.all([
+            const [invoicesData, pendingReqData, approvedReqData] = await Promise.all([
                 financeService.getPendingInvoices(),
-                financeService.getPendingApprovals()
+                financeService.getPendingApprovals(), 
+                financeService.getApprovedPayments()  
             ]);
             setInvoices(invoicesData);
-            setSentRequests(requestsData);
-            loadStats(); 
+            setSentRequests(pendingReqData);
+            setApprovedRequests(approvedReqData);
+            setApprovedPaymentsCount(approvedReqData.length); 
+            
+            // Si el spinner está prendido, no llamamos loadStats de nuevo porque ya lo hicimos arriba, 
+            // pero si está en auto-refresh, lo dejamos.
+            if (showSpinner) loadStats(); 
         } catch (error) {
             console.error("Error al refrescar datos", error);
         } finally {
-            setLoading(false);
+            if (showSpinner) setLoading(false);
         }
     };
 
-    // --- LÓGICA DE FILTRADO (Viernes de Corte para Pagos) ---
+    // --- LÓGICA DE FILTRADO ---
     const getFilteredInvoices = () => {
         if (!activeFilter) return [];
 
@@ -151,7 +195,7 @@ const ManagementDashboard: React.FC = () => {
                 alert("✅ Solicitud enviada a Dirección.");
             }
             closeModal();
-            refreshPayableData();
+            refreshPayableData(true);
         } catch (e) {
             alert("❌ Error al procesar la solicitud.");
         }
@@ -161,7 +205,7 @@ const ManagementDashboard: React.FC = () => {
         if(!confirm("¿Estás seguro de cancelar esta solicitud? Se eliminará y el saldo volverá a estar disponible.")) return;
         try {
             await financeService.cancelPaymentRequest(id);
-            refreshPayableData();
+            refreshPayableData(true);
         } catch (e) {
             alert("Error al cancelar la solicitud.");
         }
@@ -280,7 +324,7 @@ const ManagementDashboard: React.FC = () => {
                 </Card>
             </div>
 
-            {/* --- NIVEL 2: MÓDULO DE COTIZACIONES (CORREGIDO) --- */}
+            {/* --- NIVEL 2: MÓDULO DE COTIZACIONES --- */}
             {activeSection === 'QUOTES' && (
                 <div className="animate-in slide-in-from-top-4 duration-300 relative mt-6 pt-6 border-t border-slate-200">
                     <button onClick={() => setActiveSection(null)} className="absolute -top-3 -right-2 p-2 bg-white shadow-md rounded-full text-slate-400 hover:text-indigo-500 z-10"><X size={20}/></button>
@@ -324,7 +368,6 @@ const ManagementDashboard: React.FC = () => {
                                                     {new Date(quote.created_at).toLocaleDateString('es-MX')}
                                                 </td>
                                                 <td className="px-6 py-4 text-center">
-                                                    {/* --- AQUÍ ESTABA EL ERROR --- */}
                                                     <Button 
                                                         size="sm" 
                                                         className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm shadow-indigo-200"
@@ -348,14 +391,31 @@ const ManagementDashboard: React.FC = () => {
                 <div className="animate-in slide-in-from-top-4 duration-300 relative mt-6 pt-6 border-t border-slate-200">
                     <button onClick={() => setActiveSection(null)} className="absolute -top-3 -right-2 p-2 bg-white shadow-md rounded-full text-slate-400 hover:text-red-500 z-10"><X size={20}/></button>
 
-                    {/* TABS DE NAVEGACIÓN */}
-                    <div className="flex items-center space-x-1 mb-6 bg-slate-100 p-1 rounded-lg w-fit">
-                        <button onClick={() => setPayableViewMode('TO_REQUEST')} className={`px-4 py-2 text-sm font-bold rounded-md transition-all flex items-center gap-2 ${payableViewMode === 'TO_REQUEST' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                            <TrendingDown size={16}/> Por Solicitar
-                        </button>
-                        <button onClick={() => setPayableViewMode('REQUESTED')} className={`px-4 py-2 text-sm font-bold rounded-md transition-all flex items-center gap-2 ${payableViewMode === 'REQUESTED' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                            <Clock size={16}/> En Espera de Autorización {pendingApprovals > 0 && <span className="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded-full">{pendingApprovals}</span>}
-                        </button>
+                    {/* TABS DE NAVEGACIÓN Y BOTÓN DE EJECUCIÓN */}
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                        <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-lg w-fit">
+                            <button onClick={() => setPayableViewMode('TO_REQUEST')} className={`px-4 py-2 text-sm font-bold rounded-md transition-all flex items-center gap-2 ${payableViewMode === 'TO_REQUEST' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                                <TrendingDown size={16}/> Por Solicitar
+                            </button>
+                            <button onClick={() => setPayableViewMode('REQUESTED')} className={`px-4 py-2 text-sm font-bold rounded-md transition-all flex items-center gap-2 ${payableViewMode === 'REQUESTED' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                                <Clock size={16}/> En Espera de Autorización {pendingApprovals > 0 && <span className="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded-full">{pendingApprovals}</span>}
+                            </button>
+                        </div>
+
+                        {/* EL NUEVO BOTÓN DE EJECUCIÓN (CON EL NÚMERO INTEGRADO) */}
+                        <Button 
+                            className={`font-bold shadow-lg transform transition hover:scale-105 ${approvedPaymentsCount > 0 ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-none ring-2 ring-emerald-200' : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'}`}
+                            onClick={() => setShowExecutionModal(true)}
+                        >
+                            {approvedPaymentsCount > 0 ? (
+                                <span className="bg-white text-emerald-700 text-[11px] font-black px-2 py-0.5 rounded-md mr-2 shadow-sm animate-pulse">
+                                    {approvedPaymentsCount}
+                                </span>
+                            ) : (
+                                <CheckCircle2 size={18} className="mr-2"/>
+                            )}
+                            Pagos Listos para Ejecutar
+                        </Button>
                     </div>
 
                     {/* --- VISTA 1: POR SOLICITAR --- */}
@@ -468,7 +528,7 @@ const ManagementDashboard: React.FC = () => {
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-sm text-left">
                                             <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-100">
-                                                <tr><th className="px-6 py-4">Proveedor</th><th className="px-6 py-4">Factura</th><th className="px-6 py-4">Vencimiento</th><th className="px-6 py-4 text-right">Saldo Disponible</th><th className="px-6 py-4 text-center">Acción</th></tr>
+                                                <tr><th className="px-6 py-4">Proveedor</th><th className="px-6 py-4">Factura</th><th className="px-6 py-4">Vencimiento</th><th className="px-6 py-4 text-right">Saldo Deuda</th><th className="px-6 py-4 text-center">Acción</th></tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-50">
                                                 {loading ? (
@@ -477,31 +537,54 @@ const ManagementDashboard: React.FC = () => {
                                                     <tr><td colSpan={5} className="text-center py-12 text-slate-400 italic">No hay documentos pendientes.</td></tr>
                                                 ) : (
                                                     filteredData.map((inv) => {
-                                                        const pendingRequestsForThisInvoice = sentRequests.filter(
+                                                        const allActiveRequests = [...sentRequests, ...approvedRequests];
+                                                        
+                                                        const activeRequestsForThisInvoice = allActiveRequests.filter(
                                                             req => req.invoice_folio === inv.invoice_number && req.provider_name === inv.provider_name
                                                         );
-                                                        const moneyAlreadyRequested = pendingRequestsForThisInvoice.reduce((sum, req) => sum + req.amount, 0);
-                                                        const realAvailableBalance = inv.outstanding_balance - moneyAlreadyRequested;
-                                                        const isFullyRequested = realAvailableBalance <= 0.01; 
+                                                        
+                                                        const hasActiveRequest = activeRequestsForThisInvoice.length > 0;
+                                                        const moneyAlreadyRequested = activeRequestsForThisInvoice.reduce((sum, req) => sum + req.amount, 0);
+                                                        
+                                                        const isAlreadyApproved = activeRequestsForThisInvoice.some(req => 
+                                                            approvedRequests.find(ar => ar.id === req.id)
+                                                        );
+                                                        
+                                                        const statusLabel = isAlreadyApproved ? "Autorizado (Pend. Pago)" : "En Proceso";
+
+                                                        let accountName = "Sin cuenta sugerida";
+                                                        if (hasActiveRequest && activeRequestsForThisInvoice[0].suggested_account_id) {
+                                                            const acc = accounts.find(a => a.id === activeRequestsForThisInvoice[0].suggested_account_id);
+                                                            if (acc) accountName = acc.name;
+                                                        }
 
                                                         return (
                                                             <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
                                                                 <td className="px-6 py-4 font-bold text-slate-700">{inv.provider_name}</td>
                                                                 <td className="px-6 py-4"><span className="font-mono bg-slate-100 px-2 py-1 rounded text-slate-600 text-xs">{inv.invoice_number}</span></td>
                                                                 <td className="px-6 py-4 text-slate-600"><div className="flex items-center gap-2"><Calendar size={14} className="text-slate-400"/>{formatDate(inv.due_date)}</div></td>
+                                                                
                                                                 <td className="px-6 py-4 text-right">
-                                                                    <div className="font-black text-slate-800">{formatCurrency(realAvailableBalance)}</div>
-                                                                    {moneyAlreadyRequested > 0 && <div className="text-[10px] text-amber-600 italic">(-{formatCurrency(moneyAlreadyRequested)} en espera)</div>}
+                                                                    <div className="font-black text-slate-800">{formatCurrency(inv.outstanding_balance)}</div>
                                                                 </td>
-                                                                <td className="px-6 py-4 text-center">
-                                                                    <Button 
-                                                                        size="sm" 
-                                                                        className={`shadow-sm ${isFullyRequested ? 'bg-slate-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}
-                                                                        disabled={isFullyRequested}
-                                                                        onClick={() => !isFullyRequested && setSelectedInvoice({...inv, outstanding_balance: realAvailableBalance})}
-                                                                    >
-                                                                        {isFullyRequested ? 'En Proceso' : <><CheckCircle2 size={16} className="mr-1"/> Solicitar</>}
-                                                                    </Button>
+                                                                
+                                                                <td className="px-6 py-4 text-center align-middle">
+                                                                    {hasActiveRequest ? (
+                                                                        <div className={`inline-flex flex-col items-center justify-center py-1.5 px-3 rounded-md border cursor-not-allowed w-full min-w-[140px] shadow-sm ${isAlreadyApproved ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                                                                            <span className="text-[11px] font-bold mb-0.5">{statusLabel}: {formatCurrency(moneyAlreadyRequested)}</span>
+                                                                            <span className="text-[9px] font-bold bg-white/60 px-2 py-0.5 rounded-full truncate max-w-[140px]" title={accountName}>
+                                                                                {accountName}
+                                                                            </span>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <Button 
+                                                                            size="sm" 
+                                                                            className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm w-full min-w-[140px]"
+                                                                            onClick={() => setSelectedInvoice(inv)}
+                                                                        >
+                                                                            <CheckCircle2 size={16} className="mr-1"/> Solicitar
+                                                                        </Button>
+                                                                    )}
                                                                 </td>
                                                             </tr>
                                                         );
@@ -521,7 +604,16 @@ const ManagementDashboard: React.FC = () => {
                             <div className="bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden">
                                 <div className="p-4 bg-indigo-50 border-b border-indigo-100 flex justify-between items-center">
                                     <h3 className="font-bold text-indigo-800 flex items-center gap-2 text-lg"><Clock className="text-indigo-600"/> Solicitudes en Espera de Dirección</h3>
-                                    <Badge variant="secondary" className="bg-white text-indigo-700 border border-indigo-200">{sentRequests.length} Solicitudes</Badge>
+                                    
+                                    {/* --- BOTÓN DE AUTORIZACIÓN PARA EL DIRECTOR --- */}
+                                    {isDirector && sentRequests.length > 0 && (
+                                        <Button 
+                                            className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold shadow-md shadow-emerald-200"
+                                            onClick={() => setShowApprovalModal(true)}
+                                        >
+                                            <Check size={18} className="mr-2"/> Revisar y Autorizar
+                                        </Button>
+                                    )}
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm text-left">
@@ -558,7 +650,8 @@ const ManagementDashboard: React.FC = () => {
                  </div>
             )}
 
-            {/* MODAL DE SOLICITUD (CREAR / EDITAR) */}
+            {/* MODALES */}
+            
             {(selectedInvoice || editingRequest) && (
                 <PaymentRequestModal 
                     invoice={selectedInvoice || undefined}
@@ -567,6 +660,25 @@ const ManagementDashboard: React.FC = () => {
                     onSubmit={handleModalSubmit}
                 />
             )}
+
+            {showExecutionModal && (
+                <PaymentExecutionModal 
+                    onClose={() => setShowExecutionModal(false)}
+                    onSuccess={() => {
+                        setShowExecutionModal(false);
+                        refreshPayableData(true);
+                    }}
+                />
+            )}
+
+            {/* MODAL DE AUTORIZACIÓN PARA DIRECCIÓN */}
+            {showApprovalModal && isDirector && (
+                <PaymentApprovalModal 
+                    onClose={() => setShowApprovalModal(false)}
+                    onUpdate={() => refreshPayableData(true)}
+                />
+            )}
+
         </div>
     );
 };

@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Package, ShoppingCart, Factory, 
   Truck, Settings, LogOut, ChevronRight, Users, Briefcase, 
   UserCog, Percent, ClipboardList, TrendingUp, Shield, User,
-  Ruler, Hammer, PenTool 
+  Ruler, Hammer, PenTool, Landmark
 } from 'lucide-react';
 
 import { useFoundations } from '../../modules/foundations/hooks/useFoundations';
@@ -14,7 +14,7 @@ const API_URL = "https://valentina-erp-v3.uc.r.appspot.com";
 // 1. DEFINICIÓN DE ROLES
 type UserRole = 'DIRECTOR' | 'ADMIN' | 'SALES' | 'DESIGN' | 'WAREHOUSE' | 'PRODUCTION';
 
-// 2. CONFIGURACIÓN DEL MENÚ (Orden 1-13)
+// 2. CONFIGURACIÓN DEL MENÚ (Orden 1-14)
 const menuItems = [
   // 1- Dashboard
   { icon: LayoutDashboard, label: 'Dashboard', path: '/', allowedRoles: ['DIRECTOR', 'ADMIN', 'SALES', 'DESIGN', 'WAREHOUSE', 'PRODUCTION'] },
@@ -42,17 +42,20 @@ const menuItems = [
   
   // 9- Logística
   { icon: Truck, label: 'Logística', path: '/logistics', allowedRoles: ['DIRECTOR', 'ADMIN', 'WAREHOUSE', 'SALES'] },
+
+  // 10- Tesorería (NUEVO MÓDULO FINANCIERO)
+  { icon: Landmark, label: 'Tesorería', path: '/treasury', allowedRoles: ['DIRECTOR', 'ADMIN'] },
   
-  // 10- Gerencia
+  // 11- Gerencia
   { icon: TrendingUp, label: 'Gerencia', path: '/management', allowedRoles: ['DIRECTOR', 'ADMIN'] },
 
-  // 11- Usuarios
+  // 12- Usuarios
   { icon: UserCog, label: 'Usuarios', path: '/users', allowedRoles: ['DIRECTOR'] },
 
-  // 12- Impuestos
+  // 13- Impuestos
   { icon: Percent, label: 'Impuestos', path: '/tax-rates', allowedRoles: ['DIRECTOR', 'ADMIN'] },
 
-  // 13- Configuración
+  // 14- Configuración
   { icon: Settings, label: 'Configuración', path: '/config', allowedRoles: ['DIRECTOR'] }, 
 ];
 

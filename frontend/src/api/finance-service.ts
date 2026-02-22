@@ -18,7 +18,7 @@ export const financeService = {
     },
 
     /**
-     * Envía una solicitud de pago (Gerencia) -> PENDING
+     * Paso 1: Envía una solicitud de pago (Administración) -> PENDING
      */
     requestPayment: async (data: PaymentRequestPayload): Promise<SupplierPayment> => {
         const response = await client.post<SupplierPayment>('/finance/payments/request', data);
@@ -34,15 +34,14 @@ export const financeService = {
     },
 
     /**
-     * Cancela/Elimina una solicitud de pago (Solo si está PENDING)
+     * Cancela/Elimina una solicitud de pago (Solo si está PENDING o REJECTED)
      */
     cancelPaymentRequest: async (id: number): Promise<void> => {
         await client.delete(`/finance/payments/request/${id}`);
     },
 
     /**
-     * Lista las solicitudes pendientes de firma (Dirección)
-     * También usada por Gerencia para ver "En Espera"
+     * Lista las solicitudes pendientes de firma o ejecución
      */
     getPendingApprovals: async (): Promise<SupplierPayment[]> => {
         const response = await client.get<SupplierPayment[]>('/finance/payments/pending-approvals');
@@ -50,15 +49,37 @@ export const financeService = {
     },
 
     /**
-     * Aprueba o Rechaza un pago (Dirección)
+     * Obtiene los pagos que ya fueron autorizados por Dirección y están listos para ejecutarse.
      */
-    updatePaymentStatus: async (paymentId: number, status: PaymentStatus): Promise<SupplierPayment> => {
-        const response = await client.put<SupplierPayment>(`/finance/payments/${paymentId}/status`, { status });
+    getApprovedPayments: async (): Promise<SupplierPayment[]> => {
+        const response = await client.get<SupplierPayment[]>('/finance/payments/approved');
         return response.data;
     },
     
     /**
-     * Obtiene todas las facturas con saldo pendiente para la Mesa de Control (Tabla de Auditoría).
+     * Paso 2: Aprueba o Rechaza un pago (Dirección)
+     * NUEVO: Se envía la cuenta bancaria dictaminada si se aprueba.
+     */
+    updatePaymentStatus: async (paymentId: number, status: PaymentStatus, approvedAccountId?: number): Promise<SupplierPayment> => {
+        const payload = { 
+            status, 
+            approved_account_id: approvedAccountId 
+        };
+        const response = await client.put<SupplierPayment>(`/finance/payments/${paymentId}/status`, payload);
+        return response.data;
+    },
+
+    /**
+     * Paso 3: Ejecuta un pago autorizado (Administración / Tesorería) [NUEVO ENDPOINT]
+     * Descuenta del banco, registra en historial y baja saldo de factura.
+     */
+    executePayment: async (paymentId: number): Promise<SupplierPayment> => {
+        const response = await client.post<SupplierPayment>(`/finance/payments/${paymentId}/execute`);
+        return response.data;
+    },
+    
+    /**
+     * Obtiene todas las facturas con saldo pendiente para la Mesa de Control.
      */
     getPendingInvoices: async (): Promise<PendingInvoice[]> => {
         const response = await client.get<PendingInvoice[]>('/finance/invoices/pending');

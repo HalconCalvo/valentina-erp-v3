@@ -11,7 +11,7 @@ import {
 // SERVICES & HOOKS
 import { useSales } from './modules/sales/hooks/useSales';
 import { financeService } from './api/finance-service';
-import { AccountsPayableStats, PendingInvoice } from './types/finance';
+import { AccountsPayableStats } from './types/finance';
 
 // UI COMPONENTS
 import { SalesOrderStatus } from './types/sales';
@@ -19,11 +19,8 @@ import Card from './components/ui/Card';
 import Button from './components/ui/Button';
 import Badge from './components/ui/Badge';
 import { FinancialReviewModal } from './modules/management/components/FinancialReviewModal';
-import { PaymentRequestModal } from './modules/management/components/PaymentRequestModal';
-import { PaymentApprovalModal } from './modules/management/components/PaymentApprovalModal'; 
 
 // Tipos locales
-type PayableFilter = 'THIS_FRIDAY' | 'NEXT_15_DAYS' | 'FUTURE' | null;
 type SalesViewMode = 'NONE' | 'PENDING_AUTH' | 'MONTHLY_SALES';
 
 const Home: React.FC = () => {
@@ -39,21 +36,13 @@ const Home: React.FC = () => {
   const { orders, fetchOrders } = useSales(); 
   const [apStats, setApStats] = useState<AccountsPayableStats | null>(null);
   
-  // --- ESTADOS PARA PAGOS (TIPO GERENCIA) ---
-  const [invoices, setInvoices] = useState<PendingInvoice[]>([]);
-  const [loadingPayables, setLoadingPayables] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<PayableFilter>(null);
-  const [selectedInvoice, setSelectedInvoice] = useState<PendingInvoice | null>(null);
-  
   // CONTROL DE VISTAS Y MODALES (DIRECTOR)
-  const [activeView, setActiveView] = useState<'NONE' | 'PAYABLES' | 'SALES_AUDIT'>('NONE');
+  const [activeView, setActiveView] = useState<'NONE' | 'SALES_AUDIT'>('NONE');
   const [salesTab, setSalesTab] = useState<'dashboard' | 'history'>('dashboard');
   
   // --- ESTADOS ESPECÍFICOS DE VENTAS (VENDEDOR) ---
   const [salesViewMode, setSalesViewMode] = useState<SalesViewMode>('NONE');
-  
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   // --- FUNCIÓN STATUS BADGE ---
   const renderStatusBadge = (status: SalesOrderStatus) => {
@@ -172,11 +161,6 @@ const Home: React.FC = () => {
     }
   };
 
-  const togglePayables = () => {
-    if (activeView === 'PAYABLES') setActiveView('NONE');
-    else setActiveView('PAYABLES');
-  };
-
   // --- LÓGICA DE DIRECTOR: FILTRADO TABLA ---
   const directorFilteredOrders = useMemo(() => {
       if (!orders) return [];
@@ -197,55 +181,6 @@ const Home: React.FC = () => {
       }
   }, [orders, salesTab]);
 
-  // --- CARGA DE FACTURAS (DIRECTOR) ---
-  useEffect(() => {
-      if (activeView === 'PAYABLES') {
-          setLoadingPayables(true);
-          financeService.getPendingInvoices()
-              .then(data => setInvoices(data))
-              .finally(() => setLoadingPayables(false));
-      } else {
-          setActiveFilter(null);
-      }
-  }, [activeView]);
-
-  const getFilteredInvoices = () => {
-      if (!activeFilter) return [];
-      const today = new Date();
-      today.setHours(0,0,0,0);
-      const dayOfWeek = today.getDay(); 
-      let daysUntilFriday = 5 - dayOfWeek;
-      if (dayOfWeek === 6) { daysUntilFriday = 6; }
-      const cutoffDate = new Date(today);
-      cutoffDate.setDate(today.getDate() + daysUntilFriday);
-      cutoffDate.setHours(23, 59, 59, 999);
-      const nextPeriodLimit = new Date(cutoffDate);
-      nextPeriodLimit.setDate(cutoffDate.getDate() + 15);
-
-      return invoices.filter(inv => {
-          const dueDate = new Date(inv.due_date + 'T12:00:00'); 
-          if (activeFilter === 'THIS_FRIDAY') return dueDate <= cutoffDate;
-          if (activeFilter === 'NEXT_15_DAYS') return dueDate > cutoffDate && dueDate <= nextPeriodLimit;
-          if (activeFilter === 'FUTURE') return dueDate > nextPeriodLimit;
-          return false;
-      });
-  };
-  const filteredPayables = getFilteredInvoices();
-
-  const handleRequestPayment = async (payload: any) => {
-      try {
-          await financeService.requestPayment(payload);
-          alert("Solicitud enviada a Dirección");
-          setSelectedInvoice(null);
-          const stats = await financeService.getPayableDashboardStats();
-          setApStats(stats);
-          const newInvoices = await financeService.getPendingInvoices();
-          setInvoices(newInvoices);
-      } catch (e) {
-          alert("Error al solicitar pago");
-      }
-  };
-
   // --- FORMATO ---
   const formatCurrency = (amount: number) => {
     return amount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 2 });
@@ -261,7 +196,7 @@ const Home: React.FC = () => {
   const getRoleConfig = () => {
     switch (userRole) {
       case 'SALES': return { title: 'Panel Comercial', subtitle: 'Tus objetivos y seguimiento.', color: 'from-emerald-500 to-teal-600', shortcuts: [] };
-      case 'DESIGN': return { title: 'Ingeniería', subtitle: 'Desarrollo de productos.', color: 'from-pink-500 to-rose-600', shortcuts: [{ label: 'Nuevo Producto', icon: PlusCircle, path: '/design', color: 'bg-pink-100 text-pink-700' }, { label: 'Catálogo', icon: PenTool, path: '/design', color: 'bg-purple-100 text-purple-700' }, { label: 'Materiales', icon: Package, path: '/materials', color: 'bg-amber-100 text-amber-700' }, { label: 'Producción', icon: LayoutDashboard, path: '/production', color: 'bg-slate-100 text-slate-700' }] };
+      case 'DESIGN': return { title: 'Ingeniería', subtitle: 'Desarrollo de productos.', color: 'from-pink-500 to-rose-600', shortcuts: [{ label: 'Nuevo Producto', icon: PlusCircle, path: '/design', color: 'bg-pink-100 text-pink-700', state: { openNewModal: true } }, { label: 'Catálogo', icon: PenTool, path: '/design', color: 'bg-purple-100 text-purple-700' }, { label: 'Materiales', icon: Package, path: '/materials', color: 'bg-amber-100 text-amber-700' }, { label: 'Producción', icon: LayoutDashboard, path: '/production', color: 'bg-slate-100 text-slate-700' }] };
       case 'WAREHOUSE': return { title: 'Logística', subtitle: 'Control de inventarios.', color: 'from-orange-500 to-amber-600', shortcuts: [{ label: 'Recepción', icon: ClipboardList, path: '/inventory/reception', color: 'bg-orange-100 text-orange-700' }, { label: 'Inventario', icon: Package, path: '/materials', color: 'bg-emerald-100 text-emerald-700' }, { label: 'Proveedores', icon: Truck, path: '/providers', color: 'bg-blue-100 text-blue-700' }, { label: 'Movimientos', icon: Search, path: '/inventory/movements', color: 'bg-slate-100 text-slate-700' }] };
       case 'PRODUCTION': return { title: 'Fábrica', subtitle: 'Gestión de producción.', color: 'from-blue-600 to-indigo-700', shortcuts: [{ label: 'Órdenes', icon: ClipboardList, path: '/production', color: 'bg-blue-100 text-blue-700' }, { label: 'Materiales', icon: Package, path: '/materials', color: 'bg-slate-100 text-slate-700' }] };
       case 'ADMIN': return { title: 'Administración', subtitle: 'Finanzas y Control.', color: 'from-indigo-600 to-violet-800', shortcuts: [] };
@@ -292,7 +227,7 @@ const Home: React.FC = () => {
 
 
   return (
-    <div className="min-h-full p-8 space-y-8 animate-in fade-in duration-500 pb-24">
+    <div className="min-h-full p-8 space-y-8 animate-in fade-in duration-500 pb-24 max-w-7xl mx-auto">
       
       {/* HERO SECTION */}
       <div className={`rounded-2xl shadow-xl p-8 text-white bg-gradient-to-r ${config.color} relative overflow-hidden transition-colors duration-500`}>
@@ -486,9 +421,9 @@ const Home: React.FC = () => {
                     </div>
                 </Card>
 
-                {/* 4. CUENTAS POR PAGAR (Toggle) */}
-                <div onClick={togglePayables} className="cursor-pointer transition-transform hover:scale-[1.02] active:scale-95">
-                    <Card className={`p-4 h-full border-l-4 border-l-red-500 ${activeView === 'PAYABLES' ? 'bg-slate-50 ring-2 ring-indigo-500 shadow-md' : 'bg-white shadow-sm'}`}>
+                {/* 4. CUENTAS POR PAGAR (AQUÍ ESTÁ EL TELETRANSPORTADOR) */}
+                <div onClick={() => navigate('/management', { state: { openSection: 'PAYABLE' } })} className="cursor-pointer transition-transform hover:scale-[1.02] active:scale-95">
+                    <Card className={`p-4 h-full border-l-4 border-l-red-500 bg-white shadow-sm hover:shadow-lg`}>
                         <div className="flex justify-between items-start">
                             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Cuentas x Pagar</p>
                             <TrendingDown size={14} className="text-red-500"/>
@@ -546,72 +481,46 @@ const Home: React.FC = () => {
                     </div>
                 </div>
             )}
-
-            {/* VISTA DE PAGOS (DIRECTOR) */}
-            {activeView === 'PAYABLES' && apStats && (
-                 <div className="animate-in slide-in-from-top-4 duration-300 relative mt-6 pt-6 border-t border-slate-200">
-                    <button onClick={() => setActiveView('NONE')} className="absolute -top-3 -right-2 p-2 bg-white shadow-md rounded-full text-slate-400 hover:text-red-500 z-10"><X size={20}/></button>
-                    {pendingApprovals > 0 && (
-                        <div className="mb-6 bg-gradient-to-r from-indigo-600 to-violet-700 rounded-xl p-6 text-white shadow-lg flex items-center justify-between animate-pulse-slow">
-                            <div><h3 className="text-xl font-black flex items-center gap-2"><FileText/> Firmas Requeridas</h3><p className="opacity-90">Tienes {pendingApprovals} solicitudes de pago.</p></div>
-                            <Button className="bg-white !text-indigo-700 hover:!bg-indigo-700 hover:!text-white transition-colors font-bold border-none shadow-sm" onClick={() => setShowPaymentModal(true)}>Revisar Solicitudes</Button>
-                        </div>
-                    )}
-                    <div className="flex items-center gap-2 text-slate-500 font-medium mb-4"><TrendingDown size={18}/> <span>Flujo de Efectivo: Seleccione una tarjeta para auditar</span></div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <Card onClick={() => setActiveFilter('THIS_FRIDAY')} className={`p-6 cursor-pointer border transition-all group relative overflow-hidden ${activeFilter === 'THIS_FRIDAY' ? 'bg-gradient-to-br from-red-600 to-red-700 text-white shadow-xl scale-105 border-transparent' : 'bg-white border-slate-200 hover:border-red-400 hover:shadow-md'}`}>
-                            <div className="relative z-10">
-                                <div className="flex justify-between items-center mb-4"><span className={`text-xs font-bold uppercase tracking-wider ${activeFilter === 'THIS_FRIDAY' ? 'text-red-100' : 'text-red-600'}`}><AlertTriangle className="inline mr-1 mb-1" size={14}/> Pago Inmediato</span></div>
-                                <p className={`text-sm mb-2 ${activeFilter === 'THIS_FRIDAY' ? 'text-red-100' : 'text-slate-400'}`}>Vencido + Este Viernes</p>
-                                <div className="flex items-end justify-between"><div className={`text-xl font-bold leading-none ${activeFilter === 'THIS_FRIDAY' ? 'text-red-200' : 'text-slate-300'}`}>{apStats.overdue_count || 0}</div><div className={`text-xl font-black text-right ${activeFilter === 'THIS_FRIDAY' ? 'text-white' : 'text-slate-800'}`}>{formatCurrency(apStats.overdue_amount)}</div></div>
-                            </div>
-                        </Card>
-                        <Card onClick={() => setActiveFilter('NEXT_15_DAYS')} className={`p-6 cursor-pointer border transition-all group relative overflow-hidden ${activeFilter === 'NEXT_15_DAYS' ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-xl scale-105 border-transparent' : 'bg-white border-slate-200 hover:border-orange-400 hover:shadow-md'}`}>
-                            <div className="relative z-10">
-                                <div className="flex justify-between items-center mb-4"><span className={`text-xs font-bold uppercase tracking-wider ${activeFilter === 'NEXT_15_DAYS' ? 'text-orange-100' : 'text-orange-600'}`}><Calendar className="inline mr-1 mb-1" size={14}/> Proyección Corta</span></div>
-                                <p className={`text-sm mb-2 ${activeFilter === 'NEXT_15_DAYS' ? 'text-orange-100' : 'text-slate-400'}`}>Siguientes 15 Días</p>
-                                <div className="flex items-end justify-between"><div className={`text-xl font-bold leading-none ${activeFilter === 'NEXT_15_DAYS' ? 'text-orange-200' : 'text-slate-300'}`}>{apStats.next_period_count || 0}</div><div className={`text-xl font-black text-right ${activeFilter === 'NEXT_15_DAYS' ? 'text-white' : 'text-slate-800'}`}>{formatCurrency(apStats.next_period_amount)}</div></div>
-                            </div>
-                        </Card>
-                        <Card onClick={() => setActiveFilter('FUTURE')} className={`p-6 cursor-pointer border transition-all group relative overflow-hidden ${activeFilter === 'FUTURE' ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-xl scale-105 border-transparent' : 'bg-white border-slate-200 hover:border-emerald-400 hover:shadow-md'}`}>
-                            <div className="relative z-10">
-                                <div className="flex justify-between items-center mb-4"><span className={`text-xs font-bold uppercase tracking-wider ${activeFilter === 'FUTURE' ? 'text-emerald-100' : 'text-emerald-600'}`}><CheckCircle className="inline mr-1 mb-1" size={14}/> Largo Plazo</span></div>
-                                <p className={`text-sm mb-2 ${activeFilter === 'FUTURE' ? 'text-emerald-100' : 'text-slate-400'}`}>Vencimientos Futuros</p>
-                                <div className="flex items-end justify-between"><div className={`text-xl font-bold leading-none ${activeFilter === 'FUTURE' ? 'text-emerald-200' : 'text-slate-300'}`}>{apStats.future_count || 0}</div><div className={`text-xl font-black text-right ${activeFilter === 'FUTURE' ? 'text-white' : 'text-slate-800'}`}>{formatCurrency(apStats.future_amount)}</div></div>
-                            </div>
-                        </Card>
-                     </div>
-                     {activeFilter && (
-                        <div className="animate-fadeInUp bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden mt-8">
-                            <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center"><h3 className="font-bold text-slate-700 flex items-center gap-2"><Filter size={18} className="text-slate-400"/> Auditoría: <span className={`uppercase ml-1 font-black px-2 py-0.5 rounded text-sm ${activeFilter === 'THIS_FRIDAY' ? 'bg-red-100 text-red-700' : activeFilter === 'NEXT_15_DAYS' ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700'}`}>{activeFilter === 'THIS_FRIDAY' ? 'Pago Inmediato' : activeFilter === 'NEXT_15_DAYS' ? 'Proyección 15 Días' : 'Futuros'}</span></h3><Badge variant="secondary">{filteredPayables.length} Documentos</Badge></div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm text-left"><thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-100"><tr><th className="px-6 py-4">Proveedor</th><th className="px-6 py-4">Factura</th><th className="px-6 py-4">Vencimiento</th><th className="px-6 py-4 text-right">Saldo</th><th className="px-6 py-4 text-center">Acción</th></tr></thead><tbody className="divide-y divide-slate-50">{loadingPayables ? (<tr><td colSpan={5} className="text-center py-12 text-slate-400">Cargando datos...</td></tr>) : filteredPayables.length === 0 ? (<tr><td colSpan={5} className="text-center py-12 text-slate-400 italic">No hay documentos pendientes.</td></tr>) : (filteredPayables.map((inv) => (<tr key={inv.id} className="hover:bg-slate-50 transition-colors"><td className="px-6 py-4 font-bold text-slate-700">{inv.provider_name}</td><td className="px-6 py-4 font-mono text-slate-500">{inv.invoice_number}</td><td className="px-6 py-4 text-slate-600"><div className="flex items-center gap-2"><Calendar size={14} className="text-slate-400"/>{formatDate(inv.due_date)}</div></td><td className="px-6 py-4 text-right font-black text-slate-800">{formatCurrency(inv.outstanding_balance)}</td><td className="px-6 py-4 text-center"><Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white" onClick={() => setSelectedInvoice(inv)}><CheckCircle2 size={16} className="mr-1"/> Autorizar</Button></td></tr>)))}</tbody></table>
-                            </div>
-                        </div>
-                     )}
-                 </div>
-            )}
         </div>
       ) : (
-        // --- VISTA: OTROS ROLES (ACCESOS DIRECTOS) ---
-        <div>
-          <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Shield size={18} className="text-slate-400"/> Accesos Directos</h2>
+        // --- VISTA: OTROS ROLES ---
+        <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {config.shortcuts.map((item, index) => (
-              <button key={index} onClick={() => navigate(item.path)} className="group bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 text-left">
-                <div className={`w-12 h-12 rounded-lg flex items-center justify-center mb-4 ${item.color} group-hover:scale-110 transition-transform`}><item.icon size={24} /></div>
-                <h3 className="font-bold text-slate-800 text-lg group-hover:text-indigo-600 transition-colors">{item.label}</h3>
-                <p className="text-xs text-slate-400 mt-1">Ir a {item.label.toLowerCase()}</p>
-              </button>
-            ))}
+            {config.shortcuts.map((item, index) => {
+              const borderClass = item.color?.includes('pink') ? 'border-l-pink-500' : 
+                                  item.color?.includes('purple') ? 'border-l-purple-500' :
+                                  item.color?.includes('amber') ? 'border-l-amber-500' :
+                                  item.color?.includes('orange') ? 'border-l-orange-500' :
+                                  item.color?.includes('emerald') ? 'border-l-emerald-500' :
+                                  item.color?.includes('blue') ? 'border-l-blue-500' : 'border-l-indigo-500';
+              
+              const iconColor = borderClass.replace('border-l-', 'text-');
+
+              return (
+                <div key={index} onClick={() => navigate(item.path, { state: (item as any).state })} className="cursor-pointer transition-transform hover:scale-[1.02] active:scale-95">
+                    <Card className={`p-4 h-full border-l-4 ${borderClass} bg-white shadow-sm hover:shadow-lg transition-all`}>
+                        <div className="flex justify-between items-start">
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Módulo</p>
+                            <item.icon size={14} className={iconColor} />
+                        </div>
+                        <div className="mt-1 flex justify-between items-end">
+                            <div>
+                                <h3 className="text-xl font-bold text-slate-700">{item.label}</h3>
+                                <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                                    <ArrowRight size={10}/> Ingresar
+                                </p>
+                            </div>
+                        </div>
+                    </Card>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
       
       {/* MODALES */}
       {selectedOrderId && <FinancialReviewModal orderId={selectedOrderId} onClose={() => setSelectedOrderId(null)} onOrderUpdated={() => { setSelectedOrderId(null); fetchOrders(); }}/>}
-      {selectedInvoice && <PaymentRequestModal invoice={selectedInvoice} onClose={() => setSelectedInvoice(null)} onSubmit={handleRequestPayment}/>}
-      {showPaymentModal && <PaymentApprovalModal onClose={() => setShowPaymentModal(false)} onUpdate={() => {fetchOrders(); financeService.getPayableDashboardStats().then(setApStats);}}/>}
     </div>
   );
 };

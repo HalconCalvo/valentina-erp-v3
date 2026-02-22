@@ -3,9 +3,10 @@ from sqlmodel import SQLModel, Field, Relationship
 from datetime import date, datetime
 from enum import Enum
 
-# Evitar import circular si Provider está en foundations
+# Evitar import circular
 if TYPE_CHECKING:
     from backend.app.models.foundations import Provider
+    from backend.app.models.treasury import BankAccount, BankTransaction
 
 # --- ENUMS ---
 class InvoiceStatus(str, Enum):
@@ -16,10 +17,10 @@ class InvoiceStatus(str, Enum):
     CANCELLED = "CANCELLED"   # Nota de crédito / Error
 
 class PaymentStatus(str, Enum):
-    PENDING = "PENDING"     # Solicitado (Gerencia)
-    APPROVED = "APPROVED"   # Autorizado (Dirección) - Ya se descuenta del flujo
+    PENDING = "PENDING"     # Solicitado (Administración sugiere)
+    APPROVED = "APPROVED"   # Autorizado (Dirección dictamina cuenta)
     REJECTED = "REJECTED"   # Rechazado
-    PAID = "PAID"           # Pagado (Tesorería) - Conciliado y enviado
+    PAID = "PAID"           # Ejecutado (Dinero salió de Tesorería)
 
 class PaymentMethod(str, Enum):
     TRANSFERENCIA = "TRANSFERENCIA"
@@ -34,54 +35,52 @@ class PurchaseInvoice(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     
-    # Relación con Proveedor (Tabla providers existente)
     provider_id: int = Field(foreign_key="providers.id")
     
-    # Datos Fiscales
-    invoice_number: str = Field(index=True) # Folio Factura
-    uuid_sat: Optional[str] = None          # Folio Fiscal
+    invoice_number: str = Field(index=True) 
+    uuid_sat: Optional[str] = None          
     
-    # Importes
     total_amount: float
-    outstanding_balance: float # Saldo pendiente (Se actualiza con SupplierPayment)
+    outstanding_balance: float # Saldo pendiente vivo
     
-    # Fechas
     issue_date: date
-    due_date: date   # issue_date + provider.credit_days
+    due_date: date   
     
     status: InvoiceStatus = Field(default=InvoiceStatus.PENDING)
     
-    # Auditoría
     created_at: datetime = Field(default_factory=datetime.now)
     pdf_url: Optional[str] = None 
 
     # Relaciones
-    # provider: "Provider" = Relationship() # Descomentar si se importa Provider
     payments: List["SupplierPayment"] = Relationship(back_populates="invoice")
 
-
-# --- 2. PAGOS A PROVEEDORES (Tu Modelo) ---
+# --- 2. SOLICITUDES Y PAGOS A PROVEEDORES (El Evento) ---
 class SupplierPayment(SQLModel, table=True):
     __tablename__ = "supplier_payments"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     
-    # Relación con la Factura de Compra
     purchase_invoice_id: int = Field(foreign_key="purchase_invoices.id")
-    
-    # Relación con el Proveedor
     provider_id: int = Field(foreign_key="providers.id") 
 
     amount: float
-    payment_date: datetime
+    payment_date: datetime # Fecha en la que se solicita/programa el pago
     payment_method: PaymentMethod = Field(default=PaymentMethod.TRANSFERENCIA)
     
-    reference: Optional[str] = None # Folio transferencia / Cheque
+    # --- NUEVOS CAMPOS: EL PUENTE CON TESORERÍA ---
+    # Cuenta que Administración sugiere para el pago
+    suggested_account_id: Optional[int] = Field(default=None, foreign_key="bank_accounts.id")
+    # Cuenta que Dirección impone y autoriza para el pago
+    approved_account_id: Optional[int] = Field(default=None, foreign_key="bank_accounts.id")
+    # Vínculo exacto con el movimiento del Libro Mayor (AccountDetail.tsx)
+    treasury_transaction_id: Optional[int] = Field(default=None, foreign_key="bank_transactions.id", unique=True)
+    # ----------------------------------------------
+
+    reference: Optional[str] = None 
     notes: Optional[str] = None
     
     status: PaymentStatus = Field(default=PaymentStatus.PENDING)
     
-    # Auditoría
     created_at: datetime = Field(default_factory=datetime.now)
     created_by_user_id: int
     approved_by_user_id: Optional[int] = None

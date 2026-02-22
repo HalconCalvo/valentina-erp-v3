@@ -2,7 +2,7 @@ runtime: python311
 entrypoint: gunicorn -w 1 -k uvicorn.workers.UvicornWorker app.main:app
 
 env_variables:
-  # Usamos 4 barras para ruta absoluta: sqlite:////tmp/sgp_v3.db
-  DATABASE_URL: "sqlite:////tmp/sgp_v3.db"
+  # Usamos 4 barras para ruta absoluta: sqlite:////tmp/local_dev.db
+  DATABASE_URL: "sqlite:////tmp/local_dev.db"
   API_V1_STR: "/api/v1"
   PROJECT_NAME: "SGP V3 Valentina"

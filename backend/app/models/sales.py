@@ -62,6 +62,7 @@ class SalesOrderItem(SQLModel, table=True):
 
     # Relación
     order: Optional["SalesOrder"] = Relationship(back_populates="items")
+    instances: List["SalesOrderItemInstance"] = Relationship(back_populates="item", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
 
 # ==========================================
 # 3. MODELO DE CABECERA (ORDER)
@@ -138,3 +139,34 @@ class CustomerPayment(SQLModel, table=True):
     
     # Relaciones
     order: Optional[SalesOrder] = Relationship(back_populates="payments")
+
+# ==========================================
+# 5. ENUM DE ESTATUS LOGÍSTICO (INSTANCIAS)
+# ==========================================
+class InstanceStatus(str, enum.Enum):
+    PENDING = "PENDING"             # Gris: Esperando ser liberado a producción
+    IN_PRODUCTION = "IN_PRODUCTION" # Azul: En piso de fábrica (Lote en proceso)
+    READY = "READY"                 # Azul/Verde: Terminado en fábrica, esperando camión
+    CARGADO = "CARGADO"             # Trigger Financiero: Custodia en tránsito (Descuenta Stock)
+    INSTALLED = "INSTALLED"         # Azul: Instalado en obra, falta firma de conformidad
+    CLOSED = "CLOSED"               # Verde: Firma recabada (Libera Cobro y Nómina)
+
+# ==========================================
+# 6. MODELO DE INSTANCIAS FÍSICAS (NIVEL 3 - EL ANEXO)
+# ==========================================
+class SalesOrderItemInstance(SQLModel, table=True):
+    __tablename__ = "sales_order_item_instances"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    sales_order_item_id: int = Field(foreign_key="sales_order_items.id")
+    
+    # Identificación Única (El Bautizo)
+    identifier_name: str  # Ej. "Casa 32", "Depto 504", "Cocina Principal"
+    status: InstanceStatus = Field(default=InstanceStatus.PENDING)
+    
+    # Trazabilidad
+    qr_code: Optional[str] = Field(default=None, unique=True, index=True) 
+    current_location: Optional[str] = Field(default="Planeación") # Ej. "Corte", "Camión 1", "Obra"
+    
+    # Relación inversa (Hacia el Item de la Orden)
+    item: Optional["SalesOrderItem"] = Relationship(back_populates="instances")

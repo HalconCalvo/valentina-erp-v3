@@ -15,6 +15,7 @@ from .inventory import InventoryReception, InventoryTransaction
 # --- Módulo de Finanzas (NUEVO) ---
 # ¡Esto es lo que faltaba para que Alembic cree las tablas!
 from .finance import PurchaseInvoice, SupplierPayment, InvoiceStatus, PaymentStatus
+from app.models.treasury import BankAccount, BankTransaction
 
 # Exportación explícita para Alembic/SQLModel
 __all__ = [

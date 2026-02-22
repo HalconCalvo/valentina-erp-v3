@@ -29,6 +29,8 @@ class TransactionRead(SQLModel):
     unit_cost: float
     subtotal: float
     material_name: Optional[str] = None # Para mostrar en UI fácilmente
+    created_at: datetime # ✨ NUEVO: Expone la fecha al Frontend
+    saldo_acumulado: Optional[float] = None # ✨ NUEVO: Preparación para el Kardex progresivo
 
 class ReceptionRead(SQLModel):
     id: int

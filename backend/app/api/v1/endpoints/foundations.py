@@ -220,9 +220,25 @@ def toggle_tax_rate(tax_id: int, session: Session = Depends(get_session)):
 # ==========================================
 # 5. MATERIALES
 # ==========================================
-@router.get("/materials", response_model=List[Material])
+# --- IMPORTE NECESARIO (Asegúrate de que 'Provider' esté importado al inicio del archivo) ---
+@router.get("/materials")
 def read_materials(session: Session = Depends(get_session)):
-    return session.exec(select(Material).where(Material.is_active == True)).all()
+    # Usamos un JOIN para traer el nombre del proveedor
+    query = (
+        select(Material, Provider.business_name)
+        .outerjoin(Provider, Material.provider_id == Provider.id)
+        .where(Material.is_active == True)
+    )
+    results = session.exec(query).all()
+    
+    # Armamos la respuesta a mano para incluir el 'provider_name'
+    materials_list = []
+    for material, provider_name in results:
+        mat_dict = material.model_dump()
+        mat_dict["provider_name"] = provider_name
+        materials_list.append(mat_dict)
+        
+    return materials_list
 
 @router.post("/materials", response_model=Material)
 def create_material(material: Material, session: Session = Depends(get_session)):

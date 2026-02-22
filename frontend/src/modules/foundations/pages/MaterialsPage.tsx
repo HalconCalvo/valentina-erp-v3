@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Navigate } from 'react-router-dom'; 
 import { useMaterials } from '../hooks/useMaterials';
+import { useProviders } from '../hooks/useProviders'; // <--- NUEVO HOOK AÑADIDO
 import { Material } from '@/types/foundations';
 import { 
   Plus, Link2, Upload, DollarSign, ArrowRight, 
-  ChevronDown, Pencil, Trash2, X, Lock, ArrowUpDown, EyeOff
+  ChevronDown, Pencil, Trash2, X, Lock, ArrowUpDown, EyeOff, Building2
 } from 'lucide-react';
 import client from '@/api/axios-client'; 
 
@@ -17,10 +18,11 @@ import { MaterialsTableToolbar } from "../components/MaterialsTableToolbar"
 export default function MaterialsPage() {
   // 1. TODOS LOS HOOKS PRIMERO
   const { materials, loading, createMaterial, updateMaterial, deleteMaterial } = useMaterials();
+  const { providers, fetchProviders } = useProviders(); // <--- CARGAMOS PROVEEDORES
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Estados de Seguridad
-  const [userRole, setUserRole] = useState(''); // Iniciamos vacío por seguridad
+  const [userRole, setUserRole] = useState(''); 
   
   // Estados de UI/Formulario
   const [showForm, setShowForm] = useState(false);
@@ -33,32 +35,25 @@ export default function MaterialsPage() {
     production_route: 'MATERIAL', 
     purchase_unit: '', usage_unit: '',
     conversion_factor: 1, current_cost: 0,
-    associated_element_sku: '' 
+    associated_element_sku: '',
+    provider_id: 0 // <--- INICIALIZAMOS PROVEEDOR
   };
 
   const [form, setForm] = useState<Partial<Material>>(initialFormState);
 
   // 2. EFECTOS
   useEffect(() => {
-    // Normalizamos el rol a Mayúsculas y sin espacios para evitar errores
     const role = (localStorage.getItem('user_role') || '').toUpperCase().trim();
     setUserRole(role);
+    fetchProviders(); // <--- MANDAMOS A TRAER LOS PROVEEDORES AL CARGAR LA PÁGINA
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 3. LOGICA DE ACCESO (MATRIZ DE SEGURIDAD)
   const isSales = userRole === 'SALES' || userRole === 'VENTAS';
-  
-  // Detectamos variantes de Diseño
   const isDesign = ['DESIGN', 'DISEÑO', 'DISENO'].includes(userRole);
-  
-  // SOLO LECTURA: Diseño y Producción pueden ver pero no editar
   const isProduction = ['PRODUCTION', 'PRODUCCION', 'PRODUCCIÓN'].includes(userRole);
   const isReadOnly = isDesign || isProduction; 
-  
-  // LOGICA FINANCIERA (CORREGIDA):
-  // En lugar de preguntar "¿Quién NO ve?", preguntamos "¿Quién SÍ ve?".
-  // Solo ADMIN y PRODUCTION (si aplica) ven costos. Diseño NO entra en esta lista.
-  // Si userRole está vacío (cargando), por seguridad es false.
   const showFinancials = ['ADMIN', 'ADMINISTRADOR', 'DIRECTOR', 'DIRECCION', 'DIRECTION', 'PRODUCTION', 'PRODUCCION'].includes(userRole);
 
   // 4. MEMOS (Columnas)
@@ -122,25 +117,38 @@ export default function MaterialsPage() {
         },
       },
       {
-        accessorKey: "physical_stock",
+        id: "provider",
+        accessorFn: (row) => (row as any).provider?.business_name || (row as any).provider_name || 'Sin Asignar',
         header: ({ column }) => {
             return (
               <button
                 className="flex items-center gap-1 hover:text-indigo-600 transition-colors"
                 onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
               >
-                Stock
+                Proveedor
                 <ArrowUpDown className="h-3 w-3" />
               </button>
             )
         },
+        cell: ({ row }) => (
+            <div className="flex items-center gap-1.5 text-slate-600">
+                <Building2 size={14} className="text-slate-400 opacity-50"/>
+                <span className="text-sm font-medium truncate max-w-[150px]">
+                    {row.getValue("provider")}
+                </span>
+            </div>
+        )
+      },
+      {
+        accessorKey: "physical_stock",
+        header: () => <div className="text-right">Stock</div>,
         cell: ({ row }) => {
             const stock = row.original.physical_stock || 0;
             return (
-                <div className="text-sm">
-                    <span className={`font-bold ${stock < 0 ? 'text-red-500' : 'text-slate-700'}`}>
+                <div className="text-right text-sm">
+                    <span className={`font-bold ${stock <= 0 ? 'text-red-500' : 'text-slate-800'}`}>
                         {stock}
-                    </span> {row.original.usage_unit}
+                    </span> <span className="text-slate-400 text-xs ml-1">{row.original.usage_unit}</span>
                 </div>
             )
         },
@@ -152,26 +160,9 @@ export default function MaterialsPage() {
              }
              return true;
         }
-      },
-      {
-        accessorKey: "production_route",
-        header: "Ruta / Auto-Link",
-        cell: ({ row }) => (
-            <div className="flex flex-col gap-1 items-start">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-50 px-1 rounded border border-slate-100">
-                    {row.original.production_route}
-                </span>
-                {row.original.associated_element_sku && (
-                    <div className="flex items-center gap-1 text-xs bg-orange-50 text-orange-700 px-2 py-1 rounded border border-orange-200">
-                        <Link2 size={12} /><span>{row.original.associated_element_sku}</span>
-                    </div>
-                )}
-            </div>
-        )
       }
     ];
 
-    // LÓGICA CORREGIDA: Solo insertamos la columna si showFinancials es TRUE
     if (showFinancials) {
         cols.push({
             accessorKey: "current_cost",
@@ -213,10 +204,10 @@ export default function MaterialsPage() {
     }
 
     return cols;
-  }, [isReadOnly, showFinancials]); // Dependencia actualizada a showFinancials
+  }, [isReadOnly, showFinancials]); 
 
   // -------------------------------------------------------------
-  // 5. CANDADO DE SEGURIDAD (Ventas no pasa)
+  // 5. CANDADO DE SEGURIDAD
   // -------------------------------------------------------------
   if (isSales) {
       return <Navigate to="/" replace />;
@@ -232,8 +223,7 @@ export default function MaterialsPage() {
       "Categoría": m.category,
       "Stock Físico": m.physical_stock || 0,
       "Unidad Uso": m.usage_unit,
-      "Ruta": m.production_route,
-      // Lógica corregida para Excel también
+      "Proveedor": (m as any).provider?.business_name || (m as any).provider_name || 'Sin Asignar', 
       ...(showFinancials && {
         "Costo Unitario": m.current_cost,
         "Valor Inventario": (m.physical_stock || 0) * m.current_cost
@@ -303,20 +293,22 @@ export default function MaterialsPage() {
 
     const payload = {
         ...form,
-        // Protegemos el envío de costos si no se tienen permisos
         current_cost: showFinancials ? form.current_cost : (form.current_cost || 0),
-        associated_element_sku: form.associated_element_sku?.trim() === '' ? null : form.associated_element_sku
+        associated_element_sku: form.associated_element_sku?.trim() === '' ? null : form.associated_element_sku,
+        // Limpiamos el ID 0 para enviarlo nulo si dicen "Sin asignar"
+        provider_id: form.provider_id === 0 ? null : form.provider_id
     };
 
     let res;
     if (isEditing && editingId) {
-        res = await updateMaterial(editingId, payload);
+        res = await updateMaterial(editingId, payload as Material);
     } else {
-        res = await createMaterial(payload);
+        res = await createMaterial(payload as Material);
     }
 
     if (res.success) {
         resetForm();
+        window.location.reload(); // <--- Forzamos recarga para ver el nuevo Proveedor que mande el backend
     } else {
         alert(`❌ Error: ${res.error}`);
     }
@@ -413,13 +405,33 @@ export default function MaterialsPage() {
                             </ul>
                         )}
                     </div>
-                    <div className="md:col-span-3 bg-white p-3 rounded border border-slate-200 grid grid-cols-3 gap-4 items-end">
+                    
+                    {/* FILA DE CONTROLES INFERIORES */}
+                    <div className="md:col-span-4 bg-white p-3 rounded border border-slate-200 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                        
+                        {/* SELECTOR DE PROVEEDOR (NUEVO) */}
                         <div>
-                            <label className="text-[10px] font-bold text-slate-400 uppercase">Unidad Compra</label>
+                            <label className="text-[10px] font-bold text-indigo-500 uppercase flex items-center gap-1 mb-1">
+                                <Building2 size={12}/> Proveedor Principal
+                            </label>
+                            <select 
+                                className="input-std bg-slate-50" 
+                                value={form.provider_id || 0} 
+                                onChange={e => setForm({...form, provider_id: Number(e.target.value) || undefined})}
+                            >
+                                <option value={0}>-- Sin Asignar --</option>
+                                {providers.map(p => (
+                                    <option key={p.id} value={p.id}>{p.business_name}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Unidad Compra</label>
                             <input className="input-std bg-slate-50" placeholder="Ej. Hoja" value={form.purchase_unit} onChange={e => setForm({...form, purchase_unit: e.target.value, usage_unit: e.target.value})} />
                         </div>
                         <div className="relative">
-                            <label className="text-[10px] font-bold text-indigo-500 uppercase w-full text-center block">Factor Conversión</label>
+                            <label className="text-[10px] font-bold text-indigo-500 uppercase w-full text-center block mb-1">Factor Conv.</label>
                             <div className="flex items-center gap-2">
                                 <ArrowRight size={14} className="text-slate-400"/>
                                 <input type="number" step="0.01" className="input-std font-bold text-center text-indigo-700 border-indigo-200" value={form.conversion_factor} onChange={e => setForm({...form, conversion_factor: parseFloat(e.target.value)})} />
@@ -427,10 +439,11 @@ export default function MaterialsPage() {
                             </div>
                         </div>
                         <div>
-                            <label className="text-[10px] font-bold text-slate-400 uppercase">Unidad Uso</label>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Unidad Uso</label>
                             <input className="input-std bg-slate-50" placeholder="Ej. m2" value={form.usage_unit} onChange={e => setForm({...form, usage_unit: e.target.value})} />
                         </div>
                     </div>
+
                     <div className="md:col-span-1">
                         <label className="text-xs font-bold text-slate-500 uppercase">Ruta Producción</label>
                         <select className="input-std h-[42px]" value={form.production_route} onChange={e => setForm({...form, production_route: e.target.value as any})}>
@@ -446,7 +459,7 @@ export default function MaterialsPage() {
                     </div>
 
                     {showFinancials && (
-                        <div className="md:col-span-2">
+                        <div className="md:col-span-1">
                             <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><DollarSign size={12}/> Costo Compra</label>
                             <input type="number" step="0.01" className="input-std font-bold text-slate-700" value={form.current_cost} onChange={e => setForm({...form, current_cost: parseFloat(e.target.value)})} />
                         </div>

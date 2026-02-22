@@ -24,6 +24,7 @@ import CreateQuotePage from '../modules/sales/pages/CreateQuotePage';
 // Pages - Management (GERENCIA)
 import ManagementDashboard from '../modules/management/pages/ManagementDashboard';
 import AccountsPayablePage from '../modules/management/pages/AccountsPayablePage'; // <--- 1. IMPORT NUEVO
+import { TreasuryPage } from '../modules/treasury/pages/TreasuryPage';
 
 // Pages - Auth
 import UsersPage from '../modules/auth/UsersPage';
@@ -41,6 +42,7 @@ export const AppRoutes = () => {
             {/* --- GERENCIA (Torre de Control) --- */}
             <Route path="/management" element={<ManagementDashboard />} />
             <Route path="/management/accounts-payable" element={<AccountsPayablePage />} /> {/* <--- 2. RUTA NUEVA */}
+            <Route path="/treasury" element={<TreasuryPage />} />
 
             {/* --- CIMIENTOS (Catálogos) --- */}
             <Route path="/materials" element={<MaterialsPage />} />

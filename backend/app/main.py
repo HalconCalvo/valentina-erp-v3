@@ -11,6 +11,7 @@ from app.models.users import User
 from app.core.database import create_db_and_tables, engine 
 
 from app.api.v1.api import api_router
+# from app.api.v1.router import api_router
 from app.core.config import settings
 
 # --- PUENTE GOOGLE CLOUD ---
