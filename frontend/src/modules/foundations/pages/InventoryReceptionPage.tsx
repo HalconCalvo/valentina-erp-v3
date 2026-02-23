@@ -234,7 +234,11 @@ const InventoryReceptionPage: React.FC = () => {
                 due_date: '', total_amount: 0, notes: ''
             });
             setDisplayTotal('');
-            navigate('/materials');
+            
+            // --- CAMBIO CLAVE AQUÍ ---
+            // En lugar de ir a '/materials', regresamos al historial de facturas
+            navigate('/inventory/history');
+            
         } catch (error) {
             console.error(error);
             alert("❌ Error al guardar en la base de datos.");

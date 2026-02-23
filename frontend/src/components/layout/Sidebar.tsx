@@ -9,53 +9,30 @@ import {
 
 import { useFoundations } from '../../modules/foundations/hooks/useFoundations';
 
-const API_URL = "https://valentina-erp-v3.uc.r.appspot.com";
+// --- CORRECCIÓN: Usar la variable de entorno de Vite en lugar de la URL quemada ---
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
 
 // 1. DEFINICIÓN DE ROLES
 type UserRole = 'DIRECTOR' | 'ADMIN' | 'SALES' | 'DESIGN' | 'WAREHOUSE' | 'PRODUCTION';
 
-// 2. CONFIGURACIÓN DEL MENÚ (Orden 1-14)
+// 2. CONFIGURACIÓN DEL MENÚ
 const menuItems = [
-  // 1- Dashboard
   { icon: LayoutDashboard, label: 'Dashboard', path: '/', allowedRoles: ['DIRECTOR', 'ADMIN', 'SALES', 'DESIGN', 'WAREHOUSE', 'PRODUCTION'] },
-  
-  // 2- Proveedores
   { icon: Users, label: 'Proveedores', path: '/providers', allowedRoles: ['DIRECTOR', 'ADMIN', 'WAREHOUSE'] },
-  
-  // 3- Materiales
   { icon: Package, label: 'Materiales', path: '/materials', allowedRoles: ['DIRECTOR', 'ADMIN', 'DESIGN', 'WAREHOUSE', 'PRODUCTION'] }, 
   
-  // 4- Almacén (Recepción)
-  { icon: ClipboardList, label: 'Almacén', path: '/inventory/reception', allowedRoles: ['DIRECTOR', 'ADMIN', 'WAREHOUSE', 'PRODUCTION'] },
+  // --- CORRECCIÓN DE RUTA: Apunta exactamente a /inventory ---
+  { icon: ClipboardList, label: 'Almacén', path: '/inventory', allowedRoles: ['DIRECTOR', 'ADMIN', 'WAREHOUSE', 'PRODUCTION'] },
   
-  // 5- Clientes
   { icon: Briefcase, label: 'Clientes', path: '/clients', allowedRoles: ['DIRECTOR', 'ADMIN', 'SALES'] },
-  
-  // 6- Ventas
   { icon: ShoppingCart, label: 'Ventas', path: '/sales', allowedRoles: ['DIRECTOR', 'ADMIN', 'SALES'] },
-  
-  // 7- Diseño
   { icon: Ruler, label: 'Diseño', path: '/design', allowedRoles: ['DIRECTOR', 'ADMIN', 'SALES', 'DESIGN', 'PRODUCTION'] },
-  
-  // 8- Producción
   { icon: Factory, label: 'Producción', path: '/production', allowedRoles: ['DIRECTOR', 'ADMIN', 'DESIGN', 'PRODUCTION'] },
-  
-  // 9- Logística
   { icon: Truck, label: 'Logística', path: '/logistics', allowedRoles: ['DIRECTOR', 'ADMIN', 'WAREHOUSE', 'SALES'] },
-
-  // 10- Tesorería (NUEVO MÓDULO FINANCIERO)
   { icon: Landmark, label: 'Tesorería', path: '/treasury', allowedRoles: ['DIRECTOR', 'ADMIN'] },
-  
-  // 11- Gerencia
   { icon: TrendingUp, label: 'Gerencia', path: '/management', allowedRoles: ['DIRECTOR', 'ADMIN'] },
-
-  // 12- Usuarios
   { icon: UserCog, label: 'Usuarios', path: '/users', allowedRoles: ['DIRECTOR'] },
-
-  // 13- Impuestos
   { icon: Percent, label: 'Impuestos', path: '/tax-rates', allowedRoles: ['DIRECTOR', 'ADMIN'] },
-
-  // 14- Configuración
   { icon: Settings, label: 'Configuración', path: '/config', allowedRoles: ['DIRECTOR'] }, 
 ];
 
@@ -82,26 +59,21 @@ export default function Sidebar() {
 
   const getLogoUrl = (path: string) => {
     if (!path) return '';
-    return path.startsWith('http') ? path : `${API_URL}/${path}`;
+    if (path.startsWith('http')) return path;
+    // Limpiamos la ruta base por si acoso
+    const baseUrl = API_URL.replace('/api/v1', '');
+    return `${baseUrl}/${path}`;
   };
 
-  // --- LOGICA DE COLORES Y ETIQUETAS DEL ROL ---
   const getRoleBadgeInfo = (role: UserRole) => {
       switch(role) {
-          case 'DIRECTOR': 
-              return { label: 'DIRECCIÓN', className: 'bg-slate-900 text-white border-slate-700' }; 
-          case 'ADMIN': 
-              return { label: 'ADMINISTRACIÓN', className: 'bg-indigo-100 text-indigo-700 border-indigo-200' }; 
-          case 'SALES': 
-              return { label: 'VENTAS', className: 'bg-emerald-100 text-emerald-700 border-emerald-200' }; 
-          case 'DESIGN': 
-              return { label: 'DISEÑO', className: 'bg-pink-100 text-pink-700 border-pink-200' }; 
-          case 'WAREHOUSE': 
-              return { label: 'ALMACÉN', className: 'bg-orange-100 text-orange-800 border-orange-200' }; 
-          case 'PRODUCTION': 
-              return { label: 'PRODUCCIÓN', className: 'bg-blue-100 text-blue-700 border-blue-200' }; 
-          default: 
-              return { label: role, className: 'bg-slate-100 text-slate-500 border-slate-200' };
+          case 'DIRECTOR': return { label: 'DIRECCIÓN', className: 'bg-slate-900 text-white border-slate-700' }; 
+          case 'ADMIN': return { label: 'ADMINISTRACIÓN', className: 'bg-indigo-100 text-indigo-700 border-indigo-200' }; 
+          case 'SALES': return { label: 'VENTAS', className: 'bg-emerald-100 text-emerald-700 border-emerald-200' }; 
+          case 'DESIGN': return { label: 'DISEÑO', className: 'bg-pink-100 text-pink-700 border-pink-200' }; 
+          case 'WAREHOUSE': return { label: 'ALMACÉN', className: 'bg-orange-100 text-orange-800 border-orange-200' }; 
+          case 'PRODUCTION': return { label: 'PRODUCCIÓN', className: 'bg-blue-100 text-blue-700 border-blue-200' }; 
+          default: return { label: role, className: 'bg-slate-100 text-slate-500 border-slate-200' };
       }
   };
 
@@ -129,8 +101,6 @@ export default function Sidebar() {
 
   return (
     <aside className="w-64 bg-white h-screen fixed left-0 top-0 flex flex-col border-r border-slate-200 z-50 transition-all">
-      
-      {/* HEADER LOGO */}
       <div className="h-16 flex items-center px-6 border-b border-slate-100">
         <div className="flex items-center gap-3 w-full">
           {loading ? (
@@ -155,11 +125,9 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* MENÚ DE NAVEGACIÓN */}
       <nav className="flex-1 py-6 px-4 space-y-1 overflow-y-auto custom-scrollbar">
         <div className="flex items-center justify-between px-2 mb-3">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Módulos</p>
-            {/* BADGE DINÁMICO DE ROL */}
             <span className={`text-[9px] px-2 py-0.5 rounded border font-bold uppercase ${roleBadge.className}`}>
                 {roleBadge.label}
             </span>
@@ -189,10 +157,7 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* FOOTER USUARIO + FIRMA VALENTINA SOBRIA */}
       <div className="p-4 border-t border-slate-100 bg-slate-50/50">
-        
-        {/* Tarjeta de Usuario */}
         <div className="flex items-center gap-3 mb-3 p-2 rounded-lg hover:bg-white hover:shadow-sm transition-all cursor-pointer group border border-transparent hover:border-slate-100">
           <div className={`w-9 h-9 rounded-full border flex items-center justify-center font-bold text-xs shadow-sm
             ${userRole === 'DIRECTOR' ? 'bg-slate-800 border-slate-900 text-white' : ''}
@@ -219,7 +184,6 @@ export default function Sidebar() {
           </div>
         </div>
 
-        {/* Botón Logout */}
         <button 
             onClick={handleLogout}
             className="w-full flex items-center justify-center gap-2 p-2 rounded-md border border-slate-200 text-slate-500 hover:bg-red-50 hover:text-red-600 hover:border-red-100 transition-all text-xs font-medium mb-4 bg-white"
@@ -227,23 +191,13 @@ export default function Sidebar() {
           <LogOut size={14} /> Cerrar Sesión
         </button>
 
-        {/* --- FIRMA DEL SISTEMA "VALENTINA" --- */}
         <div className="pt-3 border-t border-slate-200 text-center group cursor-default">
             <div className="flex items-baseline justify-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
-                {/* Nombre Principal */}
-                <span className="font-serif italic text-lg text-slate-600 font-medium tracking-wide">
-                    Valentina
-                </span>
-                {/* Apellido Discreto */}
-                <span className="text-[10px] text-slate-400 font-sans tracking-normal font-normal">
-                    Software
-                </span>
+                <span className="font-serif italic text-lg text-slate-600 font-medium tracking-wide">Valentina</span>
+                <span className="text-[10px] text-slate-400 font-sans tracking-normal font-normal">Software</span>
             </div>
-            <p className="text-[9px] text-slate-400 font-mono mt-0.5 tracking-tight uppercase">
-                Sistema de Producción v3.0
-            </p>
+            <p className="text-[9px] text-slate-400 font-mono mt-0.5 tracking-tight uppercase">Sistema de Producción v3.0</p>
         </div>
-
       </div>
     </aside>
   );

@@ -153,22 +153,33 @@ def update_payment_status(
     status_in: PaymentApprovalUpdate
 ) -> Any:
     """
-    Paso 2: Dirección autoriza y dicta la cuenta de banco de donde saldrá el dinero.
-    Nota: Aquí NO se descuenta el saldo de la factura todavía.
+    Paso 2: Dirección autoriza (APPROVED), rechaza (REJECTED), o revoca (PENDING).
     """
     payment = session.get(SupplierPayment, payment_id)
     if not payment:
         raise HTTPException(status_code=404, detail="Pago no encontrado")
 
-    if payment.status != PaymentStatus.PENDING:
-        raise HTTPException(status_code=400, detail="Este pago ya fue procesado.")
+    # ----- NUEVA LÓGICA DE SEGURIDAD PARA PERMITIR REVOCACIÓN -----
+    if status_in.status == PaymentStatus.PENDING:
+        # Solo puedes revocar si estaba en estado APPROVED
+        if payment.status != PaymentStatus.APPROVED:
+            raise HTTPException(status_code=400, detail="Solo se pueden revocar autorizaciones de pagos ya aprobados.")
+        # Limpiamos los datos de autorización
+        payment.approved_by_user_id = None
+        payment.approved_account_id = None
+    else:
+        # Si vas a Aprobar o Rechazar, el pago debe estar en estado PENDING
+        if payment.status != PaymentStatus.PENDING:
+            raise HTTPException(status_code=400, detail="Este pago ya fue procesado.")
 
-    if status_in.status == PaymentStatus.APPROVED and not status_in.approved_account_id:
-        raise HTTPException(status_code=400, detail="Para autorizar un pago, debes asignar una cuenta bancaria origen.")
+        if status_in.status == PaymentStatus.APPROVED and not status_in.approved_account_id:
+            raise HTTPException(status_code=400, detail="Para autorizar un pago, debes asignar una cuenta bancaria origen.")
+
+        payment.approved_by_user_id = current_user.id
+        payment.approved_account_id = status_in.approved_account_id
+    # --------------------------------------------------------------
 
     payment.status = status_in.status
-    payment.approved_by_user_id = current_user.id
-    payment.approved_account_id = status_in.approved_account_id
 
     session.add(payment)
     session.commit()
@@ -176,7 +187,7 @@ def update_payment_status(
     return payment
 
 # ------------------------------------------------------------------
-# 3. EJECUTAR PAGO (Tesorería / Administración) [¡NUEVO ENDPOINT!]
+# 3. EJECUTAR PAGO (Tesorería / Administración) 
 # ------------------------------------------------------------------
 @router.post("/payments/{payment_id}/execute", response_model=SupplierPaymentRead)
 def execute_supplier_payment(
@@ -235,7 +246,7 @@ def execute_supplier_payment(
     payment.treasury_transaction_id = bank_tx.id
     session.add(payment)
 
-    # Comprometer todos los cambios de forma atómica (Si algo falla, no se guarda nada)
+    # Comprometer todos los cambios de forma atómica
     session.commit()
     session.refresh(payment)
     return payment
@@ -310,9 +321,9 @@ def get_pending_approvals(session: SessionDep) -> Any:
             amount=p.amount,
             payment_date=p.payment_date,
             payment_method=p.payment_method,
-            suggested_account_id=p.suggested_account_id, # NUEVO
-            approved_account_id=p.approved_account_id,   # NUEVO
-            treasury_transaction_id=p.treasury_transaction_id, # NUEVO
+            suggested_account_id=p.suggested_account_id,
+            approved_account_id=p.approved_account_id,
+            treasury_transaction_id=p.treasury_transaction_id,
             reference=p.reference,
             notes=p.notes,
             status=p.status,

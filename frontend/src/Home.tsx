@@ -195,12 +195,19 @@ const Home: React.FC = () => {
   // --- CONFIG HERO ---
   const getRoleConfig = () => {
     switch (userRole) {
-      case 'SALES': return { title: 'Panel Comercial', subtitle: 'Tus objetivos y seguimiento.', color: 'from-emerald-500 to-teal-600', shortcuts: [] };
-      case 'DESIGN': return { title: 'Ingeniería', subtitle: 'Desarrollo de productos.', color: 'from-pink-500 to-rose-600', shortcuts: [{ label: 'Nuevo Producto', icon: PlusCircle, path: '/design', color: 'bg-pink-100 text-pink-700', state: { openNewModal: true } }, { label: 'Catálogo', icon: PenTool, path: '/design', color: 'bg-purple-100 text-purple-700' }, { label: 'Materiales', icon: Package, path: '/materials', color: 'bg-amber-100 text-amber-700' }, { label: 'Producción', icon: LayoutDashboard, path: '/production', color: 'bg-slate-100 text-slate-700' }] };
-      case 'WAREHOUSE': return { title: 'Logística', subtitle: 'Control de inventarios.', color: 'from-orange-500 to-amber-600', shortcuts: [{ label: 'Recepción', icon: ClipboardList, path: '/inventory/reception', color: 'bg-orange-100 text-orange-700' }, { label: 'Inventario', icon: Package, path: '/materials', color: 'bg-emerald-100 text-emerald-700' }, { label: 'Proveedores', icon: Truck, path: '/providers', color: 'bg-blue-100 text-blue-700' }, { label: 'Movimientos', icon: Search, path: '/inventory/movements', color: 'bg-slate-100 text-slate-700' }] };
-      case 'PRODUCTION': return { title: 'Fábrica', subtitle: 'Gestión de producción.', color: 'from-blue-600 to-indigo-700', shortcuts: [{ label: 'Órdenes', icon: ClipboardList, path: '/production', color: 'bg-blue-100 text-blue-700' }, { label: 'Materiales', icon: Package, path: '/materials', color: 'bg-slate-100 text-slate-700' }] };
-      case 'ADMIN': return { title: 'Administración', subtitle: 'Finanzas y Control.', color: 'from-indigo-600 to-violet-800', shortcuts: [] };
-      default: return { title: 'Dirección General', subtitle: 'Cuadro de Mando Integral.', color: 'from-slate-800 to-black', shortcuts: [] };
+      case 'SALES': 
+        return { title: 'Panel Comercial', subtitle: 'Tus objetivos y seguimiento.', color: 'from-emerald-500 to-teal-600', shortcuts: [] };
+      case 'DESIGN': 
+        return { title: 'Ingeniería', subtitle: 'Desarrollo de productos.', color: 'from-pink-500 to-rose-600', shortcuts: [{ label: 'Nuevo Producto', icon: PlusCircle, path: '/design', color: 'bg-pink-100 text-pink-700', state: { openNewModal: true } }, { label: 'Catálogo', icon: PenTool, path: '/design', color: 'bg-purple-100 text-purple-700' }, { label: 'Materiales', icon: Package, path: '/materials', color: 'bg-amber-100 text-amber-700' }, { label: 'Producción', icon: LayoutDashboard, path: '/production', color: 'bg-slate-100 text-slate-700' }] };
+      case 'WAREHOUSE': 
+        // ¡CORRECCIÓN AQUÍ! Se actualizó la ruta principal a history y se limpió el atajo inactivo.
+        return { title: 'Logística', subtitle: 'Control de inventarios y almacén.', color: 'from-orange-500 to-amber-600', shortcuts: [{ label: 'Entradas Almacén', icon: ClipboardList, path: '/inventory/history', color: 'bg-orange-100 text-orange-700' }, { label: 'Materiales', icon: Package, path: '/materials', color: 'bg-emerald-100 text-emerald-700' }, { label: 'Proveedores', icon: Truck, path: '/providers', color: 'bg-blue-100 text-blue-700' }] };
+      case 'PRODUCTION': 
+        return { title: 'Fábrica', subtitle: 'Gestión de producción.', color: 'from-blue-600 to-indigo-700', shortcuts: [{ label: 'Órdenes', icon: ClipboardList, path: '/production', color: 'bg-blue-100 text-blue-700' }, { label: 'Materiales', icon: Package, path: '/materials', color: 'bg-slate-100 text-slate-700' }] };
+      case 'ADMIN': 
+        return { title: 'Administración', subtitle: 'Finanzas y Control.', color: 'from-indigo-600 to-violet-800', shortcuts: [] };
+      default: 
+        return { title: 'Dirección General', subtitle: 'Cuadro de Mando Integral.', color: 'from-slate-800 to-black', shortcuts: [] };
     }
   };
   const config = getRoleConfig();
@@ -421,24 +428,29 @@ const Home: React.FC = () => {
                     </div>
                 </Card>
 
-                {/* 4. CUENTAS POR PAGAR (AQUÍ ESTÁ EL TELETRANSPORTADOR) */}
+                {/* 4. CUENTAS POR PAGAR (MODIFICADO PARA MAS CLARIDAD) */}
                 <div onClick={() => navigate('/management', { state: { openSection: 'PAYABLE' } })} className="cursor-pointer transition-transform hover:scale-[1.02] active:scale-95">
-                    <Card className={`p-4 h-full border-l-4 border-l-red-500 bg-white shadow-sm hover:shadow-lg`}>
+                    <Card className={`p-4 h-full border-l-4 ${pendingApprovals > 0 ? 'border-l-red-500 ring-2 ring-red-200 bg-red-50/30' : 'border-l-emerald-500 bg-white'} shadow-sm hover:shadow-md`}>
                         <div className="flex justify-between items-start">
                             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Cuentas x Pagar</p>
-                            <TrendingDown size={14} className="text-red-500"/>
+                            {pendingApprovals > 0 ? <AlertTriangle size={14} className="text-red-500 animate-pulse"/> : <CheckCircle size={14} className="text-emerald-500"/>}
                         </div>
                         <div className="flex flex-row items-baseline mt-1 justify-between w-full">
-                            {totalDocuments > 0 ? (
-                                <div className="text-2xl font-black text-red-600/50 animate-pulse">{totalDocuments}</div>
-                            ) : <div></div>}
-                            <div className="text-xl font-black text-red-600 text-right">{formatCurrency(totalDebt)}</div>
+                            <div className={`text-xl font-black text-right ${pendingApprovals > 0 ? 'text-red-600' : 'text-slate-800'}`}>
+                                {formatCurrency(totalDebt)}
+                            </div>
                         </div>
-                        {pendingApprovals > 0 ? (
-                            <p className="text-[10px] text-red-600 font-bold mt-1 flex items-center gap-1"><AlertTriangle size={10}/> ¡{pendingApprovals} firmas pendientes!</p>
-                        ) : (
-                            <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1"><CheckCircle size={10}/> Sin solicitudes</p>
-                        )}
+                        <div className="mt-1">
+                            {pendingApprovals > 0 ? (
+                                <span className="bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                                    <Clock size={10}/> {pendingApprovals} autorizaciones pendientes
+                                </span>
+                            ) : (
+                                <span className="text-[10px] text-slate-400 font-medium flex items-center gap-1">
+                                    <CheckCircle size={10}/> Sin solicitudes de pago
+                                </span>
+                            )}
+                        </div>
                     </Card>
                 </div>
             </div>

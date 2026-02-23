@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, CheckCircle2, DollarSign, Landmark, ArrowRight, AlertTriangle } from 'lucide-react';
+import { X, CheckCircle2, DollarSign, Landmark, ArrowRight, AlertTriangle, Undo2 } from 'lucide-react';
 import { financeService } from '../../../api/finance-service';
 import { treasuryService } from '../../../api/treasury-service';
 import { SupplierPayment } from '../../../types/finance';
@@ -12,6 +12,10 @@ interface PaymentExecutionModalProps {
 }
 
 export const PaymentExecutionModal: React.FC<PaymentExecutionModalProps> = ({ onClose, onSuccess }) => {
+    // --- SEGURIDAD: Leer el Rol ---
+    const userRole = (localStorage.getItem('user_role') || '').toUpperCase().trim();
+    const isDirector = ['ADMIN', 'ADMINISTRADOR', 'DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
+
     const [approvedPayments, setApprovedPayments] = useState<SupplierPayment[]>([]);
     const [accounts, setAccounts] = useState<BankAccount[]>([]);
     const [loading, setLoading] = useState(true);
@@ -54,6 +58,31 @@ export const PaymentExecutionModal: React.FC<PaymentExecutionModalProps> = ({ on
         } catch (error) {
             console.error(error);
             alert("❌ Error al ejecutar el pago.");
+        } finally {
+            setProcessingId(null);
+        }
+    };
+
+    // NUEVA FUNCIÓN: Revocar autorización (Solo Dirección)
+    const handleRevoke = async (paymentId: number) => {
+        if (!confirm("⚠️ ¿Estás seguro de cancelar esta autorización? El pago regresará a estatus 'Pendiente' y Finanzas no podrá ejecutarlo.")) return;
+
+        setProcessingId(paymentId);
+        try {
+            // Reutilizamos el endpoint de status para regresarlo a PENDING
+            await financeService.updatePaymentStatus(paymentId, 'PENDING');
+            alert("✅ Autorización revocada. El pago ha regresado a la bandeja de pendientes.");
+            
+            // Refrescar lista local
+            const remaining = approvedPayments.filter(p => p.id !== paymentId);
+            setApprovedPayments(remaining);
+            
+            if (remaining.length === 0) {
+                onSuccess(); 
+            }
+        } catch (error) {
+            console.error(error);
+            alert("❌ Error al revocar la autorización. Revise su conexión.");
         } finally {
             setProcessingId(null);
         }
@@ -133,8 +162,8 @@ export const PaymentExecutionModal: React.FC<PaymentExecutionModalProps> = ({ on
                                             )}
                                         </div>
 
-                                        <div className="flex flex-col items-end gap-3 w-full md:w-auto md:border-l md:border-slate-100 md:pl-6">
-                                            <div className="text-right">
+                                        <div className="flex flex-col items-end gap-2 w-full md:w-auto md:border-l md:border-slate-100 md:pl-6">
+                                            <div className="text-right mb-1">
                                                 <div className="text-xs text-slate-400 font-bold uppercase">A Transferir</div>
                                                 <div className="text-3xl font-black text-slate-800">
                                                     ${payment.amount.toLocaleString('es-MX', {minimumFractionDigits: 2})}
@@ -150,6 +179,18 @@ export const PaymentExecutionModal: React.FC<PaymentExecutionModalProps> = ({ on
                                                     <><DollarSign size={16} className="mr-1"/> Aplicar Salida</>
                                                 )}
                                             </Button>
+
+                                            {/* BOTÓN EXCLUSIVO DE DIRECCIÓN PARA REVOCAR */}
+                                            {isDirector && (
+                                                <button 
+                                                    onClick={() => handleRevoke(payment.id)}
+                                                    disabled={processingId === payment.id}
+                                                    className="text-xs font-bold text-red-500 hover:text-red-700 flex items-center gap-1 mt-2 transition-colors disabled:opacity-50"
+                                                    title="Regresar a Pendiente de Autorización"
+                                                >
+                                                    <Undo2 size={12}/> Revocar Autorización
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                 );

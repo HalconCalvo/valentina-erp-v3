@@ -7,9 +7,7 @@ import MainLayout from './components/layout/MainLayout';
 // 1. HOME
 import Home from './Home'; 
 
-// 2. AUTH - CORREGIDO
-// Antes decía: .../auth/pages/LoginPage
-// Ahora apunta directo al archivo que conservamos y arreglamos:
+// 2. AUTH
 import LoginPage from './modules/auth/LoginPage'; 
 import UsersPage from './modules/auth/UsersPage'; 
 
@@ -28,8 +26,9 @@ import DesignBuilderPage from './modules/design/pages/DesignBuilderPage';
 import SalesDashboardPage from './modules/sales/pages/SalesDashboardPage';
 import CreateQuotePage from './modules/sales/pages/CreateQuotePage';
 
-// 6. INVENTARIO 
+// 6. INVENTARIO (¡AQUÍ IMPORTAMOS LA PANTALLA NUEVA!)
 import InventoryReceptionPage from './modules/foundations/pages/InventoryReceptionPage';
+import ReceptionHistoryPage from './modules/foundations/pages/ReceptionHistoryPage';
 
 // 7. GERENCIA
 import ManagementDashboard from './modules/management/pages/ManagementDashboard';
@@ -81,7 +80,9 @@ function App() {
             <Route path="/sales/new" element={<CreateQuotePage />} />
             <Route path="/sales/edit/:id" element={<CreateQuotePage />} />
 
-            {/* Inventario */}
+            {/* --- INVENTARIO (RUTAS CORREGIDAS) --- */}
+            <Route path="/inventory" element={<ReceptionHistoryPage />} />
+            <Route path="/inventory/history" element={<Navigate to="/inventory" replace />} />
             <Route path="/inventory/reception" element={<InventoryReceptionPage />} />
 
             {/* Tesorería */}
