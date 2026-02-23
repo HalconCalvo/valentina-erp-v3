@@ -326,3 +326,31 @@ def cancel_reception(reception_id: int, session: SessionDep) -> Any:
     session.commit()
     
     return {"message": f"Recepción cancelada y folio {original_invoice_number} liberado con éxito"}
+
+# ------------------------------------------------------------------
+# HERRAMIENTA TEMPORAL: LA ASPIRADORA DE FANTASMAS 👻
+# ------------------------------------------------------------------
+@router.get("/cleanup-ghosts")
+def cleanup_ghosts(session: SessionDep) -> Any:
+    """
+    Busca y elimina facturas en Finanzas que no tengan una recepción física en Almacén.
+    """
+    # 1. Traemos todas las deudas de Finanzas
+    invoices = session.exec(select(PurchaseInvoice)).all()
+    deleted = 0
+    
+    for inv in invoices:
+        # 2. Buscamos si existe el ticket físico en Almacén
+        statement = select(InventoryReception).where(
+            InventoryReception.invoice_number == inv.invoice_number,
+            InventoryReception.provider_id == inv.provider_id
+        )
+        reception = session.exec(statement).first()
+        
+        # 3. Si no existe en Almacén, es un fantasma. ¡Lo borramos!
+        if not reception:
+            session.delete(inv)
+            deleted += 1
+            
+    session.commit()
+    return {"mensaje": f"Limpieza completada. Se aspiraron {deleted} documentos fantasma de Finanzas."}
