@@ -506,7 +506,7 @@ const Home: React.FC = () => {
                                 {/* ROJA */}
                                 <Card onClick={() => setPayableFilter('THIS_FRIDAY')} className={`p-6 cursor-pointer border transition-all ${payableFilter === 'THIS_FRIDAY' ? 'bg-gradient-to-br from-red-600 to-red-700 text-white shadow-xl scale-105 border-transparent' : 'bg-white border-slate-200 hover:border-red-400 hover:shadow-md'}`}>
                                     <div className="flex justify-between items-center mb-4"><span className={`text-xs font-bold uppercase tracking-wider ${payableFilter === 'THIS_FRIDAY' ? 'text-red-100' : 'text-red-600'}`}><AlertTriangle className="inline mr-1 mb-1" size={14}/> Pago Inmediato</span></div>
-                                    <p className={`text-sm mb-2 ${payableFilter === 'THIS_FRIDAY' ? 'text-red-100' : 'text-slate-400'}`}>0 a 7 días</p>
+                                    <p className={`text-sm mb-2 ${payableFilter === 'THIS_FRIDAY' ? 'text-red-100' : 'text-slate-400'}`}>Pagos para el viernes</p>
                                     <div className="flex items-end justify-between">
                                         <div className={`text-xl font-bold leading-none ${payableFilter === 'THIS_FRIDAY' ? 'text-red-200' : 'text-slate-300'}`}>{apStats?.overdue_count || 0}</div>
                                         <div className={`text-xl font-black text-right ${payableFilter === 'THIS_FRIDAY' ? 'text-white' : 'text-slate-800'}`}>{formatCurrency(apStats?.overdue_amount || 0)}</div>
@@ -516,7 +516,7 @@ const Home: React.FC = () => {
                                 {/* NARANJA */}
                                 <Card onClick={() => setPayableFilter('NEXT_15_DAYS')} className={`p-6 cursor-pointer border transition-all ${payableFilter === 'NEXT_15_DAYS' ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-xl scale-105 border-transparent' : 'bg-white border-slate-200 hover:border-orange-400 hover:shadow-md'}`}>
                                     <div className="flex justify-between items-center mb-4"><span className={`text-xs font-bold uppercase tracking-wider ${payableFilter === 'NEXT_15_DAYS' ? 'text-orange-100' : 'text-orange-600'}`}><Calendar className="inline mr-1 mb-1" size={14}/> Proyección Corta</span></div>
-                                    <p className={`text-sm mb-2 ${payableFilter === 'NEXT_15_DAYS' ? 'text-orange-100' : 'text-slate-400'}`}>8 a 29 días</p>
+                                    <p className={`text-sm mb-2 ${payableFilter === 'NEXT_15_DAYS' ? 'text-orange-100' : 'text-slate-400'}`}>Pagos de 8 a 15 días</p>
                                     <div className="flex items-end justify-between">
                                         <div className={`text-xl font-bold leading-none ${payableFilter === 'NEXT_15_DAYS' ? 'text-orange-200' : 'text-slate-300'}`}>{apStats?.next_period_count || 0}</div>
                                         <div className={`text-xl font-black text-right ${payableFilter === 'NEXT_15_DAYS' ? 'text-white' : 'text-slate-800'}`}>{formatCurrency(apStats?.next_period_amount || 0)}</div>
@@ -526,7 +526,7 @@ const Home: React.FC = () => {
                                 {/* AMARILLO */}
                                 <Card onClick={() => setPayableFilter('FUTURE')} className={`p-6 cursor-pointer border transition-all ${payableFilter === 'FUTURE' ? 'bg-gradient-to-br from-yellow-500 to-yellow-600 text-white shadow-xl scale-105 border-transparent' : 'bg-white border-slate-200 hover:border-yellow-400 hover:shadow-md'}`}>
                                     <div className="flex justify-between items-center mb-4"><span className={`text-xs font-bold uppercase tracking-wider ${payableFilter === 'FUTURE' ? 'text-yellow-100' : 'text-yellow-600'}`}><ArrowRight className="inline mr-1 mb-1" size={14}/> Largo Plazo</span></div>
-                                    <p className={`text-sm mb-2 ${payableFilter === 'FUTURE' ? 'text-yellow-100' : 'text-slate-400'}`}>30 días o más</p>
+                                    <p className={`text-sm mb-2 ${payableFilter === 'FUTURE' ? 'text-yellow-100' : 'text-slate-400'}`}>Pagos en más de 15 días</p>
                                     <div className="flex items-end justify-between">
                                         <div className={`text-xl font-bold leading-none ${payableFilter === 'FUTURE' ? 'text-yellow-200' : 'text-slate-300'}`}>{apStats?.future_count || 0}</div>
                                         <div className={`text-xl font-black text-right ${payableFilter === 'FUTURE' ? 'text-white' : 'text-slate-800'}`}>{formatCurrency(apStats?.future_amount || 0)}</div>
@@ -541,10 +541,10 @@ const Home: React.FC = () => {
                                         <h3 className="font-bold text-slate-700 flex items-center gap-2 text-lg">
                                             <Filter size={18} className="text-slate-400"/> Auditoría: 
                                             <span className={`uppercase ml-1 font-black px-2 py-0.5 rounded text-sm ${payableFilter === 'THIS_FRIDAY' ? 'bg-red-100 text-red-700' : payableFilter === 'NEXT_15_DAYS' ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                                                {payableFilter === 'THIS_FRIDAY' ? 'Pago Inmediato' : payableFilter === 'NEXT_15_DAYS' ? 'Proyección 15 Días' : 'Futuros'}
+                                                {payableFilter === 'THIS_FRIDAY' ? 'Pagos para el viernes' : payableFilter === 'NEXT_15_DAYS' ? 'Pagos en 15 días' : 'Pagos mayores a 15 días'}
                                             </span>
                                         </h3>
-                                        <Badge variant="secondary" className="text-sm px-3 py-1">{filteredPayablesData.length} Documentos</Badge>
+                                        <Badge variant="secondary">{filteredPayablesData.length} Documentos</Badge>
                                     </div>
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-sm text-left"><thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-100"><tr><th className="px-6 py-4">Proveedor</th><th className="px-6 py-4">Factura</th><th className="px-6 py-4">Vencimiento</th><th className="px-6 py-4 text-right">Saldo Deuda</th><th className="px-6 py-4 text-center">Acción</th></tr></thead>
@@ -558,8 +558,8 @@ const Home: React.FC = () => {
                                                         const isAlreadyApproved = activeRequestsForThisInvoice.some(req => approvedRequests.find(ar => ar.id === req.id));
                                                         
                                                         let accountName = "Sin cuenta sugerida";
-                                                        if (hasActiveRequest && activeRequestsForThisInvoice[0].suggested_account_id) {
-                                                            const acc = accounts.find(a => a.id === activeRequestsForThisInvoice[0].suggested_account_id);
+                                                        if (hasActiveRequest && (activeRequestsForThisInvoice[0] as any).suggested_account_id) {
+                                                            const acc = accounts.find(a => a.id === (activeRequestsForThisInvoice[0] as any).suggested_account_id);
                                                             if (acc) accountName = acc.name;
                                                         }
 

@@ -602,7 +602,7 @@ const ManagementDashboard: React.FC = () => {
                                             </span>
                                         </div>
                                         <p className={`text-sm mb-2 ${activeFilter === 'FUTURE' ? 'text-yellow-100' : 'text-slate-400'}`}>
-                                            Pagos en 30 días
+                                            Pagos mayores a 15 días
                                         </p>
                                         <div className="flex items-end justify-between">
                                             <div className={`text-xl font-bold leading-none ${activeFilter === 'FUTURE' ? 'text-yellow-200' : 'text-slate-300'}`}>
