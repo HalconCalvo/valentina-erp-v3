@@ -176,37 +176,40 @@ const Home: React.FC = () => {
       }
   }, [orders, salesTab]);
 
- // --- LÓGICA DE FILTRADO ANTI-ZONAS HORARIAS ---
+ // --- LÓGICA DE FILTRADO ANTI-ZONAS HORARIAS (Sincronizada con el Viernes de Corte) ---
   const getFilteredInvoices = () => {
     if (!payableFilter) return [];
-    
-    // Hoy al MEDIODÍA
-    const today = new Date();
-    today.setHours(12, 0, 0, 0);
 
     return invoices.filter(inv => {
         if (!inv.due_date) return false;
-        
-        // 1. Cortamos los primeros 10 caracteres (YYYY-MM-DD) a la fuerza
-        const dateString = String(inv.due_date).substring(0, 10);
-        const [yearStr, monthStr, dayStr] = dateString.split('-');
-        
-        // 2. Armamos la fecha forzándola al MEDIODÍA (12:00:00) local
-        const parsedDate = new Date(
-            parseInt(yearStr, 10), 
-            parseInt(monthStr, 10) - 1, // En JS los meses empiezan en 0
-            parseInt(dayStr, 10), 
-            12, 0, 0, 0 // <-- El secreto: 12 del mediodía
-        );
 
-        // 3. Resta en milisegundos y conversión a días (con Math.round por si acaso)
-        const restaMilisegundos = parsedDate.getTime() - today.getTime();
-        const restaDias = Math.round(restaMilisegundos / (1000 * 60 * 60 * 24));
+        // 1. Blindaje de Zona Horaria (Para que no se pierdan días)
+        const due = new Date(inv.due_date);
+        due.setMinutes(due.getMinutes() + due.getTimezoneOffset());
+        
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        due.setHours(0,0,0,0);
+        
+        // 2. Algoritmo: Encontrar el próximo viernes
+        const weekday = today.getDay(); // 0 es Domingo, 5 es Viernes
+        let daysUntilFriday = 5 - weekday;
+        if (daysUntilFriday < 0) daysUntilFriday += 7; // Si ya es sábado, brinca al prox viernes
 
-        // Filtros idénticos a los del backend
-        if (payableFilter === 'THIS_FRIDAY') return restaDias <= 7;
-        if (payableFilter === 'NEXT_15_DAYS') return restaDias >= 8 && restaDias <= 29;
-        if (payableFilter === 'FUTURE') return restaDias >= 30;
+        const cutoffDate = new Date(today);
+        cutoffDate.setDate(today.getDate() + daysUntilFriday);
+
+        const nextPeriodLimit = new Date(cutoffDate);
+        nextPeriodLimit.setDate(cutoffDate.getDate() + 15);
+
+        // 3. Filtros exactos usando tiempos
+        const dueTime = due.getTime();
+        const cutoffTime = cutoffDate.getTime();
+        const nextPeriodTime = nextPeriodLimit.getTime();
+
+        if (payableFilter === 'THIS_FRIDAY') return dueTime <= cutoffTime; // Hasta el viernes
+        if (payableFilter === 'NEXT_15_DAYS') return dueTime > cutoffTime && dueTime <= nextPeriodTime; // Próximos 15 días
+        if (payableFilter === 'FUTURE') return dueTime > nextPeriodTime; // Futuro
         
         return false;
     });
