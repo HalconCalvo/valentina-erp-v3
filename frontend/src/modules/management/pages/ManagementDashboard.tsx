@@ -161,37 +161,40 @@ const ManagementDashboard: React.FC = () => {
         }
     };
 
-    // --- LÓGICA DE FILTRADO ANTI-ZONAS HORARIAS (BLINDADA) ---
+    // --- LÓGICA DE FILTRADO SINCRONIZADA CON EL BACKEND (VIERNES DE CORTE) ---
     const getFilteredInvoices = () => {
         if (!activeFilter) return [];
-
-        // Hoy al MEDIODÍA (para evitar cambios de día por UTC/CST)
-        const today = new Date();
-        today.setHours(12, 0, 0, 0);
 
         return invoices.filter(inv => {
             if (!inv.due_date) return false;
 
-            // 1. Cortamos los primeros 10 caracteres (YYYY-MM-DD) a la fuerza
-            const dateString = String(inv.due_date).substring(0, 10);
-            const [yearStr, monthStr, dayStr] = dateString.split('-');
+            // 1. Blindaje de Zona Horaria (Para que no se pierdan días)
+            const due = new Date(inv.due_date);
+            due.setMinutes(due.getMinutes() + due.getTimezoneOffset());
             
-            // 2. Armamos la fecha forzándola al MEDIODÍA (12:00:00) local
-            const parsedDate = new Date(
-                parseInt(yearStr, 10), 
-                parseInt(monthStr, 10) - 1, // En JS los meses empiezan en 0
-                parseInt(dayStr, 10), 
-                12, 0, 0, 0
-            );
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            due.setHours(0,0,0,0);
+            
+            // 2. Algoritmo: Encontrar el próximo viernes
+            const weekday = today.getDay(); // 0 es Domingo, 5 es Viernes
+            let daysUntilFriday = 5 - weekday;
+            if (daysUntilFriday < 0) daysUntilFriday += 7; // Si ya es sábado, brinca al prox viernes
 
-            // 3. Resta en milisegundos y conversión a días (con Math.round)
-            const restaMilisegundos = parsedDate.getTime() - today.getTime();
-            const restaDias = Math.round(restaMilisegundos / (1000 * 60 * 60 * 24));
+            const cutoffDate = new Date(today);
+            cutoffDate.setDate(today.getDate() + daysUntilFriday);
 
-            // Filtros exactos que coinciden con los totales del Backend
-            if (activeFilter === 'THIS_FRIDAY') return restaDias <= 7;
-            if (activeFilter === 'NEXT_15_DAYS') return restaDias >= 8 && restaDias <= 29;
-            if (activeFilter === 'FUTURE') return restaDias >= 30;
+            const nextPeriodLimit = new Date(cutoffDate);
+            nextPeriodLimit.setDate(cutoffDate.getDate() + 15);
+
+            // 3. Filtros exactos usando tiempos
+            const dueTime = due.getTime();
+            const cutoffTime = cutoffDate.getTime();
+            const nextPeriodTime = nextPeriodLimit.getTime();
+
+            if (activeFilter === 'THIS_FRIDAY') return dueTime <= cutoffTime; // Hasta el viernes
+            if (activeFilter === 'NEXT_15_DAYS') return dueTime > cutoffTime && dueTime <= nextPeriodTime; // Próximos 15 días
+            if (activeFilter === 'FUTURE') return dueTime > nextPeriodTime; // Futuro
             
             return false;
         });
@@ -543,7 +546,7 @@ const ManagementDashboard: React.FC = () => {
                                             </span>
                                         </div>
                                         <p className={`text-sm mb-2 ${activeFilter === 'THIS_FRIDAY' ? 'text-red-100' : 'text-slate-400'}`}>
-                                            0 a 7 días
+                                            Hasta el próximo Viernes
                                         </p>
                                         <div className="flex items-end justify-between">
                                             <div className={`text-xl font-bold leading-none ${activeFilter === 'THIS_FRIDAY' ? 'text-red-200' : 'text-slate-300'}`}>
@@ -571,7 +574,7 @@ const ManagementDashboard: React.FC = () => {
                                             </span>
                                         </div>
                                         <p className={`text-sm mb-2 ${activeFilter === 'NEXT_15_DAYS' ? 'text-orange-100' : 'text-slate-400'}`}>
-                                            8 a 29 días
+                                            Siguientes 15 días
                                         </p>
                                         <div className="flex items-end justify-between">
                                             <div className={`text-xl font-bold leading-none ${activeFilter === 'NEXT_15_DAYS' ? 'text-orange-200' : 'text-slate-300'}`}>
