@@ -186,24 +186,29 @@ const Home: React.FC = () => {
     return invoices.filter(inv => {
         if (!inv.due_date) return false;
         
-        // Extraemos matemáticamente Año, Mes y Día sin importar la hora o la letra 'T'
-        const dateStringOnly = inv.due_date.split('T')[0];
-        const dateParts = dateStringOnly.split('-');
-        const dueDate = new Date(Number(dateParts[0]), Number(dateParts[1]) - 1, Number(dateParts[2]));
+        // 1. ESCÁNER (Puedes verlo presionando F12 en tu navegador -> Consola)
+        // console.log("Fecha de Render:", inv.due_date);
+        
+        // 2. MACHETE: Tomamos estrictamente los primeros 10 caracteres (YYYY-MM-DD)
+        const dateOnly = String(inv.due_date).substring(0, 10);
+        const [year, month, day] = dateOnly.split('-');
+        
+        // 3. ARMAMOS LA FECHA LIMPIA
+        const dueDate = new Date(Number(year), Number(month) - 1, Number(day));
         dueDate.setHours(0,0,0,0);
 
-        // Calculamos los días exactos de diferencia
+        // 4. CALCULAMOS DÍAS (Math.round previene errores por cambio de horario)
         const diffTime = dueDate.getTime() - today.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
-        // Filtros exactos que coinciden con los totales del Backend
-        if (payableFilter === 'THIS_FRIDAY') return diffDays <= 7; // Pago Inmediato (0 a 7 días)
-        if (payableFilter === 'NEXT_15_DAYS') return diffDays >= 8 && diffDays <= 29; // Proyección (8 a 29 días)
-        if (payableFilter === 'FUTURE') return diffDays >= 30; // Largo Plazo (30 días o más)
+        if (payableFilter === 'THIS_FRIDAY') return diffDays <= 7;
+        if (payableFilter === 'NEXT_15_DAYS') return diffDays >= 8 && diffDays <= 29;
+        if (payableFilter === 'FUTURE') return diffDays >= 30;
         
         return false;
     });
   };
+  
   const filteredPayablesData = getFilteredInvoices();
 
   // --- ACCIONES MODALES PAGOS ---
