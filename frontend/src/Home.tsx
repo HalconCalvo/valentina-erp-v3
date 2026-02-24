@@ -176,44 +176,37 @@ const Home: React.FC = () => {
       }
   }, [orders, salesTab]);
 
-  // --- LÓGICA DE FILTRADO BLINDADA Y SINCRONIZADA AL BACKEND ---
+ // --- LÓGICA DE FILTRADO ANTI-ZONAS HORARIAS ---
   const getFilteredInvoices = () => {
     if (!payableFilter) return [];
     
-    // Obtenemos la fecha de HOY al inicio del día, en zona horaria local.
+    // Hoy al MEDIODÍA
     const today = new Date();
-    today.setHours(0,0,0,0);
+    today.setHours(12, 0, 0, 0);
 
     return invoices.filter(inv => {
         if (!inv.due_date) return false;
         
-        // 1. Convertimos a string y extraemos SOLO los primeros 10 caracteres (YYYY-MM-DD)
-        const rawDate = String(inv.due_date);
-        const dateOnly = rawDate.substring(0, 10);
+        // 1. Cortamos los primeros 10 caracteres (YYYY-MM-DD) a la fuerza
+        const dateString = String(inv.due_date).substring(0, 10);
+        const [yearStr, monthStr, dayStr] = dateString.split('-');
         
-        // 2. Extraemos los números exactos
-        const [yearStr, monthStr, dayStr] = dateOnly.split('-');
-        const year = parseInt(yearStr, 10);
-        const month = parseInt(monthStr, 10) - 1; // En JavaScript los meses son 0-11
-        const day = parseInt(dayStr, 10);
+        // 2. Armamos la fecha forzándola al MEDIODÍA (12:00:00) local
+        const parsedDate = new Date(
+            parseInt(yearStr, 10), 
+            parseInt(monthStr, 10) - 1, // En JS los meses empiezan en 0
+            parseInt(dayStr, 10), 
+            12, 0, 0, 0 // <-- El secreto: 12 del mediodía
+        );
 
-        // Si la extracción falla, la ignoramos.
-        if (isNaN(year) || isNaN(month) || isNaN(day)) return false;
+        // 3. Resta en milisegundos y conversión a días (con Math.round por si acaso)
+        const restaMilisegundos = parsedDate.getTime() - today.getTime();
+        const restaDias = Math.round(restaMilisegundos / (1000 * 60 * 60 * 24));
 
-        // 3. Creamos una fecha local perfecta a las 00:00:00
-        const dueDate = new Date(year, month, day, 0, 0, 0, 0);
-
-        // 4. Calculamos los días usando UTC para evitar problemas con horarios de verano
-        const utcToday = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
-        const utcDueDate = Date.UTC(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
-        
-        const diffTime = Math.floor(utcDueDate - utcToday);
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-        // 5. Aplicamos los filtros
-        if (payableFilter === 'THIS_FRIDAY') return diffDays <= 7;
-        if (payableFilter === 'NEXT_15_DAYS') return diffDays >= 8 && diffDays <= 29;
-        if (payableFilter === 'FUTURE') return diffDays >= 30;
+        // Filtros idénticos a los del backend
+        if (payableFilter === 'THIS_FRIDAY') return restaDias <= 7;
+        if (payableFilter === 'NEXT_15_DAYS') return restaDias >= 8 && restaDias <= 29;
+        if (payableFilter === 'FUTURE') return restaDias >= 30;
         
         return false;
     });

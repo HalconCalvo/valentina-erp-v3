@@ -161,30 +161,37 @@ const ManagementDashboard: React.FC = () => {
         }
     };
 
-    // --- LÓGICA DE FILTRADO BLINDADA Y SINCRONIZADA AL BACKEND ---
+    // --- LÓGICA DE FILTRADO ANTI-ZONAS HORARIAS (BLINDADA) ---
     const getFilteredInvoices = () => {
         if (!activeFilter) return [];
 
+        // Hoy al MEDIODÍA (para evitar cambios de día por UTC/CST)
         const today = new Date();
-        today.setHours(0,0,0,0);
+        today.setHours(12, 0, 0, 0);
 
         return invoices.filter(inv => {
             if (!inv.due_date) return false;
 
-            // Extraemos matemáticamente Año, Mes y Día sin importar la hora o la letra 'T'
-            const dateStringOnly = inv.due_date.split('T')[0];
-            const dateParts = dateStringOnly.split('-');
-            const dueDate = new Date(Number(dateParts[0]), Number(dateParts[1]) - 1, Number(dateParts[2]));
-            dueDate.setHours(0,0,0,0);
+            // 1. Cortamos los primeros 10 caracteres (YYYY-MM-DD) a la fuerza
+            const dateString = String(inv.due_date).substring(0, 10);
+            const [yearStr, monthStr, dayStr] = dateString.split('-');
+            
+            // 2. Armamos la fecha forzándola al MEDIODÍA (12:00:00) local
+            const parsedDate = new Date(
+                parseInt(yearStr, 10), 
+                parseInt(monthStr, 10) - 1, // En JS los meses empiezan en 0
+                parseInt(dayStr, 10), 
+                12, 0, 0, 0
+            );
 
-            // Calculamos los días exactos de diferencia
-            const diffTime = dueDate.getTime() - today.getTime();
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            // 3. Resta en milisegundos y conversión a días (con Math.round)
+            const restaMilisegundos = parsedDate.getTime() - today.getTime();
+            const restaDias = Math.round(restaMilisegundos / (1000 * 60 * 60 * 24));
 
             // Filtros exactos que coinciden con los totales del Backend
-            if (activeFilter === 'THIS_FRIDAY') return diffDays <= 7; // Pago Inmediato (0 a 7 días)
-            if (activeFilter === 'NEXT_15_DAYS') return diffDays >= 8 && diffDays <= 29; // Proyección (8 a 29 días)
-            if (activeFilter === 'FUTURE') return diffDays >= 30; // Largo Plazo (30 días o más)
+            if (activeFilter === 'THIS_FRIDAY') return restaDias <= 7;
+            if (activeFilter === 'NEXT_15_DAYS') return restaDias >= 8 && restaDias <= 29;
+            if (activeFilter === 'FUTURE') return restaDias >= 30;
             
             return false;
         });
@@ -577,7 +584,7 @@ const ManagementDashboard: React.FC = () => {
                                     </div>
                                 </Card>
 
-                                {/* AMARILLO (AHORA SÍ AMARILLO COMO QUERÍAMOS) */}
+                                {/* AMARILLO */}
                                 <Card 
                                     onClick={() => setActiveFilter('FUTURE')}
                                     className={`p-6 cursor-pointer border transition-all group relative overflow-hidden
