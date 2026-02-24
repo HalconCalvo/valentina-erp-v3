@@ -546,7 +546,7 @@ const ManagementDashboard: React.FC = () => {
                                             </span>
                                         </div>
                                         <p className={`text-sm mb-2 ${activeFilter === 'THIS_FRIDAY' ? 'text-red-100' : 'text-slate-400'}`}>
-                                            Hasta el próximo Viernes
+                                            Pagos para el viernes
                                         </p>
                                         <div className="flex items-end justify-between">
                                             <div className={`text-xl font-bold leading-none ${activeFilter === 'THIS_FRIDAY' ? 'text-red-200' : 'text-slate-300'}`}>
@@ -574,7 +574,7 @@ const ManagementDashboard: React.FC = () => {
                                             </span>
                                         </div>
                                         <p className={`text-sm mb-2 ${activeFilter === 'NEXT_15_DAYS' ? 'text-orange-100' : 'text-slate-400'}`}>
-                                            Siguientes 15 días
+                                            Pagos en 15 días
                                         </p>
                                         <div className="flex items-end justify-between">
                                             <div className={`text-xl font-bold leading-none ${activeFilter === 'NEXT_15_DAYS' ? 'text-orange-200' : 'text-slate-300'}`}>
@@ -602,7 +602,7 @@ const ManagementDashboard: React.FC = () => {
                                             </span>
                                         </div>
                                         <p className={`text-sm mb-2 ${activeFilter === 'FUTURE' ? 'text-yellow-100' : 'text-slate-400'}`}>
-                                            30 días o más
+                                            Pagos en 30 días
                                         </p>
                                         <div className="flex items-end justify-between">
                                             <div className={`text-xl font-bold leading-none ${activeFilter === 'FUTURE' ? 'text-yellow-200' : 'text-slate-300'}`}>
