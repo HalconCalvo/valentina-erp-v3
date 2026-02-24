@@ -7,7 +7,7 @@ import {
   AlertTriangle, CheckCircle, DollarSign, Wallet,
   FileText, Filter, CheckCircle2, X, Briefcase, TrendingUp, 
   ArrowRight, ClipboardList, Undo2, Eye, Pencil, Trash2, Send, Check, 
-  Edit2 /* <-- ¡AQUÍ ESTÁ EL CULPABLE DE LA PANTALLA BLANCA (YA REPARADO)! */
+  Edit2
 } from 'lucide-react';
 
 // SERVICES & HOOKS
@@ -180,27 +180,37 @@ const Home: React.FC = () => {
   const getFilteredInvoices = () => {
     if (!payableFilter) return [];
     
+    // Obtenemos la fecha de HOY al inicio del día, en zona horaria local.
     const today = new Date();
     today.setHours(0,0,0,0);
 
     return invoices.filter(inv => {
         if (!inv.due_date) return false;
         
-        // 1. ESCÁNER (Puedes verlo presionando F12 en tu navegador -> Consola)
-        // console.log("Fecha de Render:", inv.due_date);
+        // 1. Convertimos a string y extraemos SOLO los primeros 10 caracteres (YYYY-MM-DD)
+        const rawDate = String(inv.due_date);
+        const dateOnly = rawDate.substring(0, 10);
         
-        // 2. MACHETE: Tomamos estrictamente los primeros 10 caracteres (YYYY-MM-DD)
-        const dateOnly = String(inv.due_date).substring(0, 10);
-        const [year, month, day] = dateOnly.split('-');
+        // 2. Extraemos los números exactos
+        const [yearStr, monthStr, dayStr] = dateOnly.split('-');
+        const year = parseInt(yearStr, 10);
+        const month = parseInt(monthStr, 10) - 1; // En JavaScript los meses son 0-11
+        const day = parseInt(dayStr, 10);
+
+        // Si la extracción falla, la ignoramos.
+        if (isNaN(year) || isNaN(month) || isNaN(day)) return false;
+
+        // 3. Creamos una fecha local perfecta a las 00:00:00
+        const dueDate = new Date(year, month, day, 0, 0, 0, 0);
+
+        // 4. Calculamos los días usando UTC para evitar problemas con horarios de verano
+        const utcToday = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+        const utcDueDate = Date.UTC(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
         
-        // 3. ARMAMOS LA FECHA LIMPIA
-        const dueDate = new Date(Number(year), Number(month) - 1, Number(day));
-        dueDate.setHours(0,0,0,0);
+        const diffTime = Math.floor(utcDueDate - utcToday);
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
-        // 4. CALCULAMOS DÍAS (Math.round previene errores por cambio de horario)
-        const diffTime = dueDate.getTime() - today.getTime();
-        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-
+        // 5. Aplicamos los filtros
         if (payableFilter === 'THIS_FRIDAY') return diffDays <= 7;
         if (payableFilter === 'NEXT_15_DAYS') return diffDays >= 8 && diffDays <= 29;
         if (payableFilter === 'FUTURE') return diffDays >= 30;
@@ -272,7 +282,7 @@ const Home: React.FC = () => {
       case 'SALES': return { title: 'Panel Comercial', subtitle: 'Tus objetivos y seguimiento.', color: 'from-emerald-500 to-teal-600', shortcuts: [] };
       case 'DESIGN': return { title: 'Ingeniería', subtitle: 'Desarrollo de productos.', color: 'from-pink-500 to-rose-600', shortcuts: [{ label: 'Nuevo Producto', icon: PlusCircle, path: '/design', color: 'bg-pink-100 text-pink-700', state: { openNewModal: true } }, { label: 'Catálogo', icon: PenTool, path: '/design', color: 'bg-purple-100 text-purple-700' }, { label: 'Materiales', icon: Package, path: '/materials', color: 'bg-amber-100 text-amber-700' }, { label: 'Producción', icon: LayoutDashboard, path: '/production', color: 'bg-slate-100 text-slate-700' }] };
       case 'WAREHOUSE': return { title: 'Logística', subtitle: 'Control de inventarios y almacén.', color: 'from-orange-500 to-amber-600', shortcuts: [{ label: 'Entradas Almacén', icon: ClipboardList, path: '/inventory/history', color: 'bg-orange-100 text-orange-700' }, { label: 'Materiales', icon: Package, path: '/materials', color: 'bg-emerald-100 text-emerald-700' }, { label: 'Proveedores', icon: Truck, path: '/providers', color: 'bg-blue-100 text-blue-700' }] };
-      case 'PRODUCTION': return { title: 'Fábrica', subtitle: 'Gestión de producción.', color: 'from-blue-600 to-indigo-700', shortcuts: [{ label: 'Órdenes', icon: ClipboardList, path: '/production', color: 'bg-blue-100 text-blue-700' }, { label: 'Materiales', icon: Package, path: '/materials', color: 'bg-slate-100 text-slate-700' }] };
+      case 'PRODUCTION': return { title: 'Fábrica', subtitle: 'Gestión de production.', color: 'from-blue-600 to-indigo-700', shortcuts: [{ label: 'Órdenes', icon: ClipboardList, path: '/production', color: 'bg-blue-100 text-blue-700' }, { label: 'Materiales', icon: Package, path: '/materials', color: 'bg-slate-100 text-slate-700' }] };
       case 'ADMIN': return { title: 'Administración', subtitle: 'Finanzas y Control.', color: 'from-indigo-600 to-violet-800', shortcuts: [] };
       default: return { title: 'Dirección General', subtitle: 'Cuadro de Mando Integral.', color: 'from-slate-800 to-black', shortcuts: [] };
     }
@@ -520,7 +530,7 @@ const Home: React.FC = () => {
                                     </div>
                                 </Card>
 
-                                {/* AMARILLO (AHORA SÍ AMARILLO COMO QUERÍAMOS) */}
+                                {/* AMARILLO */}
                                 <Card onClick={() => setPayableFilter('FUTURE')} className={`p-6 cursor-pointer border transition-all ${payableFilter === 'FUTURE' ? 'bg-gradient-to-br from-yellow-500 to-yellow-600 text-white shadow-xl scale-105 border-transparent' : 'bg-white border-slate-200 hover:border-yellow-400 hover:shadow-md'}`}>
                                     <div className="flex justify-between items-center mb-4"><span className={`text-xs font-bold uppercase tracking-wider ${payableFilter === 'FUTURE' ? 'text-yellow-100' : 'text-yellow-600'}`}><ArrowRight className="inline mr-1 mb-1" size={14}/> Largo Plazo</span></div>
                                     <p className={`text-sm mb-2 ${payableFilter === 'FUTURE' ? 'text-yellow-100' : 'text-slate-400'}`}>30 días o más</p>
