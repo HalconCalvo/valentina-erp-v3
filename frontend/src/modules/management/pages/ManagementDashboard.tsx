@@ -161,7 +161,7 @@ const ManagementDashboard: React.FC = () => {
         }
     };
 
-    // --- LÓGICA DE FILTRADO ---
+    // --- LÓGICA DE FILTRADO BLINDADA ---
     const getFilteredInvoices = () => {
         if (!activeFilter) return [];
 
@@ -178,9 +178,16 @@ const ManagementDashboard: React.FC = () => {
 
         const nextPeriodLimit = new Date(cutoffDate);
         nextPeriodLimit.setDate(cutoffDate.getDate() + 15);
+        nextPeriodLimit.setHours(23, 59, 59, 999);
 
         return invoices.filter(inv => {
-            const dueDate = new Date(inv.due_date + 'T12:00:00'); 
+            if (!inv.due_date) return false;
+
+            // BLINDAJE: Extraemos matemáticamente Año, Mes y Día sin importar la 'T'
+            const dateStringOnly = inv.due_date.split('T')[0];
+            const dateParts = dateStringOnly.split('-');
+            const dueDate = new Date(Number(dateParts[0]), Number(dateParts[1]) - 1, Number(dateParts[2]), 12, 0, 0);
+            
             if (activeFilter === 'THIS_FRIDAY') return dueDate <= cutoffDate;
             if (activeFilter === 'NEXT_15_DAYS') return dueDate > cutoffDate && dueDate <= nextPeriodLimit;
             if (activeFilter === 'FUTURE') return dueDate > nextPeriodLimit;
