@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { 
     TrendingDown, Users, DollarSign, 
     AlertTriangle, Calendar, ArrowRight, Filter, CheckSquare,
-    CheckCircle2, X, Clock, Trash2, Edit2, Search, Check
+    CheckCircle2, X, Clock, Trash2, Edit2, Search, Check, TrendingUp
 } from 'lucide-react';
 import Card from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
@@ -18,7 +18,8 @@ import { PaymentRequestModal } from '../components/PaymentRequestModal';
 import { PaymentExecutionModal } from '../components/PaymentExecutionModal';
 import { PaymentApprovalModal } from '../components/PaymentApprovalModal';
 
-type DashboardSection = 'INVENTORY' | 'PAYROLL' | 'EXPENSES' | 'PAYABLE' | 'QUOTES' | null;
+// Agregamos 'MONTHLY_SALES' a los posibles estados
+type DashboardSection = 'INVENTORY' | 'PAYROLL' | 'EXPENSES' | 'PAYABLE' | 'QUOTES' | 'MONTHLY_SALES' | null;
 type PayableFilter = 'THIS_FRIDAY' | 'NEXT_15_DAYS' | 'FUTURE' | null;
 type PayableViewMode = 'TO_REQUEST' | 'REQUESTED';
 
@@ -39,7 +40,12 @@ const ManagementDashboard: React.FC = () => {
     const [approvedPaymentsCount, setApprovedPaymentsCount] = useState(0);
 
     const [accounts, setAccounts] = useState<BankAccount[]>([]); 
+    
+    // --- ESTADOS DE VENTAS ---
     const [pendingQuotes, setPendingQuotes] = useState<SalesOrder[]>([]);
+    const [monthlySales, setMonthlySales] = useState<SalesOrder[]>([]);
+    const [monthlySalesAmount, setMonthlySalesAmount] = useState(0);
+
     const [loading, setLoading] = useState(false);
 
     // Navegación Interactiva
@@ -56,7 +62,7 @@ const ManagementDashboard: React.FC = () => {
     // --- CARGA DE DATOS INICIALES ---
     useEffect(() => {
         loadStats();
-        loadPendingQuotesCount();
+        loadSalesData();
         loadAccounts(); 
         if (location.state && location.state.openSection) {
             setActiveSection(location.state.openSection as DashboardSection);
@@ -68,9 +74,9 @@ const ManagementDashboard: React.FC = () => {
     useEffect(() => {
         const intervalId = setInterval(() => {
             loadStats();
-            loadPendingQuotesCount();
+            loadSalesData();
             if (activeSection === 'PAYABLE') {
-                refreshPayableData(false); // false = actualiza por detrás sin mostrar pantallita de "Cargando..."
+                refreshPayableData(false);
             }
         }, 15000);
         return () => clearInterval(intervalId);
@@ -85,12 +91,33 @@ const ManagementDashboard: React.FC = () => {
         }
     };
 
-    const loadPendingQuotesCount = async () => {
+    // --- NUEVA CARGA DE DATOS DE VENTAS (COTIZACIONES + VENTAS DEL MES) ---
+    const loadSalesData = async () => {
         try {
-            const quotes = await salesService.getOrders({ status: SalesOrderStatus.SENT });
-            setPendingQuotes(quotes);
+            const allQuotes = await salesService.getOrders();
+            
+            // 1. Cotizaciones Pendientes
+            const strictPendingQuotes = allQuotes.filter(
+                (quote: SalesOrder) => quote.status === 'SENT' || quote.status === SalesOrderStatus.SENT
+            );
+            setPendingQuotes(strictPendingQuotes);
+
+            // 2. Ventas del Mes
+            const now = new Date();
+            const currentMonth = now.getMonth();
+            const currentYear = now.getFullYear();
+
+            const currentMonthlySales = allQuotes.filter((o: SalesOrder) => {
+                const isSold = o.status === 'PAID' || o.status === 'SOLD' || o.status === SalesOrderStatus.PAID || o.status === SalesOrderStatus.SOLD;
+                const d = o.created_at ? new Date(o.created_at) : new Date();
+                return isSold && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+            });
+
+            setMonthlySales(currentMonthlySales);
+            setMonthlySalesAmount(currentMonthlySales.reduce((sum, o) => sum + (o.total_price || 0), 0));
+
         } catch (error) {
-            console.error("Error cargando cotizaciones pendientes:", error);
+            console.error("Error cargando datos comerciales:", error);
         }
     };
 
@@ -108,8 +135,8 @@ const ManagementDashboard: React.FC = () => {
         if (activeSection === 'PAYABLE') {
             refreshPayableData(true);
         }
-        if (activeSection === 'QUOTES') {
-            loadPendingQuotesCount();
+        if (activeSection === 'QUOTES' || activeSection === 'MONTHLY_SALES') {
+            loadSalesData();
         }
     }, [activeSection, payableViewMode]);
 
@@ -126,8 +153,6 @@ const ManagementDashboard: React.FC = () => {
             setApprovedRequests(approvedReqData);
             setApprovedPaymentsCount(approvedReqData.length); 
             
-            // Si el spinner está prendido, no llamamos loadStats de nuevo porque ya lo hicimos arriba, 
-            // pero si está en auto-refresh, lo dejamos.
             if (showSpinner) loadStats(); 
         } catch (error) {
             console.error("Error al refrescar datos", error);
@@ -264,15 +289,20 @@ const ManagementDashboard: React.FC = () => {
                     </div>
                 </Card>
 
-                {/* 2. VENTAS MES */}
-                <Card className="p-4 opacity-60 grayscale cursor-not-allowed border-l-4 border-l-blue-400 bg-white h-full">
+                {/* 2. VENTAS MES (AHORA ACTIVA Y CON COLOR VERDE/EMERALD) */}
+                <Card 
+                    onClick={() => setActiveSection(activeSection === 'MONTHLY_SALES' ? null : 'MONTHLY_SALES')}
+                    className={`p-4 cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-emerald-500 transform hover:-translate-y-1 h-full
+                    ${activeSection === 'MONTHLY_SALES' ? 'ring-2 ring-emerald-500 bg-emerald-50 shadow-md' : 'bg-white shadow-sm'}`}
+                >
                     <div className="flex justify-between items-start">
-                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Facturación</p>
-                        <DollarSign size={14} className="text-blue-400" />
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Ventas Mes</p>
+                        <DollarSign size={14} className="text-emerald-500" />
                     </div>
-                    <div className="mt-1">
-                        <h3 className="text-xl font-bold text-slate-700">Ventas del Mes</h3>
-                        <p className="text-[10px] text-slate-400 mt-1">Próximamente</p>
+                    <div className="mt-3 flex flex-col justify-end">
+                        <div className="text-2xl font-black text-emerald-600 text-right">
+                            {formatCurrency(monthlySalesAmount)}
+                        </div>
                     </div>
                 </Card>
 
@@ -386,6 +416,68 @@ const ManagementDashboard: React.FC = () => {
                 </div>
             )}
 
+            {/* --- NIVEL 2: MÓDULO DE VENTAS DEL MES --- */}
+            {activeSection === 'MONTHLY_SALES' && (
+                <div className="animate-in slide-in-from-top-4 duration-300 relative mt-6 pt-6 border-t border-slate-200">
+                    <button onClick={() => setActiveSection(null)} className="absolute -top-3 -right-2 p-2 bg-white shadow-md rounded-full text-slate-400 hover:text-emerald-500 z-10"><X size={20}/></button>
+
+                    <div className="bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden">
+                        <div className="p-4 bg-emerald-50 border-b border-emerald-100 flex justify-between items-center">
+                            <h3 className="font-bold text-emerald-800 flex items-center gap-2 text-lg">
+                                <TrendingUp className="text-emerald-600"/> Ventas del Mes
+                            </h3>
+                            <Badge variant="default" className="bg-emerald-600">{monthlySales.length} Operaciones</Badge>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-left">
+                                <thead className="text-xs text-emerald-800 uppercase bg-emerald-50/50 border-b border-emerald-100">
+                                    <tr>
+                                        <th className="px-6 py-4">Folio / Proyecto</th>
+                                        <th className="px-6 py-4">Cliente</th>
+                                        <th className="px-6 py-4 text-right">Importe Total</th>
+                                        <th className="px-6 py-4">Fecha Venta</th>
+                                        <th className="px-6 py-4 text-center">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {monthlySales.length === 0 ? (
+                                        <tr><td colSpan={5} className="text-center py-12 text-slate-400 italic">No hay ventas registradas este mes.</td></tr>
+                                    ) : (
+                                        monthlySales.map((sale) => (
+                                            <tr key={sale.id} className="hover:bg-slate-50 transition-colors">
+                                                <td className="px-6 py-4">
+                                                    <div className="font-bold text-slate-700">{sale.project_name}</div>
+                                                    <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-500 text-xs">#{sale.id}</span>
+                                                </td>
+                                                <td className="px-6 py-4 text-slate-600">
+                                                    {sale.client_name || `Cliente ID: ${sale.client_id}`}
+                                                </td>
+                                                <td className="px-6 py-4 text-right font-black text-slate-800">
+                                                    {formatCurrency(sale.total_price)}
+                                                </td>
+                                                <td className="px-6 py-4 text-slate-500">
+                                                    {new Date(sale.created_at).toLocaleDateString('es-MX')}
+                                                </td>
+                                                <td className="px-6 py-4 text-center">
+                                                    <Button 
+                                                        size="sm" 
+                                                        className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm shadow-emerald-200"
+                                                        onClick={() => navigate(`/sales/edit/${sale.id}`)}
+                                                    >
+                                                        <Search size={16} className="mr-1"/> Revisar
+                                                    </Button>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* --- NIVEL 2: MÓDULO DE PAGOS --- */}
             {activeSection === 'PAYABLE' && (
                 <div className="animate-in slide-in-from-top-4 duration-300 relative mt-6 pt-6 border-t border-slate-200">
@@ -483,25 +575,25 @@ const ManagementDashboard: React.FC = () => {
                                     </div>
                                 </Card>
 
-                                {/* VERDE */}
+                                {/* AMARILLO (AHORA SÍ AMARILLO COMO QUERÍAMOS) */}
                                 <Card 
                                     onClick={() => setActiveFilter('FUTURE')}
                                     className={`p-6 cursor-pointer border transition-all group relative overflow-hidden
                                     ${activeFilter === 'FUTURE' 
-                                        ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-xl scale-105 border-transparent' 
-                                        : 'bg-white border-slate-200 hover:border-emerald-400 hover:shadow-md'}`}
+                                        ? 'bg-gradient-to-br from-yellow-500 to-yellow-600 text-white shadow-xl scale-105 border-transparent' 
+                                        : 'bg-white border-slate-200 hover:border-yellow-400 hover:shadow-md'}`}
                                 >
                                     <div className="relative z-10">
                                         <div className="flex justify-between items-center mb-4">
-                                            <span className={`text-xs font-bold uppercase tracking-wider ${activeFilter === 'FUTURE' ? 'text-emerald-100' : 'text-emerald-600'}`}>
+                                            <span className={`text-xs font-bold uppercase tracking-wider ${activeFilter === 'FUTURE' ? 'text-yellow-100' : 'text-yellow-600'}`}>
                                                 <ArrowRight className="inline mr-1 mb-1" size={14}/> Largo Plazo
                                             </span>
                                         </div>
-                                        <p className={`text-sm mb-2 ${activeFilter === 'FUTURE' ? 'text-emerald-100' : 'text-slate-400'}`}>
+                                        <p className={`text-sm mb-2 ${activeFilter === 'FUTURE' ? 'text-yellow-100' : 'text-slate-400'}`}>
                                             Vencimientos Futuros
                                         </p>
                                         <div className="flex items-end justify-between">
-                                            <div className={`text-xl font-bold leading-none ${activeFilter === 'FUTURE' ? 'text-emerald-200' : 'text-slate-300'}`}>
+                                            <div className={`text-xl font-bold leading-none ${activeFilter === 'FUTURE' ? 'text-yellow-200' : 'text-slate-300'}`}>
                                                 {stats?.future_count || 0}
                                             </div>
                                             <div className={`text-xl font-black text-right ${activeFilter === 'FUTURE' ? 'text-white' : 'text-slate-800'}`}>
@@ -518,7 +610,7 @@ const ManagementDashboard: React.FC = () => {
                                     <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4">
                                         <h3 className="font-bold text-slate-700 flex items-center gap-2 text-lg">
                                             <Filter size={18} className="text-slate-400"/> Auditoría: 
-                                            <span className={`uppercase ml-1 font-black px-2 py-0.5 rounded text-sm ${activeFilter === 'THIS_FRIDAY' ? 'bg-red-100 text-red-700' : activeFilter === 'NEXT_15_DAYS' ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                            <span className={`uppercase ml-1 font-black px-2 py-0.5 rounded text-sm ${activeFilter === 'THIS_FRIDAY' ? 'bg-red-100 text-red-700' : activeFilter === 'NEXT_15_DAYS' ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-700'}`}>
                                                 {activeFilter === 'THIS_FRIDAY' ? 'Pago Inmediato' : activeFilter === 'NEXT_15_DAYS' ? 'Proyección 15 Días' : 'Futuros'}
                                             </span>
                                         </h3>

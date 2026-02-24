@@ -38,7 +38,7 @@ const AccountsPayablePage: React.FC = () => {
         loadData();
     }, []);
 
-    // LÓGICA DE FILTRADO HOMOLOGADA AL BACKEND (Viernes de Corte)
+    // LÓGICA DE FILTRADO (Viernes de Corte) BLINDADA CONTRA ZONAS HORARIAS
     const filteredInvoices = invoices.filter(inv => {
         const matchesSearch = 
             inv.provider_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -47,12 +47,17 @@ const AccountsPayablePage: React.FC = () => {
         if (!matchesSearch) return false;
         if (activeFilter === 'ALL') return true;
 
+        if (!inv.due_date) return false;
+
+        // 1. Blindaje de Zona Horaria (Para que no se pierdan días)
         const due = new Date(inv.due_date);
+        due.setMinutes(due.getMinutes() + due.getTimezoneOffset());
+        
         const today = new Date();
         today.setHours(0,0,0,0);
         due.setHours(0,0,0,0);
         
-        // Algoritmo: Encontrar el próximo viernes
+        // 2. Algoritmo: Encontrar el próximo viernes
         const weekday = today.getDay(); // 0 es Domingo, 5 es Viernes
         let daysUntilFriday = 5 - weekday;
         if (daysUntilFriday < 0) daysUntilFriday += 7; // Si ya es sábado, brinca al prox viernes
@@ -63,10 +68,14 @@ const AccountsPayablePage: React.FC = () => {
         const nextPeriodLimit = new Date(cutoffDate);
         nextPeriodLimit.setDate(cutoffDate.getDate() + 15);
 
-        // Filtros exactos
-        if (activeFilter === 'IMMEDIATE') return due <= cutoffDate; // Vencidas + Hasta el viernes
-        if (activeFilter === 'SHORT_TERM') return due > cutoffDate && due <= nextPeriodLimit; // Próximos 15 días
-        if (activeFilter === 'LONG_TERM') return due > nextPeriodLimit; // Futuro
+        // 3. Filtros exactos usando .getTime() para evitar fallos de Javascript
+        const dueTime = due.getTime();
+        const cutoffTime = cutoffDate.getTime();
+        const nextPeriodTime = nextPeriodLimit.getTime();
+
+        if (activeFilter === 'IMMEDIATE') return dueTime <= cutoffTime; // Vencidas + Hasta el viernes
+        if (activeFilter === 'SHORT_TERM') return dueTime > cutoffTime && dueTime <= nextPeriodTime; // Próximos 15 días
+        if (activeFilter === 'LONG_TERM') return dueTime > nextPeriodTime; // Futuro (Largo Plazo)
 
         return true;
     });
@@ -84,6 +93,7 @@ const AccountsPayablePage: React.FC = () => {
     const getDaysRemaining = (dueDateStr: string) => {
         if (!dueDateStr) return 0;
         const due = new Date(dueDateStr);
+        due.setMinutes(due.getMinutes() + due.getTimezoneOffset()); // Blindaje de zona horaria
         const today = new Date();
         due.setHours(0,0,0,0);
         today.setHours(0,0,0,0);
@@ -121,7 +131,6 @@ const AccountsPayablePage: React.FC = () => {
                     <p className="text-slate-500 mt-1">Gestión de flujo de efectivo y pagos a proveedores.</p>
                 </div>
                 <div className="text-right flex items-center gap-4">
-                    {/* BOTÓN CON COLOR VERDE BRILLANTE PARA QUE RESALTE */}
                     <Button 
                         className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold border-2 border-emerald-600 shadow-lg transform transition hover:scale-105" 
                         onClick={() => alert("Próximamente: Panel de Ejecución de Pagos Autorizados")}
@@ -190,7 +199,7 @@ const AccountsPayablePage: React.FC = () => {
             {activeFilter !== 'ALL' && (
                 <div className="flex items-center gap-2 bg-indigo-50 text-indigo-800 px-4 py-2 rounded-lg text-sm font-bold border border-indigo-100 animate-fadeIn">
                     <Filter size={16}/>
-                    Filtro Activo: {activeFilter === 'IMMEDIATE' ? 'Pago Inmediato (Corte Viernes)' : activeFilter === 'SHORT_TERM' ? 'Proyección Corta (15 días)' : 'Largo Plazo (Futuro)'}
+                    Filtro Activo: {activeFilter === 'IMMEDIATE' ? 'Pago Inmediato (Corte Viernes)' : activeFilter === 'SHORT_TERM' ? 'Proyección Corta (+15 días)' : 'Largo Plazo (Futuro)'}
                     <button onClick={() => setActiveFilter('ALL')} className="ml-auto text-indigo-600 hover:text-indigo-900 underline">
                         Ver todo
                     </button>
