@@ -176,26 +176,31 @@ const Home: React.FC = () => {
       }
   }, [orders, salesTab]);
 
+  // --- LÓGICA DE FILTRADO BLINDADA Y SINCRONIZADA AL BACKEND ---
   const getFilteredInvoices = () => {
     if (!payableFilter) return [];
+    
     const today = new Date();
     today.setHours(0,0,0,0);
-    const dayOfWeek = today.getDay(); 
-    let daysUntilFriday = 5 - dayOfWeek;
-    if (dayOfWeek === 6) daysUntilFriday = 6;
-    
-    const cutoffDate = new Date(today);
-    cutoffDate.setDate(today.getDate() + daysUntilFriday);
-    cutoffDate.setHours(23, 59, 59, 999);
-
-    const nextPeriodLimit = new Date(cutoffDate);
-    nextPeriodLimit.setDate(cutoffDate.getDate() + 15);
 
     return invoices.filter(inv => {
-        const dueDate = new Date(inv.due_date + 'T12:00:00'); 
-        if (payableFilter === 'THIS_FRIDAY') return dueDate <= cutoffDate;
-        if (payableFilter === 'NEXT_15_DAYS') return dueDate > cutoffDate && dueDate <= nextPeriodLimit;
-        if (payableFilter === 'FUTURE') return dueDate > nextPeriodLimit;
+        if (!inv.due_date) return false;
+        
+        // Extraemos matemáticamente Año, Mes y Día sin importar la hora o la letra 'T'
+        const dateStringOnly = inv.due_date.split('T')[0];
+        const dateParts = dateStringOnly.split('-');
+        const dueDate = new Date(Number(dateParts[0]), Number(dateParts[1]) - 1, Number(dateParts[2]));
+        dueDate.setHours(0,0,0,0);
+
+        // Calculamos los días exactos de diferencia
+        const diffTime = dueDate.getTime() - today.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        // Filtros exactos que coinciden con los totales del Backend
+        if (payableFilter === 'THIS_FRIDAY') return diffDays <= 7; // Pago Inmediato (0 a 7 días)
+        if (payableFilter === 'NEXT_15_DAYS') return diffDays >= 8 && diffDays <= 29; // Proyección (8 a 29 días)
+        if (payableFilter === 'FUTURE') return diffDays >= 30; // Largo Plazo (30 días o más)
+        
         return false;
     });
   };
@@ -493,7 +498,7 @@ const Home: React.FC = () => {
                                 {/* ROJA */}
                                 <Card onClick={() => setPayableFilter('THIS_FRIDAY')} className={`p-6 cursor-pointer border transition-all ${payableFilter === 'THIS_FRIDAY' ? 'bg-gradient-to-br from-red-600 to-red-700 text-white shadow-xl scale-105 border-transparent' : 'bg-white border-slate-200 hover:border-red-400 hover:shadow-md'}`}>
                                     <div className="flex justify-between items-center mb-4"><span className={`text-xs font-bold uppercase tracking-wider ${payableFilter === 'THIS_FRIDAY' ? 'text-red-100' : 'text-red-600'}`}><AlertTriangle className="inline mr-1 mb-1" size={14}/> Pago Inmediato</span></div>
-                                    <p className={`text-sm mb-2 ${payableFilter === 'THIS_FRIDAY' ? 'text-red-100' : 'text-slate-400'}`}>Vencido + Este Viernes</p>
+                                    <p className={`text-sm mb-2 ${payableFilter === 'THIS_FRIDAY' ? 'text-red-100' : 'text-slate-400'}`}>0 a 7 días</p>
                                     <div className="flex items-end justify-between">
                                         <div className={`text-xl font-bold leading-none ${payableFilter === 'THIS_FRIDAY' ? 'text-red-200' : 'text-slate-300'}`}>{apStats?.overdue_count || 0}</div>
                                         <div className={`text-xl font-black text-right ${payableFilter === 'THIS_FRIDAY' ? 'text-white' : 'text-slate-800'}`}>{formatCurrency(apStats?.overdue_amount || 0)}</div>
@@ -503,7 +508,7 @@ const Home: React.FC = () => {
                                 {/* NARANJA */}
                                 <Card onClick={() => setPayableFilter('NEXT_15_DAYS')} className={`p-6 cursor-pointer border transition-all ${payableFilter === 'NEXT_15_DAYS' ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-xl scale-105 border-transparent' : 'bg-white border-slate-200 hover:border-orange-400 hover:shadow-md'}`}>
                                     <div className="flex justify-between items-center mb-4"><span className={`text-xs font-bold uppercase tracking-wider ${payableFilter === 'NEXT_15_DAYS' ? 'text-orange-100' : 'text-orange-600'}`}><Calendar className="inline mr-1 mb-1" size={14}/> Proyección Corta</span></div>
-                                    <p className={`text-sm mb-2 ${payableFilter === 'NEXT_15_DAYS' ? 'text-orange-100' : 'text-slate-400'}`}>Siguientes 15 Días</p>
+                                    <p className={`text-sm mb-2 ${payableFilter === 'NEXT_15_DAYS' ? 'text-orange-100' : 'text-slate-400'}`}>8 a 29 días</p>
                                     <div className="flex items-end justify-between">
                                         <div className={`text-xl font-bold leading-none ${payableFilter === 'NEXT_15_DAYS' ? 'text-orange-200' : 'text-slate-300'}`}>{apStats?.next_period_count || 0}</div>
                                         <div className={`text-xl font-black text-right ${payableFilter === 'NEXT_15_DAYS' ? 'text-white' : 'text-slate-800'}`}>{formatCurrency(apStats?.next_period_amount || 0)}</div>
@@ -513,7 +518,7 @@ const Home: React.FC = () => {
                                 {/* AMARILLO (AHORA SÍ AMARILLO COMO QUERÍAMOS) */}
                                 <Card onClick={() => setPayableFilter('FUTURE')} className={`p-6 cursor-pointer border transition-all ${payableFilter === 'FUTURE' ? 'bg-gradient-to-br from-yellow-500 to-yellow-600 text-white shadow-xl scale-105 border-transparent' : 'bg-white border-slate-200 hover:border-yellow-400 hover:shadow-md'}`}>
                                     <div className="flex justify-between items-center mb-4"><span className={`text-xs font-bold uppercase tracking-wider ${payableFilter === 'FUTURE' ? 'text-yellow-100' : 'text-yellow-600'}`}><ArrowRight className="inline mr-1 mb-1" size={14}/> Largo Plazo</span></div>
-                                    <p className={`text-sm mb-2 ${payableFilter === 'FUTURE' ? 'text-yellow-100' : 'text-slate-400'}`}>Vencimientos Futuros</p>
+                                    <p className={`text-sm mb-2 ${payableFilter === 'FUTURE' ? 'text-yellow-100' : 'text-slate-400'}`}>30 días o más</p>
                                     <div className="flex items-end justify-between">
                                         <div className={`text-xl font-bold leading-none ${payableFilter === 'FUTURE' ? 'text-yellow-200' : 'text-slate-300'}`}>{apStats?.future_count || 0}</div>
                                         <div className={`text-xl font-black text-right ${payableFilter === 'FUTURE' ? 'text-white' : 'text-slate-800'}`}>{formatCurrency(apStats?.future_amount || 0)}</div>

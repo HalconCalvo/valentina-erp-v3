@@ -161,36 +161,31 @@ const ManagementDashboard: React.FC = () => {
         }
     };
 
-    // --- LÓGICA DE FILTRADO BLINDADA ---
+    // --- LÓGICA DE FILTRADO BLINDADA Y SINCRONIZADA AL BACKEND ---
     const getFilteredInvoices = () => {
         if (!activeFilter) return [];
 
         const today = new Date();
         today.setHours(0,0,0,0);
-        
-        const dayOfWeek = today.getDay(); 
-        let daysUntilFriday = 5 - dayOfWeek;
-        if (dayOfWeek === 6) { daysUntilFriday = 6; }
-        
-        const cutoffDate = new Date(today);
-        cutoffDate.setDate(today.getDate() + daysUntilFriday);
-        cutoffDate.setHours(23, 59, 59, 999);
-
-        const nextPeriodLimit = new Date(cutoffDate);
-        nextPeriodLimit.setDate(cutoffDate.getDate() + 15);
-        nextPeriodLimit.setHours(23, 59, 59, 999);
 
         return invoices.filter(inv => {
             if (!inv.due_date) return false;
 
-            // BLINDAJE: Extraemos matemáticamente Año, Mes y Día sin importar la 'T'
+            // Extraemos matemáticamente Año, Mes y Día sin importar la hora o la letra 'T'
             const dateStringOnly = inv.due_date.split('T')[0];
             const dateParts = dateStringOnly.split('-');
-            const dueDate = new Date(Number(dateParts[0]), Number(dateParts[1]) - 1, Number(dateParts[2]), 12, 0, 0);
+            const dueDate = new Date(Number(dateParts[0]), Number(dateParts[1]) - 1, Number(dateParts[2]));
+            dueDate.setHours(0,0,0,0);
+
+            // Calculamos los días exactos de diferencia
+            const diffTime = dueDate.getTime() - today.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            // Filtros exactos que coinciden con los totales del Backend
+            if (activeFilter === 'THIS_FRIDAY') return diffDays <= 7; // Pago Inmediato (0 a 7 días)
+            if (activeFilter === 'NEXT_15_DAYS') return diffDays >= 8 && diffDays <= 29; // Proyección (8 a 29 días)
+            if (activeFilter === 'FUTURE') return diffDays >= 30; // Largo Plazo (30 días o más)
             
-            if (activeFilter === 'THIS_FRIDAY') return dueDate <= cutoffDate;
-            if (activeFilter === 'NEXT_15_DAYS') return dueDate > cutoffDate && dueDate <= nextPeriodLimit;
-            if (activeFilter === 'FUTURE') return dueDate > nextPeriodLimit;
             return false;
         });
     };
@@ -541,7 +536,7 @@ const ManagementDashboard: React.FC = () => {
                                             </span>
                                         </div>
                                         <p className={`text-sm mb-2 ${activeFilter === 'THIS_FRIDAY' ? 'text-red-100' : 'text-slate-400'}`}>
-                                            Vencido + Este Viernes
+                                            0 a 7 días
                                         </p>
                                         <div className="flex items-end justify-between">
                                             <div className={`text-xl font-bold leading-none ${activeFilter === 'THIS_FRIDAY' ? 'text-red-200' : 'text-slate-300'}`}>
@@ -569,7 +564,7 @@ const ManagementDashboard: React.FC = () => {
                                             </span>
                                         </div>
                                         <p className={`text-sm mb-2 ${activeFilter === 'NEXT_15_DAYS' ? 'text-orange-100' : 'text-slate-400'}`}>
-                                            Siguientes 15 Días
+                                            8 a 29 días
                                         </p>
                                         <div className="flex items-end justify-between">
                                             <div className={`text-xl font-bold leading-none ${activeFilter === 'NEXT_15_DAYS' ? 'text-orange-200' : 'text-slate-300'}`}>
@@ -597,7 +592,7 @@ const ManagementDashboard: React.FC = () => {
                                             </span>
                                         </div>
                                         <p className={`text-sm mb-2 ${activeFilter === 'FUTURE' ? 'text-yellow-100' : 'text-slate-400'}`}>
-                                            Vencimientos Futuros
+                                            30 días o más
                                         </p>
                                         <div className="flex items-end justify-between">
                                             <div className={`text-xl font-bold leading-none ${activeFilter === 'FUTURE' ? 'text-yellow-200' : 'text-slate-300'}`}>
