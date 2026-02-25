@@ -395,6 +395,8 @@ def request_changes(
     session.refresh(order)
     return order
 
+from app.models.users import User # <-- Lo importamos por si no estaba arriba
+
 @router.get("/orders/{order_id}/pdf")
 def download_quote_pdf(
     order_id: int,
@@ -403,14 +405,32 @@ def download_quote_pdf(
     try:
         order = session.get(SalesOrder, order_id)
         if not order: raise HTTPException(404, "Orden no encontrada")
+        
         client = session.get(Client, order.client_id)
         if not client: client = Client(full_name="Cliente General", contact_name="")
+        
         config = session.exec(select(GlobalConfig)).first()
         if not config: config = GlobalConfig(company_name="Mi Empresa", company_email="ventas@miempresa.com")
+        
+        # ---> MAGIA NUEVA: Buscar al vendedor en la base de datos <---
+        seller_name = "Departamento de Ventas"
+        seller_email = ""  # <-- Espacio para el correo
+        
+        if getattr(order, 'user_id', None):
+            user = session.get(User, order.user_id)
+            if user:
+                # Si tiene nombre completo lo usa, si no su username
+                seller_name = getattr(user, 'full_name', None) or getattr(user, 'username', "Asesor Comercial")
+                # Sacamos su correo
+                seller_email = getattr(user, 'email', "")
+
         generator = PDFGenerator()
-        pdf_buffer = generator.generate_quote_pdf(order, client, config)
+        # Le inyectamos el seller_name Y el seller_email a la impresora
+        pdf_buffer = generator.generate_quote_pdf(order, client, config, seller_name, seller_email)
+        
         safe_project_name = "".join([c for c in order.project_name if c.isalnum() or c in (' ', '-', '_')]).strip()
         filename = f"Cotizacion_{order_id}_{safe_project_name}.pdf"
+        
         return StreamingResponse(
             pdf_buffer, 
             media_type="application/pdf",

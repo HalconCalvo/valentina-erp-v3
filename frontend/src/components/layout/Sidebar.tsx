@@ -101,27 +101,24 @@ export default function Sidebar() {
 
   return (
     <aside className="w-64 bg-white h-screen fixed left-0 top-0 flex flex-col border-r border-slate-200 z-50 transition-all">
-      <div className="h-16 flex items-center px-6 border-b border-slate-100">
-        <div className="flex items-center gap-3 w-full">
+      <div className="h-28 flex items-center justify-center p-6 border-b border-slate-100 bg-slate-50/30">
+        <div className="flex items-center justify-center w-full h-full">
           {loading ? (
-             <div className="w-8 h-8 bg-slate-100 animate-pulse rounded-lg flex-shrink-0" />
+             <div className="w-full h-12 bg-slate-100 animate-pulse rounded-lg flex-shrink-0" />
           ) : config?.logo_path ? (
             <img 
               src={getLogoUrl(config.logo_path)}
               alt="Logo" 
-              className="w-8 h-8 object-contain flex-shrink-0" 
+              className="max-w-full max-h-full object-contain filter drop-shadow-sm" 
               onError={(e) => { e.currentTarget.style.display = 'none'; }}
             />
           ) : (
-            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-sm shadow-indigo-200 flex-shrink-0">
+            <div className="w-full h-12 bg-indigo-600 rounded-lg flex items-center justify-center shadow-sm shadow-indigo-200 flex-shrink-0">
                <span className="text-white font-bold text-sm">
                  {config?.company_name ? config.company_name.charAt(0).toUpperCase() : 'S'}
                </span>
             </div>
           )}
-          <span className="text-lg font-bold text-slate-800 truncate flex-1 block" title={config?.company_name}>
-            {loading ? 'Cargando...' : (config?.company_name || 'SGP V3')}
-          </span>
         </div>
       </div>
 
@@ -158,6 +155,15 @@ export default function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+        
+        {/* --- NOMBRE DE LA EMPRESA (Movido desde arriba) --- */}
+        <div className="mb-3 text-center px-2">
+            <span className="text-sm font-bold text-slate-800 truncate block" title={config?.company_name}>
+              {loading ? 'Cargando...' : (config?.company_name || 'SGP V3')}
+            </span>
+        </div>
+
+        {/* --- TU BLOQUE DE ROL ORIGINAL (Sin cambios de diseño) --- */}
         <div className="flex items-center gap-3 mb-3 p-2 rounded-lg hover:bg-white hover:shadow-sm transition-all cursor-pointer group border border-transparent hover:border-slate-100">
           <div className={`w-9 h-9 rounded-full border flex items-center justify-center font-bold text-xs shadow-sm
             ${userRole === 'DIRECTOR' ? 'bg-slate-800 border-slate-900 text-white' : ''}

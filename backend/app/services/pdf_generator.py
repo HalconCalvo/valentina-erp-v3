@@ -84,7 +84,7 @@ class PDFGenerator:
         
         canvas.restoreState()
 
-    def generate_quote_pdf(self, order, client, config) -> BytesIO:
+    def generate_quote_pdf(self, order, client, config, seller_name="Departamento de Ventas", seller_email="") -> BytesIO:
         buffer = BytesIO()
         
         doc = SimpleDocTemplate(
@@ -281,8 +281,16 @@ class PDFGenerator:
             Paragraph("<b>Atentamente,</b>", self.styles['Normal']),
             Spacer(1, 35),
             Paragraph("_________________________________________", self.styles['Normal']),
-            Paragraph(f"<b>{company_title}</b>", self.styles['Normal']),
+            Paragraph(f"<b>{seller_name}</b>", self.styles['Normal'])
         ]
+        
+        # Si el vendedor tiene correo, lo ponemos justo debajo de su nombre en un tono gris elegante
+        if seller_email:
+            signature_block.append(Paragraph(f"<font size=9 color='#555555'>{seller_email}</font>", self.styles['Normal']))
+            
+        # Nombre de la empresa al final
+        signature_block.append(Paragraph(f"<font size=8 color='#888888'>{company_title}</font>", self.styles['Normal']))
+        
         elements.append(KeepTogether(signature_block))
 
         doc.build(elements, onFirstPage=lambda c, d: self._draw_footer(c, d, config), 
