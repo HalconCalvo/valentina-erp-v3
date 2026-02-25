@@ -371,17 +371,28 @@ const SalesDashboardPage: React.FC = () => {
                                                                 <button onClick={() => handleUndoSubmission(order.id)} className="p-1.5 text-orange-600 hover:bg-orange-50 rounded border border-transparent hover:border-orange-200" title="Cancelar Envío (Regresar a Borrador)"><Undo2 size={16}/></button>
                                                             </div>
                                                         )}
+                                                        
+                                                        {/* --- BOTONERA CORREGIDA PARA COTIZACIONES AUTORIZADAS --- */}
                                                         {order.status === SalesOrderStatus.ACCEPTED && (
                                                             <>
-                                                                <button onClick={() => handlePreviewPDF(order.id)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded" title="Ver PDF"><Eye size={16}/></button>
-                                                                <button onClick={() => salesService.downloadPDF(order.id)} className="p-1.5 text-slate-500 hover:text-blue-600 rounded" title="Descargar PDF"><Download size={16}/></button>
+                                                                <button onClick={() => setSelectedOrderId(order.id)} className="p-1.5 text-slate-500 hover:bg-slate-100 rounded" title="Ver Detalles"><Eye size={16}/></button>
+                                                                <button onClick={() => handlePreviewPDF(order.id)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded" title="Ver PDF"><FileText size={16}/></button>
+                                                                <button onClick={() => handleAction(() => salesService.updateOrder(order.id, { status: SalesOrderStatus.CLIENT_REJECTED }), "¿Confirmas que el cliente rechazó esta cotización? Pasará a tu historial como PERDIDA.")} className="p-1.5 text-red-500 hover:bg-red-50 rounded" title="Cotización Perdida / Rechazada"><XCircle size={16}/></button>
                                                                 <button onClick={() => handleAction(() => salesService.markAsSold(order.id), "Confirmar Venta?")} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded font-bold border border-emerald-200" title="Vender"><DollarSign size={14}/> VENDER</button>
                                                             </>
                                                         )}
+                                                        
                                                         {(order.status === SalesOrderStatus.SOLD) && (
                                                             <>
                                                                 <button onClick={() => handlePreviewPDF(order.id)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded" title="Ver PDF"><Eye size={16}/></button>
                                                                 <button onClick={() => salesService.downloadPDF(order.id)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded" title="Descargar PDF"><Download size={16}/></button>
+                                                            </>
+                                                        )}
+                                                        
+                                                        {(order.status === SalesOrderStatus.CLIENT_REJECTED) && (
+                                                            <>
+                                                                <button onClick={() => setSelectedOrderId(order.id)} className="p-1.5 text-slate-500 hover:bg-slate-100 rounded" title="Ver Detalles"><Eye size={16}/></button>
+                                                                <button onClick={() => handlePreviewPDF(order.id)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded" title="Ver PDF"><FileText size={16}/></button>
                                                             </>
                                                         )}
                                                     </div>
