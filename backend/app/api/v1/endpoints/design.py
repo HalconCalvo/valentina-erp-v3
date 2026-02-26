@@ -181,6 +181,7 @@ def create_product_version(
     if not master:
         raise HTTPException(status_code=404, detail="El Maestro de Producto no existe")
 
+    # 1. Crear la cabecera de la nueva versión
     db_version = ProductVersion(
         master_id=version_in.master_id,
         version_name=version_in.version_name,
@@ -193,7 +194,10 @@ def create_product_version(
     session.refresh(db_version)
 
     total_estimated_cost = 0.0
+    
+    # 2. Lógica Condicional de Ingredientes
     if version_in.components:
+        # Flujo A: El Frontend envió ingredientes específicos (comportamiento habitual)
         for comp_in in version_in.components:
             material = session.get(Material, comp_in.material_id)
             if material:
@@ -207,7 +211,38 @@ def create_product_version(
                     quantity=comp_in.quantity
                 )
                 session.add(db_comp)
+    else:
+        # Flujo B: Deep Copy de la Versión Original (ID más bajo del mismo Maestro)
+        original_version = session.exec(
+            select(ProductVersion)
+            .where(ProductVersion.master_id == version_in.master_id)
+            # Excluimos la que acabamos de crear (aunque lógicamente tiene el ID más alto)
+            .where(ProductVersion.id != db_version.id) 
+            .order_by(ProductVersion.id.asc())
+        ).first()
 
+        if original_version:
+            original_components = session.exec(
+                select(VersionComponent)
+                .where(VersionComponent.version_id == original_version.id)
+            ).all()
+
+            for orig_comp in original_components:
+                material = session.get(Material, orig_comp.material_id)
+                if material:
+                    # Siempre re-cotizamos con el costo actual del material
+                    raw_line_cost = orig_comp.quantity * material.current_cost
+                    cost_line = math.ceil(raw_line_cost * 100) / 100
+                    total_estimated_cost += cost_line
+                    
+                    new_comp = VersionComponent(
+                        version_id=db_version.id,
+                        material_id=orig_comp.material_id,
+                        quantity=orig_comp.quantity
+                    )
+                    session.add(new_comp)
+
+    # 3. Consolidar el costo y cerrar la transacción
     db_version.estimated_cost = round(total_estimated_cost, 2)
     session.add(db_version)
     session.commit()
@@ -288,6 +323,47 @@ def update_version_status(
     session.commit()
     session.refresh(version)
     return version
+
+@router.patch("/versions/{version_id}/rename", response_model=ProductVersionRead)
+def rename_product_version(
+    version_id: int,
+    new_name: str = Query(..., min_length=1),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Renombra una versión específica sin afectar sus ingredientes."""
+    version = session.get(ProductVersion, version_id)
+    if not version:
+        raise HTTPException(status_code=404, detail="Versión no encontrada")
+    
+    version.version_name = new_name
+    session.add(version)
+    session.commit()
+    session.refresh(version)
+    return version
+
+@router.delete("/versions/{version_id}")
+def delete_product_version(
+    version_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Elimina una versión específica y sus ingredientes en cascada.
+    NO afecta al Producto Maestro ni a otras versiones existentes.
+    """
+    # 1. Buscar la versión específica
+    version = session.get(ProductVersion, version_id)
+    if not version:
+        raise HTTPException(status_code=404, detail="Versión no encontrada")
+    
+    # 2. Borrar la versión.
+    # Nota: SQLAlchemy automáticamente borrará los VersionComponent asociados 
+    # gracias a sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    session.delete(version)
+    session.commit()
+    
+    return {"ok": True, "message": "Versión y sus ingredientes eliminados correctamente."}
 
 # ==========================================
 # 3. GESTIÓN DE CATEGORÍAS

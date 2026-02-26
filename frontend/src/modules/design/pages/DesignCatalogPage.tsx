@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom'; // <-- SE AÑADIÓ useLocation
+import { useNavigate, useLocation } from 'react-router-dom'; 
 import { useDesign } from '../hooks/useDesign';
 import { useClients } from '../../foundations/hooks/useClients'; 
 import { 
@@ -22,7 +22,7 @@ import { VersionStatus } from '../../../types/design';
 
 const DesignCatalogPage: React.FC = () => {
     const navigate = useNavigate();
-    const location = useLocation(); // <-- SE AÑADIÓ INSTANCIA DE useLocation
+    const location = useLocation(); 
     
     // --- SEGURIDAD ---
     const [userRole, setUserRole] = useState('ADMIN');
@@ -133,18 +133,40 @@ const DesignCatalogPage: React.FC = () => {
         setIsModalOpen(true); setShowCategorySuggestions(false);
     };
 
-    // --- NUEVO EFFECT: ATRAPA LA ORDEN DE ABRIR MODAL DESDE EL HOME ---
     useEffect(() => {
         if (location.state && (location.state as any).openNewModal) {
             openCreateModal();
             window.history.replaceState({}, document.title);
         }
     }, [location.state]);
-    // ------------------------------------------------------------------
 
+    // --- BLINDAJE DE SEGURIDAD PARA EL BORRADO EN CASCADA ---
     const handleDelete = async (e: React.MouseEvent, id: number, productName: string) => {
-        e.stopPropagation(); if(isSales) return;
-        if (window.confirm(`⚠ ¿Eliminar "${productName}"?`)) { try { await deleteMaster(id); } catch { alert("Error."); } }
+        e.stopPropagation(); 
+        if(isSales) return;
+
+        // Doble confirmación exigiendo la palabra "ELIMINAR"
+        const confirmacion = window.prompt(
+            `⚠ ALERTA CRÍTICA: BORRADO EN CASCADA ⚠\n\n` +
+            `Estás a punto de eliminar la familia completa de "${productName}".\n` +
+            `Esto destruirá:\n` +
+            `- El Producto Base\n` +
+            `- TODAS sus versiones (V1, V2, etc.)\n` +
+            `- Las recetas, costos y planos adjuntos.\n\n` +
+            `Para confirmar, escribe la palabra: ELIMINAR`
+        );
+
+        if (confirmacion === "ELIMINAR") { 
+            try { 
+                await deleteMaster(id); 
+                alert("✅ Familia de producto eliminada correctamente.");
+            } catch (err) { 
+                console.error(err);
+                alert("Ocurrió un error al intentar eliminar el producto."); 
+            } 
+        } else if (confirmacion !== null) {
+            alert("❌ Borrado cancelado. La palabra no coincide.");
+        }
     };
 
     const handleOpenProduct = async (masterId: number, versions: any[]) => {
@@ -311,61 +333,75 @@ const DesignCatalogPage: React.FC = () => {
                                                             <Tag size={14}/> {categoryName}
                                                         </th>
                                                         <th className="px-6 py-4 text-center w-[15%]">Estado</th>
-                                                        <th className="px-6 py-4 w-[20%]">Versión Activa</th>
+                                                        <th className="px-6 py-4 w-[20%]">Versión</th>
                                                         <th className="px-6 py-4 text-center w-[25%]">Acciones</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-50">
-                                                    {categoryProducts.map((product: any) => {
-                                                        const latestVersion = product.versions?.[0];
-                                                        return (
-                                                            <tr key={product.id} className="hover:bg-slate-50 transition-colors">
-                                                                <td className="px-6 py-4">
-                                                                    <div 
-                                                                        className={`font-bold text-slate-700 ${isSales ? 'cursor-default' : 'hover:text-indigo-600 cursor-pointer transition-colors'}`} 
-                                                                        onClick={() => handleOpenProduct(product.id, product.versions)}
-                                                                    >
-                                                                        {product.name}
-                                                                    </div>
-                                                                    <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-500 text-xs mt-1 inline-block">SKU: PRD-{product.id.toString().padStart(4, '0')}</span>
-                                                                </td>
-                                                                
-                                                                <td className="px-6 py-4 text-center">
-                                                                    {latestVersion?.status === VersionStatus.READY ? 
-                                                                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100 inline-flex items-center justify-center gap-1"><CheckCircle2 size={10}/> Listo</span> : 
-                                                                        <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded-full border border-orange-100 inline-flex items-center justify-center gap-1"><AlertCircle size={10}/> Borrador</span>
-                                                                    }
-                                                                </td>
-                                                                
-                                                                <td className="px-6 py-4 text-slate-500">
-                                                                    {latestVersion ? 
-                                                                        <span className="font-mono bg-slate-100 px-2 py-1 rounded text-slate-600 text-xs border border-slate-200">{latestVersion.version_name}</span> : 
-                                                                        <span className="text-xs text-slate-400 italic">Pendiente de Ingeniería</span>
-                                                                    }
-                                                                </td>
-                                                                
-                                                                <td className="px-6 py-4 text-center">
-                                                                    <div className="flex items-center justify-center gap-2">
-                                                                        {product.blueprint_path ? (
-                                                                            <>
-                                                                                <button onClick={(e) => { e.stopPropagation(); handleViewBlueprint(product.blueprint_path!); }} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors" title="Ver Plano"><FileText size={16}/></button>
-                                                                                {!isSales && <button onClick={(e) => handleDeleteBlueprint(e, product.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors" title="Quitar Plano"><FileMinus size={16}/></button>}
-                                                                            </>
+                                                    {categoryProducts.flatMap((product: any) => {
+                                                        const versions = product.versions && product.versions.length > 0 ? product.versions : [null];
+                                                        
+                                                        return versions.map((v: any) => {
+                                                            const isReady = v?.status === VersionStatus.READY;
+                                                            const rowKey = `${product.id}-${v ? v.id : 'empty'}`;
+
+                                                            return (
+                                                                <tr key={rowKey} className="hover:bg-slate-50 transition-colors">
+                                                                    <td className="px-6 py-4">
+                                                                        <div 
+                                                                            className={`font-bold text-slate-700 flex items-center gap-2 ${isSales ? 'cursor-default' : 'hover:text-indigo-600 cursor-pointer transition-colors'}`} 
+                                                                            onClick={() => handleOpenProduct(product.id, v ? [v] : [])}
+                                                                        >
+                                                                            {product.name}
+                                                                        </div>
+                                                                        <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-500 text-xs mt-1 inline-block">
+                                                                            SKU: PRD-{product.id.toString().padStart(4, '0')} {v ? `- V${v.id}` : ''}
+                                                                        </span>
+                                                                    </td>
+                                                                    
+                                                                    <td className="px-6 py-4 text-center">
+                                                                        {v ? (
+                                                                            isReady ? 
+                                                                                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100 inline-flex items-center justify-center gap-1"><CheckCircle2 size={10}/> Listo</span> : 
+                                                                                <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded-full border border-orange-100 inline-flex items-center justify-center gap-1"><AlertCircle size={10}/> Borrador</span>
                                                                         ) : (
-                                                                            !isSales && <button onClick={(e) => { e.stopPropagation(); handleUploadClick(product.id); }} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors" title="Adjuntar Plano"><Paperclip size={16}/></button>
+                                                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-full border border-slate-200 inline-flex items-center justify-center">Vacío</span>
                                                                         )}
-                                                                        
-                                                                        {!isSales && (
-                                                                            <>
-                                                                                <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                                                                                <button onClick={(e) => openEditModal(e, product)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"><Edit size={16}/></button>
-                                                                                <button onClick={(e) => handleDelete(e, product.id, product.name)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"><Trash2 size={16}/></button>
-                                                                            </>
-                                                                        )}
-                                                                    </div>
-                                                                </td>
-                                                            </tr>
-                                                        );
+                                                                    </td>
+                                                                    
+                                                                    <td className="px-6 py-4 text-slate-500">
+                                                                        {v ? 
+                                                                            <span className={`font-mono px-2 py-1 rounded text-xs border ${isReady ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                                                                                {v.version_name}
+                                                                            </span> : 
+                                                                            <span className="text-xs text-slate-400 italic">Pendiente de Ingeniería</span>
+                                                                        }
+                                                                    </td>
+                                                                    
+                                                                    <td className="px-6 py-4 text-center">
+                                                                        <div className="flex items-center justify-center gap-2">
+                                                                            {/* PLANOS */}
+                                                                            {product.blueprint_path ? (
+                                                                                <>
+                                                                                    <button onClick={(e) => { e.stopPropagation(); handleViewBlueprint(product.blueprint_path!); }} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors" title="Ver Plano"><FileText size={16}/></button>
+                                                                                    {!isSales && <button onClick={(e) => handleDeleteBlueprint(e, product.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors" title="Quitar Plano"><FileMinus size={16}/></button>}
+                                                                                </>
+                                                                            ) : (
+                                                                                !isSales && <button onClick={(e) => { e.stopPropagation(); handleUploadClick(product.id); }} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors" title="Adjuntar Plano"><Paperclip size={16}/></button>
+                                                                            )}
+                                                                            
+                                                                            {!isSales && (
+                                                                                <>
+                                                                                    <div className="w-px h-4 bg-slate-200 mx-1"></div>
+                                                                                    <button onClick={(e) => openEditModal(e, product)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors" title="Editar Nombre del Producto Base"><Edit size={16}/></button>
+                                                                                    <button onClick={(e) => handleDelete(e, product.id, product.name)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors" title="Eliminar Familia Completa (Borrado en Cascada)"><Trash2 size={16}/></button>
+                                                                                </>
+                                                                            )}
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        });
                                                     })}
                                                 </tbody>
                                             </table>

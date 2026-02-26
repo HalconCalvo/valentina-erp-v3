@@ -127,5 +127,24 @@ export const designService = {
             params: { status }
         });
         return response.data;
+    },
+
+    /**
+     * Renombra una versión de forma segura (PATCH ligero).
+     */
+    renameVersion: async (versionId: number, newName: string): Promise<ProductVersion> => {
+        const url = `${API_ROUTES.DESIGN.VERSIONS}/${versionId}/rename`;
+        const response = await axiosClient.patch(url, null, {
+            params: { new_name: newName }
+        });
+        return response.data;
+    },
+
+    /**
+     * Elimina UNA SOLA versión sin afectar al Producto Maestro ni a otras versiones.
+     */
+    deleteVersion: async (versionId: number): Promise<void> => {
+        const url = `${API_ROUTES.DESIGN.VERSIONS}/${versionId}`;
+        await axiosClient.delete(url);
     }
 };

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { Plus, Layers, Square, Package, Activity, Lock, Unlock, Save, EyeOff } from "lucide-react"; 
 import { VersionComponent, VersionStatus } from "../../../types/design";
@@ -12,6 +12,107 @@ interface Props {
   isLoading: boolean;
   initialStatus: VersionStatus; 
 }
+
+// ============================================================================
+// LÓGICA: BUSCADOR INVISIBLE (Ahora con Auto-Foco y Resaltado Blanco)
+// ============================================================================
+const InlineSearchableSelect = ({ materials, value, onChange, disabled }: { materials: Material[], value: number, onChange: (id: number) => void, disabled: boolean }) => {
+    const selectedMaterial = materials.find(m => m.id === Number(value));
+    const [searchTerm, setSearchTerm] = useState(selectedMaterial ? selectedMaterial.name : "");
+    const [isOpen, setIsOpen] = useState(false);
+    
+    const wrapperRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null); // REFERENCIA PARA ATRAPAR EL CURSOR
+
+    // 1. AUTO-FOCUS AL NACER: Si el renglón es nuevo (value === 0), pon el cursor aquí
+    useEffect(() => {
+        if (value === 0 && !disabled && inputRef.current) {
+            // Un pequeño timeout asegura que el render se completó antes de enfocar
+            setTimeout(() => {
+                inputRef.current?.focus();
+                setIsOpen(true);
+            }, 50);
+        }
+    }, [value, disabled]);
+
+    // 2. Sincroniza el texto si el material cambia externamente
+    useEffect(() => {
+        const mat = materials.find(m => m.id === Number(value));
+        setSearchTerm(mat ? mat.name : "");
+    }, [value, materials]);
+
+    // 3. Cierra el menú si haces clic fuera de él y reinicia el texto
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+                const mat = materials.find(m => m.id === Number(value));
+                setSearchTerm(mat ? mat.name : "");
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [value, materials]);
+
+    const filteredMaterials = useMemo(() => {
+        if (!searchTerm) return materials;
+        const lowerTerm = searchTerm.toLowerCase();
+        return materials.filter(m => 
+            (m.name && m.name.toLowerCase().includes(lowerTerm)) || 
+            (m.sku && m.sku.toLowerCase().includes(lowerTerm))
+        );
+    }, [materials, searchTerm]);
+
+    return (
+        <div ref={wrapperRef} className="relative w-full">
+            <input 
+                ref={inputRef}
+                type="text"
+                disabled={disabled}
+                placeholder="Escribe el material a buscar..."
+                // LÓGICA DE COLOR: Si está vacío (value===0), se pinta de blanco y con borde. Si ya tiene valor, es transparente.
+                className={`w-full text-xs outline-none truncate disabled:cursor-not-allowed text-slate-800 placeholder-slate-400 transition-all ${
+                    value === 0 && !disabled
+                    ? 'bg-white border border-indigo-300 rounded px-2 py-1.5 shadow-sm focus:ring-2 focus:ring-indigo-100'
+                    : 'bg-transparent border-none p-0 focus:bg-white focus:ring-1 focus:ring-indigo-200 focus:rounded focus:px-2 focus:py-1'
+                }`}
+                value={searchTerm}
+                onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setIsOpen(true);
+                }}
+                onFocus={() => !disabled && setIsOpen(true)}
+                autoComplete="off"
+            />
+
+            {isOpen && !disabled && (
+                <div className="absolute z-50 w-[350px] mt-1 bg-white border border-slate-200 rounded-lg shadow-xl left-0 max-h-48 overflow-y-auto">
+                    {filteredMaterials.map(m => (
+                        <div 
+                            key={m.id} 
+                            className="px-3 py-2 text-xs hover:bg-slate-100 cursor-pointer flex items-center justify-between border-b border-slate-50 last:border-0"
+                            onMouseDown={(e) => {
+                                e.preventDefault(); 
+                                onChange(m.id!);
+                                setSearchTerm(m.name);
+                                setIsOpen(false);
+                            }}
+                        >
+                            <span className="truncate pr-2 font-medium text-slate-700">{m.name}</span>
+                            <span className="font-mono text-[10px] text-slate-400 shrink-0">{m.sku}</span>
+                        </div>
+                    ))}
+                    {filteredMaterials.length === 0 && (
+                        <div className="px-3 py-4 text-xs text-slate-400 text-center">
+                            No se encontraron materiales
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+// ============================================================================
 
 export const VersionRecipeForm = ({ 
     materials, 
@@ -34,10 +135,7 @@ export const VersionRecipeForm = ({
   const [monitor, setMonitor] = useState({ boardsTotal: 0, producTotal: 0 });
 
   // --- LOGICA DE SEGURIDAD ESTRICTA (LISTA BLANCA) ---
-  // 1. Detectamos el rol del usuario
   const userRole = (localStorage.getItem('user_role') || '').toUpperCase();
-  
-  // 2. ¿Quién tiene permiso de ver dinero?
   const showFinancials = ['ADMIN', 'ADMINISTRADOR', 'DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
 
   const FACTOR = (edgebandingFactor && edgebandingFactor > 0) ? edgebandingFactor : 25.00;
@@ -85,7 +183,7 @@ export const VersionRecipeForm = ({
                   setValue(`components.${existingIndex}.quantity`, requiredEdge);
               } else {
                   const edgeMat = materials.find(m => m.sku.trim().toUpperCase() === associatedSku);
-                  if (edgeMat) insert(index + 1, { material_id: edgeMat.id, quantity: requiredEdge, temp_category: currentComp.temp_category } as any);
+                  if (edgeMat) insert(index + 1, { material_id: edgeMat.id!, quantity: requiredEdge, temp_category: currentComp.temp_category } as any);
               }
           }
           let totalRaw = 0;
@@ -131,7 +229,6 @@ export const VersionRecipeForm = ({
       });
   }
 
-  // Helper para formatear dinero bonito ($1,250.00)
   const formatMoney = (amount: number) => {
     return amount.toLocaleString('es-MX', {
         style: 'currency',
@@ -148,7 +245,7 @@ export const VersionRecipeForm = ({
       <div className="mb-6 bg-amber-50 border border-amber-200 rounded-lg p-3 shadow-sm sticky top-0 z-20 flex flex-col lg:flex-row gap-4 lg:items-center justify-between">
          <div className="flex items-center gap-4">
              <div className="flex items-center gap-2 font-bold uppercase text-xs text-amber-900">
-                <Activity size={16} /> Monitor
+                 <Activity size={16} /> Monitor
              </div>
              <div className="flex gap-4 border-l border-amber-200 pl-4 text-xs">
                 <div>Tableros: <b>{monitor.boardsTotal.toFixed(2)}</b></div>
@@ -188,7 +285,7 @@ export const VersionRecipeForm = ({
 
       {/* CUERPO DEL FORMULARIO */}
       {Object.entries(groupedFields).map(([sectionName, sectionFields]) => (
-        <div key={sectionName} className={`mb-6 border rounded-lg overflow-hidden shadow-sm ${isReadOnly ? 'opacity-70' : 'border-slate-200'}`}>
+        <div key={sectionName} className={`mb-6 border rounded-lg overflow-visible shadow-sm ${isReadOnly ? 'opacity-70' : 'border-slate-200'}`}>
             <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex justify-between">
                 <div className="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-widest">
                     {sectionName === "Gabinetes" ? <Layers size={14}/> : <Package size={14}/>} {sectionName}
@@ -198,14 +295,9 @@ export const VersionRecipeForm = ({
                 {/* HEADERS DE TABLA */}
                 <div className="grid grid-cols-12 gap-2 px-3 py-2 bg-slate-50/50 text-[10px] uppercase font-bold text-slate-400">
                     <div className="col-span-2">SKU</div>
-                    
-                    {/* COLUMNA ELÁSTICA */}
                     <div className={showFinancials ? "col-span-6" : "col-span-8"}>Descripción / Artículo</div>
-                    
                     <div className="col-span-1 text-center">Cant.</div>
                     <div className="col-span-1 text-center">Unidad</div>
-                    
-                    {/* Solo mostramos headers de dinero si showFinancials es TRUE */}
                     {showFinancials && (
                         <>
                             <div className="col-span-1 text-right">Costo</div>
@@ -224,15 +316,16 @@ export const VersionRecipeForm = ({
                     const total = Math.ceil((cost * qty) * 100) / 100;
                     
                     return (
-                        <div key={field.id} className="grid grid-cols-12 gap-2 px-3 py-1 items-center hover:bg-slate-50">
+                        <div key={field.id} className="grid grid-cols-12 gap-2 px-3 py-1 items-center hover:bg-slate-50 relative">
                             <div className="col-span-2 text-xs font-mono text-slate-500 truncate">{mat?.sku || "---"}</div>
                             
-                            {/* Descripción ajustada dinámicamente */}
                             <div className={showFinancials ? "col-span-6" : "col-span-8"}>
-                                <select {...register(`components.${idx}.material_id`)} disabled={isReadOnly} className="w-full text-xs bg-transparent border-none truncate disabled:cursor-not-allowed">
-                                    <option value={0}>Seleccionar...</option>
-                                    {materials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                                </select>
+                                <InlineSearchableSelect 
+                                    materials={materials}
+                                    value={val?.material_id || 0}
+                                    onChange={(newId: number) => setValue(`components.${idx}.material_id`, newId, { shouldValidate: true })}
+                                    disabled={isReadOnly}
+                                />
                             </div>
 
                             <div className="col-span-1">
@@ -240,7 +333,6 @@ export const VersionRecipeForm = ({
                             </div>
                             <div className="col-span-1 text-center text-[10px] text-slate-400">{mat?.usage_unit || "-"}</div>
                             
-                            {/* AQUÍ ESTÁ EL CAMBIO DE FORMATO */}
                             {showFinancials && (
                                 <>
                                     <div className="col-span-1 text-right text-[10px] text-slate-500 font-mono">
@@ -267,7 +359,6 @@ export const VersionRecipeForm = ({
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-3 shadow-lg z-30 md:pl-64 flex justify-between items-center px-4">
           <div className="text-right flex items-center gap-4 ml-auto">
              
-             {/* Ocultamos el Costo Total del pie de página si no hay permisos */}
              {showFinancials && (
                  <div>
                     <div className="text-[10px] text-slate-400 uppercase font-bold">Costo Total</div>
