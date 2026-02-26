@@ -181,7 +181,7 @@ export default function DesignBuilderPage() {
       {/* HEADER LIMPIO (Con botonera de Versiones) */}
       <div className="bg-white border-b border-slate-200 px-5 py-3 flex justify-between items-center shadow-sm shrink-0 z-40">
         <div className="flex items-center gap-4 w-full">
-          <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-slate-400 hover:text-slate-700 shrink-0">
+          <Button variant="ghost" size="sm" onClick={() => navigate("/design")} className="text-slate-400 hover:text-slate-700 shrink-0">
             <ArrowLeft className="h-5 w-5" />
           </Button>
 
