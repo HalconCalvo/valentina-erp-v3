@@ -250,33 +250,38 @@ const ReceptionHistoryPage: React.FC = () => {
                                             <th className="px-4 py-3">SKU / Artículo</th>
                                             <th className="px-4 py-3">Categoría</th>
                                             <th className="px-4 py-3 text-center">Unidad Compra</th>
-                                            <th className="px-4 py-3 text-center">Unidad Uso (Stock)</th>
-                                            <th className="px-4 py-3 text-right">Costo Unit. (Base)</th>
+                                            <th className="px-4 py-3 text-center">Factor Conversión</th>
+                                            <th className="px-4 py-3 text-right">Costo Unit. (Factura)</th>
                                             <th className="px-4 py-3 text-right">Subtotal</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
-                                        {selectedReception.items.map((item, idx) => (
-                                            <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                                                <td className="px-4 py-2">
-                                                    <div className="font-bold text-slate-800 text-sm">{item.name}</div>
-                                                    <div className="text-xs text-slate-400 font-mono">{item.sku}</div>
-                                                </td>
-                                                <td className="px-4 py-2"><Badge variant="outline" className="text-xs">{item.category}</Badge></td>
-                                                <td className="px-4 py-2 text-center">
-                                                    <div className="font-bold text-slate-700">{item.purchase_quantity.toFixed(2)}</div>
-                                                    <div className="text-[10px] text-slate-400 uppercase">{item.purchase_unit}</div>
-                                                </td>
-                                                <td className="px-4 py-2 text-center bg-indigo-50/30 border-l border-r border-slate-100">
-                                                    <div className="font-bold text-indigo-700 flex justify-center items-center gap-1">
-                                                        <ArrowRight size={12} className="text-slate-300"/> {item.usage_quantity.toFixed(2)}
-                                                    </div>
-                                                    <div className="text-[10px] text-indigo-400 uppercase">{item.usage_unit} (1:{item.conversion_factor})</div>
-                                                </td>
-                                                <td className="px-4 py-2 text-right text-slate-600">{formatCurrency(item.unit_cost)}</td>
-                                                <td className="px-4 py-2 text-right font-bold text-slate-800">{formatCurrency(item.subtotal)}</td>
-                                            </tr>
-                                        ))}
+                                        {selectedReception.items.map((item, idx) => {
+                                            // Lógica inyectada para mostrar el precio real de la factura (costo base * factor)
+                                            const invoiceUnitCost = item.unit_cost * item.conversion_factor;
+                                            
+                                            return (
+                                                <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                                    <td className="px-4 py-2">
+                                                        <div className="font-bold text-slate-800 text-sm">{item.name}</div>
+                                                        <div className="text-xs text-slate-400 font-mono">{item.sku}</div>
+                                                    </td>
+                                                    <td className="px-4 py-2"><Badge variant="outline" className="text-xs">{item.category}</Badge></td>
+                                                    <td className="px-4 py-2 text-center">
+                                                        <div className="font-bold text-slate-700">{item.purchase_quantity.toFixed(2)}</div>
+                                                        <div className="text-[10px] text-slate-400 uppercase">{item.purchase_unit}</div>
+                                                    </td>
+                                                    <td className="px-4 py-2 text-center bg-indigo-50/30 border-l border-r border-slate-100">
+                                                        <div className="font-bold text-indigo-700 flex justify-center items-center gap-1">
+                                                            <X size={12} className="text-slate-300"/> {item.conversion_factor}
+                                                        </div>
+                                                        <div className="text-[10px] text-indigo-400 uppercase">1 {item.purchase_unit} = {item.conversion_factor} {item.usage_unit}</div>
+                                                    </td>
+                                                    <td className="px-4 py-2 text-right text-slate-600">{formatCurrency(invoiceUnitCost)}</td>
+                                                    <td className="px-4 py-2 text-right font-bold text-slate-800">{formatCurrency(item.subtotal)}</td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                                 <div className="bg-slate-50 border-t border-slate-200 p-4 flex justify-end">

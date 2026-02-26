@@ -57,33 +57,38 @@ class Provider(SQLModel, table=True):
 
 class Client(SQLModel, table=True):
     __tablename__ = "clients_v2"
+    
     id: Optional[int] = Field(default=None, primary_key=True)
     full_name: str = Field(index=True)
     rfc_tax_id: Optional[str] = None
-    email: str
+    email: str 
     phone: str
     fiscal_address: Optional[str] = None
     
-    # --- CONTACTO PRINCIPAL ---
+    # Contacto 1
     contact_name: Optional[str] = None
     contact_phone: Optional[str] = None
-    contact_dept: Optional[str] = None  # <--- NUEVO: Departamento
-
-    # --- CONTACTO 2 ---
+    contact_dept: Optional[str] = None
+    contact_email: Optional[str] = None  # <--- NUEVO
+    
+    # Contacto 2
     contact2_name: Optional[str] = None
     contact2_phone: Optional[str] = None
     contact2_dept: Optional[str] = None
-
-    # --- CONTACTO 3 ---
+    contact2_email: Optional[str] = None # <--- NUEVO
+    
+    # Contacto 3
     contact3_name: Optional[str] = None
     contact3_phone: Optional[str] = None
     contact3_dept: Optional[str] = None
-
-    # --- CONTACTO 4 ---
+    contact3_email: Optional[str] = None # <--- NUEVO
+    
+    # Contacto 4
     contact4_name: Optional[str] = None
     contact4_phone: Optional[str] = None
     contact4_dept: Optional[str] = None
-
+    contact4_email: Optional[str] = None # <--- NUEVO
+    
     notes: Optional[str] = None
-    registration_date: datetime = Field(default_factory=datetime.now)
+    registration_date: datetime = Field(default_factory=datetime.utcnow)
     is_active: bool = Field(default=True)

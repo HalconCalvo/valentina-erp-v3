@@ -293,7 +293,7 @@ def delete_material(material_id: int, session: Session = Depends(get_session)):
     return {"ok": True}
 
 # ==========================================
-# 6. IMPORTACIÓN MASIVA (CON AUTO-PROVEEDOR)
+# 6. IMPORTACIÓN MASIVA (PROCESAMIENTO EN BLOQUE / BULK UPSERT)
 # ==========================================
 @router.post("/materials/import-csv")
 async def import_materials_csv(
@@ -319,9 +319,6 @@ async def import_materials_csv(
     csv_reader = csv.DictReader(io.StringIO(csv_string), delimiter=delimiter)
     summary = {"processed": 0, "created": 0, "updated": 0, "errors": []}
 
-    # CACHÉ DE PROVEEDORES
-    provider_cache = {}
-
     def parse_money(value):
         if not value: return 0.0
         clean = value.replace('$', '').replace(',', '').strip()
@@ -329,44 +326,87 @@ async def import_materials_csv(
             return float(clean)
         except ValueError:
             return 0.0
-    
-    for row_idx, row in enumerate(csv_reader):
-        try:
-            clean_row = {k.strip().lower(): v.strip() for k, v in row.items() if k}
-            if 'sku' not in clean_row or 'name' not in clean_row:
-                continue 
 
-            sku_val = clean_row['sku'].upper()
+    # =========================================================
+    # FASE 1: Lectura en memoria y recolección de llaves únicas
+    # =========================================================
+    parsed_rows = []
+    unique_skus = set()
+    unique_providers = set()
+
+    for row_idx, row in enumerate(csv_reader):
+        clean_row = {k.strip().lower(): v.strip() for k, v in row.items() if k}
+        if 'sku' not in clean_row or 'name' not in clean_row:
+            continue 
+
+        sku_val = clean_row['sku'].upper()
+        unique_skus.add(sku_val)
+        
+        provider_name_raw = clean_row.get('proveedor') or clean_row.get('provider')
+        if provider_name_raw:
+            unique_providers.add(provider_name_raw.strip())
             
-            # PROVEEDOR
+        parsed_rows.append({"idx": row_idx, "data": clean_row, "sku": sku_val})
+
+    if not parsed_rows:
+        return summary
+
+    # =========================================================
+    # FASE 2: Procesamiento en Bloque de Proveedores (1 solo viaje)
+    # =========================================================
+    provider_map = {}
+    if unique_providers:
+        # Traemos todos los proveedores existentes de golpe
+        existing_provs = session.exec(select(Provider).where(Provider.business_name.in_(list(unique_providers)))).all()
+        for p in existing_provs:
+            provider_map[p.business_name.upper()] = p.id
+        
+        new_provs_to_create = []
+        for p_name in unique_providers:
+            if p_name.upper() not in provider_map:
+                new_provs_to_create.append(Provider(business_name=p_name, credit_days=0, is_active=True))
+        
+        # Insertamos los nuevos proveedores de golpe para obtener sus IDs
+        if new_provs_to_create:
+            session.add_all(new_provs_to_create)
+            session.flush() # Sincroniza con DB sin cerrar la transacción
+            for p in new_provs_to_create:
+                provider_map[p.business_name.upper()] = p.id
+
+    # =========================================================
+    # FASE 3: Procesamiento en Bloque de Materiales (La cura al N+1)
+    # =========================================================
+    # Traemos todos los materiales que coinciden con los SKUs del CSV de un solo golpe
+    existing_materials = session.exec(select(Material).where(Material.sku.in_(list(unique_skus)))).all()
+    material_map = {m.sku: m for m in existing_materials}
+
+    new_materials_to_create = []
+    valid_routes = ["MATERIAL", "PROCESO", "CONSUMIBLE", "SERVICIO"]
+
+    # =========================================================
+    # FASE 4: Cruce de datos en la memoria RAM (Milisegundos)
+    # =========================================================
+    for item in parsed_rows:
+        try:
+            clean_row = item["data"]
+            sku_val = item["sku"]
+
+            # Asignación de Proveedor desde el mapa en memoria
             provider_name_raw = clean_row.get('proveedor') or clean_row.get('provider')
             final_provider_id = None
-
             if provider_name_raw:
-                p_name_clean = provider_name_raw.strip()
-                p_key = p_name_clean.upper()
+                final_provider_id = provider_map.get(provider_name_raw.strip().upper())
 
-                if p_key in provider_cache:
-                    final_provider_id = provider_cache[p_key]
-                else:
-                    existing_prov = session.exec(select(Provider).where(Provider.business_name == p_name_clean)).first()
-                    if existing_prov:
-                        final_provider_id = existing_prov.id
-                    else:
-                        new_prov = Provider(business_name=p_name_clean, credit_days=0, is_active=True)
-                        session.add(new_prov)
-                        session.commit()
-                        session.refresh(new_prov)
-                        final_provider_id = new_prov.id
-                    provider_cache[p_key] = final_provider_id
-
-            # COSTOS SGP V3
+            # Cálculos financieros
             raw_factor = parse_money(clean_row.get('conversion_factor'))
             conversion_factor = raw_factor if raw_factor > 0 else 1.0
             
             purchase_price = parse_money(clean_row.get('current_cost'))
             raw_unit_cost = purchase_price / conversion_factor
             final_unit_cost = math.ceil(raw_unit_cost * 100) / 100
+            
+            raw_route = clean_row.get('production_route', 'MATERIAL').upper()
+            final_route = raw_route if raw_route in valid_routes else "MATERIAL"
             
             material_data = {
                 "sku": sku_val,
@@ -377,36 +417,40 @@ async def import_materials_csv(
                 "conversion_factor": conversion_factor,
                 "current_cost": final_unit_cost,
                 "provider_id": final_provider_id,
-                "physical_stock": 0.0,
-                "committed_stock": 0.0,
                 "associated_element_sku": clean_row.get('associated_element_sku', None),
+                "production_route": final_route,
                 "is_active": True
             }
 
-            raw_route = clean_row.get('production_route', 'MATERIAL').upper()
-            valid_routes = ["MATERIAL", "PROCESO", "CONSUMIBLE", "SERVICIO"]
-            material_data["production_route"] = raw_route if raw_route in valid_routes else "MATERIAL"
-            
-            existing_mat = session.exec(select(Material).where(Material.sku == sku_val)).first()
+            existing_mat = material_map.get(sku_val)
 
             if existing_mat:
+                # Si existe, actualizamos sus atributos (el ORM lo trackea en memoria)
                 for k, v in material_data.items():
-                    if k in ["physical_stock", "committed_stock"]: continue 
                     if k == "provider_id" and v is None: continue 
                     setattr(existing_mat, k, v)
-                session.add(existing_mat)
                 summary["updated"] += 1
             else:
+                # Si es nuevo, lo preparamos para inserción masiva
+                material_data["physical_stock"] = 0.0
+                material_data["committed_stock"] = 0.0
                 new_mat = Material(**material_data)
-                session.add(new_mat)
+                new_materials_to_create.append(new_mat)
+                # Lo metemos al mapa por si el CSV trae el mismo SKU duplicado más abajo
+                material_map[sku_val] = new_mat
                 summary["created"] += 1
             
             summary["processed"] += 1
 
         except Exception as e:
-            summary["errors"].append(f"Fila {row_idx + 2}: {str(e)}")
+            summary["errors"].append(f"Fila {item['idx'] + 2}: {str(e)}")
 
+    # =========================================================
+    # FASE 5: Impacto Final en Base de Datos (1 solo commit)
+    # =========================================================
     try:
+        if new_materials_to_create:
+            session.add_all(new_materials_to_create)
         session.commit()
     except Exception as e:
         session.rollback()

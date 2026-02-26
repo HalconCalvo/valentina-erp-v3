@@ -32,6 +32,13 @@ const formatInitialAmount = (num: number): string => {
     return `${integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${decimalPart}`;
 };
 
+// Extendemos el tipo localmente para que la tabla pueda pintar la unidad de compra
+interface ExtendedReceptionItem extends ReceptionItem {
+    purchase_unit?: string;
+    usage_unit?: string;
+    conversion_factor?: number;
+}
+
 const InventoryReceptionPage: React.FC = () => {
     const navigate = useNavigate();
     const { providers, fetchProviders } = useProviders();
@@ -49,14 +56,18 @@ const InventoryReceptionPage: React.FC = () => {
     const [displayTotal, setDisplayTotal] = useState('');
     const [displayUnitCost, setDisplayUnitCost] = useState('');
 
-    const [items, setItems] = useState<ReceptionItem[]>([]);
+    const [items, setItems] = useState<ExtendedReceptionItem[]>([]);
     
+    // --- NUEVO: Agregamos usage_unit y conversion_factor al estado temporal ---
     const [lineItem, setLineItem] = useState({
         material_id: 0,
         quantity: 1,
         unit_cost: 0,
         line_total_cost: 0,
-        searchQuery: '' 
+        searchQuery: '',
+        purchase_unit: 'Unidad',
+        usage_unit: 'Unidad',
+        conversion_factor: 1
     });
 
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -149,27 +160,34 @@ const InventoryReceptionPage: React.FC = () => {
             return;
         }
 
-        // INTERCEPCIÓN MÁGICA: Si no tiene ID, lo mandamos a crear primero.
         if (lineItem.material_id === 0) {
             setNewMaterial({...newMaterial, name: lineItem.searchQuery});
-            setShowMaterialList(false); // FORZAR CIERRE DE LA LISTA
+            setShowMaterialList(false); 
             setShowNewMaterialModal(true);
             return;
         }
 
         const selectedMat = materials.find(m => m.id === lineItem.material_id);
-        const newItem: ReceptionItem = {
+        const newItem: ExtendedReceptionItem = {
             material_id: lineItem.material_id,
             quantity: Number(lineItem.quantity),
             line_total_cost: Number(lineItem.line_total_cost),
             tempId: Date.now().toString(), 
             material_name: selectedMat?.name || 'Desconocido',
-            unit_cost_calculated: Number(lineItem.unit_cost)
+            unit_cost_calculated: Number(lineItem.unit_cost),
+            purchase_unit: selectedMat?.purchase_unit || 'Unidad',
+            usage_unit: selectedMat?.usage_unit || 'Unidad',
+            conversion_factor: selectedMat?.conversion_factor || 1
         };
         setItems([...items, newItem]);
-        setLineItem({ material_id: 0, quantity: 1, unit_cost: 0, line_total_cost: 0, searchQuery: '' });
+        
+        // Reset
+        setLineItem({ 
+            material_id: 0, quantity: 1, unit_cost: 0, line_total_cost: 0, searchQuery: '', 
+            purchase_unit: 'Unidad', usage_unit: 'Unidad', conversion_factor: 1 
+        });
         setDisplayUnitCost('');
-        setShowMaterialList(false); // FORZAR CIERRE POR SEGURIDAD
+        setShowMaterialList(false);
     };
 
     const handleEditItem = (tempId?: string) => {
@@ -181,7 +199,10 @@ const InventoryReceptionPage: React.FC = () => {
             quantity: itemToEdit.quantity,
             unit_cost: itemToEdit.unit_cost_calculated || 0,
             line_total_cost: itemToEdit.line_total_cost,
-            searchQuery: itemToEdit.material_name || ''
+            searchQuery: itemToEdit.material_name || '',
+            purchase_unit: itemToEdit.purchase_unit || 'Unidad',
+            usage_unit: itemToEdit.usage_unit || 'Unidad',
+            conversion_factor: itemToEdit.conversion_factor || 1
         });
         setDisplayUnitCost(formatInitialAmount(itemToEdit.unit_cost_calculated || 0));
         setItems(items.filter(i => i.tempId !== tempId));
@@ -235,8 +256,6 @@ const InventoryReceptionPage: React.FC = () => {
             });
             setDisplayTotal('');
             
-            // --- CAMBIO CLAVE AQUÍ ---
-            // En lugar de ir a '/materials', regresamos al historial de facturas
             navigate('/inventory/history');
             
         } catch (error) {
@@ -247,7 +266,6 @@ const InventoryReceptionPage: React.FC = () => {
         }
     };
 
-    // --- ALTA RÁPIDA DE MATERIAL (FLUJO CONTINUO) ---
     const handleSaveNewMaterial = async (e: React.FormEvent) => {
         e.preventDefault();
         if(!newMaterial.sku || !newMaterial.name) {
@@ -256,7 +274,6 @@ const InventoryReceptionPage: React.FC = () => {
         }
         setIsSavingMaterial(true);
         try {
-            // Hereda el proveedor de la factura actual automáticamente
             const payload = {
                 ...newMaterial,
                 provider_id: header.provider_id > 0 ? header.provider_id : undefined
@@ -266,24 +283,27 @@ const InventoryReceptionPage: React.FC = () => {
             await fetchMaterials();
             const newId = response.data.id || 0;
 
-            // Inyectar directamente a la lista de la factura
-            const newItem: ReceptionItem = {
+            const newItem: ExtendedReceptionItem = {
                 material_id: newId,
                 quantity: Number(lineItem.quantity),
                 line_total_cost: Number(lineItem.line_total_cost),
                 tempId: Date.now().toString(), 
                 material_name: newMaterial.name,
-                unit_cost_calculated: Number(lineItem.unit_cost)
+                unit_cost_calculated: Number(lineItem.unit_cost),
+                purchase_unit: newMaterial.purchase_unit,
+                usage_unit: newMaterial.usage_unit,
+                conversion_factor: newMaterial.conversion_factor
             };
             setItems(prev => [...prev, newItem]);
             
-            // Limpiar la barra de captura y FORZAR CIERRE DE LA LISTA
-            setLineItem({ material_id: 0, quantity: 1, unit_cost: 0, line_total_cost: 0, searchQuery: '' });
+            setLineItem({ 
+                material_id: 0, quantity: 1, unit_cost: 0, line_total_cost: 0, searchQuery: '', 
+                purchase_unit: 'Unidad', usage_unit: 'Unidad', conversion_factor: 1 
+            });
             setDisplayUnitCost('');
-            setShowMaterialList(false); // EL FIX CLAVE
+            setShowMaterialList(false); 
             setShowNewMaterialModal(false);
             
-            // Resetear el formulario
             setNewMaterial({
                 sku: '', name: '', category: 'Herrajes', production_route: 'MATERIAL',
                 purchase_unit: 'Pieza', usage_unit: 'Pieza', conversion_factor: 1,
@@ -375,14 +395,14 @@ const InventoryReceptionPage: React.FC = () => {
 
             <div className="w-full bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm flex flex-col">
                 
-                <div className="bg-slate-50 p-4 border-b border-slate-200 grid grid-cols-12 gap-4 items-end">
-                    <div className="col-span-5 relative">
+                <div className="bg-slate-50 p-4 border-b border-slate-200 grid grid-cols-12 gap-3 items-end">
+                    <div className="col-span-4 relative">
                         <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Buscar Artículo o Nuevo</label>
                         <Input 
                             placeholder="Escribe para buscar..." 
                             value={lineItem.searchQuery}
                             onChange={(e) => {
-                                setLineItem({...lineItem, searchQuery: e.target.value, material_id: 0}); 
+                                setLineItem({...lineItem, searchQuery: e.target.value, material_id: 0, purchase_unit: 'Unidad', usage_unit: 'Unidad', conversion_factor: 1}); 
                                 setShowMaterialList(true);
                             }}
                             onFocus={() => setShowMaterialList(true)}
@@ -395,7 +415,15 @@ const InventoryReceptionPage: React.FC = () => {
                                         className="px-4 py-2 hover:bg-indigo-50 cursor-pointer border-b last:border-0 text-sm flex justify-between items-center group"
                                         onMouseDown={(e) => {
                                             e.preventDefault();
-                                            setLineItem({...lineItem, material_id: m.id, searchQuery: m.name});
+                                            // INYECTAMOS LOS DATOS DEL CATÁLOGO AL ESTADO TEMPORAL
+                                            setLineItem({
+                                                ...lineItem, 
+                                                material_id: m.id, 
+                                                searchQuery: m.name, 
+                                                purchase_unit: m.purchase_unit,
+                                                usage_unit: m.usage_unit,
+                                                conversion_factor: m.conversion_factor
+                                            });
                                             setShowMaterialList(false);
                                         }}
                                     >
@@ -403,15 +431,15 @@ const InventoryReceptionPage: React.FC = () => {
                                             <div className="font-bold text-slate-700 group-hover:text-indigo-700">{m.name}</div>
                                             <div className="text-xs text-slate-400">{m.sku}</div>
                                         </div>
-                                        <Badge variant="outline" className="text-[10px]">{m.usage_unit}</Badge>
+                                        <Badge variant="outline" className="text-[10px] bg-indigo-100 text-indigo-800">{m.purchase_unit}</Badge>
                                     </div>
                                 ))}
                             </div>
                         )}
                     </div>
                     
-                    <div className="col-span-2">
-                        <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Cantidad</label>
+                    <div className="col-span-1">
+                        <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Cant.</label>
                         <Input 
                             type="number" 
                             className="text-center font-bold"
@@ -422,9 +450,23 @@ const InventoryReceptionPage: React.FC = () => {
                             }} 
                         />
                     </div>
+
+                    {/* NUEVO RECUPADRO DE EQUIVALENCIA (SOLO LECTURA) */}
+                    <div className="col-span-2">
+                        <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase text-center">Equivalencia</label>
+                        {lineItem.material_id > 0 ? (
+                            <div className="text-[10px] text-center text-slate-600 bg-slate-200/50 p-2 rounded border border-slate-200 truncate">
+                                1 {lineItem.purchase_unit} = <b>{lineItem.conversion_factor}</b> {lineItem.usage_unit}
+                            </div>
+                        ) : (
+                            <div className="text-[10px] text-center text-slate-400 p-2 border border-dashed border-slate-200 rounded bg-slate-50 truncate">
+                                Selecciona material
+                            </div>
+                        )}
+                    </div>
                     
                     <div className="col-span-2">
-                        <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Unitario (S/ IVA)</label>
+                        <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Unitario Factura</label>
                         <div className="relative">
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-500">$</span>
                             <input 
@@ -460,17 +502,18 @@ const InventoryReceptionPage: React.FC = () => {
                     <table className="w-full text-sm text-left">
                         <thead className="bg-white border-b border-slate-200 text-xs uppercase text-slate-400 sticky top-0 z-10 shadow-sm">
                             <tr>
-                                <th className="px-6 py-3 font-semibold w-5/12">Artículo / Material</th>
-                                <th className="px-4 py-3 text-center font-semibold w-2/12">Cantidad</th>
-                                <th className="px-4 py-3 text-right font-semibold w-2/12">Unitario</th>
-                                <th className="px-4 py-3 text-right font-semibold w-2/12">Total Base</th>
+                                <th className="px-6 py-3 font-semibold w-4/12">Artículo / Material</th>
+                                <th className="px-4 py-3 text-center font-semibold w-2/12">Cant. Compra</th>
+                                <th className="px-4 py-3 text-center font-semibold w-2/12">Unidad</th>
+                                <th className="px-4 py-3 text-right font-semibold w-2/12">Precio U. (Fac)</th>
+                                <th className="px-4 py-3 text-right font-semibold w-2/12">Importe</th>
                                 <th className="px-4 py-3 text-center font-semibold w-1/12"></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {items.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic">
+                                    <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic">
                                         No hay artículos agregados. Usa la barra superior para buscarlos.
                                     </td>
                                 </tr>
@@ -478,6 +521,7 @@ const InventoryReceptionPage: React.FC = () => {
                                 <tr key={item.tempId} className="hover:bg-indigo-50/40 transition-colors">
                                     <td className="px-6 py-3 font-medium text-slate-700">{item.material_name}</td>
                                     <td className="px-4 py-3 text-center font-bold text-slate-600">{item.quantity}</td>
+                                    <td className="px-4 py-3 text-center text-slate-500 text-[10px] uppercase bg-slate-100 rounded">{item.purchase_unit || '-'}</td>
                                     <td className="px-4 py-3 text-right text-slate-500">{formatCurrency(item.unit_cost_calculated || 0)}</td>
                                     <td className="px-4 py-3 text-right font-mono font-bold text-slate-800">{formatCurrency(item.line_total_cost)}</td>
                                     <td className="px-4 py-3 text-center flex justify-center gap-2">

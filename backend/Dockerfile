@@ -26,10 +26,10 @@ COPY . .
 # Usamos puerto 8080 explícito
 ENV PORT=8080
 
-# Usamos GUNICORN como gestor de procesos (más robusto que uvicorn solo)
-CMD exec gunicorn app.main:app \
+# LA MAGIA ESTÁ AQUÍ: Alembic actualiza la BD primero, y luego arranca Gunicorn
+CMD sh -c "alembic upgrade head && exec gunicorn app.main:app \
     --workers 1 \
     --worker-class uvicorn.workers.UvicornWorker \
     --threads 8 \
     --timeout 0 \
-    --bind 0.0.0.0:8080
+    --bind 0.0.0.0:8080"

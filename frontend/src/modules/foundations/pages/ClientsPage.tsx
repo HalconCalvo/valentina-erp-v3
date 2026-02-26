@@ -20,13 +20,13 @@ export default function ClientsPage() {
     fiscal_address: '', notes: '',
     
     // Contacto 1
-    contact_name: '', contact_phone: '', contact_dept: '',
+    contact_name: '', contact_phone: '', contact_dept: '', contact_email: '',
     // Contacto 2
-    contact2_name: '', contact2_phone: '', contact2_dept: '',
+    contact2_name: '', contact2_phone: '', contact2_dept: '', contact2_email: '',
     // Contacto 3
-    contact3_name: '', contact3_phone: '', contact3_dept: '',
+    contact3_name: '', contact3_phone: '', contact3_dept: '', contact3_email: '',
     // Contacto 4
-    contact4_name: '', contact4_phone: '', contact4_dept: '',
+    contact4_name: '', contact4_phone: '', contact4_dept: '', contact4_email: '',
   };
   
   const [form, setForm] = useState<Client>(initialForm);
@@ -36,24 +36,28 @@ export default function ClientsPage() {
       "ID": c.id,
       "Cliente": c.full_name,
       "RFC": c.rfc_tax_id || 'N/A',
-      "Email": c.email,
+      "Email Empresa": c.email,
       "Teléfono Ofic.": c.phone,
       
       "C1 Nombre": c.contact_name || '',
       "C1 Depto": c.contact_dept || '',
       "C1 Tel": c.contact_phone || '',
+      "C1 Email": c.contact_email || '',
 
       "C2 Nombre": c.contact2_name || '',
       "C2 Depto": c.contact2_dept || '',
       "C2 Tel": c.contact2_phone || '',
+      "C2 Email": c.contact2_email || '',
 
       "C3 Nombre": c.contact3_name || '',
       "C3 Depto": c.contact3_dept || '',
       "C3 Tel": c.contact3_phone || '',
+      "C3 Email": c.contact3_email || '',
 
       "C4 Nombre": c.contact4_name || '',
       "C4 Depto": c.contact4_dept || '',
       "C4 Tel": c.contact4_phone || '',
+      "C4 Email": c.contact4_email || '',
       
       "Observaciones": c.notes || ''
   });
@@ -94,18 +98,19 @@ export default function ClientsPage() {
       setActiveTab('general');
   };
 
-  // Helper para renderizar bloques de contacto
+  // Helper para renderizar bloques de contacto (Ahora con Email)
   const renderContactFields = (num: number, label: string) => {
-      // Truco dinámico para acceder a propiedades contact2_name, contact3_name, etc.
       const suffix = num === 1 ? '' : num;
       
       const getName = () => (form as any)[`contact${suffix}_name`] || '';
       const getPhone = () => (form as any)[`contact${suffix}_phone`] || '';
       const getDept = () => (form as any)[`contact${suffix}_dept`] || '';
+      const getEmail = () => (form as any)[`contact${suffix}_email`] || '';
 
       const setName = (val: string) => setForm({...form, [`contact${suffix}_name`]: val});
       const setPhone = (val: string) => setForm({...form, [`contact${suffix}_phone`]: val});
       const setDept = (val: string) => setForm({...form, [`contact${suffix}_dept`]: val});
+      const setEmail = (val: string) => setForm({...form, [`contact${suffix}_email`]: val});
 
       return (
           <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
@@ -113,14 +118,17 @@ export default function ClientsPage() {
                   <User size={12}/> {label}
               </h4>
               <div className="grid grid-cols-12 gap-2">
-                  <div className="col-span-5">
+                  <div className="col-span-12 md:col-span-4">
                       <input placeholder="Nombre Completo" className="input-mini" value={getName()} onChange={e => setName(e.target.value)} />
                   </div>
-                  <div className="col-span-4">
-                      <input placeholder="Teléfono / Celular" className="input-mini" value={getPhone()} onChange={e => setPhone(e.target.value)} />
+                  <div className="col-span-6 md:col-span-3">
+                      <input placeholder="Teléfono / Cel." className="input-mini" value={getPhone()} onChange={e => setPhone(e.target.value)} />
                   </div>
-                  <div className="col-span-3">
-                      <input placeholder="Depto." className="input-mini" value={getDept()} onChange={e => setDept(e.target.value)} />
+                  <div className="col-span-6 md:col-span-5">
+                      <input placeholder="Correo Electrónico" type="email" className="input-mini" value={getEmail()} onChange={e => setEmail(e.target.value)} />
+                  </div>
+                  <div className="col-span-12">
+                      <input placeholder="Departamento o Puesto" className="input-mini" value={getDept()} onChange={e => setDept(e.target.value)} />
                   </div>
               </div>
           </div>
@@ -167,7 +175,6 @@ export default function ClientsPage() {
                 )}
 
                 {clients.map(c => {
-                    // Contar contactos extra
                     const extras = [c.contact2_name, c.contact3_name, c.contact4_name].filter(Boolean).length;
 
                     return (
@@ -186,6 +193,12 @@ export default function ClientsPage() {
                                             {c.contact_dept && <span className="bg-slate-100 px-1 rounded">{c.contact_dept}</span>}
                                             {c.contact_phone && <span>{c.contact_phone}</span>}
                                         </div>
+                                        {/* NUEVO: Mostramos el email en la tabla si existe */}
+                                        {c.contact_email && (
+                                            <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                                                <Mail size={10}/> {c.contact_email}
+                                            </span>
+                                        )}
                                         {extras > 0 && (
                                             <span className="text-[10px] text-indigo-600 font-bold bg-indigo-50 w-fit px-1.5 rounded-full mt-1">
                                                 +{extras} Contactos más
@@ -198,7 +211,7 @@ export default function ClientsPage() {
                             </td>
                             <td className="p-4">
                                 <div className="flex flex-col gap-1 text-sm text-slate-600">
-                                    <span className="flex items-center gap-2 text-xs"><Mail size={12}/> {c.email}</span>
+                                    <span className="flex items-center gap-2 text-xs"><Building2 size={12}/> {c.email}</span>
                                     <span className="flex items-center gap-2 text-xs"><Phone size={12}/> {c.phone}</span>
                                 </div>
                             </td>
@@ -278,7 +291,7 @@ export default function ClientsPage() {
                             </div>
 
                             <div>
-                                <label className="label-std">Email Facturación / General *</label>
+                                <label className="label-std">Email Facturación / Empresa *</label>
                                 <input type="email" required className="input-std" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
                             </div>
 

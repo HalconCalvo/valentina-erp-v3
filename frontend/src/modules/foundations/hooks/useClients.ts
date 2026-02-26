@@ -10,27 +10,28 @@ export interface Client {
     phone: string;
     fiscal_address?: string;
     
-    // Contacto 1
     contact_name?: string;
     contact_phone?: string;
-    contact_dept?: string; // Nuevo
+    contact_dept?: string;
+    contact_email?: string;  // <--- NUEVO
     
-    // Contacto 2
     contact2_name?: string;
     contact2_phone?: string;
     contact2_dept?: string;
-
-    // Contacto 3
+    contact2_email?: string; // <--- NUEVO
+    
     contact3_name?: string;
     contact3_phone?: string;
     contact3_dept?: string;
-
-    // Contacto 4
+    contact3_email?: string; // <--- NUEVO
+    
     contact4_name?: string;
     contact4_phone?: string;
     contact4_dept?: string;
-
+    contact4_email?: string; // <--- NUEVO
+    
     notes?: string;
+    registration_date?: string;
     is_active?: boolean;
 }
 
