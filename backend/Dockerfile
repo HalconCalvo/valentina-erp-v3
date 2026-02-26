@@ -26,8 +26,8 @@ COPY . .
 # Usamos puerto 8080 explícito
 ENV PORT=8080
 
-# LA MAGIA ESTÁ AQUÍ: Alembic actualiza la BD primero, y luego arranca Gunicorn
-CMD sh -c "alembic upgrade head && exec gunicorn app.main:app \
+# LA MAGIA CORREGIDA: Sellamos el pasado, actualizamos los correos, y arrancamos
+CMD sh -c "alembic stamp 38ab24f34ea2 && alembic upgrade head && exec gunicorn app.main:app \
     --workers 1 \
     --worker-class uvicorn.workers.UvicornWorker \
     --threads 8 \
