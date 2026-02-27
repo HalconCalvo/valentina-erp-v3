@@ -1,5 +1,6 @@
 import sys
 import os
+from dotenv import load_dotenv
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
@@ -8,9 +9,23 @@ from alembic import context
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 from app.models import foundations  # <--- Importa tus modelos corregidos
 
+# Esto carga tu archivo .env cuando estás en tu Mac
+load_dotenv() 
+
+# 1. PRIMERO sacamos el objeto 'config' de Alembic
 config = context.config
+
+# 2. Leemos la URL de la variable de entorno (si existe)
+db_url = os.environ.get("DATABASE_URL")
+
+# 3. Si la variable de entorno existe, sobreescribimos el alembic.ini
+if db_url:
+    config.set_main_option("sqlalchemy.url", db_url)
+
+# Configuramos los logs de Alembic
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+    
 target_metadata = SQLModel.metadata
 
 def run_migrations_offline() -> None:
