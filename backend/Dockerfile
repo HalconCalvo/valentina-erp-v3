@@ -26,8 +26,8 @@ COPY . .
 # Usamos puerto 8080 explícito
 ENV PORT=8080
 
-# Ejecutamos las migraciones primero, y si son exitosas (&&), encendemos GUNICORN
-CMD alembic upgrade head && exec gunicorn app.main:app \
+# Ejecutamos las migraciones a través de python, y si son exitosas (&&), encendemos GUNICORN
+CMD python -m alembic upgrade head && exec gunicorn app.main:app \
     --workers 1 \
     --worker-class uvicorn.workers.UvicornWorker \
     --threads 8 \
