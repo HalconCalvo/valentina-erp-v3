@@ -360,8 +360,13 @@ const SalesDashboardPage: React.FC = () => {
                                                     <div className="flex justify-center gap-2">
                                                         {(order.status === SalesOrderStatus.DRAFT || order.status === SalesOrderStatus.CHANGE_REQUESTED || order.status === SalesOrderStatus.REJECTED) && (
                                                             <>
+                                                                {/* --- NUEVOS BOTONES DE VISUALIZACIÓN --- */}
+                                                                <button onClick={() => setSelectedOrderId(order.id)} className="p-1.5 text-slate-500 hover:bg-slate-100 rounded" title="Ver Detalles"><Eye size={16}/></button>
+                                                                <button onClick={() => handlePreviewPDF(order.id)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded" title="Ver PDF"><FileText size={16}/></button>
+        
+                                                                {/* --- BOTONES ORIGINALES DE ACCIÓN --- */}
                                                                 <button onClick={() => handleAction(() => salesService.requestAuth(order.id), "Enviar a revisión?")} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded" title="Enviar"><Send size={16}/></button>
-                                                                <button onClick={() => navigate(`/sales/edit/${order.id}`)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded" title="Editar"><Pencil size={16}/></button>
+                                                                <button onClick={() => navigate(`/sales/edit/${order.id}`)} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded border border-transparent hover:border-emerald-200" title="Editar"><Pencil size={16}/></button>
                                                                 <button onClick={() => handleAction(() => salesService.deleteOrder(order.id), "Eliminar?")} className="p-1.5 text-slate-400 hover:text-red-500 rounded" title="Borrar"><Trash2 size={16}/></button>
                                                             </>
                                                         )}

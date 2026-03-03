@@ -49,7 +49,7 @@ export const useFoundations = () => {
         }
     };
 
-    // --- 3. GESTIÓN DE IMPUESTOS (NUEVO) ---
+    // --- 3. GESTIÓN DE IMPUESTOS ---
     const createTaxRate = async (name: string, rate: number) => {
         setSaving(true);
         try {
@@ -60,6 +60,36 @@ export const useFoundations = () => {
         } catch (err) {
             console.error("Error creando impuesto:", err);
             return { success: false, error: 'Error al crear impuesto' };
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // NUEVO: Función para actualizar impuesto
+    const updateTaxRate = async (id: number, name: string, rate: number) => {
+        setSaving(true);
+        try {
+            await client.put(`/foundations/tax-rates/${id}`, { name, rate });
+            await refreshData(); // Recargamos la lista
+            return { success: true };
+        } catch (err) {
+            console.error("Error actualizando impuesto:", err);
+            return { success: false, error: 'Error al actualizar impuesto' };
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // NUEVO: Función para eliminar impuesto
+    const deleteTaxRate = async (id: number) => {
+        setSaving(true);
+        try {
+            await client.delete(`/foundations/tax-rates/${id}`);
+            await refreshData(); // Recargamos la lista
+            return { success: true };
+        } catch (err) {
+            console.error("Error eliminando impuesto:", err);
+            return { success: false, error: 'Error al eliminar impuesto' };
         } finally {
             setSaving(false);
         }
@@ -113,6 +143,8 @@ export const useFoundations = () => {
         
         // Impuestos
         createTaxRate,
+        updateTaxRate,    // <-- Añadido aquí
+        deleteTaxRate,    // <-- Añadido aquí
         toggleTaxRate,
 
         // Logo

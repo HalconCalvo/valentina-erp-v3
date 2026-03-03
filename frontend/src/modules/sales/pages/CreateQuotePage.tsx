@@ -21,10 +21,12 @@ import { SalesOrderItem, SalesOrderStatus } from '../../../types/sales';
 // --- HELPERS DE FORMATO ---
 const formatCurrency = (amount: number | undefined | null) => {
     if (amount === undefined || amount === null || isNaN(amount)) return '$ 0.00';
-    return new Intl.NumberFormat('es-MX', {
+    // Usamos 'en-US' para GARANTIZAR visualmente la coma en los miles (Ej: $ 15,000.50)
+    return new Intl.NumberFormat('en-US', {
         style: 'currency',
-        currency: 'MXN',
-        minimumFractionDigits: 2
+        currency: 'USD', // Solo lo usamos para forzar el formato del $, los montos siguen siendo MXN
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
     }).format(amount);
 };
 
@@ -210,8 +212,10 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any}> = ({ id, naviga
         const master = masters.find(m => m.id === lineItem.master_id);
         const version = master?.versions?.find((v: any) => v.id === selectedVersionId);
         
-        // 1. Costo Base del Producto
-        const cost = version ? Number(version.estimated_cost) : 0;
+        // 1. Costo Base del Producto (CORRECCIÓN AQUÍ)
+        // Le decimos al sistema que busque el costo en las 3 propiedades más comunes
+        // para evitar que se vaya a cero si el backend le cambió el nombre.
+        const cost = version ? Number(version.total_cost || version.cost || version.estimated_cost || 0) : 0;
 
         // 2. Obtener el margen configurado en el encabezado
         const margin = Number(header.applied_margin_percent) || 0;
@@ -437,7 +441,22 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any}> = ({ id, naviga
                             <div className="bg-amber-50 p-2 rounded border border-amber-200">
                                 <label className="block text-[10px] font-black text-amber-700 uppercase mb-1 flex items-center gap-1"><TrendingUp size={10}/> Margen Objetivo (%)</label>
                                 <div className="flex gap-2">
-                                    <Input type="number" autoComplete="off" className="bg-white border-amber-300 font-bold text-amber-800" value={header.applied_margin_percent} onChange={(e) => setHeader({...header, applied_margin_percent: Number(e.target.value)})}/>
+                                    <Input 
+                                        type="number" 
+                                        autoComplete="off" 
+                                        className="bg-white border-amber-300 font-bold text-amber-800" 
+                                        // Traducimos el decimal a entero para la vista humana (Ej. 0.45 -> 45)
+                                        value={
+                                            header.applied_margin_percent > 0 && header.applied_margin_percent <= 1 
+                                                ? Number((header.applied_margin_percent * 100).toFixed(2)) 
+                                                : header.applied_margin_percent
+                                        } 
+                                        onChange={(e) => {
+                                            const val = Number(e.target.value);
+                                            // Lo regresamos a decimal para proteger las matemáticas del backend
+                                            setHeader({...header, applied_margin_percent: val / 100});
+                                        }}
+                                    />
                                     <button onClick={handleRecalculatePrices} className="bg-amber-500 hover:bg-amber-600 text-white p-2 rounded" title="Recalcular precios de lista"><RefreshCw size={16}/></button>
                                 </div>
                             </div>
@@ -480,8 +499,29 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any}> = ({ id, naviga
                         <div className="grid grid-cols-2 gap-3">
                             <Input type="number" placeholder="Cant" value={lineItem.quantity} onChange={(e) => setLineItem({...lineItem, quantity: Number(e.target.value)})}/>
                             <div className="relative">
-                                {loadingCost ? <span className="text-xs text-slate-400">Cargando...</span> : 
-                                <Input type={addMode === 'CATALOG' ? "text" : "number"} readOnly={addMode==='CATALOG' && !isDirector} className={addMode==='CATALOG' ? 'bg-slate-100' : ''} value={addMode==='CATALOG' && !isDirector ? formatCurrency(lineItem.unit_price).replace('MX$', '') : lineItem.unit_price} onChange={(e) => setLineItem({...lineItem, unit_price: Number(e.target.value)})}/>}
+                                {loadingCost ? (
+                                    <span className="text-xs text-slate-400">Cargando...</span>
+                                ) : (addMode === 'CATALOG' && !isDirector) ? (
+                                    /* MODO VENDEDOR (Solo lectura, formato hermoso) */
+                                    <div className="w-full px-3 py-2 border border-slate-200 rounded-md bg-slate-100 font-mono text-right font-bold text-slate-700 flex items-center justify-end cursor-not-allowed h-[38px]">
+                                        {formatCurrency(lineItem.unit_price)}
+                                    </div>
+                                ) : (
+                                    /* MODO DIRECTOR / MANUAL (Input numérico + Visualizador en vivo) */
+                                    <div className="relative mb-4">
+                                        <span className="absolute left-3 top-2 text-slate-400 font-bold">$</span>
+                                        <Input 
+                                            type="number" 
+                                            step="0.01"
+                                            className="pl-7 font-mono text-right font-bold" 
+                                            value={lineItem.unit_price === 0 ? '' : lineItem.unit_price} 
+                                            onChange={(e) => setLineItem({...lineItem, unit_price: Number(e.target.value)})}
+                                        />
+                                        <div className="absolute -bottom-5 right-0 text-[11px] font-bold text-indigo-600 font-mono">
+                                            {formatCurrency(lineItem.unit_price)}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                         <div className="flex gap-2">

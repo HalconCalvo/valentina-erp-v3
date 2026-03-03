@@ -7,11 +7,14 @@ from fastapi.responses import StreamingResponse
 from app.core.database import get_session
 from app.core.deps import get_current_active_user 
 
-from app.models.sales import SalesOrder, SalesOrderItem, SalesOrderStatus
+# Importamos los nuevos modelos de V3.5
+from app.models.sales import (
+    SalesOrder, SalesOrderItem, SalesOrderItemInstance, 
+    SalesOrderStatus, InstanceStatus
+)
 from app.models.design import ProductVersion
 from app.models.material import Material
-from app.models.foundations import TaxRate
-from app.models.foundations import GlobalConfig, Client
+from app.models.foundations import TaxRate, GlobalConfig, Client
 from app.models.users import User 
 from app.services.pdf_generator import PDFGenerator
 
@@ -25,7 +28,6 @@ router = APIRouter()
 # --- HELPER DE COMISIÓN ---
 def normalize_commission(rate: float | None) -> float:
     if rate is None: return 0.0
-    # Si es mayor a 1 (ej: 3.5), asumimos que es porcentaje entero y convertimos a decimal (0.035)
     if rate > 1.0:
         return rate / 100.0
     return rate
@@ -53,10 +55,7 @@ def create_sales_order(
             client_id=order_in.client_id,
             tax_rate_id=order_in.tax_rate_id,
             user_id=current_user.id,
-            
-            # Guardamos el decimal correcto (ej. 0.035)
             applied_commission_percent=applied_commission,
-            
             valid_until=order_in.valid_until,
             delivery_date=order_in.delivery_date,
             applied_margin_percent=order_in.applied_margin_percent,
@@ -120,26 +119,32 @@ def create_sales_order(
                 frozen_unit_cost=calculated_frozen_cost
             )
             session.add(db_item)
+            session.flush() # V3.5: Generamos el ID de la partida sin hacer commit final
 
-        # 2. CÁLCULO FINANCIERO (LÓGICA DIRECTA Y UNIFORME)
-        
-        # Importe Comisión = Suma de Partidas * % Comisión
+            # ---> MAGIA V3.5: EXPLOSIÓN DE INSTANCIAS <---
+            qty_int = int(item_in.quantity) if item_in.quantity > 0 else 1
+            for i in range(1, qty_int + 1):
+                instance_name = f"{item_in.product_name} - Instancia {i}"
+                db_instance = SalesOrderItemInstance(
+                    sales_order_item_id=db_item.id,
+                    custom_name=instance_name,
+                    production_status=InstanceStatus.PENDING
+                )
+                session.add(db_instance)
+
+        # 2. CÁLCULO FINANCIERO FINAL
         commission_amount = items_sum * applied_commission
-        
-        # Subtotal (Base Imponible) = Suma Partidas + Comisión
         final_subtotal = items_sum + commission_amount
-        
-        # Impuesto = Subtotal * Tasa
         tax_amount = final_subtotal * tax_rate.rate
-        
-        # Total = Subtotal + Impuesto
         total_price = final_subtotal + tax_amount
 
-        # Guardamos valores (Todo se llama igual ahora)
         db_order.commission_amount = commission_amount 
         db_order.subtotal = final_subtotal 
         db_order.tax_amount = tax_amount
         db_order.total_price = total_price
+        
+        # Al nacer la orden, el saldo pendiente es el total de la cotización
+        db_order.outstanding_balance = total_price 
         
         session.add(db_order)
         session.commit()
@@ -150,6 +155,9 @@ def create_sales_order(
         print(f"ERROR CREATING ORDER: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# ==========================================
+# 2. LEER ORDENES (LISTADO)
+# ==========================================
 @router.get("/orders", response_model=List[SalesOrderRead])
 def read_sales_orders(
     status: SalesOrderStatus | None = None,
@@ -165,6 +173,9 @@ def read_sales_orders(
     orders = session.exec(query.order_by(SalesOrder.id.desc())).all()
     return orders
 
+# ==========================================
+# 3. LEER DETALLE ORDEN (ÁRBOL COMPLETO)
+# ==========================================
 @router.get("/orders/{order_id}", response_model=SalesOrderRead)
 def read_order_detail(
     order_id: int,
@@ -176,7 +187,7 @@ def read_order_detail(
     return order
 
 # ==========================================
-# 4. ACTUALIZAR
+# 4. ACTUALIZAR ORDEN
 # ==========================================
 @router.patch("/orders/{order_id}", response_model=SalesOrderRead)
 def update_sales_order(
@@ -204,21 +215,18 @@ def update_sales_order(
         update_data = order_update.model_dump(exclude_unset=True)
         items_data = update_data.pop("items", None) 
         
-        # PERMISO DIRECTOR
         user_role = current_user.role.upper() if current_user.role else "SALES"
         if user_role not in ["DIRECTOR", "ADMIN"]:
             if "status" in update_data:
                 del update_data["status"]
         
-        # Actualizamos campos simples
         for key, value in update_data.items():
             setattr(db_order, key, value)
         
-        # Normalizamos la comisión si venía en el update
         if "applied_commission_percent" in update_data:
             db_order.applied_commission_percent = normalize_commission(update_data["applied_commission_percent"])
 
-        # Si hay cambio de items, recalculamos todo
+        # Si hay cambio de items, destruimos y recreamos (Cascada destruirá instancias viejas)
         if items_data is not None:
             statement = delete(SalesOrderItem).where(SalesOrderItem.sales_order_id == order_id)
             session.exec(statement)
@@ -270,36 +278,42 @@ def update_sales_order(
                     frozen_unit_cost=calculated_frozen_cost
                 )
                 session.add(new_db_item)
+                session.flush() # V3.5: Generamos ID para las nuevas instancias
+
+                # ---> MAGIA V3.5: EXPLOSIÓN DE INSTANCIAS (UPDATE) <---
+                qty_int = int(qty) if qty > 0 else 1
+                for i in range(1, qty_int + 1):
+                    instance_name = f"{item_in.product_name} - Instancia {i}"
+                    db_instance = SalesOrderItemInstance(
+                        sales_order_item_id=new_db_item.id,
+                        custom_name=instance_name,
+                        production_status=InstanceStatus.PENDING
+                    )
+                    session.add(db_instance)
             
-            # --- CÁLCULO FINANCIERO UPDATE (UNIFORME) ---
-            # 1. Recuperamos comisión
             commission_val = db_order.applied_commission_percent or 0.0
-            
-            # 2. Calculamos importe comisión
             commission_amount = items_sum * commission_val
-            
-            # 3. Subtotal = Items + Comisión
             final_subtotal = items_sum + commission_amount
             
-            # 4. Impuestos
             tax_rate = session.get(TaxRate, db_order.tax_rate_id)
             tax_rate_val = tax_rate.rate if tax_rate else 0.16
             tax_amount = final_subtotal * tax_rate_val
             
-            # 5. Total
             total_price = final_subtotal + tax_amount
 
-            # 6. Guardar
             db_order.commission_amount = commission_amount 
             db_order.subtotal = final_subtotal
             db_order.tax_amount = tax_amount
             db_order.total_price = total_price
+            
+            # Recalcular el balance es complejo si hay pagos. Por ahora asumimos
+            # que si está editando la orden (DRAFT), no hay pagos aún.
+            db_order.outstanding_balance = total_price
 
-        # --- CANDADO VENDEDOR ---
+        # Candado Vendedor
         if user_role not in ["DIRECTOR", "ADMIN"]:
             if db_order.status in [SalesOrderStatus.ACCEPTED, SalesOrderStatus.SENT]:
                 db_order.status = SalesOrderStatus.CHANGE_REQUESTED
-                print(f"--> [Aviso] Vendedor editó orden {order_id}. Estatus regresado a CHANGE_REQUESTED.")
 
         session.add(db_order)
         session.commit()
@@ -312,12 +326,11 @@ def update_sales_order(
         print(f"CRITICAL ERROR UPDATING ORDER: {str(e)}") 
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
 
-# ... (Resto de endpoints request-auth, authorize, pdf, delete IGUAL) ...
+# ==========================================
+# RUTAS DE ESTATUS Y WORKFLOW
+# ==========================================
 @router.post("/orders/{order_id}/request-auth", response_model=SalesOrderRead)
-def request_order_authorization(
-    order_id: int,
-    session: Session = Depends(get_session)
-):
+def request_order_authorization(order_id: int, session: Session = Depends(get_session)):
     order = session.get(SalesOrder, order_id)
     if not order: raise HTTPException(404, "Orden no encontrada")
     if order.status not in [SalesOrderStatus.DRAFT, SalesOrderStatus.CHANGE_REQUESTED, SalesOrderStatus.REJECTED]:
@@ -329,10 +342,7 @@ def request_order_authorization(
     return order
 
 @router.post("/orders/{order_id}/authorize", response_model=SalesOrderRead)
-def authorize_order(
-    order_id: int,
-    session: Session = Depends(get_session)
-):
+def authorize_order(order_id: int, session: Session = Depends(get_session)):
     order = session.get(SalesOrder, order_id)
     if not order: raise HTTPException(404, "Orden no encontrada")
     order.status = SalesOrderStatus.ACCEPTED
@@ -342,10 +352,7 @@ def authorize_order(
     return order
 
 @router.post("/orders/{order_id}/reject", response_model=SalesOrderRead)
-def reject_order(
-    order_id: int,
-    session: Session = Depends(get_session)
-):
+def reject_order(order_id: int, session: Session = Depends(get_session)):
     order = session.get(SalesOrder, order_id)
     if not order: raise HTTPException(404, "Orden no encontrada")
     order.status = SalesOrderStatus.REJECTED
@@ -355,10 +362,7 @@ def reject_order(
     return order
 
 @router.post("/orders/{order_id}/mark_sold", response_model=SalesOrderRead)
-def mark_as_sold(
-    order_id: int,
-    session: Session = Depends(get_session)
-):
+def mark_as_sold(order_id: int, session: Session = Depends(get_session)):
     order = session.get(SalesOrder, order_id)
     if not order: raise HTTPException(404, "Orden no encontrada")
     if order.status != SalesOrderStatus.ACCEPTED:
@@ -370,10 +374,7 @@ def mark_as_sold(
     return order
 
 @router.post("/orders/{order_id}/mark_lost", response_model=SalesOrderRead)
-def mark_as_lost(
-    order_id: int,
-    session: Session = Depends(get_session)
-):
+def mark_as_lost(order_id: int, session: Session = Depends(get_session)):
     order = session.get(SalesOrder, order_id)
     if not order: raise HTTPException(404, "Orden no encontrada")
     order.status = SalesOrderStatus.CLIENT_REJECTED
@@ -383,10 +384,7 @@ def mark_as_lost(
     return order
 
 @router.post("/orders/{order_id}/request_changes", response_model=SalesOrderRead)
-def request_changes(
-    order_id: int,
-    session: Session = Depends(get_session)
-):
+def request_changes(order_id: int, session: Session = Depends(get_session)):
     order = session.get(SalesOrder, order_id)
     if not order: raise HTTPException(404, "Orden no encontrada")
     order.status = SalesOrderStatus.CHANGE_REQUESTED
@@ -395,13 +393,11 @@ def request_changes(
     session.refresh(order)
     return order
 
-from app.models.users import User # <-- Lo importamos por si no estaba arriba
-
+# ==========================================
+# RUTAS DE EXPORTACIÓN Y ELIMINACIÓN
+# ==========================================
 @router.get("/orders/{order_id}/pdf")
-def download_quote_pdf(
-    order_id: int,
-    session: Session = Depends(get_session)
-):
+def download_quote_pdf(order_id: int, session: Session = Depends(get_session)):
     try:
         order = session.get(SalesOrder, order_id)
         if not order: raise HTTPException(404, "Orden no encontrada")
@@ -412,20 +408,16 @@ def download_quote_pdf(
         config = session.exec(select(GlobalConfig)).first()
         if not config: config = GlobalConfig(company_name="Mi Empresa", company_email="ventas@miempresa.com")
         
-        # ---> MAGIA NUEVA: Buscar al vendedor en la base de datos <---
         seller_name = "Departamento de Ventas"
-        seller_email = ""  # <-- Espacio para el correo
+        seller_email = ""
         
         if getattr(order, 'user_id', None):
             user = session.get(User, order.user_id)
             if user:
-                # Si tiene nombre completo lo usa, si no su username
                 seller_name = getattr(user, 'full_name', None) or getattr(user, 'username', "Asesor Comercial")
-                # Sacamos su correo
                 seller_email = getattr(user, 'email', "")
 
         generator = PDFGenerator()
-        # Le inyectamos el seller_name Y el seller_email a la impresora
         pdf_buffer = generator.generate_quote_pdf(order, client, config, seller_name, seller_email)
         
         safe_project_name = "".join([c for c in order.project_name if c.isalnum() or c in (' ', '-', '_')]).strip()
@@ -441,16 +433,12 @@ def download_quote_pdf(
         raise HTTPException(status_code=500, detail="Error generando PDF")
 
 @router.delete("/orders/{order_id}")
-def delete_sales_order(
-    order_id: int,
-    session: Session = Depends(get_session)
-):
+def delete_sales_order(order_id: int, session: Session = Depends(get_session)):
     order = session.get(SalesOrder, order_id)
     if not order: raise HTTPException(404, "Orden no encontrada")
     if order.status in [SalesOrderStatus.SOLD, SalesOrderStatus.SENT]:
         raise HTTPException(status_code=400, detail="No se puede eliminar una orden Vendida o En Revisión Activa.")
-    statement = delete(SalesOrderItem).where(SalesOrderItem.sales_order_id == order_id)
-    session.exec(statement)
+    # La cascada en el modelo borrará Items, e Items borrará las Instancias automáticamente
     session.delete(order)
     session.commit()
     return {"message": "Orden eliminada correctamente"}

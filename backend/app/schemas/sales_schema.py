@@ -1,31 +1,89 @@
 from typing import List, Optional, Dict, Any
 from sqlmodel import SQLModel
 from datetime import datetime
-from app.models.sales import SalesOrderStatus
+
+# Importamos los Enums directamente desde los modelos
+from app.models.sales import (
+    SalesOrderStatus, 
+    PaymentStatus, 
+    PaymentMethod, 
+    InstanceStatus
+)
 
 # ==========================================
-# 1. PARTIDAS (Items de la Orden)
+# 1. COBROS (Customer Payments)
+# ==========================================
+class CustomerPaymentBase(SQLModel):
+    amount: float
+    payment_date: Optional[datetime] = None
+    payment_method: PaymentMethod = PaymentMethod.TRANSFERENCIA
+    reference: Optional[str] = None
+    notes: Optional[str] = None
+
+class CustomerPaymentCreate(CustomerPaymentBase):
+    sales_order_id: int
+    created_by_user_id: int
+
+class CustomerPaymentRead(CustomerPaymentBase):
+    id: int
+    sales_order_id: int
+    created_at: datetime
+    created_by_user_id: int
+
+
+# ==========================================
+# 2. INSTANCIAS DE PRODUCCIÓN (Nivel 3)
+# ==========================================
+class SalesOrderItemInstanceBase(SQLModel):
+    custom_name: str
+    production_status: InstanceStatus = InstanceStatus.PENDING
+    production_batch_id: Optional[int] = None
+    is_cancelled: bool = False
+    qr_code: Optional[str] = None
+    current_location: Optional[str] = "Planeación"
+
+class SalesOrderItemInstanceRead(SalesOrderItemInstanceBase):
+    id: int
+    sales_order_item_id: int
+
+class SalesOrderItemInstanceUpdate(SQLModel):
+    # Usado cuando Ventas "Bautiza" la instancia (Ej. "Casa 32") o Fábrica actualiza estatus
+    custom_name: Optional[str] = None
+    production_status: Optional[InstanceStatus] = None
+    production_batch_id: Optional[int] = None
+    is_cancelled: Optional[bool] = None
+    current_location: Optional[str] = None
+
+
+# ==========================================
+# 3. PARTIDAS / RECETAS (Nivel 2)
 # ==========================================
 class SalesOrderItemBase(SQLModel):
     product_name: str
     origin_version_id: Optional[int] = None
-    quantity: int = 1
+    quantity: float
     unit_price: float
     
-    # El Snapshot se puede enviar desde el frontend o calcular en backend
+    # Costos ciegos (Finanzas)
     cost_snapshot: Dict[str, Any] = {} 
     frozen_unit_cost: float = 0.0
 
 class SalesOrderItemCreate(SalesOrderItemBase):
+    # Nota: Las instancias NO se envían aquí. El Backend las generará 
+    # automáticamente leyendo el campo `quantity`.
     pass
 
 class SalesOrderItemRead(SalesOrderItemBase):
     id: int
     sales_order_id: int
     subtotal_price: float 
+    
+    # Se exponen las instancias hijas al Frontend
+    instances: List[SalesOrderItemInstanceRead] = []
+
 
 # ==========================================
-# 2. ORDEN DE VENTA (Cabecera)
+# 4. ORDEN DE VENTA (Cabecera - Nivel 1)
 # ==========================================
 class SalesOrderBase(SQLModel):
     project_name: str
@@ -35,9 +93,9 @@ class SalesOrderBase(SQLModel):
     valid_until: datetime
     delivery_date: Optional[datetime] = None
     
-    # Reglas de Negocio
-    applied_margin_percent: float
-    applied_tolerance_percent: float
+    # Reglas Financieras
+    applied_margin_percent: float = 0.0
+    applied_tolerance_percent: float = 0.0
     applied_commission_percent: float = 0.0 
     
     currency: str = "MXN"
@@ -46,30 +104,32 @@ class SalesOrderBase(SQLModel):
     external_invoice_ref: Optional[str] = None
     is_warranty: bool = False
 
-# INPUT: Para crear una orden nueva
+# INPUT: Creación inicial (Borrador)
 class SalesOrderCreate(SalesOrderBase):
     items: List[SalesOrderItemCreate] = []
 
-# OUTPUT: Para leer una orden
+# OUTPUT: Lectura completa (Árbol jerárquico)
 class SalesOrderRead(SalesOrderBase):
     id: int
     status: SalesOrderStatus
     created_at: datetime
     
+    # Cálculos y finanzas
     subtotal: float
     tax_amount: float
     total_price: float
-    
-    # --- CAMPO NUEVO AGREGADO ---
-    commission_amount: float = 0.0
+    commission_amount: float
+    outstanding_balance: float
+    payment_status: PaymentStatus
     
     user_id: Optional[int] = None 
     
+    # Relaciones anidadas
     items: List[SalesOrderItemRead] = []
+    payments: List[CustomerPaymentRead] = []
 
-# OUTPUT: Para actualizar estatus o datos
+# INPUT: Actualización (Cambio de estatus, ajuste de directivo, etc.)
 class SalesOrderUpdate(SQLModel):
-    # Datos Generales
     project_name: Optional[str] = None
     client_id: Optional[int] = None        
     tax_rate_id: Optional[int] = None      
@@ -83,11 +143,11 @@ class SalesOrderUpdate(SQLModel):
     notes: Optional[str] = None
     conditions: Optional[str] = None
     
-    # Datos Financieros
+    # Intervención Directiva (Blindaje Financiero)
     applied_margin_percent: Optional[float] = None
     applied_commission_percent: Optional[float] = None
     
-    # Totales
+    # Si Ventas re-cotiza o se ajustan manuales
     subtotal: Optional[float] = None
     tax_amount: Optional[float] = None
     total_price: Optional[float] = None

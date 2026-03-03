@@ -1,14 +1,41 @@
 import React, { useState } from 'react';
 import { useFoundations } from '../hooks/useFoundations';
-import { Percent, Plus, Power, CheckCircle, XCircle } from 'lucide-react';
+import { Percent, Plus, Power, CheckCircle, XCircle, Pencil, Trash2 } from 'lucide-react';
 
 export default function TaxRatesPage() {
-  const { taxRates, createTaxRate, toggleTaxRate, loading } = useFoundations();
+  // NOTA: Agregamos updateTaxRate y deleteTaxRate a la desestructuración del hook
+  const { taxRates, createTaxRate, updateTaxRate, deleteTaxRate, toggleTaxRate, loading } = useFoundations();
   const [showForm, setShowForm] = useState(false);
   
   // Estado formulario
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [name, setName] = useState('');
   const [rateStr, setRateStr] = useState('');
+
+  const resetForm = () => {
+    setName('');
+    setRateStr('');
+    setEditingId(null);
+    setShowForm(false);
+  };
+
+  const handleEditClick = (tax: any) => {
+    setEditingId(tax.id);
+    setName(tax.name);
+    setRateStr((tax.rate * 100).toString()); // Convertimos el decimal de vuelta a porcentaje para editar
+    setShowForm(true);
+  };
+
+  const handleDeleteClick = async (id: number) => {
+    if (window.confirm("¿Estás seguro de que deseas eliminar este impuesto? Esta acción lo ocultará del sistema.")) {
+        const res = await deleteTaxRate(id);
+        if (res?.success) {
+            alert("Impuesto eliminado correctamente.");
+        } else {
+            alert("Error al eliminar: " + (res?.error || "Desconocido"));
+        }
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,24 +46,23 @@ export default function TaxRatesPage() {
     
     // 2. Diagnóstico de conversión
     const rateDecimal = parseFloat(rateStr) / 100;
-    console.log("Enviando datos:", { name, rateDecimal }); // Mira la consola (F12)
     
     try {
-        // 3. Llamada e impresión de respuesta
-        const res = await createTaxRate(name, rateDecimal);
-        console.log("Respuesta del Hook:", res);
+        // 3. Llamada dinámica (Crear o Actualizar)
+        let res;
+        if (editingId) {
+            res = await updateTaxRate(editingId, name, rateDecimal);
+        } else {
+            res = await createTaxRate(name, rateDecimal);
+        }
 
         if (res.success) {
-            alert("¡Guardado correctamente!"); // Confirmación de éxito
-            setName('');
-            setRateStr('');
-            setShowForm(false);
+            alert("¡Guardado correctamente!");
+            resetForm();
         } else {
-            // 4. Mostrar el error REAL que devuelve el hook
             alert("Error del Backend: " + (res.error || "Desconocido")); 
         }
     } catch (error) {
-        // 5. Capturar errores de red o javascript
         alert("Error Crítico en Frontend: " + error);
     }
   };
@@ -53,7 +79,10 @@ export default function TaxRatesPage() {
           <p className="text-slate-500 text-sm">Define las tasas de IVA aplicables (0%, 8%, 16%, etc).</p>
         </div>
         <button 
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => {
+                resetForm();
+                setShowForm(true);
+            }}
             className="btn-primary bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-sm font-bold"
         >
             <Plus size={18} /> Nuevo Impuesto
@@ -62,10 +91,19 @@ export default function TaxRatesPage() {
 
       {/* FORMULARIO */}
       {showForm && (
-        <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl mb-6 animate-in slide-in-from-top-2">
-            <form onSubmit={handleSubmit} className="flex gap-4 items-end">
+        <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl mb-6 animate-in slide-in-from-top-2 relative">
+            {/* Botón para cerrar el formulario */}
+            <button 
+                onClick={resetForm} 
+                className="absolute top-2 right-2 text-slate-400 hover:text-slate-600"
+            >
+                <XCircle size={20} />
+            </button>
+            <form onSubmit={handleSubmit} className="flex gap-4 items-end mt-2">
                 <div className="flex-1">
-                    <label className="text-xs font-bold text-blue-800 uppercase mb-1 block">Nombre Etiqueta</label>
+                    <label className="text-xs font-bold text-blue-800 uppercase mb-1 block">
+                        {editingId ? "Editando Etiqueta" : "Nombre Etiqueta"}
+                    </label>
                     <input 
                         autoFocus
                         placeholder="Ej. IVA General" 
@@ -85,7 +123,7 @@ export default function TaxRatesPage() {
                     />
                 </div>
                 <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700">
-                    Guardar
+                    {editingId ? "Actualizar" : "Guardar"}
                 </button>
             </form>
         </div>
@@ -105,7 +143,7 @@ export default function TaxRatesPage() {
             </thead>
             <tbody className="divide-y divide-slate-100">
                 {loading ? <tr><td colSpan={5} className="p-8 text-center text-slate-400">Cargando...</td></tr> : 
-                 taxRates.map(tax => (
+                 taxRates.map((tax: any) => (
                     <tr key={tax.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-6 py-4 font-bold text-slate-700">{tax.name}</td>
                         <td className="px-6 py-4 text-center font-mono text-slate-500">{tax.rate}</td>
@@ -125,10 +163,24 @@ export default function TaxRatesPage() {
                                 </span>
                             )}
                         </td>
-                        <td className="px-6 py-4 text-right">
+                        <td className="px-6 py-4 text-right space-x-2">
+                            <button 
+                                onClick={() => handleEditClick(tax)}
+                                className="p-2 rounded hover:bg-slate-100 transition-colors text-blue-600"
+                                title="Editar"
+                            >
+                                <Pencil size={18}/>
+                            </button>
+                            <button 
+                                onClick={() => handleDeleteClick(tax.id)}
+                                className="p-2 rounded hover:bg-slate-100 transition-colors text-red-600"
+                                title="Eliminar"
+                            >
+                                <Trash2 size={18}/>
+                            </button>
                             <button 
                                 onClick={() => toggleTaxRate(tax.id)}
-                                className={`p-2 rounded hover:bg-slate-100 transition-colors ${tax.is_active ? 'text-red-500' : 'text-green-600'}`}
+                                className={`p-2 rounded hover:bg-slate-100 transition-colors ${tax.is_active ? 'text-slate-400 hover:text-red-500' : 'text-slate-400 hover:text-green-600'}`}
                                 title={tax.is_active ? "Desactivar" : "Activar"}
                             >
                                 <Power size={18}/>

@@ -195,7 +195,7 @@ def delete_client(client_id: int, session: Session = Depends(get_session)):
 # ==========================================
 @router.get("/tax-rates", response_model=List[TaxRate])
 def read_tax_rates(session: Session = Depends(get_session)):
-    return session.exec(select(TaxRate)).all()
+    return session.exec(select(TaxRate).where(TaxRate.is_active == True)).all()
 
 @router.post("/tax-rates", response_model=TaxRate)
 def create_tax_rate(tax_rate: TaxRate, session: Session = Depends(get_session)):
@@ -204,6 +204,35 @@ def create_tax_rate(tax_rate: TaxRate, session: Session = Depends(get_session)):
     session.commit()
     session.refresh(tax_rate)
     return tax_rate
+
+@router.put("/tax-rates/{tax_id}", response_model=TaxRate)
+def update_tax_rate(tax_id: int, tax_in: TaxRate, session: Session = Depends(get_session)):
+    db_tax = session.get(TaxRate, tax_id)
+    if not db_tax:
+        raise HTTPException(status_code=404, detail="Impuesto no encontrado")
+    
+    tax_data = tax_in.model_dump(exclude_unset=True)
+    tax_data.pop("id", None)
+    
+    for key, value in tax_data.items():
+        setattr(db_tax, key, value)
+        
+    session.add(db_tax)
+    session.commit()
+    session.refresh(db_tax)
+    return db_tax
+
+@router.delete("/tax-rates/{tax_id}")
+def delete_tax_rate(tax_id: int, session: Session = Depends(get_session)):
+    db_tax = session.get(TaxRate, tax_id)
+    if not db_tax:
+        raise HTTPException(status_code=404, detail="Impuesto no encontrado")
+    
+    # Hacemos Soft Delete (Borrado Lógico) para no romper las ventas que ya lo usaron
+    db_tax.is_active = False
+    session.add(db_tax)
+    session.commit()
+    return {"ok": True, "message": "Impuesto eliminado correctamente"}
 
 @router.put("/tax-rates/{tax_id}/toggle", response_model=TaxRate)
 def toggle_tax_rate(tax_id: int, session: Session = Depends(get_session)):
