@@ -26,8 +26,8 @@ COPY . .
 # Usamos puerto 8080 explícito
 ENV PORT=8080
 
-# Ejecutamos las migraciones a través de python, y si son exitosas (&&), encendemos GUNICORN
-CMD python -m alembic stamp head && exec gunicorn app.main:app \
+# Vaciamos, creamos tablas, sembramos el admin y encendemos GUNICORN
+CMD python reset_db.py && python -m alembic upgrade head && python scripts/seed_data.py && exec gunicorn app.main:app \
     --workers 1 \
     --worker-class uvicorn.workers.UvicornWorker \
     --threads 8 \
