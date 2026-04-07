@@ -1,0 +1,269 @@
+import React, { useEffect, useState } from 'react';
+import { productionService } from '../../../api/production-service';
+import { ProductionBatch } from '../../../types/production';
+import { Lock, Package, AlertCircle, ArrowRight, CheckCircle2 } from 'lucide-react';
+
+export default function FactoryFloorPage() {
+  const [batches, setBatches] = useState<ProductionBatch[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadBatches();
+  }, []);
+
+  const loadBatches = async () => {
+    try {
+      setLoading(true);
+      const data = await productionService.getBatches();
+      setBatches(data);
+    } catch (error) {
+      console.error("Error al cargar los lotes:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateTestBatch = async () => {
+    try {
+      const randomId = Math.floor(Math.random() * 1000);
+      await productionService.createBatch({
+        folio: `LOTE-PRUEBA-${randomId}`,
+        batch_type: 'ESTANDAR',
+        estimated_merma_percent: 5.0
+      });
+      loadBatches(); 
+    } catch (error: any) {
+      const serverError = error.response?.data?.detail || error.message;
+      alert(`Error del backend al crear lote:\n${JSON.stringify(serverError, null, 2)}`);
+    }
+  };
+
+  // --- LÓGICA DE DRAG & DROP ---
+  const handleDragStart = (e: React.DragEvent, batchId: number, isLocked: boolean) => {
+    // Restaurada la validación estricta
+    if (isLocked) {
+      e.preventDefault();
+      return;
+    }
+    e.dataTransfer.setData('batchId', batchId.toString());
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault(); // Necesario para permitir el "Drop"
+  };
+
+  const handleDrop = async (e: React.DragEvent, newStatus: string) => {
+    e.preventDefault();
+    const batchIdStr = e.dataTransfer.getData('batchId');
+    if (!batchIdStr) return;
+    
+    const batchId = parseInt(batchIdStr);
+    const batch = batches.find(b => b.id === batchId);
+    
+    if (!batch) return;
+    if (batch.status === newStatus) return;
+
+    // Reglas de Negocio Estrictas
+    if (batch.status === 'EN_PRODUCCION' && newStatus === 'BORRADOR') {
+      alert("Operación denegada: Un lote en producción no puede regresar a la fila de espera.");
+      return;
+    }
+
+    // Actualización Optimista
+    const previousBatches = [...batches];
+    setBatches(prev => prev.map(b => b.id === batchId ? { ...b, status: newStatus } : b));
+
+    try {
+      await productionService.updateBatchStatus(batchId, newStatus);
+    } catch (error: any) {
+      console.error("Error actualizando estatus:", error);
+      alert("No se pudo actualizar el estatus en el servidor. Revirtiendo cambio.");
+      setBatches(previousBatches); // Revertir si falla
+    }
+  };
+
+  // --- RENDERIZADO DE COLUMNAS HÍBRIDAS ---
+  const renderColumn1 = () => {
+    const status = 'BORRADOR';
+    const columnBatches = batches.filter(b => b.status === status);
+
+    return (
+      <div 
+        className="bg-gray-50 p-4 rounded-xl w-80 flex-shrink-0 flex flex-col border border-gray-200"
+        onDragOver={handleDragOver}
+        onDrop={(e) => handleDrop(e, status)}
+      >
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="font-bold text-gray-700 uppercase tracking-wide text-sm">1. Lote por Producir</h2>
+          <span className="bg-gray-200 text-gray-600 text-xs font-bold px-2 py-1 rounded-full">{columnBatches.length}</span>
+        </div>
+        <div className="flex flex-col gap-3 overflow-y-auto pr-1">
+          {columnBatches.map(batch => {
+            const isLocked = !batch.is_payment_cleared;
+            return (
+              <div 
+                key={batch.id} 
+                draggable={true} // Forzado a true temporalmente para la prueba
+                onDragStart={(e) => handleDragStart(e, batch.id, isLocked)}
+                className={`p-4 rounded-lg shadow-sm border transition ${
+                  isLocked 
+                    ? 'bg-red-50 border-red-300 cursor-grab active:cursor-grabbing' // Cursor modificado para la prueba
+                    : 'bg-white border-gray-200 hover:shadow-md hover:border-blue-300 cursor-grab active:cursor-grabbing'
+                }`}
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <span className={`font-bold ${isLocked ? 'text-red-800' : 'text-gray-800'}`}>{batch.folio}</span>
+                  {isLocked && <Lock size={16} className="text-red-500" title="Anticipo pendiente o Lote vacío" />}
+                </div>
+                
+                {isLocked && (
+                  <div className="text-[10px] font-bold text-red-600 bg-red-100 px-2 py-1 rounded flex items-center gap-1 mb-2">
+                    <AlertCircle size={12} /> Bloqueado por Finanzas
+                  </div>
+                )}
+
+                <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-100/50">
+                  <span className={`text-xs font-semibold px-2 py-1 rounded ${isLocked ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
+                    {batch.batch_type}
+                  </span>
+                  <span className="text-xs font-medium text-gray-500 flex items-center gap-1">
+                    <Package size={12}/> {batch.instances?.length || 0} items
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+          {columnBatches.length === 0 && (
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center text-gray-400 text-sm">
+              Fila de espera vacía
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderColumn2 = () => {
+    const status = 'EN_PRODUCCION';
+    const columnBatches = batches.filter(b => b.status === status);
+
+    return (
+      <div 
+        className="bg-blue-50/50 p-4 rounded-xl w-80 flex-shrink-0 flex flex-col border border-blue-100"
+        onDragOver={handleDragOver}
+        onDrop={(e) => handleDrop(e, status)}
+      >
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="font-bold text-blue-800 uppercase tracking-wide text-sm flex items-center gap-2">
+            <ArrowRight size={16} /> 2. En Producción
+          </h2>
+          <span className="bg-blue-200 text-blue-800 text-xs font-bold px-2 py-1 rounded-full">{columnBatches.length}</span>
+        </div>
+        <div className="flex flex-col gap-3 overflow-y-auto pr-1">
+          {columnBatches.map(batch => (
+            <div 
+              key={batch.id} 
+              draggable
+              onDragStart={(e) => handleDragStart(e, batch.id, false)}
+              className="bg-white p-4 rounded-lg shadow-sm border border-blue-200 border-l-4 border-l-blue-500 hover:shadow-md cursor-grab active:cursor-grabbing"
+            >
+              <div className="flex justify-between items-start mb-2">
+                <span className="font-bold text-gray-800">{batch.folio}</span>
+              </div>
+              <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-100">
+                <span className="text-xs font-semibold bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                  {batch.batch_type}
+                </span>
+                <span className="text-xs font-medium text-blue-600 flex items-center gap-1">
+                  En proceso...
+                </span>
+              </div>
+            </div>
+          ))}
+          {columnBatches.length === 0 && (
+            <div className="border-2 border-dashed border-blue-200 rounded-lg p-6 text-center text-blue-400 text-sm">
+              Máquinas detenidas
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderColumn3 = () => {
+    const status = 'TERMINADO';
+    const finishedBatches = batches.filter(b => b.status === status);
+    
+    // Extracción de productos de los lotes terminados
+    const readyInstances = finishedBatches.flatMap(b => b.instances || []);
+
+    return (
+      <div 
+        className="bg-emerald-50 p-4 rounded-xl w-80 flex-shrink-0 flex flex-col border border-emerald-200"
+        onDragOver={handleDragOver}
+        onDrop={(e) => handleDrop(e, status)}
+      >
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="font-bold text-emerald-800 uppercase tracking-wide text-sm flex items-center gap-2">
+            <CheckCircle2 size={16} /> 3. Listo para Instalarse
+          </h2>
+          <span className="bg-emerald-200 text-emerald-800 text-xs font-bold px-2 py-1 rounded-full">{readyInstances.length}</span>
+        </div>
+        
+        <div className="flex flex-col gap-3 overflow-y-auto pr-1">
+          {readyInstances.map(instance => (
+            <div 
+              key={instance.id} 
+              className="bg-white p-3 rounded-lg shadow-sm border border-emerald-200 border-l-4 border-l-emerald-500"
+            >
+              <div className="flex flex-col">
+                <span className="font-bold text-gray-800 text-sm">{instance.custom_name}</span>
+                <span className="text-[10px] text-gray-400 font-mono mt-1">ID Producto: #{instance.id}</span>
+                {instance.qr_code && (
+                  <span className="text-xs font-semibold bg-gray-100 text-gray-600 px-2 py-1 rounded mt-2 w-fit">
+                    QR: {instance.qr_code}
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+          
+          {readyInstances.length === 0 && (
+            <div className="border-2 border-dashed border-emerald-200 rounded-lg p-6 text-center text-emerald-500 text-sm">
+              Aduana vacía
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="p-6 h-full bg-white">
+      <div className="flex justify-between items-center mb-8 border-b pb-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800">Piso de Producción</h1>
+          <p className="text-gray-500 mt-1">Control de Lotes y Despacho a Logística</p>
+        </div>
+        <button
+          onClick={handleCreateTestBatch}
+          className="bg-slate-800 text-white font-semibold px-4 py-2 rounded-lg shadow hover:bg-slate-900 transition"
+        >
+          + Inyectar Lote de Prueba
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-10">
+          <p className="text-gray-500 font-medium animate-pulse">Consultando piso de fábrica...</p>
+        </div>
+      ) : (
+        <div className="flex gap-6 overflow-x-auto pb-4 h-[calc(100vh-200px)]">
+          {renderColumn1()}
+          {renderColumn2()}
+          {renderColumn3()}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -37,23 +37,39 @@ class GlobalConfig(SQLModel, table=True):
     # Metas Financieras
     annual_sales_target: float = Field(default=0.0)
     last_year_sales: float = Field(default=0.0)
+
+    # NUEVAS COLUMNAS V3.5: Eficiencia de Fábrica (Costo de Transformación)
+    target_payroll_per_board: float = Field(default=0.0)
+    target_overhead_per_board: float = Field(default=0.0)
     
     # Relaciones
     default_tax_rate_id: Optional[int] = Field(default=None, foreign_key="tax_rates.id")
     updated_at: datetime = Field(default_factory=datetime.now)
 
+
 class Provider(SQLModel, table=True):
     __tablename__ = "providers"
     id: Optional[int] = Field(default=None, primary_key=True)
+    
+    # Datos Generales de la Empresa
     business_name: str = Field(index=True)
     legal_name: Optional[str] = None
     rfc_tax_id: Optional[str] = None
-    contact_name: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
-    credit_days: int
+    phone2: Optional[str] = None  # <--- NUEVO: Segundo teléfono de la empresa
+    
+    # Datos del Contacto Principal
+    contact_name: Optional[str] = None
+    contact_email: Optional[str] = None      # <--- NUEVO: Correo directo del asesor/contacto
+    contact_cellphone: Optional[str] = None  # <--- NUEVO: Celular / WhatsApp del contacto
+    
+    # Reglas Comerciales
+    credit_days: int = Field(default=0)      # Modificado: default 0 (Pago de contado)
+    
     is_active: bool = Field(default=True)
     materials: List["Material"] = Relationship(back_populates="provider")
+
 
 class Client(SQLModel, table=True):
     __tablename__ = "clients_v2"
@@ -69,25 +85,25 @@ class Client(SQLModel, table=True):
     contact_name: Optional[str] = None
     contact_phone: Optional[str] = None
     contact_dept: Optional[str] = None
-    contact_email: Optional[str] = None  # <--- NUEVO
+    contact_email: Optional[str] = None  
     
     # Contacto 2
     contact2_name: Optional[str] = None
     contact2_phone: Optional[str] = None
     contact2_dept: Optional[str] = None
-    contact2_email: Optional[str] = None # <--- NUEVO
+    contact2_email: Optional[str] = None 
     
     # Contacto 3
     contact3_name: Optional[str] = None
     contact3_phone: Optional[str] = None
     contact3_dept: Optional[str] = None
-    contact3_email: Optional[str] = None # <--- NUEVO
+    contact3_email: Optional[str] = None 
     
     # Contacto 4
     contact4_name: Optional[str] = None
     contact4_phone: Optional[str] = None
     contact4_dept: Optional[str] = None
-    contact4_email: Optional[str] = None # <--- NUEVO
+    contact4_email: Optional[str] = None 
     
     notes: Optional[str] = None
     registration_date: datetime = Field(default_factory=datetime.utcnow)

@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 from sqlmodel import SQLModel
 from app.models.finance import PaymentStatus, PaymentMethod
@@ -68,3 +68,7 @@ class PendingInvoiceRead(SQLModel):
     due_date: date 
     total_amount: float
     outstanding_balance: float
+    # 🔍 DETALLE DE PRODUCTOS (DRILL-DOWN)
+    # Permite que Valentina sepa qué materiales se compraron en esta factura
+    items: Optional[List[Dict[str, Any]]] = []
+    po_folio: Optional[str] = None

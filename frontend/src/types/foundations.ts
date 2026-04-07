@@ -1,5 +1,3 @@
-// frontend/src/types/foundations.ts
-
 export interface Material {
     id?: number;
     sku: string;
@@ -28,12 +26,21 @@ export interface Material {
 
 export interface Provider {
     id?: number;
+    
+    // Datos Generales
     business_name: string;
     legal_name?: string;
     rfc_tax_id?: string;
-    contact_name?: string;
     email?: string;
     phone?: string;
+    phone2?: string;           // <--- NUEVO
+    
+    // Datos del Contacto Principal
+    contact_name?: string;
+    contact_email?: string;    // <--- NUEVO
+    contact_cellphone?: string;// <--- NUEVO
+    
+    // Comercial
     credit_days: number;
     is_active: boolean;
 }
@@ -44,10 +51,33 @@ export interface Client {
     email: string;
     phone: string;
     rfc_tax_id?: string;
+    fiscal_address?: string;
+    
+    // Contacto 1
     contact_name?: string;
     contact_phone?: string;
+    contact_dept?: string;     // <--- NUEVO
+    contact_email?: string;    // <--- NUEVO
+    
+    // Contacto 2
+    contact2_name?: string;    // <--- NUEVO
+    contact2_phone?: string;   // <--- NUEVO
+    contact2_dept?: string;    // <--- NUEVO
+    contact2_email?: string;   // <--- NUEVO
+    
+    // Contacto 3
+    contact3_name?: string;    // <--- NUEVO
+    contact3_phone?: string;   // <--- NUEVO
+    contact3_dept?: string;    // <--- NUEVO
+    contact3_email?: string;   // <--- NUEVO
+    
+    // Contacto 4
+    contact4_name?: string;    // <--- NUEVO
+    contact4_phone?: string;   // <--- NUEVO
+    contact4_dept?: string;    // <--- NUEVO
+    contact4_email?: string;   // <--- NUEVO
+    
     notes?: string;
-    fiscal_address?: string;
     registration_date?: string;
     is_active: boolean;
 }

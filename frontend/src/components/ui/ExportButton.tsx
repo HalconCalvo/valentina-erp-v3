@@ -1,7 +1,7 @@
 import React from 'react';
 import * as XLSX from 'xlsx';
 import { Download } from 'lucide-react';
-import Button from './Button';
+import { Button } from './button';
 
 interface ExportButtonProps {
     data: any[];           // Los datos a exportar (ej. materials, clients)

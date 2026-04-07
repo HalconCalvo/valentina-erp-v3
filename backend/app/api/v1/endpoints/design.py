@@ -1,4 +1,4 @@
-from typing import List, Any
+from typing import List, Any, Dict
 import math
 import time 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
@@ -6,6 +6,7 @@ from sqlmodel import Session, select
 import os
 from uuid import uuid4
 from google.cloud import storage 
+from pydantic import BaseModel
 
 from app.core.database import get_session
 # --- IMPORTS DE SEGURIDAD ---
@@ -19,6 +20,7 @@ from app.models.design import (
 )
 from app.models.material import Material 
 from app.models.foundations import Client
+from app.models.sales import SalesOrder, SalesOrderItemInstance, SalesOrderItem
 from app.services.cloud_storage import upload_to_gcs
 
 # Schemas
@@ -30,9 +32,13 @@ from app.schemas.design_schema import (
 router = APIRouter()
 
 # -----------------------------------------------------------------------------
-# CONSTANTES CLOUD
+# CONSTANTES CLOUD Y NEGOCIO
 # -----------------------------------------------------------------------------
 BUCKET_NAME = "valentina-erp-v3-assets" 
+
+# Categorías que tienen poder de bloqueo según el proceso de fabricación
+CRITICAL_CATEGORIES_MDF = ["MDF", "TABLERO", "MELAMINA", "MADERA", "ENCHAPADO"]
+CRITICAL_CATEGORIES_PIEDRA = ["PIEDRA", "GRANITO", "CUARZO", "MARMOL", "SUPERFICIE"]
 
 # ==========================================
 # 1. GESTIÓN DE MAESTROS (Familia del Producto)
@@ -453,4 +459,151 @@ def delete_master_blueprint(
 
     return {"message": "Referencia al plano eliminada correctamente"}
 
+# ==========================================
+# 9. SIMULADOR Y LOTIFICACIÓN (V3.5)
+# ==========================================
 
+# --- SCHEMAS DEL SIMULADOR ---
+class SimulateBatchRequest(BaseModel):
+    instance_ids: List[int]
+    batch_type: str  # "MDF" o "PIEDRA"
+
+class SimulatedMaterial(BaseModel):
+    material_id: int
+    sku: str
+    name: str
+    category: str
+    required_qty: float
+    available_qty: float
+    is_blocking: bool
+    status_color: str  # "RED", "YELLOW", "GREEN"
+
+class SimulateBatchResponse(BaseModel):
+    suggested_status: str  # "BORRADOR" (Pasa a Fábrica) o "AMBAR" (Frenado)
+    materials: List[SimulatedMaterial]
+
+@router.post("/simulate_batch", response_model=SimulateBatchResponse)
+def simulate_batch(
+    request: SimulateBatchRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Motor principal para simular la factibilidad de un lote según existencias físicas.
+    Cruza la lista de materiales (BOM) contra inventario físico, ignorando escasez 
+    de otros procesos (MDF vs Piedra).
+    """
+    if not request.instance_ids:
+        raise HTTPException(status_code=400, detail="Debe seleccionar al menos una instancia.")
+
+    # 1. Diccionario para acumular las cantidades requeridas
+    # Formato: { material_id: required_qty }
+    aggregated_bom: Dict[int, float] = {}
+
+    # 2. Rastrear instancias y sumar recetas
+    for instance_id in request.instance_ids:
+        instance = session.exec(select(SalesOrderItemInstance).where(SalesOrderItemInstance.id == instance_id)).first()
+        if not instance:
+            continue
+            
+        item = session.exec(select(SalesOrderItem).where(SalesOrderItem.id == instance.sales_order_item_id)).first()
+        if not item or not item.origin_version_id:
+            continue
+
+        components = session.exec(
+            select(VersionComponent).where(VersionComponent.version_id == item.origin_version_id)
+        ).all()
+
+        for comp in components:
+            if comp.material_id in aggregated_bom:
+                aggregated_bom[comp.material_id] += comp.quantity
+            else:
+                aggregated_bom[comp.material_id] = comp.quantity
+
+    # 3. Cruzar la suma total contra Inventario Físico
+    simulated_materials = []
+    batch_is_blocked = False
+
+    for mat_id, req_qty in aggregated_bom.items():
+        material = session.exec(select(Material).where(Material.id == mat_id)).first()
+        if not material:
+            continue
+
+        available_qty = material.physical_stock - material.committed_stock
+        is_shortage = req_qty > available_qty
+        
+        is_blocking = False
+        status_color = "GREEN"
+
+        if is_shortage:
+            cat_upper = material.category.upper()
+            
+            # Aplicar Regla de Oro: Dependencia estricta solo para categorías núcleo del lote
+            if request.batch_type == "MDF" and any(c in cat_upper for c in CRITICAL_CATEGORIES_MDF):
+                is_blocking = True
+                batch_is_blocked = True
+                status_color = "RED"
+            elif request.batch_type == "PIEDRA" and any(c in cat_upper for c in CRITICAL_CATEGORIES_PIEDRA):
+                is_blocking = True
+                batch_is_blocked = True
+                status_color = "RED"
+            else:
+                status_color = "YELLOW" # Falta, pero permitimos negativos
+
+        simulated_materials.append(
+            SimulatedMaterial(
+                material_id=material.id,
+                sku=material.sku,
+                name=material.name,
+                category=material.category,
+                required_qty=round(req_qty, 2),
+                available_qty=round(available_qty, 2),
+                is_blocking=is_blocking,
+                status_color=status_color
+            )
+        )
+
+    suggested_status = "AMBAR" if batch_is_blocked else "BORRADOR"
+
+    return SimulateBatchResponse(
+        suggested_status=suggested_status,
+        materials=simulated_materials
+    )
+
+# ==========================================
+# 10. RADAR DE INSTANCIAS PENDIENTES (SIMULADOR)
+# ==========================================
+from app.models.sales import PaymentStatus
+
+class PendingInstanceResponse(BaseModel):
+    id: int
+    custom_name: str
+    product_name: str
+    order_project_name: str
+
+@router.get("/pending_instances", response_model=List[PendingInstanceResponse])
+def get_pending_instances(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Obtiene los bultos pagados (o parcialmente pagados) que no tienen lote asignado."""
+    instances = session.exec(
+        select(SalesOrderItemInstance)
+        .where(SalesOrderItemInstance.production_batch_id == None)
+        .where(SalesOrderItemInstance.is_cancelled == False)
+    ).all()
+    
+    result = []
+    for inst in instances:
+        item = session.exec(select(SalesOrderItem).where(SalesOrderItem.id == inst.sales_order_item_id)).first()
+        if item:
+            order = session.exec(select(SalesOrder).where(SalesOrder.id == item.sales_order_id)).first()
+            # La regla de oro: Solo pasan al simulador si la orden YA NO ESTÁ en 'PENDING'
+            if order and order.payment_status in [PaymentStatus.PARTIAL, PaymentStatus.PAID]:
+                result.append(PendingInstanceResponse(
+                    id=inst.id,
+                    custom_name=inst.custom_name,
+                    product_name=item.product_name,
+                    order_project_name=order.project_name
+                ))
+    return result

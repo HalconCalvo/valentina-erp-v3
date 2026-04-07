@@ -4,7 +4,7 @@ import { financeService } from '../../../api/finance-service';
 import { treasuryService } from '../../../api/treasury-service';
 import { SupplierPayment } from '../../../types/finance';
 import { BankAccount } from '../../../types/treasury';
-import Button from '../../../components/ui/Button';
+import { Button } from '../../../components/ui/button';
 
 interface PaymentApprovalModalProps {
     onClose: () => void;

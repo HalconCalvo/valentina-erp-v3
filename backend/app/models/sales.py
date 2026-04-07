@@ -1,74 +1,94 @@
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, TYPE_CHECKING
 from datetime import datetime
 from sqlmodel import SQLModel, Field, Relationship, Column, JSON
 import enum
+
+# Usamos TYPE_CHECKING para evitar importaciones circulares en tiempo de ejecución
+if TYPE_CHECKING:
+    from app.models.foundations import Client
+    from app.models.users import User
 
 # ==========================================
 # 1. ENUMS (REGLAS DE NEGOCIO Y ESTATUS)
 # ==========================================
 class SalesOrderStatus(str, enum.Enum):
-    # FASE 1: CREACIÓN
     DRAFT = "DRAFT"                 
-    
-    # FASE 2: AUTORIZACIÓN INTERNA
     SENT = "SENT"                   
     ACCEPTED = "ACCEPTED"           
-    REJECTED = "REJECTED"           
-    
-    # FASE 3: CIERRE CON CLIENTE
+    REJECTED = "REJECTED"
+    WAITING_ADVANCE = "WAITING_ADVANCE"           
     SOLD = "SOLD"                   
     CLIENT_REJECTED = "CLIENT_REJECTED" 
     CHANGE_REQUESTED = "CHANGE_REQUESTED" 
-    
-    # OTROS
     IN_PRODUCTION = "IN_PRODUCTION"
+    FINISHED = "FINISHED"
     COMPLETED = "COMPLETED"
     CANCELLED = "CANCELLED"
 
 class PaymentStatus(str, enum.Enum):
-    PENDING = "PENDING"     # No se ha pagado nada (Rojo)
-    PARTIAL = "PARTIAL"     # Anticipo o parcialidades (Naranja)
-    PAID = "PAID"           # Liquidada al 100% (Verde)
+    PENDING = "PENDING"     
+    PARTIAL = "PARTIAL"     
+    PAID = "PAID"           
 
 class PaymentMethod(str, enum.Enum):
-    TRANSFERENCIA = "TRANSFERENCIA"
-    EFECTIVO = "EFECTIVO"
-    CHEQUE = "CHEQUE"
-    TARJETA = "TARJETA"
-    OTRO = "OTRO"
+    TRANSFER = "TRANSFER"
+    CASH = "CASH"
+    CHECK = "CHECK"
+    CREDIT_CARD = "CREDIT_CARD"
+    OTHER = "OTHER"
+
+class PaymentType(str, enum.Enum):
+    ADVANCE = "ADVANCE"         
+    PROGRESS = "PROGRESS"       
+    SETTLEMENT = "SETTLEMENT"   
+
+class CXCStatus(str, enum.Enum):
+    PENDING = "PENDING"     
+    PAID = "PAID"           
+    CANCELLED = "CANCELLED" 
 
 class InstanceStatus(str, enum.Enum):
-    PENDING = "PENDING"             # Gris: Esperando ser liberado a producción
-    IN_PRODUCTION = "IN_PRODUCTION" # Azul: En piso de fábrica (Lote en proceso)
-    READY = "READY"                 # Azul/Verde: Terminado en fábrica, esperando camión
-    CARGADO = "CARGADO"             # Trigger Financiero: Custodia en tránsito (Descuenta Stock)
-    INSTALLED = "INSTALLED"         # Azul: Instalado en obra, falta firma de conformidad
-    CLOSED = "CLOSED"               # Verde: Firma recabada (Libera Cobro y Nómina)
+    PENDING = "PENDING"             
+    IN_PRODUCTION = "IN_PRODUCTION" 
+    READY = "READY"                 
+    CARGADO = "CARGADO"             
+    INSTALLED = "INSTALLED"         
+    CLOSED = "CLOSED"               
 
 # ==========================================
-# 2. MODELO DE COBROS (TESORERÍA EN VENTAS)
+# 2. MODELO DE COBROS (CUENTAS POR COBRAR - CXC)
 # ==========================================
 class CustomerPayment(SQLModel, table=True):
     __tablename__ = "customer_payments"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    
-    # Relación con la Orden de Venta
     sales_order_id: int = Field(foreign_key="sales_orders.id")
     
-    amount: float
-    payment_date: datetime = Field(default_factory=datetime.utcnow)
-    payment_method: PaymentMethod = Field(default=PaymentMethod.TRANSFERENCIA)
+    payment_type: PaymentType = Field(default=PaymentType.PROGRESS)
+    invoice_folio: Optional[str] = Field(default=None, index=True) 
+    status: CXCStatus = Field(default=CXCStatus.PENDING)
     
+    amount: float 
+    amortized_advance: float = Field(default=0.0) 
+    
+    invoice_date: datetime = Field(default_factory=datetime.utcnow) 
+    payment_date: Optional[datetime] = None 
+    
+    payment_method: PaymentMethod = Field(default=PaymentMethod.TRANSFER)
     reference: Optional[str] = None 
     notes: Optional[str] = None
+    treasury_transaction_id: Optional[int] = Field(default=None, foreign_key="bank_transactions.id", unique=True)
+    commission_paid: bool = Field(default=False)
+    
+    # ---> NUEVO SENSOR: HISTÓRICO DE DIVISAS <---
+    exchange_rate: Optional[float] = Field(default=1.0)
     
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    created_by_user_id: int # El usuario que registró el pago
+    created_by_user_id: int 
     
-    # Relación inversa
     order: Optional["SalesOrder"] = Relationship(back_populates="payments")
-
+    instances_paid: List["SalesOrderItemInstance"] = Relationship(back_populates="payment")
+    
 # ==========================================
 # 3. MODELO DE INSTANCIAS (NIVEL 3 - EL ÁTOMO)
 # ==========================================
@@ -78,18 +98,31 @@ class SalesOrderItemInstance(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     sales_order_item_id: int = Field(foreign_key="sales_order_items.id")
     
-    # Identificación y Trazabilidad (El Bautizo)
-    custom_name: str = Field(index=True)  # Ej. "Cocina Casa 32" (Antes identifier_name)
+    custom_name: str = Field(index=True)  
     production_status: InstanceStatus = Field(default=InstanceStatus.PENDING)
-    
-    # Candado RTM y Fábrica
-    production_batch_id: Optional[int] = Field(default=None) # Llave foránea futura a production_batches.id
-    is_cancelled: bool = Field(default=False) # Botón de pánico individual
+    production_batch_id: Optional[int] = Field(default=None) 
+    is_cancelled: bool = Field(default=False) 
     
     qr_code: Optional[str] = Field(default=None, unique=True, index=True) 
     current_location: Optional[str] = Field(default="Planeación") 
+    declared_bundles: Optional[int] = Field(default=None)
+    customer_payment_id: Optional[int] = Field(default=None, foreign_key="customer_payments.id")
     
-    # Relación inversa
+    # ========================================================
+    # INYECCIÓN: RUTA CRÍTICA, CRONÓMETROS Y COBRANZA GERENCIAL
+    # ========================================================
+    started_at: Optional[datetime] = Field(default=None)
+    completed_at: Optional[datetime] = Field(default=None)
+    qc_rejections_count: Optional[int] = Field(default=0) # Alerta de No Calidad
+    
+    delivery_deadline: Optional[datetime] = Field(default=None) # Límite pactado
+    current_stage_deadline: Optional[datetime] = Field(default=None) # Límite del cuello de botella actual
+    
+    signed_received_at: Optional[datetime] = Field(default=None) # Detona la garantía de 1 año
+    administration_invoice_folio: Optional[str] = Field(default=None) # Control de Facturación
+    # ========================================================
+
+    payment: Optional["CustomerPayment"] = Relationship(back_populates="instances_paid")
     item: Optional["SalesOrderItem"] = Relationship(back_populates="instances")
 
 # ==========================================
@@ -101,20 +134,20 @@ class SalesOrderItem(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     sales_order_id: int = Field(foreign_key="sales_orders.id")
     
-    # Identificación
     product_name: str
     origin_version_id: Optional[int] = Field(default=None) 
     
-    # Valores
     quantity: float
     unit_price: float
     subtotal_price: float = Field(default=0.0)
     
-    # Ingeniería de Costos (Finanzas Blindadas)
     cost_snapshot: Dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON)) 
     frozen_unit_cost: float = Field(default=0.0)
 
-    # Relaciones Bidireccionales corregidas
+    # ---> NUEVO SENSOR: FOTOGRAFÍA DE MATERIALES (JSON) <---
+    # Ejemplo: {"MDF": 5000, "Granito": 12000, "Mano_Obra": 4000}
+    category_breakdown_snapshot: Optional[str] = Field(default=None)
+
     order: Optional["SalesOrder"] = Relationship(back_populates="items")
     instances: List[SalesOrderItemInstance] = Relationship(
         back_populates="item", 
@@ -129,12 +162,13 @@ class SalesOrder(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     
-    # Llaves Foráneas
     client_id: int = Field(foreign_key="clients_v2.id")
     tax_rate_id: int = Field(foreign_key="tax_rates.id")
     user_id: Optional[int] = Field(default=None, foreign_key="users.id") 
     
-    # Datos Generales
+    client: Optional["Client"] = Relationship()
+    user: Optional["User"] = Relationship()
+    
     project_name: str = Field(index=True)
     status: SalesOrderStatus = Field(default=SalesOrderStatus.DRAFT)
     
@@ -142,30 +176,39 @@ class SalesOrder(SQLModel, table=True):
     valid_until: datetime
     delivery_date: Optional[datetime] = None
     
-    # Financiero Venta
     applied_margin_percent: float = Field(default=0.0)
     applied_tolerance_percent: float = Field(default=0.0)
     applied_commission_percent: float = Field(default=0.0)
     commission_amount: float = Field(default=0.0) 
 
+    advance_percent: float = Field(default=60.0) 
+    has_advance_invoice: bool = Field(default=False)
     currency: str = Field(default="MXN")
     
-    # Totales
+    # ========================================================
+    # INYECCIÓN: RIESGO, MACROECONOMÍA Y PRESUPUESTO
+    # ========================================================
+    exchange_rate: Optional[float] = Field(default=1.0)
+    estimated_installation_cost: Optional[float] = Field(default=0.0) 
+    estimated_manufacturing_cost: Optional[float] = Field(default=0.0) 
+    
+    requires_director_approval: Optional[bool] = Field(default=False) # Semáforo Rojo
+    is_approved_by_director: Optional[bool] = Field(default=False)
+    director_approved_at: Optional[datetime] = Field(default=None)
+    # ========================================================
+
     subtotal: float = Field(default=0.0)
     tax_amount: float = Field(default=0.0)
     total_price: float = Field(default=0.0)
     
-    # Cuentas por Cobrar
     outstanding_balance: float = Field(default=0.0) 
     payment_status: PaymentStatus = Field(default=PaymentStatus.PENDING)
 
-    # Extras
     notes: Optional[str] = None
     conditions: Optional[str] = None
     external_invoice_ref: Optional[str] = None
     is_warranty: bool = Field(default=False)
 
-    # Relaciones Bidireccionales corregidas
     items: List[SalesOrderItem] = Relationship(
         back_populates="order", 
         sa_relationship_kwargs={"cascade": "all, delete-orphan"}

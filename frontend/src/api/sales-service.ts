@@ -1,6 +1,6 @@
 import axiosClient from './axios-client';
 import { API_ROUTES } from './endpoints';
-import { SalesOrder, SalesOrderStatus } from '../types/sales';
+import { SalesOrder, SalesOrderStatus, PaymentPayload } from '../types/sales'; // <-- Agregué PaymentPayload
 
 export const salesService = {
     /**
@@ -91,7 +91,7 @@ export const salesService = {
         const response = await axiosClient.get(url, {
             responseType: 'blob',
         });
-        return response.data; // Retorna el Blob directamente para usarlo en un iframe o visor
+        return response.data; 
     },
 
     // =========================================================
@@ -123,14 +123,15 @@ export const salesService = {
     },
 
     // =========================================================
-    // --- FASE 2: CIERRE CON CLIENTE (VENTAS) ---
+    // --- FASE 2: CIERRE CON CLIENTE Y COBRANZA ---
     // =========================================================
 
     /**
-     * VENTA CERRADA: El cliente aceptó y pagó (ACCEPTED -> SOLD)
+     * NUEVO: El cliente acepta la cotización, se manda a Administración para cobrar el anticipo
+     * (ACCEPTED -> WAITING_ADVANCE)
      */
-    markAsSold: async (orderId: number): Promise<void> => {
-        const url = `${API_ROUTES.SALES.ORDER_DETAIL(orderId)}/mark_sold`;
+    requestAdvance: async (orderId: number): Promise<void> => {
+        const url = `${API_ROUTES.SALES.ORDER_DETAIL(orderId)}/mark_waiting_advance`;
         await axiosClient.post(url);
     },
 
@@ -144,10 +145,37 @@ export const salesService = {
 
     /**
      * SOLICITAR CAMBIOS: El cliente pide ajustes (ACCEPTED -> CHANGE_REQUESTED/DRAFT)
-     * Esto desbloquea la cotización para edición.
      */
     requestChanges: async (orderId: number): Promise<void> => {
         const url = `${API_ROUTES.SALES.ORDER_DETAIL(orderId)}/request_changes`;
         await axiosClient.post(url);
+    },
+
+    // =========================================================
+    // --- NUEVO MOTOR HÍBRIDO DE COBRANZA (V3.5) ---
+    // =========================================================
+
+    /**
+     * ADMINISTRACIÓN: Registra el Anticipo (La bolsa inicial)
+     * (WAITING_ADVANCE -> SOLD)
+     */
+    registerAdvancePayment: async (orderId: number, payload: PaymentPayload) => {
+        // Usamos el mismo endpoint pero ahora le enviamos el payload con la factura y el importe
+        const response = await axiosClient.post(`/sales/orders/${orderId}/mark_sold`, payload);
+        return response.data;
+    },
+
+    /**
+     * ADMINISTRACIÓN: Registra un Avance/Estimación (Cobro por Instancias)
+     */
+    registerProgressPayment: async (orderId: number, payload: PaymentPayload) => {
+        const response = await axiosClient.post(`/sales/orders/${orderId}/register_progress`, payload);
+        return response.data;
+    },
+
+    // ---> NUEVA FUNCIÓN: LA CONCILIACIÓN BANCARIA <---
+    confirmCXCPayment: async (orderId: number, cxcId: number) => {
+        const response = await axiosClient.post(`/sales/orders/${orderId}/confirm_payment/${cxcId}`);
+        return response.data;
     }
 };

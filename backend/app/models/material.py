@@ -38,6 +38,11 @@ class Material(SQLModel, table=True):
     current_cost: float = Field(default=0.0) 
     physical_stock: float = Field(default=0.0)
     
+    # ---> 🔪 INYECCIÓN: LÍMITES DE STOCK CRÍTICO <---
+    min_stock: float = Field(default=0.0) # Punto de reorden
+    max_stock: float = Field(default=0.0) # Límite de almacén
+    # ------------------------------------------------
+    
     # --- CAMPOS NUEVOS V3 ---
     committed_stock: float = Field(default=0.0) # Stock Comprometido
     is_active: bool = Field(default=True)       # Borrado suave

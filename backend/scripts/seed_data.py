@@ -1,15 +1,18 @@
 from sqlmodel import Session, select, create_engine
 from app.models.foundations import TaxRate, GlobalConfig
-from app.models.material import Material, ProductionRoute
 from app.models.users import User
 from app.core.security import get_password_hash
-from app.core.config import settings
+# Eliminamos la importación de Material y ProductionRoute para evitar errores de ENUMs huérfanos
 
 # Conexión directa a la BD SQLite
 sqlite_url = "sqlite:///local_dev.db"
 engine = create_engine(sqlite_url)
 
 def create_initial_data():
+    # IMPORTANTE: Crear todas las tablas antes de insertar
+    from sqlmodel import SQLModel
+    SQLModel.metadata.create_all(engine)
+    
     with Session(engine) as session:
         # 1. CREAR TASAS DE IMPUESTOS
         print("🌱 Verificando Impuestos...")
@@ -33,10 +36,14 @@ def create_initial_data():
             tax_std = session.exec(select(TaxRate).where(TaxRate.rate == 0.16)).first()
             config = GlobalConfig(
                 company_name="MI EMPRESA RTA",
-                target_profit_margin=45.0,
+                target_profit_margin=35.0, # Margen objetivo ajustado a la realidad
                 cost_tolerance_percent=3.0,
                 quote_validity_days=15,
-                default_edgebanding_factor=25,
+                default_edgebanding_factor=25.0,
+                annual_sales_target=12000000.0, # 12 MDP anuales de meta
+                last_year_sales=9500000.0,
+                target_payroll_per_board=210.0, # Metas de eficiencia
+                target_overhead_per_board=205.0,
                 default_tax_rate_id=tax_std.id if tax_std else 1
             )
             session.add(config)

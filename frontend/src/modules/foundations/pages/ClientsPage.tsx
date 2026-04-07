@@ -269,7 +269,8 @@ export default function ClientsPage() {
                     </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 bg-white">
+                {/* CORRECCIÓN APLICADA AQUÍ: ID en el form */}
+                <form id="client-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 bg-white">
                     
                     {/* PESTAÑA 1: GENERAL */}
                     {activeTab === 'general' && (
@@ -324,10 +325,10 @@ export default function ClientsPage() {
 
                 </form>
 
-                {/* Footer Modal */}
+                {/* Footer Modal - CORRECCIÓN APLICADA AQUÍ: Botón vinculado al form */}
                 <div className="p-5 border-t border-slate-100 bg-slate-50 flex gap-3">
                     <button type="button" onClick={closeModal} className="flex-1 px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-100 text-slate-600 font-medium transition-colors">Cancelar</button>
-                    <button onClick={handleSubmit} className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium shadow-sm transition-colors">
+                    <button type="submit" form="client-form" className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium shadow-sm transition-colors">
                         {isEditing ? 'Guardar Cambios' : 'Crear Cliente'}
                     </button>
                 </div>

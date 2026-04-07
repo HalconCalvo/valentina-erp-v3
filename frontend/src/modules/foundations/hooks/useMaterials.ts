@@ -1,18 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-// Ajustamos la importación para ser consistentes con el resto del proyecto
 import client from '../../../api/axios-client';
-// Si tienes un archivo de tipos, úsalo, si no, puedes definir la interfaz aquí mismo para evitar errores de compilación
-// import { Material } from '../types/foundations';
-
-export interface Material {
-    id: number;
-    sku: string;
-    name: string;
-    usage_unit: string;
-    physical_stock: number;
-    current_cost: number;
-    // ... otros campos
-}
+import { Material } from '../../../types/foundations';
 
 export const useMaterials = () => {
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -78,7 +66,7 @@ export const useMaterials = () => {
   return { 
     materials, 
     loading, 
-    fetchMaterials, // <--- ¡ESTA ERA LA PIEZA FALTANTE!
+    fetchMaterials,
     createMaterial, 
     updateMaterial, 
     deleteMaterial 

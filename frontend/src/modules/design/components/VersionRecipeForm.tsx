@@ -14,7 +14,7 @@ interface Props {
 }
 
 // ============================================================================
-// LÓGICA: BUSCADOR INVISIBLE (Ahora con Auto-Foco y Resaltado Blanco)
+// LÓGICA: BUSCADOR INVISIBLE (Con Auto-Foco, Resaltado Blanco y Bloqueo de Teclas)
 // ============================================================================
 const InlineSearchableSelect = ({ materials, value, onChange, disabled }: { materials: Material[], value: number, onChange: (id: number) => void, disabled: boolean }) => {
     const selectedMaterial = materials.find(m => m.id === Number(value));
@@ -22,12 +22,10 @@ const InlineSearchableSelect = ({ materials, value, onChange, disabled }: { mate
     const [isOpen, setIsOpen] = useState(false);
     
     const wrapperRef = useRef<HTMLDivElement>(null);
-    const inputRef = useRef<HTMLInputElement>(null); // REFERENCIA PARA ATRAPAR EL CURSOR
+    const inputRef = useRef<HTMLInputElement>(null);
 
-    // 1. AUTO-FOCUS AL NACER: Si el renglón es nuevo (value === 0), pon el cursor aquí
     useEffect(() => {
         if (value === 0 && !disabled && inputRef.current) {
-            // Un pequeño timeout asegura que el render se completó antes de enfocar
             setTimeout(() => {
                 inputRef.current?.focus();
                 setIsOpen(true);
@@ -35,13 +33,11 @@ const InlineSearchableSelect = ({ materials, value, onChange, disabled }: { mate
         }
     }, [value, disabled]);
 
-    // 2. Sincroniza el texto si el material cambia externamente
     useEffect(() => {
         const mat = materials.find(m => m.id === Number(value));
         setSearchTerm(mat ? mat.name : "");
     }, [value, materials]);
 
-    // 3. Cierra el menú si haces clic fuera de él y reinicia el texto
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
@@ -63,6 +59,29 @@ const InlineSearchableSelect = ({ materials, value, onChange, disabled }: { mate
         );
     }, [materials, searchTerm]);
 
+    // --- MANEJO DE TECLADO (NUEVO) ---
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (disabled) return;
+        
+        // Si presiona Tab o Enter mientras la lista está abierta
+        if ((e.key === 'Tab' || e.key === 'Enter') && isOpen) {
+            
+            // Si escribió algo pero no ha seleccionado nada formalmente (value === 0), 
+            // intentamos auto-seleccionar el primer resultado de la lista sugerida.
+            if (value === 0 && filteredMaterials.length > 0) {
+                const firstMatch = filteredMaterials[0];
+                onChange(firstMatch.id!);
+                setSearchTerm(firstMatch.name);
+            }
+            
+            // Cierra la caja flotante
+            setIsOpen(false);
+            
+            // NOTA: No hacemos e.preventDefault() en el Tab para permitir que el 
+            // navegador mueva el cursor naturalmente al campo de "Cantidad".
+        }
+    };
+
     return (
         <div ref={wrapperRef} className="relative w-full">
             <input 
@@ -70,7 +89,6 @@ const InlineSearchableSelect = ({ materials, value, onChange, disabled }: { mate
                 type="text"
                 disabled={disabled}
                 placeholder="Escribe el material a buscar..."
-                // LÓGICA DE COLOR: Si está vacío (value===0), se pinta de blanco y con borde. Si ya tiene valor, es transparente.
                 className={`w-full text-xs outline-none truncate disabled:cursor-not-allowed text-slate-800 placeholder-slate-400 transition-all ${
                     value === 0 && !disabled
                     ? 'bg-white border border-indigo-300 rounded px-2 py-1.5 shadow-sm focus:ring-2 focus:ring-indigo-100'
@@ -82,6 +100,7 @@ const InlineSearchableSelect = ({ materials, value, onChange, disabled }: { mate
                     setIsOpen(true);
                 }}
                 onFocus={() => !disabled && setIsOpen(true)}
+                onKeyDown={handleKeyDown}
                 autoComplete="off"
             />
 
@@ -134,7 +153,6 @@ export const VersionRecipeForm = ({
   const [internalStatus, setInternalStatus] = useState<VersionStatus>(VersionStatus.DRAFT);
   const [monitor, setMonitor] = useState({ boardsTotal: 0, producTotal: 0 });
 
-  // --- LOGICA DE SEGURIDAD ESTRICTA (LISTA BLANCA) ---
   const userRole = (localStorage.getItem('user_role') || '').toUpperCase();
   const showFinancials = ['ADMIN', 'ADMINISTRADOR', 'DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
 
@@ -239,7 +257,12 @@ export const VersionRecipeForm = ({
   };
 
   return (
-    <form onSubmit={handleSubmit((data) => onSave(data.components, internalStatus))} className="pb-2">
+    // BLOQUEO MAESTRO DEL ENTER: onKeyDown intercepta el enter y le da preventDefault()
+    <form 
+        onSubmit={handleSubmit((data) => onSave(data.components, internalStatus))} 
+        onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }} 
+        className="pb-2"
+    >
       
       {/* HEADER: Monitor y Semáforo */}
       <div className="mb-6 bg-amber-50 border border-amber-200 rounded-lg p-3 shadow-sm sticky top-0 z-20 flex flex-col lg:flex-row gap-4 lg:items-center justify-between">
@@ -276,7 +299,6 @@ export const VersionRecipeForm = ({
           </div>
       )}
       
-      {/* Aviso informativo de seguridad */}
       {!showFinancials && (
          <div className="mb-4 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded text-xs flex items-center gap-2">
             <EyeOff size={14} /> <span>Modo Operativo: Información financiera oculta por seguridad.</span>
@@ -292,7 +314,6 @@ export const VersionRecipeForm = ({
                 </div>
             </div>
             <div className="divide-y divide-slate-100 bg-white">
-                {/* HEADERS DE TABLA */}
                 <div className="grid grid-cols-12 gap-2 px-3 py-2 bg-slate-50/50 text-[10px] uppercase font-bold text-slate-400">
                     <div className="col-span-2">SKU</div>
                     <div className={showFinancials ? "col-span-6" : "col-span-8"}>Descripción / Artículo</div>
@@ -306,7 +327,6 @@ export const VersionRecipeForm = ({
                     )}
                 </div>
 
-                {/* FILAS DE DATOS */}
                 {sectionFields.map((field) => {
                     const idx = field.originalIndex;
                     const val = watchedComponents?.[idx];
@@ -329,7 +349,14 @@ export const VersionRecipeForm = ({
                             </div>
 
                             <div className="col-span-1">
-                                <input type="number" step="0.01" disabled={isReadOnly} {...register(`components.${idx}.quantity`)} onChange={(e) => handleQuantityChange(idx, e.target.value)} className="w-full text-center text-xs border rounded h-6 disabled:bg-slate-100"/>
+                                <input 
+                                    type="number" 
+                                    step="0.01" 
+                                    disabled={isReadOnly} 
+                                    {...register(`components.${idx}.quantity`)} 
+                                    onChange={(e) => handleQuantityChange(idx, e.target.value)} 
+                                    className="w-full text-center text-xs border rounded h-6 disabled:bg-slate-100"
+                                />
                             </div>
                             <div className="col-span-1 text-center text-[10px] text-slate-400">{mat?.usage_unit || "-"}</div>
                             
@@ -349,7 +376,7 @@ export const VersionRecipeForm = ({
             </div>
             <div className="bg-slate-50 p-2 text-center">
                 <button type="button" onClick={() => !isReadOnly && append({ material_id: 0, quantity: 0, temp_category: sectionName } as any)} disabled={isReadOnly} className="text-xs text-indigo-600 font-medium px-4 py-1 border border-dashed border-indigo-300 rounded hover:bg-indigo-50 disabled:opacity-50">
-                    <Plus size={12} className="inline mr-1"/> Agregar
+                    <Plus size={12} className="inline mr-1"/> Agregar Renglón
                 </button>
             </div>
         </div>

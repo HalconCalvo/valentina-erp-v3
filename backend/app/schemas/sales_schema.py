@@ -1,4 +1,5 @@
 from typing import List, Optional, Dict, Any
+from pydantic import BaseModel
 from sqlmodel import SQLModel
 from datetime import datetime
 
@@ -6,17 +7,29 @@ from datetime import datetime
 from app.models.sales import (
     SalesOrderStatus, 
     PaymentStatus, 
-    PaymentMethod, 
-    InstanceStatus
+    PaymentMethod,
+    PaymentType, 
+    InstanceStatus,
+    CXCStatus
 )
 
 # ==========================================
-# 1. COBROS (Customer Payments)
+# PAYLOAD PARA CONFIRMAR PAGOS Y FACTURAS
+# ==========================================
+class InvoicePayload(BaseModel):
+    invoice_folio: Optional[str] = None
+
+# ==========================================
+# 1. COBROS (Customer Payments - HÍBRIDO)
 # ==========================================
 class CustomerPaymentBase(SQLModel):
     amount: float
+    amortized_advance: float = 0.0                  # <--- Dinero descontado de la bolsa
+    payment_type: PaymentType = PaymentType.PROGRESS # <--- Tipo de cobro
+    invoice_folio: Optional[str] = None             # <--- La factura (F-023)
+    
     payment_date: Optional[datetime] = None
-    payment_method: PaymentMethod = PaymentMethod.TRANSFERENCIA
+    payment_method: PaymentMethod = PaymentMethod.TRANSFER
     reference: Optional[str] = None
     notes: Optional[str] = None
 
@@ -27,9 +40,15 @@ class CustomerPaymentCreate(CustomerPaymentBase):
 class CustomerPaymentRead(CustomerPaymentBase):
     id: int
     sales_order_id: int
+    
+    # ---> NUEVA ADUANA ABIERTA: DEJAMOS PASAR LA MAGIA FINANCIERA <---
+    status: CXCStatus
+    invoice_date: datetime
+    treasury_transaction_id: Optional[int] = None
+    
     created_at: datetime
     created_by_user_id: int
-
+    commission_paid: bool = False
 
 # ==========================================
 # 2. INSTANCIAS DE PRODUCCIÓN (Nivel 3)
@@ -41,19 +60,19 @@ class SalesOrderItemInstanceBase(SQLModel):
     is_cancelled: bool = False
     qr_code: Optional[str] = None
     current_location: Optional[str] = "Planeación"
+    customer_payment_id: Optional[int] = None # <--- Candado: ¿Ya se facturó/cobró?
 
 class SalesOrderItemInstanceRead(SalesOrderItemInstanceBase):
     id: int
     sales_order_item_id: int
 
 class SalesOrderItemInstanceUpdate(SQLModel):
-    # Usado cuando Ventas "Bautiza" la instancia (Ej. "Casa 32") o Fábrica actualiza estatus
     custom_name: Optional[str] = None
     production_status: Optional[InstanceStatus] = None
     production_batch_id: Optional[int] = None
     is_cancelled: Optional[bool] = None
     current_location: Optional[str] = None
-
+    customer_payment_id: Optional[int] = None
 
 # ==========================================
 # 3. PARTIDAS / RECETAS (Nivel 2)
@@ -63,24 +82,24 @@ class SalesOrderItemBase(SQLModel):
     origin_version_id: Optional[int] = None
     quantity: float
     unit_price: float
-    
-    # Costos ciegos (Finanzas)
     cost_snapshot: Dict[str, Any] = {} 
     frozen_unit_cost: float = 0.0
 
 class SalesOrderItemCreate(SalesOrderItemBase):
-    # Nota: Las instancias NO se envían aquí. El Backend las generará 
-    # automáticamente leyendo el campo `quantity`.
     pass
 
 class SalesOrderItemRead(SalesOrderItemBase):
     id: int
     sales_order_id: int
     subtotal_price: float 
-    
-    # Se exponen las instancias hijas al Frontend
     instances: List[SalesOrderItemInstanceRead] = []
 
+# ==========================================
+# MINI-ESQUEMA PARA LEER EL CLIENTE EN LA ORDEN
+# ==========================================
+class ClientReadBasic(SQLModel):
+    id: int
+    full_name: str
 
 # ==========================================
 # 4. ORDEN DE VENTA (Cabecera - Nivel 1)
@@ -98,17 +117,23 @@ class SalesOrderBase(SQLModel):
     applied_tolerance_percent: float = 0.0
     applied_commission_percent: float = 0.0 
     
+    # --- NUEVOS CAMPOS: LÓGICA DE ANTICIPO (V3.5) ---
+    advance_percent: float = 60.0
+    has_advance_invoice: bool = False
+    # (¡Eliminamos los folios estáticos de aquí!)
+
     currency: str = "MXN"
     notes: Optional[str] = None      
     conditions: Optional[str] = None 
     external_invoice_ref: Optional[str] = None
     is_warranty: bool = False
 
-# INPUT: Creación inicial (Borrador)
+# INPUT: Creación inicial
 class SalesOrderCreate(SalesOrderBase):
     items: List[SalesOrderItemCreate] = []
 
-# OUTPUT: Lectura completa (Árbol jerárquico)
+# OUTPUT: Lectura completa
+# OUTPUT: Lectura completa
 class SalesOrderRead(SalesOrderBase):
     id: int
     status: SalesOrderStatus
@@ -125,10 +150,15 @@ class SalesOrderRead(SalesOrderBase):
     user_id: Optional[int] = None 
     
     # Relaciones anidadas
+    client: Optional[ClientReadBasic] = None  # <--- ¡EL ESLABÓN PERDIDO!
+    
+    # ---> ¡LA LLAVE MAESTRA PARA QUE PASE EL NOMBRE DEL ASESOR! <---
+    user: Optional[Any] = None 
+    
     items: List[SalesOrderItemRead] = []
     payments: List[CustomerPaymentRead] = []
 
-# INPUT: Actualización (Cambio de estatus, ajuste de directivo, etc.)
+# INPUT: Actualización
 class SalesOrderUpdate(SQLModel):
     project_name: Optional[str] = None
     client_id: Optional[int] = None        
@@ -143,10 +173,14 @@ class SalesOrderUpdate(SQLModel):
     notes: Optional[str] = None
     conditions: Optional[str] = None
     
-    # Intervención Directiva (Blindaje Financiero)
+    # Intervención Directiva
     applied_margin_percent: Optional[float] = None
     applied_commission_percent: Optional[float] = None
     
+    # --- NUEVOS CAMPOS DE ACTUALIZACIÓN ---
+    advance_percent: Optional[float] = None
+    has_advance_invoice: Optional[bool] = None
+
     # Si Ventas re-cotiza o se ajustan manuales
     subtotal: Optional[float] = None
     tax_amount: Optional[float] = None

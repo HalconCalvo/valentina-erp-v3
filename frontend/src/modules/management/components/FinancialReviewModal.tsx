@@ -1,20 +1,22 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { 
     X, CheckCircle, XCircle, Calculator, 
-    AlertTriangle, ChevronDown, ChevronRight, Layers, DollarSign, Plus, RefreshCcw, FileCheck, Lock 
+    AlertTriangle, ChevronDown, ChevronRight, Layers, DollarSign, Plus, RefreshCcw, FileCheck, Lock, Percent, User 
 } from 'lucide-react';
 
 import { salesService } from '../../../api/sales-service'; 
+import axiosClient from '../../../api/axios-client'; 
 import { SalesOrder, SalesOrderStatus } from '../../../types/sales';
-import Button from '../../../components/ui/Button';
+import { Button } from '../../../components/ui/button';
 
 interface FinancialReviewModalProps {
     orderId: number | null;
     onClose: () => void;
-    onOrderUpdated: () => void;
+    onOrderUpdated?: () => void;
+    readOnly?: boolean; // <-- NUEVO: Forzar modo solo lectura desde afuera
 }
 
-export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orderId, onClose, onOrderUpdated }) => {
+export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orderId, onClose, onOrderUpdated, readOnly = false }) => {
     const [loading, setLoading] = useState(false);
     const [processing, setProcessing] = useState(false);
     const [order, setOrder] = useState<SalesOrder | null>(null);
@@ -23,19 +25,25 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
     const [globalMargin, setGlobalMargin] = useState<number>(0); 
     const [commissionPercent, setCommissionPercent] = useState<number>(0);
     const [itemMargins, setItemMargins] = useState<number[]>([]);
+    const [advancePercent, setAdvancePercent] = useState<number>(60);
 
     // --- UI STATE ---
     const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
 
     // --- MODO SOLO LECTURA ---
+    // Será true si se forzó desde afuera (readOnly === true) O si el estatus de la orden ya no es borrador/pendiente.
     const isReadOnly = useMemo(() => {
-        if (!order) return true;
-        return [
-            SalesOrderStatus.SOLD, 
-            SalesOrderStatus.REJECTED, 
-            SalesOrderStatus.CLIENT_REJECTED,
-            SalesOrderStatus.CANCELLED
-        ].includes(order.status);
+        if (readOnly) return true; // Forzado externamente
+        if (!order || !order.status) return true;
+        const currentStatus = String(order.status).trim().toUpperCase();
+        return ['SOLD', 'FINISHED', 'CANCELLED', 'ACCEPTED', 'CLIENT_REJECTED'].includes(currentStatus);
+    }, [order, readOnly]);
+
+    // Extraer el nombre del asesor
+    const sellerName = useMemo(() => {
+        if (!order) return 'Sin Asignar';
+        const oAny = order as any;
+        return oAny.user?.full_name || oAny.user?.username || (order.user_id ? `Asesor #${order.user_id}` : 'Sin Asignar');
     }, [order]);
 
     useEffect(() => {
@@ -48,40 +56,35 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
             const data = await salesService.getOrderDetail(id);
             setOrder(data);
             
-            let loadedCommission = data.applied_commission_percent || 0;
+            // Saneamiento de números para evitar que la UI se congele
+            let loadedCommission = Number(data.applied_commission_percent) || 0;
             if (loadedCommission > 0 && loadedCommission < 1) {
                 loadedCommission = loadedCommission * 100;
             }
             
             setCommissionPercent(Number(loadedCommission.toFixed(2)));
+            setAdvancePercent(Number(data.advance_percent) || 60);
 
-            // 1. Cargar Márgenes Individuales
-            const calculatedMargins = data.items.map(item => {
-                const cost = item.frozen_unit_cost || 0;
-                const price = item.unit_price || 0;
-                
-                // --- CORRECCIÓN CRÍTICA ---
-                // Antes dividíamos el precio entre la comisión, lo que bajaba el valor a $16k.
-                // Ahora respetamos el precio tal cual viene de la base de datos ($17k).
-                const basePrice = price; 
+            const itemsSeguros = data.items || [];
+            
+            const calculatedMargins = itemsSeguros.map(item => {
+                const cost = Number(item.frozen_unit_cost) || 0;
+                const price = Number(item.unit_price) || 0;
 
-                if (cost === 0 || basePrice === 0) return 40; // Default fallback
-
-                const impliedMargin = ((basePrice / cost) - 1) * 100;
-                return Number(impliedMargin.toFixed(2));
+                if (cost === 0 || price === 0) return 40; 
+                const impliedMargin = ((price / cost) - 1) * 100;
+                return Number(impliedMargin.toFixed(2)) || 0;
             });
 
             setItemMargins(calculatedMargins);
 
-            // 2. Calcular Margen Ponderado Inicial (No promedio simple)
             let totalCost = 0;
             let totalBasePrice = 0;
             
-            data.items.forEach((item, i) => {
-                const qty = item.quantity || 1;
-                const cost = item.frozen_unit_cost || 0;
-                const margin = calculatedMargins[i];
-                // Reconstruimos el precio base desde el margen calculado
+            itemsSeguros.forEach((item, i) => {
+                const qty = Number(item.quantity) || 1;
+                const cost = Number(item.frozen_unit_cost) || 0;
+                const margin = Number(calculatedMargins[i]) || 0;
                 const price = cost * (1 + (margin / 100));
 
                 totalCost += (cost * qty);
@@ -92,7 +95,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                 ? ((totalBasePrice - totalCost) / totalCost) * 100
                 : 0;
 
-            setGlobalMargin(Number(initialWeightedMargin.toFixed(2)));
+            setGlobalMargin(Number(initialWeightedMargin.toFixed(2)) || 0);
 
         } catch (error) {
             console.error("Error cargando orden:", error);
@@ -103,77 +106,64 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
         }
     };
 
-    // --- HANDLERS ---
-    
-    // 1. CONTROL MAESTRO: Si muevo el slider, aplico parejo a todos (Reset)
+    // --- HANDLERS GLOBALES (Protegidos contra NaN) ---
     const handleGlobalMarginChange = (val: number) => {
         if (isReadOnly) return;
-        
         const safeVal = isNaN(val) ? 0 : val;
         setGlobalMargin(safeVal);
         
-        if (order) {
+        if (order && order.items) {
             const newMargins = new Array(order.items.length).fill(safeVal);
             setItemMargins(newMargins);
         }
     };
 
-    // 2. CONTROL INDIVIDUAL: Si cambio uno, calculo el PONDERADO REAL
     const handleItemMarginChange = (index: number, val: number) => {
-        if (isReadOnly || !order) return;
+        if (isReadOnly || !order || !order.items) return;
         const safeVal = isNaN(val) ? 0 : val;
-
         const newMargins = [...itemMargins];
         newMargins[index] = safeVal;
         setItemMargins(newMargins);
 
-        // --- LÓGICA DE PROMEDIO PONDERADO REAL ---
         let totalCost = 0;
         let totalBasePrice = 0;
 
         order.items.forEach((item, i) => {
-            const qty = item.quantity || 1;
-            const cost = item.frozen_unit_cost || 0;
-            
-            // Usamos el margen nuevo para este ítem, o el existente para los demás
-            const margin = newMargins[i]; 
-            
-            // Precio Base simulado con este margen
+            const qty = Number(item.quantity) || 1;
+            const cost = Number(item.frozen_unit_cost) || 0;
+            const margin = Number(newMargins[i]) || 0; 
             const price = cost * (1 + (margin / 100));
 
             totalCost += (cost * qty);
             totalBasePrice += (price * qty);
         });
 
-        // Fórmula de Utilidad Real: (VentaTotal - CostoTotal) / CostoTotal
-        const weightedAvg = totalCost > 0 
-            ? ((totalBasePrice - totalCost) / totalCost) * 100
-            : 0;
-
-        setGlobalMargin(Number(weightedAvg.toFixed(2)));
+        const weightedAvg = totalCost > 0 ? ((totalBasePrice - totalCost) / totalCost) * 100 : 0;
+        setGlobalMargin(Number(weightedAvg.toFixed(2)) || 0);
     };
 
-    // --- MOTOR DE SIMULACIÓN ---
+    // --- MOTOR DE SIMULACIÓN (Protegido contra cálculos corruptos) ---
     const simulation = useMemo(() => {
-        if (!order || itemMargins.length === 0) return null;
+        if (!order) return null;
 
         let totalBaseCost = 0;   
         let sumOfItems = 0;    
         
-        const simulatedItems = order.items.map((item, index) => {
-            const cost = item.frozen_unit_cost || 0;
-            totalBaseCost += (cost * item.quantity);
+        const itemsToSimulate = order.items || [];
 
-            const specificMargin = itemMargins[index] || 0;
+        const simulatedItems = itemsToSimulate.map((item, index) => {
+            const qty = Number(item.quantity) || 1;
+            const cost = Number(item.frozen_unit_cost) || 0;
+            totalBaseCost += (cost * qty);
+            
+            const specificMargin = Number(itemMargins[index]) || 0;
 
-            // 1. Precio Base
             const marginMultiplier = 1 + (specificMargin / 100);
             const baseUnitPrice = cost * marginMultiplier;
-            
-            sumOfItems += (baseUnitPrice * item.quantity);
+            sumOfItems += (baseUnitPrice * qty);
 
-            // 2. Precio Final
-            const commissionMultiplier = 1 + (commissionPercent / 100);
+            const commPercent = Number(commissionPercent) || 0;
+            const commissionMultiplier = 1 + (commPercent / 100);
             const finalUnitPrice = baseUnitPrice * commissionMultiplier;
             
             return {
@@ -184,35 +174,36 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
             };
         });
 
-        const commissionAmount = sumOfItems * (commissionPercent / 100);
+        const commPercent = Number(commissionPercent) || 0;
+        const commissionAmount = sumOfItems * (commPercent / 100);
         const subtotal = sumOfItems + commissionAmount;
         
-        const taxRate = order.subtotal > 0 ? (order.tax_amount / order.subtotal) : 0.16; 
+        const safeTaxAmountFromDB = Number(order.tax_amount) || 0;
+        const safeSubtotalFromDB = Number(order.subtotal) || 1; 
+        
+        const taxRate = (safeSubtotalFromDB > 0 && safeTaxAmountFromDB > 0) 
+            ? (safeTaxAmountFromDB / safeSubtotalFromDB) 
+            : 0.16; 
+            
         const taxAmount = subtotal * taxRate;
         const total = subtotal + taxAmount;
 
         const netUtility = subtotal - commissionAmount - totalBaseCost;
-
-        const realWeightedMargin = totalBaseCost > 0 
-            ? ((sumOfItems - totalBaseCost) / totalBaseCost) * 100 
-            : 0;
+        const realWeightedMargin = totalBaseCost > 0 ? ((sumOfItems - totalBaseCost) / totalBaseCost) * 100 : 0;
+        
+        const advPercent = Number(advancePercent) || 0;
+        const advanceAmount = total * (advPercent / 100);
 
         return {
-            totalBaseCost,
-            sumOfItems,
-            commissionAmount,
-            subtotal,
-            taxAmount,
-            total,
-            netUtility,
-            realWeightedMargin,
-            simulatedItems
+            totalBaseCost, sumOfItems, commissionAmount, subtotal,
+            taxAmount, total, netUtility, realWeightedMargin, advanceAmount, simulatedItems
         };
-    }, [order, itemMargins, commissionPercent]);
+    }, [order, itemMargins, commissionPercent, advancePercent]);
 
 
-    // --- ACCIONES ---
+    // --- ACCIONES PRINCIPALES ---
     const toggleExpand = (index: number) => {
+        // Permitimos expandir la receta incluso si es modo Solo Lectura
         const newSet = new Set(expandedItems);
         if (newSet.has(index)) newSet.delete(index);
         else newSet.add(index);
@@ -220,62 +211,78 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
     };
 
     const handleAuthorize = async () => {
-        if (!order || !simulation) return;
-        if (!window.confirm("¿Confirmar Autorización de Precios?")) return;
+        if (!order || !simulation || isReadOnly) return;
+        if (!window.confirm("¿Confirmar Autorización de Precios y Condiciones?")) return;
 
         setProcessing(true);
         try {
             const updatedItems = simulation.simulatedItems.map(i => ({
                 product_name: i.product_name,
                 origin_version_id: i.origin_version_id,
-                quantity: i.quantity,
+                quantity: Number(i.quantity) || 1,
                 unit_price: Number(i.baseUnitPrice.toFixed(2)), 
-                frozen_unit_cost: i.frozen_unit_cost,
+                frozen_unit_cost: Number(i.frozen_unit_cost) || 0,
                 cost_snapshot: i.cost_snapshot
             }));
 
-            const commissionToSend = commissionPercent; 
-
             await salesService.updateOrder(order.id, {
-                status: SalesOrderStatus.ACCEPTED, 
                 applied_margin_percent: Number(simulation.realWeightedMargin.toFixed(2)), 
-                applied_commission_percent: commissionToSend, 
+                applied_commission_percent: Number(commissionPercent) || 0,
+                advance_percent: Number(advancePercent) || 0,
                 items: updatedItems,
                 subtotal: simulation.subtotal,
                 tax_amount: simulation.taxAmount,
                 total_price: simulation.total
             });
 
-            onOrderUpdated();
+            await axiosClient.post(`/sales/orders/${order.id}/authorize`);
+
+            if(onOrderUpdated) onOrderUpdated();
             onClose();
         } catch (error) {
             console.error(error);
-            alert("Error al autorizar.");
+            alert("Error al autorizar. Revisa la consola.");
         } finally {
             setProcessing(false);
         }
     };
 
     const handleReject = async () => {
-        if (!order) return;
-        if (!window.confirm("¿Rechazar cotización?")) return;
+        if (!order || isReadOnly) return;
+        if (!window.confirm("¿Rechazar cotización y enviar a borrador?")) return;
         setProcessing(true);
         try {
-            await salesService.rejectOrder(order.id);
-            onOrderUpdated();
+            await axiosClient.post(`/sales/orders/${order.id}/request_changes`);
+            if(onOrderUpdated) onOrderUpdated();
             onClose();
-        } catch (error) { console.error(error); alert("Error"); } 
-        finally { setProcessing(false); }
+        } catch (error) { 
+            console.error(error); 
+            alert("Error al rechazar cotización."); 
+        } finally { 
+            setProcessing(false); 
+        }
     };
 
-    const formatCurrency = (amount: number) => 
-        amount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+    const formatCurrency = (amount: number) => {
+        const safeAmount = Number(amount) || 0;
+        return safeAmount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+    };
 
-    if (!orderId || !simulation) return null;
-    if (loading) return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 text-white backdrop-blur-sm">Cargando...</div>;
+    if (!orderId) return null;
+
+    if (loading || !order || !simulation) {
+        return (
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm transition-opacity">
+                <div className="bg-white p-6 rounded-xl shadow-2xl flex flex-col items-center gap-4">
+                    <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-slate-600 font-bold tracking-tight">Cargando mesa financiera...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
             <div className="bg-slate-50 rounded-xl shadow-2xl w-full max-w-7xl h-[95vh] flex flex-col overflow-hidden relative border border-slate-700">
                 
                 {/* HEADER */}
@@ -286,8 +293,10 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                             Ingeniería Financiera
                             {isReadOnly && <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded ml-2 flex items-center gap-1"><Lock size={10}/> SOLO LECTURA</span>}
                         </h2>
-                        <p className="text-xs text-slate-400">
-                             Folio #{order?.id} • Proyecto: <span className="text-white font-medium">{order?.project_name}</span>
+                        <p className="text-xs text-slate-400 mt-1 flex items-center gap-3">
+                            <span>Folio #{order?.id} • Proyecto: <span className="text-white font-medium">{order?.project_name}</span></span>
+                            <span className="text-slate-500">|</span>
+                            <span className="flex items-center gap-1"><User size={12} className="text-indigo-400"/> Asesor: <span className="text-indigo-300 font-medium">{sellerName}</span></span>
                         </p>
                     </div>
                     <button onClick={onClose} className="bg-slate-800 hover:bg-slate-700 p-2 rounded-full transition-colors">
@@ -302,7 +311,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                     <div className="flex-1 overflow-y-auto p-4 border-r border-slate-200 bg-white">
                         <div className="flex justify-between items-center mb-3">
                             <h3 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
-                                <Layers size={14}/> Partidas ({order?.items.length})
+                                <Layers size={14}/> Partidas ({order?.items?.length || 0})
                             </h3>
                         </div>
                         
@@ -325,18 +334,17 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                             </div>
                                         </div>
 
-                                        {/* MARGEN INDIVIDUAL */}
                                         <div className="flex flex-col items-center px-2 border-l border-slate-100">
                                             <label className="text-[9px] font-bold text-slate-400 mb-1">MARGEN %</label>
                                             <div className="relative w-20">
                                                 <input 
                                                     type="number" 
                                                     step="0.01" 
-                                                    disabled={isReadOnly}
-                                                    value={itemMargins[index]}
+                                                    disabled={isReadOnly || processing}
+                                                    value={itemMargins[index] === undefined ? 0 : itemMargins[index]}
                                                     onChange={(e) => handleItemMarginChange(index, parseFloat(e.target.value))}
                                                     className={`w-full text-center font-bold text-sm border rounded py-1 outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-100 disabled:text-slate-500 ${
-                                                        !isReadOnly && itemMargins[index] < 30 ? 'text-red-600 bg-red-50 border-red-200' : 'text-indigo-700 border-indigo-200'
+                                                        !isReadOnly && (itemMargins[index] || 0) < 30 ? 'text-red-600 bg-red-50 border-red-200' : 'text-indigo-700 border-indigo-200'
                                                     }`}
                                                 />
                                             </div>
@@ -357,7 +365,6 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                         </div>
                                     </div>
 
-                                    {/* Drill Down (Receta) */}
                                     {expandedItems.has(index) && (
                                         <div className="bg-slate-50 p-3 shadow-inner text-xs">
                                             {item.cost_snapshot?.ingredients ? (
@@ -396,7 +403,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                     </div>
 
                     {/* COLUMNA DERECHA: VARIABLES GLOBALES Y TOTALES */}
-                    <div className="w-full lg:w-[380px] bg-slate-50 p-6 flex flex-col border-l border-slate-200 shadow-xl z-10">
+                    <div className="w-full lg:w-[380px] bg-slate-50 p-6 flex flex-col border-l border-slate-200 shadow-xl relative z-10">
                         
                         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mb-6">
                             <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4 pb-2 border-b border-slate-100">
@@ -404,8 +411,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                             </h3>
 
                             <div className="space-y-6">
-                                {/* 1. APLICAR A TODOS */}
-                                <div className={isReadOnly ? 'opacity-50 pointer-events-none' : ''}>
+                                <div className={isReadOnly ? 'opacity-60' : ''}>
                                     <div className="flex justify-between items-center mb-1">
                                         <label className="text-xs font-bold text-slate-600 flex items-center gap-1">
                                             <RefreshCcw size={10} className="text-slate-400"/>
@@ -416,41 +422,68 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                         <input 
                                             type="range" min="0" max="100" 
                                             step="0.01" 
-                                            disabled={isReadOnly}
-                                            value={globalMargin} // Enlace directo al estado
+                                            disabled={isReadOnly || processing}
+                                            value={globalMargin}
                                             onChange={(e) => handleGlobalMarginChange(parseFloat(e.target.value))}
                                             className="flex-1 h-2 bg-indigo-100 rounded-lg appearance-none cursor-pointer accent-indigo-600"
                                         />
                                         <input 
                                             type="number" 
                                             step="0.01" 
-                                            disabled={isReadOnly}
-                                            value={globalMargin} // Enlace directo al estado
+                                            disabled={isReadOnly || processing}
+                                            value={globalMargin}
                                             onChange={(e) => handleGlobalMarginChange(parseFloat(e.target.value))}
                                             className="w-16 p-1 text-right text-xs font-bold border rounded border-indigo-200 text-indigo-700 outline-none"
                                         />
                                     </div>
                                 </div>
 
-                                {/* 2. COMISIÓN (Global) */}
-                                <div className={isReadOnly ? 'opacity-50 pointer-events-none' : ''}>
+                                <div className={isReadOnly ? 'opacity-60' : ''}>
                                     <div className="flex justify-between items-center mb-1">
                                         <label className="text-xs font-bold text-slate-600">Comisión Vendedor (Add-on)</label>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <input 
                                             type="range" min="0" max="50" step="0.5"
-                                            disabled={isReadOnly}
+                                            disabled={isReadOnly || processing}
                                             value={commissionPercent}
                                             onChange={(e) => setCommissionPercent(Number(e.target.value))}
                                             className="flex-1 h-2 bg-amber-100 rounded-lg appearance-none cursor-pointer accent-amber-500"
                                         />
                                         <input 
                                             type="number" step="0.1"
-                                            disabled={isReadOnly}
+                                            disabled={isReadOnly || processing}
                                             value={commissionPercent}
                                             onChange={(e) => setCommissionPercent(Number(e.target.value))}
                                             className="w-16 p-1 text-right text-xs font-bold border rounded border-amber-200 text-amber-700 outline-none"
+                                        />
+                                    </div>
+                                </div>
+                                
+                                <div className={isReadOnly ? 'opacity-60' : ''}>
+                                    <div className="flex justify-between items-center mb-1">
+                                        <label className="text-xs font-bold text-slate-600 flex items-center gap-1">
+                                            <Percent size={12} className="text-blue-500"/>
+                                            Anticipo a Solicitar
+                                        </label>
+                                        <span className="text-sm font-mono text-blue-600 font-bold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
+                                            {formatCurrency(simulation.advanceAmount)}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <input 
+                                            type="range" min="0" max="100" step="5"
+                                            disabled={isReadOnly || processing}
+                                            value={advancePercent}
+                                            onChange={(e) => setAdvancePercent(Number(e.target.value))}
+                                            className="flex-1 h-2 bg-blue-100 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                        />
+                                        <input 
+                                            type="number" step="1"
+                                            disabled={isReadOnly || processing}
+                                            value={advancePercent}
+                                            onChange={(e) => setAdvancePercent(Number(e.target.value))}
+                                            className="w-16 p-1 text-right text-sm font-bold border rounded border-blue-200 text-blue-700 outline-none"
                                         />
                                     </div>
                                 </div>
@@ -494,16 +527,19 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                             </div>
                         </div>
 
-                        {/* BOTONES */}
+                        {/* BOTONES E INDICADOR DE ESTADO */}
                         <div className="mt-6 space-y-3">
                             {!isReadOnly ? (
                                 <>
                                     <Button 
                                         onClick={handleAuthorize} 
                                         disabled={processing}
-                                        className="w-full bg-emerald-600 hover:bg-emerald-700 py-3 shadow-md text-sm uppercase tracking-wide font-bold"
+                                        className={`w-full py-3 shadow-md text-sm uppercase tracking-wide font-bold transition-all ${
+                                            processing ? 'bg-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700'
+                                        }`}
                                     >
-                                        <FileCheck size={18} className="mr-2"/> AUTORIZAR COTIZACIÓN
+                                        <FileCheck size={18} className="mr-2"/> 
+                                        {processing ? 'Procesando...' : 'AUTORIZAR COTIZACIÓN'}
                                     </Button>
                                     
                                     <Button 
@@ -516,9 +552,14 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                     </Button>
                                 </>
                             ) : (
-                                <div className="bg-slate-200 p-4 rounded-lg text-center text-slate-500 text-sm font-medium border border-slate-300">
+                                <div className="bg-slate-100 p-4 rounded-lg text-center text-slate-500 text-sm font-medium border border-slate-300 shadow-inner">
                                     <Lock size={20} className="mx-auto mb-2 text-slate-400"/>
-                                    Cotización cerrada / vendida.
+                                    {order?.status === SalesOrderStatus.ACCEPTED 
+                                        ? 'Cotización autorizada y en calle.' 
+                                        : order?.status === SalesOrderStatus.REJECTED 
+                                        ? 'Cotización rechazada por la Dirección.'
+                                        : 'Esta cotización se encuentra cerrada o inactiva.'}
+                                    <br/><span className="text-xs font-normal">Modo de Auditoría (Solo Lectura).</span>
                                 </div>
                             )}
                         </div>

@@ -3,17 +3,20 @@ import { useUsers } from '../../hooks/useUsers';
 import { 
   Plus, UserCog, Shield, Mail, Key, X, 
   CheckCircle, Trash2, Pencil, RefreshCw,
-  Percent, Briefcase, PenTool, Package, Hammer, User
+  Percent, Briefcase, PenTool, Package, Hammer, User,
+  TrendingUp, Truck // NUEVOS ICONOS
 } from 'lucide-react';
 
 // --- 1. CONFIGURACIÓN DE ROLES (Nombres visuales) ---
 const ROLE_OPTIONS = {
     'DIRECTOR': 'DIRECCIÓN',       // Negro
+    'GERENCIA': 'GERENCIA',        // Púrpura (NUEVO)
     'ADMIN': 'ADMINISTRACIÓN',     // Índigo
     'SALES': 'VENTAS',             // Verde
     'DESIGN': 'DISEÑO',            // Rosa
     'WAREHOUSE': 'ALMACÉN',        // Naranja
     'PRODUCTION': 'PRODUCCIÓN',    // Azul
+    'LOGISTICS': 'LOGÍSTICA',      // Cyan (NUEVO)
 };
 
 export default function UsersPage() {
@@ -27,7 +30,7 @@ export default function UsersPage() {
     full_name: '',
     email: '',
     password: '', 
-    role: 'SALES', 
+    role: 'GERENCIA', // Por defecto que sea Gerencia o el que quieras
     is_active: true,
     commission_rate: 0 
   };
@@ -38,11 +41,13 @@ export default function UsersPage() {
   const getRoleBadgeClasses = (role: string) => {
       switch(role) {
           case 'DIRECTOR': return 'bg-slate-900 text-white border-slate-700';
+          case 'GERENCIA': return 'bg-purple-100 text-purple-700 border-purple-200'; // NUEVO
           case 'ADMIN': return 'bg-indigo-100 text-indigo-700 border-indigo-200';
           case 'SALES': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
           case 'DESIGN': return 'bg-pink-100 text-pink-700 border-pink-200';
           case 'WAREHOUSE': return 'bg-orange-100 text-orange-800 border-orange-200';
           case 'PRODUCTION': return 'bg-blue-100 text-blue-700 border-blue-200';
+          case 'LOGISTICS': return 'bg-cyan-100 text-cyan-700 border-cyan-200'; // NUEVO
           default: return 'bg-slate-100 text-slate-700 border-slate-200';
       }
   };
@@ -50,11 +55,13 @@ export default function UsersPage() {
   const getRoleIcon = (role: string) => {
       switch(role) {
           case 'DIRECTOR': return <Shield size={12} />;
+          case 'GERENCIA': return <TrendingUp size={12} />; // NUEVO
           case 'ADMIN': return <Briefcase size={12} />;
           case 'SALES': return <User size={12} />;
           case 'DESIGN': return <PenTool size={12} />;
           case 'WAREHOUSE': return <Package size={12} />;
           case 'PRODUCTION': return <Hammer size={12} />;
+          case 'LOGISTICS': return <Truck size={12} />; // NUEVO
           default: return <UserCog size={12} />;
       }
   };
@@ -117,6 +124,9 @@ export default function UsersPage() {
     setEditingId(null);
     setShowForm(false);
   };
+
+  // Lógica para mostrar la comisión: Muestra si es Ventas O Director
+  const showCommission = form.role === 'SALES' || form.role === 'DIRECTOR';
 
   return (
     <div className="space-y-6 p-6 pb-24 animate-in fade-in duration-500">
@@ -194,7 +204,7 @@ export default function UsersPage() {
                     {/* GRUPO DE ROL Y COMISIÓN */}
                     <div className="grid grid-cols-2 gap-4">
                         {/* Rol */}
-                        <div className={form.role === 'SALES' ? '' : 'col-span-2'}>
+                        <div className={showCommission ? '' : 'col-span-2'}>
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Rol</label>
                             <div className="relative mt-1">
                                 <Shield size={18} className="absolute left-3 top-2.5 text-slate-400"/>
@@ -210,8 +220,8 @@ export default function UsersPage() {
                             </div>
                         </div>
 
-                        {/* COMISIÓN (Solo visible si es Ventas) */}
-                        {form.role === 'SALES' && (
+                        {/* COMISIÓN (Visible si es Ventas o Director) */}
+                        {showCommission && (
                              <div className="animate-in fade-in slide-in-from-left-4 duration-300">
                                 <label className="text-xs font-bold text-emerald-600 uppercase tracking-wide">Comisión (%)</label>
                                 <div className="relative mt-1">
@@ -271,11 +281,6 @@ export default function UsersPage() {
                 </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-                {/* LÓGICA BLINDADA:
-                    1. Si está cargando -> Spinner
-                    2. Si users ES UN ARRAY y TIENE DATOS -> Renderiza
-                    3. Si users NO es array o está vacío -> Mensaje de vacío
-                */}
                 {loading ? (
                     <tr><td colSpan={5} className="p-8 text-center text-slate-400">Cargando usuarios...</td></tr>
                 ) : Array.isArray(users) && users.length > 0 ? (
@@ -286,7 +291,8 @@ export default function UsersPage() {
                             <div className="flex flex-col">
                                 <span className="font-semibold text-slate-900 text-sm flex items-center gap-2">
                                     {user.full_name}
-                                    {user.role === 'SALES' && (
+                                    {/* Muestra la etiqueta de comisión si es Ventas o Director y tiene comisión > 0 */}
+                                    {(user.role === 'SALES' || user.role === 'DIRECTOR') && (
                                         <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200 font-bold font-mono flex items-center gap-0.5">
                                            <Percent size={8}/> {user.commission_rate}%
                                         </span>

@@ -8,10 +8,11 @@ from contextlib import asynccontextmanager
 from sqlmodel import Session, select
 from passlib.context import CryptContext
 from app.models.users import User
+# IMPORTAMOS TUS MODELOS DE FUNDACIONES
+from app.models.foundations import TaxRate, GlobalConfig 
 from app.core.database import create_db_and_tables, engine 
 
 from app.api.v1.api import api_router
-# from app.api.v1.router import api_router
 from app.core.config import settings
 
 # --- PUENTE GOOGLE CLOUD ---
@@ -20,6 +21,8 @@ if settings.GOOGLE_APPLICATION_CREDENTIALS and os.path.exists(settings.GOOGLE_AP
     print(f"--> Google Cloud: Credenciales cargadas.")
 else:
     print("--> Google Cloud: No se detectaron credenciales locales (Modo Offline).")
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -37,7 +40,49 @@ async def lifespan(app: FastAPI):
 
     print("--> Inicializando Base de Datos...")
     try:
+        # 1. Esto crea las tablas y quizás al usuario fantasma
         create_db_and_tables()
+        
+        # 2. NUESTRA SEMILLA MAESTRA BLINDADA
+        with Session(engine) as session:
+            print("--> 🌱 Verificando Semilla de Configuración...")
+            
+            # --- A. IMPUESTOS ---
+            if not session.exec(select(TaxRate)).first():
+                session.add(TaxRate(name="IVA Estándar", rate=0.16, is_active=True))
+                session.add(TaxRate(name="IVA Frontera", rate=0.08, is_active=True))
+                session.add(TaxRate(name="Tasa Cero", rate=0.00, is_active=True))
+                session.commit()
+                print("--> ✅ Impuestos creados (16%, 8%, 0%).")
+
+            # --- B. CONFIGURACIÓN GLOBAL ---
+            if not session.exec(select(GlobalConfig)).first():
+                tax_std = session.exec(select(TaxRate).where(TaxRate.rate == 0.16)).first()
+                session.add(GlobalConfig(
+                    company_name="MI EMPRESA RTA",
+                    target_profit_margin=0.45,
+                    cost_tolerance_percent=0.03,
+                    quote_validity_days=15,
+                    default_edgebanding_factor=25,
+                    default_tax_rate_id=tax_std.id if tax_std else 1
+                ))
+                session.commit()
+                print("--> ✅ Configuración Global inicial creada.")
+            
+            # --- C. DIRECTOR SUPREMO (Por si la otra función falló) ---
+            if not session.exec(select(User).where(User.email == "admin@example.com")).first():
+                session.add(User(
+                    email="admin@example.com",
+                    full_name="Director SGP",
+                    hashed_password=pwd_context.hash("admin"),
+                    role="DIRECTOR",
+                    is_active=True,
+                    is_superuser=True,
+                    commission_rate=0.0
+                ))
+                session.commit()
+                print("--> ✅ Usuario Administrador verificado (admin@example.com).")
+
         print("--> Sistema listo.")
     except Exception as e:
         print(f"Error crítico en BD: {e}")
@@ -46,7 +91,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    version="3.0.0",
+    version="3.5.0", # <--- ¡Bienvenido a la V3.5!
     lifespan=lifespan
 )
 
@@ -58,71 +103,59 @@ if not os.path.exists(static_dir):
     os.makedirs(static_dir)
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
-# --- CORS DINÁMICO ---
+# --- CORS DINÁMICO (BLINDADO V3.5) ---
+origins = [
+    "http://localhost:5173",    # Frontend Vite (V3.5)
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",    # Por si acaso usas React antiguo
+    "http://127.0.0.1:8000",    # El propio backend
+]
+
+# Si existen orígenes en settings, los sumamos
 if settings.BACKEND_CORS_ORIGINS:
-    origins = [str(origin).rstrip("/") for origin in settings.BACKEND_CORS_ORIGINS]
-    
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    extra_origins = [str(origin).rstrip("/") for origin in settings.BACKEND_CORS_ORIGINS]
+    origins.extend(extra_origins)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,  # <-- Ahora 'origins' es una lista sólida
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ---------------------------------------------------------
 # 🚨 PUERTA TRASERA V2: ASCENSO A DIRECTOR
 # ---------------------------------------------------------
 @app.get("/fix-admin")
 def create_admin_manually():
-    """
-    Este endpoint busca al usuario admin. 
-    Si existe, LE CAMBIA EL ROL A 'DIRECTOR'.
-    Si no existe, lo crea como 'DIRECTOR'.
-    """
     PRE_CALCULATED_HASH = "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxwKc.60MLEfcOdQQ2UEHFpphXeJC"
-    
     try:
         with Session(engine) as session:
-            # 1. Buscar usuario
             user = session.exec(select(User).where(User.email == "admin@example.com")).first()
-            
             if user:
-                # --- AQUÍ ESTÁ EL CAMBIO: ACTUALIZAR ROL ---
-                print("--> Usuario encontrado. Actualizando a DIRECTOR...")
-                user.role = "DIRECTOR"  # <--- Forzamos el rol
+                user.role = "DIRECTOR" 
                 user.is_superuser = True
                 session.add(user)
                 session.commit()
-                session.refresh(user)
-                return {
-                    "status": "updated", 
-                    "msg": "✅ ROL ACTUALIZADO: El usuario admin ahora es DIRECTOR.",
-                    "role": user.role
-                }
+                return {"status": "updated", "msg": "✅ ROL ACTUALIZADO a DIRECTOR."}
             
-            # 2. Crear si no existe (con ROL DIRECTOR)
-            print("--> Creando nuevo Director...")
             admin_user = User(
                 email="admin@example.com",
                 hashed_password=PRE_CALCULATED_HASH,
                 full_name="Director General",
                 is_active=True,
                 is_superuser=True,
-                role="DIRECTOR" # <--- Forzamos el rol al crear
+                role="DIRECTOR" 
             )
             session.add(admin_user)
             session.commit()
-            return {
-                "status": "created", 
-                "msg": "✅ ÉXITO: Usuario Director creado manualmente.",
-                "credentials": {"email": "admin@example.com", "pass": "admin"}
-            }
+            return {"status": "created", "msg": "✅ ÉXITO: Usuario creado."}
     except Exception as e:
-        return {"status": "error", "msg": f"Falló la actualización: {str(e)}"}
-# ---------------------------------------------------------
+        return {"status": "error", "msg": f"Fallo: {str(e)}"}
+
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 @app.get("/")
 def read_root():
-    return {"System": "SGP V3 API", "Status": "Online"}
+    return {"System": "SGP V3.5 API", "Status": "Online"}

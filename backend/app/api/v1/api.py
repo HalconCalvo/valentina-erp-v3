@@ -1,6 +1,6 @@
 from fastapi import APIRouter
-# 1. IMPORTAMOS ANALYTICS Y EL NUEVO MÓDULO 'USERS'
-from app.api.v1.endpoints import foundations, auth, users, design, sales, inventory, login, treasury, analytics
+# 1. IMPORTAMOS ANALYTICS, EL NUEVO MÓDULO 'USERS' Y 'PRODUCTION' (V3.5)
+from app.api.v1.endpoints import foundations, auth, users, design, sales, inventory, login, treasury, analytics, production, purchases, logistics
 from app.api.v1.endpoints import finance
 
 api_router = APIRouter()
@@ -18,6 +18,11 @@ api_router.include_router(foundations.router, prefix="/foundations", tags=["foun
 api_router.include_router(design.router, prefix="/design", tags=["design"])
 api_router.include_router(sales.router, prefix="/sales", tags=["sales"])
 api_router.include_router(inventory.router, prefix="/inventory", tags=["inventory"])
+
+# --- PRODUCCIÓN V3.5 (El Candado RTM y Lotes) ---
+api_router.include_router(production.router, prefix="/production", tags=["production"])
+api_router.include_router(purchases.router, prefix="/purchases", tags=["purchases"])
+api_router.include_router(logistics.router, prefix="/logistics", tags=["logistics"])
 
 # 2. ANALYTICS & FINANZAS
 api_router.include_router(analytics.router, prefix="/analytics", tags=["analytics"])

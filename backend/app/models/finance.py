@@ -87,3 +87,15 @@ class SupplierPayment(SQLModel, table=True):
 
     # Relaciones ORM
     invoice: Optional[PurchaseInvoice] = Relationship(back_populates="payments")
+
+    class AccountsPayable(SQLModel, table=True):
+        __tablename__ = "accounts_payable"
+        
+        id: Optional[int] = Field(default=None, primary_key=True)
+        provider_id: int
+        purchase_order_id: Optional[int] = None
+        invoice_folio: Optional[str] = None
+        total_amount: float
+        due_date: Optional[datetime] = None
+        status: str = Field(default="PENDIENTE")
+        created_at: datetime = Field(default_factory=datetime.utcnow)

@@ -7,7 +7,7 @@ import Card from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
 import { financeService } from '../../../api/finance-service';
 import { AccountsPayableStats, PendingInvoice, PaymentRequestPayload } from '../../../types/finance';
-import { PaymentRequestModal } from '../components/PaymentRequestModal';
+import { PaymentRequestModal } from '../../finance/components/PaymentRequestModal';
 
 const AccountsPayablePage: React.FC = () => {
     const [stats, setStats] = useState<AccountsPayableStats | null>(null);

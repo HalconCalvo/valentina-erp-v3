@@ -5,11 +5,13 @@ from sqlmodel import Field, SQLModel
 # 0. Enum de Roles (Definición Central de Seguridad)
 class UserRole(str, Enum):
     DIRECTOR = "DIRECTOR"       # Acceso Total (Dios)
-    ADMIN = "ADMIN"             # Finanzas / Contabilidad
+    GERENCIA = "GERENCIA"       # Gerencia Operativa / Flujo Maestro (Tu Esposa)
+    ADMIN = "ADMIN"             # Finanzas / Contabilidad (El Maker)
     SALES = "SALES"             # Ventas
     DESIGN = "DESIGN"           # Diseño e Ingeniería
     WAREHOUSE = "WAREHOUSE"     # Almacenista
-    PRODUCTION = "PRODUCTION"   # Jefe de Producción (Nuevo)
+    PRODUCTION = "PRODUCTION"   # Jefe de Producción
+    LOGISTICS = "LOGISTICS"     # Logística e Instalación
 
 # 1. Update: Lo que recibimos al editar (Todo opcional)
 class UserUpdate(SQLModel):
@@ -19,6 +21,7 @@ class UserUpdate(SQLModel):
     password: str | None = None 
     is_active: bool | None = None
     commission_rate: float | None = None 
+    monthly_sales_target: float | None = None # NUEVA COLUMNA V3.5
 
 # 2. Base (Atributos compartidos)
 class UserBase(SQLModel):
@@ -27,6 +30,7 @@ class UserBase(SQLModel):
     is_active: bool = True
     role: UserRole = Field(default=UserRole.SALES) 
     commission_rate: float = Field(default=0.0)
+    monthly_sales_target: float = Field(default=0.0) # NUEVA COLUMNA V3.5
 
 # 3. Tabla de Base de Datos (Lo que se guarda)
 class User(UserBase, table=True):
@@ -43,3 +47,4 @@ class UserPublic(UserBase):
     id: int
     # AGREGAMOS ESTO EXPLÍCITAMENTE PARA FORZAR QUE SE ENVÍE
     commission_rate: float | None = 0.0
+    monthly_sales_target: float | None = 0.0 # NUEVA COLUMNA V3.5

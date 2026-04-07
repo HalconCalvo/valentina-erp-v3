@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Calendar, CreditCard, Hash, FileText, Landmark } from 'lucide-react';
-import Button from '../../../components/ui/Button';
-import Input from '../../../components/ui/Input';
+import { Button } from '../../../components/ui/button';
+import { Input } from '../../../components/ui/input';
 import { PaymentMethod, PaymentRequestPayload, SupplierPayment, PendingInvoice } from '../../../types/finance';
 import { treasuryService } from '../../../api/treasury-service';
 import { BankAccount } from '../../../types/treasury';
@@ -11,9 +11,10 @@ interface PaymentRequestModalProps {
     existingRequest?: SupplierPayment; 
     onClose: () => void;
     onSubmit: (data: PaymentRequestPayload) => Promise<void>;
+    isChecker?: boolean; // <--- LA CREDENCIAL DE GERENCIA
 }
 
-export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoice, existingRequest, onClose, onSubmit }) => {
+export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoice, existingRequest, onClose, onSubmit, isChecker }) => {
     const [amount, setAmount] = useState<number>(existingRequest ? existingRequest.amount : 0);
     const [displayAmount, setDisplayAmount] = useState<string>('');
 
@@ -31,50 +32,36 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
     const [notes, setNotes] = useState(existingRequest ? existingRequest.notes || '' : '');
     const [loading, setLoading] = useState(false);
 
-    // Formateador estricto a 2 decimales con comas
     const formatInitialAmount = (num: number) => {
         if (isNaN(num)) return '';
         const [integerPart, decimalPart] = num.toFixed(2).split('.');
         return `${integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${decimalPart}`;
     };
 
-    // Controlador de escritura en vivo
     const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         let val = e.target.value;
-        
-        // 1. Quitar todo lo que no sea número o punto
         val = val.replace(/[^0-9.]/g, '');
-        
-        // 2. Evitar múltiples puntos
         if ((val.match(/\./g) || []).length > 1) {
             val = val.substring(0, val.lastIndexOf('.'));
         }
-
-        // 3. Limitar a máximo 2 decimales mientras escribe
         if (val.includes('.')) {
             const parts = val.split('.');
             if (parts[1].length > 2) {
                 val = `${parts[0]}.${parts[1].substring(0, 2)}`;
             }
         }
-
         if (val === '') {
             setDisplayAmount('');
             setAmount(0);
             return;
         }
-
-        // Guardar valor real
         const numericValue = parseFloat(val);
         setAmount(isNaN(numericValue) ? 0 : numericValue);
-
-        // Formato visual mientras escribe (sin forzar .00 para permitir escribir decimales)
         const parts = val.split('.');
         parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ','); 
         setDisplayAmount(parts.join('.'));
     };
 
-    // Formatear al salir del input (Blur) para rellenar los centavos faltantes
     const handleBlur = () => {
         if (amount > 0) {
             setDisplayAmount(formatInitialAmount(amount));
@@ -107,6 +94,12 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
         if (!existingRequest && amount > maxAmount) {
              alert(`Monto inválido. No puede ser mayor al saldo pendiente ($${formatInitialAmount(maxAmount)}).`);
              return;
+        }
+
+        // Validación extra: Si es Gerencia (isChecker) efectuando el pago, DEBE elegir la cuenta de donde saldrá el dinero.
+        if (isChecker && !existingRequest && !suggestedAccount) {
+            alert("Para efectuar el pago directo, debes seleccionar de qué cuenta bancaria saldrá el dinero.");
+            return;
         }
 
         setLoading(true);
@@ -142,8 +135,11 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
                 <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
                     <div>
+                        {/* ---> TÍTULO DINÁMICO <--- */}
                         <h3 className="text-lg font-black text-slate-800">
-                            {existingRequest ? 'Editar Solicitud' : 'Solicitar Pago'}
+                            {existingRequest 
+                                ? 'Editar Solicitud' 
+                                : (isChecker ? 'Ejecutar Pago Directo' : 'Solicitar Autorización')}
                         </h3>
                         <p className="text-xs font-bold text-indigo-600 uppercase tracking-wide">
                             Factura: {displayInvoiceNumber}
@@ -158,7 +154,6 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                         <label className="block text-xs font-black uppercase tracking-wide text-slate-500 mb-2">Monto a Pagar</label>
                         <div className="relative">
-                            {/* AQUÍ ESTÁ LA MAGIA VISUAL: Símbolo de pesos como texto idéntico al input */}
                             <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-2xl text-slate-800 pointer-events-none">
                                 $
                             </span>
@@ -180,7 +175,7 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
 
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 mb-1">Fecha Sugerida</label>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Fecha de Pago</label>
                             <div className="relative">
                                 <Calendar size={16} className="absolute left-3 top-2.5 text-slate-400" />
                                 <input 
@@ -210,7 +205,10 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
                     </div>
 
                     <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Cuenta Sugerida (Opcional)</label>
+                        {/* ---> CAMPO DE CUENTA DINÁMICO <--- */}
+                        <label className="block text-xs font-bold text-slate-500 mb-1">
+                            {isChecker ? 'Cuenta Bancaria de Origen' : 'Cuenta Sugerida (Opcional)'}
+                        </label>
                         <div className="relative">
                             <Landmark size={16} className="absolute left-3 top-2.5 text-slate-400" />
                             <select 
@@ -218,7 +216,7 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
                                 value={suggestedAccount}
                                 onChange={(e) => setSuggestedAccount(e.target.value ? Number(e.target.value) : '')}
                             >
-                                <option value="">Dejar que Dirección decida...</option>
+                                <option value="">{isChecker ? 'Selecciona una cuenta...' : 'Dejar que Dirección decida...'}</option>
                                 {accounts.map(acc => (
                                     <option key={acc.id} value={acc.id}>
                                         {acc.name} ({acc.currency}) - Saldo: ${acc.current_balance.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
@@ -259,8 +257,23 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
                         <Button variant="secondary" onClick={onClose} type="button" className="flex-1 font-bold">
                             Cancelar
                         </Button>
-                        <Button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-md transform transition hover:scale-105" disabled={loading}>
-                            {loading ? 'Guardando...' : (existingRequest ? 'Actualizar Solicitud' : 'Solicitar Autorización')}
+                        <Button 
+                            type="submit" 
+                            className={`flex-1 text-white font-bold shadow-md transform transition hover:scale-105 ${
+                                isChecker && !existingRequest
+                                    ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500' 
+                                    : 'bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500'
+                            }`} 
+                            disabled={loading}
+                        >
+                            {/* ---> BOTÓN DINÁMICO <--- */}
+                            {loading 
+                                ? 'Procesando...' 
+                                : (existingRequest 
+                                    ? 'Actualizar Solicitud' 
+                                    : (isChecker ? 'Efectuar Pago Directo' : 'Solicitar Autorización')
+                                  )
+                            }
                         </Button>
                     </div>
                 </form>

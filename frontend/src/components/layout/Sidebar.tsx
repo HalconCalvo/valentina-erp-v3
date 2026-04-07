@@ -9,32 +9,50 @@ import {
 
 import { useFoundations } from '../../modules/foundations/hooks/useFoundations';
 
-// --- CORRECCIÓN: Usar la variable de entorno de Vite en lugar de la URL quemada ---
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
 
-// 1. DEFINICIÓN DE ROLES
-type UserRole = 'DIRECTOR' | 'ADMIN' | 'SALES' | 'DESIGN' | 'WAREHOUSE' | 'PRODUCTION';
+type UserRole = 'DIRECTOR' | 'GERENCIA' | 'ADMIN' | 'SALES' | 'DESIGN' | 'WAREHOUSE' | 'PRODUCTION' | 'LOGISTICS';
 
-// 2. CONFIGURACIÓN DEL MENÚ
+// --- CONFIGURACIÓN DEL MENÚ ---
 const menuItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/', allowedRoles: ['DIRECTOR', 'ADMIN', 'SALES', 'DESIGN', 'WAREHOUSE', 'PRODUCTION'] },
-  { icon: Users, label: 'Proveedores', path: '/providers', allowedRoles: ['DIRECTOR', 'ADMIN', 'WAREHOUSE'] },
-  { icon: Package, label: 'Materiales', path: '/materials', allowedRoles: ['DIRECTOR', 'ADMIN', 'DESIGN', 'WAREHOUSE', 'PRODUCTION'] }, 
+  { icon: LayoutDashboard, label: 'Principal', path: '/', allowedRoles: ['DIRECTOR', 'GERENCIA', 'ADMIN', 'SALES', 'DESIGN', 'WAREHOUSE', 'PRODUCTION', 'LOGISTICS'] },
   
-  // --- CORRECCIÓN DE RUTA: Apunta exactamente a /inventory ---
-  { icon: ClipboardList, label: 'Almacén', path: '/inventory', allowedRoles: ['DIRECTOR', 'ADMIN', 'WAREHOUSE', 'PRODUCTION'] },
+  // ---> LA NUEVA PUERTA EXCLUSIVA DEL DIRECTOR <---
+  { icon: Shield, label: 'Dirección', path: '/director', allowedRoles: ['DIRECTOR'] },
   
-  { icon: Briefcase, label: 'Clientes', path: '/clients', allowedRoles: ['DIRECTOR', 'ADMIN', 'SALES'] },
-  { icon: ShoppingCart, label: 'Ventas', path: '/sales', allowedRoles: ['DIRECTOR', 'ADMIN', 'SALES'] },
-  { icon: Ruler, label: 'Diseño', path: '/design', allowedRoles: ['DIRECTOR', 'ADMIN', 'SALES', 'DESIGN', 'PRODUCTION'] },
-  { icon: Factory, label: 'Producción', path: '/production', allowedRoles: ['DIRECTOR', 'ADMIN', 'DESIGN', 'PRODUCTION'] },
-  { icon: Truck, label: 'Logística', path: '/logistics', allowedRoles: ['DIRECTOR', 'ADMIN', 'WAREHOUSE', 'SALES'] },
-  { icon: Landmark, label: 'Tesorería', path: '/treasury', allowedRoles: ['DIRECTOR', 'ADMIN'] },
-  { icon: TrendingUp, label: 'Gerencia', path: '/management', allowedRoles: ['DIRECTOR', 'ADMIN'] },
-  { icon: UserCog, label: 'Usuarios', path: '/users', allowedRoles: ['DIRECTOR'] },
-  { icon: Percent, label: 'Impuestos', path: '/tax-rates', allowedRoles: ['DIRECTOR', 'ADMIN'] },
-  { icon: Settings, label: 'Configuración', path: '/config', allowedRoles: ['DIRECTOR'] }, 
+  // ---> INTACTO COMO ESTABA <---
+  { icon: TrendingUp, label: 'Gerencia', path: '/management', allowedRoles: ['DIRECTOR', 'GERENCIA'] },
+  
+  { icon: ShoppingCart, label: 'Ventas', path: '/sales', allowedRoles: ['DIRECTOR', 'GERENCIA', 'SALES'] },
+  { icon: Users, label: 'Monitor Clientes', path: '/clients', allowedRoles: ['DIRECTOR', 'GERENCIA', 'SALES', 'ADMIN'] },
+  
+  // 🔒 CANDADO APLICADO: Ventas ya NO puede entrar a Diseño e Ingeniería.
+  { icon: Ruler, label: 'Diseño e Ingeniería', path: '/design', allowedRoles: ['DIRECTOR', 'GERENCIA', 'DESIGN', 'PRODUCTION'] },
+  
+  { icon: Factory, label: 'Producción', path: '/production', allowedRoles: ['DIRECTOR', 'GERENCIA', 'DESIGN', 'PRODUCTION'] },
+  { icon: Truck, label: 'Logística e Instalación', path: '/logistics', allowedRoles: ['DIRECTOR', 'GERENCIA', 'ADMIN', 'WAREHOUSE', 'SALES', 'LOGISTICS', 'PRODUCTION'] },
+  { icon: ClipboardList, label: 'Compras y Almacén', path: '/inventory', allowedRoles: ['DIRECTOR', 'GERENCIA', 'ADMIN', 'WAREHOUSE', 'PRODUCTION'] },
+  { icon: Package, label: 'Catálogo Materiales', path: '/materials', allowedRoles: ['DIRECTOR', 'GERENCIA', 'ADMIN', 'DESIGN', 'WAREHOUSE', 'PRODUCTION'] }, 
+  { icon: Briefcase, label: 'Proveedores', path: '/providers', allowedRoles: ['DIRECTOR', 'GERENCIA', 'ADMIN', 'WAREHOUSE'] },
+  { icon: Landmark, label: 'Administración', path: '/treasury', allowedRoles: ['DIRECTOR', 'GERENCIA', 'ADMIN'] },
+  { icon: UserCog, label: 'Usuarios y Comisiones', path: '/users', allowedRoles: ['DIRECTOR'] },
+  { icon: Percent, label: 'Registro Impuestos', path: '/tax-rates', allowedRoles: ['DIRECTOR', 'ADMIN'] }, 
+  { icon: Settings, label: 'Parámetros Globales', path: '/config', allowedRoles: ['DIRECTOR'] }, 
 ];
+
+// --- REORDENAMIENTO ---
+const rolePriorities: Record<string, string[]> = {
+  // Ahora el Director ve su panel estratégico antes que la gerencia
+  'DIRECTOR': ['/', '/director', '/management', '/treasury'],
+  'GERENCIA': ['/', '/management', '/treasury', '/production', '/sales'],
+  'ADMIN': ['/', '/treasury', '/inventory', '/providers', '/materials'],
+  // Ventas ya no necesita priorizar /design
+  'SALES': ['/', '/sales', '/clients', '/logistics'],
+  'DESIGN': ['/', '/design', '/materials', '/production'],
+  'WAREHOUSE': ['/', '/inventory', '/providers', '/materials', '/logistics'],
+  'PRODUCTION': ['/', '/production', '/inventory', '/design'],
+  'LOGISTICS': ['/', '/logistics', '/production']
+};
 
 export default function Sidebar() {
   const { config, fetchConfig, loading } = useFoundations();
@@ -54,13 +72,23 @@ export default function Sidebar() {
 
   const isActive = (path: string) => {
     if (path === '/') return currentPath === '/';
+    
+    // ---> LA LLAVE MAESTRA UNIVERSAL <---
+    // Si estamos dentro de cualquier reporte financiero (/finance/...)
+    if (currentPath.startsWith('/finance')) {
+        // Si es el Vendedor, iluminamos el botón de Ventas y lo dejamos pasar
+        if (userRole === 'SALES' && path === '/sales') return true;
+        
+        // Si es Admin, Gerente o Director, iluminamos Administración
+        if (['ADMIN', 'DIRECTOR', 'GERENCIA'].includes(userRole) && path === '/treasury') return true;
+    }
+    
     return currentPath.startsWith(path);
   };
-
+  
   const getLogoUrl = (path: string) => {
     if (!path) return '';
     if (path.startsWith('http')) return path;
-    // Limpiamos la ruta base por si acoso
     const baseUrl = API_URL.replace('/api/v1', '');
     return `${baseUrl}/${path}`;
   };
@@ -68,11 +96,13 @@ export default function Sidebar() {
   const getRoleBadgeInfo = (role: UserRole) => {
       switch(role) {
           case 'DIRECTOR': return { label: 'DIRECCIÓN', className: 'bg-slate-900 text-white border-slate-700' }; 
+          case 'GERENCIA': return { label: 'GERENCIA', className: 'bg-purple-100 text-purple-700 border-purple-200' }; 
           case 'ADMIN': return { label: 'ADMINISTRACIÓN', className: 'bg-indigo-100 text-indigo-700 border-indigo-200' }; 
           case 'SALES': return { label: 'VENTAS', className: 'bg-emerald-100 text-emerald-700 border-emerald-200' }; 
           case 'DESIGN': return { label: 'DISEÑO', className: 'bg-pink-100 text-pink-700 border-pink-200' }; 
-          case 'WAREHOUSE': return { label: 'ALMACÉN', className: 'bg-orange-100 text-orange-800 border-orange-200' }; 
+          case 'WAREHOUSE': return { label: 'COMPRAS Y ALMACÉN', className: 'bg-orange-100 text-orange-800 border-orange-200' }; 
           case 'PRODUCTION': return { label: 'PRODUCCIÓN', className: 'bg-blue-100 text-blue-700 border-blue-200' }; 
+          case 'LOGISTICS': return { label: 'LOGÍSTICA', className: 'bg-cyan-100 text-cyan-700 border-cyan-200' }; 
           default: return { label: role, className: 'bg-slate-100 text-slate-500 border-slate-200' };
       }
   };
@@ -80,15 +110,28 @@ export default function Sidebar() {
   const roleBadge = getRoleBadgeInfo(userRole);
   const filteredMenu = menuItems.filter(item => item.allowedRoles.includes(userRole as string));
 
+  const sortedMenu = [...filteredMenu].sort((a, b) => {
+    const priorities = rolePriorities[userRole as string] || [];
+    const indexA = priorities.indexOf(a.path);
+    const indexB = priorities.indexOf(b.path);
+
+    if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+    if (indexA !== -1) return -1;
+    if (indexB !== -1) return 1;
+    return menuItems.indexOf(a) - menuItems.indexOf(b);
+  });
+
   const getRoleNameDetailed = (role: UserRole) => {
       switch(role) {
-          case 'DIRECTOR': return 'Director General';
-          case 'ADMIN': return 'Administración';
-          case 'SALES': return 'Ventas';
-          case 'DESIGN': return 'Ingeniería';
-          case 'WAREHOUSE': return 'Almacén';
+          case 'DIRECTOR': return 'Dirección Estratégica';
+          case 'GERENCIA': return 'Gerencia Operativa';
+          case 'ADMIN': return 'Administración Contable';
+          case 'SALES': return 'Asesor Comercial';
+          case 'DESIGN': return 'Ingeniería y Diseño';
+          case 'WAREHOUSE': return 'Almacén y Compras';
           case 'PRODUCTION': return 'Jefe Producción';
-          default: return 'Usuario';
+          case 'LOGISTICS': return 'Logística e Instalación';
+          default: return 'Usuario Sistema';
       }
   };
 
@@ -130,7 +173,7 @@ export default function Sidebar() {
             </span>
         </div>
         
-        {filteredMenu.map((item) => {
+        {sortedMenu.map((item) => {
           const active = isActive(item.path);
           return (
             <Link
@@ -155,30 +198,31 @@ export default function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-slate-100 bg-slate-50/50">
-        
-        {/* --- NOMBRE DE LA EMPRESA (Movido desde arriba) --- */}
         <div className="mb-3 text-center px-2">
             <span className="text-sm font-bold text-slate-800 truncate block" title={config?.company_name}>
               {loading ? 'Cargando...' : (config?.company_name || 'SGP V3')}
             </span>
         </div>
 
-        {/* --- TU BLOQUE DE ROL ORIGINAL (Sin cambios de diseño) --- */}
         <div className="flex items-center gap-3 mb-3 p-2 rounded-lg hover:bg-white hover:shadow-sm transition-all cursor-pointer group border border-transparent hover:border-slate-100">
           <div className={`w-9 h-9 rounded-full border flex items-center justify-center font-bold text-xs shadow-sm
             ${userRole === 'DIRECTOR' ? 'bg-slate-800 border-slate-900 text-white' : ''}
+            ${userRole === 'GERENCIA' ? 'bg-purple-100 border-purple-200 text-purple-700' : ''}
             ${userRole === 'ADMIN' ? 'bg-indigo-100 border-indigo-200 text-indigo-700' : ''}
             ${userRole === 'SALES' ? 'bg-emerald-100 border-emerald-200 text-emerald-700' : ''}
             ${userRole === 'DESIGN' ? 'bg-pink-100 border-pink-200 text-pink-700' : ''}
             ${userRole === 'WAREHOUSE' ? 'bg-orange-100 border-orange-200 text-orange-700' : ''}
             ${userRole === 'PRODUCTION' ? 'bg-blue-100 border-blue-200 text-blue-700' : ''}
+            ${userRole === 'LOGISTICS' ? 'bg-cyan-100 border-cyan-200 text-cyan-700' : ''}
           `}>
             {userRole === 'DIRECTOR' && <Shield size={16}/>}
+            {userRole === 'GERENCIA' && <TrendingUp size={16}/>}
             {userRole === 'ADMIN' && <Briefcase size={16}/>}
             {userRole === 'SALES' && <User size={16}/>}
             {userRole === 'DESIGN' && <PenTool size={16}/>}
             {userRole === 'WAREHOUSE' && <Package size={16}/>}
             {userRole === 'PRODUCTION' && <Hammer size={16}/>}
+            {userRole === 'LOGISTICS' && <Truck size={16}/>}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-slate-700 truncate group-hover:text-indigo-600 transition-colors">
@@ -196,14 +240,6 @@ export default function Sidebar() {
         >
           <LogOut size={14} /> Cerrar Sesión
         </button>
-
-        <div className="pt-3 border-t border-slate-200 text-center group cursor-default">
-            <div className="flex items-baseline justify-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
-                <span className="font-serif italic text-lg text-slate-600 font-medium tracking-wide">Valentina</span>
-                <span className="text-[10px] text-slate-400 font-sans tracking-normal font-normal">Software</span>
-            </div>
-            <p className="text-[9px] text-slate-400 font-mono mt-0.5 tracking-tight uppercase">Sistema de Producción v3.0</p>
-        </div>
       </div>
     </aside>
   );

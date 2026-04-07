@@ -1,10 +1,13 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { 
     FileDown, Calendar, User, FileText, Hash, 
-    ClipboardList, Info, Plus
+    ClipboardList, Info, Plus, Percent, ShieldAlert, Lock, Unlock, Save
 } from 'lucide-react';
+
+// IMPORTACIONES CORREGIDAS (LA CAUSA DEL CORTO CIRCUITO)
 import Modal from '../../../components/ui/Modal'; 
-import Button from '../../../components/ui/Button';
+import { Button } from '../../../components/ui/button';
+
 import { SalesOrder } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
 
@@ -17,10 +20,21 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
     const [order, setOrder] = useState<SalesOrder | null>(null);
     const [loading, setLoading] = useState(false);
     
+    // Seguridad para la Puerta Trasera
+    const userRole = (localStorage.getItem('user_role') || '').toUpperCase();
+    const isDirector = ['ADMIN', 'ADMINISTRADOR', 'DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
+
     // Estados de edición de texto
     const [notes, setNotes] = useState(""); 
     const [conditions, setConditions] = useState(""); 
     
+    // Estados para la Puerta Trasera (Porcentaje de Anticipo)
+    const [advancePercent, setAdvancePercent] = useState<number>(60);
+    const [isEditingAdvance, setIsEditingAdvance] = useState(false);
+
+    // Candado Fiscal (Simulado, vendrá del order data)
+    const [hasAdvanceInvoice, setHasAdvanceInvoice] = useState(false);
+
     const [isSaving, setIsSaving] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
 
@@ -33,6 +47,10 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                     setNotes(data.notes || "");
                     // @ts-ignore
                     setConditions(data.conditions || ""); 
+                    // @ts-ignore
+                    setAdvancePercent(Number(data.advance_percent) || 60);
+                    // @ts-ignore - Candado fiscal
+                    setHasAdvanceInvoice(Boolean(data.has_advance_invoice));
                 })
                 .catch(console.error)
                 .finally(() => setLoading(false));
@@ -53,18 +71,22 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
         const total = order.total_price || 0;
         const iva = total - subtotal;
 
-        return { itemsSum, commission, rate, subtotal, iva, total };
-    }, [order]);
+        // Cálculo dinámico del anticipo basado en el estado (para que reaccione al editar)
+        const advanceAmount = total * (advancePercent / 100);
+
+        return { itemsSum, commission, rate, subtotal, iva, total, advanceAmount };
+    }, [order, advancePercent]);
 
     const handleSaveData = async () => {
         if (!orderId) return;
         setIsSaving(true);
         try {
             // @ts-ignore
-            await salesService.updateOrder(orderId, { notes, conditions });
+            await salesService.updateOrder(orderId, { notes, conditions, advance_percent: advancePercent });
+            setIsEditingAdvance(false);
         } catch (error) {
             console.error(error);
-            alert("Error al guardar textos.");
+            alert("Error al guardar cambios.");
         } finally {
             setIsSaving(false);
         }
@@ -75,7 +97,7 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
         setIsDownloading(true);
         try {
             // @ts-ignore
-            await salesService.updateOrder(orderId, { notes, conditions });
+            await salesService.updateOrder(orderId, { notes, conditions, advance_percent: advancePercent });
             
             const filename = `Cotizacion_${order.project_name.replace(/\s+/g, '_')}.pdf`;
             await salesService.downloadPDF(orderId, filename);
@@ -112,7 +134,7 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                     <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-2 rounded-lg text-xs flex items-center gap-2">
                         <Info size={16} />
                         <span>
-                            Estás en modo <b>Revisión de Formato</b>. Para autorizar financieramente esta cotización, ve al <b>Panel de Dirección</b>.
+                            Estás en modo <b>Revisión de Formato</b>. Verifica las condiciones, el porcentaje de anticipo y los textos antes de descargar el PDF.
                         </span>
                     </div>
 
@@ -131,65 +153,113 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                         
                         <div className="border-l border-slate-200 pl-4 text-right flex flex-col justify-center">
                             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Venta</h3>
-                            <div className="text-3xl font-black text-slate-700">${fmt(order.total_price)}</div>
+                            <div className="text-3xl font-black text-slate-700">${fmt(order.total_price || 0)}</div>
                         </div>
                     </div>
 
                     {/* 2. CONTENIDO PRINCIPAL */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
                         
-                        {/* COLUMNA IZQUIERDA: LISTA DE PRODUCTOS + DESGLOSE */}
-                        <div className="lg:col-span-1 flex flex-col h-full min-h-0 border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm">
-                            <div className="bg-slate-100 p-2 font-bold text-xs text-slate-600 flex justify-between shrink-0">
-                                <span>Concepto</span>
-                                <span>Importe</span>
-                            </div>
+                        {/* COLUMNA IZQUIERDA: DESGLOSE Y CONDICIONES FINANCIERAS */}
+                        <div className="lg:col-span-1 flex flex-col h-full min-h-0 gap-4">
                             
-                            {/* LISTA SCROLLABLE */}
-                            <div className="overflow-auto flex-1 p-2 space-y-2">
-                                {order.items?.map((item: any, idx: number) => (
-                                    <div key={idx} className="flex justify-between items-center p-2 hover:bg-slate-50 border-b border-slate-50 last:border-0 text-xs">
-                                        <div>
-                                            <div className="font-bold text-slate-700">{item.product_name}</div>
-                                            <div className="text-slate-400">Qty: {item.quantity} | Unit: ${item.unit_price.toLocaleString()}</div>
-                                        </div>
-                                        <div className="text-right font-mono font-bold text-slate-800">
-                                            ${item.subtotal_price.toLocaleString()}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {/* --- AQUÍ ESTÁ EL DESGLOSE QUE PEDISTE --- */}
+                            {/* CAJA FINANCIERA: ANTICIPO (LA PUERTA TRASERA) */}
                             {totals && (
-                                <div className="bg-slate-50 p-3 border-t border-slate-200 shrink-0 text-xs space-y-1">
-                                    <div className="flex justify-between text-slate-500">
-                                        <span>Suma Partidas:</span>
-                                        <span className="font-mono">${fmt(totals.itemsSum)}</span>
+                                <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 shadow-sm shrink-0">
+                                    <h4 className="text-xs font-black text-indigo-800 uppercase tracking-wider mb-3 flex items-center justify-between">
+                                        <span className="flex items-center gap-1"><Percent size={14}/> Condiciones de Cobranza</span>
+                                        {hasAdvanceInvoice ? (
+                                            <span className="text-[9px] bg-red-100 text-red-700 px-2 py-0.5 rounded border border-red-200 flex items-center gap-1" title="Factura emitida. Cancele el CFDI para modificar el anticipo.">
+                                                <Lock size={10}/> BLOQUEADO
+                                            </span>
+                                        ) : isDirector && !isEditingAdvance ? (
+                                            <button onClick={() => setIsEditingAdvance(true)} className="text-indigo-500 hover:text-indigo-700 hover:bg-indigo-100 p-1 rounded transition-colors" title="Modificar Anticipo">
+                                                <Unlock size={14}/>
+                                            </button>
+                                        ) : null}
+                                    </h4>
+
+                                    <div className="flex justify-between items-end mb-2">
+                                        <div>
+                                            <p className="text-[10px] font-bold text-indigo-500 uppercase">Anticipo Requerido</p>
+                                            
+                                            {isEditingAdvance ? (
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <input 
+                                                        type="number" 
+                                                        className="w-20 px-2 py-1 text-sm border border-indigo-300 rounded font-bold text-indigo-800 text-center shadow-inner"
+                                                        value={advancePercent}
+                                                        onChange={(e) => setAdvancePercent(Number(e.target.value))}
+                                                    /> %
+                                                    <button onClick={handleSaveData} className="bg-indigo-600 text-white p-1 rounded hover:bg-indigo-700" title="Guardar Ajuste">
+                                                        <Save size={14}/>
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <p className="text-2xl font-black text-indigo-900">{advancePercent}%</p>
+                                            )}
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[10px] font-bold text-slate-500 uppercase">Monto a Facturar</p>
+                                            <p className="text-xl font-mono font-bold text-slate-800">${fmt(totals.advanceAmount)}</p>
+                                        </div>
                                     </div>
-                                    
-                                    {/* Comisión */}
-                                    <div className="flex justify-between text-amber-600 font-medium">
-                                        <span className="flex items-center gap-1">
-                                            <Plus size={8}/> Comisión ({(totals.rate * 100).toFixed(1)}%):
-                                        </span>
-                                        <span className="font-mono">${fmt(totals.commission)}</span>
-                                    </div>
-                                    
-                                    <div className="flex justify-between text-slate-600 font-bold border-t border-slate-200 pt-1 mt-1">
-                                        <span>Subtotal:</span>
-                                        <span className="font-mono">${fmt(totals.subtotal)}</span>
-                                    </div>
-                                    <div className="flex justify-between text-slate-500">
-                                        <span>IVA:</span>
-                                        <span className="font-mono">${fmt(totals.iva)}</span>
-                                    </div>
-                                    <div className="flex justify-between text-slate-800 font-black text-sm border-t border-slate-300 pt-1 mt-1">
-                                        <span>TOTAL:</span>
-                                        <span className="font-mono">${fmt(totals.total)}</span>
-                                    </div>
+
+                                    {hasAdvanceInvoice && (
+                                        <div className="mt-3 text-[10px] font-medium text-red-600 flex items-start gap-1 leading-tight bg-white p-2 rounded border border-red-100">
+                                            <ShieldAlert size={12} className="shrink-0 mt-0.5"/>
+                                            No es posible modificar el anticipo. Existe una factura de anticipo activa para esta orden. Cancele la factura primero.
+                                        </div>
+                                    )}
                                 </div>
                             )}
+
+                            {/* LISTA SCROLLABLE Y DESGLOSE TOTALES */}
+                            <div className="flex flex-col flex-1 min-h-0 border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm">
+                                <div className="bg-slate-100 p-2 font-bold text-xs text-slate-600 flex justify-between shrink-0">
+                                    <span>Concepto</span>
+                                    <span>Importe</span>
+                                </div>
+                                
+                                <div className="overflow-auto flex-1 p-2 space-y-2">
+                                    {order.items?.map((item: any, idx: number) => (
+                                        <div key={idx} className="flex justify-between items-center p-2 hover:bg-slate-50 border-b border-slate-50 last:border-0 text-xs">
+                                            <div>
+                                                <div className="font-bold text-slate-700">{item.product_name}</div>
+                                                <div className="text-slate-400">Qty: {item.quantity} | Unit: ${item.unit_price.toLocaleString()}</div>
+                                            </div>
+                                            <div className="text-right font-mono font-bold text-slate-800">
+                                                ${item.subtotal_price.toLocaleString()}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {totals && (
+                                    <div className="bg-slate-50 p-3 border-t border-slate-200 shrink-0 text-xs space-y-1">
+                                        <div className="flex justify-between text-slate-500">
+                                            <span>Suma Partidas:</span>
+                                            <span className="font-mono">${fmt(totals.itemsSum)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-amber-600 font-medium">
+                                            <span className="flex items-center gap-1"><Plus size={8}/> Comisión ({(totals.rate * 100).toFixed(1)}%):</span>
+                                            <span className="font-mono">${fmt(totals.commission)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-slate-600 font-bold border-t border-slate-200 pt-1 mt-1">
+                                            <span>Subtotal:</span>
+                                            <span className="font-mono">${fmt(totals.subtotal)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-slate-500">
+                                            <span>IVA:</span>
+                                            <span className="font-mono">${fmt(totals.iva)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-slate-800 font-black text-sm border-t border-slate-300 pt-1 mt-1">
+                                            <span>TOTAL:</span>
+                                            <span className="font-mono">${fmt(totals.total)}</span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {/* COLUMNA DERECHA: EDITORES DE TEXTO (NOTAS Y CONDICIONES) */}
@@ -211,7 +281,7 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                                     value={conditions}
                                     onChange={(e) => setConditions(e.target.value)}
                                     onBlur={handleSaveData}
-                                    placeholder="Tiempos de entrega, anticipos, vigencia..."
+                                    placeholder="Tiempos de entrega, vigencia, etc..."
                                 />
                             </div>
                         </div>
@@ -220,13 +290,11 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                     {/* 3. FOOTER DE ACCIONES */}
                     <div className="border-t border-slate-200 pt-4 mt-auto flex justify-between items-center shrink-0">
                         <div className="text-xs text-slate-400 flex items-center gap-2">
-                            {isSaving ? <span className="text-amber-600 font-bold animate-pulse">Guardando textos...</span> : <span className="text-emerald-600 font-bold">✓ Textos guardados</span>}
+                            {isSaving ? <span className="text-amber-600 font-bold animate-pulse">Guardando textos/ajustes...</span> : <span className="text-emerald-600 font-bold">✓ Cambios guardados</span>}
                         </div>
                         
                         <div className="flex gap-3">
                             <Button variant="secondary" onClick={onClose}>Cerrar</Button>
-                            
-                            {/* ÚNICA ACCIÓN PRINCIPAL: VER COMO QUEDÓ EL PDF */}
                             <Button onClick={handleDownloadPDF} disabled={isDownloading} className="bg-indigo-600 hover:bg-indigo-700 text-white">
                                 {isDownloading ? "Generando..." : <><FileDown size={18} className="mr-2"/> Previsualizar PDF</>}
                             </Button>

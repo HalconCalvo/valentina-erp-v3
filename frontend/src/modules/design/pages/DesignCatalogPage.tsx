@@ -7,29 +7,41 @@ import {
     ChevronDown, ChevronRight, Layers, 
     FileText, AlertCircle, CheckCircle2,
     Paperclip, X, FileMinus, Lock,
-    Box, Tag, AlertTriangle, CheckSquare
+    Tag, ArrowLeft, Calculator, Printer, ShieldAlert
 } from 'lucide-react';
 
-import Card from '../../../components/ui/Card';
-import Button from '../../../components/ui/Button';
+import { Card } from '../../../components/ui/card';
+import { Button } from '../../../components/ui/button';
 import Badge from '../../../components/ui/Badge';
 import Modal from '../../../components/ui/Modal';
-import Input from '../../../components/ui/Input';
+import { Input } from '../../../components/ui/input';
 import ExportButton from '../../../components/ui/ExportButton';
 
 import { designService } from '../../../api/design-service';
+import { productionService } from '../../../api/production-service';
 import { VersionStatus } from '../../../types/design';
+
+type ModuleView = 'HOME' | 'CATALOG' | 'DEFICIT' | 'PRINTING';
 
 const DesignCatalogPage: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation(); 
     
+    // --- ESTADO DE VISTA MAESTRA ---
+    const [currentView, setCurrentView] = useState<ModuleView>('HOME');
+
     // --- SEGURIDAD ---
     const [userRole, setUserRole] = useState('ADMIN');
     
+    // --- KPIs PARA LAS TARJETAS ---
+    const [pendingInstancesCount, setPendingInstancesCount] = useState(0);
+    const [amberBatchesCount, setAmberBatchesCount] = useState(0);
+    const [activeBatchesCount, setActiveBatchesCount] = useState(0);
+
     useEffect(() => {
         const role = (localStorage.getItem('user_role') || 'ADMIN').toUpperCase();
         setUserRole(role);
+        loadDashboardMetrics();
     }, []);
 
     const isSales = userRole === 'SALES';
@@ -37,7 +49,7 @@ const DesignCatalogPage: React.FC = () => {
     const { masters, loading, error, loadMasters, addMaster, updateMaster, deleteMaster } = useDesign();
     const { clients, fetchClients } = useClients();
     
-    // UI State
+    // UI State Catálogo
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [currentId, setCurrentId] = useState<number | null>(null);
@@ -45,7 +57,6 @@ const DesignCatalogPage: React.FC = () => {
     const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
     const [expandedClients, setExpandedClients] = useState<Set<number>>(new Set());
 
-    // File Upload State
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [uploadingId, setUploadingId] = useState<number | null>(null);
     const [viewingBlueprintUrl, setViewingBlueprintUrl] = useState<string | null>(null);
@@ -60,6 +71,19 @@ const DesignCatalogPage: React.FC = () => {
             setExpandedClients(allIds);
         }
     }, [clients.length, masters.length]);
+
+    const loadDashboardMetrics = async () => {
+        try {
+            const pending = await designService.getPendingInstances();
+            setPendingInstancesCount(pending.length);
+
+            const batches = await productionService.getBatches();
+            setAmberBatchesCount(batches.filter(b => b.status === 'AMBAR').length);
+            setActiveBatchesCount(batches.filter(b => b.status === 'EN_PRODUCCION' || b.status === 'TERMINADO').length);
+        } catch (err) {
+            console.error("Error cargando métricas", err);
+        }
+    };
 
     const getClientName = (id: number) => clients.find(c => c.id === id)?.full_name || 'Stock Interno';
     
@@ -134,47 +158,32 @@ const DesignCatalogPage: React.FC = () => {
     };
 
     useEffect(() => {
-        if (location.state && (location.state as any).openNewModal) {
-            openCreateModal();
-            window.history.replaceState({}, document.title);
+        if (location.state) {
+            const state = location.state as any;
+            if (state.openNewModal) {
+                setCurrentView('CATALOG');
+                openCreateModal();
+                window.history.replaceState({}, document.title);
+            } else if (state.returnTo === 'CATALOG') {
+                // Si recibe la señal de regresar, abre directo el catálogo
+                setCurrentView('CATALOG');
+                window.history.replaceState({}, document.title);
+            }
         }
     }, [location.state]);
 
-    // --- BLINDAJE DE SEGURIDAD PARA EL BORRADO EN CASCADA ---
     const handleDelete = async (e: React.MouseEvent, id: number, productName: string) => {
         e.stopPropagation(); 
         if(isSales) return;
-
-        // Doble confirmación exigiendo la palabra "ELIMINAR"
-        const confirmacion = window.prompt(
-            `⚠ ALERTA CRÍTICA: BORRADO EN CASCADA ⚠\n\n` +
-            `Estás a punto de eliminar la familia completa de "${productName}".\n` +
-            `Esto destruirá:\n` +
-            `- El Producto Base\n` +
-            `- TODAS sus versiones (V1, V2, etc.)\n` +
-            `- Las recetas, costos y planos adjuntos.\n\n` +
-            `Para confirmar, escribe la palabra: ELIMINAR`
-        );
-
+        const confirmacion = window.prompt(`⚠ ALERTA CRÍTICA: BORRADO EN CASCADA ⚠\n\nEstás a punto de eliminar "${productName}".\nPara confirmar, escribe: ELIMINAR`);
         if (confirmacion === "ELIMINAR") { 
-            try { 
-                await deleteMaster(id); 
-                alert("✅ Familia de producto eliminada correctamente.");
-            } catch (err) { 
-                console.error(err);
-                alert("Ocurrió un error al intentar eliminar el producto."); 
-            } 
-        } else if (confirmacion !== null) {
-            alert("❌ Borrado cancelado. La palabra no coincide.");
+            try { await deleteMaster(id); alert("✅ Producto eliminado."); } 
+            catch (err) { alert("Error al eliminar."); } 
         }
     };
 
     const handleOpenProduct = async (masterId: number, versions: any[]) => {
-        if (isSales) {
-            alert("🔒 Acceso Restringido: Solo Ingeniería puede ver los detalles técnicos y costos.");
-            return;
-        }
-
+        if (isSales) { alert("🔒 Acceso Restringido."); return; }
         if (versions && versions.length > 0) navigate(`/design/versions/${versions[0].id}`);
         else {
             try {
@@ -193,228 +202,267 @@ const DesignCatalogPage: React.FC = () => {
         } catch (e) { console.error(e); }
     };
 
-    // --- CÁLCULOS KPI ---
-    const totalProducts = masters.length;
-    const totalReady = masters.filter(m => m.versions?.[0]?.status === VersionStatus.READY).length;
     const totalDrafts = masters.filter(m => m.versions?.[0]?.status === VersionStatus.DRAFT || !m.versions?.length).length;
 
     return (
-        <div className="p-8 max-w-7xl mx-auto pb-24 space-y-8 animate-fadeIn">
+        <div className="p-8 max-w-7xl mx-auto space-y-6 pb-24 animate-in fade-in duration-300">
             <input type="file" ref={fileInputRef} className="hidden" accept=".pdf,image/*" onChange={handleFileChange} />
 
-            {/* HEADER AL ESTILO GERENCIA */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-                <div>
-                    <h1 className="text-3xl font-black text-slate-800 flex items-center gap-3">
-                        Catálogo de Ingeniería
-                        {isSales && <Badge className="bg-slate-100 text-slate-600 border-slate-200 mt-1"><Lock size={12} className="mr-1"/> LECTURA</Badge>}
-                    </h1>
-                    <p className="text-slate-500">Gestión de productos base, explosión de materiales y planos.</p>
-                </div>
-
-                <div className="flex gap-3 w-full md:w-auto items-center">
-                    <ExportButton data={masters} fileName="Catalogo_Productos" mapping={mapMastersForExcel} label="Exportar"/>
-                    <div className="relative flex-1 md:flex-none">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                        <input type="text" placeholder="Buscar producto..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm w-full md:w-64 focus:ring-2 focus:ring-indigo-500 shadow-sm"/>
-                    </div>
-                    {!isSales && (
-                        <Button onClick={openCreateModal} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm">
-                            <Plus size={16} className="mr-1" /> Nuevo
-                        </Button>
-                    )}
-                </div>
-            </div>
-
-            {error && <div className="bg-red-50 text-red-700 p-4 rounded-xl border border-red-200 shadow-sm"><AlertCircle size={16} className="inline mr-2"/> {error}</div>}
-
-            {/* --- NIVEL 1: TARJETAS SUPERIORES --- */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                
-                {/* 1. TOTAL PRODUCTOS */}
-                <Card className="p-4 border-l-4 border-l-blue-500 bg-white shadow-sm hover:shadow-lg transition-all transform hover:-translate-y-1 h-full">
-                    <div className="flex justify-between items-start">
-                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Productos</p>
-                        <Box size={14} className="text-blue-500" />
-                    </div>
-                    <div className="mt-1 flex justify-between items-end">
+            {/* =========================================
+                VISTA 1: HOME (SOLO LAS 4 TARJETAS)
+            ========================================= */}
+            {currentView === 'HOME' && (
+                <>
+                    <div className="flex justify-between items-center pb-4 border-b border-slate-200">
                         <div>
-                            <h3 className="text-xl font-bold text-slate-700">En Catálogo</h3>
-                            <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">Registrados en BD</p>
+                            <h1 className="text-3xl font-black text-slate-800 flex items-center gap-3">
+                                Diseño e Ingeniería
+                                {isSales && <Badge className="bg-slate-100 text-slate-600 border-slate-200 mt-1"><Lock size={12} className="mr-1"/> LECTURA</Badge>}
+                            </h1>
+                            <p className="text-slate-500 mt-1">El Cerebro Técnico de la Empresa. Orquestación, desarrollo y control de manufactura.</p>
                         </div>
-                        <div className="text-2xl font-black text-blue-600/20">{totalProducts}</div>
                     </div>
-                </Card>
 
-                {/* 2. CATEGORÍAS */}
-                <Card className="p-4 border-l-4 border-l-emerald-500 bg-white shadow-sm hover:shadow-lg transition-all transform hover:-translate-y-1 h-full">
-                    <div className="flex justify-between items-start">
-                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Categorías</p>
-                        <Tag size={14} className="text-emerald-500" />
-                    </div>
-                    <div className="mt-1 flex justify-between items-end">
-                        <div>
-                            <h3 className="text-xl font-bold text-slate-700">Tipos de Mueble</h3>
-                            <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">Clasificaciones Activas</p>
-                        </div>
-                        <div className="text-2xl font-black text-emerald-600/20">{uniqueCategories.length}</div>
-                    </div>
-                </Card>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 pt-4">
+                        {/* Tarjeta 1: Catálogo */}
+                        <Card onClick={() => setCurrentView('CATALOG')} className="p-4 cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-indigo-500 transform hover:-translate-y-1 bg-white shadow-sm h-full">
+                            <div className="flex justify-between items-start">
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Módulo 1</p>
+                                <Layers size={14} className="text-indigo-500" />
+                            </div>
+                            <div className="mt-1 flex flex-col h-[80px] justify-between">
+                                <h3 className="text-xl font-bold text-slate-700 leading-tight">Catálogo de<br/>Ingeniería</h3>
+                                <div className="flex justify-between items-end w-full">
+                                    <p className="text-[10px] text-slate-400">El Génesis de Recetas</p>
+                                    <div className="text-xl font-black text-indigo-600/30">{totalDrafts}</div>
+                                </div>
+                            </div>
+                        </Card>
 
-                {/* 3. BORRADORES (ALERTA) */}
-                <Card className="p-4 border-l-4 border-l-orange-500 bg-white shadow-sm hover:shadow-lg transition-all transform hover:-translate-y-1 h-full">
-                    <div className="flex justify-between items-start">
-                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Borradores</p>
-                        <AlertTriangle size={14} className="text-orange-500" />
-                    </div>
-                    <div className="mt-1 flex justify-between items-end">
-                        <div>
-                            <h3 className="text-xl font-bold text-slate-700">En Desarrollo</h3>
-                            <p className="text-[10px] text-orange-600 font-bold mt-1 flex items-center gap-1">Sin versión activa</p>
-                        </div>
-                        <div className="text-2xl font-black text-orange-600/20">{totalDrafts}</div>
-                    </div>
-                </Card>
+                        {/* Tarjeta 2: Simulador */}
+                        <Card onClick={() => navigate('/design/simulator')} className="p-4 cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-blue-500 transform hover:-translate-y-1 bg-white shadow-sm h-full">
+                            <div className="flex justify-between items-start">
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Módulo 2</p>
+                                <Calculator size={14} className="text-blue-500" />
+                            </div>
+                            <div className="mt-1 flex flex-col h-[80px] justify-between">
+                                <h3 className="text-xl font-bold text-slate-700 leading-tight">Simulador y<br/>Lotificación</h3>
+                                <div className="flex justify-between items-end w-full">
+                                    <p className="text-[10px] text-slate-400">Puente a Fábrica</p>
+                                    <div className="text-xl font-black text-blue-600/30">{pendingInstancesCount}</div>
+                                </div>
+                            </div>
+                        </Card>
 
-                {/* 4. LISTOS (VERDE) */}
-                <Card className="p-4 border-l-4 border-l-indigo-500 bg-white shadow-sm hover:shadow-lg transition-all transform hover:-translate-y-1 h-full">
-                    <div className="flex justify-between items-start">
-                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Producción</p>
-                        <CheckSquare size={14} className="text-indigo-500" />
-                    </div>
-                    <div className="mt-1 flex justify-between items-end">
-                        <div>
-                            <h3 className="text-xl font-bold text-slate-700">Listos p/ Venta</h3>
-                            <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1"><CheckCircle2 size={10}/> Recetas cerradas</p>
-                        </div>
-                        <div className="text-2xl font-black text-indigo-600/20">{totalReady}</div>
-                    </div>
-                </Card>
-            </div>
+                        {/* Tarjeta 3: Déficit y Mermas */}
+                        <Card onClick={() => setCurrentView('DEFICIT')} className="p-4 cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-orange-500 transform hover:-translate-y-1 bg-white shadow-sm h-full">
+                            <div className="flex justify-between items-start">
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Módulo 3</p>
+                                <ShieldAlert size={14} className="text-orange-500" />
+                            </div>
+                            <div className="mt-1 flex flex-col h-[80px] justify-between">
+                                <h3 className="text-xl font-bold text-slate-700 leading-tight">Control de<br/>Déficit y Mermas</h3>
+                                <div className="flex justify-between items-end w-full">
+                                    <p className="text-[10px] text-slate-400">Puente a Compras</p>
+                                    <div className="text-xl font-black text-orange-600/30">{amberBatchesCount}</div>
+                                </div>
+                            </div>
+                        </Card>
 
-            {/* --- NIVEL 2: MÓDULO DE TABLAS (ESTILO GERENCIA) --- */}
-            <div className="animate-in slide-in-from-bottom-4 duration-500 space-y-6">
-                {!loading && Object.keys(groupedProducts).length === 0 && (
-                    <div className="text-center py-24 bg-white rounded-xl border border-dashed border-slate-300 shadow-sm">
-                        <Layers size={40} className="mx-auto text-slate-300 mb-3"/>
-                        <h3 className="text-sm font-medium text-slate-900">No hay productos</h3>
-                        <p className="text-sm text-slate-500 mt-1">Crea un nuevo producto para comenzar a armar su receta.</p>
+                        {/* Tarjeta 4: Centro de Impresión */}
+                        <Card onClick={() => setCurrentView('PRINTING')} className="p-4 cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-emerald-500 transform hover:-translate-y-1 bg-white shadow-sm h-full">
+                            <div className="flex justify-between items-start">
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Módulo 4</p>
+                                <Printer size={14} className="text-emerald-500" />
+                            </div>
+                            <div className="mt-1 flex flex-col h-[80px] justify-between">
+                                <h3 className="text-xl font-bold text-slate-700 leading-tight">Centro de<br/>Impresión</h3>
+                                <div className="flex justify-between items-end w-full">
+                                    <p className="text-[10px] text-slate-400">Control de Piso</p>
+                                    <div className="text-xl font-black text-emerald-600/30">{activeBatchesCount}</div>
+                                </div>
+                            </div>
+                        </Card>
                     </div>
-                )}
+                </>
+            )}
 
-                {Object.entries(groupedProducts).map(([clientIdStr, categories]) => {
-                    const clientId = Number(clientIdStr);
-                    const clientName = getClientName(clientId);
-                    const isExpanded = expandedClients.has(clientId);
-                    const productCount = Object.values(categories).reduce((acc, list) => acc + list.length, 0);
+            {/* =========================================
+                VISTA 2: SUBMÓDULOS ACTIVOS
+            ========================================= */}
+            {currentView !== 'HOME' && (
+                <div className="animate-in slide-in-from-right-8 duration-300">
+                    
+                    {/* BOTÓN REGRESAR GENERAL */}
+                    <button 
+                        onClick={() => setCurrentView('HOME')}
+                        className="flex items-center gap-2 text-indigo-600 hover:text-indigo-800 font-bold transition-colors mb-6 bg-indigo-50 px-4 py-2 rounded-lg w-fit"
+                    >
+                        <ArrowLeft size={18} /> Regresar al Panel Principal
+                    </button>
 
-                    return (
-                        <div key={clientId} className="bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden transition-all">
-                            {/* CABECERA CLIENTE (ESTILO TABLA GERENCIA) */}
-                            <div onClick={() => toggleClient(clientId)} className="p-4 bg-indigo-50 border-b border-indigo-100 flex justify-between items-center cursor-pointer hover:bg-indigo-100/50 transition-colors">
-                                <h3 className="font-bold text-indigo-800 flex items-center gap-2 text-lg">
-                                    {isExpanded ? <ChevronDown size={20} className="text-indigo-600"/> : <ChevronRight size={20} className="text-indigo-600"/>}
-                                    {clientName}
-                                </h3>
-                                <Badge variant="default" className="bg-indigo-600">{productCount} Productos</Badge>
+                    {/* --- MÓDULO 1: CATÁLOGO --- */}
+                    {currentView === 'CATALOG' && (
+                        <div className="space-y-6">
+                            <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-200">
+                                <div>
+                                    <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                                        <Layers className="text-indigo-500"/> Catálogo de Ingeniería
+                                    </h2>
+                                    <p className="text-slate-500 text-sm mt-1">Gestión de productos base, explosión de materiales y repositorio de planos.</p>
+                                </div>
+                                <div className="flex gap-3 items-center">
+                                    <ExportButton data={masters} fileName="Catalogo_Productos" mapping={mapMastersForExcel} label="Exportar"/>
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                        <input type="text" placeholder="Buscar producto..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm w-64 focus:ring-2 focus:ring-indigo-500 shadow-sm"/>
+                                    </div>
+                                    {!isSales && (
+                                        <Button onClick={openCreateModal} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm">
+                                            <Plus size={16} className="mr-1" /> Nuevo Producto
+                                        </Button>
+                                    )}
+                                </div>
                             </div>
 
-                            {/* CONTENIDO EXPANDIDO */}
-                            {isExpanded && (
-                                <div className="overflow-x-auto">
-                                    {Object.entries(categories).map(([categoryName, categoryProducts]) => (
-                                        <div key={categoryName} className="mb-0">
-                                            
-                                            <table className="w-full text-sm text-left">
-                                                {/* CABECERA TABLA (ESTILO GERENCIA) */}
-                                                <thead className="text-xs text-indigo-800 uppercase bg-indigo-50/50 border-b border-indigo-100">
-                                                    <tr>
-                                                        <th className="px-6 py-4 w-[40%] flex items-center gap-2">
-                                                            <Tag size={14}/> {categoryName}
-                                                        </th>
-                                                        <th className="px-6 py-4 text-center w-[15%]">Estado</th>
-                                                        <th className="px-6 py-4 w-[20%]">Versión</th>
-                                                        <th className="px-6 py-4 text-center w-[25%]">Acciones</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-slate-50">
-                                                    {categoryProducts.flatMap((product: any) => {
-                                                        const versions = product.versions && product.versions.length > 0 ? product.versions : [null];
-                                                        
-                                                        return versions.map((v: any) => {
-                                                            const isReady = v?.status === VersionStatus.READY;
-                                                            const rowKey = `${product.id}-${v ? v.id : 'empty'}`;
+                            {error && <div className="bg-red-50 text-red-700 p-4 rounded-xl border border-red-200 shadow-sm"><AlertCircle size={16} className="inline mr-2"/> {error}</div>}
 
-                                                            return (
-                                                                <tr key={rowKey} className="hover:bg-slate-50 transition-colors">
-                                                                    <td className="px-6 py-4">
-                                                                        <div 
-                                                                            className={`font-bold text-slate-700 flex items-center gap-2 ${isSales ? 'cursor-default' : 'hover:text-indigo-600 cursor-pointer transition-colors'}`} 
-                                                                            onClick={() => handleOpenProduct(product.id, v ? [v] : [])}
-                                                                        >
-                                                                            {product.name}
-                                                                        </div>
-                                                                        <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-500 text-xs mt-1 inline-block">
-                                                                            SKU: PRD-{product.id.toString().padStart(4, '0')} {v ? `- V${v.id}` : ''}
-                                                                        </span>
-                                                                    </td>
-                                                                    
-                                                                    <td className="px-6 py-4 text-center">
-                                                                        {v ? (
-                                                                            isReady ? 
-                                                                                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100 inline-flex items-center justify-center gap-1"><CheckCircle2 size={10}/> Listo</span> : 
-                                                                                <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded-full border border-orange-100 inline-flex items-center justify-center gap-1"><AlertCircle size={10}/> Borrador</span>
-                                                                        ) : (
-                                                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-full border border-slate-200 inline-flex items-center justify-center">Vacío</span>
-                                                                        )}
-                                                                    </td>
-                                                                    
-                                                                    <td className="px-6 py-4 text-slate-500">
-                                                                        {v ? 
-                                                                            <span className={`font-mono px-2 py-1 rounded text-xs border ${isReady ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
-                                                                                {v.version_name}
-                                                                            </span> : 
-                                                                            <span className="text-xs text-slate-400 italic">Pendiente de Ingeniería</span>
-                                                                        }
-                                                                    </td>
-                                                                    
-                                                                    <td className="px-6 py-4 text-center">
-                                                                        <div className="flex items-center justify-center gap-2">
-                                                                            {/* PLANOS */}
-                                                                            {product.blueprint_path ? (
-                                                                                <>
-                                                                                    <button onClick={(e) => { e.stopPropagation(); handleViewBlueprint(product.blueprint_path!); }} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors" title="Ver Plano"><FileText size={16}/></button>
-                                                                                    {!isSales && <button onClick={(e) => handleDeleteBlueprint(e, product.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors" title="Quitar Plano"><FileMinus size={16}/></button>}
-                                                                                </>
-                                                                            ) : (
-                                                                                !isSales && <button onClick={(e) => { e.stopPropagation(); handleUploadClick(product.id); }} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors" title="Adjuntar Plano"><Paperclip size={16}/></button>
-                                                                            )}
-                                                                            
-                                                                            {!isSales && (
-                                                                                <>
-                                                                                    <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                                                                                    <button onClick={(e) => openEditModal(e, product)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors" title="Editar Nombre del Producto Base"><Edit size={16}/></button>
-                                                                                    <button onClick={(e) => handleDelete(e, product.id, product.name)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors" title="Eliminar Familia Completa (Borrado en Cascada)"><Trash2 size={16}/></button>
-                                                                                </>
-                                                                            )}
-                                                                        </div>
-                                                                    </td>
-                                                                </tr>
-                                                            );
-                                                        });
-                                                    })}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    ))}
+                            {!loading && Object.keys(groupedProducts).length === 0 && (
+                                <div className="text-center py-24 bg-white rounded-xl border border-dashed border-slate-300 shadow-sm">
+                                    <Layers size={40} className="mx-auto text-slate-300 mb-3"/>
+                                    <h3 className="text-sm font-medium text-slate-900">No hay productos en el catálogo</h3>
                                 </div>
                             )}
-                        </div>
-                    );
-                })}
-            </div>
 
-            {/* MODAL (MANTENIDO) */}
+                            {Object.entries(groupedProducts).map(([clientIdStr, categories]) => {
+                                const clientId = Number(clientIdStr);
+                                const clientName = getClientName(clientId);
+                                const isExpanded = expandedClients.has(clientId);
+                                const productCount = Object.values(categories).reduce((acc, list) => acc + list.length, 0);
+
+                                return (
+                                    <div key={clientId} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
+                                        <div onClick={() => toggleClient(clientId)} className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center cursor-pointer hover:bg-slate-100 transition-colors">
+                                            <h3 className="font-bold text-slate-700 flex items-center gap-2 text-lg">
+                                                {isExpanded ? <ChevronDown size={20} className="text-slate-500"/> : <ChevronRight size={20} className="text-slate-500"/>}
+                                                {clientName}
+                                            </h3>
+                                            <Badge variant="default" className="bg-slate-200 text-slate-700 hover:bg-slate-300">{productCount} Productos</Badge>
+                                        </div>
+
+                                        {isExpanded && (
+                                            <div className="overflow-x-auto">
+                                                {Object.entries(categories).map(([categoryName, categoryProducts]) => (
+                                                    <div key={categoryName} className="mb-0">
+                                                        <table className="w-full text-sm text-left">
+                                                            <thead className="text-xs text-slate-500 uppercase bg-white border-b border-slate-200">
+                                                                <tr>
+                                                                    <th className="px-6 py-3 w-[40%] flex items-center gap-2"><Tag size={14}/> {categoryName}</th>
+                                                                    <th className="px-6 py-3 text-center w-[15%]">Estado</th>
+                                                                    <th className="px-6 py-3 w-[20%]">Versión Activa</th>
+                                                                    <th className="px-6 py-3 text-center w-[25%]">Acciones</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-slate-100">
+                                                                {categoryProducts.flatMap((product: any) => {
+                                                                    const versions = product.versions && product.versions.length > 0 ? product.versions : [null];
+                                                                    return versions.map((v: any) => {
+                                                                        const isReady = v?.status === VersionStatus.READY;
+                                                                        const rowKey = `${product.id}-${v ? v.id : 'empty'}`;
+
+                                                                        return (
+                                                                            <tr key={rowKey} className="bg-white hover:bg-slate-50 transition-colors">
+                                                                                <td className="px-6 py-4">
+                                                                                    <div className={`font-bold text-slate-800 flex items-center gap-2 ${isSales ? 'cursor-default' : 'hover:text-indigo-600 cursor-pointer'}`} onClick={() => handleOpenProduct(product.id, v ? [v] : [])}>
+                                                                                        {product.name}
+                                                                                    </div>
+                                                                                    <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-500 text-xs mt-1 inline-block">
+                                                                                        SKU: PRD-{product.id.toString().padStart(4, '0')} {v ? `- V${v.id}` : ''}
+                                                                                    </span>
+                                                                                </td>
+                                                                                <td className="px-6 py-4 text-center">
+                                                                                    {v ? (
+                                                                                        isReady ? <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100"><CheckCircle2 size={10} className="inline mr-1"/>Listo</span> : 
+                                                                                                  <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded-full border border-orange-100"><AlertCircle size={10} className="inline mr-1"/>Borrador</span>
+                                                                                    ) : (<span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-full border border-slate-200">Vacío</span>)}
+                                                                                </td>
+                                                                                <td className="px-6 py-4 text-slate-500">
+                                                                                    {v ? <span className={`font-mono px-2 py-1 rounded text-xs border ${isReady ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{v.version_name}</span> : <span className="text-xs text-slate-400 italic">Pendiente</span>}
+                                                                                </td>
+                                                                                <td className="px-6 py-4 text-center">
+                                                                                    <div className="flex items-center justify-center gap-2">
+                                                                                        {product.blueprint_path ? (
+                                                                                            <>
+                                                                                                <button onClick={(e) => { e.stopPropagation(); handleViewBlueprint(product.blueprint_path!); }} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded" title="Ver Plano"><FileText size={16}/></button>
+                                                                                                {!isSales && <button onClick={(e) => handleDeleteBlueprint(e, product.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded" title="Quitar Plano"><FileMinus size={16}/></button>}
+                                                                                            </>
+                                                                                        ) : (
+                                                                                            !isSales ? <button onClick={(e) => { e.stopPropagation(); handleUploadClick(product.id); }} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="Adjuntar Plano"><Paperclip size={16}/></button> : null
+                                                                                        )}
+                                                                                        {!isSales && (
+                                                                                            <>
+                                                                                                <div className="w-px h-4 bg-slate-200 mx-1"></div>
+                                                                                                <button onClick={(e) => openEditModal(e, product)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="Editar Nombre"><Edit size={16}/></button>
+                                                                                                <button onClick={(e) => handleDelete(e, product.id, product.name)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded" title="Eliminar"><Trash2 size={16}/></button>
+                                                                                            </>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </td>
+                                                                            </tr>
+                                                                        );
+                                                                    });
+                                                                })}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {/* --- MÓDULO 3: DÉFICIT --- */}
+                    {currentView === 'DEFICIT' && (
+                        <div className="space-y-6">
+                            <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-200">
+                                <div>
+                                    <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                                        <ShieldAlert className="text-orange-500"/> Control de Déficit y Mermas
+                                    </h2>
+                                    <p className="text-slate-500 text-sm mt-1">Requisiciones a Compras y buzón de reposición de mermas físicas.</p>
+                                </div>
+                            </div>
+                            <Card className="p-12 text-center bg-white border border-slate-200 shadow-sm flex flex-col items-center justify-center">
+                                <ShieldAlert size={48} className="text-orange-300 mb-4"/>
+                                <h3 className="text-xl font-bold text-slate-700">Módulo en Construcción</h3>
+                            </Card>
+                        </div>
+                    )}
+
+                    {/* --- MÓDULO 4: IMPRESIÓN --- */}
+                    {currentView === 'PRINTING' && (
+                        <div className="space-y-6">
+                            <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-200">
+                                <div>
+                                    <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                                        <Printer className="text-emerald-500"/> Centro de Impresión y Control de Piso
+                                    </h2>
+                                    <p className="text-slate-500 text-sm mt-1">Emisión de etiquetas ZPL, manifiestos PDF y control de lotes activos.</p>
+                                </div>
+                            </div>
+                            <Card className="p-12 text-center bg-white border border-slate-200 shadow-sm flex flex-col items-center justify-center">
+                                <Printer size={48} className="text-slate-300 mb-4"/>
+                                <h3 className="text-xl font-bold text-slate-700">Módulo en Construcción</h3>
+                            </Card>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* MODALES COMPARTIDOS */}
             <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={isEditing ? "Editar Producto" : "Nuevo Producto"}>
                  <div className="space-y-5 py-2">
                     <div>
@@ -446,7 +494,6 @@ const DesignCatalogPage: React.FC = () => {
                 </div>
             </Modal>
 
-            {/* VISOR PDF/IMAGEN */}
             {viewingBlueprintUrl && (
                 <div className="fixed inset-0 bg-slate-900/90 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-xl w-full max-w-6xl h-[90vh] flex flex-col relative shadow-2xl overflow-hidden">

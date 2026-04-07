@@ -29,6 +29,8 @@ export interface PendingInvoice {
     due_date: string; // Viene como string "YYYY-MM-DD" del backend
     total_amount: number;
     outstanding_balance: number;
+    items?: { description: string; qty: number; price: number }[];
+    po_folio?: string | null;
 }
 
 // --- 3. SOLICITUD DE PAGO (Input) ---

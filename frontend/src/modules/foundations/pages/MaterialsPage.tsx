@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Navigate } from 'react-router-dom'; 
 import { useMaterials } from '../hooks/useMaterials';
-import { useProviders } from '../hooks/useProviders'; // <--- NUEVO HOOK AÑADIDO
+import { useProviders } from '../hooks/useProviders'; 
 import { Material } from '@/types/foundations';
 import { 
   Plus, Link2, Upload, DollarSign, ArrowRight, 
-  ChevronDown, Pencil, Trash2, X, Lock, ArrowUpDown, EyeOff, Building2
+  ChevronDown, Pencil, Trash2, X, Lock, ArrowUpDown, EyeOff, Building2, AlertTriangle, ShieldCheck
 } from 'lucide-react';
 import client from '@/api/axios-client'; 
 
@@ -16,15 +16,11 @@ import { DataTable } from "../../../components/ui/DataTable"
 import { MaterialsTableToolbar } from "../components/MaterialsTableToolbar"
 
 export default function MaterialsPage() {
-  // 1. TODOS LOS HOOKS PRIMERO
   const { materials, loading, createMaterial, updateMaterial, deleteMaterial } = useMaterials();
-  const { providers, fetchProviders } = useProviders(); // <--- CARGAMOS PROVEEDORES
+  const { providers, fetchProviders } = useProviders(); 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Estados de Seguridad
   const [userRole, setUserRole] = useState(''); 
-  
-  // Estados de UI/Formulario
   const [showForm, setShowForm] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -36,27 +32,26 @@ export default function MaterialsPage() {
     purchase_unit: '', usage_unit: '',
     conversion_factor: 1, current_cost: 0,
     associated_element_sku: '',
-    provider_id: 0 // <--- INICIALIZAMOS PROVEEDOR
+    provider_id: 0,
+    min_stock: 0, // <--- INYECCIÓN: Inicializamos en 0
+    max_stock: 0  // <--- INYECCIÓN: Inicializamos en 0
   };
 
   const [form, setForm] = useState<Partial<Material>>(initialFormState);
 
-  // 2. EFECTOS
   useEffect(() => {
     const role = (localStorage.getItem('user_role') || '').toUpperCase().trim();
     setUserRole(role);
-    fetchProviders(); // <--- MANDAMOS A TRAER LOS PROVEEDORES AL CARGAR LA PÁGINA
+    fetchProviders(); 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 3. LOGICA DE ACCESO (MATRIZ DE SEGURIDAD)
   const isSales = userRole === 'SALES' || userRole === 'VENTAS';
   const isDesign = ['DESIGN', 'DISEÑO', 'DISENO'].includes(userRole);
   const isProduction = ['PRODUCTION', 'PRODUCCION', 'PRODUCCIÓN'].includes(userRole);
   const isReadOnly = isDesign || isProduction; 
-  const showFinancials = ['ADMIN', 'ADMINISTRADOR', 'DIRECTOR', 'DIRECCION', 'DIRECTION', 'PRODUCTION', 'PRODUCCION'].includes(userRole);
+  const showFinancials = ['ADMIN', 'ADMINISTRADOR', 'DIRECTOR', 'DIRECCION', 'DIRECTION', 'PRODUCTION', 'PRODUCCION', 'GERENCIA'].includes(userRole);
 
-  // 4. MEMOS (Columnas)
   const columns = useMemo<ColumnDef<Material>[]>(() => {
     const cols: ColumnDef<Material>[] = [
       {
@@ -144,11 +139,17 @@ export default function MaterialsPage() {
         header: () => <div className="text-right">Stock</div>,
         cell: ({ row }) => {
             const stock = row.original.physical_stock || 0;
+            // ---> 🔪 INYECCIÓN: Lógica Visual de Stock Crítico en la Tabla <---
+            const minStock = (row.original as any).min_stock || 0;
+            const isCritical = minStock > 0 && stock <= minStock;
+            
             return (
-                <div className="text-right text-sm">
-                    <span className={`font-bold ${stock <= 0 ? 'text-red-500' : 'text-slate-800'}`}>
+                <div className="text-right text-sm flex items-center justify-end gap-1">
+                    {isCritical && <AlertTriangle size={12} className="text-rose-500 animate-pulse" title={`Por debajo del mínimo (${minStock})`} />}
+                    <span className={`font-bold ${stock <= 0 ? 'text-red-500' : (isCritical ? 'text-rose-600' : 'text-slate-800')}`}>
                         {stock}
-                    </span> <span className="text-slate-400 text-xs ml-1">{row.original.usage_unit}</span>
+                    </span> 
+                    <span className="text-slate-400 text-xs ml-1">{row.original.usage_unit}</span>
                 </div>
             )
         },
@@ -206,14 +207,9 @@ export default function MaterialsPage() {
     return cols;
   }, [isReadOnly, showFinancials]); 
 
-  // -------------------------------------------------------------
-  // 5. CANDADO DE SEGURIDAD
-  // -------------------------------------------------------------
   if (isSales) {
       return <Navigate to="/" replace />;
   }
-
-  // --- LÓGICA DE NEGOCIO RESTANTE ---
   
   const existingCategories = Array.from(new Set(materials.map(m => m.category))).sort();
 
@@ -223,6 +219,8 @@ export default function MaterialsPage() {
       "Categoría": m.category,
       "Stock Físico": m.physical_stock || 0,
       "Unidad Uso": m.usage_unit,
+      "Stock Mínimo": (m as any).min_stock || 0,
+      "Stock Máximo": (m as any).max_stock || 0,
       "Proveedor": (m as any).provider?.business_name || (m as any).provider_name || 'Sin Asignar', 
       ...(showFinancials && {
         "Costo Unitario": m.current_cost,
@@ -295,7 +293,6 @@ export default function MaterialsPage() {
         ...form,
         current_cost: showFinancials ? form.current_cost : (form.current_cost || 0),
         associated_element_sku: form.associated_element_sku?.trim() === '' ? null : form.associated_element_sku,
-        // Limpiamos el ID 0 para enviarlo nulo si dicen "Sin asignar"
         provider_id: form.provider_id === 0 ? null : form.provider_id
     };
 
@@ -308,7 +305,7 @@ export default function MaterialsPage() {
 
     if (res.success) {
         resetForm();
-        window.location.reload(); // <--- Forzamos recarga para ver el nuevo Proveedor que mande el backend
+        window.location.reload(); 
     } else {
         alert(`❌ Error: ${res.error}`);
     }
@@ -406,10 +403,8 @@ export default function MaterialsPage() {
                         )}
                     </div>
                     
-                    {/* FILA DE CONTROLES INFERIORES */}
+                    {/* FILA 1 DE CONTROLES INFERIORES */}
                     <div className="md:col-span-4 bg-white p-3 rounded border border-slate-200 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                        
-                        {/* SELECTOR DE PROVEEDOR (NUEVO) */}
                         <div>
                             <label className="text-[10px] font-bold text-indigo-500 uppercase flex items-center gap-1 mb-1">
                                 <Building2 size={12}/> Proveedor Principal
@@ -425,7 +420,6 @@ export default function MaterialsPage() {
                                 ))}
                             </select>
                         </div>
-
                         <div>
                             <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Unidad Compra</label>
                             <input className="input-std bg-slate-50" placeholder="Ej. Hoja" value={form.purchase_unit} onChange={e => setForm({...form, purchase_unit: e.target.value, usage_unit: e.target.value})} />
@@ -453,15 +447,30 @@ export default function MaterialsPage() {
                             <option value="SERVICIO">SERVICIO (Externo)</option>
                         </select>
                     </div>
-                    <div className="md:col-span-2">
+
+                    <div className="md:col-span-1">
                         <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><Link2 size={12}/> Link SKU</label>
                         <input className="input-std border-dashed" value={form.associated_element_sku || ''} onChange={e => setForm({...form, associated_element_sku: e.target.value})} />
                     </div>
 
+                    {/* ---> 🔪 INYECCIÓN: LÍMITES DE STOCK CRÍTICO <--- */}
+                    <div className="md:col-span-2 grid grid-cols-2 gap-2 bg-rose-50 p-2 rounded border border-rose-100">
+                        <div>
+                            <label className="text-[10px] font-bold text-rose-700 uppercase flex items-center gap-1 mb-1"><AlertTriangle size={12}/> Stock Mínimo</label>
+                            <input type="number" step="0.01" className="input-std bg-white border-rose-200 text-rose-900" value={(form as any).min_stock || 0} onChange={e => setForm({...form, min_stock: parseFloat(e.target.value)})} />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold text-emerald-700 uppercase flex items-center gap-1 mb-1"><ShieldCheck size={12}/> Stock Máximo</label>
+                            <input type="number" step="0.01" className="input-std bg-white border-emerald-200 text-emerald-900" value={(form as any).max_stock || 0} onChange={e => setForm({...form, max_stock: parseFloat(e.target.value)})} />
+                        </div>
+                    </div>
+
                     {showFinancials && (
-                        <div className="md:col-span-1">
-                            <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><DollarSign size={12}/> Costo Compra</label>
-                            <input type="number" step="0.01" className="input-std font-bold text-slate-700" value={form.current_cost} onChange={e => setForm({...form, current_cost: parseFloat(e.target.value)})} />
+                        <div className="md:col-span-4 bg-slate-100 p-2 rounded flex justify-end">
+                            <div className="w-1/4">
+                                <label className="text-xs font-bold text-slate-600 uppercase flex items-center gap-1"><DollarSign size={12}/> Costo Compra</label>
+                                <input type="number" step="0.01" className="input-std font-bold text-slate-800 bg-white" value={form.current_cost} onChange={e => setForm({...form, current_cost: parseFloat(e.target.value)})} />
+                            </div>
                         </div>
                     )}
                     
