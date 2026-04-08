@@ -8,9 +8,9 @@ import {
     FileSearch, RefreshCw
 } from 'lucide-react';
 
-import { Card } from '../../../components/ui/card';
-import Badge from '../../../components/ui/Badge';
-import { Button } from '../../../components/ui/button';
+import { Card } from '@/components/ui/card';
+import Badge from '@/components/ui/Badge';
+import { Button } from '@/components/ui/button';
 
 // --- SERVICIOS ---
 import { FinancialReviewModal } from '../../management/components/FinancialReviewModal';

@@ -5,8 +5,8 @@ import {
     Building2, ShoppingCart, Calendar, Clock, CheckCircle2, FileText, XCircle, Trash2, CheckSquare, Square, AlertCircle, RefreshCw, Snowflake 
 } from 'lucide-react';
 
-import { Card } from '../../../components/ui/card';
-import { Button } from '../../../components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import axiosClient from '../../../api/axios-client';
 
 type SubSection = 'CREATION' | 'BRAKE' | 'SENDING' | null;

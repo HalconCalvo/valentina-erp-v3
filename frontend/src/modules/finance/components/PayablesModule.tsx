@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingDown, Clock, CheckCircle2, AlertCircle, Calendar, ArrowLeft, Check, Trash2, Edit2, Layers, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
-import { Card } from '../../../components/ui/card';
-import { Button } from '../../../components/ui/button';
-import Badge from '../../../components/ui/Badge';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import Badge from '@/components/ui/Badge';
 import { financeService } from '../../../api/finance-service';
 import { treasuryService } from '../../../api/treasury-service';
 import { AccountsPayableStats, PendingInvoice, SupplierPayment, PaymentRequestPayload } from '../../../types/finance';

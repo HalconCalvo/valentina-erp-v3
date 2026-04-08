@@ -10,12 +10,12 @@ import {
     Tag, ArrowLeft, Calculator, Printer, ShieldAlert
 } from 'lucide-react';
 
-import { Card } from '../../../components/ui/card';
-import { Button } from '../../../components/ui/button';
-import Badge from '../../../components/ui/Badge';
-import Modal from '../../../components/ui/Modal';
-import { Input } from '../../../components/ui/input';
-import ExportButton from '../../../components/ui/ExportButton';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import Badge from '@/components/ui/Badge';
+import Modal from '@/components/ui/Modal';
+import { Input } from '@/components/ui/input';
+import ExportButton from '@/components/ui/ExportButton';
 
 import { designService } from '../../../api/design-service';
 import { productionService } from '../../../api/production-service';

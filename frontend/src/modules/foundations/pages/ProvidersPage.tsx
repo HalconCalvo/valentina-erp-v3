@@ -4,7 +4,7 @@ import { Provider } from '../../../types/foundations';
 import { Plus, Search, Edit, Trash2, X, Phone, Mail, User, Building2, Smartphone } from 'lucide-react';
 
 // 1. IMPORTAR BOTÓN DE EXPORTACIÓN
-import ExportButton from '../../../components/ui/ExportButton';
+import ExportButton from '@/components/ui/ExportButton';
 
 export default function ProvidersPage() {
   const { providers, loading, createProvider, updateProvider, deleteProvider } = useProviders();

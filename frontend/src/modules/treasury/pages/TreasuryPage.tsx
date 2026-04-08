@@ -27,9 +27,9 @@ import { ReceivablesModule } from '../../finance/components/ReceivablesModule';
 import { PayablesModule } from '../../finance/components/PayablesModule';
 
 // --- UI ---
-import { Card } from '../../../components/ui/card';
-import { Button } from '../../../components/ui/button';
-import Badge from '../../../components/ui/Badge';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import Badge from '@/components/ui/Badge';
 
 type AdminSection = 'TASKS' | 'BANKS' | 'RECEIVABLES' | 'PAYABLES' | 'PAYROLL' | null;
 type PayrollView = 'GENERATED' | 'PAYABLE' | 'PAID';

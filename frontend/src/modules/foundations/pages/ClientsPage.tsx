@@ -5,7 +5,7 @@ import {
   Smartphone, FileText, X, Pencil, Trash2, Users, Building2 
 } from 'lucide-react';
 
-import ExportButton from '../../../components/ui/ExportButton';
+import ExportButton from '@/components/ui/ExportButton';
 
 export default function ClientsPage() {
   const { clients, loading, createClient, updateClient, deleteClient } = useClients();

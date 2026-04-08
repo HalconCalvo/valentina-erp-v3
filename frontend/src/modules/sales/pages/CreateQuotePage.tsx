@@ -14,10 +14,10 @@ import { designService } from '../../../api/design-service';
 import { salesService } from '../../../api/sales-service'; 
 import client from '../../../api/axios-client'; 
 
-import { Button } from '../../../components/ui/button';
-import { Input } from '../../../components/ui/input';
-import { Card } from '../../../components/ui/card';
-import Badge from '../../../components/ui/Badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card } from '@/components/ui/card';
+import Badge from '@/components/ui/Badge';
 import { SalesOrderItem, SalesOrderStatus } from '../../../types/sales';
 import { RecipeViewerModal } from './RecipeViewerModal';
 

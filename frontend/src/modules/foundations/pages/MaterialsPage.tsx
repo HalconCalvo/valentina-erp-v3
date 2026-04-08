@@ -9,10 +9,10 @@ import {
 } from 'lucide-react';
 import client from '@/api/axios-client'; 
 
-import ExportButton from '../../../components/ui/ExportButton';
+import ExportButton from '@/components/ui/ExportButton';
 
 import { ColumnDef } from "@tanstack/react-table"
-import { DataTable } from "../../../components/ui/DataTable"
+import { DataTable } from "@/components/ui/DataTable"
 import { MaterialsTableToolbar } from "../components/MaterialsTableToolbar"
 
 export default function MaterialsPage() {

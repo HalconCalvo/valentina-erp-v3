@@ -3,8 +3,8 @@ import {
     TrendingDown, AlertTriangle, Calendar, 
     Filter, Search, DollarSign, ArrowRight, XCircle, CheckCircle
 } from 'lucide-react';
-import Card from '../../../components/ui/Card';
-import Button from '../../../components/ui/Button';
+import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
 import { financeService } from '../../../api/finance-service';
 import { AccountsPayableStats, PendingInvoice, PaymentRequestPayload } from '../../../types/finance';
 import { PaymentRequestModal } from '../../finance/components/PaymentRequestModal';

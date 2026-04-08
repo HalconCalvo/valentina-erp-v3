@@ -5,8 +5,8 @@ import {
 } from 'lucide-react';
 
 // IMPORTACIONES CORREGIDAS (LA CAUSA DEL CORTO CIRCUITO)
-import Modal from '../../../components/ui/Modal'; 
-import { Button } from '../../../components/ui/button';
+import Modal from '@/components/ui/Modal'; 
+import { Button } from '@/components/ui/button';
 
 import { SalesOrder } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';

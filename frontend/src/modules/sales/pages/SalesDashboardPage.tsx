@@ -9,9 +9,9 @@ import {
     ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 
-import { Card } from '../../../components/ui/card';
-import { Button } from '../../../components/ui/button';
-import Badge from '../../../components/ui/Badge';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import Badge from '@/components/ui/Badge';
 
 import { salesService } from '../../../api/sales-service';
 import { SalesOrder } from '../../../types/sales';

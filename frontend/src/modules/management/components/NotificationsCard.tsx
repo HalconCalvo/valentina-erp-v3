@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Bell, CheckCircle2, ShoppingCart, ArrowRight } from 'lucide-react';
 
 // ---> RUTAS CORREGIDAS (Subimos 3 niveles hasta src/) <---
-import { Card } from '../../../components/ui/Card'; 
+import { Card } from '@/components/ui/Card'; 
 import api from '../../../api/axios-client'; 
 
 export const NotificationsCard: React.FC = () => {

@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Package, Search, Calendar, FileText, X, Eye, ArrowRight, Plus, Trash2, AlertTriangle, Clock, Archive } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { inventoryService, ReceptionListItem, ReceptionFullDetail } from '../../../api/inventory-service';
-import Card from '../../../components/ui/Card';
-import Button from '../../../components/ui/Button';
-import Badge from '../../../components/ui/Badge';
+import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
+import Badge from '@/components/ui/Badge';
 
 const ReceptionHistoryPage: React.FC = () => {
     const navigate = useNavigate();
