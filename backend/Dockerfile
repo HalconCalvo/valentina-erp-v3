@@ -26,8 +26,7 @@ COPY . .
 # Usamos puerto 8080 explícito
 ENV PORT=8080
 
-# Vaciamos, creamos tablas, sembramos el admin y encendemos GUNICORN
-CMD python reset_db.py && python -m alembic upgrade head && python -m scripts.seed_data && exec gunicorn app.main:app \
+CMD python -m alembic upgrade head && exec gunicorn app.main:app \
     --workers 1 \
     --worker-class uvicorn.workers.UvicornWorker \
     --threads 8 \
