@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ClipboardList, ShoppingCart, Truck, Package, ArrowLeft, ArrowUpRight, Wrench, Search, Target } from 'lucide-react';
-import { Card } from '../../../components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import axiosClient from '../../../api/axios-client';
 import { useLocation } from 'react-router-dom';
 
