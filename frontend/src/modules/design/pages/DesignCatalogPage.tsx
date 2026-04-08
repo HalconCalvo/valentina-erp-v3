@@ -14,7 +14,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
-import { Input } from '@/components/ui/input';
+import { Input } from '@/components/ui/Input';
 import ExportButton from '@/components/ui/ExportButton';
 
 import { designService } from '../../../api/design-service';
