@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, FileText, Lock, Unlock, ChevronDown, BadgeDollarSign, FileSearch, ArrowUpDown, ArrowUp, ArrowDown, Layers, Clock } from 'lucide-react';
-import { Card } from '@/components/ui/card';
+import { Card } from '@/components/ui/Card';
 import { salesService } from '../../../api/sales-service';
 import { SalesOrder } from '../../../types/sales';
 import { ReceivableChargeModal } from './ReceivableChargeModal';

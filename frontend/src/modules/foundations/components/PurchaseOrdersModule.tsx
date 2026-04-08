@@ -5,7 +5,7 @@ import {
     Building2, ShoppingCart, Calendar, Clock, CheckCircle2, FileText, XCircle, Trash2, CheckSquare, Square, AlertCircle, RefreshCw, Snowflake 
 } from 'lucide-react';
 
-import { Card } from '@/components/ui/card';
+import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/button';
 import axiosClient from '../../../api/axios-client';
 

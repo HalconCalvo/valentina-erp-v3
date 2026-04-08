@@ -16,7 +16,7 @@ import client from '../../../api/axios-client';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card } from '@/components/ui/card';
+import { Card } from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import { SalesOrderItem, SalesOrderStatus } from '../../../types/sales';
 import { RecipeViewerModal } from './RecipeViewerModal';

@@ -9,7 +9,7 @@ import {
     Landmark, Plus 
 } from 'lucide-react';
 
-import { Card } from '@/components/ui/card';
+import { Card } from '@/components/ui/Card';
 
 // --- SERVICIOS ---
 import { financeService } from '../../../api/finance-service';

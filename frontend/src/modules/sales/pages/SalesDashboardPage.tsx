@@ -9,7 +9,7 @@ import {
     ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 
-import { Card } from '@/components/ui/card';
+import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/button';
 import Badge from '@/components/ui/Badge';
 

@@ -27,7 +27,7 @@ import { ReceivablesModule } from '../../finance/components/ReceivablesModule';
 import { PayablesModule } from '../../finance/components/PayablesModule';
 
 // --- UI ---
-import { Card } from '@/components/ui/card';
+import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/button';
 import Badge from '@/components/ui/Badge';
 
