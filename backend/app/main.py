@@ -109,6 +109,7 @@ origins = [
     "http://127.0.0.1:5173",
     "http://localhost:3000",    # Por si acaso usas React antiguo
     "http://127.0.0.1:8000",    # El propio backend
+    "https://valentina-frontend.onrender.com"
 ]
 
 # Si existen orígenes en settings, los sumamos
