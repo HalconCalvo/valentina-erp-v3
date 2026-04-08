@@ -4,7 +4,7 @@ import {
     Snowflake, ArrowLeft, Search, Plus, X, Tag, ArrowUpRight, Trash2 
 } from 'lucide-react';
 import axiosClient from '../../../api/axios-client';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 
 interface Material { id: number; sku: string; name: string; physical_stock: number; min_stock: number; usage_unit: string; }

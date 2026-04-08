@@ -10,7 +10,7 @@ import {
 
 import { Card } from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/Button';
 
 // --- SERVICIOS ---
 import { FinancialReviewModal } from '../../management/components/FinancialReviewModal';

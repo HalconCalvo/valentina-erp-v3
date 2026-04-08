@@ -6,7 +6,7 @@ import {
 
 // IMPORTACIONES CORREGIDAS (LA CAUSA DEL CORTO CIRCUITO)
 import Modal from '@/components/ui/Modal'; 
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/Button';
 
 import { SalesOrder } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';

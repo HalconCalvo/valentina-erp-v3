@@ -4,7 +4,7 @@ import {
     Save, PackageCheck, Ban
 } from 'lucide-react';
 import axiosClient from '../../../api/axios-client';
-import { Button } from "@/components/ui/button"
+import { Button } from "@/components/ui/Button"
 
 // Utilidades seguras
 const formatCurrency = (amount: any): string => {

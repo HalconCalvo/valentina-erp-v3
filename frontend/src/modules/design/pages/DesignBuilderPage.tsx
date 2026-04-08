@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, User, Loader } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/Button";
 import { VersionRecipeForm } from "../components/VersionRecipeForm"; 
 import { designService } from "../../../api/design-service"; 
 import axiosClient from "../../../api/axios-client"; 

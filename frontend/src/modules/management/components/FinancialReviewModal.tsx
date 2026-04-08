@@ -7,7 +7,7 @@ import {
 import { salesService } from '../../../api/sales-service'; 
 import axiosClient from '../../../api/axios-client'; 
 import { SalesOrder, SalesOrderStatus } from '../../../types/sales';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/Button';
 
 interface FinancialReviewModalProps {
     orderId: number | null;

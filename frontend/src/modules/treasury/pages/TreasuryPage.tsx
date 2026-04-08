@@ -28,7 +28,7 @@ import { PayablesModule } from '../../finance/components/PayablesModule';
 
 // --- UI ---
 import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 
 type AdminSection = 'TASKS' | 'BANKS' | 'RECEIVABLES' | 'PAYABLES' | 'PAYROLL' | null;

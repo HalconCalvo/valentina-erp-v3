@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
 import { Input } from '@/components/ui/input';
