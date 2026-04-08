@@ -26,6 +26,7 @@ export const PaymentApprovalModal: React.FC<PaymentApprovalModalProps> = ({ onCl
     }, []);
 
     const loadData = async () => {
+        setLoading(true);
         try {
             const [reqData, accData] = await Promise.all([
                 financeService.getPendingApprovals(),
@@ -60,15 +61,27 @@ export const PaymentApprovalModal: React.FC<PaymentApprovalModalProps> = ({ onCl
             return;
         }
 
-        if (!confirm(`¿Estás seguro de ${decision === 'APPROVED' ? 'AUTORIZAR' : 'RECHAZAR'} este pago?`)) return;
+        if (!window.confirm(`¿Estás seguro de ${decision === 'APPROVED' ? 'AUTORIZAR' : 'RECHAZAR'} este pago?`)) return;
 
         setProcessingId(id);
         try {
             await financeService.updatePaymentStatus(id, decision, decision === 'APPROVED' ? Number(accountId) : undefined);
             
-            setRequests(prev => prev.filter(req => req.id !== id));
-            if (requests.length === 1) {
-                onUpdate();
+            // --- ACTUALIZACIÓN DE SALDOS ---
+            // Si fue aprobado, descargamos las cuentas bancarias de nuevo para reflejar el saldo actualizado
+            if (decision === 'APPROVED') {
+                const updatedAccounts = await treasuryService.getAccounts();
+                setAccounts(updatedAccounts);
+            }
+            
+            // Quitamos la solicitud de la lista
+            const remainingRequests = requests.filter(req => req.id !== id);
+            setRequests(remainingRequests);
+            
+            // Avisamos al padre que hubo un cambio
+            onUpdate();
+
+            if (remainingRequests.length === 0) {
                 onClose();
             }
         } catch (error) {
@@ -76,6 +89,16 @@ export const PaymentApprovalModal: React.FC<PaymentApprovalModalProps> = ({ onCl
         } finally {
             setProcessingId(null);
         }
+    };
+
+    // Función para limpiar visualmente el "OC-OC-" si viene así desde la base de datos
+    const formatInvoiceFolio = (folio: string) => {
+        if (!folio) return 'S/F';
+        // Si empieza con OC-OC-, le quitamos un OC-
+        if (folio.startsWith('OC-OC-')) {
+            return folio.replace('OC-OC-', 'OC-');
+        }
+        return folio;
     };
 
     return (
@@ -119,7 +142,7 @@ export const PaymentApprovalModal: React.FC<PaymentApprovalModalProps> = ({ onCl
                                         </div>
                                         <h3 className="text-lg font-bold text-slate-800">{req.provider_name}</h3>
                                         <p className="text-sm text-slate-500 mb-3">
-                                            Factura: <span className="font-mono text-slate-700">{req.invoice_folio}</span>
+                                            Factura: <span className="font-mono text-slate-700">{formatInvoiceFolio(req.invoice_folio)}</span>
                                         </p>
 
                                         {/* Selector de Cuenta Dictaminada */}
@@ -133,7 +156,7 @@ export const PaymentApprovalModal: React.FC<PaymentApprovalModalProps> = ({ onCl
                                                 <option value="">-- Asignar cuenta para el pago --</option>
                                                 {accounts.map(acc => (
                                                     <option key={acc.id} value={acc.id}>
-                                                        {acc.name} - Saldo: ${acc.current_balance.toLocaleString('es-MX')}
+                                                        {acc.name} - Saldo: ${acc.current_balance.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                                                     </option>
                                                 ))}
                                             </select>

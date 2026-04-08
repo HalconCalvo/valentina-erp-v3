@@ -1,4 +1,5 @@
 import os
+import ssl 
 from io import BytesIO
 from urllib.request import urlopen
 from reportlab.lib.pagesizes import LETTER
@@ -44,6 +45,12 @@ class PDFGenerator:
             parent=self.styles['Normal'], 
             fontSize=10, 
             alignment=TA_RIGHT
+        ))
+        
+        self.styles.add(ParagraphStyle(
+            name='CenterSignature',
+            parent=self.styles['NormalSmall'],
+            alignment=1 # Center
         ))
 
     def _draw_footer(self, canvas, doc, config):
@@ -108,14 +115,18 @@ class PDFGenerator:
         except:
             date_str = "Fecha no disponible"
 
-        # --- 2. ENCABEZADO Y LOGO (VERSIÓN CLOUD) ---
+        # --- 2. ENCABEZADO Y LOGO ---
         logo_image_obj = None 
         
         if hasattr(config, 'logo_path') and config.logo_path:
             logo_url = config.logo_path
             if logo_url.startswith("http"):
                 try:
-                    with urlopen(logo_url) as response:
+                    ctx = ssl.create_default_context()
+                    ctx.check_hostname = False
+                    ctx.verify_mode = ssl.CERT_NONE
+                    
+                    with urlopen(logo_url, context=ctx) as response:
                         img_data = response.read()
                     logo_image_obj = BytesIO(img_data)
                 except Exception as e:
@@ -285,7 +296,6 @@ class PDFGenerator:
         doc.build(elements, onFirstPage=lambda c, d: self._draw_footer(c, d, config), 
                   onLaterPages=lambda c, d: self._draw_footer(c, d, config))
         
-        # LAS LÍNEAS QUE HABÍA BORRADO:
         buffer.seek(0)
         return buffer
 
@@ -314,7 +324,11 @@ class PDFGenerator:
             logo_url = config.logo_path
             if logo_url.startswith("http"):
                 try:
-                    with urlopen(logo_url) as response:
+                    ctx = ssl.create_default_context()
+                    ctx.check_hostname = False
+                    ctx.verify_mode = ssl.CERT_NONE
+                    
+                    with urlopen(logo_url, context=ctx) as response:
                         img_data = response.read()
                     logo_image_obj = BytesIO(img_data)
                 except Exception as e:
@@ -423,8 +437,17 @@ class PDFGenerator:
             ('ALIGN', (3,0), (-1,-1), 'RIGHT'),
             ('FONTSIZE', (0,0), (-1,-1), 8),
             ('FONTNAME', (3,-3), (4,-1), 'Helvetica-Bold'), 
-            ('TOPPADDING', (0,0), (-1,-1), 6),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+            
+            # >>> AQUÍ ESTÁ LA MAGIA PARA ALINEAR TEXTOS MULTILÍNEA HACIA ARRIBA <<<
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            
+            # Espaciado normal para las filas de productos
+            ('TOPPADDING', (0,0), (-1,-4), 6),
+            ('BOTTOMPADDING', (0,0), (-1,-4), 6),
+            
+            # Espaciado COMPRIMIDO para las últimas 3 filas (Subtotal, IVA, Total)
+            ('TOPPADDING', (0,-3), (-1,-1), 1),
+            ('BOTTOMPADDING', (0,-3), (-1,-1), 1),
         ]))
         elements.append(t)
         elements.append(Spacer(1, 25))
@@ -435,16 +458,32 @@ class PDFGenerator:
         elements.append(Paragraph("• Horario de recepción de almacén: Lunes a Viernes de 8:00 AM a 5:00 PM.", self.styles['Conditions']))
         elements.append(Paragraph("• Indispensable presentar factura original y copia de esta OC al entregar.", self.styles['Conditions']))
         
-        # --- 5. FIRMA DE AUTORIZACIÓN ---
+        # --- 5. FIRMAS DUALES (ELABORÓ Y AUTORIZÓ) ---
         auth_by = getattr(order, 'authorized_by', None)
         if not auth_by:
-            auth_by = "DEPARTAMENTO DE COMPRAS"
+            auth_by = "PENDIENTE DE FIRMA"
+            
+        created_by = getattr(order, 'created_by', "SISTEMA")
             
         elements.append(Spacer(1, 40))
-        elements.append(KeepTogether([
-            Paragraph("_________________________________________", self.styles['Normal']),
-            Paragraph(f"<b>AUTORIZADO POR:</b><br/>{auth_by}", self.styles['NormalSmall']),
+        
+        firma_elaboro = [
+            Paragraph("_________________________________________", self.styles['CenterSignature']),
+            Paragraph(f"<b>ELABORADO POR:</b><br/>{created_by}", self.styles['CenterSignature']),
+        ]
+        
+        firma_autorizo = [
+            Paragraph("_________________________________________", self.styles['CenterSignature']),
+            Paragraph(f"<b>AUTORIZADO POR:</b><br/>{auth_by}", self.styles['CenterSignature']),
+        ]
+        
+        firmas_table = Table([[firma_elaboro, firma_autorizo]], colWidths=[3.5*inch, 3.5*inch])
+        firmas_table.setStyle(TableStyle([
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
         ]))
+        
+        elements.append(KeepTogether(firmas_table))
 
         doc.build(elements, onFirstPage=lambda c, d: self._draw_footer(c, d, config), 
                   onLaterPages=lambda c, d: self._draw_footer(c, d, config))

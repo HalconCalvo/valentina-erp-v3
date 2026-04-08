@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
     Search, Ban, Send, PackageCheck, 
     ArrowUpRight, Loader2, ArrowLeft, ArrowRight,
-    Building2, ShoppingCart, Calendar, Clock, CheckCircle2, FileText, XCircle, Trash2, CheckSquare, Square, AlertCircle, RefreshCw, Snowflake 
+    Building2, ShoppingCart, Calendar, Clock, CheckCircle2, FileText, XCircle, Trash2, CheckSquare, Square, AlertCircle, RefreshCw, Snowflake, Plus 
 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
@@ -17,12 +17,25 @@ interface PurchaseOrdersModuleProps {
 }
 
 export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSubSectionChange, targetTab }) => {
-    // Inicializamos con targetTab si existe
     const [activeSubSection, setActiveSubSection] = useState<SubSection>(targetTab as SubSection || null);
     const [loading, setLoading] = useState(true);
     const [suggestedOrders, setSuggestedOrders] = useState<any[]>([]);
     const [brakeOrders, setBrakeOrders] = useState<any[]>([]);
     const [selectedItems, setSelectedItems] = useState<Record<string, boolean>>({});
+
+    // Estados para catálogos 
+    const [providersList, setProvidersList] = useState<any[]>([]);
+    const [materialsList, setMaterialsList] = useState<any[]>([]);
+
+    // Estructura dinámica para Múltiples Partidas (precio inicial en '0.00' para formato moneda)
+    const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+    const [manualOrderForm, setManualOrderForm] = useState({ 
+        provider_name: '', 
+        items: [{ sku: '', material_name: '', qty: 1, expected_cost: '0.00' }] 
+    });
+
+    // Control de qué dropdown está activo (para saber en qué fila estamos tecleando)
+    const [activeDropdown, setActiveDropdown] = useState<{type: 'provider' | 'sku' | 'material' | null, index: number | null}>({type: null, index: null});
 
     const getRole = () => {
         const userRaw = localStorage.getItem('user');
@@ -42,7 +55,6 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
 
     const role = getRole().toUpperCase(); 
 
-    // Escuchar cambios externos de pestaña
     useEffect(() => {
         if (targetTab) {
             setActiveSubSection(targetTab as SubSection);
@@ -55,14 +67,39 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         }
     }, [activeSubSection, onSubSectionChange]);
 
+    const extractList = (res: any, fallbackKey: string) => {
+        if (Array.isArray(res.data)) return res.data;
+        if (res.data?.data && Array.isArray(res.data.data)) return res.data.data;
+        if (res.data?.items && Array.isArray(res.data.items)) return res.data.items;
+        if (res.data?.[fallbackKey] && Array.isArray(res.data[fallbackKey])) return res.data[fallbackKey];
+        return [];
+    };
+
+    // Función de limpieza extrema para estatus
+    const safeStatus = (status: any) => String(status || '').trim().toUpperCase();
+
+    const fetchCatalogs = async () => {
+        try {
+            const [provRes, matRes] = await Promise.all([
+                axiosClient.get('/foundations/providers/'),
+                axiosClient.get('/foundations/materials/')
+            ]);
+            setProvidersList(extractList(provRes, 'providers'));
+            setMaterialsList(extractList(matRes, 'materials'));
+        } catch (error) {
+            console.error("Error al cargar catálogos:", error);
+        }
+    };
+
     const fetchPlanning = async (silent = false) => {
         if (!silent) setLoading(true);
         try {
-            const response = await axiosClient.get('/purchases/planning/consolidated');
-            const data = Array.isArray(response.data) ? response.data : [];
+            const ts = new Date().getTime(); // Rompe-caché
+            const response = await axiosClient.get(`/purchases/planning/consolidated?t=${ts}`);
+            const data = extractList({data: response.data}, 'items');
             const sortedData = [...data].sort((a, b) => {
-                const aHasProject = a.items.some((it: any) => it.project_name);
-                const bHasProject = b.items.some((it: any) => it.project_name);
+                const aHasProject = a.items?.some((it: any) => it.project_name) || false;
+                const bHasProject = b.items?.some((it: any) => it.project_name) || false;
                 return aHasProject === bHasProject ? 0 : aHasProject ? -1 : 1;
             });
             setSuggestedOrders(sortedData);
@@ -70,7 +107,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
             if (!silent) {
                 const initialSelection: Record<string, boolean> = {};
                 sortedData.forEach((group: any) => {
-                    group.items.forEach((item: any) => {
+                    group.items?.forEach((item: any) => {
                         initialSelection[`${group.provider_id}-${item.material_id}`] = true;
                     });
                 });
@@ -86,9 +123,9 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     const fetchBrakeOrders = async (silent = false) => {
         if (!silent) setLoading(true);
         try {
-            const response = await axiosClient.get('/purchases/orders/');
-            const data = Array.isArray(response.data) ? response.data : [];
-            setBrakeOrders(data);
+            const ts = new Date().getTime(); // Rompe-caché para evitar fantasmas
+            const response = await axiosClient.get(`/purchases/orders/?t=${ts}`);
+            setBrakeOrders(extractList({data: response.data}, 'orders'));
         } catch (error) {
             console.error("Error al cargar órdenes:", error);
         } finally {
@@ -96,9 +133,15 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         }
     };
 
+    const handleForceRefresh = () => {
+        fetchPlanning();
+        fetchBrakeOrders();
+    };
+
     useEffect(() => {
         fetchPlanning();
         fetchBrakeOrders();
+        fetchCatalogs(); 
 
         const interval = setInterval(() => {
             fetchPlanning(true);
@@ -129,6 +172,58 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
             fetchBrakeOrders(true);
         } catch (error: any) {
             alert(error.response?.data?.detail || "Error al emitir.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Funciones dinámicas para la OC Manual
+    const handleAddRow = () => {
+        setManualOrderForm({
+            ...manualOrderForm,
+            items: [...manualOrderForm.items, { sku: '', material_name: '', qty: 1, expected_cost: '0.00' }]
+        });
+    };
+
+    const handleRemoveRow = (indexToRemove: number) => {
+        if (manualOrderForm.items.length === 1) return; // No permite borrar la última línea
+        const newItems = [...manualOrderForm.items];
+        newItems.splice(indexToRemove, 1);
+        setManualOrderForm({ ...manualOrderForm, items: newItems });
+    };
+
+    const handleItemChange = (index: number, field: string, value: any) => {
+        const newItems = [...manualOrderForm.items];
+        newItems[index] = { ...newItems[index], [field]: value };
+        setManualOrderForm({ ...manualOrderForm, items: newItems });
+    };
+
+    const handleSubmitManualOrder = async () => {
+        // Filtrar filas vacías
+        const validItems = manualOrderForm.items.filter(it => it.material_name.trim() !== '');
+        
+        if (!manualOrderForm.provider_name || validItems.length === 0) {
+            return alert("Por favor, completa el proveedor y al menos un material válido.");
+        }
+        
+        setLoading(true);
+        try {
+            const payload = {
+                provider_name: manualOrderForm.provider_name,
+                items: validItems.map(it => ({
+                    sku: it.sku,
+                    name: it.material_name,
+                    qty: it.qty,
+                    expected_cost: parseFloat(it.expected_cost as string) || 0
+                }))
+            };
+            await axiosClient.post('/purchases/orders/manual', payload);
+            alert("Orden de Compra Manual generada. Ya se encuentra en la Mesa de Control para firma.");
+            setIsManualModalOpen(false);
+            setManualOrderForm({ provider_name: '', items: [{ sku: '', material_name: '', qty: 1, expected_cost: '0.00' }] });
+            fetchBrakeOrders(true);
+        } catch (error: any) {
+            alert(error.response?.data?.detail || "Error al crear la orden manual.");
         } finally {
             setLoading(false);
         }
@@ -249,6 +344,42 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         return notes.includes('Valentina') || notes.includes('[AUTO]') || desc === 'REPOSICIÓN AUTOMÁTICA';
     };
 
+    // --- CÁLCULOS DINÁMICOS ACUMULADOS PARA EL MODAL ---
+    const manualSubtotal = manualOrderForm.items.reduce((sum, it) => sum + (it.qty * (parseFloat(it.expected_cost as string) || 0)), 0);
+    const manualIva = manualSubtotal * 0.16;
+    const manualTotal = manualSubtotal + manualIva;
+
+    // --- LECTORES INTELIGENTES DE OBJETOS ---
+    const getProvName = (p: any) => String(p?.business_name || p?.legal_name || '').trim();
+    const getMatDesc = (m: any) => String(m?.name || m?.description || m?.material_name || m?.product_name || '').trim();
+    const getMatSku = (m: any) => String(m?.sku || m?.code || m?.item_code || '').trim();
+
+    // --- FILTROS GLOBALES (PROVEEDOR) ---
+    const searchProv = (manualOrderForm.provider_name || '').toLowerCase();
+    const filteredProviders = providersList.filter(p => getProvName(p).toLowerCase().includes(searchProv));
+    const exactProviderMatch = searchProv !== '' && providersList.some(p => getProvName(p).toLowerCase() === searchProv);
+    const isNewProvider = searchProv !== '' && !exactProviderMatch;
+
+    // --- FILTROS ESPECÍFICOS DE FILA ---
+    const activeRow = activeDropdown.index !== null ? manualOrderForm.items[activeDropdown.index] : null;
+    const searchSku = activeRow ? (activeRow.sku || '').toLowerCase() : '';
+    const filteredMaterialsBySku = materialsList.filter(m => getMatSku(m).toLowerCase().includes(searchSku));
+    const searchDesc = activeRow ? (activeRow.material_name || '').toLowerCase() : '';
+    const filteredMaterialsByDesc = materialsList.filter(m => getMatDesc(m).toLowerCase().includes(searchDesc));
+
+    const handleSelectMaterial = (index: number, mat: any) => {
+        const newItems = [...manualOrderForm.items];
+        const cost = parseFloat(mat.standard_cost || 0).toFixed(2);
+        newItems[index] = {
+            ...newItems[index],
+            sku: getMatSku(mat),
+            material_name: getMatDesc(mat),
+            expected_cost: cost !== '0.00' ? cost : newItems[index].expected_cost
+        };
+        setManualOrderForm({ ...manualOrderForm, items: newItems });
+        setActiveDropdown({ type: null, index: null });
+    };
+
     const renderPlanningTable = () => (
         <div className="space-y-12 pb-20">
             {suggestedOrders.length === 0 ? (
@@ -325,19 +456,16 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                                     <td className="px-8 py-3 text-right text-xs font-black text-slate-800">${((item.qty || 0) * (item.expected_cost || 0)).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
                                                     <td className="px-6 py-3 text-center">
                                                         <div className="flex justify-center gap-2">
-                                                            {/* El Copo de Nieve siempre se muestra (excepto si es traslado de proyecto crítico) */}
                                                             {!isCritical && (
                                                                 <button onClick={() => handleFreezeRequisition(item.requisition_id)} title="Congelar / Aplazar Compra" className="p-1.5 bg-blue-50 text-blue-500 rounded-md hover:bg-blue-600 hover:text-white transition-colors shadow-sm border border-blue-100">
                                                                     <Snowflake size={16} />
                                                                 </button>
                                                             )}
-                                                            {/* El Basurero SOLO se muestra si fue captura manual */}
                                                             {!isAuto && !isCritical && (
                                                                 <button onClick={() => handleDeleteManualRequisition(item.requisition_id)} title="Eliminar Solicitud Manual" className="p-1.5 bg-rose-50 text-rose-400 rounded-md hover:bg-rose-600 hover:text-white transition-colors shadow-sm border border-rose-100">
                                                                     <Trash2 size={16} />
                                                                 </button>
                                                             )}
-                                                            {/* Transferencia si es de un proyecto */}
                                                             {isCritical && (
                                                                 <button onClick={() => handleTransferCriticalItem(item.requisition_id, item.name)} title="Transferir a Sin Asignar" className="p-1.5 bg-indigo-50 text-indigo-400 rounded-md hover:bg-indigo-600 hover:text-white transition-colors">
                                                                     <RefreshCw size={16} />
@@ -372,7 +500,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     );
 
     const renderBrakeTable = () => {
-        const borradorOrders = brakeOrders.filter(o => o.status === 'BORRADOR');
+        const borradorOrders = brakeOrders.filter(o => safeStatus(o.status) === 'BORRADOR');
         return (
             <div className="space-y-12 pb-20">
                 {borradorOrders.length === 0 ? (
@@ -422,7 +550,12 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     };
 
     const renderSendingTable = () => {
-        const authorizedOrders = brakeOrders.filter(o => o.status === 'AUTORIZADA');
+        const authorizedOrders = brakeOrders.filter(o => safeStatus(o.status) === 'AUTORIZADA');
+        
+        // --- CANDADOS DE SEGURIDAD ---
+        const canDispatch = ['DIRECTOR', 'GERENCIA', 'ADMIN', 'ADMINISTRACION', 'COMPRAS'].includes(role);
+        const canRevoke = ['DIRECTOR', 'GERENCIA'].includes(role);
+
         return (
             <div className="space-y-12 pb-20">
                 {authorizedOrders.length === 0 ? (
@@ -442,7 +575,6 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                         onClick={() => {
                                             const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
                                             const baseUrl = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:8000';
-                                            // Abrimos el PDF en una nueva pestaña (pasando el token por query si tu backend lo acepta, o asumiendo que el endpoint de PDF es público/por cookie)
                                             window.open(`${baseUrl}/api/v1/purchases/orders/${order.id}/pdf?token=${token}`, '_blank');
                                         }}
                                     >
@@ -466,8 +598,13 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 </table>
                                 <div className="p-8 bg-slate-50/50 flex justify-between items-center border-t border-slate-100">
                                     <div className="flex gap-4">
-                                        <Button onClick={() => handleDispatchOrder(order.id, order.folio)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-xs h-12 px-10 shadow-lg"><Send size={16} className="mr-3" /> Envíar OC a Proveedor</Button>
-                                        <Button onClick={() => handleRevokeAuthorization(order.id, order.folio)} variant="outline" className="border-amber-200 text-amber-700 font-black uppercase text-[10px] px-6 h-12"><RefreshCw size={14} className="mr-2" /> Revocar Firma</Button>
+                                        {/* Botones protegidos por rol */}
+                                        {canDispatch && (
+                                            <Button onClick={() => handleDispatchOrder(order.id, order.folio)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-xs h-12 px-10 shadow-lg"><Send size={16} className="mr-3" /> Envíar OC a Proveedor</Button>
+                                        )}
+                                        {canRevoke && (
+                                            <Button onClick={() => handleRevokeAuthorization(order.id, order.folio)} variant="outline" className="border-amber-200 text-amber-700 font-black uppercase text-[10px] px-6 h-12"><RefreshCw size={14} className="mr-2" /> Revocar Firma</Button>
+                                        )}
                                     </div>
                                     <div className="w-80 space-y-1 pr-14">
                                         <div className="flex justify-between items-center text-slate-500"><span className="text-[10px] font-black uppercase">Subtotal</span><span className="text-sm font-bold">${subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
@@ -485,12 +622,12 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
 
     const subMenuItems = [
         { id: 'CREATION', title: 'A. SOLICITUDES', icon: <Search />, color: 'indigo', bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-100', activeBorder: 'border-l-indigo-600', count: suggestedOrders.length, desc: 'Revisar' },
-        { id: 'BRAKE', title: 'B. FRENO', icon: <Ban />, color: 'rose', bg: 'bg-rose-50', text: 'text-rose-600', border: 'border-rose-100', activeBorder: 'border-l-rose-600', count: brakeOrders.filter(o => o.status === 'BORRADOR').length, desc: 'Pausadas' },
-        { id: 'SENDING', title: 'C. POR ENVIAR', icon: <Send />, color: 'emerald', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100', activeBorder: 'border-l-emerald-600', count: brakeOrders.filter(o => o.status === 'AUTORIZADA').length, desc: 'Envío' },
+        { id: 'BRAKE', title: 'B. FRENO', icon: <Ban />, color: 'rose', bg: 'bg-rose-50', text: 'text-rose-600', border: 'border-rose-100', activeBorder: 'border-l-rose-600', count: brakeOrders.filter(o => safeStatus(o.status) === 'BORRADOR').length, desc: 'Pausadas' },
+        { id: 'SENDING', title: 'C. POR ENVIAR', icon: <Send />, color: 'emerald', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100', activeBorder: 'border-l-emerald-600', count: brakeOrders.filter(o => safeStatus(o.status) === 'AUTORIZADA').length, desc: 'Envío' },
     ];
 
     return (
-        <div className="space-y-10 min-h-[600px]">
+        <div className="space-y-10 min-h-[600px] relative">
             {activeSubSection === null && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in duration-300">
                     {subMenuItems.map(item => (
@@ -507,19 +644,313 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                     ))}
                 </div>
             )}
+            
             {activeSubSection !== null && (
                 <div className="mt-4 p-8 bg-white rounded-3xl border border-slate-100 min-h-[500px] shadow-xl animate-in fade-in duration-300">
                     <div className="flex justify-between items-center border-b border-slate-100 pb-6 mb-8 gap-4">
                         <div className="text-slate-800 font-black text-2xl uppercase tracking-tighter flex items-center gap-3 truncate">
-                            {activeSubSection === 'CREATION' ? <><Search size={28} className="text-indigo-600"/> Inteligencia de Abastecimiento</> : activeSubSection === 'BRAKE' ? <><Ban size={28} className="text-rose-600"/> Mesa de Control / Freno</> : <><Send size={28} className="text-emerald-600"/> Centro de Despacho</>}
+                            {activeSubSection === 'CREATION' ? (
+                                <>
+                                    <Search size={28} className="text-indigo-600"/> Inteligencia de Abastecimiento
+                                    <Button 
+                                        onClick={() => setIsManualModalOpen(true)} 
+                                        className="ml-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] tracking-widest px-5 rounded-lg shadow-md h-8 flex items-center gap-2"
+                                    >
+                                        <Plus size={14} /> OC DIRECTA
+                                    </Button>
+                                </>
+                            ) : activeSubSection === 'BRAKE' ? (
+                                <><Ban size={28} className="text-rose-600"/> Mesa de Control / Freno</>
+                            ) : (
+                                <><Send size={28} className="text-emerald-600"/> Centro de Despacho</>
+                            )}
                         </div>
-                        <Button onClick={() => setActiveSubSection(null)} variant="outline" className="font-black uppercase text-[10px] tracking-widest border-slate-300 rounded-full px-6 py-2"><ArrowLeft size={16} className="mr-2"/> Regresar</Button>
+                        <div className="flex gap-2">
+                            <Button onClick={handleForceRefresh} variant="outline" className="border-slate-300 rounded-full px-4 py-2" title="Forzar Sincronización">
+                                <RefreshCw size={16} className="text-slate-500" />
+                            </Button>
+                            <Button onClick={() => setActiveSubSection(null)} variant="outline" className="font-black uppercase text-[10px] tracking-widest border-slate-300 rounded-full px-6 py-2"><ArrowLeft size={16} className="mr-2"/> Regresar</Button>
+                        </div>
                     </div>
                     {loading ? (
                         <div className="flex flex-col items-center justify-center py-20 h-full text-slate-300"><Loader2 className="animate-spin mb-4" size={40} /><p className="font-black uppercase tracking-widest text-[10px] text-slate-400">Sincronizando Sistema...</p></div>
                     ) : (
                         activeSubSection === 'CREATION' ? renderPlanningTable() : activeSubSection === 'BRAKE' ? renderBrakeTable() : renderSendingTable()
                     )}
+                </div>
+            )}
+
+            {/* Modal "Fast Track" - Múltiples Líneas (Multi-Row) */}
+            {isManualModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-6xl overflow-hidden border-t-8 border-t-emerald-500 animate-in zoom-in-95 duration-200 flex flex-col max-h-[95vh]">
+                        
+                        {/* Cabecera Principal */}
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-emerald-50/10 shrink-0">
+                            <div className="flex items-center gap-5 w-full">
+                                <div className="p-3 rounded-2xl bg-emerald-100 text-emerald-600 flex-shrink-0">
+                                    <PackageCheck size={32} strokeWidth={1.5} />
+                                </div>
+                                <div className="flex-1 mr-8 relative">
+                                    <input
+                                        value={manualOrderForm.provider_name}
+                                        onChange={(e) => {
+                                            setManualOrderForm({...manualOrderForm, provider_name: e.target.value});
+                                            setActiveDropdown({type: 'provider', index: null});
+                                        }}
+                                        onFocus={() => setActiveDropdown({type: 'provider', index: null})}
+                                        onBlur={() => setTimeout(() => {
+                                            if(activeDropdown.type === 'provider') setActiveDropdown({type: null, index: null});
+                                        }, 250)}
+                                        placeholder="SELECCIONA O ESCRIBE EL PROVEEDOR AQUÍ..."
+                                        className="w-full text-lg font-black text-slate-800 tracking-tight outline-none bg-transparent placeholder-slate-300 border-b border-transparent hover:border-emerald-200 focus:border-emerald-400 transition-colors py-1 uppercase"
+                                    />
+                                    
+                                    <div className="flex items-center gap-3 mt-1.5 h-4">
+                                        <p className="text-[10px] font-black uppercase text-emerald-600 tracking-widest">FOLIO: NUEVA OC DIRECTA</p>
+                                        {exactProviderMatch && (
+                                            <span className="text-[9px] font-black uppercase text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded flex items-center gap-1">
+                                                <CheckCircle2 size={10}/> EN CATÁLOGO
+                                            </span>
+                                        )}
+                                        {isNewProvider && (
+                                            <span className="text-[9px] font-black uppercase text-amber-600 bg-amber-100 px-2 py-0.5 rounded flex items-center gap-1">
+                                                <AlertCircle size={10}/> PROVEEDOR NUEVO (SE GUARDARÁ AL ENVIAR)
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {/* Dropdown Proveedores */}
+                                    {activeDropdown.type === 'provider' && (
+                                        <ul className="absolute z-[9999] top-full left-0 w-full md:w-2/3 bg-white border border-slate-200 shadow-xl max-h-48 overflow-y-auto mt-2 rounded-xl py-1">
+                                            {filteredProviders.length > 0 ? (
+                                                filteredProviders.map((p, i) => {
+                                                    const pName = getProvName(p);
+                                                    return (
+                                                        <li 
+                                                            key={i} 
+                                                            onClick={() => {
+                                                                setManualOrderForm({...manualOrderForm, provider_name: pName});
+                                                                setActiveDropdown({type: null, index: null});
+                                                            }}
+                                                            className="px-4 py-3 text-xs font-bold text-slate-700 uppercase cursor-pointer hover:bg-emerald-50 hover:text-emerald-700 border-b border-slate-50 last:border-0"
+                                                        >
+                                                            {pName}
+                                                        </li>
+                                                    );
+                                                })
+                                            ) : (
+                                                <li className="px-4 py-3 text-xs font-bold text-slate-400 italic">No se encontraron coincidencias. Se registrará como nuevo.</li>
+                                            )}
+                                        </ul>
+                                    )}
+                                </div>
+                            </div>
+                            <button onClick={() => setIsManualModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
+                                <XCircle size={24} />
+                            </button>
+                        </div>
+                        
+                        {/* Contenedor de la Tabla (Scrollable si hay muchas líneas) */}
+                        <div className="flex-1 overflow-x-auto overflow-y-visible relative bg-white pb-6">
+                            <table className="w-full min-w-[800px]">
+                                <thead>
+                                    <tr className="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest bg-white sticky top-0 z-10">
+                                        <th className="px-6 py-4 text-left w-48">SKU</th>
+                                        <th className="px-4 py-4 text-left">DESCRIPCIÓN</th>
+                                        <th className="px-4 py-4 text-center w-24">CANT.</th>
+                                        <th className="px-4 py-4 text-center w-32">P. UNIT</th>
+                                        <th className="px-6 py-4 text-center w-28">PROYECTO</th>
+                                        <th className="px-6 py-4 text-right w-36">IMPORTE</th>
+                                        <th className="px-4 py-4 text-center w-12"></th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {manualOrderForm.items.map((item, rowIndex) => (
+                                        <tr key={rowIndex} className="hover:bg-slate-50/30 transition-colors group">
+                                            {/* Columna SKU */}
+                                            <td className="px-6 py-4 align-middle relative">
+                                                <input
+                                                    value={item.sku}
+                                                    onChange={(e) => {
+                                                        handleItemChange(rowIndex, 'sku', e.target.value);
+                                                        setActiveDropdown({type: 'sku', index: rowIndex});
+                                                    }}
+                                                    onFocus={() => setActiveDropdown({type: 'sku', index: rowIndex})}
+                                                    onBlur={() => setTimeout(() => {
+                                                        if(activeDropdown.type === 'sku' && activeDropdown.index === rowIndex) setActiveDropdown({type: null, index: null});
+                                                    }, 250)}
+                                                    placeholder="BUSCAR SKU..."
+                                                    className="w-full bg-transparent border-b border-dashed border-slate-300 focus:border-emerald-500 hover:border-emerald-300 outline-none py-1 font-black text-indigo-600 text-[11px] placeholder-slate-300 uppercase"
+                                                />
+                                                {/* Dropdown SKU por fila */}
+                                                {activeDropdown.type === 'sku' && activeDropdown.index === rowIndex && (
+                                                    <ul className="absolute z-[9999] top-full left-4 w-64 bg-white border border-slate-200 shadow-xl max-h-48 overflow-y-auto mt-1 rounded-xl py-1">
+                                                        {filteredMaterialsBySku.length > 0 ? (
+                                                            filteredMaterialsBySku.map((m, i) => {
+                                                                const mSku = getMatSku(m);
+                                                                const mDesc = getMatDesc(m);
+                                                                return (
+                                                                    <li 
+                                                                        key={i} 
+                                                                        onClick={() => handleSelectMaterial(rowIndex, m)}
+                                                                        className="px-4 py-3 text-xs cursor-pointer hover:bg-emerald-50 hover:text-emerald-700 border-b border-slate-50 last:border-0"
+                                                                    >
+                                                                        <span className="font-black text-indigo-600 block mb-0.5 uppercase">{mSku}</span>
+                                                                        <span className="font-bold text-slate-600 uppercase">{mDesc}</span>
+                                                                    </li>
+                                                                );
+                                                            })
+                                                        ) : (
+                                                            <li className="px-4 py-3 text-xs font-bold text-slate-400 italic">Libre</li>
+                                                        )}
+                                                    </ul>
+                                                )}
+                                            </td>
+                                            
+                                            {/* Columna DESCRIPCIÓN */}
+                                            <td className="px-4 py-4 align-middle relative">
+                                                <input
+                                                    value={item.material_name}
+                                                    onChange={(e) => {
+                                                        handleItemChange(rowIndex, 'material_name', e.target.value);
+                                                        setActiveDropdown({type: 'material', index: rowIndex});
+                                                    }}
+                                                    onFocus={() => setActiveDropdown({type: 'material', index: rowIndex})}
+                                                    onBlur={() => setTimeout(() => {
+                                                        if(activeDropdown.type === 'material' && activeDropdown.index === rowIndex) setActiveDropdown({type: null, index: null});
+                                                    }, 250)}
+                                                    placeholder="ESCRIBIR PRODUCTO..."
+                                                    className="w-full bg-transparent border-b border-dashed border-slate-300 focus:border-emerald-500 hover:border-emerald-300 outline-none py-1 font-bold text-slate-700 text-xs placeholder-slate-300 uppercase"
+                                                />
+                                                {/* Dropdown Descripción por fila */}
+                                                {activeDropdown.type === 'material' && activeDropdown.index === rowIndex && (
+                                                    <ul className="absolute z-[9999] top-full left-0 w-[120%] bg-white border border-slate-200 shadow-xl max-h-48 overflow-y-auto mt-1 rounded-xl py-1">
+                                                        {filteredMaterialsByDesc.length > 0 ? (
+                                                            filteredMaterialsByDesc.map((m, i) => {
+                                                                const mSku = getMatSku(m);
+                                                                const mDesc = getMatDesc(m);
+                                                                return (
+                                                                    <li 
+                                                                        key={i} 
+                                                                        onClick={() => handleSelectMaterial(rowIndex, m)}
+                                                                        className="px-4 py-3 text-xs cursor-pointer hover:bg-emerald-50 hover:text-emerald-700 border-b border-slate-50 last:border-0 flex justify-between"
+                                                                    >
+                                                                        <span className="font-bold text-slate-700 uppercase truncate pr-4">{mDesc}</span>
+                                                                        <span className="font-black text-indigo-400 uppercase text-[10px]">{mSku}</span>
+                                                                    </li>
+                                                                );
+                                                            })
+                                                        ) : (
+                                                            <li className="px-4 py-3 text-xs font-bold text-slate-400 italic">Libre</li>
+                                                        )}
+                                                    </ul>
+                                                )}
+                                            </td>
+
+                                            {/* Columna Cantidad UNIFICADA */}
+                                            <td className="px-4 py-4 text-center align-middle">
+                                                <input
+                                                    type="number" min="1"
+                                                    value={item.qty}
+                                                    onChange={(e) => handleItemChange(rowIndex, 'qty', Number(e.target.value))}
+                                                    className="w-16 mx-auto bg-transparent text-center font-black text-slate-800 border-b border-dashed border-slate-300 focus:border-emerald-500 hover:border-emerald-300 outline-none py-1 text-xs"
+                                                />
+                                            </td>
+
+                                            {/* Columna PRECIO UNITARIO UNIFICADO Y CON FORMATO $ */}
+                                            <td className="px-4 py-4 text-center align-middle">
+                                                <div className="flex items-center justify-center border-b border-dashed border-slate-300 focus-within:border-emerald-500 hover:border-emerald-300 transition-colors w-24 mx-auto">
+                                                    <span className="text-xs font-bold text-slate-500 mr-1">$</span>
+                                                    <input
+                                                        type="number" min="0" step="0.01"
+                                                        value={item.expected_cost}
+                                                        onChange={(e) => handleItemChange(rowIndex, 'expected_cost', e.target.value)}
+                                                        onBlur={(e) => {
+                                                            const val = parseFloat(e.target.value) || 0;
+                                                            handleItemChange(rowIndex, 'expected_cost', val.toFixed(2));
+                                                        }}
+                                                        className="w-full bg-transparent text-left font-bold text-slate-500 outline-none py-1 text-xs"
+                                                    />
+                                                </div>
+                                            </td>
+
+                                            {/* Columna Proyecto */}
+                                            <td className="px-6 py-4 text-center align-middle">
+                                                <span className="text-[9px] font-black text-rose-600 uppercase tracking-widest">GENERAL</span>
+                                            </td>
+                                            
+                                            {/* Columna Importe UNIFICADO */}
+                                            <td className="px-6 py-4 text-right text-xs font-black text-slate-800 align-middle">
+                                                ${(item.qty * (parseFloat(item.expected_cost as string) || 0)).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                                            </td>
+                                            
+                                            {/* Botón Borrar Línea */}
+                                            <td className="px-4 py-4 text-center align-middle">
+                                                <button 
+                                                    onClick={() => handleRemoveRow(rowIndex)}
+                                                    disabled={manualOrderForm.items.length === 1}
+                                                    className={`p-1.5 rounded-md transition-colors ${manualOrderForm.items.length === 1 ? 'text-slate-200 cursor-not-allowed' : 'text-rose-400 hover:bg-rose-50 hover:text-rose-600'}`}
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            
+                            {/* Botón Agregar Partida (Debajo de la tabla) */}
+                            <div className="px-6 pt-4">
+                                <button 
+                                    onClick={handleAddRow}
+                                    className="flex items-center gap-2 text-xs font-black text-indigo-600 uppercase tracking-widest hover:text-indigo-800 transition-colors px-2 py-1 rounded-md hover:bg-indigo-50"
+                                >
+                                    <Plus size={16} strokeWidth={3} /> AGREGAR PARTIDA
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Pie de Página con Totales (Siempre abajo) */}
+                        <div className="p-8 bg-white flex justify-between items-end border-t border-slate-100 shrink-0">
+                            <div className="flex gap-4">
+                                <Button 
+                                    onClick={handleSubmitManualOrder} 
+                                    disabled={loading} 
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-xs h-12 px-8 shadow-md rounded-lg"
+                                >
+                                    {loading ? <Loader2 className="animate-spin mr-2" size={16} /> : <><Send size={16} className="mr-3" /> ENVIAR A FIRMA</>}
+                                </Button>
+                                <Button 
+                                    variant="outline" 
+                                    onClick={() => setIsManualModalOpen(false)} 
+                                    className="border-amber-200 text-amber-700 font-black uppercase text-[10px] px-6 h-12 rounded-lg hover:bg-amber-50"
+                                >
+                                    <RefreshCw size={14} className="mr-2" /> CANCELAR
+                                </Button>
+                            </div>
+                            <div className="w-80 space-y-2 pr-6">
+                                <div className="flex justify-between items-center text-slate-600">
+                                    <span className="text-[11px] font-black uppercase tracking-widest">SUBTOTAL</span>
+                                    <span className="text-sm font-bold">${manualSubtotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-slate-600 border-b border-slate-100 pb-3">
+                                    <span className="text-[11px] font-black uppercase tracking-widest">IVA (16%)</span>
+                                    <span className="text-sm font-bold">${manualIva.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                </div>
+                                <div className="flex justify-between items-end pt-2">
+                                    <div className="flex flex-col">
+                                        <span className="text-[11px] font-black text-emerald-700 uppercase tracking-widest leading-tight">TOTAL</span>
+                                        <span className="text-[11px] font-black text-emerald-700 uppercase tracking-widest leading-tight">AUTORIZADO</span>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="text-2xl font-black text-slate-900 tracking-tighter">${manualTotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
                 </div>
             )}
         </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingDown, Clock, CheckCircle2, AlertCircle, Calendar, ArrowLeft, Check, Trash2, Edit2, Layers, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { TrendingDown, Clock, CheckCircle2, AlertCircle, Calendar, ArrowLeft, Check, Layers, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -9,12 +9,9 @@ import { AccountsPayableStats, PendingInvoice, SupplierPayment, PaymentRequestPa
 import { BankAccount } from '../../../types/treasury';
 
 import { PaymentRequestModal } from './PaymentRequestModal';
-import { PaymentExecutionModal } from './PaymentExecutionModal';
-import { PaymentApprovalModal } from './PaymentApprovalModal';
 import { InvoiceDetailModal } from './InvoiceDetailModal';
 
 type PayableFilter = 'ALL' | 'THIS_FRIDAY' | 'NEXT_15_DAYS' | 'FUTURE' | null;
-type PayableViewMode = 'TO_REQUEST' | 'REQUESTED';
 type SortKey = 'provider_name' | 'invoice_number' | 'due_date' | 'outstanding_balance';
 
 interface PayablesModuleProps {
@@ -31,7 +28,6 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({ onSubSectionChan
     const [approvedRequests, setApprovedRequests] = useState<SupplierPayment[]>([]);
     const [accounts, setAccounts] = useState<BankAccount[]>([]);
     
-    const [payableViewMode, setPayableViewMode] = useState<PayableViewMode>('TO_REQUEST'); 
     const [activeFilter, setActiveFilter] = useState<PayableFilter>(null);
     const [isFinanceLoading, setIsFinanceLoading] = useState(false);
 
@@ -40,8 +36,6 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({ onSubSectionChan
     const [selectedInvoice, setSelectedInvoice] = useState<PendingInvoice | null>(null);
     const [editingRequest, setEditingRequest] = useState<SupplierPayment | null>(null);
 
-    const [showExecutionModal, setShowExecutionModal] = useState(false);
-    const [showApprovalModal, setShowApprovalModal] = useState(false);
     const [viewingInvoice, setViewingInvoice] = useState<PendingInvoice | null>(null);
 
     const handleFilterChange = (filter: PayableFilter) => {
@@ -136,24 +130,35 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({ onSubSectionChan
     const handleModalSubmit = async (payload: PaymentRequestPayload) => {
         try {
             if (editingRequest) {
-                await financeService.updatePaymentRequest(editingRequest.id, payload);
-                alert("✅ Solicitud actualizada.");
+                if (isChecker) {
+                    if (!payload.suggested_account_id) {
+                        alert("⚠️ Selecciona una cuenta bancaria de origen para efectuar el pago.");
+                        return;
+                    }
+                    
+                    try {
+                        await financeService.updatePaymentStatus(editingRequest.id, 'APPROVED', payload.suggested_account_id);
+                    } catch (innerError) {
+                        await financeService.cancelPaymentRequest(editingRequest.id);
+                        await financeService.requestPayment(payload);
+                    }
+                    
+                    alert("✅ Pago autorizado y ejecutado exitosamente.");
+                } else {
+                    await financeService.updatePaymentRequest(editingRequest.id, payload);
+                    alert("✅ Solicitud actualizada.");
+                }
             } else {
                 await financeService.requestPayment(payload);
                 if (isChecker) alert("✅ Pago efectuado directamente.");
                 else alert("✅ Solicitud enviada a Gerencia.");
             }
-            setSelectedInvoice(null); setEditingRequest(null);
+            setSelectedInvoice(null); 
+            setEditingRequest(null);
             loadData(true);
         } catch (e) {
-            alert("❌ Error al procesar.");
+            alert("❌ Error al procesar el pago. Intenta de nuevo.");
         }
-    };
-
-    const handleCancelRequest = async (id: number) => {
-        if(!confirm("¿Cancelar solicitud?")) return;
-        try { await financeService.cancelPaymentRequest(id); loadData(true); } 
-        catch (e) { alert("Error al cancelar."); }
     };
 
     const filteredData = getFilteredInvoices();
@@ -183,18 +188,16 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({ onSubSectionChan
         }
     });
 
-    const pendingApprovals = stats?.total_pending_approval || 0;
-    const approvedPaymentsCount = approvedRequests.length;
     const totalAllCount = invoices.length;
     const totalAllAmount = invoices.reduce((sum, inv) => sum + inv.outstanding_balance, 0);
 
     const theme = (() => {
         switch (activeFilter) {
-            case 'ALL': return { border: 'border-indigo-300', bgLight: 'bg-indigo-50', textTitle: 'text-indigo-950', textIcon: 'text-indigo-600', btnHover: 'hover:bg-indigo-100 hover:text-indigo-800 hover:border-indigo-300', btnAction: 'bg-indigo-200 hover:bg-indigo-300 text-indigo-950 border border-indigo-300', badgeProcess: 'bg-indigo-100 text-indigo-900 border-indigo-300' };
-            case 'THIS_FRIDAY': return { border: 'border-red-300', bgLight: 'bg-red-50', textTitle: 'text-red-950', textIcon: 'text-red-600', btnHover: 'hover:bg-red-100 hover:text-red-800 hover:border-red-300', btnAction: 'bg-red-200 hover:bg-red-300 text-red-950 border border-red-300', badgeProcess: 'bg-red-100 text-red-900 border-red-300' };
-            case 'NEXT_15_DAYS': return { border: 'border-orange-200', bgLight: 'bg-orange-50', textTitle: 'text-orange-900', textIcon: 'text-orange-500', btnHover: 'hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200', btnAction: 'bg-orange-100 hover:bg-orange-200 text-orange-800 border border-orange-200', badgeProcess: 'bg-orange-50 text-orange-700 border-orange-200' };
-            case 'FUTURE': return { border: 'border-yellow-300', bgLight: 'bg-yellow-50', textTitle: 'text-yellow-900', textIcon: 'text-yellow-500', btnHover: 'hover:bg-yellow-50 hover:text-yellow-700 hover:border-yellow-300', btnAction: 'bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border border-yellow-300', badgeProcess: 'bg-yellow-50 text-yellow-800 border-yellow-300' };
-            default: return { border: 'border-slate-200', bgLight: 'bg-slate-50', textTitle: 'text-slate-800', textIcon: 'text-slate-500', btnHover: 'hover:bg-slate-50 hover:text-slate-700', btnAction: 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200', badgeProcess: 'bg-slate-50 text-slate-700 border-slate-200' };
+            case 'ALL': return { border: 'border-indigo-300', bgLight: 'bg-indigo-50', textTitle: 'text-indigo-950', textIcon: 'text-indigo-600', btnHover: 'hover:bg-indigo-100 hover:text-indigo-800 hover:border-indigo-300', btnAction: 'bg-indigo-200 hover:bg-indigo-300 text-indigo-950 border border-indigo-300' };
+            case 'THIS_FRIDAY': return { border: 'border-red-300', bgLight: 'bg-red-50', textTitle: 'text-red-950', textIcon: 'text-red-600', btnHover: 'hover:bg-red-100 hover:text-red-800 hover:border-red-300', btnAction: 'bg-red-200 hover:bg-red-300 text-red-950 border border-red-300' };
+            case 'NEXT_15_DAYS': return { border: 'border-orange-200', bgLight: 'bg-orange-50', textTitle: 'text-orange-900', textIcon: 'text-orange-500', btnHover: 'hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200', btnAction: 'bg-orange-100 hover:bg-orange-200 text-orange-800 border border-orange-200' };
+            case 'FUTURE': return { border: 'border-yellow-300', bgLight: 'bg-yellow-50', textTitle: 'text-yellow-900', textIcon: 'text-yellow-500', btnHover: 'hover:bg-yellow-50 hover:text-yellow-700 hover:border-yellow-300', btnAction: 'bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border border-yellow-300' };
+            default: return { border: 'border-slate-200', bgLight: 'bg-slate-50', textTitle: 'text-slate-800', textIcon: 'text-slate-500', btnHover: 'hover:bg-slate-50 hover:text-slate-700', btnAction: 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200' };
         }
     })();
 
@@ -229,202 +232,160 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({ onSubSectionChan
 
     return (
         <div className="space-y-6">
-            {activeFilter === null && (
-                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-slate-200 pb-4">
-                    <div className="flex flex-wrap items-center gap-3">
-                        <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-lg w-fit">
-                            <button onClick={() => setPayableViewMode('TO_REQUEST')} className={`px-4 py-2 text-sm font-bold rounded-md transition-all flex items-center gap-2 ${payableViewMode === 'TO_REQUEST' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                                <TrendingDown size={16}/> Módulo de Ejecución
-                            </button>
-                            <button onClick={() => setPayableViewMode('REQUESTED')} className={`px-4 py-2 text-sm font-bold rounded-md transition-all flex items-center gap-2 ${payableViewMode === 'REQUESTED' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                                <Clock size={16}/> Esperando Autorización {pendingApprovals > 0 && <span className="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded-full">{pendingApprovals}</span>}
-                            </button>
-                        </div>
+
+            {activeFilter === null ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-4">
+                    
+                    <div className="w-full relative">
+                        <Card onClick={() => handleFilterChange('THIS_FRIDAY')} className="p-6 border-l-4 border-l-red-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl">
+                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-red-50 text-red-700 border-r border-red-100 font-black text-3xl group-hover:bg-red-100">
+                                {stats?.overdue_count || 0}
+                            </div>
+                            <div className="ml-16 h-full flex flex-col justify-between">
+                                <div>
+                                    <h4 className="font-bold text-red-800 flex items-center gap-2"><AlertCircle size={18} /> Pago Inmediato</h4>
+                                    <p className="text-sm text-slate-500 mt-2 mb-4">Para este viernes</p>
+                                </div>
+                                <div className="text-lg font-black text-red-600 text-right tracking-tight">{formatCurrency(stats?.overdue_amount || 0)}</div>
+                            </div>
+                        </Card>
                     </div>
 
-                    {isChecker && (
-                        <Button 
-                            className={`font-bold shadow-lg transform transition hover:scale-105 h-[36px] ${approvedPaymentsCount > 0 ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-none ring-2 ring-emerald-200' : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'}`}
-                            onClick={() => setShowExecutionModal(true)}
-                        >
-                            {approvedPaymentsCount > 0 ? (
-                                <span className="bg-white text-emerald-700 text-[11px] font-black px-2 py-0.5 rounded-md mr-2 shadow-sm animate-pulse">{approvedPaymentsCount}</span>
-                            ) : <CheckCircle2 size={18} className="mr-2"/>}
-                            Pagos Listos para Ejecutar
-                        </Button>
-                    )}
+                    <div className="w-full relative">
+                        <Card onClick={() => handleFilterChange('NEXT_15_DAYS')} className="p-6 border-l-4 border-l-orange-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl">
+                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-orange-50 text-orange-700 border-r border-orange-100 font-black text-3xl group-hover:bg-orange-100">
+                                {stats?.next_period_count || 0}
+                            </div>
+                            <div className="ml-16 h-full flex flex-col justify-between">
+                                <div>
+                                    <h4 className="font-bold text-orange-800 flex items-center gap-2"><Calendar size={18} /> Proyección Corta</h4>
+                                    <p className="text-sm text-slate-500 mt-2 mb-4">Próximos 15 días</p>
+                                </div>
+                                <div className="text-lg font-black text-orange-600 text-right tracking-tight">{formatCurrency(stats?.next_period_amount || 0)}</div>
+                            </div>
+                        </Card>
+                    </div>
+
+                    <div className="w-full relative">
+                        <Card onClick={() => handleFilterChange('FUTURE')} className="p-6 border-l-4 border-l-yellow-400 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl">
+                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-yellow-50 text-yellow-700 border-r border-yellow-100 font-black text-3xl group-hover:bg-yellow-100">
+                                {stats?.future_count || 0}
+                            </div>
+                            <div className="ml-16 h-full flex flex-col justify-between">
+                                <div>
+                                    <h4 className="font-bold text-yellow-800 flex items-center gap-2"><TrendingDown size={18} /> Largo Plazo</h4>
+                                    <p className="text-sm text-slate-500 mt-2 mb-4">Más de 15 días</p>
+                                </div>
+                                <div className="text-lg font-black text-yellow-600 text-right tracking-tight">{formatCurrency(stats?.future_amount || 0)}</div>
+                            </div>
+                        </Card>
+                    </div>
+
+                    <div className="w-full relative">
+                        <Card onClick={() => handleFilterChange('ALL')} className="p-6 border-l-4 border-l-indigo-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl">
+                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50 text-indigo-700 border-r border-indigo-100 font-black text-3xl group-hover:bg-indigo-100">
+                                {totalAllCount}
+                            </div>
+                            <div className="ml-16 h-full flex flex-col justify-between">
+                                <div>
+                                    <h4 className="font-bold text-indigo-800 flex items-center gap-2"><Layers size={18} /> Todas</h4>
+                                    <p className="text-sm text-slate-500 mt-2 mb-4">Archivo Maestro</p>
+                                </div>
+                                <div className="text-lg font-black text-indigo-600 text-right tracking-tight">{formatCurrency(totalAllAmount)}</div>
+                            </div>
+                        </Card>
+                    </div>
+
                 </div>
-            )}
-
-            {payableViewMode === 'TO_REQUEST' && (
-                <>
-                    {activeFilter === null ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            
-                            <div className="w-full relative">
-                                <Card onClick={() => handleFilterChange('THIS_FRIDAY')} className="p-6 border-l-4 border-l-red-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl">
-                                    <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-red-50 text-red-700 border-r border-red-100 font-black text-3xl group-hover:bg-red-100">
-                                        {stats?.overdue_count || 0}
-                                    </div>
-                                    <div className="ml-16 h-full flex flex-col justify-between">
-                                        <div>
-                                            <h4 className="font-bold text-red-800 flex items-center gap-2"><AlertCircle size={18} /> Pago Inmediato</h4>
-                                            <p className="text-sm text-slate-500 mt-2 mb-4">Para este viernes</p>
-                                        </div>
-                                        <div className="text-lg font-black text-red-600 text-right tracking-tight">{formatCurrency(stats?.overdue_amount || 0)}</div>
-                                    </div>
-                                </Card>
-                            </div>
-
-                            <div className="w-full relative">
-                                <Card onClick={() => handleFilterChange('NEXT_15_DAYS')} className="p-6 border-l-4 border-l-orange-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl">
-                                    <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-orange-50 text-orange-700 border-r border-orange-100 font-black text-3xl group-hover:bg-orange-100">
-                                        {stats?.next_period_count || 0}
-                                    </div>
-                                    <div className="ml-16 h-full flex flex-col justify-between">
-                                        <div>
-                                            <h4 className="font-bold text-orange-800 flex items-center gap-2"><Calendar size={18} /> Proyección Corta</h4>
-                                            <p className="text-sm text-slate-500 mt-2 mb-4">Próximos 15 días</p>
-                                        </div>
-                                        <div className="text-lg font-black text-orange-600 text-right tracking-tight">{formatCurrency(stats?.next_period_amount || 0)}</div>
-                                    </div>
-                                </Card>
-                            </div>
-
-                            <div className="w-full relative">
-                                <Card onClick={() => handleFilterChange('FUTURE')} className="p-6 border-l-4 border-l-yellow-400 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl">
-                                    <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-yellow-50 text-yellow-700 border-r border-yellow-100 font-black text-3xl group-hover:bg-yellow-100">
-                                        {stats?.future_count || 0}
-                                    </div>
-                                    <div className="ml-16 h-full flex flex-col justify-between">
-                                        <div>
-                                            <h4 className="font-bold text-yellow-800 flex items-center gap-2"><TrendingDown size={18} /> Largo Plazo</h4>
-                                            <p className="text-sm text-slate-500 mt-2 mb-4">Más de 15 días</p>
-                                        </div>
-                                        <div className="text-lg font-black text-yellow-600 text-right tracking-tight">{formatCurrency(stats?.future_amount || 0)}</div>
-                                    </div>
-                                </Card>
-                            </div>
-
-                            <div className="w-full relative">
-                                <Card onClick={() => handleFilterChange('ALL')} className="p-6 border-l-4 border-l-indigo-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl">
-                                    <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50 text-indigo-700 border-r border-indigo-100 font-black text-3xl group-hover:bg-indigo-100">
-                                        {totalAllCount}
-                                    </div>
-                                    <div className="ml-16 h-full flex flex-col justify-between">
-                                        <div>
-                                            <h4 className="font-bold text-indigo-800 flex items-center gap-2"><Layers size={18} /> Todas</h4>
-                                            <p className="text-sm text-slate-500 mt-2 mb-4">Archivo Maestro</p>
-                                        </div>
-                                        <div className="text-lg font-black text-indigo-600 text-right tracking-tight">{formatCurrency(totalAllAmount)}</div>
-                                    </div>
-                                </Card>
-                            </div>
-
+            ) : (
+                <div className="space-y-6">
+                    <div className={`bg-white rounded-xl shadow-md border ${theme.border} overflow-hidden mt-4`}>
+                        <div className={`p-4 ${theme.bgLight} border-b ${theme.border} flex justify-between items-center`}>
+                            <h3 className={`font-bold flex items-center gap-2 text-lg ${theme.textTitle}`}>
+                                {getActiveFilterTitle()}
+                            </h3>
+                            <button 
+                                onClick={() => handleFilterChange(null)} 
+                                className={`flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-3 py-1.5 rounded-md text-sm font-bold transition-colors shadow-sm ${theme.btnHover}`}
+                            >
+                                <ArrowLeft size={16} /> Regresar
+                            </button>
                         </div>
-                    ) : (
-                        <div className="space-y-6">
-                            <div className={`bg-white rounded-xl shadow-md border ${theme.border} overflow-hidden mt-4`}>
-                                <div className={`p-4 ${theme.bgLight} border-b ${theme.border} flex justify-between items-center`}>
-                                    <h3 className={`font-bold flex items-center gap-2 text-lg ${theme.textTitle}`}>
-                                        {getActiveFilterTitle()}
-                                    </h3>
-                                    <button 
-                                        onClick={() => handleFilterChange(null)} 
-                                        className={`flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-3 py-1.5 rounded-md text-sm font-bold transition-colors shadow-sm ${theme.btnHover}`}
-                                    >
-                                        <ArrowLeft size={16} /> Regresar
-                                    </button>
-                                </div>
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-sm text-left border-collapse">
-                                        <thead className={`text-xs text-slate-600 uppercase tracking-wider ${theme.bgLight} border-b ${theme.border} font-black`}>
-                                            <tr>
-                                                {renderSortableHeader('Proveedor', 'provider_name')}
-                                                {renderSortableHeader('Factura', 'invoice_number')}
-                                                {renderSortableHeader('Vencimiento', 'due_date')}
-                                                {renderSortableHeader('Saldo Deuda', 'outstanding_balance', 'right')}
-                                                <th className="p-4 text-center">Acción</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {isFinanceLoading ? (
-                                                <tr><td colSpan={5} className="text-center py-12 text-slate-400 font-bold">Cargando desglose...</td></tr>
-                                            ) : filteredData.length === 0 ? (
-                                                <tr><td colSpan={5} className="text-center py-12 text-slate-400 italic font-medium">No hay facturas pendientes en esta categoría.</td></tr>
-                                            ) : sortedFilteredData.map(inv => {
-                                                const allActiveReqs = [...sentRequests, ...approvedRequests];
-                                                const activeReqForInv = allActiveReqs.filter(req => req.invoice_folio === inv.invoice_number && req.provider_name === inv.provider_name);
-                                                const hasActive = activeReqForInv.length > 0;
-                                                const isApproved = activeReqForInv.some(req => approvedRequests.find(ar => ar.id === req.id));
-                                                return (
-                                                    <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
-                                                        <td className="p-4 font-bold text-slate-800">{inv.provider_name}</td>
-                                                        <td className="p-4">
-                                                            <button 
-                                                                onClick={() => setViewingInvoice(inv)}
-                                                                className="font-mono bg-slate-100 border border-slate-200 px-2 py-1 rounded text-indigo-700 text-xs font-bold hover:bg-indigo-50 hover:border-indigo-200 transition-colors shadow-sm text-left"
-                                                                title="Ver detalle del documento"
-                                                            >
-                                                                {inv.invoice_number}
-                                                            </button>
-                                                        </td>
-                                                        <td className="p-4 text-slate-600 font-medium">{formatDate(inv.due_date)}</td>
-                                                        <td className={`p-4 text-right font-black text-lg ${theme.textTitle}`}>
-                                                            {formatCurrency(inv.outstanding_balance)}
-                                                        </td>
-                                                        <td className="p-4 text-center">
-                                                            {hasActive ? (
-                                                                <Badge variant="secondary" className={`font-bold py-1.5 border ${isApproved ? "bg-emerald-100 text-emerald-800 border-emerald-200" : theme.badgeProcess}`}>
-                                                                    {isApproved ? "Autorizado (Por Pagar)" : "En Proceso (Dirección)"}
-                                                                </Badge>
-                                                            ) : (
-                                                                <Button size="sm" className={`${theme.btnAction} w-full max-w-[160px] font-bold shadow-sm transition-colors`} onClick={() => setSelectedInvoice(inv)}>
-                                                                    <CheckCircle2 size={16} className="mr-1"/> {isChecker ? 'Ejecutar Directo' : 'Armar Solicitud'}
-                                                                </Button>
-                                                            )}
-                                                        </td>
-                                                    </tr>
-                                                )
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </>
-            )}
-
-            {payableViewMode === 'REQUESTED' && activeFilter === null && (
-                <div className="bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden">
-                    <div className="p-4 bg-indigo-50 border-b border-indigo-100 flex justify-between items-center">
-                        <h3 className="font-bold text-indigo-900 flex items-center gap-2 text-lg"><Clock className="text-indigo-600"/> Bandeja de Autorizaciones</h3>
-                        {isChecker && sentRequests.length > 0 && <Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-sm" onClick={() => setShowApprovalModal(true)}><Check size={18} className="mr-2"/> Revisar y Autorizar</Button>}
-                    </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left border-collapse">
-                            <thead className="text-xs text-indigo-800 uppercase tracking-wider bg-indigo-50/50 border-b border-indigo-100 font-bold">
-                                <tr><th className="p-4">Proveedor</th><th className="p-4">Factura</th><th className="p-4">Monto Solicitado</th><th className="p-4 text-center">Acciones</th></tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {sentRequests.length === 0 ? <tr><td colSpan={4} className="text-center py-12 text-slate-400 italic font-medium">Bandeja limpia. No hay solicitudes pendientes.</td></tr> : sentRequests.map(req => (
-                                    <tr key={req.id} className="hover:bg-indigo-50/30 transition-colors">
-                                        <td className="p-4 font-bold text-slate-800">{req.provider_name}</td>
-                                        <td className="p-4 font-mono text-xs font-bold text-slate-500">{req.invoice_folio}</td>
-                                        <td className="p-4 font-black text-indigo-700 text-lg">{formatCurrency(req.amount)}</td>
-                                        <td className="p-4 text-center flex justify-center gap-2">
-                                            <button onClick={() => handleEditRequest(req)} className="text-indigo-600 hover:bg-indigo-100 p-2 rounded-full transition-colors"><Edit2 size={16}/></button>
-                                            <button onClick={() => handleCancelRequest(req.id)} className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-full transition-colors"><Trash2 size={16}/></button>
-                                        </td>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-left border-collapse">
+                                <thead className={`text-xs text-slate-600 uppercase tracking-wider ${theme.bgLight} border-b ${theme.border} font-black`}>
+                                    <tr>
+                                        {renderSortableHeader('Proveedor', 'provider_name')}
+                                        {renderSortableHeader('Factura', 'invoice_number')}
+                                        {renderSortableHeader('Vencimiento', 'due_date')}
+                                        {renderSortableHeader('Saldo Deuda', 'outstanding_balance', 'right')}
+                                        <th className="p-4 text-center">Acción</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {isFinanceLoading ? (
+                                        <tr><td colSpan={5} className="text-center py-12 text-slate-400 font-bold">Cargando desglose...</td></tr>
+                                    ) : filteredData.length === 0 ? (
+                                        <tr><td colSpan={5} className="text-center py-12 text-slate-400 italic font-medium">No hay facturas pendientes en esta categoría.</td></tr>
+                                    ) : sortedFilteredData.map(inv => {
+                                        // Ahora solo nos interesa saber si hay alguna solicitud activa para cambiar a Ámbar. Nada de verdes.
+                                        const allActiveReqs = [...sentRequests, ...approvedRequests];
+                                        const activeReqForInv = allActiveReqs.filter(req => req.invoice_folio === inv.invoice_number && req.provider_name === inv.provider_name);
+                                        const hasActive = activeReqForInv.length > 0;
+                                        
+                                        return (
+                                            <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
+                                                <td className="p-4 font-bold text-slate-800">{inv.provider_name}</td>
+                                                <td className="p-4">
+                                                    <button 
+                                                        onClick={() => setViewingInvoice(inv)}
+                                                        className="font-mono bg-slate-100 border border-slate-200 px-2 py-1 rounded text-indigo-700 text-xs font-bold hover:bg-indigo-50 hover:border-indigo-200 transition-colors shadow-sm text-left"
+                                                        title="Ver detalle del documento"
+                                                    >
+                                                        {inv.invoice_number}
+                                                    </button>
+                                                </td>
+                                                <td className="p-4 text-slate-600 font-medium">{formatDate(inv.due_date)}</td>
+                                                <td className={`p-4 text-right font-black text-lg ${theme.textTitle}`}>
+                                                    {formatCurrency(inv.outstanding_balance)}
+                                                </td>
+                                                
+                                                <td className="p-4 text-center">
+                                                    {hasActive ? (
+                                                        isChecker ? (
+                                                            <Button 
+                                                                size="sm" 
+                                                                className="bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-200 w-full max-w-[160px] font-bold shadow-sm transition-colors"
+                                                                onClick={() => handleEditRequest(activeReqForInv[0])}
+                                                            >
+                                                                Se Solicita Pago
+                                                            </Button>
+                                                        ) : (
+                                                            <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-200 font-bold py-1.5 border w-full max-w-[160px] inline-block text-center">
+                                                                Se Solicita Pago
+                                                            </Badge>
+                                                        )
+                                                    ) : (
+                                                        <Button 
+                                                            size="sm" 
+                                                            className={`${theme.btnAction} w-full max-w-[160px] font-bold shadow-sm transition-colors`} 
+                                                            onClick={() => setSelectedInvoice(inv)}
+                                                        >
+                                                            <CheckCircle2 size={16} className="mr-1"/> {isChecker ? 'Ejecutar Directo' : 'Se Solicita Pago'}
+                                                        </Button>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        )
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             )}
 
+            {/* MODAL MAESTRO UNIVERSAL */}
             {(selectedInvoice || editingRequest) && (
                 <PaymentRequestModal 
                     invoice={selectedInvoice || undefined} 
@@ -435,9 +396,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({ onSubSectionChan
                 />
             )}
             
-            {showExecutionModal && isChecker && <PaymentExecutionModal onClose={() => setShowExecutionModal(false)} onSuccess={() => { setShowExecutionModal(false); loadData(true); }} />}
-            {showApprovalModal && isChecker && <PaymentApprovalModal onClose={() => setShowApprovalModal(false)} onUpdate={() => loadData(true)} />}
-            
+            {/* VISOR DE FACTURAS/OC (Los Rayos X) */}
             {viewingInvoice && <InvoiceDetailModal invoice={viewingInvoice} onClose={() => setViewingInvoice(null)} />}
         </div>
     );

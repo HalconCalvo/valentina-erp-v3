@@ -14,7 +14,7 @@ from app.models.finance import (
 from app.models.foundations import Provider
 from app.models.treasury import BankAccount, BankTransaction, TransactionType
 
-# ---> 🔪 INYECCIÓN: Importamos la Orden de Compra de tu Módulo de Inventario <---
+# ---> Importamos la Orden de Compra de tu Módulo de Inventario <---
 from app.models.inventory import PurchaseOrder
 
 from app.schemas.finance_schema import (
@@ -27,14 +27,20 @@ from app.schemas.finance_schema import (
 
 router = APIRouter()
 
+def clean_invoice_folio(folio: str) -> str:
+    if not folio: return "S/N"
+    safe_folio = str(folio).strip()
+    if safe_folio.startswith("OC-OC-"):
+        return safe_folio.replace("OC-OC-", "OC-")
+    return safe_folio
+
 # ==================================================================
 # ---> 🛠️ MOTOR DE SINCRONIZACIÓN AUTOMÁTICA UNIFICADO <---
 # ==================================================================
 def _sync_pos_to_invoices(session: SessionDep):
-    from datetime import datetime, date # Forzamos la importación aquí por seguridad
-    today_date = datetime.now().date() # Fecha exacta e inmutable
+    from datetime import datetime, date
+    today_date = datetime.now().date()
     
-    # 1. Órdenes de Compra (Pre-pagos)
     statement = select(PurchaseOrder).where(
         PurchaseOrder.status == "AUTORIZADA",
         PurchaseOrder.payment_status == "PENDING"
@@ -42,26 +48,26 @@ def _sync_pos_to_invoices(session: SessionDep):
     pos = session.exec(statement).all()
     for po in pos:
         if po.total_estimated_amount <= 0: continue
-        oc_folio = f"OC-{po.folio}"
+        
+        oc_folio = po.folio 
+        
         existing = session.exec(select(PurchaseInvoice).where(PurchaseInvoice.invoice_number == oc_folio)).first()
         if not existing:
-            # INYECCIÓN FISCAL: Agregamos el 16% de IVA al subtotal de la Orden de Compra
             total_con_iva = po.total_estimated_amount * 1.16
             
             inv = PurchaseInvoice(
                 provider_id=po.provider_id,
                 invoice_number=oc_folio,
-                issue_date=today_date, # <--- DATO BLINDADO
+                issue_date=today_date,
                 due_date=today_date,
-                total_amount=total_con_iva, # <--- GUARDA CON IVA
-                outstanding_balance=total_con_iva, # <--- DEUDA CON IVA
+                total_amount=total_con_iva,
+                outstanding_balance=total_con_iva,
                 status=getattr(InvoiceStatus, "PENDING", "PENDING")
             )
             session.add(inv)
             po.payment_status = "REQUESTED"
             session.add(po)
 
-    # 2. Cuentas por Pagar de Almacén -> Pasan a la Bandeja Universal
     query_ap = text("SELECT id, provider_id, invoice_folio, total_amount, due_date FROM accounts_payable WHERE status = 'PENDIENTE'")
     aps = session.exec(query_ap).all()
     for ap_id, prov_id, folio, amt, due in aps:
@@ -78,16 +84,15 @@ def _sync_pos_to_invoices(session: SessionDep):
             elif due:
                 due_date_parsed = due if hasattr(due, 'year') else today_date
 
-            # INYECCIÓN FISCAL: Asumimos que lo recibido de almacén viene en subtotal
             total_ap_con_iva = amt * 1.16
 
             inv = PurchaseInvoice(
                 provider_id=prov_id,
                 invoice_number=safe_folio,
-                issue_date=today_date, # <--- DATO BLINDADO
+                issue_date=today_date,
                 due_date=due_date_parsed,
-                total_amount=total_ap_con_iva, # <--- GUARDA CON IVA
-                outstanding_balance=total_ap_con_iva, # <--- DEUDA CON IVA
+                total_amount=total_ap_con_iva,
+                outstanding_balance=total_ap_con_iva,
                 status=getattr(InvoiceStatus, "PENDING", "PENDING")
             )
             session.add(inv)
@@ -95,7 +100,7 @@ def _sync_pos_to_invoices(session: SessionDep):
     session.commit()
     
 # ------------------------------------------------------------------
-# 1. SOLICITAR UN PAGO (CON VÍA VIP FAST-TRACK PARA GERENCIA)
+# 1. SOLICITAR UN PAGO (BLINDADO CONTRA DATOS VIEJOS)
 # ------------------------------------------------------------------
 @router.post("/payments/request", response_model=SupplierPaymentRead)
 def request_supplier_payment(
@@ -108,12 +113,14 @@ def request_supplier_payment(
     if not invoice:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
 
+    # SOLUCIÓN 1: Solo sumamos los pagos que están flotando ("en el limbo"), excluimos los ya pagados
+    # y los restamos directamente de la deuda actual, ignorando el "total_amount" histórico.
     statement = select(func.sum(SupplierPayment.amount)).where(
         SupplierPayment.purchase_invoice_id == invoice.id,
-        SupplierPayment.status.in_([PaymentStatus.PENDING, PaymentStatus.APPROVED, PaymentStatus.PAID])
+        SupplierPayment.status.in_([PaymentStatus.PENDING, PaymentStatus.APPROVED])
     )
-    already_committed = session.exec(statement).one() or 0.0
-    available_to_request = invoice.total_amount - already_committed
+    limbo_committed = float(session.exec(statement).one() or 0.0)
+    available_to_request = float(invoice.outstanding_balance) - limbo_committed
     
     if payment_in.amount > (available_to_request + 0.01):
         raise HTTPException(status_code=400, detail=f"Monto inválido. Disponible real: ${available_to_request:,.2f}")
@@ -131,25 +138,21 @@ def request_supplier_payment(
         created_by_user_id=current_user.id
     )
     session.add(payment)
-    session.flush() # Guardamos para obtener el ID de pago
+    session.flush() 
 
-    # ---> 🚀 FAST-TRACK: VÍA VIP PARA GERENCIA Y DIRECCIÓN <---
     if current_user.role.upper() in ["DIRECTOR", "GERENCIA"]:
         account = session.get(BankAccount, payment_in.suggested_account_id)
         if not account:
             raise HTTPException(status_code=400, detail="Cuenta bancaria no válida para el pago directo.")
             
-        # A) Auto-Aprobar
         payment.approved_by_user_id = current_user.id
         payment.approved_account_id = account.id
-        payment.status = PaymentStatus.APPROVED
         
-        # B) Auto-Ejecutar (Movimiento de Tesorería)
         bank_tx = BankTransaction(
             account_id=account.id,
             transaction_type=TransactionType.OUT,
             amount=payment.amount,
-            reference=payment.reference or f"Pago Directo FAC-{invoice.invoice_number}",
+            reference=payment.reference or f"Pago Directo FAC-{clean_invoice_folio(invoice.invoice_number)}",
             description=f"Pago Fast-Track a Proveedor",
             related_entity_type="PURCHASE_INVOICE",
             related_entity_id=invoice.id
@@ -169,18 +172,14 @@ def request_supplier_payment(
         payment.status = PaymentStatus.PAID
         payment.treasury_transaction_id = bank_tx.id
         
-        # C) El Efecto Boomerang a Compras/Almacén
-        inv_str = invoice.invoice_number
+        inv_str = clean_invoice_folio(invoice.invoice_number)
         if inv_str:
-            if inv_str.startswith("OC-"):
-                oc_folio = inv_str.replace("OC-", "")
-                po = session.exec(select(PurchaseOrder).where(PurchaseOrder.folio == oc_folio)).first()
-                if po and invoice.outstanding_balance <= 0.01:
-                    po.payment_status = "PAID"
-                    session.add(po)
-            else:
-                if invoice.outstanding_balance <= 0.01:
-                    session.exec(text("UPDATE accounts_payable SET status = 'PAGADO' WHERE invoice_folio = :folio").bindparams(folio=inv_str))
+            po = session.exec(select(PurchaseOrder).where(PurchaseOrder.folio == inv_str)).first()
+            if po and invoice.outstanding_balance <= 0.01:
+                po.payment_status = "PAID"
+                session.add(po)
+            elif invoice.outstanding_balance <= 0.01:
+                session.exec(text("UPDATE accounts_payable SET status = 'PAGADO' WHERE invoice_folio = :folio").bindparams(folio=inv_str))
 
     session.commit()
     session.refresh(payment)
@@ -208,11 +207,11 @@ def update_payment_request(
     
     statement = select(func.sum(SupplierPayment.amount)).where(
         SupplierPayment.purchase_invoice_id == invoice.id,
-        SupplierPayment.status.in_([PaymentStatus.PENDING, PaymentStatus.APPROVED, PaymentStatus.PAID])
+        SupplierPayment.status.in_([PaymentStatus.PENDING, PaymentStatus.APPROVED]),
+        SupplierPayment.id != payment_id
     )
-    already_committed_total = session.exec(statement).one() or 0.0
-    committed_others = already_committed_total - payment.amount
-    available_to_request = invoice.total_amount - committed_others
+    limbo_others = float(session.exec(statement).one() or 0.0)
+    available_to_request = float(invoice.outstanding_balance) - limbo_others
 
     if payment_in.amount > (available_to_request + 0.01):
         raise HTTPException(status_code=400, detail=f"Monto inválido. Disponible: ${available_to_request:,.2f}")
@@ -251,7 +250,7 @@ def cancel_payment_request(
     return {"message": "Solicitud eliminada correctamente"}
 
 # ------------------------------------------------------------------
-# 2. APROBAR O RECHAZAR PAGO (Gerencia / Dirección - Nivel Checker)
+# 2. APROBAR Y EJECUTAR PAGO 
 # ------------------------------------------------------------------
 @router.put("/payments/{payment_id}/status", response_model=SupplierPaymentRead)
 def update_payment_status(
@@ -272,98 +271,77 @@ def update_payment_status(
         raise HTTPException(status_code=404, detail="Pago no encontrado")
 
     if status_in.status == PaymentStatus.PENDING:
-        if payment.status != PaymentStatus.APPROVED:
-            raise HTTPException(status_code=400, detail="Solo se revocan autorizaciones de pagos ya aprobados.")
-        payment.approved_by_user_id = None
-        payment.approved_account_id = None
+        if payment.status not in [PaymentStatus.APPROVED, PaymentStatus.PAID]:
+            raise HTTPException(status_code=400, detail="Solo se revocan autorizaciones de pagos ya procesados.")
+        raise HTTPException(status_code=400, detail="El pago ya fue ejecutado en el banco. No se puede revocar de forma simple.")
+    
     else:
         if payment.status != PaymentStatus.PENDING:
-            raise HTTPException(status_code=400, detail="Este pago ya fue procesado.")
+            raise HTTPException(status_code=400, detail="Este pago ya fue procesado anteriormente.")
 
-        if status_in.status == PaymentStatus.APPROVED and not status_in.approved_account_id:
-            raise HTTPException(status_code=400, detail="Asigna una cuenta bancaria.")
+        if status_in.status == PaymentStatus.APPROVED:
+            if not status_in.approved_account_id:
+                raise HTTPException(status_code=400, detail="Asigna una cuenta bancaria.")
 
-        payment.approved_by_user_id = current_user.id
-        payment.approved_account_id = status_in.approved_account_id
+            payment.approved_by_user_id = current_user.id
+            payment.approved_account_id = status_in.approved_account_id
 
-    payment.status = status_in.status
+            account = session.get(BankAccount, status_in.approved_account_id)
+            invoice = session.get(PurchaseInvoice, payment.purchase_invoice_id)
+            
+            bank_tx = BankTransaction(
+                account_id=account.id,
+                transaction_type=TransactionType.OUT,
+                amount=payment.amount,
+                reference=payment.reference or f"Pago FAC-{clean_invoice_folio(invoice.invoice_number)}",
+                description=f"Pago Autorizado a Proveedor",
+                related_entity_type="PURCHASE_INVOICE",
+                related_entity_id=invoice.id
+            )
+            session.add(bank_tx)
+            
+            account.current_balance -= payment.amount
+            invoice.outstanding_balance -= payment.amount
+            if invoice.outstanding_balance < 0.01:
+                invoice.outstanding_balance = 0.0
+                invoice.status = InvoiceStatus.PAID
+            else:
+                invoice.status = InvoiceStatus.PARTIAL
+
+            session.flush() 
+            payment.status = PaymentStatus.PAID 
+            payment.treasury_transaction_id = bank_tx.id
+
+            inv_str = clean_invoice_folio(invoice.invoice_number)
+            po = session.exec(select(PurchaseOrder).where(PurchaseOrder.folio == inv_str)).first()
+            if po and invoice.outstanding_balance <= 0.01:
+                po.payment_status = "PAID"
+                session.add(po)
+            elif invoice.outstanding_balance <= 0.01:
+                session.exec(text("UPDATE accounts_payable SET status = 'PAGADO' WHERE invoice_folio = :folio").bindparams(folio=inv_str))
+                
+        elif status_in.status == PaymentStatus.REJECTED:
+            payment.status = PaymentStatus.REJECTED
+            payment.approved_by_user_id = current_user.id
 
     session.add(payment)
     session.commit()
     session.refresh(payment)
     return payment
 
-# ------------------------------------------------------------------
-# 3. EJECUTAR PAGO (Ruta normal para cuando Admin lo pidió antes)
-# ------------------------------------------------------------------
 @router.post("/payments/{payment_id}/execute", response_model=SupplierPaymentRead)
-def execute_supplier_payment(
-    *,
-    session: SessionDep,
-    current_user: CurrentUser,
-    payment_id: int
-) -> Any:
-    if current_user.role.upper() not in ["DIRECTOR", "GERENCIA"]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
-
-    payment = session.get(SupplierPayment, payment_id)
-    if not payment: raise HTTPException(status_code=404, detail="Pago no encontrado")
-    if payment.status != PaymentStatus.APPROVED: raise HTTPException(status_code=400, detail="Solo se ejecutan pagos AUTORIZADOS.")
-        
-    invoice = session.get(PurchaseInvoice, payment.purchase_invoice_id)
-    account = session.get(BankAccount, payment.approved_account_id)
-    
-    bank_tx = BankTransaction(
-        account_id=account.id,
-        transaction_type=TransactionType.OUT,
-        amount=payment.amount,
-        reference=payment.reference or f"Pago FAC-{invoice.invoice_number}",
-        description=f"Pago Autorizado a Proveedor",
-        related_entity_type="PURCHASE_INVOICE",
-        related_entity_id=invoice.id
-    )
-    session.add(bank_tx)
-    account.current_balance -= payment.amount
-    
-    invoice.outstanding_balance -= payment.amount
-    if invoice.outstanding_balance < 0.01:
-        invoice.outstanding_balance = 0.0
-        invoice.status = InvoiceStatus.PAID
-    else:
-        invoice.status = InvoiceStatus.PARTIAL
-
-    session.flush() 
-    payment.status = PaymentStatus.PAID
-    payment.treasury_transaction_id = bank_tx.id
-
-    # ---> EFECTO BOOMERANG NORMAL <---
-    inv_str = invoice.invoice_number
-    if inv_str:
-        if inv_str.startswith("OC-"):
-            oc_folio = inv_str.replace("OC-", "")
-            po = session.exec(select(PurchaseOrder).where(PurchaseOrder.folio == oc_folio)).first()
-            if po and invoice.outstanding_balance <= 0.01:
-                po.payment_status = "PAID"
-                session.add(po)
-        else:
-            if invoice.outstanding_balance <= 0.01:
-                session.exec(text("UPDATE accounts_payable SET status = 'PAGADO' WHERE invoice_folio = :folio").bindparams(folio=inv_str))
-
-    session.commit()
-    session.refresh(payment)
-    return payment
+def execute_supplier_payment(*, session: SessionDep, current_user: CurrentUser, payment_id: int) -> Any:
+    raise HTTPException(status_code=400, detail="El pago se ejecuta automáticamente al autorizarlo.")
 
 # ------------------------------------------------------------------
-# 4. KPI / DASHBOARD (LA VERDAD DE LA CAJA V3.5 - UNIFICADA)
+# 4. KPI / DASHBOARD
 # ------------------------------------------------------------------
 @router.get("/payable-stats", response_model=AccountsPayableDashboardStats)
 def get_payable_dashboard_stats(session: SessionDep) -> Any:
-    # Mantenemos sincronizador encendido
     _sync_pos_to_invoices(session)
 
     today = date.today()
     weekday = today.weekday()
-    # Lógica del viernes (4 = Viernes)
     days_until_friday = 4 - weekday
     if days_until_friday < 0: 
         days_until_friday += 7
@@ -378,8 +356,6 @@ def get_payable_dashboard_stats(session: SessionDep) -> Any:
     var_future_amount = 0.0
     var_future_count = 0       
     
-    # --- FUENTE ÚNICA DE VERDAD: PURCHASE_INVOICE ---
-    # Al estar todo unificado por el Sincronizador, ya no leemos Accounts Payable.
     statement = select(PurchaseInvoice).where(
         PurchaseInvoice.status != InvoiceStatus.PAID, 
         PurchaseInvoice.status != InvoiceStatus.CANCELLED
@@ -418,7 +394,7 @@ def get_payable_dashboard_stats(session: SessionDep) -> Any:
     )
 
 # ------------------------------------------------------------------
-# 5. LISTADO DE SOLICITUDES PENDIENTES
+# 5. LISTADOS
 # ------------------------------------------------------------------
 @router.get("/payments/pending-approvals", response_model=List[SupplierPaymentRead])
 def get_pending_approvals(session: SessionDep) -> Any:
@@ -435,7 +411,7 @@ def get_pending_approvals(session: SessionDep) -> Any:
             purchase_invoice_id=p.purchase_invoice_id,
             provider_id=p.provider_id,
             provider_name=prov.business_name if prov else "Desconocido",
-            invoice_folio=inv.invoice_number if inv else "S/N", 
+            invoice_folio=clean_invoice_folio(inv.invoice_number) if inv else "S/N",
             amount=p.amount,
             payment_date=p.payment_date,
             payment_method=p.payment_method,
@@ -449,11 +425,10 @@ def get_pending_approvals(session: SessionDep) -> Any:
         ))
     return results
 
-# ------------------------------------------------------------------
-# 5.1 LISTADO DE PAGOS AUTORIZADOS (Listos para ejecutar)
-# ------------------------------------------------------------------
 @router.get("/payments/approved", response_model=List[SupplierPaymentRead])
 def get_approved_payments(session: SessionDep) -> Any:
+    # SOLUCIÓN 2: Solo devolvemos los pagos que NO se han cobrado del banco.
+    # Evita que el frontend detecte pagos viejos como activos.
     statement = select(SupplierPayment).where(SupplierPayment.status == PaymentStatus.APPROVED)
     payments = session.exec(statement).all()
     
@@ -467,7 +442,7 @@ def get_approved_payments(session: SessionDep) -> Any:
             purchase_invoice_id=p.purchase_invoice_id,
             provider_id=p.provider_id,
             provider_name=prov.business_name if prov else "Desconocido",
-            invoice_folio=inv.invoice_number if inv else "S/N", 
+            invoice_folio=clean_invoice_folio(inv.invoice_number) if inv else "S/N",
             amount=p.amount,
             payment_date=p.payment_date,
             payment_method=p.payment_method,
@@ -481,14 +456,10 @@ def get_approved_payments(session: SessionDep) -> Any:
         ))
     return results
 
-# ------------------------------------------------------------------
-# 6. LISTADO DE FACTURAS PENDIENTES (SÚPER SIMPLIFICADO Y BLINDADO)
-# ------------------------------------------------------------------
 @router.get("/invoices/pending", response_model=List[PendingInvoiceRead])
 def get_pending_invoices(session: SessionDep) -> Any:
     _sync_pos_to_invoices(session)
 
-    # AL ESTAR TODO UNIFICADO, SOLO LEEMOS DE UNA TABLA. CERO CHOQUES DE ID.
     statement = select(PurchaseInvoice).where(
         PurchaseInvoice.status != InvoiceStatus.PAID, 
         PurchaseInvoice.status != InvoiceStatus.CANCELLED
@@ -505,33 +476,43 @@ def get_pending_invoices(session: SessionDep) -> Any:
         final_po_folio = None
         
         if inv.invoice_number:
-            inv_str = str(inv.invoice_number).strip()
+            inv_str = clean_invoice_folio(inv.invoice_number)
             
-            # Buscamos de dónde salió para traer sus artículos
-            po_folio = inv_str.upper().replace("OC-", "").replace("COT-", "").strip()
-            po = session.exec(select(PurchaseOrder).where(PurchaseOrder.folio == po_folio)).first()
+            po = session.exec(select(PurchaseOrder).where(PurchaseOrder.folio == inv_str)).first()
             
-            # Si no era OC directa, probamos si vino de Almacén (Accounts Payable)
             if not po:
                 ap = session.exec(text("SELECT purchase_order_id FROM accounts_payable WHERE invoice_folio = :folio").bindparams(folio=inv_str)).first()
                 if ap and ap[0]:
                     po = session.get(PurchaseOrder, ap[0])
 
-            # Si encontramos el origen, sacamos los artículos
             if po:
                 final_po_folio = po.folio
+                # Aquí está el cruce mágico con la tabla materials para recuperar el SKU
                 query_items = text("""
-                    SELECT custom_description, quantity_ordered, expected_unit_cost 
-                    FROM purchase_order_items 
-                    WHERE purchase_order_id = :po_id
+                    SELECT 
+                        poi.custom_description, 
+                        poi.quantity_ordered, 
+                        poi.expected_unit_cost,
+                        m.sku
+                    FROM purchase_order_items poi
+                    LEFT JOIN materials m ON poi.material_id = m.id
+                    WHERE poi.purchase_order_id = :po_id
                 """)
                 db_items = session.exec(query_items.bindparams(po_id=po.id)).all()
-                items_list = [{"description": item[0], "qty": item[1], "price": item[2]} for item in db_items]
+                items_list = [
+                    {
+                        "description": item[0] or "Material S/N", 
+                        "qty": item[1] or 0, 
+                        "price": item[2] or 0,
+                        "sku": item[3] or "S/SKU"
+                    } 
+                    for item in db_items
+                ]
 
         results.append(PendingInvoiceRead(
             id=inv.id, 
             provider_name=prov.business_name if prov else "Prov.", 
-            invoice_number=inv.invoice_number, 
+            invoice_number=clean_invoice_folio(inv.invoice_number), 
             due_date=inv.due_date, 
             total_amount=inv.total_amount, 
             outstanding_balance=inv.outstanding_balance,

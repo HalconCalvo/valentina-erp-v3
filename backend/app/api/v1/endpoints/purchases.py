@@ -17,6 +17,17 @@ from app.services.pdf_generator import PDFGenerator
 
 router = APIRouter()
 
+# --- ESQUEMAS PARA OC MANUAL (FAST-TRACK) ---
+class ManualOrderItemCreate(BaseModel):
+    sku: Optional[str] = ""
+    name: str
+    qty: float
+    expected_cost: float
+
+class ManualOrderCreate(BaseModel):
+    provider_name: str
+    items: List[ManualOrderItemCreate]
+
 class RequisitionCreate(BaseModel):
     material_id: int | None = None
     custom_description: str | None = None
@@ -89,8 +100,10 @@ def update_requisition_status(*, db: Session = Depends(get_session), req_id: int
     return req
 
 @router.get("/orders/", response_model=List[dict])
-def read_purchase_orders(*, db: Session = Depends(get_session), status: str | None = None, skip: int = 0, limit: int = 100):
-    statement = select(PurchaseOrder)
+def read_purchase_orders(*, db: Session = Depends(get_session), status: str | None = None, skip: int = 0, limit: int = 200):
+    # ¡AQUÍ ESTÁ LA MAGIA! Agregamos el order_by para que las actualizadas no se pierdan
+    statement = select(PurchaseOrder).order_by(PurchaseOrder.id.desc())
+    
     if status:
         search_status = f"%{status.strip()}%"
         statement = statement.where(PurchaseOrder.status.ilike(search_status))
@@ -161,7 +174,6 @@ def emit_bulk_purchase_order(*, db: Session = Depends(get_session), data: POCrea
             custom_description=item.get("name"),
             quantity_ordered=item.get("qty"),
             expected_unit_cost=item.get("expected_cost"),
-            # Se ignora de forma segura si la propiedad no está en el modelo
             requisition_id=item.get("requisition_id") 
         )
         db.add(po_item)
@@ -178,9 +190,6 @@ def emit_bulk_purchase_order(*, db: Session = Depends(get_session), data: POCrea
     db.commit()
     return {"status": "success", "po_id": po.id, "folio": new_folio}
 
-# =================================================================
-# AQUÍ ESTÁ EL PARCHE APLICADO (SE REMOVIÓ EL BLOQUE SQL QUE FALLABA)
-# =================================================================
 @router.put("/orders/{po_id}/authorize")
 def authorize_purchase_order(*, db: Session = Depends(get_session), po_id: int, current_user: CurrentUser):
     po = db.get(PurchaseOrder, po_id)
@@ -191,7 +200,6 @@ def authorize_purchase_order(*, db: Session = Depends(get_session), po_id: int, 
     po.authorized_by = user_id
     po.authorized_at = datetime.now()
 
-    # Ya no ejecutamos la consulta RAW hacia requisition_id porque no existe.
     db.add(po)
     db.commit() 
     db.refresh(po)
@@ -225,7 +233,6 @@ def reject_purchase_order(
     items = db.exec(select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po.id)).all()
     
     for item in items:
-        # Extraer el ID de la solicitud original de forma segura (sin fallos SQL)
         req_id = getattr(item, 'requisition_id', getattr(item, 'purchase_requisition_id', None))
         if req_id:
             req = db.get(PurchaseRequisition, req_id)
@@ -394,14 +401,25 @@ def get_admin_pending_tasks(db: Session = Depends(get_session)):
 
 @router.get("/orders/{po_id}/pdf")
 def download_purchase_order_pdf(po_id: int, db: Session = Depends(get_session)):
-    """Genera y descarga el PDF de la Orden de Compra"""
+    from app.models.users import User # Importamos el modelo de Usuario
+    
     po = db.get(PurchaseOrder, po_id)
     if not po:
         raise HTTPException(status_code=404, detail="Orden de Compra no encontrada")
         
     items = db.exec(select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po.id)).all()
     
-    # --- SOLUCIÓN: Creamos "clones" ligeros sin las restricciones estrictas de SQLModel ---
+    # --- NUEVO: Buscar quién elaboró la orden ---
+    creator = None
+    if getattr(po, 'created_by_user_id', None):
+        creator = db.get(User, po.created_by_user_id)
+        
+    # Intentar sacar nombre completo, si no hay, usar username o email
+    elaborado_por = "Sistema"
+    if creator:
+        elaborado_por = getattr(creator, 'full_name', getattr(creator, 'username', getattr(creator, 'email', 'Sistema')))
+    # --------------------------------------------
+
     mock_items = []
     for it in items:
         mat = db.get(Material, it.material_id) if it.material_id else None
@@ -417,9 +435,9 @@ def download_purchase_order_pdf(po_id: int, db: Session = Depends(get_session)):
         folio=po.folio,
         created_at=po.created_at,
         authorized_by=getattr(po, 'authorized_by', None),
+        created_by=elaborado_por, # <-- Empacamos el nombre aquí
         items=mock_items
     )
-    # ------------------------------------------------------------------------------------
         
     provider = db.get(Provider, po.provider_id)
     if not provider:
@@ -428,7 +446,6 @@ def download_purchase_order_pdf(po_id: int, db: Session = Depends(get_session)):
     config = db.exec(select(GlobalConfig)).first()
     
     pdf_gen = PDFGenerator()
-    # Le enviamos nuestro clon ligero al generador de PDF
     pdf_buffer = pdf_gen.generate_po_pdf(order=mock_po, provider=provider, config=config)
     
     filename = f"OC_{po.folio}.pdf"
@@ -437,3 +454,69 @@ def download_purchase_order_pdf(po_id: int, db: Session = Depends(get_session)):
         media_type="application/pdf", 
         headers={"Content-Disposition": f'inline; filename="{filename}"'}
     )
+
+# =================================================================
+# NUEVO ENDPOINT PARA ORDEN MANUAL (FAST-TRACK)
+# =================================================================
+@router.post("/orders/manual")
+def create_manual_order(
+    *,
+    order_in: ManualOrderCreate,
+    db: Session = Depends(get_session),
+    current_user: CurrentUser
+):
+    # 1. Buscar o crear Proveedor
+    provider = db.exec(select(Provider).where(Provider.business_name.ilike(order_in.provider_name))).first()
+    if not provider:
+        provider = Provider(business_name=order_in.provider_name, credit_days=0, is_active=True)
+        db.add(provider)
+        db.commit()
+        db.refresh(provider)
+
+    # 2. Crear la Orden de Compra en Mesa de Control (BORRADOR)
+    timestamp = datetime.now().strftime("%y%m%d%H%M%S")
+    subtotal = sum(item.qty * item.expected_cost for item in order_in.items)
+    
+    new_order = PurchaseOrder(
+        provider_id=provider.id,
+        folio=f"OC-M{timestamp}",
+        status="BORRADOR",
+        total_estimated_amount=subtotal,
+        created_by_user_id=current_user.id,
+        is_advance=True
+    )
+    db.add(new_order)
+    db.commit()
+    db.refresh(new_order)
+
+    # 3. Procesar las Partidas
+    for item_in in order_in.items:
+        material = None
+        if item_in.sku:
+            material = db.exec(select(Material).where(Material.sku.ilike(item_in.sku))).first()
+        if not material:
+            material = db.exec(select(Material).where(Material.name.ilike(item_in.name))).first()
+        
+        if not material:
+            generated_sku = item_in.sku if item_in.sku else f"SKU-M{datetime.now().strftime('%M%S%f')[:6]}"
+            material = Material(
+                sku=generated_sku,
+                name=item_in.name,
+                standard_cost=item_in.expected_cost
+            )
+            db.add(material)
+            db.commit()
+            db.refresh(material)
+
+        # Unir el material a la Orden usando los nombres correctos de tus columnas
+        po_item = PurchaseOrderItem(
+            purchase_order_id=new_order.id,
+            material_id=material.id,
+            custom_description=item_in.name,
+            quantity_ordered=item_in.qty,
+            expected_unit_cost=item_in.expected_cost
+        )
+        db.add(po_item)
+        
+    db.commit()
+    return {"message": "Orden manual creada con éxito", "order_id": new_order.id}
