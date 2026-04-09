@@ -26,12 +26,9 @@ COPY . .
 # Usamos puerto 8080 explícito
 ENV PORT=8080
 
-# SECUENCIA DE ARRANQUE V3.6: 
-# 1. Destruye DB -> 2. Crea Tablas (Alembic) -> 3. Siembra Admin -> 4. Inyecta CSV -> 5. Arranca el Servidor
-CMD python reset_db.py \
-    && python -m alembic upgrade head \
-    && python -m scripts.seed_data \
-    && python -m scripts.import_csv \
+# SECUENCIA DE ARRANQUE SEGURA: 
+# Solo corre migraciones (Alembic) y enciende el servidor. NO BORRA NADA.
+CMD python -m alembic upgrade head \
     && exec gunicorn app.main:app \
     --workers 1 \
     --worker-class uvicorn.workers.UvicornWorker \
