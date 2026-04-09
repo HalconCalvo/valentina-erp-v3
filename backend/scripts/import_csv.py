@@ -1,7 +1,9 @@
 import csv
 import os
 from sqlmodel import Session, create_engine, select
-from app.models.foundations import Material
+
+# CORRECCIÓN AQUÍ: Importamos desde material.py
+from app.models.material import Material
 
 # ---> LA MEJORA PARA RENDER: Conexión Directa a Base de Datos <---
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///local_dev.db")
