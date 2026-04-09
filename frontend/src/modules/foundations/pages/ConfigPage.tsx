@@ -62,11 +62,12 @@ export default function ConfigPage() {
       setCompanyEmail(config.company_email || '');
       setCompanyWebsite(config.company_website || '');
 
-      // Financieros Operativos
-      setMarginInput((config.target_profit_margin * 100).toFixed(0));
-      setToleranceInput((config.cost_tolerance_percent * 100).toFixed(0));
-      setDaysInput(config.quote_validity_days.toString());
-      setEdgeFactorInput(config.default_edgebanding_factor.toString());
+      // Financieros Operativos (SIN MULTIPLICACIONES FANTASMA)
+      setMarginInput(String(config.target_profit_margin || 0));
+      setToleranceInput(String(config.cost_tolerance_percent || 0));
+      
+      setDaysInput(String(config.quote_validity_days || 0));
+      setEdgeFactorInput(String(config.default_edgebanding_factor || 0));
       
       // Metas (Aplicamos formato visual al cargar)
       setAnnualTarget(config.annual_sales_target ? formatMoney(config.annual_sales_target) : '');
@@ -129,8 +130,8 @@ export default function ConfigPage() {
         company_phone: companyPhone,
         company_email: companyEmail,
         company_website: companyWebsite,
-        target_profit_margin: margin / 100,
-        cost_tolerance_percent: tolerance / 100,
+        target_profit_margin: margin, // SIN DIVISIONES FANTASMA
+        cost_tolerance_percent: tolerance, // SIN DIVISIONES FANTASMA
         quote_validity_days: days,
         default_edgebanding_factor: edgeFactor,
         default_tax_rate_id: selectedTax,
@@ -226,7 +227,7 @@ export default function ConfigPage() {
                 </div>
             </div>
 
-            {/* SECCIÓN METAS FINANCIERAS (MODIFICADA) */}
+            {/* SECCIÓN METAS FINANCIERAS */}
             <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 pt-6 border-t border-slate-200"><Target className="text-purple-600" /> Metas Financieras</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 

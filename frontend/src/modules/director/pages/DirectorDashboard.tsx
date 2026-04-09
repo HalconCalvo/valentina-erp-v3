@@ -5,7 +5,7 @@ import {
     ArrowLeft, AlertTriangle, Clock, CheckCircle,
     BarChart3, Target, AlertCircle, PieChart, ShieldAlert,
     ThumbsUp, ThumbsDown, Package, Layers, ArrowLeftCircle,
-    FileSearch, RefreshCw
+    FileSearch, RefreshCw, Lock
 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
@@ -54,12 +54,13 @@ const DirectorDashboard: React.FC = () => {
     const [sentClientOrders, setSentClientOrders] = useState<SalesOrder[]>([]);
     const [moneySentClient, setMoneySentClient] = useState(0);
     const [battingRate, setBattingRate] = useState(0);
+    const [realSalesAdvance, setRealSalesAdvance] = useState(0);
+    const [annualTarget, setAnnualTarget] = useState<number>(1); // Previene división entre cero
     
-    // --- NUEVO: ESTADO PARA FIRMAS DE COMPRAS ---
+    // --- ESTADO PARA FIRMAS DE COMPRAS ---
     const [pendingPurchaseAuths, setPendingPurchaseAuths] = useState<number>(0);
 
-    // --- ESTADOS SIMULADOS ---
-    const [mockSalesAdvance] = useState(78); 
+    // --- ESTADOS SIMULADOS (Para lo que aún no está conectado) ---
     const [mockCriticalInstances] = useState(3); 
     const [mockNetLiquidity] = useState(840500); 
     const [mockProfitability] = useState(32.4); 
@@ -74,26 +75,36 @@ const DirectorDashboard: React.FC = () => {
     const loadData = async (silent = false) => {
         if (!silent) setIsLoading(true);
         try {
-            // 1. Cargar Ventas
+            const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+            let baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+            if (baseUrl.endsWith('/api/v1')) baseUrl = baseUrl.replace('/api/v1', '');
+
+            // 1. OBTENER META ANUAL DINÁMICA DESDE LOS PARÁMETROS GLOBALES
+            let fetchedTarget = 1; // Fallback de seguridad
+            try {
+                const configRes = await fetch(`${baseUrl}/api/v1/foundations/config`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (configRes.ok) {
+                    const configData = await configRes.json();
+                    if (configData && configData.annual_sales_target) {
+                        fetchedTarget = Number(configData.annual_sales_target);
+                        setAnnualTarget(fetchedTarget);
+                    }
+                }
+            } catch (e) {
+                console.error("Error al leer la meta anual global", e);
+            }
+
+            // 2. Cargar Ventas y calcular usando la meta leída
             const data = await salesService.getOrders();
             const uniqueOrders = data ? Array.from(new Map(data.map((o: SalesOrder) => [o.id, o])).values()) : [];
             setOrders(uniqueOrders);
-            calculateSalesMetrics(uniqueOrders);
+            calculateSalesMetrics(uniqueOrders, fetchedTarget);
 
-            // 2. NUEVO: Cargar Notificaciones de Compras en vivo
+            // 3. Cargar Notificaciones de Compras en vivo
             try {
-                const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
-                
-                // Normalización de la URL a prueba de fallos
-                let baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-                if (baseUrl.endsWith('/api/v1')) {
-                    baseUrl = baseUrl.replace('/api/v1', '');
-                }
-
-                const endpoint = `${baseUrl}/api/v1/purchases/notifications/pending-tasks`;
-                console.log("Buscando autorizaciones en:", endpoint); // Chismoso 1
-
-                const notifRes = await fetch(endpoint, {
+                const notifRes = await fetch(`${baseUrl}/api/v1/purchases/notifications/pending-tasks`, {
                     headers: { 
                         'Authorization': `Bearer ${token}`,
                         'Accept': 'application/json'
@@ -102,13 +113,10 @@ const DirectorDashboard: React.FC = () => {
 
                 if (notifRes.ok) {
                     const notifData = await notifRes.json();
-                    console.log("Notificaciones recibidas:", notifData); // Chismoso 2
                     setPendingPurchaseAuths(notifData.orders_to_authorize || 0);
-                } else {
-                    console.error("El backend rechazó la petición de notificaciones. Código:", notifRes.status);
                 }
             } catch (notifErr) {
-                console.error("Fallo de red conectando con notificaciones:", notifErr);
+                console.error("Fallo conectando con notificaciones de compras:", notifErr);
             }
 
         } catch (error) {
@@ -118,7 +126,7 @@ const DirectorDashboard: React.FC = () => {
         }
     };
     
-    const calculateSalesMetrics = (allOrders: SalesOrder[]) => {
+    const calculateSalesMetrics = (allOrders: SalesOrder[], target: number) => {
         const pending = allOrders.filter(o => o.status === 'SENT');
         setPendingAuthOrders(pending);
 
@@ -134,6 +142,14 @@ const DirectorDashboard: React.FC = () => {
         });
         const totalResolved = won + lost;
         setBattingRate(totalResolved > 0 ? Math.round((won / totalResolved) * 100) : 0);
+
+        // AVANCE DINÁMICO
+        const wonOrdersMoney = allOrders
+            .filter(o => ['SOLD', 'INSTALLED', 'FINISHED'].includes(o.status))
+            .reduce((sum, o) => sum + (Number(o.total_price) || 0), 0);
+        
+        const advancePercentage = target > 0 ? Math.round((wonOrdersMoney / target) * 100) : 0;
+        setRealSalesAdvance(advancePercentage);
     };
 
     const formatCurrency = (amount: number) => amount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
@@ -258,7 +274,7 @@ const DirectorDashboard: React.FC = () => {
                             </div>
                             <div className="ml-16 h-full flex flex-col justify-between pl-2">
                                 <div className="flex justify-between items-start"><p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">1. Ventas</p><TrendingUp size={16} className="text-emerald-500" /></div>
-                                <div className="flex justify-end"><div className="text-2xl font-black text-emerald-600 tracking-tight leading-none truncate flex items-baseline gap-1">{mockSalesAdvance}% <span className="text-sm font-bold text-emerald-400 uppercase">vs Meta</span></div></div>
+                                <div className="flex justify-end"><div className="text-2xl font-black text-emerald-600 tracking-tight leading-none truncate flex items-baseline gap-1">{realSalesAdvance}% <span className="text-sm font-bold text-emerald-400 uppercase">vs Meta</span></div></div>
                                 <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100"><p className="text-[10px] text-slate-400 font-bold uppercase truncate">Motor de Ingresos</p><BarChart3 size={14} className="text-emerald-400"/></div>
                             </div>
                         </Card>
@@ -278,43 +294,52 @@ const DirectorDashboard: React.FC = () => {
                         </Card>
                     </div>
 
-                    {/* 3. LIQUIDEZ */}
-                    <div className="w-full relative h-40">
-                        <Card onClick={() => openMainSection('LIQUIDITY')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-indigo-500 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white relative overflow-hidden group">
-                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50 text-indigo-700 border-r border-indigo-100 font-black text-2xl transition-colors group-hover:bg-indigo-100">$</div>
+                    {/* 3. LIQUIDEZ (BLOQUEADA) */}
+                    <div className="w-full relative h-40 opacity-80">
+                        <Card className="p-5 border-l-4 border-l-indigo-300 bg-slate-50 relative overflow-hidden h-full flex flex-col justify-between cursor-not-allowed">
+                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50/50 text-indigo-400 border-r border-indigo-100 font-black text-2xl">$</div>
                             <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                <div className="flex justify-between items-start"><p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">3. Liquidez</p><DollarSign size={16} className="text-indigo-500" /></div>
-                                <div className="flex justify-end"><div className="text-2xl font-black text-indigo-600 tracking-tight leading-none truncate">{formatCurrency(mockNetLiquidity)}</div></div>
-                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100"><p className="text-[10px] text-slate-400 font-bold uppercase truncate">Posición Neta</p><PieChart size={14} className="text-indigo-400"/></div>
+                                <div className="flex justify-between items-start">
+                                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">3. Liquidez</p>
+                                    <span className="text-[9px] bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded font-black tracking-widest flex items-center gap-1"><Lock size={10}/> PRÓXIMAMENTE</span>
+                                </div>
+                                <div className="flex justify-end"><div className="text-2xl font-black text-slate-400 tracking-tight leading-none truncate">{formatCurrency(mockNetLiquidity)}</div></div>
+                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200"><p className="text-[10px] text-slate-400 font-bold uppercase truncate">Posición Neta</p><PieChart size={14} className="text-slate-300"/></div>
                             </div>
                         </Card>
                     </div>
 
-                    {/* 4. RENTABILIDAD */}
-                    <div className="w-full relative h-40">
-                        <Card onClick={() => openMainSection('PROFITABILITY')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-amber-500 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white relative overflow-hidden group">
-                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-amber-50 text-amber-700 border-r border-amber-100 font-black text-2xl transition-colors group-hover:bg-amber-100">%</div>
+                    {/* 4. RENTABILIDAD (BLOQUEADA) */}
+                    <div className="w-full relative h-40 opacity-80">
+                        <Card className="p-5 border-l-4 border-l-amber-300 bg-slate-50 relative overflow-hidden h-full flex flex-col justify-between cursor-not-allowed">
+                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-amber-50/50 text-amber-500 border-r border-amber-100 font-black text-2xl">%</div>
                             <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                <div className="flex justify-between items-start"><p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">4. Rentabilidad</p><Scale size={16} className="text-amber-500" /></div>
-                                <div className="flex justify-end"><div className="text-2xl font-black text-amber-600 tracking-tight leading-none truncate flex items-baseline gap-1">{mockProfitability}<span className="text-sm font-bold text-amber-400 uppercase">MARGEN</span></div></div>
-                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100"><p className="text-[10px] text-slate-400 font-bold uppercase truncate">La Verdad del Negocio</p><ShieldAlert size={14} className="text-amber-400"/></div>
+                                <div className="flex justify-between items-start">
+                                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">4. Rentabilidad</p>
+                                    <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-black tracking-widest flex items-center gap-1"><Lock size={10}/> PRÓXIMAMENTE</span>
+                                </div>
+                                <div className="flex justify-end"><div className="text-2xl font-black text-slate-400 tracking-tight leading-none truncate flex items-baseline gap-1">{mockProfitability}<span className="text-sm font-bold text-slate-300 uppercase">MARGEN</span></div></div>
+                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200"><p className="text-[10px] text-slate-400 font-bold uppercase truncate">La Verdad del Negocio</p><ShieldAlert size={14} className="text-slate-300"/></div>
                             </div>
                         </Card>
                     </div>
 
-                    {/* 5. EFICIENCIA */}
-                    <div className="w-full relative h-40">
-                        <Card onClick={() => openMainSection('EFFICIENCY')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-slate-700 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white relative overflow-hidden group">
-                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-slate-50 text-slate-700 border-r border-slate-200 font-black text-2xl transition-colors group-hover:bg-slate-100">$</div>
+                    {/* 5. EFICIENCIA (BLOQUEADA) */}
+                    <div className="w-full relative h-40 opacity-80">
+                        <Card className="p-5 border-l-4 border-l-slate-400 bg-slate-50 relative overflow-hidden h-full flex flex-col justify-between cursor-not-allowed">
+                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-slate-100 text-slate-400 border-r border-slate-200 font-black text-2xl">$</div>
                             <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                <div className="flex justify-between items-start"><p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">5. Eficiencia Fábrica</p><Activity size={16} className="text-slate-700" /></div>
-                                <div className="flex justify-end"><div className="text-2xl font-black text-slate-800 tracking-tight leading-none truncate flex items-baseline gap-1">{mockCostPerBoard.toFixed(2)} <span className="text-sm font-bold text-slate-400 uppercase">/ TABLERO</span></div></div>
-                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100"><p className="text-[10px] text-slate-400 font-bold uppercase truncate">Costo de Transformación</p><Target size={14} className="text-slate-400"/></div>
+                                <div className="flex justify-between items-start">
+                                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">5. Eficiencia Fábrica</p>
+                                    <span className="text-[9px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-black tracking-widest flex items-center gap-1"><Lock size={10}/> PRÓXIMAMENTE</span>
+                                </div>
+                                <div className="flex justify-end"><div className="text-2xl font-black text-slate-400 tracking-tight leading-none truncate flex items-baseline gap-1">{mockCostPerBoard.toFixed(2)} <span className="text-sm font-bold text-slate-300 uppercase">/ TABLERO</span></div></div>
+                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200"><p className="text-[10px] text-slate-400 font-bold uppercase truncate">Costo de Transformación</p><Target size={14} className="text-slate-300"/></div>
                             </div>
                         </Card>
                     </div>
 
-                    {/* 6. NUEVO: SALIDAS DE CAPITAL (AUTORIZACIONES DE COMPRA) */}
+                    {/* 6. SALIDAS DE CAPITAL */}
                     <div className="w-full relative h-40">
                         <Card onClick={() => navigate('/inventory', { state: { openSection: 'PURCHASE_ORDERS', targetTab: 'BRAKE' } as any })} className={`p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white relative overflow-hidden group ${pendingPurchaseAuths > 0 ? 'border-l-red-500 ring-2 ring-red-100' : 'border-l-slate-300'}`}>
                             <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center border-r font-black text-3xl transition-colors ${pendingPurchaseAuths > 0 ? 'bg-red-50 text-red-600 border-red-100 group-hover:bg-red-100' : 'bg-slate-50 text-slate-400 border-slate-100 group-hover:bg-slate-100'}`}>
@@ -331,12 +356,9 @@ const DirectorDashboard: React.FC = () => {
                 </div>
             )}
 
-            {/* ============================================================== */}
-            {/* VISTA 2: LOS DESGLOSES INMERSIVOS (ESTANDARIZADOS A h-40) */}
-            {/* ============================================================== */}
+            {/* VISTA 2: LOS DESGLOSES INMERSIVOS */}
             {activeSection !== null && (
                 <div className="animate-in fade-in slide-in-from-right-8 duration-500 mt-2">
-
                     {/* 1. DESGLOSE VENTAS */}
                     {activeSection === 'SALES' && (
                         <>
@@ -416,113 +438,9 @@ const DirectorDashboard: React.FC = () => {
                             </Card>
                         </div>
                     )}
-
-                    {/* 3. DESGLOSE LIQUIDEZ */}
-                    {activeSection === 'LIQUIDITY' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <Card className="p-6 border-l-4 border-l-emerald-500 bg-slate-50 relative overflow-hidden h-40 flex flex-col justify-between">
-                                <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-emerald-100 text-emerald-700 border-r border-emerald-200 font-black text-2xl">$</div>
-                                <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                    <h4 className="font-bold text-slate-800 flex items-center gap-2 truncate"><TrendingUp size={18} className="text-emerald-500"/> A. Por Cobrar</h4>
-                                    <div className="text-3xl font-black text-emerald-600 text-right leading-none">$650K</div>
-                                </div>
-                            </Card>
-                            <Card className="p-6 border-l-4 border-l-red-500 bg-slate-50 relative overflow-hidden h-40 flex flex-col justify-between">
-                                <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-red-100 text-red-700 border-r border-red-200 font-black text-2xl">$</div>
-                                <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                    <h4 className="font-bold text-slate-800 flex items-center gap-2 truncate"><TrendingDown size={18} className="text-red-500"/> B. Por Pagar</h4>
-                                    <div className="text-3xl font-black text-red-600 text-right leading-none">$180K</div>
-                                </div>
-                            </Card>
-                            <Card className="p-6 border-l-4 border-l-blue-500 bg-slate-50 relative overflow-hidden h-40 flex flex-col justify-between">
-                                <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-blue-100 text-blue-700 border-r border-blue-200 font-black text-2xl">$</div>
-                                <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                    <h4 className="font-bold text-slate-800 flex items-center gap-2 truncate"><DollarSign size={18} className="text-blue-500"/> C. Dinero en la Mesa</h4>
-                                    <div className="text-3xl font-black text-blue-600 text-right leading-none">$215K</div>
-                                </div>
-                            </Card>
-                            <Card className="p-6 border-l-4 border-l-slate-700 bg-slate-50 relative overflow-hidden h-40 flex flex-col justify-between">
-                                <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-slate-200 text-slate-700 border-r border-slate-300 font-black text-2xl">$</div>
-                                <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                    <h4 className="font-bold text-slate-800 flex items-center gap-2 truncate"><Package size={18} className="text-slate-600"/> D. Inventario</h4>
-                                    <div className="text-3xl font-black text-slate-700 text-right leading-none">$420K</div>
-                                </div>
-                            </Card>
-                        </div>
-                    )}
-
-                    {/* 4. DESGLOSE RENTABILIDAD */}
-                    {activeSection === 'PROFITABILITY' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <Card className="p-6 border-l-4 border-l-red-500 bg-red-50 relative overflow-hidden h-40 flex flex-col justify-between">
-                                <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-red-100 text-red-700 border-r border-red-200 font-black text-2xl">!</div>
-                                <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                    <h4 className="font-bold text-red-800 flex items-center gap-2 truncate"><ShieldAlert size={18} className="text-red-500"/> A. Costo No Calidad</h4>
-                                    <div className="text-3xl font-black text-red-600 text-right leading-none">-$12.4K</div>
-                                </div>
-                            </Card>
-                            <Card className="p-6 border-l-4 border-l-orange-500 bg-orange-50 relative overflow-hidden h-40 flex flex-col justify-between">
-                                <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-orange-100 text-orange-700 border-r border-orange-200 font-black text-2xl">!</div>
-                                <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                    <h4 className="font-bold text-orange-800 flex items-center gap-2 truncate"><TrendingDown size={18} className="text-orange-500"/> B. Desviación Compras</h4>
-                                    <div className="text-3xl font-black text-orange-600 text-right leading-none">-$4.1K</div>
-                                </div>
-                            </Card>
-                            <Card className="p-6 border-l-4 border-l-emerald-500 bg-slate-50 relative overflow-hidden h-40 flex flex-col justify-between">
-                                <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-emerald-100 text-emerald-700 border-r border-emerald-200 font-black text-2xl">★</div>
-                                <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                    <h4 className="font-bold text-slate-800 flex items-center gap-2 truncate"><ThumbsUp size={18} className="text-emerald-500"/> C. Héroes y Villanos</h4>
-                                    <div className="space-y-2 text-sm mt-1 border-t border-slate-200 pt-2">
-                                        <div className="flex justify-between items-center"><span className="text-emerald-600 font-bold truncate">1. OV-102 Cocina</span><span className="font-black text-slate-800">42%</span></div>
-                                        <div className="flex justify-between items-center"><span className="text-red-600 font-bold truncate">3. OV-089 Clósets</span><span className="font-black text-slate-800">12%</span></div>
-                                    </div>
-                                </div>
-                            </Card>
-                            <Card className="p-6 border-l-4 border-l-indigo-500 bg-slate-50 relative overflow-hidden h-40 flex flex-col justify-between">
-                                <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-100 text-indigo-700 border-r border-indigo-200 font-black text-2xl">%</div>
-                                <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                    <h4 className="font-bold text-slate-800 flex items-center gap-2 truncate"><Scale size={18} className="text-indigo-500"/> D. Teórica vs Real</h4>
-                                    <div className="flex justify-end gap-2 text-3xl font-black text-indigo-600 leading-none">32.4% <span className="text-sm font-bold text-slate-400">vs 35%</span></div>
-                                </div>
-                            </Card>
-                        </div>
-                    )}
-
-                    {/* 5. DESGLOSE EFICIENCIA */}
-                    {activeSection === 'EFFICIENCY' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <Card className="p-6 border-l-4 border-l-slate-700 bg-slate-50 relative overflow-hidden h-40 flex flex-col justify-between">
-                                <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-slate-200 text-slate-700 border-r border-slate-300 font-black text-2xl">#</div>
-                                <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                    <h4 className="font-bold text-slate-800 flex items-center gap-2 truncate"><Layers size={18} className="text-slate-600"/> A. Transformación</h4>
-                                    <div className="text-3xl font-black text-slate-700 text-right leading-none">240 <span className="text-sm font-normal text-slate-400">Hojas</span></div>
-                                </div>
-                            </Card>
-                            <Card className="p-6 border-l-4 border-l-blue-500 bg-slate-50 relative overflow-hidden h-40 flex flex-col justify-between">
-                                <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-blue-100 text-blue-700 border-r border-blue-200 font-black text-2xl">$</div>
-                                <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                    <h4 className="font-bold text-slate-800 flex items-center gap-2 truncate"><Activity size={18} className="text-blue-500"/> B. Nómina x Tablero</h4>
-                                    <div className="text-3xl font-black text-blue-600 text-right leading-none">$210 <span className="text-sm font-normal text-slate-400">/ TB</span></div>
-                                </div>
-                            </Card>
-                            <Card className="p-6 border-l-4 border-l-indigo-500 bg-slate-50 relative overflow-hidden h-40 flex flex-col justify-between">
-                                <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-100 text-indigo-700 border-r border-indigo-200 font-black text-2xl">$</div>
-                                <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                    <h4 className="font-bold text-slate-800 flex items-center gap-2 truncate"><BarChart3 size={18} className="text-indigo-500"/> C. OPEX x Tablero</h4>
-                                    <div className="text-3xl font-black text-indigo-600 text-right leading-none">$205 <span className="text-sm font-normal text-slate-400">/ TB</span></div>
-                                </div>
-                            </Card>
-                            <Card className="p-6 border-l-4 border-l-red-500 bg-red-50 relative overflow-hidden h-40 flex flex-col justify-between">
-                                <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-red-100 text-red-700 border-r border-red-200 font-black text-2xl">%</div>
-                                <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                    <h4 className="font-bold text-red-800 flex items-center gap-2 truncate"><AlertTriangle size={18} className="text-red-500"/> D. Monitor Merma</h4>
-                                    <div className="text-3xl font-black text-red-600 text-right leading-none">14% <span className="text-sm font-normal text-red-400">vs 8%</span></div>
-                                </div>
-                            </Card>
-                        </div>
-                    )}
                 </div>
             )}
+            
             {reviewOrderId && (
                 <FinancialReviewModal 
                     orderId={reviewOrderId}
