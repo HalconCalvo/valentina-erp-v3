@@ -34,6 +34,7 @@ const InventoryReceptionPage: React.FC = () => {
     const [invoiceTotal, setInvoiceTotal] = useState<number | ''>('');
     const [displayTotal, setDisplayTotal] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isCancelling, setIsCancelling] = useState(false); // NUEVO ESTADO
     
     const [receivedItems, setReceivedItems] = useState<Record<number, string>>({});
 
@@ -58,9 +59,12 @@ const InventoryReceptionPage: React.FC = () => {
         if (!po) return;
         setSelectedPO(po);
         setInvoiceFolio('');
-        const expectedTotal = po.total_estimated_amount || 0;
-        setInvoiceTotal(expectedTotal);
-        setDisplayTotal(formatInitialAmount(expectedTotal));
+        
+        const subtotal = po.total_estimated_amount || 0;
+        const expectedTotalConIva = subtotal * 1.16;
+        
+        setInvoiceTotal(expectedTotalConIva);
+        setDisplayTotal(formatInitialAmount(expectedTotalConIva));
 
         const initialReceived: Record<number, string> = {};
         (po.items || []).forEach((item: any, idx: number) => {
@@ -131,9 +135,28 @@ const InventoryReceptionPage: React.FC = () => {
         }
     };
 
-    // ==========================================
-    // RENDER 1: EL LOBBY DE DESCARGA
-    // ==========================================
+    // --- NUEVA FUNCIÓN: CANCELAR ENTREGA ---
+    const handleCancelOrder = async () => {
+        if (!selectedPO) return;
+        
+        if (!window.confirm(`⚠️ ¿Estás seguro de RECHAZAR la entrega y CANCELAR la orden ${selectedPO.folio}?\n\nEsta acción no se puede deshacer. Los materiales regresarán a la mesa de compras para pedirse a otro proveedor.`)) {
+            return;
+        }
+
+        setIsCancelling(true);
+        try {
+            await axiosClient.put(`/purchases/orders/${selectedPO.id}/cancel`);
+            alert("🚫 Orden cancelada exitosamente. Los materiales están libres de nuevo.");
+            setSelectedPO(null);
+            fetchIncomingPOs();
+        } catch (error) {
+            console.error(error);
+            alert("❌ Error al cancelar la orden.");
+        } finally {
+            setIsCancelling(false);
+        }
+    };
+
     if (!selectedPO) {
         return (
             <div className="p-6 max-w-5xl mx-auto space-y-6 animate-fadeIn">
@@ -159,7 +182,7 @@ const InventoryReceptionPage: React.FC = () => {
                         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                             <div className="bg-slate-50 border-b border-slate-200 p-3 flex justify-between items-center px-6">
                                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Folio y Proveedor</span>
-                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-12">Total Esperado</span>
+                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-12">Total (Sin IVA)</span>
                             </div>
                             <div className="divide-y divide-slate-100">
                                 {incomingPOs.map((po, index) => (
@@ -201,25 +224,18 @@ const InventoryReceptionPage: React.FC = () => {
         );
     }
 
-    // ==========================================
-    // RENDER 2: VALIDACIÓN FÍSICA (HARD BLOCK ACTIVO)
-    // ==========================================
-    const expectedTotal = selectedPO?.total_estimated_amount || 0;
-    const diff = Math.abs(expectedTotal - Number(invoiceTotal));
-    // Bloqueamos si la diferencia es mayor a 1 peso (tolerancia matemática de redondeo de IVAs)
-    const isFinancialBlocked = invoiceTotal !== '' && diff > 1.00;
+    const subtotalCalc = selectedPO?.total_estimated_amount || 0; 
+    const ivaCalc = subtotalCalc * 0.16; 
+    const expectedTotal = subtotalCalc + ivaCalc; 
 
-    const subtotalCalc = expectedTotal / 1.16;
-    const ivaCalc = subtotalCalc * 0.16;
+    const diff = Math.abs(expectedTotal - Number(invoiceTotal));
+    const isFinancialBlocked = invoiceTotal !== '' && diff > 1.00;
 
     return (
         <div className="animate-in slide-in-from-right-4 duration-300 pb-10">
-            {/* SE ELIMINÓ EL TÍTULO DOBLE AQUÍ */}
-            
             <div className="bg-white rounded-3xl border border-emerald-200 shadow-md overflow-hidden border-t-8 border-t-emerald-500">
                 <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center bg-emerald-50/30 gap-6">
                     <div className="flex items-center gap-5">
-                        {/* BOTÓN DE REGRESAR INTEGRADO EN LA CABECERA */}
                         <Button 
                             onClick={() => setSelectedPO(null)} 
                             variant="outline" 
@@ -320,7 +336,6 @@ const InventoryReceptionPage: React.FC = () => {
                     </tbody>
                 </table>
 
-                {/* BLOQUEO DURO DE RECEPCIÓN */}
                 {isFinancialBlocked && (
                     <div className="mx-8 mt-6 bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded-xl flex items-start gap-4">
                         <div className="bg-white p-2 rounded-lg shadow-sm">
@@ -338,14 +353,24 @@ const InventoryReceptionPage: React.FC = () => {
                     <div className="flex gap-4">
                         <Button 
                             onClick={handleSubmit} 
-                            disabled={isSubmitting || isFinancialBlocked} 
-                            className={`font-black uppercase text-xs h-12 px-10 shadow-lg transition-colors ${
+                            disabled={isSubmitting || isFinancialBlocked || isCancelling} 
+                            className={`font-black uppercase text-xs h-12 px-10 shadow-sm transition-colors ${
                                 isFinancialBlocked 
                                 ? 'bg-slate-300 text-slate-500 cursor-not-allowed' 
                                 : 'bg-emerald-600 hover:bg-emerald-700 text-white'
                             }`}
                         >
                             <Save size={16} className="mr-3" /> {isSubmitting ? 'Guardando...' : 'Confirmar Ingreso'}
+                        </Button>
+                        
+                        {/* EL NUEVO BOTÓN DE PÁNICO */}
+                        <Button 
+                            onClick={handleCancelOrder} 
+                            disabled={isSubmitting || isCancelling} 
+                            variant="outline"
+                            className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300 hover:text-rose-700 font-black uppercase text-[10px] h-12 px-6 shadow-sm transition-all"
+                        >
+                            <Ban size={14} className="mr-2" /> Rechazar y Cancelar OC
                         </Button>
                     </div>
                     <div className="w-80 space-y-1 pr-14">

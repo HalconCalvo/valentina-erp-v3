@@ -17,7 +17,7 @@ from app.services.pdf_generator import PDFGenerator
 
 router = APIRouter()
 
-# --- ESQUEMAS PARA OC MANUAL (FAST-TRACK) ---
+# --- ESQUEMAS ---
 class ManualOrderItemCreate(BaseModel):
     sku: Optional[str] = ""
     name: str
@@ -101,7 +101,6 @@ def update_requisition_status(*, db: Session = Depends(get_session), req_id: int
 
 @router.get("/orders/", response_model=List[dict])
 def read_purchase_orders(*, db: Session = Depends(get_session), status: str | None = None, skip: int = 0, limit: int = 200):
-    # ¡AQUÍ ESTÁ LA MAGIA! Agregamos el order_by para que las actualizadas no se pierdan
     statement = select(PurchaseOrder).order_by(PurchaseOrder.id.desc())
     
     if status:
@@ -219,13 +218,7 @@ def revoke_purchase_order(*, db: Session = Depends(get_session), po_id: int, cur
     return {"status": "success"}
 
 @router.post("/orders/{po_id}/reject")
-def reject_purchase_order(
-    *, 
-    db: Session = Depends(get_session), 
-    po_id: int, 
-    action: str, 
-    current_user: CurrentUser
-):
+def reject_purchase_order(*, db: Session = Depends(get_session), po_id: int, action: str, current_user: CurrentUser):
     po = db.get(PurchaseOrder, po_id)
     if not po: raise HTTPException(status_code=404, detail="Orden no encontrada")
     if po.status != "BORRADOR": raise HTTPException(status_code=400, detail="Solo se pueden rechazar órdenes en Borrador")
@@ -289,11 +282,45 @@ def remove_item_from_purchase_order(*, db: Session = Depends(get_session), po_id
 @router.put("/orders/{po_id}/dispatch")
 def dispatch_purchase_order(*, db: Session = Depends(get_session), po_id: int, current_user: CurrentUser):
     po = db.get(PurchaseOrder, po_id)
-    if not po or po.status != "AUTORIZADA": raise HTTPException(status_code=400)
+    if not po: raise HTTPException(status_code=404, detail="Orden no encontrada")
+    if po.status != "AUTORIZADA": raise HTTPException(status_code=400, detail="Solo se pueden enviar órdenes Autorizadas")
+    
     po.status = "ENVIADA"
     db.add(po)
     db.commit()
-    return {"status": "success"}
+    return {"status": "success", "message": "Orden despachada exitosamente."}
+
+# --- BOTÓN DE PÁNICO Y RESCATE ---
+@router.put("/orders/{po_id}/cancel")
+def cancel_dispatched_order(*, db: Session = Depends(get_session), po_id: int, current_user: CurrentUser):
+    po = db.get(PurchaseOrder, po_id)
+    if not po: raise HTTPException(status_code=404)
+    if po.status != "ENVIADA": raise HTTPException(status_code=400)
+
+    po.status = "CANCELADA"
+    
+    items = db.exec(select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po.id)).all()
+    for item in items:
+        req_id = getattr(item, 'requisition_id', getattr(item, 'purchase_requisition_id', None))
+        if req_id:
+            req = db.get(PurchaseRequisition, req_id)
+            if req:
+                req.status = "PENDIENTE"  
+                db.add(req)
+        else:
+            # Rescate automático si la OC fue directa
+            new_req = PurchaseRequisition(
+                material_id=item.material_id,
+                custom_description=item.custom_description,
+                requested_quantity=item.quantity_ordered,
+                status="PENDIENTE",
+                notes="Rescate automático por Cancelación de OC Directa"
+            )
+            db.add(new_req)
+    
+    db.add(po)
+    db.commit()
+    return {"status": "success", "message": "Orden cancelada y materiales devueltos a Planeación."}
 
 @router.put("/orders/{po_id}/receive")
 def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, current_user: CurrentUser, data: dict = Body(...)):
@@ -340,85 +367,101 @@ def report_cost_discrepancy(*, db: Session = Depends(get_session), po_id: int, d
     db.commit()
     return {"status": "warning", "message": "Discrepancia registrada."}
 
+# --- CEREBRO DE PLANEACIÓN (Corregido el error 500) ---
 @router.get("/planning/consolidated", response_model=List[dict])
 def get_purchase_planning(db: Session = Depends(get_session)):
     PurchaseManager.evaluate_and_create_automatic_requisitions(db)
-    return PurchaseManager.get_consolidated_requisitions(db)
+    
+    reqs = db.exec(
+        select(PurchaseRequisition)
+        .where(PurchaseRequisition.status.in_(["PENDIENTE", "EN_COMPRA"]))
+    ).all()
 
+    groups = {}
+    for req in reqs:
+        prov_id = 0
+        mat_sku = "S/SKU"
+        mat_name = req.custom_description or "Material"
+        exp_cost = 0.0
+
+        if req.material_id:
+            mat = db.get(Material, req.material_id)
+            if mat:
+                mat_sku = mat.sku
+                mat_name = mat.name
+                exp_cost = getattr(mat, 'current_cost', getattr(mat, 'standard_cost', getattr(mat, 'cost', 0.0))) or 0.0
+                prov_id = getattr(mat, 'provider_id', 0) or 0 
+
+        if prov_id not in groups:
+            prov_name = ""
+            if prov_id > 0:
+                prov = db.get(Provider, prov_id)
+                prov_name = prov.business_name if prov else "Proveedor Desconocido"
+            groups[prov_id] = {
+                "provider_id": prov_id if prov_id > 0 else None, 
+                "provider_name": prov_name,
+                "items": []
+            }
+
+        groups[prov_id]["items"].append({
+            "requisition_id": req.id,
+            "material_id": req.material_id,
+            "sku": mat_sku,
+            "name": mat_name,
+            "qty": req.requested_quantity,
+            "expected_cost": exp_cost,
+            "project_name": getattr(req, 'project_name', None),
+            "notes": req.notes,
+            "original_desc": req.custom_description
+        })
+
+    return list(groups.values())
+
+# --- SINCRONIZADOR DE MENÚ LATERAL (Sin Fantasmas) ---
 @router.get("/notifications/pending-tasks")
 def get_admin_pending_tasks(db: Session = Depends(get_session)):
     PurchaseManager.evaluate_and_create_automatic_requisitions(db)
     
+    # 1. Cuenta solo las pendientes reales (Card A)
     reqs_pendientes = db.execute(
         text("SELECT COUNT(id) FROM purchase_requisitions WHERE UPPER(status) IN ('PENDIENTE', 'EN_COMPRA')")
     ).scalar() or 0
     
-    reqs_congeladas = db.execute(
-        text("SELECT COUNT(id) FROM purchase_requisitions WHERE UPPER(status) = 'APLAZADA'")
-    ).scalar() or 0
-    
+    # 2. Cuenta solo las que están en borrador (Card B)
     orders_to_authorize = db.execute(
         text("SELECT COUNT(id) FROM purchase_orders WHERE UPPER(status) = 'BORRADOR'")
     ).scalar() or 0
-    
-    materials = db.execute(text("SELECT id, physical_stock, min_stock FROM materials WHERE min_stock > 0")).mappings().all()
-    active_pos = db.execute(text("SELECT id FROM purchase_orders WHERE UPPER(status) IN ('BORRADOR', 'AUTORIZADA', 'ENVIADA')")).mappings().all()
-    
-    active_po_ids = [str(po['id']) for po in active_pos]
-    transit_dict = {}
-    if active_po_ids:
-        ids_str = ",".join(active_po_ids)
-        items = db.execute(
-            text(f"SELECT material_id, quantity_ordered FROM purchase_order_items WHERE purchase_order_id IN ({ids_str})")
-        ).mappings().all()
-        for item in items:
-            m_id = item['material_id']
-            if m_id is not None:
-                qty = float(item['quantity_ordered'] or 0.0)
-                transit_dict[m_id] = transit_dict.get(m_id, 0.0) + qty
 
-    stock_critico = 0
-    for mat in materials:
-        m_id = mat['id']
-        phys = float(mat['physical_stock'] or 0.0)
-        min_s = float(mat['min_stock'] or 0.0)
-        transit = transit_dict.get(m_id, 0.0)
-        if (phys + transit) <= min_s:
-            existing = db.execute(
-                text("SELECT id FROM purchase_requisitions WHERE material_id = :m_id AND UPPER(status) IN ('PENDIENTE', 'EN_COMPRA', 'APLAZADA')"),
-                {"m_id": m_id}
-            ).first()
-            if not existing:
-                stock_critico += 1
-
-    total_general = reqs_pendientes + stock_critico + reqs_congeladas + orders_to_authorize
+    # 3. Cuenta solo las autorizadas por despachar (Card C)
+    orders_to_dispatch = db.execute(
+        text("SELECT COUNT(id) FROM purchase_orders WHERE UPPER(status) = 'AUTORIZADA'")
+    ).scalar() or 0
+    
+    # Total exacto y transparente
+    total_general = reqs_pendientes + orders_to_authorize + orders_to_dispatch
     
     return {
-        "pending_requisitions": reqs_pendientes + stock_critico + reqs_congeladas,
+        "pending_requisitions": reqs_pendientes,
         "orders_to_authorize": orders_to_authorize,
         "total_alerts": total_general 
     }
 
 @router.get("/orders/{po_id}/pdf")
 def download_purchase_order_pdf(po_id: int, db: Session = Depends(get_session)):
-    from app.models.users import User # Importamos el modelo de Usuario
+    from app.models.users import User 
     
     po = db.get(PurchaseOrder, po_id)
-    if not po:
-        raise HTTPException(status_code=404, detail="Orden de Compra no encontrada")
+    if not po: raise HTTPException(status_code=404, detail="Orden de Compra no encontrada")
         
     items = db.exec(select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po.id)).all()
     
-    # --- NUEVO: Buscar quién elaboró la orden ---
     creator = None
     if getattr(po, 'created_by_user_id', None):
         creator = db.get(User, po.created_by_user_id)
         
-    # Intentar sacar nombre completo, si no hay, usar username o email
     elaborado_por = "Sistema"
     if creator:
         elaborado_por = getattr(creator, 'full_name', getattr(creator, 'username', getattr(creator, 'email', 'Sistema')))
-    # --------------------------------------------
 
     mock_items = []
     for it in items:
@@ -435,13 +478,12 @@ def download_purchase_order_pdf(po_id: int, db: Session = Depends(get_session)):
         folio=po.folio,
         created_at=po.created_at,
         authorized_by=getattr(po, 'authorized_by', None),
-        created_by=elaborado_por, # <-- Empacamos el nombre aquí
+        created_by=elaborado_por, 
         items=mock_items
     )
         
     provider = db.get(Provider, po.provider_id)
-    if not provider:
-        raise HTTPException(status_code=404, detail="Proveedor no encontrado")
+    if not provider: raise HTTPException(status_code=404, detail="Proveedor no encontrado")
         
     config = db.exec(select(GlobalConfig)).first()
     
@@ -455,9 +497,6 @@ def download_purchase_order_pdf(po_id: int, db: Session = Depends(get_session)):
         headers={"Content-Disposition": f'inline; filename="{filename}"'}
     )
 
-# =================================================================
-# NUEVO ENDPOINT PARA ORDEN MANUAL (FAST-TRACK)
-# =================================================================
 @router.post("/orders/manual")
 def create_manual_order(
     *,
@@ -465,7 +504,6 @@ def create_manual_order(
     db: Session = Depends(get_session),
     current_user: CurrentUser
 ):
-    # 1. Buscar o crear Proveedor
     provider = db.exec(select(Provider).where(Provider.business_name.ilike(order_in.provider_name))).first()
     if not provider:
         provider = Provider(business_name=order_in.provider_name, credit_days=0, is_active=True)
@@ -473,7 +511,6 @@ def create_manual_order(
         db.commit()
         db.refresh(provider)
 
-    # 2. Crear la Orden de Compra en Mesa de Control (BORRADOR)
     timestamp = datetime.now().strftime("%y%m%d%H%M%S")
     subtotal = sum(item.qty * item.expected_cost for item in order_in.items)
     
@@ -489,7 +526,6 @@ def create_manual_order(
     db.commit()
     db.refresh(new_order)
 
-    # 3. Procesar las Partidas
     for item_in in order_in.items:
         material = None
         if item_in.sku:
@@ -508,7 +544,6 @@ def create_manual_order(
             db.commit()
             db.refresh(material)
 
-        # Unir el material a la Orden usando los nombres correctos de tus columnas
         po_item = PurchaseOrderItem(
             purchase_order_id=new_order.id,
             material_id=material.id,

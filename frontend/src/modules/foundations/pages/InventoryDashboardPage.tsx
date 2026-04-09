@@ -51,14 +51,19 @@ export const InventoryDashboardPage = () => {
                     axiosClient.get('/purchases/orders/')                       
                 ]);
                 
+                // 1. Tarjeta Requisiciones (Pendientes de Asignar Material)
                 const pendingReqs = resReqs.data.filter((r: any) => r.status === 'PENDIENTE' || r.status === 'EN_COMPRA');
                 setPendingTasksCount(pendingReqs.length);
                 
+                // 3. Tarjeta Recepción (Órdenes en tránsito real)
                 setReceptionsCount(resOrdersTransit.data.length || 0); 
                 
+                // 2. Tarjeta Compras (Planeación + Mesa de Control)
                 const planningCount = resPlanning.data.length || 0;
+                
+                // ¡AQUÍ ESTABA EL BUG! Filtramos estrictamente lo que SÍ queremos contar.
                 const activeOrdersCount = resAllOrders.data.filter((o: any) => 
-                    o.status !== 'RECIBIDA_TOTAL' && o.status !== 'ENVIADA'
+                    o.status === 'BORRADOR' || o.status === 'AUTORIZADA'
                 ).length;
                 
                 setPurchasingCount(planningCount + activeOrdersCount);
@@ -116,7 +121,6 @@ export const InventoryDashboardPage = () => {
 
             {!activeSection ? (
                 <div className="flex flex-wrap justify-center gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 mt-4">
-                    {/* ... (Tarjetas Omitidas visualmente aquí por brevedad, el código incluye todas) ... */}
                     {/* TARJETA 1 */}
                     <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(25%-18px)] relative h-40">
                         <Card onClick={() => setActiveSection('REQUISITIONS')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-indigo-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group">
