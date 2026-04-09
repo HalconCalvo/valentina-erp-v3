@@ -367,15 +367,21 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     const searchDesc = activeRow ? (activeRow.material_name || '').toLowerCase() : '';
     const filteredMaterialsByDesc = materialsList.filter(m => getMatDesc(m).toLowerCase().includes(searchDesc));
 
+    // 👇 AQUÍ ESTÁ LA MAGIA CORREGIDA 👇
     const handleSelectMaterial = (index: number, mat: any) => {
         const newItems = [...manualOrderForm.items];
-        const cost = parseFloat(mat.standard_cost || 0).toFixed(2);
+        
+        // Le decimos que busque current_cost primero (como lo guardamos en tu BD), si no, que busque standard_cost o cost.
+        const dbCost = parseFloat(mat.current_cost || mat.standard_cost || mat.cost || 0);
+        const cost = dbCost.toFixed(2);
+        
         newItems[index] = {
             ...newItems[index],
             sku: getMatSku(mat),
             material_name: getMatDesc(mat),
-            expected_cost: cost !== '0.00' ? cost : newItems[index].expected_cost
+            expected_cost: cost // ¡Ahora sí inyecta el costo de tu sistema!
         };
+        
         setManualOrderForm({ ...manualOrderForm, items: newItems });
         setActiveDropdown({ type: null, index: null });
     };
