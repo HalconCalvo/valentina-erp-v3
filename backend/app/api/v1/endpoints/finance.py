@@ -13,8 +13,6 @@ from app.models.finance import (
 )
 from app.models.foundations import Provider
 from app.models.treasury import BankAccount, BankTransaction, TransactionType
-
-# ---> Importamos la Orden de Compra de tu Módulo de Inventario <---
 from app.models.inventory import PurchaseOrder
 
 from app.schemas.finance_schema import (
@@ -35,12 +33,49 @@ def clean_invoice_folio(folio: str) -> str:
     return safe_folio
 
 # ==================================================================
-# ---> 🛠️ MOTOR DE SINCRONIZACIÓN AUTOMÁTICA UNIFICADO <---
+# ---> 🛠️ MOTOR DE SINCRONIZACIÓN AUTOMÁTICA Y AUTOSANACIÓN <---
 # ==================================================================
 def _sync_pos_to_invoices(session: SessionDep):
     from datetime import datetime, date
     today_date = datetime.now().date()
     
+    # -------------------------------------------------------------------------
+    # 1. AUTOSANACIÓN: Exorcismo de facturas de órdenes que fueron canceladas
+    # -------------------------------------------------------------------------
+    statement_check = select(PurchaseInvoice).where(
+        PurchaseInvoice.status != getattr(InvoiceStatus, "PAID", "PAID"),
+        PurchaseInvoice.status != getattr(InvoiceStatus, "CANCELLED", "CANCELLED")
+    )
+    for inv in session.exec(statement_check).all():
+        if not inv.invoice_number: continue
+        inv_str = clean_invoice_folio(inv.invoice_number)
+        
+        # Le preguntamos a Compras si la Orden sigue viva
+        po = session.exec(select(PurchaseOrder).where(PurchaseOrder.folio == inv_str)).first()
+        
+        # Si la orden fue Cancelada, Rechazada o se le revocó la firma (volvió a Borrador)...
+        if po and po.status in ["CANCELADA", "RECHAZADA", "BORRADOR"]:
+            # A) Anulamos la Factura
+            inv.status = getattr(InvoiceStatus, "CANCELLED", "CANCELLED")
+            inv.outstanding_balance = 0
+            session.add(inv)
+            
+            # B) Anulamos cualquier solicitud de pago que se haya quedado colgada (El "2" fantasma del Dashboard)
+            pending_payments = session.exec(select(SupplierPayment).where(
+                SupplierPayment.purchase_invoice_id == inv.id,
+                SupplierPayment.status == getattr(PaymentStatus, "PENDING", "PENDING")
+            )).all()
+            for pp in pending_payments:
+                pp.status = getattr(PaymentStatus, "REJECTED", "REJECTED")
+                pp.notes = "Cancelado automáticamente por anulación de la Orden de Compra."
+                session.add(pp)
+                
+            # C) Limpiamos la tabla de cuentas por pagar cruda por seguridad
+            session.exec(text("UPDATE accounts_payable SET status = 'CANCELADO' WHERE invoice_folio = :folio").bindparams(folio=inv_str))
+
+    # -------------------------------------------------------------------------
+    # 2. CREACIÓN: Registrar nuevas facturas de órdenes recién Autorizadas
+    # -------------------------------------------------------------------------
     statement = select(PurchaseOrder).where(
         PurchaseOrder.status == "AUTORIZADA",
         PurchaseOrder.payment_status == "PENDING"
@@ -113,8 +148,6 @@ def request_supplier_payment(
     if not invoice:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
 
-    # SOLUCIÓN 1: Solo sumamos los pagos que están flotando ("en el limbo"), excluimos los ya pagados
-    # y los restamos directamente de la deuda actual, ignorando el "total_amount" histórico.
     statement = select(func.sum(SupplierPayment.amount)).where(
         SupplierPayment.purchase_invoice_id == invoice.id,
         SupplierPayment.status.in_([PaymentStatus.PENDING, PaymentStatus.APPROVED])
@@ -357,8 +390,8 @@ def get_payable_dashboard_stats(session: SessionDep) -> Any:
     var_future_count = 0       
     
     statement = select(PurchaseInvoice).where(
-        PurchaseInvoice.status != InvoiceStatus.PAID, 
-        PurchaseInvoice.status != InvoiceStatus.CANCELLED
+        PurchaseInvoice.status != getattr(InvoiceStatus, "PAID", "PAID"), 
+        PurchaseInvoice.status != getattr(InvoiceStatus, "CANCELLED", "CANCELLED")
     )
     invoices = session.exec(statement).all()
     
@@ -380,7 +413,7 @@ def get_payable_dashboard_stats(session: SessionDep) -> Any:
             var_future_count += 1      
 
     pending_approvals = session.exec(
-        select(func.count(SupplierPayment.id)).where(SupplierPayment.status == PaymentStatus.PENDING)
+        select(func.count(SupplierPayment.id)).where(SupplierPayment.status == getattr(PaymentStatus, "PENDING", "PENDING"))
     ).one()
 
     return AccountsPayableDashboardStats(
@@ -398,7 +431,7 @@ def get_payable_dashboard_stats(session: SessionDep) -> Any:
 # ------------------------------------------------------------------
 @router.get("/payments/pending-approvals", response_model=List[SupplierPaymentRead])
 def get_pending_approvals(session: SessionDep) -> Any:
-    statement = select(SupplierPayment).where(SupplierPayment.status == PaymentStatus.PENDING)
+    statement = select(SupplierPayment).where(SupplierPayment.status == getattr(PaymentStatus, "PENDING", "PENDING"))
     payments = session.exec(statement).all()
     
     results = []
@@ -427,9 +460,7 @@ def get_pending_approvals(session: SessionDep) -> Any:
 
 @router.get("/payments/approved", response_model=List[SupplierPaymentRead])
 def get_approved_payments(session: SessionDep) -> Any:
-    # SOLUCIÓN 2: Solo devolvemos los pagos que NO se han cobrado del banco.
-    # Evita que el frontend detecte pagos viejos como activos.
-    statement = select(SupplierPayment).where(SupplierPayment.status == PaymentStatus.APPROVED)
+    statement = select(SupplierPayment).where(SupplierPayment.status == getattr(PaymentStatus, "APPROVED", "APPROVED"))
     payments = session.exec(statement).all()
     
     results = []
@@ -461,8 +492,8 @@ def get_pending_invoices(session: SessionDep) -> Any:
     _sync_pos_to_invoices(session)
 
     statement = select(PurchaseInvoice).where(
-        PurchaseInvoice.status != InvoiceStatus.PAID, 
-        PurchaseInvoice.status != InvoiceStatus.CANCELLED
+        PurchaseInvoice.status != getattr(InvoiceStatus, "PAID", "PAID"), 
+        PurchaseInvoice.status != getattr(InvoiceStatus, "CANCELLED", "CANCELLED")
     )
     invoices = session.exec(statement).all()
     
@@ -487,7 +518,6 @@ def get_pending_invoices(session: SessionDep) -> Any:
 
             if po:
                 final_po_folio = po.folio
-                # Aquí está el cruce mágico con la tabla materials para recuperar el SKU
                 query_items = text("""
                     SELECT 
                         poi.custom_description, 
