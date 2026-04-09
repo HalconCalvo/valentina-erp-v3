@@ -30,8 +30,8 @@ ENV PORT=8080
 # 1. Destruye DB -> 2. Crea Tablas (Alembic) -> 3. Siembra Admin -> 4. Inyecta CSV -> 5. Arranca el Servidor
 CMD python reset_db.py \
     && python -m alembic upgrade head \
-    && python scripts/seed_data.py \
-    && python scripts/import_csv.py \
+    && python -m scripts.seed_data \
+    && python -m scripts.import_csv \
     && exec gunicorn app.main:app \
     --workers 1 \
     --worker-class uvicorn.workers.UvicornWorker \
