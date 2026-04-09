@@ -1,16 +1,17 @@
-from sqlmodel import Session, select, create_engine
+import os
+from sqlmodel import Session, select, create_engine, SQLModel
 from app.models.foundations import TaxRate, GlobalConfig
 from app.models.users import User
 from app.core.security import get_password_hash
-# Eliminamos la importación de Material y ProductionRoute para evitar errores de ENUMs huérfanos
 
-# Conexión directa a la BD SQLite
-sqlite_url = "sqlite:///local_dev.db"
-engine = create_engine(sqlite_url)
+# ---> LA MEJORA PARA RENDER ESTÁ AQUÍ <---
+# Busca la URL de producción. Si no la encuentra, usa el entorno local.
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///local_dev.db")
+
+engine = create_engine(DATABASE_URL)
 
 def create_initial_data():
     # IMPORTANTE: Crear todas las tablas antes de insertar
-    from sqlmodel import SQLModel
     SQLModel.metadata.create_all(engine)
     
     with Session(engine) as session:
