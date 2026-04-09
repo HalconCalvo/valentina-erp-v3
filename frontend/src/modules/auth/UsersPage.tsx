@@ -4,19 +4,19 @@ import {
   Plus, UserCog, Shield, Mail, Key, X, 
   CheckCircle, Trash2, Pencil, RefreshCw,
   Percent, Briefcase, PenTool, Package, Hammer, User,
-  TrendingUp, Truck // NUEVOS ICONOS
+  TrendingUp, Truck 
 } from 'lucide-react';
 
 // --- 1. CONFIGURACIÓN DE ROLES (Nombres visuales) ---
 const ROLE_OPTIONS = {
     'DIRECTOR': 'DIRECCIÓN',       // Negro
-    'GERENCIA': 'GERENCIA',        // Púrpura (NUEVO)
+    'GERENCIA': 'GERENCIA',        // Púrpura 
     'ADMIN': 'ADMINISTRACIÓN',     // Índigo
     'SALES': 'VENTAS',             // Verde
     'DESIGN': 'DISEÑO',            // Rosa
     'WAREHOUSE': 'ALMACÉN',        // Naranja
     'PRODUCTION': 'PRODUCCIÓN',    // Azul
-    'LOGISTICS': 'LOGÍSTICA',      // Cyan (NUEVO)
+    'LOGISTICS': 'INSTALADOR / CUADRILLA', // <--- ¡LA MAGIA ESTÁ AQUÍ!
 };
 
 export default function UsersPage() {
@@ -30,7 +30,7 @@ export default function UsersPage() {
     full_name: '',
     email: '',
     password: '', 
-    role: 'GERENCIA', // Por defecto que sea Gerencia o el que quieras
+    role: 'LOGISTICS', // Que por defecto ofrezca crear Instaladores (opcional)
     is_active: true,
     commission_rate: 0 
   };
@@ -41,13 +41,13 @@ export default function UsersPage() {
   const getRoleBadgeClasses = (role: string) => {
       switch(role) {
           case 'DIRECTOR': return 'bg-slate-900 text-white border-slate-700';
-          case 'GERENCIA': return 'bg-purple-100 text-purple-700 border-purple-200'; // NUEVO
+          case 'GERENCIA': return 'bg-purple-100 text-purple-700 border-purple-200'; 
           case 'ADMIN': return 'bg-indigo-100 text-indigo-700 border-indigo-200';
           case 'SALES': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
           case 'DESIGN': return 'bg-pink-100 text-pink-700 border-pink-200';
           case 'WAREHOUSE': return 'bg-orange-100 text-orange-800 border-orange-200';
           case 'PRODUCTION': return 'bg-blue-100 text-blue-700 border-blue-200';
-          case 'LOGISTICS': return 'bg-cyan-100 text-cyan-700 border-cyan-200'; // NUEVO
+          case 'LOGISTICS': return 'bg-cyan-100 text-cyan-700 border-cyan-200'; 
           default: return 'bg-slate-100 text-slate-700 border-slate-200';
       }
   };
@@ -55,13 +55,13 @@ export default function UsersPage() {
   const getRoleIcon = (role: string) => {
       switch(role) {
           case 'DIRECTOR': return <Shield size={12} />;
-          case 'GERENCIA': return <TrendingUp size={12} />; // NUEVO
+          case 'GERENCIA': return <TrendingUp size={12} />; 
           case 'ADMIN': return <Briefcase size={12} />;
           case 'SALES': return <User size={12} />;
           case 'DESIGN': return <PenTool size={12} />;
           case 'WAREHOUSE': return <Package size={12} />;
           case 'PRODUCTION': return <Hammer size={12} />;
-          case 'LOGISTICS': return <Truck size={12} />; // NUEVO
+          case 'LOGISTICS': return <Truck size={12} />; 
           default: return <UserCog size={12} />;
       }
   };
