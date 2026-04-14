@@ -238,7 +238,7 @@ const SalesDashboardPage: React.FC = () => {
 
             if (['ACCEPTED', 'WAITING_ADVANCE'].includes(st)) { s.retainedComm += comm; s.retainedCount++; }
             
-            if (['SOLD', 'IN_PRODUCTION', 'INSTALLED'].includes(st)) {
+            if (['WAITING_ADVANCE', 'SOLD', 'IN_PRODUCTION', 'FINISHED', 'COMPLETED'].includes(st)) {
                 s.activeProjectsCount++;
             }
 
@@ -710,101 +710,193 @@ const SalesDashboardPage: React.FC = () => {
         );
     };
 
+    // ── MONITOR OPERATIVO: estado de expansión y edición inline ───────
+    const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
+    const [instanceNames, setInstanceNames] = useState<Record<number, string>>({});
+    const [savingInstances, setSavingInstances] = useState(false);
+    const [savedOrders, setSavedOrders] = useState<Set<number>>(new Set());
+
+    const toggleExpand = (orderId: number, instances: any[]) => {
+        if (expandedOrderId === orderId) {
+            setExpandedOrderId(null);
+        } else {
+            setExpandedOrderId(orderId);
+            // Pre-populate names from existing data
+            const initial: Record<number, string> = {};
+            instances.forEach((inst: any) => { initial[inst.id] = inst.custom_name ?? ''; });
+            setInstanceNames(prev => ({ ...prev, ...initial }));
+            setSavedOrders(prev => { const n = new Set(prev); n.delete(orderId); return n; });
+        }
+    };
+
+    const saveInstanceNames = async (orderId: number, instances: any[]) => {
+        setSavingInstances(true);
+        try {
+            const { planningService: ps } = await import('../../../api/planning-service');
+            await ps.baptizeInstances(
+                orderId,
+                instances.map((inst: any) => ({
+                    instance_id: inst.id,
+                    custom_name: (instanceNames[inst.id] ?? inst.custom_name).trim() || inst.custom_name,
+                }))
+            );
+            setSavedOrders(prev => new Set([...prev, orderId]));
+            await loadData(true);
+        } catch {
+            alert('Error al guardar los alias. Verifica la conexión.');
+        } finally {
+            setSavingInstances(false);
+        }
+    };
+
     // ── MONITOR OPERATIVO: Render ──────────────────────────────────────
     const renderMonitorSection = () => {
-        const activeOrders = orders.filter(o =>
-            ['SOLD', 'IN_PRODUCTION', 'INSTALLED'].includes(o.status)
-        );
+        // Ampliado: cualquier OV confirmada o en proceso
+        const ACTIVE_STATUSES = ['WAITING_ADVANCE', 'SOLD', 'IN_PRODUCTION', 'FINISHED', 'COMPLETED'];
+        const activeOrders = orders.filter(o => ACTIVE_STATUSES.includes(o.status));
 
-        const MONITOR_STATUS_COLORS: Record<string, string> = {
-            'SOLD':          'bg-emerald-50 text-emerald-700 border-emerald-200',
-            'IN_PRODUCTION': 'bg-blue-50 text-blue-700 border-blue-200',
-            'INSTALLED':     'bg-violet-50 text-violet-700 border-violet-200',
+        const STATUS_COLORS: Record<string, string> = {
+            'WAITING_ADVANCE': 'bg-amber-50 text-amber-700 border-amber-200',
+            'SOLD':            'bg-emerald-50 text-emerald-700 border-emerald-200',
+            'IN_PRODUCTION':   'bg-blue-50 text-blue-700 border-blue-200',
+            'FINISHED':        'bg-violet-50 text-violet-700 border-violet-200',
+            'COMPLETED':       'bg-slate-100 text-slate-600 border-slate-200',
         };
 
         if (activeOrders.length === 0) {
             return (
-                <div className="text-center py-16 text-slate-500 bg-white rounded-xl border border-slate-200 shadow-sm">
-                    <Users size={32} className="mx-auto mb-3 opacity-30" />
-                    <p className="font-bold">No hay proyectos activos en este momento.</p>
-                    <p className="text-sm mt-1">Las OVs en estatus SOLD, EN PRODUCCIÓN e INSTALADO aparecerán aquí.</p>
+                <div className="text-center py-16 text-slate-400 bg-white rounded-xl border border-slate-200 shadow-sm">
+                    <Users size={36} className="mx-auto mb-3 opacity-20" />
+                    <p className="font-bold text-slate-600">No hay proyectos activos en este momento.</p>
+                    <p className="text-sm mt-1">Aparecerán las OVs en estatus Esperando Anticipo, Vendida, En Producción o Finalizada.</p>
                 </div>
             );
         }
 
         return (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden animate-in slide-in-from-right-4 duration-300">
+            <div className="space-y-3 animate-in slide-in-from-right-4 duration-300">
                 {/* Sub-header */}
-                <div className="px-6 py-3 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
+                <div className="flex items-center justify-between px-2">
                     <p className="text-xs font-bold text-indigo-700 uppercase tracking-wider flex items-center gap-2">
                         <Users size={14} /> Órdenes de Venta Activas
-                        <span className="bg-indigo-200 text-indigo-800 rounded-full px-2 py-0.5 text-[10px]">
+                        <span className="bg-indigo-100 text-indigo-700 rounded-full px-2 py-0.5 text-[10px]">
                             {activeOrders.length}
                         </span>
                     </p>
-                    <p className="text-[10px] text-indigo-500">Haz clic en "Bautizar" para asignar alias a las instancias antes de enviarlas a planeación.</p>
+                    <p className="text-[10px] text-slate-400">
+                        Haz clic en una OV para expandir sus instancias y asignarles un alias.
+                    </p>
                 </div>
 
-                <table className="w-full text-left text-sm">
-                    <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
-                        <tr>
-                            <th className="px-6 py-3 font-bold">Folio / Proyecto</th>
-                            <th className="px-6 py-3 font-bold">Cliente</th>
-                            <th className="px-6 py-3 font-bold">Estatus</th>
-                            <th className="px-6 py-3 font-bold text-right">Total</th>
-                            <th className="px-6 py-3 font-bold text-center">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {activeOrders.map(order => {
-                            const colorClass = MONITOR_STATUS_COLORS[order.status] ?? 'bg-slate-50 text-slate-600 border-slate-200';
-                            const instances: any[] = (order.items ?? []).flatMap((it: any) => it.instances ?? []);
-                            const hasUnnamed = instances.some((inst: any) =>
-                                !inst.custom_name || /instancia \d+/i.test(inst.custom_name)
-                            );
+                {activeOrders.map(order => {
+                    const instances: any[] = (order.items ?? []).flatMap((it: any) => it.instances ?? []);
+                    const isExpanded = expandedOrderId === order.id;
+                    const colorClass = STATUS_COLORS[order.status] ?? 'bg-slate-50 text-slate-600 border-slate-200';
+                    const hasUnnamed = instances.some((inst: any) =>
+                        !inst.custom_name || /^.+\s*-\s*instancia\s+\d+$/i.test(inst.custom_name)
+                    );
+                    const isSaved = savedOrders.has(order.id!);
 
-                            return (
-                                <tr key={order.id} className="hover:bg-slate-50 transition-colors">
-                                    <td className="px-6 py-4">
-                                        <p className="font-bold text-slate-800">OV-{String(order.id).padStart(4,'0')}</p>
-                                        <p className="text-xs text-slate-500 font-medium truncate max-w-[200px]">{order.project_name}</p>
-                                    </td>
-                                    <td className="px-6 py-4 font-medium text-slate-600">{getClientName(order)}</td>
-                                    <td className="px-6 py-4">
-                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold border ${colorClass}`}>
+                    return (
+                        <div
+                            key={order.id}
+                            className={`bg-white rounded-xl border shadow-sm overflow-hidden transition-all ${isExpanded ? 'border-indigo-300 shadow-md' : 'border-slate-200 hover:border-slate-300'}`}
+                        >
+                            {/* ── OV Header Row (clickable) ── */}
+                            <button
+                                className="w-full text-left px-5 py-4 flex items-center gap-4 hover:bg-slate-50 transition-colors"
+                                onClick={() => toggleExpand(order.id!, instances)}
+                            >
+                                {/* Expand icon */}
+                                <span className={`text-slate-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}>›</span>
+
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <p className="font-bold text-slate-800 text-sm">
+                                            OV-{String(order.id).padStart(4,'0')}
+                                        </p>
+                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${colorClass}`}>
                                             {getStatusLabel(order.status)}
                                         </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-right font-bold text-slate-700">{formatCurrency(order.total_price || 0)}</td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex justify-center items-center gap-2">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="text-xs px-3"
-                                                onClick={() => setViewingOrderIdForFormat(order.id!)}
-                                            >
-                                                Ver Detalle
-                                            </Button>
-                                            <button
-                                                onClick={() => setBaptismOrderId(order.id!)}
-                                                className={`
-                                                    flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all
-                                                    ${hasUnnamed
-                                                        ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-500 shadow-sm'
-                                                        : 'bg-white hover:bg-slate-50 text-slate-600 border-slate-200'}
-                                                `}
-                                                title="Asignar alias a las instancias de esta OV"
-                                            >
-                                                🏷️ {hasUnnamed ? 'Bautizar ⚡' : 'Gestionar Identidad'}
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
+                                        {hasUnnamed && !isSaved && (
+                                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[9px] font-bold border border-amber-200">
+                                                🏷️ Alias pendientes
+                                            </span>
+                                        )}
+                                        {isSaved && (
+                                            <span className="text-[9px] text-emerald-600 font-bold">✓ Guardado</span>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-slate-500 truncate mt-0.5">{order.project_name} — {getClientName(order)}</p>
+                                </div>
+
+                                <div className="flex items-center gap-3 shrink-0">
+                                    <p className="text-sm font-bold text-slate-700">{formatCurrency(order.total_price || 0)}</p>
+                                    {instances.length > 0 && (
+                                        <span className="text-[10px] bg-slate-100 text-slate-500 rounded-full px-2 py-0.5 font-medium">
+                                            {instances.length} instancia{instances.length !== 1 ? 's' : ''}
+                                        </span>
+                                    )}
+                                </div>
+                            </button>
+
+                            {/* ── Expanded: Instances + Rename ── */}
+                            {isExpanded && (
+                                <div className="border-t border-slate-100 bg-slate-50/60 px-5 py-4">
+                                    {instances.length === 0 ? (
+                                        <p className="text-sm text-slate-400 text-center py-4">
+                                            Esta OV no tiene instancias generadas todavía.
+                                        </p>
+                                    ) : (
+                                        <>
+                                            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3">
+                                                Instancias — Asigna un alias descriptivo (ej. "Casa 123, Calle 98 – Cocina")
+                                            </p>
+                                            <div className="space-y-2 mb-4">
+                                                {instances.map((inst: any, idx: number) => (
+                                                    <div key={inst.id} className="flex items-center gap-3 bg-white rounded-xl border border-slate-200 px-3 py-2">
+                                                        <span className="w-6 h-6 flex items-center justify-center bg-indigo-100 text-indigo-700 rounded-full text-[10px] font-bold shrink-0">
+                                                            {idx + 1}
+                                                        </span>
+                                                        <div className="w-28 shrink-0">
+                                                            <p className="text-xs text-slate-400 truncate">{(order.items ?? []).find((it: any) => (it.instances ?? []).some((i: any) => i.id === inst.id))?.product_name ?? 'Producto'}</p>
+                                                        </div>
+                                                        <input
+                                                            type="text"
+                                                            value={instanceNames[inst.id] ?? inst.custom_name ?? ''}
+                                                            onChange={e => setInstanceNames(prev => ({ ...prev, [inst.id]: e.target.value }))}
+                                                            placeholder="Alias / Ubicación..."
+                                                            className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-1.5 text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition bg-white"
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="flex justify-end gap-2">
+                                                <button
+                                                    onClick={() => setExpandedOrderId(null)}
+                                                    className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 border border-slate-200 rounded-xl hover:bg-white transition"
+                                                >
+                                                    Cerrar
+                                                </button>
+                                                <button
+                                                    onClick={() => saveInstanceNames(order.id!, instances)}
+                                                    disabled={savingInstances}
+                                                    className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${
+                                                        isSaved
+                                                            ? 'bg-emerald-500 text-white'
+                                                            : 'bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50'
+                                                    }`}
+                                                >
+                                                    {savingInstances ? 'Guardando...' : isSaved ? '✓ Guardado' : `Guardar ${instances.length} aliases → Planeación`}
+                                                </button>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
             </div>
         );
     };

@@ -8,6 +8,7 @@ export interface PendingInstance {
   custom_name: string;
   product_name: string;
   order_project_name: string;
+  order_id: number;
 }
 
 export interface SimulatedMaterial {

@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { CalendarPill } from '../../../api/planning-service';
+import { useState, useCallback } from 'react';
+import { CalendarPill, InstanceSchedule } from '../../../api/planning-service';
 import InstancePill from './InstancePill';
 import RescheduleModal from './RescheduleModal';
 import { useInstanceActions } from '../hooks/usePlanning';
@@ -14,6 +14,10 @@ interface Props {
   onRefresh: () => void;
   highlightInstanceId?: number | null;
   onPillClick?: (pill: CalendarPill) => void;
+  /** Instance being dragged from the Health Sidebar */
+  externalDragInstance?: InstanceSchedule | null;
+  /** Called when an external (sidebar) instance is dropped on a day */
+  onExternalDrop?: (dayKey: string, instance: InstanceSchedule) => void;
 }
 
 const MONTH_NAMES = [
@@ -50,12 +54,20 @@ export default function PlanningCalendar({
   onRefresh,
   highlightInstanceId,
   onPillClick,
+  externalDragInstance,
+  onExternalDrop,
 }: Props) {
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [pendingReschedule, setPendingReschedule] = useState<{
     pill: CalendarPill;
     targetDate: string;
+  } | null>(null);
+
+  // Lane-selector for external (sidebar) drops
+  const [pendingExternalDrop, setPendingExternalDrop] = useState<{
+    dayKey: string;
+    instance: InstanceSchedule;
   } | null>(null);
 
   const { reschedule, loading: actionLoading } = useInstanceActions(onRefresh);
@@ -88,13 +100,22 @@ export default function PlanningCalendar({
   const handleDrop = useCallback((e: React.DragEvent, dayKey: string) => {
     e.preventDefault();
     setDropTarget(null);
+
+    // External drop (from Health Sidebar)
+    if (externalDragInstance) {
+      setPendingExternalDrop({ dayKey, instance: externalDragInstance });
+      setDragState(null);
+      return;
+    }
+
+    // Internal drop (pill → another day)
     if (!dragState || dragState.sourceDate === dayKey) {
       setDragState(null);
       return;
     }
     setPendingReschedule({ pill: dragState.pill, targetDate: dayKey });
     setDragState(null);
-  }, [dragState]);
+  }, [dragState, externalDragInstance]);
 
   const LANE_FIELD_MAP: Record<string, string> = {
     PM: 'scheduled_prod_mdf',
@@ -260,7 +281,7 @@ export default function PlanningCalendar({
         )}
       </div>
 
-      {/* Reschedule confirmation modal */}
+      {/* Internal pill reschedule modal */}
       <RescheduleModal
         pill={pendingReschedule?.pill ?? null}
         targetDate={pendingReschedule?.targetDate ?? null}
@@ -269,6 +290,63 @@ export default function PlanningCalendar({
         onCancel={() => setPendingReschedule(null)}
         loading={actionLoading}
       />
+
+      {/* External (sidebar) drop — lane selector */}
+      {pendingExternalDrop && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-sm mx-4 overflow-hidden">
+            <div className="px-6 pt-5 pb-4 border-b border-slate-100">
+              <h2 className="text-sm font-semibold text-slate-800">¿En qué carril programar?</h2>
+              <p className="text-xs text-slate-500 mt-1">
+                <span className="font-medium">{pendingExternalDrop.instance.custom_name}</span>
+                {' → '}
+                {new Date(pendingExternalDrop.dayKey + 'T12:00:00').toLocaleDateString('es-MX', {
+                  weekday: 'long', day: 'numeric', month: 'long',
+                })}
+              </p>
+            </div>
+            <div className="p-4 grid grid-cols-2 gap-3">
+              {[
+                { field: 'scheduled_prod_mdf',   code: 'PM', label: 'Producción MDF',    cls: 'bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100' },
+                { field: 'scheduled_prod_stone', code: 'PP', label: 'Producción Piedra',  cls: 'bg-stone-50  text-stone-700  border-stone-200  hover:bg-stone-100'  },
+                { field: 'scheduled_inst_mdf',   code: 'IM', label: 'Instalación MDF',   cls: 'bg-sky-50    text-sky-700    border-sky-200    hover:bg-sky-100'    },
+                { field: 'scheduled_inst_stone', code: 'IP', label: 'Instalación Piedra', cls: 'bg-cyan-50   text-cyan-700   border-cyan-200   hover:bg-cyan-100'   },
+              ].map(lane => (
+                <button
+                  key={lane.field}
+                  onClick={() => {
+                    if (onExternalDrop) {
+                      // Build modified instance with the chosen lane date set
+                      const iso = pendingExternalDrop.dayKey + 'T09:00:00';
+                      const updated: InstanceSchedule = {
+                        ...pendingExternalDrop.instance,
+                        schedule: {
+                          ...pendingExternalDrop.instance.schedule,
+                          [lane.code]: iso,
+                        },
+                      };
+                      onExternalDrop(pendingExternalDrop.dayKey, updated);
+                    }
+                    setPendingExternalDrop(null);
+                  }}
+                  className={`p-3 rounded-xl border text-sm font-semibold transition-all ${lane.cls}`}
+                >
+                  <div className="text-lg font-black">{lane.code}</div>
+                  <div className="text-[10px] mt-0.5">{lane.label}</div>
+                </button>
+              ))}
+            </div>
+            <div className="px-4 pb-4">
+              <button
+                onClick={() => setPendingExternalDrop(null)}
+                className="w-full py-2 text-sm text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

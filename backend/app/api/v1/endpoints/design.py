@@ -573,37 +573,62 @@ def simulate_batch(
 # ==========================================
 # 10. RADAR DE INSTANCIAS PENDIENTES (SIMULADOR)
 # ==========================================
-from app.models.sales import PaymentStatus
+from app.models.sales import PaymentStatus, SalesOrderStatus as _SOStatus
 
 class PendingInstanceResponse(BaseModel):
     id: int
     custom_name: str
     product_name: str
     order_project_name: str
+    order_id: int
+
+# Órdenes confirmadas = tienen anticipo pagado O su status ya avanzó a producción
+_CONFIRMED_ORDER_STATUSES = {
+    _SOStatus.WAITING_ADVANCE,
+    _SOStatus.SOLD,
+    _SOStatus.IN_PRODUCTION,
+    _SOStatus.FINISHED,
+    _SOStatus.COMPLETED,
+}
 
 @router.get("/pending_instances", response_model=List[PendingInstanceResponse])
 def get_pending_instances(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Obtiene los bultos pagados (o parcialmente pagados) que no tienen lote asignado."""
+    """
+    Instancias sin lote asignado cuya OV está confirmada.
+    Regla ampliada: incluye OVs con anticipo pagado (PARTIAL/PAID)
+    O cuyo estatus de orden ya es WAITING_ADVANCE/SOLD/IN_PRODUCTION.
+    """
     instances = session.exec(
         select(SalesOrderItemInstance)
         .where(SalesOrderItemInstance.production_batch_id == None)
         .where(SalesOrderItemInstance.is_cancelled == False)
     ).all()
-    
+
     result = []
     for inst in instances:
-        item = session.exec(select(SalesOrderItem).where(SalesOrderItem.id == inst.sales_order_item_id)).first()
-        if item:
-            order = session.exec(select(SalesOrder).where(SalesOrder.id == item.sales_order_id)).first()
-            # La regla de oro: Solo pasan al simulador si la orden YA NO ESTÁ en 'PENDING'
-            if order and order.payment_status in [PaymentStatus.PARTIAL, PaymentStatus.PAID]:
-                result.append(PendingInstanceResponse(
-                    id=inst.id,
-                    custom_name=inst.custom_name,
-                    product_name=item.product_name,
-                    order_project_name=order.project_name
-                ))
+        item = session.exec(
+            select(SalesOrderItem).where(SalesOrderItem.id == inst.sales_order_item_id)
+        ).first()
+        if not item:
+            continue
+        order = session.exec(
+            select(SalesOrder).where(SalesOrder.id == item.sales_order_id)
+        ).first()
+        if not order:
+            continue
+
+        is_paid = order.payment_status in [PaymentStatus.PARTIAL, PaymentStatus.PAID]
+        is_confirmed_status = order.status in _CONFIRMED_ORDER_STATUSES
+
+        if is_paid or is_confirmed_status:
+            result.append(PendingInstanceResponse(
+                id=inst.id,
+                custom_name=inst.custom_name,
+                product_name=item.product_name,
+                order_project_name=order.project_name,
+                order_id=order.id,
+            ))
     return result
