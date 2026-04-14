@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { 
     FileDown, Calendar, User, FileText, Hash, 
-    ClipboardList, Info, Plus, Percent, ShieldAlert, Lock, Unlock, Save
+    ClipboardList, Info, Plus, Percent, ShieldAlert, Lock, Unlock, Save, Tag
 } from 'lucide-react';
 
 // IMPORTACIONES CORREGIDAS (LA CAUSA DEL CORTO CIRCUITO)
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 
 import { SalesOrder } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
+import BaptismModal from './BaptismModal';
 
 interface Props {
     orderId: number | null;
@@ -37,6 +38,7 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
 
     const [isSaving, setIsSaving] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
+    const [showBaptism, setShowBaptism] = useState(false);
 
     useEffect(() => {
         if (orderId) {
@@ -289,8 +291,20 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
 
                     {/* 3. FOOTER DE ACCIONES */}
                     <div className="border-t border-slate-200 pt-4 mt-auto flex justify-between items-center shrink-0">
-                        <div className="text-xs text-slate-400 flex items-center gap-2">
-                            {isSaving ? <span className="text-amber-600 font-bold animate-pulse">Guardando textos/ajustes...</span> : <span className="text-emerald-600 font-bold">✓ Cambios guardados</span>}
+                        <div className="flex items-center gap-3">
+                            <div className="text-xs text-slate-400">
+                                {isSaving ? <span className="text-amber-600 font-bold animate-pulse">Guardando textos/ajustes...</span> : <span className="text-emerald-600 font-bold">✓ Cambios guardados</span>}
+                            </div>
+                            {/* Botón Bautizo — visible para OVs activas (SOLD / IN_PRODUCTION / INSTALLED) */}
+                            {order && ['SOLD', 'IN_PRODUCTION', 'INSTALLED'].includes((order as any).status) && (
+                                <button
+                                    onClick={() => setShowBaptism(true)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors"
+                                    title="Asignar alias a las instancias de esta OV"
+                                >
+                                    <Tag size={13} /> Gestionar Identidad / Bautizar
+                                </button>
+                            )}
                         </div>
                         
                         <div className="flex gap-3">
@@ -300,6 +314,16 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                             </Button>
                         </div>
                     </div>
+
+                    {/* Modal de Bautizo (se abre sobre este modal) */}
+                    {showBaptism && orderId && (
+                        <BaptismModal
+                            orderId={orderId}
+                            order={order}
+                            onClose={() => setShowBaptism(false)}
+                            onComplete={() => { setShowBaptism(false); }}
+                        />
+                    )}
                 </div>
             )}
         </Modal>

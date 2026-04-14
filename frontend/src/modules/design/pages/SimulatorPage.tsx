@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom'; 
 import { designService, PendingInstance, SimulateBatchResponse } from '../../../api/design-service';
 import { productionService } from '../../../api/production-service';
+import { planningService } from '../../../api/planning-service';
 // IMPORTACIÓN CORREGIDA: Se agregaron Calculator y RefreshCw
-import { Package, CheckSquare, Square, AlertTriangle, ShieldCheck, Factory, Beaker, ArrowLeft, Calculator, RefreshCw } from 'lucide-react';
+import { Package, CheckSquare, Square, AlertTriangle, ShieldCheck, Factory, Beaker, ArrowLeft, Calculator, RefreshCw, Pencil, Check, X, Tag } from 'lucide-react';
 
 export default function SimulatorPage() {
   const navigate = useNavigate(); 
@@ -16,6 +17,15 @@ export default function SimulatorPage() {
   const [loadingRadar, setLoadingRadar] = useState(false);
   const [simulating, setSimulating] = useState(false);
   const [creating, setCreating] = useState(false);
+
+  // ── Renombrado inline ───────────────────────────────────────────────
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingName, setEditingName] = useState('');
+  const [savingName, setSavingName] = useState(false);
+
+  // ── Bautizo masivo de selección ────────────────────────────────────
+  const [showMassBaptism, setShowMassBaptism] = useState(false);
+  const [baptismNames, setBaptismNames] = useState<Record<number, string>>({});
 
   useEffect(() => {
     loadPendingInstances();
@@ -89,6 +99,61 @@ export default function SimulatorPage() {
     }
   };
 
+  // ── Helpers de renombrado ───────────────────────────────────────────
+  const startEdit = (inst: PendingInstance) => {
+    setEditingId(inst.id);
+    setEditingName(inst.custom_name);
+  };
+
+  const cancelEdit = () => { setEditingId(null); setEditingName(''); };
+
+  const saveEdit = async (instId: number) => {
+    if (!editingName.trim()) return;
+    setSavingName(true);
+    try {
+      await planningService.updateInstance(instId, { custom_name: editingName.trim() });
+      // Update local list immediately
+      setPendingInstances(prev =>
+        prev.map(p => p.id === instId ? { ...p, custom_name: editingName.trim() } : p)
+      );
+      setEditingId(null);
+    } catch {
+      alert('Error al guardar el alias. Intenta de nuevo.');
+    } finally {
+      setSavingName(false);
+    }
+  };
+
+  const openMassBaptism = () => {
+    const selected = pendingInstances.filter(p => selectedIds.includes(p.id));
+    const initial: Record<number, string> = {};
+    selected.forEach(p => { initial[p.id] = p.custom_name; });
+    setBaptismNames(initial);
+    setShowMassBaptism(true);
+  };
+
+  const saveMassBaptism = async () => {
+    setSavingName(true);
+    try {
+      await Promise.all(
+        Object.entries(baptismNames).map(([id, name]) =>
+          planningService.updateInstance(Number(id), { custom_name: name })
+        )
+      );
+      setPendingInstances(prev =>
+        prev.map(p => baptismNames[p.id] !== undefined
+          ? { ...p, custom_name: baptismNames[p.id] }
+          : p
+        )
+      );
+      setShowMassBaptism(false);
+    } catch {
+      alert('Error al guardar los alias. Intenta de nuevo.');
+    } finally {
+      setSavingName(false);
+    }
+  };
+
   return (
     <div className="p-8 h-full bg-slate-50 flex flex-col max-w-7xl mx-auto animate-in fade-in duration-300">
       
@@ -111,13 +176,24 @@ export default function SimulatorPage() {
         
         {/* COLUMNA IZQUIERDA: EL RADAR */}
         <div className="w-1/3 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
-          <div className="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
-            <h2 className="font-bold text-slate-700 flex items-center gap-2">
-              <Package size={18} className="text-slate-500" /> Órdenes Pendientes
-            </h2>
-            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-bold">
-              {pendingInstances.length} piezas
-            </span>
+          <div className="p-4 border-b border-slate-200 bg-slate-50">
+            <div className="flex justify-between items-center">
+              <h2 className="font-bold text-slate-700 flex items-center gap-2">
+                <Package size={18} className="text-slate-500" /> Órdenes Pendientes
+              </h2>
+              <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-bold">
+                {pendingInstances.length} piezas
+              </span>
+            </div>
+            {/* Bautizo Masivo de selección */}
+            {selectedIds.length > 0 && (
+              <button
+                onClick={openMassBaptism}
+                className="mt-2 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition-colors"
+              >
+                <Tag size={13} /> Bautizo Masivo ({selectedIds.length} seleccionadas)
+              </button>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
@@ -133,26 +209,75 @@ export default function SimulatorPage() {
               </div>
             ) : (
               pendingInstances.map(inst => (
-                <div 
+                <div
                   key={inst.id}
-                  onClick={() => toggleSelection(inst.id)}
-                  className={`p-3 rounded-lg border cursor-pointer transition flex items-start gap-3 ${
-                    selectedIds.includes(inst.id) 
-                      ? 'bg-blue-50 border-blue-400 shadow-sm' 
+                  className={`p-3 rounded-lg border transition ${
+                    selectedIds.includes(inst.id)
+                      ? 'bg-blue-50 border-blue-400 shadow-sm'
                       : 'bg-white border-slate-200 hover:border-blue-300'
                   }`}
                 >
-                  <div className="mt-1">
-                    {selectedIds.includes(inst.id) ? (
-                      <CheckSquare size={18} className="text-blue-600" />
-                    ) : (
-                      <Square size={18} className="text-slate-300" />
-                    )}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-slate-800 text-sm">{inst.custom_name}</h3>
-                    <p className="text-xs text-slate-500">{inst.product_name}</p>
-                    <p className="text-[10px] font-mono text-slate-400 mt-1">Proyecto: {inst.order_project_name}</p>
+                  <div className="flex items-start gap-3">
+                    {/* Checkbox */}
+                    <div
+                      className="mt-1 cursor-pointer shrink-0"
+                      onClick={() => { if (editingId !== inst.id) toggleSelection(inst.id); }}
+                    >
+                      {selectedIds.includes(inst.id)
+                        ? <CheckSquare size={18} className="text-blue-600" />
+                        : <Square size={18} className="text-slate-300" />}
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      {editingId === inst.id ? (
+                        /* ── Inline rename form ── */
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            autoFocus
+                            type="text"
+                            value={editingName}
+                            onChange={e => setEditingName(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') saveEdit(inst.id); if (e.key === 'Escape') cancelEdit(); }}
+                            className="flex-1 text-sm border border-indigo-300 rounded-lg px-2 py-1 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                          />
+                          <button
+                            onClick={() => saveEdit(inst.id)}
+                            disabled={savingName}
+                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                          >
+                            <Check size={15} />
+                          </button>
+                          <button
+                            onClick={cancelEdit}
+                            className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-lg transition"
+                          >
+                            <X size={15} />
+                          </button>
+                        </div>
+                      ) : (
+                        /* ── Display mode ── */
+                        <div className="flex items-start justify-between gap-1">
+                          <div
+                            className="cursor-pointer flex-1 min-w-0"
+                            onClick={() => toggleSelection(inst.id)}
+                          >
+                            <h3 className="font-bold text-slate-800 text-sm truncate">{inst.custom_name}</h3>
+                            <p className="text-xs text-slate-500">{inst.product_name}</p>
+                            <p className="text-[10px] font-mono text-slate-400 mt-0.5">
+                              {inst.order_project_name}
+                            </p>
+                          </div>
+                          <button
+                            onClick={e => { e.stopPropagation(); startEdit(inst); }}
+                            className="p-1.5 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition shrink-0"
+                            title="Renombrar instancia"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))
@@ -276,6 +401,64 @@ export default function SimulatorPage() {
         </div>
 
       </div>
+
+      {/* ── Modal de Bautizo Masivo ─────────────────────────────────── */}
+      {showMassBaptism && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg mx-4 overflow-hidden">
+            {/* Header */}
+            <div className="px-6 pt-6 pb-4 border-b border-slate-100">
+              <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
+                <Tag size={18} className="text-indigo-600" />
+                Bautizo Masivo
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                Asigna aliases a las {selectedIds.length} instancias seleccionadas antes de crear el lote.
+              </p>
+            </div>
+
+            {/* Instance list */}
+            <div className="px-6 py-4 max-h-80 overflow-y-auto space-y-2.5">
+              {pendingInstances
+                .filter(p => selectedIds.includes(p.id))
+                .map((inst, idx) => (
+                  <div key={inst.id} className="flex items-center gap-3">
+                    <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold flex items-center justify-center shrink-0">
+                      {idx + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] text-slate-400 truncate">{inst.product_name} · {inst.order_project_name}</p>
+                      <input
+                        type="text"
+                        value={baptismNames[inst.id] ?? inst.custom_name}
+                        onChange={e => setBaptismNames(prev => ({ ...prev, [inst.id]: e.target.value }))}
+                        placeholder="Alias / Ubicación..."
+                        className="w-full text-sm border border-slate-200 rounded-lg px-3 py-1.5 text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition mt-0.5"
+                      />
+                    </div>
+                  </div>
+                ))}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 pb-6 flex justify-end gap-3 border-t border-slate-100 pt-4">
+              <button
+                onClick={() => setShowMassBaptism(false)}
+                className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-50 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={saveMassBaptism}
+                disabled={savingName}
+                className="px-5 py-2 rounded-xl text-sm font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition disabled:opacity-50"
+              >
+                {savingName ? 'Guardando...' : `Guardar ${selectedIds.length} aliases`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

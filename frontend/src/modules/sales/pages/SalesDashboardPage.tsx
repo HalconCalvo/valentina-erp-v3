@@ -20,8 +20,9 @@ import client from '../../../api/axios-client';
 // IMPORTACIONES DE LOS DOS MODALES
 import { SalesOrderDetailModal } from '../components/SalesOrderDetailModal';
 import { FinancialReviewModal } from '../../management/components/FinancialReviewModal';
+import BaptismModal from '../components/BaptismModal';
 
-type SalesSection = 'GOALS' | 'QUOTES' | 'COLLECTIONS' | null;
+type SalesSection = 'GOALS' | 'QUOTES' | 'COLLECTIONS' | 'MONITOR' | null;
 type GoalDetailView = 'COMMISSIONS' | 'CLOSED' | 'STREET' | 'EFFECTIVENESS' | null;
 type QuoteDetailView = 'DRAFTS' | 'REVIEW' | 'AUTHORIZED' | 'EXPIRING' | 'HISTORY' | null;
 type CollectionDetailView = 'RETAINED' | 'PAYABLE' | 'ADVANCES' | null;
@@ -38,6 +39,7 @@ const SalesDashboardPage: React.FC = () => {
 
     const [viewingOrderIdForFormat, setViewingOrderIdForFormat] = useState<number | null>(null);
     const [viewingOrderIdForAudit, setViewingOrderIdForAudit] = useState<number | null>(null);
+    const [baptismOrderId, setBaptismOrderId] = useState<number | null>(null);
 
     const [activeSection, setActiveSection] = useState<SalesSection>(
         (sessionStorage.getItem('sales_activeSection') as SalesSection) || null
@@ -354,6 +356,7 @@ const SalesDashboardPage: React.FC = () => {
             case 'GOALS': return 'Mi Meta y Mis Ingresos';
             case 'QUOTES': return 'Mis Cotizaciones (Archivo)';
             case 'COLLECTIONS': return 'Cobranza y Comisiones';
+            case 'MONITOR': return 'Monitor Operativo — Órdenes de Venta Activas';
             default: return 'La Trinchera Comercial';
         }
     };
@@ -707,6 +710,105 @@ const SalesDashboardPage: React.FC = () => {
         );
     };
 
+    // ── MONITOR OPERATIVO: Render ──────────────────────────────────────
+    const renderMonitorSection = () => {
+        const activeOrders = orders.filter(o =>
+            ['SOLD', 'IN_PRODUCTION', 'INSTALLED'].includes(o.status)
+        );
+
+        const MONITOR_STATUS_COLORS: Record<string, string> = {
+            'SOLD':          'bg-emerald-50 text-emerald-700 border-emerald-200',
+            'IN_PRODUCTION': 'bg-blue-50 text-blue-700 border-blue-200',
+            'INSTALLED':     'bg-violet-50 text-violet-700 border-violet-200',
+        };
+
+        if (activeOrders.length === 0) {
+            return (
+                <div className="text-center py-16 text-slate-500 bg-white rounded-xl border border-slate-200 shadow-sm">
+                    <Users size={32} className="mx-auto mb-3 opacity-30" />
+                    <p className="font-bold">No hay proyectos activos en este momento.</p>
+                    <p className="text-sm mt-1">Las OVs en estatus SOLD, EN PRODUCCIÓN e INSTALADO aparecerán aquí.</p>
+                </div>
+            );
+        }
+
+        return (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden animate-in slide-in-from-right-4 duration-300">
+                {/* Sub-header */}
+                <div className="px-6 py-3 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
+                    <p className="text-xs font-bold text-indigo-700 uppercase tracking-wider flex items-center gap-2">
+                        <Users size={14} /> Órdenes de Venta Activas
+                        <span className="bg-indigo-200 text-indigo-800 rounded-full px-2 py-0.5 text-[10px]">
+                            {activeOrders.length}
+                        </span>
+                    </p>
+                    <p className="text-[10px] text-indigo-500">Haz clic en "Bautizar" para asignar alias a las instancias antes de enviarlas a planeación.</p>
+                </div>
+
+                <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
+                        <tr>
+                            <th className="px-6 py-3 font-bold">Folio / Proyecto</th>
+                            <th className="px-6 py-3 font-bold">Cliente</th>
+                            <th className="px-6 py-3 font-bold">Estatus</th>
+                            <th className="px-6 py-3 font-bold text-right">Total</th>
+                            <th className="px-6 py-3 font-bold text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {activeOrders.map(order => {
+                            const colorClass = MONITOR_STATUS_COLORS[order.status] ?? 'bg-slate-50 text-slate-600 border-slate-200';
+                            const instances: any[] = (order.items ?? []).flatMap((it: any) => it.instances ?? []);
+                            const hasUnnamed = instances.some((inst: any) =>
+                                !inst.custom_name || /instancia \d+/i.test(inst.custom_name)
+                            );
+
+                            return (
+                                <tr key={order.id} className="hover:bg-slate-50 transition-colors">
+                                    <td className="px-6 py-4">
+                                        <p className="font-bold text-slate-800">OV-{String(order.id).padStart(4,'0')}</p>
+                                        <p className="text-xs text-slate-500 font-medium truncate max-w-[200px]">{order.project_name}</p>
+                                    </td>
+                                    <td className="px-6 py-4 font-medium text-slate-600">{getClientName(order)}</td>
+                                    <td className="px-6 py-4">
+                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold border ${colorClass}`}>
+                                            {getStatusLabel(order.status)}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 text-right font-bold text-slate-700">{formatCurrency(order.total_price || 0)}</td>
+                                    <td className="px-6 py-4">
+                                        <div className="flex justify-center items-center gap-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="text-xs px-3"
+                                                onClick={() => setViewingOrderIdForFormat(order.id!)}
+                                            >
+                                                Ver Detalle
+                                            </Button>
+                                            <button
+                                                onClick={() => setBaptismOrderId(order.id!)}
+                                                className={`
+                                                    flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all
+                                                    ${hasUnnamed
+                                                        ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-500 shadow-sm'
+                                                        : 'bg-white hover:bg-slate-50 text-slate-600 border-slate-200'}
+                                                `}
+                                                title="Asignar alias a las instancias de esta OV"
+                                            >
+                                                🏷️ {hasUnnamed ? 'Bautizar ⚡' : 'Gestionar Identidad'}
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+        );
+    };
+
     return (
         <div className="p-8 max-w-7xl mx-auto pb-24 space-y-6 animate-fadeIn">
             
@@ -795,7 +897,7 @@ const SalesDashboardPage: React.FC = () => {
                     </div>
 
                     <div className="w-full relative h-40">
-                        <Card onClick={() => navigate('/finance/pending-invoices')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-indigo-500 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white overflow-hidden group">
+                        <Card onClick={() => openMainSection('MONITOR')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-indigo-500 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white overflow-hidden group">
                             <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50 text-indigo-700 border-r border-indigo-100 font-black transition-colors group-hover:bg-indigo-100 ${getCountSize(stats.activeProjectsCount)}`}>
                                 {stats.activeProjectsCount}
                             </div>
@@ -805,7 +907,7 @@ const SalesDashboardPage: React.FC = () => {
                                     <Users size={16} className="text-indigo-500" />
                                 </div>
                                 <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">Rastreo de Proyectos</p>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">OVs Activas + Bautizo</p>
                                     <Search size={14} className="text-indigo-400"/>
                                 </div>
                             </div>
@@ -1017,6 +1119,8 @@ const SalesDashboardPage: React.FC = () => {
                         </div>
                     )}
 
+                    {activeSection === 'MONITOR' && renderMonitorSection()}
+
                     {activeSection === 'COLLECTIONS' && (
                         <>
                             {activeCollectionView === null ? (
@@ -1115,6 +1219,16 @@ const SalesDashboardPage: React.FC = () => {
                     orderId={viewingOrderIdForAudit}
                     onClose={() => setViewingOrderIdForAudit(null)}
                     readOnly={true}
+                />
+            )}
+
+            {/* MODAL DE BAUTIZO DE INSTANCIAS */}
+            {baptismOrderId !== null && (
+                <BaptismModal
+                    orderId={baptismOrderId}
+                    order={orders.find(o => o.id === baptismOrderId) ?? null}
+                    onClose={() => setBaptismOrderId(null)}
+                    onComplete={() => { setBaptismOrderId(null); loadData(); }}
                 />
             )}
 
