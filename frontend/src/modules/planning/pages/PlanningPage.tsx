@@ -63,6 +63,8 @@ export default function PlanningPage() {
       custom_name: pill.custom_name,
       product_name: null,
       order_folio: null,
+      client_name: null,
+      project_name: null,
       production_status: pill.production_status,
       semaphore: pill.semaphore,
       semaphore_label: pill.semaphore_label,

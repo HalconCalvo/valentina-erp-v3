@@ -25,6 +25,7 @@ from app.models.sales import (
     SalesOrderItemInstance, SalesOrderItem, SalesOrder,
     InstanceStatus, SalesOrderStatus,
 )
+from app.models.foundations import Client
 from app.services.planning_service import (
     compute_semaphore, compute_semaphore_label,
     trigger_double_green, reopen_as_warranty,
@@ -81,22 +82,31 @@ def _serialize_instance(inst: SalesOrderItemInstance, now: datetime, session: Op
         "IP": inst.scheduled_inst_stone.isoformat() if inst.scheduled_inst_stone else None,
     }
 
-    # Enrich with parent item / order data when session is available
+    # Enrich with parent item / order / client data when session is available
     product_name: Optional[str] = None
     order_folio:  Optional[str] = None
+    client_name:  Optional[str] = None
+    project_name: Optional[str] = None
     if session:
         item = session.get(SalesOrderItem, inst.sales_order_item_id)
         if item:
             product_name = item.product_name
             order = session.get(SalesOrder, item.sales_order_id)
             if order:
-                order_folio = f"OV-{str(order.id).zfill(4)}"
+                order_folio  = f"OV-{str(order.id).zfill(4)}"
+                project_name = order.project_name
+                if order.client_id:
+                    client = session.get(Client, order.client_id)
+                    if client:
+                        client_name = client.full_name
 
     return {
         "id": inst.id,
         "custom_name": inst.custom_name,
         "product_name": product_name,
         "order_folio": order_folio,
+        "client_name": client_name,
+        "project_name": project_name,
         "production_status": inst.production_status,
         "semaphore": semaphore,
         "semaphore_label": compute_semaphore_label(semaphore),

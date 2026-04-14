@@ -13,6 +13,8 @@ export interface InstanceSchedule {
   custom_name: string;
   product_name: string | null;
   order_folio: string | null;
+  client_name: string | null;
+  project_name: string | null;
   production_status: string;
   semaphore: string;
   semaphore_label: string;

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { HealthPanel, InstanceSchedule } from '../../../api/planning-service';
 import { getSemaphoreConfig } from '../hooks/usePlanning';
 
@@ -167,6 +167,9 @@ function InstanceCard({
 export default function HealthSidebar({ data, loading, onInstanceClick, onInstanceDragStart, highlightId }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('RED');
 
+  // ── Search state — persists across re-fetches (does NOT reset on data refresh) ──
+  const [query, setQuery] = useState('');
+
   // Compute active instances count for the BLUE "Activas" pseudo-tab
   const activeCount = data
     ? (data.counts['BLUE'] ?? 0) +
@@ -181,24 +184,78 @@ export default function HealthSidebar({ data, loading, onInstanceClick, onInstan
     return data.counts[tab.countKey] ?? 0;
   };
 
-  const getInstances = (): InstanceSchedule[] => {
+  // Raw list from the active tab
+  const rawInstances = useMemo((): InstanceSchedule[] => {
     if (!data) return [];
     const tab = TABS.find(t => t.key === activeTab);
     return tab ? tab.dataKey(data) : [];
-  };
+  }, [data, activeTab]);
 
-  const instances = getInstances();
+  // Filtered list — case-insensitive, multi-field, stable across refreshes
+  const instances = useMemo((): InstanceSchedule[] => {
+    const q = query.trim().toLowerCase();
+    if (!q) return rawInstances;
+    return rawInstances.filter(inst => {
+      return (
+        inst.custom_name.toLowerCase().includes(q) ||
+        (inst.order_folio?.toLowerCase().includes(q) ?? false) ||
+        (inst.client_name?.toLowerCase().includes(q) ?? false) ||
+        (inst.project_name?.toLowerCase().includes(q) ?? false) ||
+        (inst.product_name?.toLowerCase().includes(q) ?? false)
+      );
+    });
+  }, [rawInstances, query]);
+
+  const isFiltering = query.trim().length > 0;
 
   return (
     <div className="flex flex-col h-full bg-white border-l border-slate-100">
 
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-slate-100">
-        <h2 className="text-sm font-semibold text-slate-700">Panel de Salud</h2>
+      {/* ── Header + Search ── */}
+      <div className="px-3 pt-3 pb-2 border-b border-slate-100 space-y-2">
+        <h2 className="text-sm font-semibold text-slate-700 px-1">Panel de Salud</h2>
+
+        {/* Multi-criteria search */}
+        <div className="relative">
+          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-300 text-xs pointer-events-none">
+            🔍
+          </span>
+          <input
+            type="text"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Buscar OV, cliente o Proyecto..."
+            className="w-full pl-7 pr-7 py-1.5 text-xs border border-slate-200 rounded-xl bg-white text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition"
+          />
+          {query && (
+            <button
+              onClick={() => setQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 transition-colors text-sm leading-none"
+              title="Limpiar búsqueda"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
 
+      {/* ── Active filter banner ── */}
+      {isFiltering && (
+        <div className="mx-3 mt-2 px-2.5 py-1.5 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center justify-between">
+          <p className="text-[10px] text-indigo-700 font-semibold">
+            Filtro activo — {instances.length} resultado{instances.length !== 1 ? 's' : ''}
+          </p>
+          <button
+            onClick={() => setQuery('')}
+            className="text-[9px] text-indigo-400 hover:text-indigo-700 transition-colors font-semibold"
+          >
+            Limpiar ✕
+          </button>
+        </div>
+      )}
+
       {/* ── Semaphore Filter Tabs ── */}
-      <div className="flex border-b border-slate-100 shrink-0">
+      <div className="flex border-b border-slate-100 shrink-0 mt-1">
         {TABS.map(tab => {
           const count = getCount(tab);
           const isActive = activeTab === tab.key;
@@ -252,19 +309,39 @@ export default function HealthSidebar({ data, loading, onInstanceClick, onInstan
         )}
 
         {!loading && instances.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-10 text-slate-400">
-            <span className="text-3xl mb-2">
-              {activeTab === 'RED' ? '🟢' :
-               activeTab === 'YELLOW' ? '✅' :
-               activeTab === 'WARRANTY' ? '🛡️' : '📋'}
-            </span>
-            <p className="text-xs text-center leading-relaxed">
-              {activeTab === 'RED'      ? 'Sin instancias críticas. ¡Todo en orden!' :
-               activeTab === 'YELLOW'   ? 'Sin alertas próximas.' :
-               activeTab === 'WARRANTY' ? 'Sin garantías activas.' :
-               activeTab === 'BLUE'     ? 'Sin instancias en proceso.' :
-               'Sin instancias en planeación.'}
-            </p>
+          <div className="flex flex-col items-center justify-center py-10 text-slate-400 px-3">
+            {isFiltering ? (
+              <>
+                <span className="text-3xl mb-2">🔎</span>
+                <p className="text-xs font-semibold text-slate-600 text-center">
+                  No se encontraron instancias para esta búsqueda.
+                </p>
+                <p className="text-[10px] text-slate-400 text-center mt-1 leading-relaxed">
+                  Probaste: "<span className="italic">{query}</span>"
+                </p>
+                <button
+                  onClick={() => setQuery('')}
+                  className="mt-3 text-[10px] text-indigo-500 hover:text-indigo-700 font-semibold underline transition-colors"
+                >
+                  Limpiar búsqueda
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="text-3xl mb-2">
+                  {activeTab === 'RED'      ? '🟢' :
+                   activeTab === 'YELLOW'   ? '✅' :
+                   activeTab === 'WARRANTY' ? '🛡️' : '📋'}
+                </span>
+                <p className="text-xs text-center leading-relaxed">
+                  {activeTab === 'RED'      ? 'Sin instancias críticas. ¡Todo en orden!' :
+                   activeTab === 'YELLOW'   ? 'Sin alertas próximas.' :
+                   activeTab === 'WARRANTY' ? 'Sin garantías activas.' :
+                   activeTab === 'BLUE'     ? 'Sin instancias en proceso.' :
+                   'Sin instancias en planeación.'}
+                </p>
+              </>
+            )}
           </div>
         )}
 
