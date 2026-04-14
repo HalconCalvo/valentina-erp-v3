@@ -45,18 +45,41 @@ class PaymentType(str, enum.Enum):
 class CXCStatus(str, enum.Enum):
     PENDING = "PENDING"     
     PAID = "PAID"           
-    CANCELLED = "CANCELLED" 
+    CANCELLED = "CANCELLED"
+
+class CommissionType(str, enum.Enum):
+    SELLER = "SELLER"
+    DIRECTOR_GLOBAL = "DIRECTOR_GLOBAL"
 
 class InstanceStatus(str, enum.Enum):
-    PENDING = "PENDING"             
-    IN_PRODUCTION = "IN_PRODUCTION" 
-    READY = "READY"                 
-    CARGADO = "CARGADO"             
-    INSTALLED = "INSTALLED"         
-    CLOSED = "CLOSED"               
+    PENDING = "PENDING"             # 🔘 Gris: Programado (sin lote)
+    IN_PRODUCTION = "IN_PRODUCTION" # 🔵 Azul: Lote generado / en corte
+    READY = "READY"                 # 🔵🟢 Azul-Verde: Material empacado en andén
+    CARGADO = "CARGADO"             # 🔵🔵 Doble Azul: Escaneo de carga, cuadrilla en tránsito
+    INSTALLED = "INSTALLED"         # 🟢 Verde: Evidencia fotográfica subida
+    CLOSED = "CLOSED"               # 🟢🟢 Doble Verde: Firma de conformidad capturada
+    WARRANTY = "WARRANTY"           # ⚠️ Garantía: Instancia cerrada reabierta para reparación
 
 # ==========================================
-# 2. MODELO DE COBROS (CUENTAS POR COBRAR - CXC)
+# 2. MODELO DE COMISIONES (REGISTRO DETALLADO)
+# ==========================================
+class SalesCommission(SQLModel, table=True):
+    __tablename__ = "sales_commissions"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    customer_payment_id: int = Field(foreign_key="customer_payments.id", index=True)
+    user_id: int = Field(foreign_key="users.id", index=True)
+    commission_type: CommissionType = Field(default=CommissionType.SELLER)
+
+    base_amount: float
+    rate: float
+    commission_amount: float
+
+    is_paid: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+# ==========================================
+# 3. MODELO DE COBROS (CUENTAS POR COBRAR - CXC)
 # ==========================================
 class CustomerPayment(SQLModel, table=True):
     __tablename__ = "customer_payments"
@@ -120,6 +143,20 @@ class SalesOrderItemInstance(SQLModel, table=True):
     
     signed_received_at: Optional[datetime] = Field(default=None) # Detona la garantía de 1 año
     administration_invoice_folio: Optional[str] = Field(default=None) # Control de Facturación
+
+    # ========================================================
+    # MÓDULO DE PLANEACIÓN ESTRATÉGICA: MATRIZ DE 4 CARRILES
+    # ========================================================
+    scheduled_prod_mdf: Optional[datetime] = Field(default=None)    # PM: Fecha programada Producción MDF
+    scheduled_prod_stone: Optional[datetime] = Field(default=None)  # PP: Fecha programada Producción Piedra
+    scheduled_inst_mdf: Optional[datetime] = Field(default=None)    # IM: Fecha programada Instalación MDF
+    scheduled_inst_stone: Optional[datetime] = Field(default=None)  # IP: Fecha programada Instalación Piedra
+
+    # GARANTÍA Y CIERRE HISTÓRICO
+    warranty_started_at: Optional[datetime] = Field(default=None)   # Timestamp de inicio de garantía (1 año)
+    is_warranty_reopened: bool = Field(default=False)               # Instancia reabierta para garantía
+    warranty_reopened_at: Optional[datetime] = Field(default=None)  # Cuando se reabrió
+    original_signed_at: Optional[datetime] = Field(default=None)    # Snapshot del cierre original (historial)
     # ========================================================
 
     payment: Optional["CustomerPayment"] = Relationship(back_populates="instances_paid")

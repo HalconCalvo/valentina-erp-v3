@@ -47,6 +47,9 @@ import PendingToInvoicePage from './modules/finance/pages/PendingToInvoicePage';
 // 9. PRODUCCIÓN (¡NUEVO V3.5!)
 import FactoryFloorPage from './modules/production/pages/FactoryFloorPage';
 
+// 10. PLANEACIÓN ESTRATÉGICA: MATRIZ DE 4 CARRILES
+import PlanningPage from './modules/planning/pages/PlanningPage';
+
 // --- GUARDIA DE SEGURIDAD ---
 const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
   const token = localStorage.getItem('token');
@@ -108,6 +111,9 @@ function App() {
 
             {/* --- PRODUCCIÓN V3.5 --- */}
             <Route path="/production" element={<FactoryFloorPage />} />
+
+            {/* --- PLANEACIÓN ESTRATÉGICA: TABLERO MAESTRO --- */}
+            <Route path="/planning" element={<PlanningPage />} />
         </Route>
         
         {/* Fallback */}

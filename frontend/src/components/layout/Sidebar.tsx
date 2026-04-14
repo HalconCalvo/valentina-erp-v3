@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Package, ShoppingCart, Factory, 
   Truck, Settings, LogOut, ChevronRight, Users, Briefcase, 
   UserCog, Percent, ClipboardList, TrendingUp, Shield, User,
-  Ruler, Hammer, PenTool, Landmark
+  Ruler, Hammer, PenTool, Landmark, CalendarDays
 } from 'lucide-react';
 
 import { useFoundations } from '../../modules/foundations/hooks/useFoundations';
@@ -30,6 +30,7 @@ const menuItems = [
   { icon: Ruler, label: 'Diseño e Ingeniería', path: '/design', allowedRoles: ['DIRECTOR', 'GERENCIA', 'DESIGN', 'PRODUCTION'] },
   
   { icon: Factory, label: 'Producción', path: '/production', allowedRoles: ['DIRECTOR', 'GERENCIA', 'DESIGN', 'PRODUCTION'] },
+  { icon: CalendarDays, label: 'Planeación Maestra', path: '/planning', allowedRoles: ['DIRECTOR', 'GERENCIA', 'DESIGN', 'PRODUCTION', 'SALES'] },
   { icon: Truck, label: 'Logística e Instalación', path: '/logistics', allowedRoles: ['DIRECTOR', 'GERENCIA', 'ADMIN', 'WAREHOUSE', 'SALES', 'LOGISTICS', 'PRODUCTION'] },
   { icon: ClipboardList, label: 'Compras y Almacén', path: '/inventory', allowedRoles: ['DIRECTOR', 'GERENCIA', 'ADMIN', 'WAREHOUSE', 'PRODUCTION'] },
   { icon: Package, label: 'Catálogo Materiales', path: '/materials', allowedRoles: ['DIRECTOR', 'GERENCIA', 'ADMIN', 'DESIGN', 'WAREHOUSE', 'PRODUCTION'] }, 
@@ -43,14 +44,14 @@ const menuItems = [
 // --- REORDENAMIENTO ---
 const rolePriorities: Record<string, string[]> = {
   // Ahora el Director ve su panel estratégico antes que la gerencia
-  'DIRECTOR': ['/', '/director', '/management', '/treasury'],
-  'GERENCIA': ['/', '/management', '/treasury', '/production', '/sales'],
+  'DIRECTOR': ['/', '/director', '/planning', '/management', '/treasury'],
+  'GERENCIA': ['/', '/management', '/planning', '/treasury', '/production', '/sales'],
   'ADMIN': ['/', '/treasury', '/inventory', '/providers', '/materials'],
   // Ventas ya no necesita priorizar /design
-  'SALES': ['/', '/sales', '/clients', '/logistics'],
-  'DESIGN': ['/', '/design', '/materials', '/production'],
+  'SALES': ['/', '/sales', '/planning', '/clients', '/logistics'],
+  'DESIGN': ['/', '/design', '/planning', '/materials', '/production'],
   'WAREHOUSE': ['/', '/inventory', '/providers', '/materials', '/logistics'],
-  'PRODUCTION': ['/', '/production', '/inventory', '/design'],
+  'PRODUCTION': ['/', '/production', '/planning', '/inventory', '/design'],
   'LOGISTICS': ['/', '/logistics', '/production']
 };
 

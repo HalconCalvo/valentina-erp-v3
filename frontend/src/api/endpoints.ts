@@ -45,4 +45,15 @@ export const API_ROUTES = {
         ORDER_DETAIL: (id: number) => `/sales/orders/${id}`, 
         ORDER_STATUS: (id: number) => `/sales/orders/${id}/status`, 
     },
+
+    // --- PLANEACIÓN ESTRATÉGICA: MATRIZ DE 4 CARRILES ---
+    PLANNING: {
+        CALENDAR: '/planning/calendar',
+        HEALTH: '/planning/instances/health',
+        INSTANCE: (id: number) => `/planning/instances/${id}`,
+        RESCHEDULE: (id: number) => `/planning/instances/${id}/reschedule`,
+        CLOSE: (id: number) => `/planning/instances/${id}/close`,
+        REOPEN_WARRANTY: (id: number) => `/planning/instances/${id}/reopen-warranty`,
+        BAPTIZE: (orderId: number) => `/planning/orders/${orderId}/baptize`,
+    },
 };
