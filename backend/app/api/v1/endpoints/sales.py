@@ -13,12 +13,13 @@ from app.core.deps import get_current_active_user
 # Importamos los modelos
 from app.models.sales import (
     SalesOrder, SalesOrderItem, SalesOrderItemInstance, 
-    SalesOrderStatus, InstanceStatus, CustomerPayment, PaymentType, PaymentMethod, CXCStatus
+    SalesOrderStatus, InstanceStatus, CustomerPayment, PaymentType, PaymentMethod, CXCStatus,
+    SalesCommission, CommissionType
 )
 from app.models.design import ProductVersion
 from app.models.material import Material
 from app.models.foundations import TaxRate, GlobalConfig, Client
-from app.models.users import User 
+from app.models.users import User, UserRole
 from app.services.pdf_generator import PDFGenerator
 
 # --- IMPORTAMOS LOS MOTORES (V3.5) ---
@@ -395,24 +396,55 @@ def register_advance(order_id: int, payload: PaymentPayload, session: Session = 
 @router.post("/orders/{order_id}/confirm_payment/{cxc_id}", response_model=SalesOrderRead)
 def confirm_cxc_payment(order_id: int, cxc_id: int, session: Session = Depends(get_session)):
     """
-    AL COBRAR DINERO, LIBERAMOS COMISIÓN AL VENDEDOR
+    AL COBRAR DINERO, LIBERAMOS COMISIÓN AL VENDEDOR Y GENERAMOS
+    COMISIONES GLOBALES PARA TODOS LOS DIRECTORES.
     """
     order = session.get(SalesOrder, order_id)
     cxc = session.get(CustomerPayment, cxc_id)
-    
+
     cxc.status = CXCStatus.PAID
     cxc.payment_date = datetime.utcnow()
-    
-    # Restar saldo
+
     order.outstanding_balance -= cxc.amount
-    
-    # ---> NUEVO: LA COMISIÓN SE MARCA COMO 'EXIGIBLE' EN EL REPORTE <---
-    # Esta es una marca lógica para que Tesorería sepa que este pago ya generó comisión pagable.
-    cxc.commission_paid = False # Significa: "Listo para que Tesorería le pague al vendedor"
-    
+    cxc.commission_paid = False
+
     if order.outstanding_balance <= 0.1:
         order.status = SalesOrderStatus.FINISHED
-        
+
+    # --- BASE ANTES DE IVA ---
+    tax_rate_obj = session.get(TaxRate, order.tax_rate_id)
+    tax_multiplier = tax_rate_obj.rate if tax_rate_obj else 0.16
+    base_before_tax = cxc.amount / (1.0 + tax_multiplier)
+
+    # --- COMISIÓN DEL VENDEDOR ASIGNADO ---
+    seller_commission_rate = normalize_commission(order.applied_commission_percent or 0.0)
+    if order.user_id and seller_commission_rate > 0:
+        seller_commission_amount = base_before_tax * seller_commission_rate
+        session.add(SalesCommission(
+            customer_payment_id=cxc_id,
+            user_id=order.user_id,
+            commission_type=CommissionType.SELLER,
+            base_amount=base_before_tax,
+            rate=seller_commission_rate,
+            commission_amount=seller_commission_amount,
+        ))
+
+    # --- COMISIONES GLOBALES PARA DIRECTORES ---
+    directors = session.exec(
+        select(User).where(User.role == UserRole.DIRECTOR, User.is_active == True)
+    ).all()
+    for director in directors:
+        dir_rate = normalize_commission(director.global_commission_rate or 0.0)
+        if dir_rate > 0:
+            session.add(SalesCommission(
+                customer_payment_id=cxc_id,
+                user_id=director.id,
+                commission_type=CommissionType.DIRECTOR_GLOBAL,
+                base_amount=base_before_tax,
+                rate=dir_rate,
+                commission_amount=base_before_tax * dir_rate,
+            ))
+
     session.add(cxc)
     session.add(order)
     session.commit()
@@ -471,6 +503,44 @@ def request_order_changes(order_id: int, session: Session = Depends(get_session)
     session.refresh(order)
     return order
 
+# ==========================================
+# MARCAR COMO PERDIDA (CLIENTE NO ACEPTÓ)
+# ==========================================
+@router.post("/orders/{order_id}/mark_lost", response_model=SalesOrderRead)
+def mark_order_lost(order_id: int, session: Session = Depends(get_session)):
+    """
+    El vendedor marca la cotización como perdida (el cliente no aceptó ni rechazó
+    formalmente, simplemente se cerró la negociación). Equivale a CLIENT_REJECTED.
+    """
+    order = session.get(SalesOrder, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    order.status = SalesOrderStatus.CLIENT_REJECTED
+    session.add(order)
+    session.commit()
+    session.refresh(order)
+    return order
+
+
+# ==========================================
+# RECHAZAR COTIZACIÓN (DIRECCIÓN → VENDEDOR)
+# ==========================================
+@router.post("/orders/{order_id}/reject", response_model=SalesOrderRead)
+def reject_order(order_id: int, session: Session = Depends(get_session)):
+    """
+    Dirección rechaza formalmente la cotización. Se registra como REJECTED
+    (distinto de CLIENT_REJECTED que es cuando el cliente no acepta).
+    """
+    order = session.get(SalesOrder, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    order.status = SalesOrderStatus.REJECTED
+    session.add(order)
+    session.commit()
+    session.refresh(order)
+    return order
+
+
 @router.delete("/orders/{order_id}")
 def delete_sales_order(order_id: int, session: Session = Depends(get_session)):
     """
@@ -500,18 +570,102 @@ def update_payment_commission(
     Endpoint utilizado por Tesorería para marcar una comisión
     como 'Ya Pagada' al asesor de ventas.
     """
-    # 1. Buscamos el cobro exacto que originó esta comisión
     payment = session.get(CustomerPayment, payment_id)
-    
     if not payment:
         raise HTTPException(status_code=404, detail="El cobro no existe en la base de datos.")
     
-    # 2. Actualizamos la bandera
     payment.commission_paid = payload.commission_paid
-    
-    # 3. Guardamos y devolvemos
     session.add(payment)
     session.commit()
     session.refresh(payment)
-    
     return {"ok": True, "commission_paid": payment.commission_paid}
+
+# ==========================================
+# 8. REPORTE DE COMISIONES
+# ==========================================
+class SalesCommissionRead(BaseModel):
+    id: int
+    customer_payment_id: int
+    user_id: int
+    user_name: Optional[str]
+    user_role: Optional[str]
+    commission_type: str
+    base_amount: float
+    rate: float
+    commission_amount: float
+    is_paid: bool
+    created_at: datetime
+
+    sales_order_id: Optional[int] = None
+    project_name: Optional[str] = None
+    payment_amount: Optional[float] = None
+
+    class Config:
+        from_attributes = True
+
+class CommissionPaidUpdate(BaseModel):
+    is_paid: bool
+
+@router.get("/commissions", response_model=List[SalesCommissionRead])
+def get_commissions_report(
+    user_id: Optional[int] = None,
+    commission_type: Optional[str] = None,
+    is_paid: Optional[bool] = None,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Reporte consolidado de comisiones (vendedor + globales de directores).
+    Acepta filtros opcionales por usuario, tipo y estado de pago.
+    """
+    query = select(SalesCommission)
+    if user_id:
+        query = query.where(SalesCommission.user_id == user_id)
+    if commission_type:
+        query = query.where(SalesCommission.commission_type == commission_type)
+    if is_paid is not None:
+        query = query.where(SalesCommission.is_paid == is_paid)
+
+    commissions = session.exec(query.order_by(SalesCommission.created_at.desc())).all()
+
+    results = []
+    for c in commissions:
+        user = session.get(User, c.user_id)
+        cxc = session.get(CustomerPayment, c.customer_payment_id)
+        order = session.get(SalesOrder, cxc.sales_order_id) if cxc else None
+
+        results.append(SalesCommissionRead(
+            id=c.id,
+            customer_payment_id=c.customer_payment_id,
+            user_id=c.user_id,
+            user_name=user.full_name if user else None,
+            user_role=user.role if user else None,
+            commission_type=c.commission_type,
+            base_amount=c.base_amount,
+            rate=c.rate,
+            commission_amount=c.commission_amount,
+            is_paid=c.is_paid,
+            created_at=c.created_at,
+            sales_order_id=order.id if order else None,
+            project_name=order.project_name if order else None,
+            payment_amount=cxc.amount if cxc else None,
+        ))
+    return results
+
+@router.patch("/commissions/{commission_id}/mark-paid")
+def mark_commission_paid(
+    commission_id: int,
+    payload: CommissionPaidUpdate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Tesorería marca una comisión como pagada o pendiente.
+    """
+    commission = session.get(SalesCommission, commission_id)
+    if not commission:
+        raise HTTPException(status_code=404, detail="Comisión no encontrada.")
+    commission.is_paid = payload.is_paid
+    session.add(commission)
+    session.commit()
+    return {"ok": True, "commission_id": commission_id, "is_paid": commission.is_paid}
