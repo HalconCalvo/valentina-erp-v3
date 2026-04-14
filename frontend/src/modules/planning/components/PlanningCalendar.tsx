@@ -1,8 +1,13 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { CalendarPill, InstanceSchedule } from '../../../api/planning-service';
 import InstancePill from './InstancePill';
 import RescheduleModal from './RescheduleModal';
 import { useInstanceActions } from '../hooks/usePlanning';
+
+// Max pills shown before collapsing; user can expand per-cell
+const PILLS_COLLAPSE_THRESHOLD = 3;
+// Number of pills in a day that triggers a "saturated" amber warning
+const SATURATION_WARNING_COUNT = 5;
 
 interface Props {
   year: number;
@@ -69,6 +74,35 @@ export default function PlanningCalendar({
     dayKey: string;
     instance: InstanceSchedule;
   } | null>(null);
+
+  // Per-cell expand state: set of dayKeys that are expanded beyond the threshold
+  const [expandedCells, setExpandedCells] = useState<Set<string>>(new Set());
+  const toggleExpand = useCallback((dayKey: string) => {
+    setExpandedCells(prev => {
+      const next = new Set(prev);
+      next.has(dayKey) ? next.delete(dayKey) : next.add(dayKey);
+      return next;
+    });
+  }, []);
+
+  // Pre-compute per-day saturation & lane-duplicate warnings
+  const daySaturation = useMemo(() => {
+    const result: Record<string, { saturated: boolean; dupLanes: string[] }> = {};
+    for (const [dayKey, pills] of Object.entries(calendarData)) {
+      const laneCounts: Record<string, number> = {};
+      for (const p of pills) {
+        laneCounts[p.lane] = (laneCounts[p.lane] ?? 0) + 1;
+      }
+      const dupLanes = Object.entries(laneCounts)
+        .filter(([, count]) => count >= 2)
+        .map(([lane]) => lane);
+      result[dayKey] = {
+        saturated: pills.length >= SATURATION_WARNING_COUNT,
+        dupLanes,
+      };
+    }
+    return result;
+  }, [calendarData]);
 
   const { reschedule, loading: actionLoading } = useInstanceActions(onRefresh);
 
@@ -220,11 +254,13 @@ export default function PlanningCalendar({
               const pills = calendarData[dayKey] ?? [];
               const isToday = dayKey === todayKey;
               const isDropTarget = dropTarget === dayKey;
-
-              const filteredPills = highlightInstanceId
-                ? pills.filter(p => p.instance_id === highlightInstanceId)
-                : pills;
               const dimmed = highlightInstanceId != null;
+              const satInfo = daySaturation[dayKey];
+              const isSaturated = satInfo?.saturated ?? false;
+              const dupLanes  = satInfo?.dupLanes ?? [];
+              const isExpanded = expandedCells.has(dayKey);
+              const visiblePills = isExpanded ? pills : pills.slice(0, PILLS_COLLAPSE_THRESHOLD);
+              const hiddenCount = pills.length - visiblePills.length;
 
               return (
                 <div
@@ -232,32 +268,71 @@ export default function PlanningCalendar({
                   className={`
                     min-h-[90px] p-1.5 flex flex-col gap-1 transition-colors
                     ${isToday ? 'bg-blue-50/60' : 'hover:bg-slate-50/80'}
-                    ${isDropTarget ? 'bg-emerald-50 ring-1 ring-inset ring-emerald-300' : ''}
+                    ${isDropTarget
+                      ? 'bg-emerald-50 ring-2 ring-inset ring-emerald-300'
+                      : isSaturated
+                        ? 'ring-1 ring-inset ring-amber-200'
+                        : ''}
                   `}
                   onDragOver={(e) => handleDragOver(e, dayKey)}
                   onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDrop(e, dayKey)}
                 >
-                  {/* Day number */}
-                  <div className="flex items-center justify-between">
+                  {/* ── Day header ── */}
+                  <div className="flex items-center justify-between min-h-[16px]">
                     <span className={`
-                      text-xs font-medium
+                      text-xs font-medium leading-none
                       ${isToday
                         ? 'w-5 h-5 flex items-center justify-center rounded-full bg-slate-800 text-white text-[10px]'
                         : 'text-slate-400'}
                     `}>
                       {day}
                     </span>
-                    {pills.length > 0 && (
-                      <span className="text-[9px] text-slate-300">
-                        {pills.length}
-                      </span>
-                    )}
+
+                    <div className="flex items-center gap-0.5">
+                      {/* Lane-duplicate warning */}
+                      {dupLanes.length > 0 && (
+                        <span
+                          title={`Carril duplicado: ${dupLanes.join(', ')} — Hay más de 1 operación del mismo tipo este día`}
+                          className="text-[8px] text-amber-500 font-black leading-none cursor-default"
+                        >
+                          ⚠️
+                        </span>
+                      )}
+                      {/* Saturation count badge */}
+                      {pills.length > 0 && (
+                        <span className={`
+                          text-[9px] font-bold leading-none px-1 py-0.5 rounded-full
+                          ${isSaturated
+                            ? 'bg-amber-100 text-amber-600'
+                            : 'text-slate-300'}
+                        `}>
+                          {pills.length}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Pills */}
-                  <div className={`flex flex-col gap-0.5 ${dimmed && filteredPills.length === 0 ? 'opacity-20' : ''}`}>
-                    {(highlightInstanceId ? pills : pills).map((pill, pIdx) => {
+                  {/* ── Drop hint when dragging ── */}
+                  {(dragState || externalDragInstance) && isDropTarget && (
+                    <div className="border border-dashed border-emerald-400 rounded-lg py-1 text-center">
+                      <span className="text-[9px] text-emerald-600 font-medium">Soltar aquí</span>
+                    </div>
+                  )}
+
+                  {/* ── Saturation alert banner (shown when ≥ threshold) ── */}
+                  {isSaturated && (
+                    <div
+                      title="Día saturado — tienes 5 o más operaciones. Puedes continuar pero revisa tu capacidad."
+                      className="text-[8px] text-amber-600 bg-amber-50 border border-amber-200 rounded px-1 py-0.5 text-center font-semibold cursor-default"
+                    >
+                      ⚠️ Día saturado
+                    </div>
+                  )}
+
+                  {/* ── Pills stack ── */}
+                  <div className="flex flex-col gap-0.5">
+                    {visiblePills.map((pill, pIdx) => {
                       const isHighlighted = highlightInstanceId === pill.instance_id;
                       return (
                         <div
@@ -274,6 +349,18 @@ export default function PlanningCalendar({
                       );
                     })}
                   </div>
+
+                  {/* ── "+N más" / "Ver menos" toggle ── */}
+                  {pills.length > PILLS_COLLAPSE_THRESHOLD && (
+                    <button
+                      onClick={() => toggleExpand(dayKey)}
+                      className="text-[9px] text-indigo-500 hover:text-indigo-700 font-semibold text-left transition-colors mt-0.5"
+                    >
+                      {isExpanded
+                        ? '↑ Ver menos'
+                        : `+${hiddenCount} más`}
+                    </button>
+                  )}
                 </div>
               );
             })}
