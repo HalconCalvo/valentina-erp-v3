@@ -11,6 +11,8 @@ export interface ScheduleMap {
 export interface InstanceSchedule {
   id: number;
   custom_name: string;
+  product_name: string | null;
+  order_folio: string | null;
   production_status: string;
   semaphore: string;
   semaphore_label: string;

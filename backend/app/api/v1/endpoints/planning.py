@@ -70,8 +70,9 @@ class BaptismPayload(BaseModel):
 # HELPERS
 # ============================================================
 
-def _serialize_instance(inst: SalesOrderItemInstance, now: datetime) -> dict:
-    """Serializa una instancia con semáforo calculado."""
+def _serialize_instance(inst: SalesOrderItemInstance, now: datetime, session: Optional[Session] = None) -> dict:
+    """Serializa una instancia con semáforo calculado.
+    Si se provee `session`, enriquece con product_name y order_folio del padre."""
     semaphore = compute_semaphore(inst, now)
     schedule = {
         "PM": inst.scheduled_prod_mdf.isoformat() if inst.scheduled_prod_mdf else None,
@@ -79,9 +80,23 @@ def _serialize_instance(inst: SalesOrderItemInstance, now: datetime) -> dict:
         "IM": inst.scheduled_inst_mdf.isoformat() if inst.scheduled_inst_mdf else None,
         "IP": inst.scheduled_inst_stone.isoformat() if inst.scheduled_inst_stone else None,
     }
+
+    # Enrich with parent item / order data when session is available
+    product_name: Optional[str] = None
+    order_folio:  Optional[str] = None
+    if session:
+        item = session.get(SalesOrderItem, inst.sales_order_item_id)
+        if item:
+            product_name = item.product_name
+            order = session.get(SalesOrder, item.sales_order_id)
+            if order:
+                order_folio = f"OV-{str(order.id).zfill(4)}"
+
     return {
         "id": inst.id,
         "custom_name": inst.custom_name,
+        "product_name": product_name,
+        "order_folio": order_folio,
         "production_status": inst.production_status,
         "semaphore": semaphore,
         "semaphore_label": compute_semaphore_label(semaphore),
@@ -226,7 +241,7 @@ def get_health_panel(
     for inst in instances:
         color = compute_semaphore(inst, now)
         if color in groups:
-            groups[color].append(_serialize_instance(inst, now))
+            groups[color].append(_serialize_instance(inst, now, session))
 
     return {
         "timestamp": now.isoformat(),
@@ -271,7 +286,7 @@ def update_instance_schedule(
     session.refresh(inst)
 
     now = datetime.utcnow()
-    return _serialize_instance(inst, now)
+    return _serialize_instance(inst, now, session)
 
 
 # ============================================================
@@ -314,7 +329,7 @@ def reschedule_pill(
     now = datetime.utcnow()
     return {
         "updated_fields": list(updates.keys()),
-        "instance": _serialize_instance(inst, now),
+        "instance": _serialize_instance(inst, now, session),
     }
 
 

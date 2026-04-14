@@ -90,53 +90,72 @@ function InstanceCard({
       draggable
       onDragStart={() => onDragStart?.(instance)}
       onClick={() => onClick?.(instance)}
-      title="Clic para editar · Arrastrar al calendario para asignar fecha"
       className={`
-        w-full text-left p-3 rounded-xl border cursor-pointer transition-all select-none
-        hover:shadow-sm active:scale-95
+        w-full text-left px-3 py-3 rounded-xl border select-none transition-all
+        cursor-grab active:cursor-grabbing hover:shadow-md active:scale-[0.98]
         ${isHighlighted
-          ? 'border-indigo-400 ring-2 ring-indigo-200 shadow-md'
-          : `${cfg.border} ${cfg.bg} hover:border-slate-300`
+          ? 'border-indigo-400 ring-2 ring-indigo-200 shadow-md bg-indigo-50/40'
+          : `border-slate-200 bg-white hover:border-slate-300`
         }
       `}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className={`text-xs font-semibold truncate ${cfg.text}`}>
-            {instance.is_warranty_reopened && <span className="mr-1">⚠️</span>}
+      {/* ── Row 1: Semaphore dot + Alias title ── */}
+      <div className="flex items-start gap-2.5">
+        {/* Semaphore dot — visual bullet */}
+        <span className="text-lg leading-none mt-0.5 shrink-0">{cfg.dot}</span>
+
+        <div className="flex-1 min-w-0">
+          {/* Main title: custom_name */}
+          <p className="text-sm font-bold text-slate-800 leading-snug break-words">
+            {instance.is_warranty_reopened && (
+              <span className="mr-1 text-orange-500">⚠️</span>
+            )}
             {instance.custom_name}
           </p>
-          <p className="text-[10px] text-slate-400 mt-0.5">{cfg.label}</p>
-        </div>
-        <div className="flex flex-col items-end gap-1 shrink-0">
-          <span className="text-base leading-none">{cfg.dot}</span>
-          {/* Drag handle hint */}
-          <span className="text-[9px] text-slate-300">⠿ arrastrar</span>
+
+          {/* Subtitle: product name */}
+          {instance.product_name && (
+            <p className="text-[11px] text-slate-400 mt-0.5 truncate">
+              {instance.product_name}
+            </p>
+          )}
+
+          {/* Folio chip */}
+          {instance.order_folio && (
+            <span className="inline-block mt-1 text-[9px] font-semibold bg-slate-100 text-slate-500 rounded-full px-1.5 py-0.5">
+              {instance.order_folio}
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Scheduled dates chips */}
+      {/* ── Row 2: Semaphore label ── */}
+      <p className={`text-[10px] font-medium mt-1.5 ml-[30px] ${cfg.text}`}>
+        {cfg.label}
+      </p>
+
+      {/* ── Row 3: Scheduled lane chips ── */}
       {schedEntries.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1">
+        <div className="mt-2 ml-[30px] flex flex-wrap gap-1">
           {schedEntries.map(([lane, dt]) => (
             <span
               key={lane}
-              className="inline-flex items-center gap-0.5 text-[9px] bg-white/70 border border-slate-200 rounded-full px-1.5 py-0.5 text-slate-600"
+              className="inline-flex items-center gap-1 text-[9px] bg-slate-50 border border-slate-200 rounded-full px-2 py-0.5 text-slate-600 font-medium"
             >
-              <span className="font-bold">{LANE_LABELS[lane] ?? lane}</span>
-              {' '}
+              <span className="font-black">{LANE_LABELS[lane] ?? lane}</span>
               {new Date(dt).toLocaleDateString('es-MX', { month: 'short', day: 'numeric' })}
             </span>
           ))}
         </div>
       )}
 
+      {/* ── Row 4: Delivery deadline ── */}
       {instance.delivery_deadline && (
-        <p className="text-[10px] text-slate-400 mt-1.5">
+        <p className="text-[10px] text-slate-400 mt-1.5 ml-[30px]">
           Límite:{' '}
-          <span className="font-medium">
+          <span className="font-semibold text-slate-600">
             {new Date(instance.delivery_deadline).toLocaleDateString('es-MX', {
-              day: 'numeric', month: 'short',
+              day: 'numeric', month: 'short', year: 'numeric',
             })}
           </span>
         </p>
@@ -176,9 +195,6 @@ export default function HealthSidebar({ data, loading, onInstanceClick, onInstan
       {/* Header */}
       <div className="px-4 py-3 border-b border-slate-100">
         <h2 className="text-sm font-semibold text-slate-700">Panel de Salud</h2>
-        <p className="text-[10px] text-slate-400 mt-0.5">
-          Haz clic para editar · Arrastra al calendario para programar
-        </p>
       </div>
 
       {/* ── Semaphore Filter Tabs ── */}
