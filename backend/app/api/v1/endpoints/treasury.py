@@ -35,9 +35,28 @@ def create_bank_account(
 
 @router.get("/accounts", response_model=List[BankAccountResponse])
 def get_bank_accounts(session: SessionDep, current_user: CurrentUser) -> Any:
-    """Listar todas las cuentas bancarias."""
+    """Listar todas las cuentas bancarias.
+    Saldos visibles solo para DIRECTOR y GERENCIA; el resto recibe current_balance = 0.
+    """
     statement = select(BankAccount)
     accounts = session.exec(statement).all()
+
+    role = (current_user.role or "").upper()
+    if role not in {"DIRECTOR", "GERENCIA"}:
+        # Enmascarar saldo para roles no autorizados
+        masked = []
+        for acc in accounts:
+            masked.append(BankAccountResponse(
+                id=acc.id,
+                name=acc.name,
+                account_number=acc.account_number,
+                currency=acc.currency,
+                initial_balance=0.0,
+                current_balance=0.0,
+                is_active=acc.is_active,
+            ))
+        return masked
+
     return accounts
 
 # ------------------------------------------------------------------
