@@ -70,13 +70,11 @@ def compute_semaphore(instance: SalesOrderItemInstance, reference_date: Optional
     days_until = (earliest - now).days
 
     if days_until < 0:
-        return SemaphoreColor.RED       # Fecha vencida sin evento
+        return SemaphoreColor.RED       # Fecha vencida sin lote
     elif days_until <= 15:
         return SemaphoreColor.YELLOW    # Alerta: faltan ≤ 15 días
-    elif days_until <= 30:
-        return SemaphoreColor.YELLOW    # Alerta amplia
     else:
-        return SemaphoreColor.GRAY      # +30 días, planeación a largo plazo
+        return SemaphoreColor.GRAY      # Programado (> 15 días)
 
 
 def compute_semaphore_label(color: str) -> str:

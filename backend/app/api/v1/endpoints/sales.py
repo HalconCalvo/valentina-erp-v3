@@ -541,6 +541,146 @@ def reject_order(order_id: int, session: Session = Depends(get_session)):
     return order
 
 
+# ==========================================
+# REGISTRAR AVANCE DE OBRA (🟢🟢 → FACTURA DE AVANCE)
+# ==========================================
+class RegisterProgressPayload(BaseModel):
+    invoice_folio: Optional[str] = None
+    amount: float = 0.0
+    instance_ids: List[int] = []      # Si está vacío, toma todas las instancias CLOSED sin pago
+
+
+@router.post("/orders/{order_id}/register_progress")
+def register_progress_invoice(
+    order_id: int,
+    payload: RegisterProgressPayload,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Registra una Factura de Avance para las instancias en estado 🟢🟢 CLOSED.
+
+    - Si payload.instance_ids está vacío, toma TODAS las instancias CLOSED sin cobro.
+    - Crea un CustomerPayment de tipo PROGRESS.
+    - Vincula las instancias a ese cobro (instance.payment_id).
+    - Retorna el cobro creado y las instancias vinculadas.
+    """
+    order = session.exec(
+        select(SalesOrder)
+        .where(SalesOrder.id == order_id)
+        .options(
+            selectinload(SalesOrder.items).selectinload(SalesOrderItem.instances)
+        )
+    ).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Orden de venta no encontrada.")
+
+    # Reunir instancias candidatas: CLOSED y sin cobro asignado
+    all_instances: list[SalesOrderItemInstance] = []
+    for item in order.items:
+        all_instances.extend(item.instances or [])
+
+    if payload.instance_ids:
+        candidates = [
+            i for i in all_instances
+            if i.id in payload.instance_ids
+            and i.production_status == InstanceStatus.CLOSED
+            and i.payment_id is None
+        ]
+    else:
+        candidates = [
+            i for i in all_instances
+            if i.production_status == InstanceStatus.CLOSED
+            and i.payment_id is None
+        ]
+
+    if not candidates:
+        raise HTTPException(
+            status_code=422,
+            detail="No hay instancias en estado 🟢🟢 CERRADO pendientes de facturación para esta orden."
+        )
+
+    # Crear el CXC de avance
+    new_cxc = CustomerPayment(
+        sales_order_id=order.id,
+        payment_type=PaymentType.PROGRESS,
+        invoice_folio=payload.invoice_folio,
+        amount=payload.amount,
+        status=CXCStatus.PENDING,
+        created_by_user_id=current_user.id,
+    )
+    session.add(new_cxc)
+    session.flush()  # Obtener el ID del CXC
+
+    # Vincular instancias al cobro de avance
+    linked = []
+    for inst in candidates:
+        inst.payment_id = new_cxc.id
+        session.add(inst)
+        linked.append({
+            "instance_id": inst.id,
+            "custom_name": inst.custom_name,
+            "production_status": inst.production_status,
+        })
+
+    session.commit()
+    session.refresh(new_cxc)
+
+    return {
+        "message": f"Factura de avance registrada. {len(linked)} instancia(s) vinculada(s).",
+        "cxc_id": new_cxc.id,
+        "payment_type": new_cxc.payment_type,
+        "invoice_folio": new_cxc.invoice_folio,
+        "amount": new_cxc.amount,
+        "status": new_cxc.status,
+        "instances_linked": linked,
+    }
+
+
+@router.get("/orders/pending-progress")
+def get_pending_progress_instances(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Retorna todas las instancias en estado 🟢🟢 CLOSED que aún no tienen
+    una Factura de Avance asignada (payment_id == None).
+    Usado por la bandeja 'Avances por Facturar' en Administración.
+    """
+    stmt = (
+        select(SalesOrderItemInstance)
+        .where(
+            SalesOrderItemInstance.production_status == InstanceStatus.CLOSED,
+            SalesOrderItemInstance.payment_id == None,  # noqa: E711
+        )
+        .options(
+            selectinload(SalesOrderItemInstance.item)
+                .selectinload(SalesOrderItem.order)
+                .selectinload(SalesOrder.client)
+        )
+    )
+    instances = session.exec(stmt).all()
+
+    result = []
+    for inst in instances:
+        item = inst.item
+        order = item.order if item else None
+        client = order.client if order else None
+        result.append({
+            "instance_id": inst.id,
+            "custom_name": inst.custom_name or f"Instancia #{inst.id}",
+            "production_status": inst.production_status,
+            "signed_received_at": inst.signed_received_at.isoformat() if inst.signed_received_at else None,
+            "order_id": order.id if order else None,
+            "order_folio": f"OV-{str(order.id).zfill(4)}" if order else "—",
+            "project_name": order.project_name if order else None,
+            "client_name": client.full_name if client else "Sin Cliente",
+            "item_product_name": item.product_name if item else None,
+        })
+
+    return result
+
+
 @router.delete("/orders/{order_id}")
 def delete_sales_order(order_id: int, session: Session = Depends(get_session)):
     """
