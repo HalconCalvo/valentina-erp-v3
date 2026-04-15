@@ -1,11 +1,13 @@
-from typing import Any, List
+from typing import Any, List, Optional
+from datetime import date, datetime
+from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, status
 from sqlmodel import select
 
 # --- TUS DEPENDENCIAS EXACTAS ---
 from app.core.deps import SessionDep, CurrentUser
 
-from app.models.treasury import BankAccount, BankTransaction, TransactionType
+from app.models.treasury import BankAccount, BankTransaction, TransactionType, WeeklyFixedCost
 from app.schemas.treasury_schema import (
     BankAccountCreate, BankAccountResponse, 
     BankTransactionCreate, BankTransactionResponse,
@@ -161,3 +163,57 @@ def get_account_transactions(
     transactions = session.exec(statement).all()
     
     return transactions
+
+
+# ------------------------------------------------------------------
+# 5. COSTOS FIJOS SEMANALES (CIERRE JUEVES — KPI TABLERO)
+# ------------------------------------------------------------------
+class WeeklyFixedCostCreate(BaseModel):
+    week_reference_date: date
+    admin_payroll: float = 0.0
+    design_sales_payroll: float = 0.0
+    production_plant_payroll: float = 0.0
+    notes: Optional[str] = None
+
+
+class WeeklyFixedCostRead(BaseModel):
+    id: int
+    week_reference_date: date
+    admin_payroll: float
+    design_sales_payroll: float
+    production_plant_payroll: float
+    notes: Optional[str] = None
+    created_by_user_id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+@router.post("/weekly-fixed-costs", response_model=WeeklyFixedCostRead)
+def create_weekly_fixed_cost(
+    payload: WeeklyFixedCostCreate,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> Any:
+    if current_user.role.upper() not in {"GERENCIA", "DIRECTOR", "ADMIN", "FINANCE", "FINANZAS"}:
+        raise HTTPException(status_code=403, detail="Sin permiso para registrar cierre semanal.")
+    row = WeeklyFixedCost(
+        week_reference_date=payload.week_reference_date,
+        admin_payroll=payload.admin_payroll,
+        design_sales_payroll=payload.design_sales_payroll,
+        production_plant_payroll=payload.production_plant_payroll,
+        notes=payload.notes,
+        created_by_user_id=current_user.id,
+    )
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return row
+
+
+@router.get("/weekly-fixed-costs/latest", response_model=Optional[WeeklyFixedCostRead])
+def get_latest_weekly_fixed_cost(session: SessionDep, current_user: CurrentUser) -> Any:
+    stmt = select(WeeklyFixedCost).order_by(WeeklyFixedCost.week_reference_date.desc())
+    row = session.exec(stmt).first()
+    return row

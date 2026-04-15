@@ -78,6 +78,10 @@ class SalesCommission(SQLModel, table=True):
     is_paid: bool = Field(default=False)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
+    # Tesorería / nómina: observaciones y aplazamiento de pago de comisión
+    admin_notes: Optional[str] = Field(default=None)
+    payroll_deferred: bool = Field(default=False)
+
 # ==========================================
 # 3. MODELO DE COBROS (CUENTAS POR COBRAR - CXC)
 # ==========================================

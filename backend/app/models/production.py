@@ -1,6 +1,20 @@
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+from enum import Enum
 from sqlmodel import SQLModel, Field, Column, JSON
+
+# ==========================================
+# ENUMS DE NÓMINA
+# ==========================================
+class PayrollStatus(str, Enum):
+    PENDING_SIGNATURE = "PENDING_SIGNATURE"  # Cuadrilla en obra, esperando firma
+    READY_TO_PAY = "READY_TO_PAY"            # Firma recibida — listo para viernes
+    PAID = "PAID"                             # Gerencia ejecutó el pago
+    DEFERRED = "DEFERRED"                     # Omitido esta quincena (requiere motivo en admin_notes)
+
+class PayrollPaymentType(str, Enum):
+    LEADER = "LEADER"
+    HELPER = "HELPER"
 
 # ==========================================
 # 1. LOTES DE PRODUCCIÓN (FÁBRICA)
@@ -62,6 +76,30 @@ class InstallationAssignment(SQLModel, table=True):
     actual_installation_cost: Optional[float] = Field(default=0.0) # Viáticos, compras extra en ruta
     warranty_end_date: Optional[datetime] = Field(default=None) # Responsabilidad post-venta
     
-    installer_pay_amount: Optional[float] = Field(default=0.0) # Lo pactado a pagar a la cuadrilla
-    is_pay_settled: Optional[bool] = Field(default=False) # Si Gerencia ya ejecutó el pago a destajo
+    installer_pay_amount: Optional[float] = Field(default=0.0)
+    is_pay_settled: Optional[bool] = Field(default=False)
     # ========================================================
+
+
+# ==========================================
+# 3. NÓMINA A DESTAJO (REGISTRO DE PAGO)
+# ==========================================
+class PayrollPayment(SQLModel, table=True):
+    __tablename__ = "payroll_payments"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    installation_assignment_id: int = Field(foreign_key="installation_assignments.id", index=True)
+    user_id: int = Field(foreign_key="users.id", index=True)
+
+    payment_type: PayrollPaymentType  # LEADER o HELPER
+
+    days_worked: float        # Días de instalación de la receta (snapshot)
+    daily_rate: float         # Tarifa del tabulador vigente (snapshot)
+    total_amount: float       # days_worked * daily_rate
+
+    status: PayrollStatus = Field(default=PayrollStatus.PENDING_SIGNATURE)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    paid_at: Optional[datetime] = Field(default=None)
+
+    admin_notes: Optional[str] = Field(default=None)
+    bank_account_id: Optional[int] = Field(default=None, foreign_key="bank_accounts.id")

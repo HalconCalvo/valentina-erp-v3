@@ -739,9 +739,210 @@ class SalesCommissionRead(BaseModel):
     sales_order_id: Optional[int] = None
     project_name: Optional[str] = None
     payment_amount: Optional[float] = None
+    admin_notes: Optional[str] = None
+    payroll_deferred: bool = False
 
     class Config:
         from_attributes = True
+
+
+def _days_waiting(reference: Optional[datetime]) -> int:
+    if not reference:
+        return 0
+    now = datetime.utcnow()
+    ref = reference.replace(tzinfo=None) if getattr(reference, "tzinfo", None) else reference
+    return max(0, (now - ref).days)
+
+
+class PayrollCommissionRow(BaseModel):
+    """Fila de auditoría de nómina de comisiones (totales independientes por bucket)."""
+    kind: str  # PROVISIONAL | ACCRUED
+    id: Optional[int] = None
+    sales_order_id: int
+    project_name: Optional[str] = None
+    seller_name: Optional[str] = None
+    amount: float
+    days_waiting: int
+    reference_label: str
+    customer_payment_id: Optional[int] = None
+    cxc_status: Optional[str] = None
+    admin_notes: Optional[str] = None
+    payroll_deferred: bool = False
+
+
+class CommissionsPayrollOverview(BaseModel):
+    retained_total: float
+    payable_total: float
+    paid_total: float
+    retained: List[PayrollCommissionRow]
+    payable: List[PayrollCommissionRow]
+    paid: List[PayrollCommissionRow]
+
+
+@router.get("/commissions/payroll-overview", response_model=CommissionsPayrollOverview)
+def get_commissions_payroll_overview(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Tres bandejas con sumas independientes (sin duplicar montos entre tarjetas):
+    - Retenidas: OV en espera de anticipo (provisional) + comisiones ligadas a CXC aún PENDING.
+    - Por pagar: comisiones de vendedor cobradas (CXC PAID), no pagadas al asesor, no diferidas.
+    - Pagadas: comisiones marcadas is_paid.
+    """
+    retained: List[PayrollCommissionRow] = []
+    payable: List[PayrollCommissionRow] = []
+    paid: List[PayrollCommissionRow] = []
+
+    # --- A) Provisional: órdenes esperando anticipo (sin desglose por cobro aún) ---
+    waiting = session.exec(
+        select(SalesOrder).where(SalesOrder.status == SalesOrderStatus.WAITING_ADVANCE)
+    ).all()
+    for o in waiting:
+        seller = session.get(User, o.user_id) if o.user_id else None
+        est = float(o.commission_amount or 0.0)
+        if est <= 0 and o.applied_commission_percent and o.total_price:
+            est = float(o.total_price) * float(o.applied_commission_percent)
+        retained.append(PayrollCommissionRow(
+            kind="PROVISIONAL",
+            id=None,
+            sales_order_id=o.id,
+            project_name=o.project_name,
+            seller_name=seller.full_name if seller else None,
+            amount=est,
+            days_waiting=_days_waiting(o.created_at),
+            reference_label="Anticipo pendiente (OV)",
+            customer_payment_id=None,
+            cxc_status="WAITING_ADVANCE",
+            admin_notes=None,
+            payroll_deferred=False,
+        ))
+
+    # --- B) Comisiones con CXC aún no liquidado (retenidas) ---
+    pending_cxc = session.exec(
+        select(SalesCommission, CustomerPayment)
+        .join(CustomerPayment, SalesCommission.customer_payment_id == CustomerPayment.id)
+        .where(
+            SalesCommission.commission_type == CommissionType.SELLER,
+            SalesCommission.is_paid == False,  # noqa: E712
+            CustomerPayment.status == CXCStatus.PENDING,
+        )
+    ).all()
+    for c, cx in pending_cxc:
+        user = session.get(User, c.user_id)
+        order = session.get(SalesOrder, cx.sales_order_id)
+        retained.append(PayrollCommissionRow(
+            kind="ACCRUED",
+            id=c.id,
+            sales_order_id=order.id if order else cx.sales_order_id,
+            project_name=order.project_name if order else None,
+            seller_name=user.full_name if user else None,
+            amount=float(c.commission_amount),
+            days_waiting=_days_waiting(cx.created_at),
+            reference_label=f"CXC #{cx.id} pendiente de cobro",
+            customer_payment_id=cx.id,
+            cxc_status=cx.status.value if hasattr(cx.status, "value") else str(cx.status),
+            admin_notes=c.admin_notes,
+            payroll_deferred=bool(c.payroll_deferred),
+        ))
+
+    # --- C) Por pagar: cobro confirmado, comisión aún no liquidada al vendedor ---
+    ready = session.exec(
+        select(SalesCommission, CustomerPayment)
+        .join(CustomerPayment, SalesCommission.customer_payment_id == CustomerPayment.id)
+        .where(
+            SalesCommission.commission_type == CommissionType.SELLER,
+            SalesCommission.is_paid == False,  # noqa: E712
+            SalesCommission.payroll_deferred == False,  # noqa: E712
+            CustomerPayment.status == CXCStatus.PAID,
+        )
+    ).all()
+    for c, cx in ready:
+        user = session.get(User, c.user_id)
+        order = session.get(SalesOrder, cx.sales_order_id)
+        payable.append(PayrollCommissionRow(
+            kind="ACCRUED",
+            id=c.id,
+            sales_order_id=order.id if order else cx.sales_order_id,
+            project_name=order.project_name if order else None,
+            seller_name=user.full_name if user else None,
+            amount=float(c.commission_amount),
+            days_waiting=_days_waiting(c.created_at),
+            reference_label=f"Cobro #{cx.id} liquidado",
+            customer_payment_id=cx.id,
+            cxc_status=cx.status.value if hasattr(cx.status, "value") else str(cx.status),
+            admin_notes=c.admin_notes,
+            payroll_deferred=bool(c.payroll_deferred),
+        ))
+
+    # --- D) Histórico pagado ---
+    done = session.exec(
+        select(SalesCommission)
+        .where(
+            SalesCommission.commission_type == CommissionType.SELLER,
+            SalesCommission.is_paid == True,  # noqa: E712
+        )
+        .order_by(SalesCommission.created_at.desc())
+    ).all()
+    for c in done:
+        cx = session.get(CustomerPayment, c.customer_payment_id)
+        user = session.get(User, c.user_id)
+        order = session.get(SalesOrder, cx.sales_order_id) if cx else None
+        paid.append(PayrollCommissionRow(
+            kind="ACCRUED",
+            id=c.id,
+            sales_order_id=order.id if order else (cx.sales_order_id if cx else 0),
+            project_name=order.project_name if order else None,
+            seller_name=user.full_name if user else None,
+            amount=float(c.commission_amount),
+            days_waiting=0,
+            reference_label="Comisión pagada",
+            customer_payment_id=c.customer_payment_id,
+            cxc_status=(cx.status.value if cx and hasattr(cx.status, "value") else (str(cx.status) if cx else None)),
+            admin_notes=c.admin_notes,
+            payroll_deferred=False,
+        ))
+
+    return CommissionsPayrollOverview(
+        retained_total=sum(r.amount for r in retained),
+        payable_total=sum(r.amount for r in payable),
+        paid_total=sum(r.amount for r in paid),
+        retained=retained,
+        payable=payable,
+        paid=paid,
+    )
+
+
+class CommissionPayrollUpdate(BaseModel):
+    admin_notes: Optional[str] = None
+    payroll_deferred: Optional[bool] = None
+
+
+@router.patch("/commissions/{commission_id}/payroll")
+def update_commission_payroll_fields(
+    commission_id: int,
+    payload: CommissionPayrollUpdate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Observaciones y aplazamiento de pago en bandeja Por Pagar."""
+    commission = session.get(SalesCommission, commission_id)
+    if not commission:
+        raise HTTPException(status_code=404, detail="Comisión no encontrada.")
+    if payload.admin_notes is not None:
+        commission.admin_notes = payload.admin_notes
+    if payload.payroll_deferred is not None:
+        if payload.payroll_deferred and not (payload.admin_notes or commission.admin_notes):
+            raise HTTPException(
+                status_code=422,
+                detail="Debes documentar el motivo en observaciones antes de aplazar u omitir el pago.",
+            )
+        commission.payroll_deferred = payload.payroll_deferred
+    session.add(commission)
+    session.commit()
+    session.refresh(commission)
+    return {"ok": True, "commission_id": commission_id}
+
 
 class CommissionPaidUpdate(BaseModel):
     is_paid: bool
@@ -789,6 +990,8 @@ def get_commissions_report(
             sales_order_id=order.id if order else None,
             project_name=order.project_name if order else None,
             payment_amount=cxc.amount if cxc else None,
+            admin_notes=getattr(c, "admin_notes", None),
+            payroll_deferred=bool(getattr(c, "payroll_deferred", False)),
         ))
     return results
 

@@ -11,6 +11,7 @@ from app.models.sales import SalesOrderItemInstance, SalesOrderItem, InstanceSta
 from app.models.design import ProductVersion
 from app.models.foundations import GlobalConfig
 from app.models.users import User
+from app.models.treasury import BankAccount, BankTransaction, TransactionType
 from app.services.planning_service import trigger_double_green
 
 router = APIRouter()
@@ -42,6 +43,9 @@ class PayrollPaymentRead(BaseModel):
     created_at: datetime
     paid_at: Optional[datetime] = None
     instance_name: Optional[str] = None
+    admin_notes: Optional[str] = None
+    days_waiting: int = 0
+    bank_account_id: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -49,6 +53,54 @@ class PayrollPaymentRead(BaseModel):
 
 class PayrollMarkPaidPayload(BaseModel):
     paid: bool
+    bank_account_id: Optional[int] = None
+
+
+class PayrollDeferPayload(BaseModel):
+    reason: str
+
+
+class InstallerPayrollOverview(BaseModel):
+    retained_total: float
+    payable_total: float
+    paid_total: float
+    deferred_total: float
+    retained: List[PayrollPaymentRead]
+    payable: List[PayrollPaymentRead]
+    paid: List[PayrollPaymentRead]
+    deferred: List[PayrollPaymentRead]
+
+
+def _days_waiting_logistics(reference: Optional[datetime]) -> int:
+    if not reference:
+        return 0
+    now = datetime.utcnow()
+    ref = reference.replace(tzinfo=None) if getattr(reference, "tzinfo", None) else reference
+    return max(0, (now - ref).days)
+
+
+def _serialize_payroll_row(r: PayrollPayment, session: Session) -> PayrollPaymentRead:
+    user = session.get(User, r.user_id)
+    assignment = session.get(InstallationAssignment, r.installation_assignment_id)
+    instance = session.get(SalesOrderItemInstance, assignment.instance_id) if assignment else None
+    st = r.status.value if hasattr(r.status, "value") else str(r.status)
+    return PayrollPaymentRead(
+        id=r.id,
+        installation_assignment_id=r.installation_assignment_id,
+        user_id=r.user_id,
+        user_name=user.full_name if user else None,
+        payment_type=r.payment_type.value if hasattr(r.payment_type, "value") else str(r.payment_type),
+        days_worked=r.days_worked,
+        daily_rate=r.daily_rate,
+        total_amount=r.total_amount,
+        status=st,
+        created_at=r.created_at,
+        paid_at=r.paid_at,
+        instance_name=instance.custom_name if instance else None,
+        admin_notes=getattr(r, "admin_notes", None),
+        days_waiting=_days_waiting_logistics(r.created_at),
+        bank_account_id=getattr(r, "bank_account_id", None),
+    )
 
 
 # ==========================================
@@ -200,6 +252,38 @@ def register_client_signature(
 # ==========================================
 # 3. BANDEJA DE NÓMINA (Gerencia / Admin)
 # ==========================================
+@router.get("/payroll/overview", response_model=InstallerPayrollOverview)
+def get_installer_payroll_overview(session: SessionDep):
+    """
+    Tres bandejas independientes (totales sin duplicar):
+    Retenidas = sin firma; Por pagar = READY_TO_PAY; Pagadas = PAID.
+    DEFERRED se excluye de Por pagar (aparece sólo si se consulta historial vía lista filtrada).
+    """
+    all_rows = session.exec(select(PayrollPayment).order_by(PayrollPayment.created_at.desc())).all()
+    retained, payable, paid, deferred = [], [], [], []
+    for r in all_rows:
+        st = r.status.value if hasattr(r.status, "value") else str(r.status)
+        row = _serialize_payroll_row(r, session)
+        if st == PayrollStatus.PENDING_SIGNATURE.value:
+            retained.append(row)
+        elif st == PayrollStatus.READY_TO_PAY.value:
+            payable.append(row)
+        elif st == PayrollStatus.PAID.value:
+            paid.append(row)
+        elif st == PayrollStatus.DEFERRED.value:
+            deferred.append(row)
+    return InstallerPayrollOverview(
+        retained_total=sum(x.total_amount for x in retained),
+        payable_total=sum(x.total_amount for x in payable),
+        paid_total=sum(x.total_amount for x in paid),
+        deferred_total=sum(x.total_amount for x in deferred),
+        retained=retained,
+        payable=payable,
+        paid=paid,
+        deferred=deferred,
+    )
+
+
 @router.get("/payroll/", response_model=List[PayrollPaymentRead])
 def get_payroll_payments(
     session: SessionDep,
@@ -208,36 +292,44 @@ def get_payroll_payments(
 ):
     """
     Lista todos los registros de nómina a destajo.
-    Filtros: status (PENDING_SIGNATURE | READY_TO_PAY | PAID), user_id.
+    Filtros: status (PENDING_SIGNATURE | READY_TO_PAY | PAID | DEFERRED), user_id.
     """
     query = select(PayrollPayment)
     if payroll_status:
-        query = query.where(PayrollPayment.status == payroll_status)
+        try:
+            ps = PayrollStatus(payroll_status)
+        except ValueError:
+            ps = payroll_status
+        query = query.where(PayrollPayment.status == ps)
     if user_id:
         query = query.where(PayrollPayment.user_id == user_id)
 
     records = session.exec(query.order_by(PayrollPayment.created_at.desc())).all()
+    return [_serialize_payroll_row(r, session) for r in records]
 
-    results = []
-    for r in records:
-        user = session.get(User, r.user_id)
-        assignment = session.get(InstallationAssignment, r.installation_assignment_id)
-        instance = session.get(SalesOrderItemInstance, assignment.instance_id) if assignment else None
-        results.append(PayrollPaymentRead(
-            id=r.id,
-            installation_assignment_id=r.installation_assignment_id,
-            user_id=r.user_id,
-            user_name=user.full_name if user else None,
-            payment_type=r.payment_type,
-            days_worked=r.days_worked,
-            daily_rate=r.daily_rate,
-            total_amount=r.total_amount,
-            status=r.status,
-            created_at=r.created_at,
-            paid_at=r.paid_at,
-            instance_name=instance.custom_name if instance else None,
-        ))
-    return results
+
+@router.patch("/payroll/{payroll_id}/defer")
+def defer_installer_payroll(
+    payroll_id: int,
+    payload: PayrollDeferPayload,
+    session: SessionDep,
+    current_user: CurrentUser,
+):
+    """Omite el pago esta semana — requiere motivo documentado."""
+    if current_user.role.upper() not in {"GERENCIA", "DIRECTOR", "ADMIN"}:
+        raise HTTPException(status_code=403, detail="Solo Gerencia, Director o Admin.")
+    if not payload.reason or not payload.reason.strip():
+        raise HTTPException(status_code=422, detail="Debes escribir el motivo antes de omitir el pago.")
+    record = session.get(PayrollPayment, payroll_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Registro no encontrado.")
+    if record.status != PayrollStatus.READY_TO_PAY:
+        raise HTTPException(status_code=400, detail="Solo se puede omitir desde la bandeja Por Pagar.")
+    record.status = PayrollStatus.DEFERRED
+    record.admin_notes = payload.reason.strip()
+    session.add(record)
+    session.commit()
+    return {"ok": True, "payroll_id": payroll_id, "status": record.status}
 
 
 @router.patch("/payroll/{payroll_id}/mark-paid")
@@ -247,7 +339,7 @@ def mark_payroll_paid(
     session: SessionDep,
     current_user: CurrentUser,
 ):
-    """(GERENCIA / DIRECTOR / ADMIN) Ejecuta el pago de un registro de nómina."""
+    """(GERENCIA / DIRECTOR / ADMIN) Ejecuta el pago y opcionalmente registra salida bancaria."""
     if current_user.role.upper() not in {"GERENCIA", "DIRECTOR", "ADMIN"}:
         raise HTTPException(status_code=403, detail="Solo Gerencia, Director o Admin pueden ejecutar pagos.")
 
@@ -255,8 +347,34 @@ def mark_payroll_paid(
     if not record:
         raise HTTPException(status_code=404, detail="Registro de nómina no encontrado.")
 
-    record.status = PayrollStatus.PAID if payload.paid else PayrollStatus.READY_TO_PAY
-    record.paid_at = datetime.utcnow() if payload.paid else None
+    if payload.paid:
+        if record.status != PayrollStatus.READY_TO_PAY:
+            raise HTTPException(status_code=400, detail="Solo se pagan registros en READY_TO_PAY.")
+        if payload.bank_account_id:
+            account = session.get(BankAccount, payload.bank_account_id)
+            if not account:
+                raise HTTPException(status_code=404, detail="Cuenta bancaria no encontrada.")
+            if account.current_balance < record.total_amount:
+                raise HTTPException(status_code=400, detail="Saldo insuficiente en la cuenta seleccionada.")
+            tx = BankTransaction(
+                account_id=account.id,
+                transaction_type=TransactionType.OUT,
+                amount=record.total_amount,
+                reference=f"Destajo nómina #{record.id}",
+                description="Pago instalador (destajo)",
+                related_entity_type="PAYROLL_PAYMENT",
+                related_entity_id=record.id,
+            )
+            session.add(tx)
+            account.current_balance -= record.total_amount
+            session.add(account)
+            record.bank_account_id = payload.bank_account_id
+        record.status = PayrollStatus.PAID
+        record.paid_at = datetime.utcnow()
+    else:
+        record.status = PayrollStatus.READY_TO_PAY
+        record.paid_at = None
+
     session.add(record)
     session.commit()
     return {"ok": True, "payroll_id": payroll_id, "status": record.status}

@@ -4,10 +4,10 @@ from .foundations import GlobalConfig, Provider, Client, TaxRate
 from .users import User, UserCreate, UserUpdate, UserPublic
 
 # Módulo de Diseño (INGENIERÍA)
-from .design import ProductMaster, ProductVersion, VersionComponent, VersionStatus, ProductionBatch
+from .design import ProductMaster, ProductVersion, VersionComponent, VersionStatus
 
 # Módulo de Ventas (COTIZADOR / ÓRDENES)
-from .sales import SalesOrder, SalesOrderItem, SalesOrderStatus, SalesOrderItemInstance, CustomerPayment, PaymentMethod, InstanceStatus
+from .sales import SalesOrder, SalesOrderItem, SalesOrderStatus, SalesOrderItemInstance, CustomerPayment, PaymentMethod, InstanceStatus, SalesCommission, CommissionType
 
 # Módulo de Inventario (OPERACIONES / ALMACÉN / COMPRAS)
 from .inventory import InventoryReception, InventoryTransaction, InventoryReservation, PurchaseRequisition, PurchaseOrder, PurchaseOrderItem
@@ -15,10 +15,10 @@ from .inventory import InventoryReception, InventoryTransaction, InventoryReserv
 # --- Módulo de Finanzas (NUEVO) ---
 # ¡Esto es lo que faltaba para que Alembic cree las tablas!
 from .finance import PurchaseInvoice, SupplierPayment, InvoiceStatus, PaymentStatus
-from app.models.treasury import BankAccount, BankTransaction
+from app.models.treasury import BankAccount, BankTransaction, WeeklyFixedCost
 
-# --- Módulo de Logística (NUEVO V3.5) ---
-from .logistics import InstallationAssignment
+# --- Módulo de Producción e Instalaciones (V3.5) ---
+from .production import ProductionBatch, InstallationAssignment, PayrollPayment, PayrollPaymentType, PayrollStatus
 
 # Exportación explícita para Alembic/SQLModel
 __all__ = [
@@ -46,6 +46,8 @@ __all__ = [
     "CustomerPayment",
     "PaymentMethod",
     "InstanceStatus",
+    "SalesCommission",
+    "CommissionType",
 
     # Inventario y Compras
     "InventoryReception",
@@ -62,7 +64,11 @@ __all__ = [
     "PaymentStatus",
     "BankAccount",
     "BankTransaction",
+    "WeeklyFixedCost",
 
-    # Logística
-    "InstallationAssignment"
+    # Logística y Nómina
+    "InstallationAssignment",
+    "PayrollPayment",
+    "PayrollPaymentType",
+    "PayrollStatus",
 ]

@@ -1,6 +1,6 @@
 from typing import Optional, List
 from sqlmodel import Field, SQLModel, Relationship
-from datetime import datetime
+from datetime import datetime, date
 import enum
 
 class TransactionType(str, enum.Enum):
@@ -41,3 +41,17 @@ class BankTransaction(SQLModel, table=True):
     related_entity_id: Optional[int] = None
 
     account: Optional[BankAccount] = Relationship(back_populates="transactions")
+
+
+class WeeklyFixedCost(SQLModel, table=True):
+    """Cierre semanal de nóminas fijas (jueves) para KPI de costo real / tablero."""
+    __tablename__ = "weekly_fixed_costs"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    week_reference_date: date = Field(index=True)  # Jueves de referencia del cierre
+    admin_payroll: float = Field(default=0.0)
+    design_sales_payroll: float = Field(default=0.0)
+    production_plant_payroll: float = Field(default=0.0)
+    notes: Optional[str] = Field(default=None)
+    created_by_user_id: int = Field(foreign_key="users.id")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
