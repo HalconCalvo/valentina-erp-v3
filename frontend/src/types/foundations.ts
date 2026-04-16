@@ -99,9 +99,13 @@ export interface GlobalConfig {
     default_edgebanding_factor: number;
     default_tax_rate_id?: number | null;
 
-    // --- NUEVO: METAS FINANCIERAS (Dashboard Directivo) ---
+    // --- METAS FINANCIERAS (Dashboard Directivo) ---
     annual_sales_target: number;
     last_year_sales: number;
+
+    // --- NÓMINA A DESTAJO (Tabulador Global de Instaladores) ---
+    default_leader_daily_rate: number;
+    default_helper_daily_rate: number;
 
     // --- IDENTIDAD CORPORATIVA ---
     company_name: string;

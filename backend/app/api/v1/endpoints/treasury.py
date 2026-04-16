@@ -190,13 +190,25 @@ class WeeklyFixedCostRead(BaseModel):
         from_attributes = True
 
 
+def _role_upper(user: Any) -> str:
+    r = getattr(user, "role", None)
+    if r is None:
+        return ""
+    return str(getattr(r, "value", r)).upper()
+
+
+_WEEKLY_FIXED_COST_ROLES = frozenset(
+    {"GERENCIA", "DIRECTOR", "ADMIN", "ADMINISTRADOR", "FINANCE", "FINANZAS"}
+)
+
+
 @router.post("/weekly-fixed-costs", response_model=WeeklyFixedCostRead)
 def create_weekly_fixed_cost(
     payload: WeeklyFixedCostCreate,
     session: SessionDep,
     current_user: CurrentUser,
 ) -> Any:
-    if current_user.role.upper() not in {"GERENCIA", "DIRECTOR", "ADMIN", "FINANCE", "FINANZAS"}:
+    if _role_upper(current_user) not in _WEEKLY_FIXED_COST_ROLES:
         raise HTTPException(status_code=403, detail="Sin permiso para registrar cierre semanal.")
     row = WeeklyFixedCost(
         week_reference_date=payload.week_reference_date,

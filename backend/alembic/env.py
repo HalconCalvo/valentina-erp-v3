@@ -7,7 +7,7 @@ from sqlmodel import SQLModel
 from alembic import context
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
-from app.models import foundations  # <--- Importa tus modelos corregidos
+import app.models  # noqa: F401 — registra todos los SQLModel en metadata (Alembic autogenerate)
 
 # Esto carga tu archivo .env cuando estás en tu Mac
 load_dotenv() 

@@ -111,6 +111,10 @@ class SalesOrderBase(SQLModel):
     
     valid_until: datetime
     delivery_date: Optional[datetime] = None
+
+    # V5 — OC cliente (captura al aceptar cotización; editable por staff en órdenes legadas)
+    client_po_folio: Optional[str] = None
+    client_po_date: Optional[datetime] = None
     
     # Reglas Financieras
     applied_margin_percent: float = 0.0
@@ -169,6 +173,9 @@ class SalesOrderUpdate(SQLModel):
     status: Optional[SalesOrderStatus] = None
     delivery_date: Optional[datetime] = None
     external_invoice_ref: Optional[str] = None
+
+    client_po_folio: Optional[str] = None
+    client_po_date: Optional[datetime] = None
     
     notes: Optional[str] = None
     conditions: Optional[str] = None

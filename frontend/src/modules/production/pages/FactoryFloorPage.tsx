@@ -1,11 +1,30 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { productionService } from '../../../api/production-service';
 import { ProductionBatch } from '../../../types/production';
-import { Lock, Package, AlertCircle, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Lock, Package, AlertCircle, ArrowRight, CheckCircle2, Boxes } from 'lucide-react';
+
+const STATUS_READY_TO_INSTALL = 'READY_TO_INSTALL';
+const STATUS_PACKING = 'PACKING';
+
+type MaterialFilter = 'ALL' | 'MDF' | 'PIEDRA';
 
 export default function FactoryFloorPage() {
   const [batches, setBatches] = useState<ProductionBatch[]>([]);
   const [loading, setLoading] = useState(true);
+  const [materialFilter, setMaterialFilter] = useState<MaterialFilter>('ALL');
+  /** Bultos por instancia (solo UI; sin persistencia aún). */
+  const [bultosByInstanceId, setBultosByInstanceId] = useState<
+    Record<number, { mdf: number; herrajes: number }>
+  >({});
+  /** Instancias cuyas etiquetas ya se solicitaron correctamente al backend. */
+  const [labelsRequestedInstanceIds, setLabelsRequestedInstanceIds] = useState<Record<number, boolean>>(
+    {}
+  );
+
+  const batchesForView = useMemo(() => {
+    if (materialFilter === 'ALL') return batches;
+    return batches.filter((b) => b.batch_type === materialFilter);
+  }, [batches, materialFilter]);
 
   useEffect(() => {
     loadBatches();
@@ -64,7 +83,7 @@ export default function FactoryFloorPage() {
     if (batch.status === newStatus) return;
 
     // Reglas de Negocio Estrictas
-    if (batch.status === 'EN_PRODUCCION' && newStatus === 'BORRADOR') {
+    if (batch.status === 'IN_PRODUCTION' && newStatus === 'DRAFT') {
       alert("Operación denegada: Un lote en producción no puede regresar a la fila de espera.");
       return;
     }
@@ -84,8 +103,8 @@ export default function FactoryFloorPage() {
 
   // --- RENDERIZADO DE COLUMNAS HÍBRIDAS ---
   const renderColumn1 = () => {
-    const status = 'BORRADOR';
-    const columnBatches = batches.filter(b => b.status === status);
+    const status = 'DRAFT';
+    const columnBatches = batchesForView.filter(b => b.status === status);
 
     return (
       <div 
@@ -144,8 +163,8 @@ export default function FactoryFloorPage() {
   };
 
   const renderColumn2 = () => {
-    const status = 'EN_PRODUCCION';
-    const columnBatches = batches.filter(b => b.status === status);
+    const status = 'IN_PRODUCTION';
+    const columnBatches = batchesForView.filter(b => b.status === status);
 
     return (
       <div 
@@ -190,9 +209,135 @@ export default function FactoryFloorPage() {
     );
   };
 
-  const renderColumn3 = () => {
-    const status = 'TERMINADO';
-    const finishedBatches = batches.filter(b => b.status === status);
+  const getBultosRow = (instanceId: number) =>
+    bultosByInstanceId[instanceId] ?? { mdf: 0, herrajes: 0 };
+
+  const setBultosField = (instanceId: number, field: 'mdf' | 'herrajes', raw: string) => {
+    const n = parseFloat(raw);
+    const value = Number.isFinite(n) && n >= 0 ? n : 0;
+    setBultosByInstanceId((prev) => {
+      const cur = prev[instanceId] ?? { mdf: 0, herrajes: 0 };
+      return {
+        ...prev,
+        [instanceId]: { ...cur, [field]: value },
+      };
+    });
+  };
+
+  const renderColumnEmpaque = () => {
+    const status = STATUS_PACKING;
+    const columnBatches = batchesForView.filter((b) => b.status === status);
+    const instanceCount = columnBatches.reduce((n, b) => n + (b.instances?.length ?? 0), 0);
+
+    return (
+      <div
+        className="bg-violet-50/60 p-4 rounded-xl w-[22rem] flex-shrink-0 flex flex-col border border-violet-200"
+        onDragOver={handleDragOver}
+        onDrop={(e) => handleDrop(e, status)}
+      >
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="font-bold text-violet-900 uppercase tracking-wide text-sm flex items-center gap-2">
+            <Boxes size={16} /> 3. En Empaque
+          </h2>
+          <span className="bg-violet-200 text-violet-900 text-xs font-bold px-2 py-1 rounded-full">
+            {instanceCount}
+          </span>
+        </div>
+        <div className="flex flex-col gap-4 overflow-y-auto pr-1">
+          {columnBatches.map((batch) => (
+            <div key={batch.id} className="space-y-2">
+              <div
+                draggable
+                onDragStart={(e) => handleDragStart(e, batch.id, false)}
+                className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-violet-100/80 border border-violet-200 text-xs font-bold text-violet-900 cursor-grab active:cursor-grabbing"
+              >
+                <span className="truncate">Lote {batch.folio}</span>
+                <span className="text-[10px] font-medium text-violet-600 shrink-0">
+                  Arrastrar → Listo
+                </span>
+              </div>
+              {(batch.instances || []).map((instance) => {
+                const { mdf, herrajes } = getBultosRow(instance.id);
+                const canSolicitar = mdf > 0 && herrajes > 0;
+                const labelsDone = labelsRequestedInstanceIds[instance.id];
+                return (
+                  <div
+                    key={instance.id}
+                    className="bg-white p-3 rounded-lg shadow-sm border border-violet-100 border-l-4 border-l-violet-400"
+                  >
+                    <p className="font-bold text-gray-800 text-sm mb-3">{instance.custom_name}</p>
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[10px] font-bold text-gray-500 uppercase">Bultos MDF</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm"
+                          value={mdf || ''}
+                          onChange={(e) => setBultosField(instance.id, 'mdf', e.target.value)}
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[10px] font-bold text-gray-500 uppercase">Bultos Herrajes</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm"
+                          value={herrajes || ''}
+                          onChange={(e) => setBultosField(instance.id, 'herrajes', e.target.value)}
+                        />
+                      </label>
+                    </div>
+                    {labelsDone ? (
+                      <p className="w-full py-2 text-center text-xs font-bold text-emerald-600">
+                        ✓ Etiquetas solicitadas
+                      </p>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={!canSolicitar}
+                        onClick={async () => {
+                          try {
+                            await productionService.requestLabels(instance.id, mdf, herrajes);
+                            setLabelsRequestedInstanceIds((prev) => ({
+                              ...prev,
+                              [instance.id]: true,
+                            }));
+                          } catch (error: unknown) {
+                            const err = error as { response?: { data?: { detail?: unknown } }; message?: string };
+                            const detail = err.response?.data?.detail;
+                            const msg =
+                              typeof detail === 'string'
+                                ? detail
+                                : JSON.stringify(detail ?? err.message ?? error);
+                            alert(msg);
+                          }
+                        }}
+                        className="w-full py-2 rounded-lg text-xs font-bold border transition disabled:opacity-40 disabled:cursor-not-allowed bg-violet-600 text-white border-violet-600 hover:bg-violet-700"
+                      >
+                        🏷️ Solicitar Etiquetas
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+          {columnBatches.length === 0 && (
+            <div className="border-2 border-dashed border-violet-200 rounded-lg p-6 text-center text-violet-500 text-sm">
+              Sin lotes en empaque
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderColumn4 = () => {
+    const status = STATUS_READY_TO_INSTALL;
+    const finishedBatches = batchesForView.filter(b => b.status === status);
     
     // Extracción de productos de los lotes terminados
     const readyInstances = finishedBatches.flatMap(b => b.instances || []);
@@ -205,7 +350,7 @@ export default function FactoryFloorPage() {
       >
         <div className="flex justify-between items-center mb-4">
           <h2 className="font-bold text-emerald-800 uppercase tracking-wide text-sm flex items-center gap-2">
-            <CheckCircle2 size={16} /> 3. Listo para Instalarse
+            <CheckCircle2 size={16} /> 4. Listo para Instalarse
           </h2>
           <span className="bg-emerald-200 text-emerald-800 text-xs font-bold px-2 py-1 rounded-full">{readyInstances.length}</span>
         </div>
@@ -253,6 +398,24 @@ export default function FactoryFloorPage() {
         </button>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2 mb-6">
+        <span className="text-xs font-bold text-gray-500 uppercase tracking-wide mr-2">Material</span>
+        {(['ALL', 'MDF', 'PIEDRA'] as const).map((key) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setMaterialFilter(key)}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold border transition ${
+              materialFilter === key
+                ? 'bg-slate-800 text-white border-slate-800'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            {key === 'ALL' ? 'Todos' : key}
+          </button>
+        ))}
+      </div>
+
       {loading ? (
         <div className="flex justify-center py-10">
           <p className="text-gray-500 font-medium animate-pulse">Consultando piso de fábrica...</p>
@@ -261,7 +424,8 @@ export default function FactoryFloorPage() {
         <div className="flex gap-6 overflow-x-auto pb-4 h-[calc(100vh-200px)]">
           {renderColumn1()}
           {renderColumn2()}
-          {renderColumn3()}
+          {renderColumnEmpaque()}
+          {renderColumn4()}
         </div>
       )}
     </div>

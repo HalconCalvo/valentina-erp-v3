@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, FileText, Lock, Unlock, ChevronDown, BadgeDollarSign, FileSearch, ArrowUpDown, ArrowUp, ArrowDown, Layers, Clock } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { salesService } from '../../../api/sales-service';
-import { SalesOrder } from '../../../types/sales';
+import { InvoicingRightsRead, SalesOrder } from '../../../types/sales';
+import { normalizeOrderStatus, STATUS_WAITING_ADVANCE } from '../utils/pendingInvoiceBuckets';
 import { ReceivableChargeModal } from './ReceivableChargeModal';
 import { OrderStatementModal } from './OrderStatementModal';
 
@@ -18,14 +19,25 @@ interface ReceivablesModuleProps {
     onSubSectionChange?: (isActive: boolean) => void;
     defaultFilter?: ReceivableFilter;
     onBackOverride?: () => void; // <--- NUEVO: El boleto de regreso
+    /** Ruta para state.returnTo al abrir Pendiente de Facturar / Antigüedad desde este módulo. */
+    financeReturnPath?: string;
+    /** Incrementar para forzar cierre de sub-vista (vuelta al hub de 4 tarjetas). */
+    resetHubSignal?: number;
 }
 
-export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({ onSubSectionChange, defaultFilter = null, onBackOverride }) => {
+export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
+    onSubSectionChange,
+    defaultFilter = null,
+    onBackOverride,
+    financeReturnPath = '/treasury',
+    resetHubSignal = 0,
+}) => {
     const navigate = useNavigate();
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase().trim();
     const hasAbsolutePower = ['ADMIN', 'ADMINISTRADOR', 'ADMINISTRACIÓN', 'ADMINISTRATION', 'FINANCE', 'FINANZAS', 'DIRECTOR', 'GERENCIA'].includes(userRole);
 
     const [orders, setOrders] = useState<SalesOrder[]>([]);
+    const [invoicingRights, setInvoicingRights] = useState<InvoicingRightsRead | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     
     // Inicializamos el estado con la llave de teletransporte si nos la mandaron
@@ -46,10 +58,24 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({ onSubSecti
         }
     }, [activeFilter, onSubSectionChange]);
 
+    const lastHubReset = useRef(0);
+    useEffect(() => {
+        if (resetHubSignal > lastHubReset.current) {
+            lastHubReset.current = resetHubSignal;
+            setActiveFilter(null);
+        }
+    }, [resetHubSignal]);
+
     const loadSalesData = async () => {
         try {
             setIsLoading(true);
-            const response = await salesService.getOrders();
+            const [response, rights] = await Promise.all([
+                salesService.getOrders(),
+                salesService.getInvoicingRights().catch(() => null),
+            ]);
+            if (rights) {
+                setInvoicingRights(rights);
+            }
             
             // ---> EXTRACCIÓN INTELIGENTE A PRUEBA DE FALLOS <---
             let rawData: any[] = [];
@@ -91,26 +117,34 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({ onSubSecti
 
     const toggleOrder = (id: number) => setExpandedOrderIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
-    const getClientName = (order: SalesOrder) => {
-        const o = order as any; 
+    const getClientName = useCallback((order: SalesOrder) => {
+        const o = order as any;
         return o.client_name || o.client?.full_name || o.client?.name || o.customer?.name || 'Cliente por Defecto';
-    };
+    }, []);
 
     const formatCurrency = (amount: number) => amount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 
-    // --- CÁLCULOS LIGEROS ---
-    const advances = orders.filter(o => o.status === 'WAITING_ADVANCE');
-    const advancesVal = advances.reduce((sum, o) => sum + ((Number(o.total_price) || 0) * ((Number(o.advance_percent) || 60) / 100)), 0);
+    // --- Anticipos por facturar (solo derecho a primer pago: alineado con /sales/invoicing-rights) ---
+    const advances = orders.filter((o) => normalizeOrderStatus(o) === STATUS_WAITING_ADVANCE);
+    const advancesVal = advances.reduce(
+        (sum, o) => sum + (Number(o.total_price) || 0) * ((Number(o.advance_percent) || 60) / 100),
+        0
+    );
+    const advancesForFirstInvoice = useMemo(() => {
+        if (!invoicingRights?.advances?.length) return advances;
+        const ids = new Set(invoicingRights.advances.map((a) => a.order_id));
+        return advances.filter((o) => o.id != null && ids.has(o.id));
+    }, [advances, invoicingRights]);
 
-    const installments = orders.filter(o => ['SOLD', 'IN_PRODUCTION'].includes(o.status));
-    const installmentsVal = installments.reduce((sum, order) => {
-        const totalOrder = Number(order.total_price) || 0;
-        const totalInvoiced = order.payments?.reduce((invSum, p) => invSum + Number(p.amount) + Number(p.amortized_advance), 0) || 0;
-        const pendingToInvoice = totalOrder - totalInvoiced;
-        return sum + (pendingToInvoice > 0 ? pendingToInvoice : 0);
-    }, 0);
+    const advanceCardCount = invoicingRights?.advances.length ?? advancesForFirstInvoice.length;
+    const advanceCardVal = invoicingRights?.advance_pending_total ?? advancesVal;
 
-    const pendingInvoices = orders.flatMap(order => order.payments?.filter(cxc => cxc.status === 'PENDING') || []);
+    const cardBCount = invoicingRights?.progress_instances.length ?? 0;
+    const installmentsVal = invoicingRights?.progress_work_total ?? 0;
+
+    const pendingInvoices = orders.flatMap(
+        (order) => order.payments?.filter((cxc) => String((cxc as { status?: string }).status).toUpperCase() === 'PENDING') || []
+    );
     const agingVal = pendingInvoices.reduce((sum, inv) => sum + Number(inv.amount), 0);
 
     // ---> 2. TOTALES PARA LA TARJETA "TODAS" (Deuda viva total) <---
@@ -128,7 +162,8 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({ onSubSecti
 
     // ---> 3. LÓGICA DE FILTRADO Y ORDENAMIENTO DINÁMICO <---
     const filteredData = useMemo(() => {
-        let baseData = activeFilter === 'ADVANCES' ? advances : (activeFilter === 'ALL' ? orders : []);
+        let baseData =
+            activeFilter === 'ADVANCES' ? advancesForFirstInvoice : activeFilter === 'ALL' ? orders : [];
         let sortableItems = [...baseData];
         
         sortableItems.sort((a, b) => {
@@ -153,7 +188,7 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({ onSubSecti
         });
         
         return sortableItems;
-    }, [activeFilter, advances, orders, sortField, sortDirection]);
+    }, [activeFilter, advancesForFirstInvoice, orders, sortField, sortDirection]);
 
     const SortableHeader = ({ field, label }: { field: SortField, label: string }) => {
         const isActive = sortField === field;
@@ -200,30 +235,30 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({ onSubSecti
                     
                     <div className="w-full relative">
                         <Card onClick={() => setActiveFilter('ADVANCES')} className="p-6 border-l-4 border-l-amber-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-all hover:shadow-lg hover:-translate-y-1">
-                            <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-amber-50 text-amber-700 border-r border-amber-100 font-black group-hover:bg-amber-100 transition-colors ${getCountSize(advances.length)}`}>
-                                {advances.length}
+                            <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-amber-50 text-amber-700 border-r border-amber-100 font-black group-hover:bg-amber-100 transition-colors ${getCountSize(advanceCardCount)}`}>
+                                {advanceCardCount}
                             </div>
                             <div className="ml-16 h-full flex flex-col justify-between">
-                                <div><h4 className="font-bold text-amber-800 flex items-center gap-2"><Lock size={18} className="text-amber-500"/> A. Anticipos</h4><p className="text-sm text-slate-500 mt-2 mb-4">Urge cobrar para liberar a fábrica.</p></div>
-                                <div className="text-lg font-black text-amber-600 text-right tracking-tight">{formatCurrency(advancesVal)}</div>
+                                <div><h4 className="font-bold text-amber-800 flex items-center gap-2"><Lock size={18} className="text-amber-500"/> A. Anticipos por facturar</h4><p className="text-sm text-slate-500 mt-2 mb-4">Primer pago pendiente (sin CXC ADVANCE).</p></div>
+                                <div className="text-lg font-black text-amber-600 text-right tracking-tight">{formatCurrency(advanceCardVal)}</div>
                             </div>
                         </Card>
                     </div>
 
                     <div className="w-full relative">
-                        <Card onClick={() => navigate('/finance/pending-invoices')} className="p-6 border-l-4 border-l-blue-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-all hover:shadow-lg hover:-translate-y-1">
-                            <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-blue-50 text-blue-700 border-r border-blue-100 font-black group-hover:bg-blue-100 transition-colors ${getCountSize(installments.length)}`}>
-                                {installments.length}
+                        <Card onClick={() => navigate('/finance/pending-invoices', { state: { returnTo: financeReturnPath, progressTab: 'AVANCES' } })} className="p-6 border-l-4 border-l-blue-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-all hover:shadow-lg hover:-translate-y-1">
+                            <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-blue-50 text-blue-700 border-r border-blue-100 font-black group-hover:bg-blue-100 transition-colors ${getCountSize(cardBCount)}`}>
+                                {cardBCount}
                             </div>
                             <div className="ml-16 h-full flex flex-col justify-between">
-                                <div><h4 className="font-bold text-blue-800 flex items-center gap-2"><Unlock size={18} className="text-blue-500"/> B. Pendiente Facturar</h4><p className="text-sm text-slate-500 mt-2 mb-4">Capital en fábrica pendiente.</p></div>
+                                <div><h4 className="font-bold text-blue-800 flex items-center gap-2"><Unlock size={18} className="text-blue-500"/> B. Avances por facturar</h4><p className="text-sm text-slate-500 mt-2 mb-4">Solo instancias CLOSED sin factura asociada.</p></div>
                                 <div className="text-lg font-black text-blue-600 text-right tracking-tight">{formatCurrency(installmentsVal)}</div>
                             </div>
                         </Card>
                     </div>
 
                     <div className="w-full relative">
-                        <Card onClick={() => navigate('/finance/aging')} className="p-6 border-l-4 border-l-emerald-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-all hover:shadow-lg hover:-translate-y-1">
+                        <Card onClick={() => navigate('/finance/aging', { state: { returnTo: financeReturnPath } })} className="p-6 border-l-4 border-l-emerald-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-all hover:shadow-lg hover:-translate-y-1">
                             <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-emerald-50 text-emerald-700 border-r border-emerald-100 font-black group-hover:bg-emerald-100 transition-colors ${getCountSize(pendingInvoices.length)}`}>
                                 {pendingInvoices.length}
                             </div>
@@ -240,7 +275,7 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({ onSubSecti
                                 {allCount}
                             </div>
                             <div className="ml-16 h-full flex flex-col justify-between">
-                                <div><h4 className="font-bold text-indigo-800 flex items-center gap-2"><Layers size={18} className="text-indigo-500"/> D. Todas</h4><p className="text-sm text-slate-500 mt-2 mb-4">Archivo Maestro (Todas las OV).</p></div>
+                                <div><h4 className="font-bold text-indigo-800 flex items-center gap-2"><Layers size={18} className="text-indigo-500"/> D. Visor de OV</h4><p className="text-sm text-slate-500 mt-2 mb-4">Consulta todas las órdenes de venta (CXC).</p></div>
                                 <div className="text-lg font-black text-indigo-600 text-right tracking-tight">{formatCurrency(allVal)}</div>
                             </div>
                         </Card>

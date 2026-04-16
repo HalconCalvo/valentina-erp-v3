@@ -4,7 +4,7 @@ import client from '../../../api/axios-client';
 import { 
     Save, Percent, Calendar, Ruler, Building2, MapPin, 
     Phone, Globe, FileText, Image as ImageIcon, AlertCircle, 
-    UploadCloud, Target, TrendingUp, DollarSign 
+    UploadCloud, Target, TrendingUp, DollarSign, Hammer
 } from 'lucide-react';
 import { GlobalConfig } from '../../../types/foundations';
 
@@ -37,6 +37,10 @@ export default function ConfigPage() {
   const [annualTarget, setAnnualTarget] = useState('');
   const [lastYearSales, setLastYearSales] = useState('');
 
+  // --- 4. NÓMINA A DESTAJO ---
+  const [leaderRate, setLeaderRate] = useState('');
+  const [helperRate, setHelperRate] = useState('');
+
   // --- UTILERIAS DE FORMATO MONEDA ---
   const formatMoney = (value: string | number) => {
     if (!value) return '';
@@ -62,9 +66,9 @@ export default function ConfigPage() {
       setCompanyEmail(config.company_email || '');
       setCompanyWebsite(config.company_website || '');
 
-      // Financieros Operativos (SIN MULTIPLICACIONES FANTASMA)
-      setMarginInput(String(config.target_profit_margin || 0));
-      setToleranceInput(String(config.cost_tolerance_percent || 0));
+      // Porcentajes: backend guarda decimal (0.45), mostramos entero (45)
+      setMarginInput(String(Math.round((config.target_profit_margin || 0) * 100)));
+      setToleranceInput(String(Math.round((config.cost_tolerance_percent || 0) * 100)));
       
       setDaysInput(String(config.quote_validity_days || 0));
       setEdgeFactorInput(String(config.default_edgebanding_factor || 0));
@@ -72,6 +76,10 @@ export default function ConfigPage() {
       // Metas (Aplicamos formato visual al cargar)
       setAnnualTarget(config.annual_sales_target ? formatMoney(config.annual_sales_target) : '');
       setLastYearSales(config.last_year_sales ? formatMoney(config.last_year_sales) : '');
+
+      // Nómina a destajo (formateado con separadores de miles)
+      setLeaderRate(config.default_leader_daily_rate ? formatMoney(config.default_leader_daily_rate) : '800.00');
+      setHelperRate(config.default_helper_daily_rate ? formatMoney(config.default_helper_daily_rate) : '700.00');
 
       // Impuestos
       if (config.default_tax_rate_id) {
@@ -108,16 +116,19 @@ export default function ConfigPage() {
 
   // --- 6. GUARDADO GENERAL ---
   const handleSave = async () => {
-    const margin = Number(marginInput);
-    const tolerance = Number(toleranceInput);
+    // Porcentajes: el usuario ingresa enteros (45), backend espera decimales (0.45)
+    const margin = Number(marginInput) / 100;
+    const tolerance = Number(toleranceInput) / 100;
     const days = Number(daysInput);
     const edgeFactor = Number(edgeFactorInput);
-    
-    // Limpiamos las comas antes de convertir a número para guardar
+
+    // Moneda: limpiar comas antes de parsear
     const annualTargetNum = annualTarget ? parseFloat(unformatMoney(annualTarget)) : 0;
     const lastYearSalesNum = lastYearSales ? parseFloat(unformatMoney(lastYearSales)) : 0;
+    const leaderRateNum = leaderRate ? parseFloat(unformatMoney(leaderRate)) : 0;
+    const helperRateNum = helperRate ? parseFloat(unformatMoney(helperRate)) : 0;
 
-    if (isNaN(margin) || isNaN(tolerance) || isNaN(days) || isNaN(edgeFactor)) {
+    if (isNaN(margin) || isNaN(tolerance) || isNaN(days) || isNaN(edgeFactor) || isNaN(leaderRateNum) || isNaN(helperRateNum)) {
         alert("Por favor revisa los campos numéricos.");
         return;
     }
@@ -130,13 +141,15 @@ export default function ConfigPage() {
         company_phone: companyPhone,
         company_email: companyEmail,
         company_website: companyWebsite,
-        target_profit_margin: margin, // SIN DIVISIONES FANTASMA
-        cost_tolerance_percent: tolerance, // SIN DIVISIONES FANTASMA
+        target_profit_margin: margin,
+        cost_tolerance_percent: tolerance,
         quote_validity_days: days,
         default_edgebanding_factor: edgeFactor,
         default_tax_rate_id: selectedTax,
         annual_sales_target: annualTargetNum,
-        last_year_sales: lastYearSalesNum
+        last_year_sales: lastYearSalesNum,
+        default_leader_daily_rate: leaderRateNum,
+        default_helper_daily_rate: helperRateNum,
     };
 
     try {
@@ -266,6 +279,50 @@ export default function ConfigPage() {
                 </div>
 
             </div>
+
+            {/* SECCIÓN NÓMINA A DESTAJO */}
+            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 pt-6 border-t border-slate-200">
+                <Hammer className="text-cyan-600" /> Nómina a Destajo
+            </h3>
+            <p className="text-xs text-slate-400 -mt-4">Tarifa diaria por rol al momento de crear la cuadrilla. Sirve como snapshot en cada asignación.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* TARIFA LÍDER */}
+                <div className="bg-cyan-50 p-5 rounded-xl border border-cyan-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+                    <div className="absolute right-0 top-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity"><Hammer size={60} className="text-cyan-600"/></div>
+                    <label className="block text-xs font-bold text-cyan-800 uppercase mb-2">Tarifa Líder / día</label>
+                    <div className="relative">
+                        <DollarSign size={20} className="absolute left-0 top-3 text-cyan-400"/>
+                        <input
+                            type="text"
+                            placeholder="0.00"
+                            className="w-full pl-6 bg-transparent text-3xl font-bold text-cyan-900 border-b-2 border-cyan-200 focus:border-cyan-500 outline-none"
+                            value={leaderRate}
+                            onChange={e => setLeaderRate(e.target.value)}
+                            onFocus={() => setLeaderRate(unformatMoney(leaderRate))}
+                            onBlur={() => setLeaderRate(formatMoney(leaderRate))}
+                        />
+                    </div>
+                </div>
+
+                {/* TARIFA AYUDANTE */}
+                <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+                    <div className="absolute right-0 top-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity"><Hammer size={60} className="text-slate-500"/></div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Tarifa Ayudante / día</label>
+                    <div className="relative">
+                        <DollarSign size={20} className="absolute left-0 top-3 text-slate-400"/>
+                        <input
+                            type="text"
+                            placeholder="0.00"
+                            className="w-full pl-6 bg-transparent text-3xl font-bold text-slate-700 border-b-2 border-slate-300 focus:border-slate-500 outline-none"
+                            value={helperRate}
+                            onChange={e => setHelperRate(e.target.value)}
+                            onFocus={() => setHelperRate(unformatMoney(helperRate))}
+                            onBlur={() => setHelperRate(formatMoney(helperRate))}
+                        />
+                    </div>
+                </div>
+            </div>
+
         </div>
       </div>
       <style>{`.label-std { display: block; font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 0.25rem; } .input-std { width: 100%; padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 0.5rem; font-size: 0.875rem; outline: none; transition: all 0.2s; } .input-std:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); } .card-std { background-color: white; padding: 1.25rem; border-radius: 0.75rem; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0; } .badge-blue { background-color: #eff6ff; color: #1d4ed8; padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-size: 0.6875rem; font-weight: 700; } .badge-orange { background-color: #fff7ed; color: #c2410c; padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-size: 0.6875rem; font-weight: 700; } .input-large { width: 100%; font-size: 2.25rem; font-weight: 700; color: #1e293b; border-bottom-width: 2px; padding-top: 0.25rem; padding-bottom: 0.25rem; outline: none; background-color: transparent; } .unit-label { position: absolute; right: 0; top: 0.75rem; font-size: 1.25rem; font-weight: 700; color: #94a3b8; } .helper-text { font-size: 0.75rem; color: #94a3b8; margin-top: 0.5rem; }`}</style>

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
     Search, Ban, Send, PackageCheck, 
     ArrowUpRight, Loader2, ArrowLeft, ArrowRight,
-    Building2, ShoppingCart, Calendar, Clock, CheckCircle2, FileText, XCircle, Trash2, CheckSquare, Square, AlertCircle, RefreshCw, Snowflake, Plus 
+    Building2, ShoppingCart, Calendar, Clock, CheckCircle2, FileText, XCircle, Trash2, CheckSquare, Square, AlertCircle, RefreshCw, Snowflake, Plus, AlertTriangle
 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
@@ -23,18 +23,15 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     const [brakeOrders, setBrakeOrders] = useState<any[]>([]);
     const [selectedItems, setSelectedItems] = useState<Record<string, boolean>>({});
 
-    // Estados para catálogos 
     const [providersList, setProvidersList] = useState<any[]>([]);
     const [materialsList, setMaterialsList] = useState<any[]>([]);
 
-    // Estructura dinámica para Múltiples Partidas (precio inicial en '0.00' para formato moneda)
     const [isManualModalOpen, setIsManualModalOpen] = useState(false);
     const [manualOrderForm, setManualOrderForm] = useState({ 
         provider_name: '', 
         items: [{ sku: '', material_name: '', qty: 1, expected_cost: '0.00' }] 
     });
 
-    // Control de qué dropdown está activo (para saber en qué fila estamos tecleando)
     const [activeDropdown, setActiveDropdown] = useState<{type: 'provider' | 'sku' | 'material' | null, index: number | null}>({type: null, index: null});
 
     const getRole = () => {
@@ -75,7 +72,6 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         return [];
     };
 
-    // Función de limpieza extrema para estatus
     const safeStatus = (status: any) => String(status || '').trim().toUpperCase();
 
     const fetchCatalogs = async () => {
@@ -94,7 +90,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     const fetchPlanning = async (silent = false) => {
         if (!silent) setLoading(true);
         try {
-            const ts = new Date().getTime(); // Rompe-caché
+            const ts = new Date().getTime(); 
             const response = await axiosClient.get(`/purchases/planning/consolidated?t=${ts}`);
             const data = extractList({data: response.data}, 'items');
             const sortedData = [...data].sort((a, b) => {
@@ -123,7 +119,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     const fetchBrakeOrders = async (silent = false) => {
         if (!silent) setLoading(true);
         try {
-            const ts = new Date().getTime(); // Rompe-caché para evitar fantasmas
+            const ts = new Date().getTime();
             const response = await axiosClient.get(`/purchases/orders/?t=${ts}`);
             setBrakeOrders(extractList({data: response.data}, 'orders'));
         } catch (error) {
@@ -171,13 +167,12 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
             fetchPlanning(true);
             fetchBrakeOrders(true);
         } catch (error: any) {
-            alert(error.response?.data?.detail || "Error al emitir.");
+            alert(error.response?.data?.detail || "Error al emitir la Orden de Compra.");
         } finally {
             setLoading(false);
         }
     };
 
-    // Funciones dinámicas para la OC Manual
     const handleAddRow = () => {
         setManualOrderForm({
             ...manualOrderForm,
@@ -186,7 +181,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     };
 
     const handleRemoveRow = (indexToRemove: number) => {
-        if (manualOrderForm.items.length === 1) return; // No permite borrar la última línea
+        if (manualOrderForm.items.length === 1) return;
         const newItems = [...manualOrderForm.items];
         newItems.splice(indexToRemove, 1);
         setManualOrderForm({ ...manualOrderForm, items: newItems });
@@ -199,7 +194,6 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     };
 
     const handleSubmitManualOrder = async () => {
-        // Filtrar filas vacías
         const validItems = manualOrderForm.items.filter(it => it.material_name.trim() !== '');
         
         if (!manualOrderForm.provider_name || validItems.length === 0) {
@@ -218,7 +212,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                 }))
             };
             await axiosClient.post('/purchases/orders/manual', payload);
-            alert("Orden de Compra Manual generada. Ya se encuentra en la Mesa de Control para firma.");
+            
             setIsManualModalOpen(false);
             setManualOrderForm({ provider_name: '', items: [{ sku: '', material_name: '', qty: 1, expected_cost: '0.00' }] });
             fetchBrakeOrders(true);
@@ -234,8 +228,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         setLoading(true);
         try {
             await axiosClient.put(`/purchases/orders/${orderId}/authorize`);
-            alert(`Orden ${folio} autorizada.`);
-            fetchBrakeOrders(true);
+            fetchBrakeOrders(true); 
         } catch (error) {
             alert("Error al autorizar.");
         } finally {
@@ -316,10 +309,36 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         setLoading(true);
         try {
             await axiosClient.put(`/purchases/orders/${orderId}/dispatch`);
-            alert(`Orden ${folio} enviada. Se movió a Almacén.`);
-            fetchBrakeOrders(true);
+            fetchBrakeOrders(true); 
         } catch (error) {
             alert("Error al despachar.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleRequestAdvance = async (orderId: number, folio: string, total: number) => {
+        const safeTotal = parseFloat(total as any) || 0;
+        const formattedTotalText = safeTotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const exactInputValue = safeTotal.toFixed(2);
+
+        const amountStr = window.prompt(
+            `¿Cuánto anticipo requiere la OC ${folio}?\n(Total de la OC: $${formattedTotalText})\nPuedes pedir el 100% o solo una parte:`, 
+            exactInputValue
+        );
+        
+        if (!amountStr) return;
+        
+        const amount = parseFloat(amountStr.replace(/,/g, ''));
+        if (isNaN(amount) || amount <= 0) return alert("Monto inválido");
+
+        setLoading(true);
+        try {
+            await axiosClient.post(`/purchases/orders/${orderId}/request-advance`, { amount });
+            fetchBrakeOrders(true); 
+        } catch (error: any) {
+            const mensaje = error.response?.data?.detail || "Error: Ya solicitaste este anticipo o hubo un problema de red.";
+            alert(mensaje);
         } finally {
             setLoading(false);
         }
@@ -344,34 +363,27 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         return notes.includes('Valentina') || notes.includes('[AUTO]') || desc === 'REPOSICIÓN AUTOMÁTICA';
     };
 
-    // --- CÁLCULOS DINÁMICOS ACUMULADOS PARA EL MODAL ---
     const manualSubtotal = manualOrderForm.items.reduce((sum, it) => sum + (it.qty * (parseFloat(it.expected_cost as string) || 0)), 0);
     const manualIva = manualSubtotal * 0.16;
     const manualTotal = manualSubtotal + manualIva;
 
-    // --- LECTORES INTELIGENTES DE OBJETOS ---
     const getProvName = (p: any) => String(p?.business_name || p?.legal_name || '').trim();
     const getMatDesc = (m: any) => String(m?.name || m?.description || m?.material_name || m?.product_name || '').trim();
     const getMatSku = (m: any) => String(m?.sku || m?.code || m?.item_code || '').trim();
 
-    // --- FILTROS GLOBALES (PROVEEDOR) ---
     const searchProv = (manualOrderForm.provider_name || '').toLowerCase();
     const filteredProviders = providersList.filter(p => getProvName(p).toLowerCase().includes(searchProv));
     const exactProviderMatch = searchProv !== '' && providersList.some(p => getProvName(p).toLowerCase() === searchProv);
     const isNewProvider = searchProv !== '' && !exactProviderMatch;
 
-    // --- FILTROS ESPECÍFICOS DE FILA ---
     const activeRow = activeDropdown.index !== null ? manualOrderForm.items[activeDropdown.index] : null;
     const searchSku = activeRow ? (activeRow.sku || '').toLowerCase() : '';
     const filteredMaterialsBySku = materialsList.filter(m => getMatSku(m).toLowerCase().includes(searchSku));
     const searchDesc = activeRow ? (activeRow.material_name || '').toLowerCase() : '';
     const filteredMaterialsByDesc = materialsList.filter(m => getMatDesc(m).toLowerCase().includes(searchDesc));
 
-    // 👇 AQUÍ ESTÁ LA MAGIA CORREGIDA 👇
     const handleSelectMaterial = (index: number, mat: any) => {
         const newItems = [...manualOrderForm.items];
-        
-        // Le decimos que busque current_cost primero (como lo guardamos en tu BD), si no, que busque standard_cost o cost.
         const dbCost = parseFloat(mat.current_cost || mat.standard_cost || mat.cost || 0);
         const cost = dbCost.toFixed(2);
         
@@ -379,7 +391,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
             ...newItems[index],
             sku: getMatSku(mat),
             material_name: getMatDesc(mat),
-            expected_cost: cost // ¡Ahora sí inyecta el costo de tu sistema!
+            expected_cost: cost
         };
         
         setManualOrderForm({ ...manualOrderForm, items: newItems });
@@ -506,13 +518,13 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     );
 
     const renderBrakeTable = () => {
-        const borradorOrders = brakeOrders.filter(o => safeStatus(o.status) === 'BORRADOR');
+        const draftOrders = brakeOrders.filter(o => safeStatus(o.status) === 'DRAFT');
         return (
             <div className="space-y-12 pb-20">
-                {borradorOrders.length === 0 ? (
+                {draftOrders.length === 0 ? (
                     <div className="text-center py-20 bg-slate-50 rounded-2xl border border-slate-100 border-dashed"><Ban className="mx-auto text-slate-200 mb-4" size={48} /><p className="text-slate-400 font-black uppercase text-[10px]">No hay órdenes en revisión</p></div>
                 ) : (
-                    borradorOrders.map((order, idx) => {
+                    draftOrders.map((order, idx) => {
                         const subtotal = order.total_estimated_amount || 0;
                         const iva = subtotal * 0.16;
                         const total = subtotal + iva;
@@ -558,9 +570,8 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     const renderSendingTable = () => {
         const authorizedOrders = brakeOrders.filter(o => safeStatus(o.status) === 'AUTORIZADA');
         
-        // --- CANDADOS DE SEGURIDAD ---
         const canDispatch = ['DIRECTOR', 'GERENCIA', 'ADMIN', 'ADMINISTRACION', 'COMPRAS'].includes(role);
-        const canRevoke = ['DIRECTOR', 'GERENCIA'].includes(role);
+        const canRevoke = ['DIRECTOR', 'GERENCIA', 'ADMINISTRACION', 'ADMIN', 'COMPRAS'].includes(role);
 
         return (
             <div className="space-y-12 pb-20">
@@ -604,9 +615,11 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 </table>
                                 <div className="p-8 bg-slate-50/50 flex justify-between items-center border-t border-slate-100">
                                     <div className="flex gap-4">
-                                        {/* Botones protegidos por rol */}
                                         {canDispatch && (
-                                            <Button onClick={() => handleDispatchOrder(order.id, order.folio)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-xs h-12 px-10 shadow-lg"><Send size={16} className="mr-3" /> Envíar OC a Proveedor</Button>
+                                            <Button onClick={() => handleDispatchOrder(order.id, order.folio)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-xs h-12 px-10 shadow-lg"><Send size={16} className="mr-3" /> Enviar OC a Proveedor</Button>
+                                        )}
+                                        {canDispatch && (
+                                            <Button onClick={() => handleRequestAdvance(order.id, order.folio, total)} variant="outline" className="border-orange-300 text-orange-600 font-black uppercase text-[10px] px-6 h-12 hover:bg-orange-50"><AlertTriangle size={14} className="mr-2" /> Pedir Anticipo</Button>
                                         )}
                                         {canRevoke && (
                                             <Button onClick={() => handleRevokeAuthorization(order.id, order.folio)} variant="outline" className="border-amber-200 text-amber-700 font-black uppercase text-[10px] px-6 h-12"><RefreshCw size={14} className="mr-2" /> Revocar Firma</Button>
@@ -628,7 +641,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
 
     const subMenuItems = [
         { id: 'CREATION', title: 'A. SOLICITUDES', icon: <Search />, color: 'indigo', bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-100', activeBorder: 'border-l-indigo-600', count: suggestedOrders.length, desc: 'Revisar' },
-        { id: 'BRAKE', title: 'B. FRENO', icon: <Ban />, color: 'rose', bg: 'bg-rose-50', text: 'text-rose-600', border: 'border-rose-100', activeBorder: 'border-l-rose-600', count: brakeOrders.filter(o => safeStatus(o.status) === 'BORRADOR').length, desc: 'Pausadas' },
+        { id: 'BRAKE', title: 'B. FRENO', icon: <Ban />, color: 'rose', bg: 'bg-rose-50', text: 'text-rose-600', border: 'border-rose-100', activeBorder: 'border-l-rose-600', count: brakeOrders.filter(o => safeStatus(o.status) === 'DRAFT').length, desc: 'Pausadas' },
         { id: 'SENDING', title: 'C. POR ENVIAR', icon: <Send />, color: 'emerald', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100', activeBorder: 'border-l-emerald-600', count: brakeOrders.filter(o => safeStatus(o.status) === 'AUTORIZADA').length, desc: 'Envío' },
     ];
 
@@ -686,7 +699,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                 </div>
             )}
 
-            {/* Modal "Fast Track" - Múltiples Líneas (Multi-Row) */}
+            {/* Modal "Fast Track" */}
             {isManualModalOpen && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
                     <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-6xl overflow-hidden border-t-8 border-t-emerald-500 animate-in zoom-in-95 duration-200 flex flex-col max-h-[95vh]">
@@ -726,7 +739,6 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                         )}
                                     </div>
 
-                                    {/* Dropdown Proveedores */}
                                     {activeDropdown.type === 'provider' && (
                                         <ul className="absolute z-[9999] top-full left-0 w-full md:w-2/3 bg-white border border-slate-200 shadow-xl max-h-48 overflow-y-auto mt-2 rounded-xl py-1">
                                             {filteredProviders.length > 0 ? (
@@ -757,7 +769,6 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                             </button>
                         </div>
                         
-                        {/* Contenedor de la Tabla (Scrollable si hay muchas líneas) */}
                         <div className="flex-1 overflow-x-auto overflow-y-visible relative bg-white pb-6">
                             <table className="w-full min-w-[800px]">
                                 <thead>
@@ -774,7 +785,6 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 <tbody className="divide-y divide-slate-50">
                                     {manualOrderForm.items.map((item, rowIndex) => (
                                         <tr key={rowIndex} className="hover:bg-slate-50/30 transition-colors group">
-                                            {/* Columna SKU */}
                                             <td className="px-6 py-4 align-middle relative">
                                                 <input
                                                     value={item.sku}
@@ -789,7 +799,6 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                                     placeholder="BUSCAR SKU..."
                                                     className="w-full bg-transparent border-b border-dashed border-slate-300 focus:border-emerald-500 hover:border-emerald-300 outline-none py-1 font-black text-indigo-600 text-[11px] placeholder-slate-300 uppercase"
                                                 />
-                                                {/* Dropdown SKU por fila */}
                                                 {activeDropdown.type === 'sku' && activeDropdown.index === rowIndex && (
                                                     <ul className="absolute z-[9999] top-full left-4 w-64 bg-white border border-slate-200 shadow-xl max-h-48 overflow-y-auto mt-1 rounded-xl py-1">
                                                         {filteredMaterialsBySku.length > 0 ? (
@@ -814,7 +823,6 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                                 )}
                                             </td>
                                             
-                                            {/* Columna DESCRIPCIÓN */}
                                             <td className="px-4 py-4 align-middle relative">
                                                 <input
                                                     value={item.material_name}
@@ -829,7 +837,6 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                                     placeholder="ESCRIBIR PRODUCTO..."
                                                     className="w-full bg-transparent border-b border-dashed border-slate-300 focus:border-emerald-500 hover:border-emerald-300 outline-none py-1 font-bold text-slate-700 text-xs placeholder-slate-300 uppercase"
                                                 />
-                                                {/* Dropdown Descripción por fila */}
                                                 {activeDropdown.type === 'material' && activeDropdown.index === rowIndex && (
                                                     <ul className="absolute z-[9999] top-full left-0 w-[120%] bg-white border border-slate-200 shadow-xl max-h-48 overflow-y-auto mt-1 rounded-xl py-1">
                                                         {filteredMaterialsByDesc.length > 0 ? (
@@ -854,7 +861,6 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                                 )}
                                             </td>
 
-                                            {/* Columna Cantidad UNIFICADA */}
                                             <td className="px-4 py-4 text-center align-middle">
                                                 <input
                                                     type="number" min="1"
@@ -864,7 +870,6 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                                 />
                                             </td>
 
-                                            {/* Columna PRECIO UNITARIO UNIFICADO Y CON FORMATO $ */}
                                             <td className="px-4 py-4 text-center align-middle">
                                                 <div className="flex items-center justify-center border-b border-dashed border-slate-300 focus-within:border-emerald-500 hover:border-emerald-300 transition-colors w-24 mx-auto">
                                                     <span className="text-xs font-bold text-slate-500 mr-1">$</span>
@@ -881,17 +886,14 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                                 </div>
                                             </td>
 
-                                            {/* Columna Proyecto */}
                                             <td className="px-6 py-4 text-center align-middle">
                                                 <span className="text-[9px] font-black text-rose-600 uppercase tracking-widest">GENERAL</span>
                                             </td>
                                             
-                                            {/* Columna Importe UNIFICADO */}
                                             <td className="px-6 py-4 text-right text-xs font-black text-slate-800 align-middle">
                                                 ${(item.qty * (parseFloat(item.expected_cost as string) || 0)).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                                             </td>
                                             
-                                            {/* Botón Borrar Línea */}
                                             <td className="px-4 py-4 text-center align-middle">
                                                 <button 
                                                     onClick={() => handleRemoveRow(rowIndex)}
@@ -906,7 +908,6 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 </tbody>
                             </table>
                             
-                            {/* Botón Agregar Partida (Debajo de la tabla) */}
                             <div className="px-6 pt-4">
                                 <button 
                                     onClick={handleAddRow}
@@ -917,7 +918,6 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                             </div>
                         </div>
 
-                        {/* Pie de Página con Totales (Siempre abajo) */}
                         <div className="p-8 bg-white flex justify-between items-end border-t border-slate-100 shrink-0">
                             <div className="flex gap-4">
                                 <Button 

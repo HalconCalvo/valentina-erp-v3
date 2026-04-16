@@ -70,7 +70,7 @@ class InventoryManager:
                 func.sum(PurchaseOrderItem.quantity_ordered).label("en_transito")
             )
             .join(PurchaseOrder, PurchaseOrder.id == PurchaseOrderItem.purchase_order_id)
-            .where(PurchaseOrder.status.in_(["BORRADOR", "AUTORIZADA", "ENVIADA"]))
+            .where(PurchaseOrder.status.in_(["DRAFT", "AUTORIZADA", "ENVIADA"]))
             .group_by(PurchaseOrderItem.material_id)
             .subquery()
         )

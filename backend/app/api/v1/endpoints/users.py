@@ -9,7 +9,7 @@ from app.core.security import get_password_hash
 from app.core.deps import get_current_active_user 
 
 # 2. Importaciones de tus Modelos
-from app.models.users import User, UserCreate, UserUpdate, UserPublic
+from app.models.users import User, UserCreate, UserUpdate, UserPublic, UserRole
 
 router = APIRouter()
 
@@ -59,6 +59,8 @@ def create_user(
     
     # Crear objeto (excluyendo el password plano)
     extra_data = user_in.model_dump(exclude={"password"})
+    if "monthly_quota" in extra_data and current_user.role not in (UserRole.ADMIN, UserRole.DIRECTOR):
+        extra_data.pop("monthly_quota", None)
     
     user = User(
         **extra_data, 
@@ -90,6 +92,8 @@ def update_user(
 
     # Limpiar datos vacíos
     update_data = user_in.model_dump(exclude_unset=True)
+    if "monthly_quota" in update_data and current_user.role not in (UserRole.ADMIN, UserRole.DIRECTOR):
+        update_data.pop("monthly_quota", None)
 
     # Si viene password, hashear y reemplazar
     if "password" in update_data:

@@ -3,8 +3,10 @@ export interface User {
     id: number;
     email: string;
     full_name: string;
-    role: string; // admin, ventas, design, production, installer
+    role: string;
     is_active: boolean;
+    commission_rate?: number;
+    global_commission_rate?: number;
 }
 
 // Define lo que enviamos para CREAR un usuario
@@ -13,6 +15,8 @@ export interface UserCreatePayload {
     password: string;
     full_name: string;
     role: string;
+    commission_rate?: number;
+    global_commission_rate?: number;
 }
 
 // Define la respuesta del Login (El Token)

@@ -2,7 +2,7 @@ from typing import Optional, List, Any, Dict
 from pydantic import BaseModel
 from datetime import datetime
 import math
-from fastapi import APIRouter, Depends, HTTPException, status, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Query
 from sqlmodel import Session, select, delete
 from sqlalchemy.orm import selectinload
 from fastapi.responses import StreamingResponse
@@ -28,7 +28,8 @@ from app.services.traceability import TraceabilityManager
 
 from app.schemas.sales_schema import (
     SalesOrderCreate, SalesOrderRead, SalesOrderUpdate,
-    SalesOrderItemCreate
+    SalesOrderItemCreate,
+    CustomerPaymentRead,
 )
 
 class PaymentPayload(BaseModel):
@@ -37,7 +38,52 @@ class PaymentPayload(BaseModel):
     amortized_advance: float = 0.0      
     instance_ids: List[int] = []
 
+
+class ClientPurchaseOrderPayload(BaseModel):
+    """Datos obligatorios de la OC del cliente para generar OV (paso a WAITING_ADVANCE)."""
+    client_po_folio: str
+    client_po_date: datetime
+
 router = APIRouter()
+
+
+def _normalized_role(user: User) -> str:
+    return (str(user.role) if user.role is not None else "").strip().upper()
+
+
+def _is_seller_scoped_role(user: User) -> bool:
+    """
+    Alcance tipo «solo mis ventas»: SALES y VENTAS (alias en algunos clientes).
+    ADMIN, GERENCIA, DIRECTOR y demás roles de staff **no** entran aquí: ven el universo
+    completo de órdenes en GET /sales/orders (monitor tipo administración), sin filtro por user_id.
+    """
+    return _normalized_role(user) in ("SALES", "VENTAS")
+
+
+def _line_amount_per_instance(item: SalesOrderItem) -> float:
+    """Valor contable por instancia (partida / cantidad)."""
+    qty = float(item.quantity) if item.quantity else 1.0
+    if qty < 1e-9:
+        qty = 1.0
+    sub = float(item.subtotal_price or 0.0)
+    if sub <= 0:
+        sub = float(item.unit_price or 0.0) * qty
+    return sub / qty
+
+
+def _can_edit_client_po_meta(user: User) -> bool:
+    """Administración / Gerencia / Dirección: backfill OC en órdenes existentes."""
+    r = _normalized_role(user)
+    return r in (
+        "ADMIN",
+        "ADMINISTRADOR",
+        "GERENCIA",
+        "DIRECTOR",
+        "DIRECCION",
+        "DIRECTION",
+        "MANAGER",
+    )
+
 
 def normalize_commission(rate: float | None) -> float:
     if rate is None: return 0.0
@@ -165,13 +211,17 @@ def read_sales_orders(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user)
 ):
+    """
+    Listado de órdenes: SALES/VENTAS → solo `user_id` del asesor; staff (ADMIN, GERENCIA, DIRECTOR, …)
+    → sin filtro por vendedor (misma amplitud que monitor de administración).
+    """
     query = select(SalesOrder).options(
         selectinload(SalesOrder.client),
         selectinload(SalesOrder.items).selectinload(SalesOrderItem.instances),
         selectinload(SalesOrder.payments),
         selectinload(SalesOrder.user)
     )
-    if current_user.role and current_user.role.upper() == "SALES":
+    if _is_seller_scoped_role(current_user):
         query = query.where(SalesOrder.user_id == current_user.id)
     if status: query = query.where(SalesOrder.status == status)
     if client_id: query = query.where(SalesOrder.client_id == client_id)
@@ -194,9 +244,73 @@ def read_order_detail(
     )
     order = session.exec(query).unique().first()
     if not order: raise HTTPException(status_code=404, detail="Orden no encontrada")
-    if current_user.role and current_user.role.upper() == "SALES" and order.user_id != current_user.id:
+    if _is_seller_scoped_role(current_user) and order.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Acceso denegado")
     return order
+
+
+# ==========================================
+# 3b. CXC — LECTURA V4.4 (Vendedor read-only, filtrado por user_id de la OV)
+# ==========================================
+def _list_customer_payments_query(
+    session: Session,
+    current_user: User,
+    *,
+    status: Optional[CXCStatus] = None,
+) -> List[CustomerPayment]:
+    stmt = select(CustomerPayment).join(
+        SalesOrder,
+        CustomerPayment.sales_order_id == SalesOrder.id,
+    )
+    if _is_seller_scoped_role(current_user):
+        stmt = stmt.where(SalesOrder.user_id == current_user.id)
+    if status is not None:
+        stmt = stmt.where(CustomerPayment.status == status)
+    stmt = stmt.order_by(CustomerPayment.id.desc())
+    return list(session.exec(stmt).all())
+
+
+@router.get("/customer-payments/pending", response_model=List[CustomerPaymentRead])
+def get_my_pending_customer_payments(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Cartera viva (CXC PENDING). Misma noción que Administración C. Antigüedad.
+    Vendedor: solo líneas ligadas a órdenes donde user_id es el asesor.
+    """
+    return _list_customer_payments_query(session, current_user, status=CXCStatus.PENDING)
+
+
+@router.get("/customer-payments", response_model=List[CustomerPaymentRead])
+def list_customer_payments(
+    status: Optional[str] = Query(
+        default=None,
+        description="PENDING | PAID | CANCELLED. Si se omite: vendedor = todos sus CXC; staff = solo PENDING.",
+    ),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    if status:
+        try:
+            st = CXCStatus(status.strip().upper())
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Estatus CXC inválido: {status}")
+        return _list_customer_payments_query(session, current_user, status=st)
+    if _is_seller_scoped_role(current_user):
+        return _list_customer_payments_query(session, current_user, status=None)
+    return _list_customer_payments_query(session, current_user, status=CXCStatus.PENDING)
+
+
+@router.get("/payments", response_model=List[CustomerPaymentRead])
+def list_sales_payments(
+    status: Optional[str] = Query(default=None, description="Filtrar por CXCStatus, ej. PENDING"),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Alias compatible con clientes que llaman GET /sales/payments?status=PENDING."""
+    return list_customer_payments(status=status, session=session, current_user=current_user)
+
 
 # ==========================================
 # 4. ACTUALIZAR ORDEN
@@ -210,11 +324,15 @@ def update_sales_order(
 ):
     db_order = session.get(SalesOrder, order_id)
     if not db_order: raise HTTPException(404, "No encontrada")
-    if current_user.role and current_user.role.upper() == "SALES" and db_order.user_id != current_user.id:
+    if _is_seller_scoped_role(current_user) and db_order.user_id != current_user.id:
         raise HTTPException(403, "Acceso denegado")
 
     update_data = order_update.model_dump(exclude_unset=True)
-    items_data = update_data.pop("items", None) 
+    items_data = update_data.pop("items", None)
+
+    if not _can_edit_client_po_meta(current_user):
+        update_data.pop("client_po_folio", None)
+        update_data.pop("client_po_date", None)
     
     for key, value in update_data.items(): setattr(db_order, key, value)
     if "applied_commission_percent" in update_data:
@@ -351,15 +469,27 @@ def authorize_order(order_id: int, session: Session = Depends(get_session)):
 
 @router.post("/orders/{order_id}/mark_waiting_advance", response_model=SalesOrderRead)
 def mark_as_waiting_advance(
-    order_id: int, 
-    session: Session = Depends(get_session)
+    order_id: int,
+    payload: ClientPurchaseOrderPayload,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
 ):
     """
-    EL SEMÁFORO DEL 3% (Centralizado en el Motor)
+    EL SEMÁFORO DEL 3% (Centralizado en el Motor).
+    V5: requiere folio y fecha de OC del cliente; sin ellos no se genera el paso a OV.
     """
+    folio = (payload.client_po_folio or "").strip()
+    if not folio:
+        raise HTTPException(status_code=400, detail="El folio de la OC del cliente es obligatorio.")
+    if not payload.client_po_date:
+        raise HTTPException(status_code=400, detail="La fecha de la OC del cliente es obligatoria.")
+
     order = session.get(SalesOrder, order_id)
-    if not order: raise HTTPException(404, "No encontrada")
-    
+    if not order:
+        raise HTTPException(404, "No encontrada")
+    if _is_seller_scoped_role(current_user) and order.user_id != current_user.id:
+        raise HTTPException(403, "Acceso denegado")
+
     # LLAMADA AL MOTOR DE COSTOS
     analysis = CostEngine.analyze_order_drift(session, order)
 
@@ -372,9 +502,12 @@ def mark_as_waiting_advance(
             detail=f"SEMÁFORO ROJO: Inflación del {analysis['variation_percent']}%. Supera el {analysis['tolerance_percent']}%. Requiere re-cotizar."
         )
 
+    order.client_po_folio = folio
+    order.client_po_date = payload.client_po_date
     order.status = SalesOrderStatus.WAITING_ADVANCE
     session.add(order)
     session.commit()
+    session.refresh(order)
     return order
 
 # ==========================================
@@ -483,7 +616,7 @@ def download_quote_pdf(order_id: int, session: Session = Depends(get_session)):
     )
 
 # ==========================================
-# RECHAZAR COTIZACIÓN (REGRESAR A BORRADORES)
+# RECHAZAR COTIZACIÓN (REGRESAR A DRAFT)
 # ==========================================
 @router.post("/orders/{order_id}/request_changes", response_model=SalesOrderRead)
 def request_order_changes(order_id: int, session: Session = Depends(get_session)):
@@ -550,6 +683,134 @@ class RegisterProgressPayload(BaseModel):
     instance_ids: List[int] = []      # Si está vacío, toma todas las instancias CLOSED sin pago
 
 
+class InvoicingRightAdvanceRow(BaseModel):
+    order_id: int
+    project_name: Optional[str] = None
+    client_name: str
+    advance_percent: float
+    total_price: float
+    advance_amount: float
+
+
+class InvoicingRightProgressRow(BaseModel):
+    instance_id: int
+    custom_name: str
+    production_status: str
+    line_amount: float
+    signed_received_at: Optional[str] = None
+    order_id: Optional[int] = None
+    order_folio: str
+    project_name: Optional[str] = None
+    client_name: str
+    item_product_name: Optional[str] = None
+
+
+class InvoicingRightsRead(BaseModel):
+    """Derecho a facturación (Tarjeta B): anticipos sin CXC ADVANCE + piezas CLOSED sin factura."""
+
+    advance_pending_total: float
+    progress_work_total: float
+    total_pending_invoice: float
+    advances: List[InvoicingRightAdvanceRow]
+    progress_instances: List[InvoicingRightProgressRow]
+
+
+def _pending_progress_instances_base_stmt():
+    return (
+        select(SalesOrderItemInstance)
+        .where(
+            SalesOrderItemInstance.production_status == InstanceStatus.CLOSED,
+            SalesOrderItemInstance.is_cancelled == False,  # noqa: E712
+            SalesOrderItemInstance.customer_payment_id == None,  # noqa: E711
+            SalesOrderItemInstance.administration_invoice_folio == None,  # noqa: E711
+        )
+        .options(
+            selectinload(SalesOrderItemInstance.item)
+            .selectinload(SalesOrderItem.order)
+            .selectinload(SalesOrder.client)
+        )
+    )
+
+
+def _instance_to_progress_dict(inst: SalesOrderItemInstance) -> Dict[str, Any]:
+    item = inst.item
+    order = item.order if item else None
+    client = order.client if order else None
+    line_amount = _line_amount_per_instance(item) if item else 0.0
+    return {
+        "instance_id": inst.id,
+        "custom_name": inst.custom_name or f"Instancia #{inst.id}",
+        "production_status": inst.production_status.value,
+        "line_amount": line_amount,
+        "signed_received_at": inst.signed_received_at.isoformat() if inst.signed_received_at else None,
+        "order_id": order.id if order else None,
+        "order_folio": f"OV-{str(order.id).zfill(4)}" if order else "—",
+        "project_name": order.project_name if order else None,
+        "client_name": client.full_name if client else "Sin Cliente",
+        "item_product_name": item.product_name if item else None,
+    }
+
+
+@router.get("/invoicing-rights", response_model=InvoicingRightsRead)
+def get_invoicing_rights(
+    session: Session = Depends(get_session),
+    _current_user: User = Depends(get_current_active_user),
+):
+    """
+    Monto Tarjeta B (Pendiente de Facturar): suma de
+    - Anticipos: órdenes WAITING_ADVANCE sin registro ADVANCE en customer_payments.
+    - Avances de obra: instancias CLOSED sin administration_invoice_folio ni customer_payment_id.
+    """
+    advance_payments = session.exec(
+        select(CustomerPayment).where(CustomerPayment.payment_type == PaymentType.ADVANCE)
+    ).all()
+    advance_order_ids = {p.sales_order_id for p in advance_payments if p.sales_order_id is not None}
+
+    waiting_orders = session.exec(
+        select(SalesOrder)
+        .where(SalesOrder.status == SalesOrderStatus.WAITING_ADVANCE)
+        .options(selectinload(SalesOrder.client))
+    ).all()
+
+    advances_out: List[InvoicingRightAdvanceRow] = []
+    advance_total = 0.0
+    for o in waiting_orders:
+        if o.id is not None and o.id in advance_order_ids:
+            continue
+        pct = float(o.advance_percent or 60.0) / 100.0
+        total_p = float(o.total_price or 0.0)
+        amt = total_p * pct
+        client = o.client
+        client_name = client.full_name if client else "Sin Cliente"
+        advances_out.append(
+            InvoicingRightAdvanceRow(
+                order_id=o.id,
+                project_name=o.project_name,
+                client_name=client_name,
+                advance_percent=float(o.advance_percent or 60.0),
+                total_price=total_p,
+                advance_amount=amt,
+            )
+        )
+        advance_total += amt
+
+    instances = session.exec(_pending_progress_instances_base_stmt()).all()
+    progress_rows: List[InvoicingRightProgressRow] = []
+    progress_total = 0.0
+    for inst in instances:
+        payload = _instance_to_progress_dict(inst)
+        progress_rows.append(InvoicingRightProgressRow(**payload))
+        progress_total += float(payload["line_amount"])
+
+    return InvoicingRightsRead(
+        advance_pending_total=advance_total,
+        progress_work_total=progress_total,
+        total_pending_invoice=advance_total + progress_total,
+        advances=advances_out,
+        progress_instances=progress_rows,
+    )
+
+
 @router.post("/orders/{order_id}/register_progress")
 def register_progress_invoice(
     order_id: int,
@@ -562,7 +823,7 @@ def register_progress_invoice(
 
     - Si payload.instance_ids está vacío, toma TODAS las instancias CLOSED sin cobro.
     - Crea un CustomerPayment de tipo PROGRESS.
-    - Vincula las instancias a ese cobro (instance.payment_id).
+    - Vincula las instancias a ese cobro (instance.customer_payment_id).
     - Retorna el cobro creado y las instancias vinculadas.
     """
     order = session.exec(
@@ -585,13 +846,15 @@ def register_progress_invoice(
             i for i in all_instances
             if i.id in payload.instance_ids
             and i.production_status == InstanceStatus.CLOSED
-            and i.payment_id is None
+            and i.customer_payment_id is None
+            and i.administration_invoice_folio is None
         ]
     else:
         candidates = [
             i for i in all_instances
             if i.production_status == InstanceStatus.CLOSED
-            and i.payment_id is None
+            and i.customer_payment_id is None
+            and i.administration_invoice_folio is None
         ]
 
     if not candidates:
@@ -615,7 +878,7 @@ def register_progress_invoice(
     # Vincular instancias al cobro de avance
     linked = []
     for inst in candidates:
-        inst.payment_id = new_cxc.id
+        inst.customer_payment_id = new_cxc.id
         session.add(inst)
         linked.append({
             "instance_id": inst.id,
@@ -644,41 +907,11 @@ def get_pending_progress_instances(
 ):
     """
     Retorna todas las instancias en estado 🟢🟢 CLOSED que aún no tienen
-    una Factura de Avance asignada (payment_id == None).
+    una Factura de Avance asignada (customer_payment_id IS NULL).
     Usado por la bandeja 'Avances por Facturar' en Administración.
     """
-    stmt = (
-        select(SalesOrderItemInstance)
-        .where(
-            SalesOrderItemInstance.production_status == InstanceStatus.CLOSED,
-            SalesOrderItemInstance.payment_id == None,  # noqa: E711
-        )
-        .options(
-            selectinload(SalesOrderItemInstance.item)
-                .selectinload(SalesOrderItem.order)
-                .selectinload(SalesOrder.client)
-        )
-    )
-    instances = session.exec(stmt).all()
-
-    result = []
-    for inst in instances:
-        item = inst.item
-        order = item.order if item else None
-        client = order.client if order else None
-        result.append({
-            "instance_id": inst.id,
-            "custom_name": inst.custom_name or f"Instancia #{inst.id}",
-            "production_status": inst.production_status,
-            "signed_received_at": inst.signed_received_at.isoformat() if inst.signed_received_at else None,
-            "order_id": order.id if order else None,
-            "order_folio": f"OV-{str(order.id).zfill(4)}" if order else "—",
-            "project_name": order.project_name if order else None,
-            "client_name": client.full_name if client else "Sin Cliente",
-            "item_product_name": item.product_name if item else None,
-        })
-
-    return result
+    instances = session.exec(_pending_progress_instances_base_stmt()).all()
+    return [_instance_to_progress_dict(inst) for inst in instances]
 
 
 @router.delete("/orders/{order_id}")

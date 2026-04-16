@@ -11,7 +11,7 @@
  *   <InstanceBaptismPage orderId={123} instances={instances} onComplete={() => navigate('/planning')} />
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { planningService, BaptismEntry } from '../../../api/planning-service';
 
 interface RawInstance {

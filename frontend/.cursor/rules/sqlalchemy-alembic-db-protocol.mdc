@@ -1,0 +1,22 @@
+---
+description: Tras cambiar modelos SQLAlchemy/SQLModel, migrar con Alembic y verificar el esquema.
+globs: "**/app/models/**/*.py"
+alwaysApply: false
+---
+
+# Protocolo de base de datos (Alembic)
+
+En este monorepo los modelos viven en `backend/app/models/` (no en `backend/models/`).
+
+Cuando modifiques modelos SQLModel/SQLAlchemy en esa carpeta:
+
+1. Desde el directorio `backend/` (donde está `alembic.ini`), con el entorno virtual activo o `./venv/bin/python -m alembic`:
+   - `alembic revision --autogenerate -m "descripción clara del cambio"`
+2. Aplica de inmediato: `alembic upgrade head`
+3. Verifica en la base de datos que tablas/columnas nuevas existan (p. ej. SQLite: `PRAGMA table_info(nombre_tabla);` o el equivalente en PostgreSQL).
+4. Si la migración falla: **no hagas commit** de los cambios; revierte los cambios en modelos y en el archivo de revisión generado (y corrige antes de reintentar).
+
+Notas:
+
+- `alembic/env.py` debe importar el paquete completo (`import app.models`) para que el metadata incluya todas las tablas y el autogenerate sea fiable.
+- En SQLite con `batch_op.create_foreign_key`, el nombre del constraint debe ser explícito (no `None`).

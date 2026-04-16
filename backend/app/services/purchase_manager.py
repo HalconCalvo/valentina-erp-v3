@@ -23,7 +23,7 @@ class PurchaseManager:
 
             # Calcular Tránsito (OCs Vivas)
             active_pos = db.execute(
-                text("SELECT id FROM purchase_orders WHERE status IN ('BORRADOR', 'AUTORIZADA', 'ENVIADA')")
+                text("SELECT id FROM purchase_orders WHERE status IN ('DRAFT', 'AUTORIZADA', 'ENVIADA')")
             ).mappings().all()
             active_po_ids = [str(po['id']) for po in active_pos]
             

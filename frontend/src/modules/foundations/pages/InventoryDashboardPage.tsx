@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ClipboardList, ShoppingCart, Truck, Package, ArrowLeft, ArrowUpRight, Wrench, Search, Target } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import axiosClient from '../../../api/axios-client';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 // ---> INYECCIÓN DE LOS MÓDULOS <---
 import { RequisitionsModule } from '../components/RequisitionsModule';
@@ -12,6 +12,7 @@ import InventoryReceptionPage from './InventoryReceptionPage';
 type InventorySection = 'REQUISITIONS' | 'PURCHASE_ORDERS' | 'RECEPTIONS' | 'PHYSICAL_INVENTORY' | null;
 
 export const InventoryDashboardPage = () => {
+    const navigate = useNavigate();
     const [activeSection, setActiveSection] = useState<InventorySection>(null);
     const [isSubSectionActive, setIsSubSectionActive] = useState(false);
     
@@ -19,11 +20,14 @@ export const InventoryDashboardPage = () => {
     const [targetTab, setTargetTab] = useState<string | null>(null);
 
     const location = useLocation();
+    const [returnToPath, setReturnToPath] = useState<string | null>(null);
 
     // Escucha si alguien llegó con un pase directo a una sección
     useEffect(() => {
         if (location.state && location.state.openSection) {
             setActiveSection(location.state.openSection as InventorySection);
+            const rt = (location.state as { returnTo?: string }).returnTo;
+            if (rt) setReturnToPath(rt);
             
             // Si trae un pase directo a una pestaña interna, lo guardamos
             if (location.state.targetTab) {
@@ -63,7 +67,7 @@ export const InventoryDashboardPage = () => {
                 
                 // ¡AQUÍ ESTABA EL BUG! Filtramos estrictamente lo que SÍ queremos contar.
                 const activeOrdersCount = resAllOrders.data.filter((o: any) => 
-                    o.status === 'BORRADOR' || o.status === 'AUTORIZADA'
+                    o.status === 'DRAFT' || o.status === 'AUTORIZADA'
                 ).length;
                 
                 setPurchasingCount(planningCount + activeOrdersCount);
@@ -88,13 +92,21 @@ export const InventoryDashboardPage = () => {
                     <h2 className="text-3xl font-black text-slate-800 tracking-tight">{title}</h2>
                     <button 
                         onClick={() => {
+                            if (returnToPath && activeSection != null) {
+                                navigate(returnToPath);
+                                setReturnToPath(null);
+                                setActiveSection(null);
+                                setIsSubSectionActive(false);
+                                setTargetTab(null);
+                                return;
+                            }
                             setActiveSection(null);
                             setIsSubSectionActive(false);
                             setTargetTab(null); // Limpiamos la sub-pestaña al salir
                         }} 
                         className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 font-bold rounded-lg hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm"
                     >
-                        <ArrowLeft size={18} /> Regresar al Tablero
+                        <ArrowLeft size={18} /> {returnToPath ? 'Regresar' : 'Regresar al Tablero'}
                     </button>
                 </div>
             )}

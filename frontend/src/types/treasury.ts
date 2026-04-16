@@ -38,3 +38,22 @@ export interface TransferCreate {
   reference?: string;
   description?: string;
 }
+
+export interface WeeklyFixedCostPayload {
+  week_reference_date: string;
+  admin_payroll: number;
+  design_sales_payroll: number;
+  production_plant_payroll: number;
+  notes?: string | null;
+}
+
+export interface WeeklyFixedCostRecord {
+  id: number;
+  week_reference_date: string;
+  admin_payroll: number;
+  design_sales_payroll: number;
+  production_plant_payroll: number;
+  notes: string | null;
+  created_by_user_id: number;
+  created_at: string;
+}

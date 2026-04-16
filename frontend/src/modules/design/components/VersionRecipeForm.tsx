@@ -286,7 +286,7 @@ export const VersionRecipeForm = ({
                 value={internalStatus}
                 onChange={(e) => setInternalStatus(e.target.value as VersionStatus)}
             >
-                <option value={VersionStatus.DRAFT}>🔴 BORRADOR (Editable)</option>
+                <option value={VersionStatus.DRAFT}>🔴 Draft (Editable)</option>
                 <option value={VersionStatus.READY}>🟢 LISTO (Bloqueado)</option>
                 <option value={VersionStatus.OBSOLETE}>⚫ OBSOLETO</option>
             </select>

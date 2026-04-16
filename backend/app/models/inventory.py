@@ -89,7 +89,7 @@ class PurchaseOrder(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     provider_id: int = Field(foreign_key="providers.id")
     folio: str = Field(index=True)
-    status: str = Field(default="BORRADOR")  
+    status: str = Field(default="DRAFT")  
     invoice_folio_reported: Optional[str] = Field(default=None)
     invoice_total_reported: Optional[float] = Field(default=None)
     
@@ -195,3 +195,65 @@ class InventoryAuditItem(SQLModel, table=True):
     system_quantity: float # Lo que dice Valentina que hay (Oculto al usuario)
     counted_quantity: Optional[float] = Field(default=None) # Lo que el humano teclea
     variance: Optional[float] = Field(default=None) # Diferencia calculada (+/-)
+
+
+# ==========================================
+# CATÁLOGO DE PRODUCTOS TERMINADOS
+# ==========================================
+
+class Product(SQLModel, table=True):
+    """
+    Catálogo maestro de productos terminados.
+    Complementa al modelo Material (insumos) con los artículos
+    que la empresa fabrica y vende.
+    """
+    __tablename__ = "products"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    # Identificación
+    sku: str = Field(index=True, unique=True)
+    name: str = Field(index=True)
+    description: Optional[str] = None
+    category: Optional[str] = None          # Ej: "MUEBLE", "ACCESORIO", "SERVICIO"
+    unit_of_measure: str = Field(default="PZA")  # PZA, M2, ML, KG…
+
+    # Costo y precio base
+    base_cost: float = Field(default=0.0)   # Costo de producción estimado
+    sale_price: float = Field(default=0.0)  # Precio de lista
+
+    # Stock
+    stock_quantity: float = Field(default=0.0)
+    min_stock: float = Field(default=0.0)   # Punto de reorden
+
+    # Control
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    # Relaciones
+    stock_movements: List["ProductStockMovement"] = Relationship(back_populates="product")
+
+
+class ProductStockMovement(SQLModel, table=True):
+    """
+    Kárdex de entradas y salidas de productos terminados.
+    Cada ajuste de stock queda auditado con tipo, cantidad y motivo.
+    """
+    __tablename__ = "product_stock_movements"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    product_id: int = Field(foreign_key="products.id", index=True)
+
+    # ENTRADA, SALIDA, AJUSTE_POSITIVO, AJUSTE_NEGATIVO
+    movement_type: str = Field(default="ENTRADA")
+    quantity: float                          # Siempre positivo; el tipo define la dirección
+    unit_cost: Optional[float] = None       # Costo unitario al momento del movimiento
+    reference: Optional[str] = None         # Folio OC, Folio Venta, etc.
+    notes: Optional[str] = None
+
+    registered_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    # Relaciones
+    product: Optional[Product] = Relationship(back_populates="stock_movements")

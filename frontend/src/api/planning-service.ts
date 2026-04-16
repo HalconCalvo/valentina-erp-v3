@@ -12,6 +12,7 @@ export interface InstanceSchedule {
   id: number;
   custom_name: string;
   product_name: string | null;
+  product_category: string | null;
   order_folio: string | null;
   client_name: string | null;
   project_name: string | null;
@@ -32,6 +33,7 @@ export interface InstanceSchedule {
 export interface CalendarPill {
   instance_id: number;
   custom_name: string;
+  product_category: string | null;
   lane: 'PM' | 'PP' | 'IM' | 'IP';
   lane_label: string;
   datetime: string;

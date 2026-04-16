@@ -1,39 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-// CORRECCIÓN 1: Ruta relativa exacta para evitar errores de compilación
 import client from '../../../api/axios-client';
+import { Client } from '../../../types/foundations';
 
-export interface Client {
-    id?: number;
-    full_name: string;
-    rfc_tax_id?: string;
-    email: string;
-    phone: string;
-    fiscal_address?: string;
-    
-    contact_name?: string;
-    contact_phone?: string;
-    contact_dept?: string;
-    contact_email?: string;  // <--- NUEVO
-    
-    contact2_name?: string;
-    contact2_phone?: string;
-    contact2_dept?: string;
-    contact2_email?: string; // <--- NUEVO
-    
-    contact3_name?: string;
-    contact3_phone?: string;
-    contact3_dept?: string;
-    contact3_email?: string; // <--- NUEVO
-    
-    contact4_name?: string;
-    contact4_phone?: string;
-    contact4_dept?: string;
-    contact4_email?: string; // <--- NUEVO
-    
-    notes?: string;
-    registration_date?: string;
-    is_active?: boolean;
-}
+export type { Client };
 
 export const useClients = () => {
   // CORRECCIÓN 2: Inicializar siempre como array vacío

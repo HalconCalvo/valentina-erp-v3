@@ -21,7 +21,8 @@ import ConfigPage from './modules/foundations/pages/ConfigPage';
 // 4. DISEÑO
 import DesignCatalogPage from './modules/design/pages/DesignCatalogPage';
 import DesignBuilderPage from './modules/design/pages/DesignBuilderPage'; 
-import SimulatorPage from './modules/design/pages/SimulatorPage'; 
+import SimulatorPage from './modules/design/pages/SimulatorPage';
+import PrintCenterPage from './modules/design/pages/PrintCenterPage'; 
 
 // 5. VENTAS
 import SalesDashboardPage from './modules/sales/pages/SalesDashboardPage';
@@ -88,7 +89,8 @@ function App() {
             {/* Diseño */}
             <Route path="/design" element={<DesignCatalogPage />} />
             <Route path="/design/versions/:id" element={<DesignBuilderPage />} />
-            <Route path="/design/simulator" element={<SimulatorPage />} /> 
+            <Route path="/design/simulator" element={<SimulatorPage />} />
+            <Route path="/design/print-center" element={<PrintCenterPage />} /> 
 
             {/* Ventas */}
             <Route path="/sales" element={<SalesDashboardPage />} />

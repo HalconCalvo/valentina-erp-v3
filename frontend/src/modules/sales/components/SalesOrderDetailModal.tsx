@@ -8,13 +8,22 @@ import {
 import Modal from '@/components/ui/Modal'; 
 import { Button } from '@/components/ui/Button';
 
-import { SalesOrder } from '../../../types/sales';
+import { CustomerPayment, SalesOrder } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
 import BaptismModal from './BaptismModal';
 
 interface Props {
     orderId: number | null;
     onClose: () => void;
+}
+
+function daysOpenForCxc(cxc: CustomerPayment): number | null {
+    const paid = String(cxc.status ?? '').toUpperCase() === 'PAID';
+    if (paid || cxc.payment_date) return null;
+    const inv = cxc.invoice_date || cxc.created_at;
+    if (!inv) return null;
+    const d0 = new Date(inv);
+    return Math.max(0, Math.ceil((Date.now() - d0.getTime()) / (1000 * 60 * 60 * 24)));
 }
 
 export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => {
@@ -24,6 +33,7 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
     // Seguridad para la Puerta Trasera
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase();
     const isDirector = ['ADMIN', 'ADMINISTRADOR', 'DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
+    const canEditOcMeta = ['ADMIN', 'ADMINISTRADOR', 'GERENCIA', 'DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
 
     // Estados de edición de texto
     const [notes, setNotes] = useState(""); 
@@ -40,6 +50,9 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
     const [isDownloading, setIsDownloading] = useState(false);
     const [showBaptism, setShowBaptism] = useState(false);
 
+    const [clientPoFolio, setClientPoFolio] = useState('');
+    const [clientPoDate, setClientPoDate] = useState('');
+
     useEffect(() => {
         if (orderId) {
             setLoading(true);
@@ -53,6 +66,9 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                     setAdvancePercent(Number(data.advance_percent) || 60);
                     // @ts-ignore - Candado fiscal
                     setHasAdvanceInvoice(Boolean(data.has_advance_invoice));
+                    setClientPoFolio((data as any).client_po_folio || '');
+                    const raw = (data as any).client_po_date;
+                    setClientPoDate(raw ? String(raw).slice(0, 10) : '');
                 })
                 .catch(console.error)
                 .finally(() => setLoading(false));
@@ -89,6 +105,27 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
         } catch (error) {
             console.error(error);
             alert("Error al guardar cambios.");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleSaveClientOc = async () => {
+        if (!orderId || !canEditOcMeta) return;
+        setIsSaving(true);
+        try {
+            const body: Record<string, unknown> = {
+                client_po_folio: clientPoFolio.trim() || null,
+            };
+            body.client_po_date = clientPoDate
+                ? `${clientPoDate}T12:00:00`
+                : null;
+            await salesService.updateOrder(orderId, body as Partial<SalesOrder>);
+            const data = await salesService.getOrderDetail(orderId);
+            setOrder(data);
+        } catch (error) {
+            console.error(error);
+            alert("Error al guardar OC del cliente.");
         } finally {
             setIsSaving(false);
         }
@@ -140,6 +177,36 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                         </span>
                     </div>
 
+                    {canEditOcMeta && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+                            <h4 className="text-xs font-black text-amber-900 uppercase tracking-wider flex items-center gap-1">
+                                <FileText size={14} /> OC del cliente (retrocompatibilidad / KPI mes)
+                            </h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[10px] font-bold text-amber-800 uppercase">Folio OC</label>
+                                    <input
+                                        className="w-full mt-1 px-2 py-1.5 text-sm border border-amber-200 rounded-lg bg-white"
+                                        value={clientPoFolio}
+                                        onChange={(e) => setClientPoFolio(e.target.value)}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-amber-800 uppercase">Fecha OC</label>
+                                    <input
+                                        type="date"
+                                        className="w-full mt-1 px-2 py-1.5 text-sm border border-amber-200 rounded-lg bg-white"
+                                        value={clientPoDate}
+                                        onChange={(e) => setClientPoDate(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                            <Button size="sm" variant="secondary" onClick={() => void handleSaveClientOc()} disabled={isSaving}>
+                                Guardar datos de OC
+                            </Button>
+                        </div>
+                    )}
+
                     {/* 1. HEADER DATOS */}
                     <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 grid grid-cols-1 md:grid-cols-3 gap-6 shadow-sm shrink-0">
                         <div>
@@ -158,6 +225,71 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                             <div className="text-3xl font-black text-slate-700">${fmt(order.total_price || 0)}</div>
                         </div>
                     </div>
+
+                    {/* Facturación / Pagos (Rayos X formato): días solo si no está pagada */}
+                    {order.payments && order.payments.length > 0 && (
+                        <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                            <div className="bg-slate-100 px-4 py-2 font-bold text-xs text-slate-700 uppercase tracking-wider">
+                                Facturación / Pagos (CXC)
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-xs min-w-[640px]">
+                                    <thead>
+                                        <tr className="border-b border-slate-200 text-[10px] text-slate-500 uppercase">
+                                            <th className="text-left p-2">Folio</th>
+                                            <th className="text-left p-2">Fecha factura</th>
+                                            <th className="text-right p-2">Importe</th>
+                                            <th className="text-center p-2">Días</th>
+                                            <th className="text-left p-2">Estado</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {order.payments.map((cxc) => {
+                                            const d = daysOpenForCxc(cxc);
+                                            const st = String(cxc.status ?? '').toUpperCase();
+                                            return (
+                                                <tr key={cxc.id} className="border-b border-slate-50 hover:bg-slate-50">
+                                                    <td className="p-2 font-mono font-bold">{cxc.invoice_folio || '—'}</td>
+                                                    <td className="p-2 text-slate-600">
+                                                        {cxc.invoice_date
+                                                            ? new Date(cxc.invoice_date).toLocaleDateString('es-MX')
+                                                            : '—'}
+                                                    </td>
+                                                    <td className="p-2 text-right font-bold">
+                                                        ${fmt(Number(cxc.amount) || 0)}
+                                                    </td>
+                                                    <td className="p-2 text-center font-bold">
+                                                        {d != null ? (
+                                                            <span
+                                                                className={
+                                                                    d > 30
+                                                                        ? 'text-red-600'
+                                                                        : d > 15
+                                                                          ? 'text-amber-600'
+                                                                          : 'text-emerald-600'
+                                                                }
+                                                            >
+                                                                {d}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-slate-400">—</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-2">
+                                                        {st === 'PAID' ? (
+                                                            <span className="text-emerald-700 font-bold">Pagada</span>
+                                                        ) : (
+                                                            <span className="text-amber-700 font-bold">Pendiente</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
 
                     {/* 2. CONTENIDO PRINCIPAL */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">

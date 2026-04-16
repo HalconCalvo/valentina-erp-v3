@@ -2,6 +2,7 @@ from typing import List, Any, Dict
 import math
 import time 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from sqlalchemy import or_
 from sqlmodel import Session, select
 import os
 from uuid import uuid4
@@ -20,7 +21,13 @@ from app.models.design import (
 )
 from app.models.material import Material 
 from app.models.foundations import Client
-from app.models.sales import SalesOrder, SalesOrderItemInstance, SalesOrderItem
+from app.models.production import ProductionBatch, ProductionBatchStatus
+from app.models.sales import (
+    InstanceStatus,
+    SalesOrder,
+    SalesOrderItemInstance,
+    SalesOrderItem,
+)
 from app.services.cloud_storage import upload_to_gcs
 
 # Schemas
@@ -479,7 +486,7 @@ class SimulatedMaterial(BaseModel):
     status_color: str  # "RED", "YELLOW", "GREEN"
 
 class SimulateBatchResponse(BaseModel):
-    suggested_status: str  # "BORRADOR" (Pasa a Fábrica) o "AMBAR" (Frenado)
+    suggested_status: str  # "DRAFT" (Pasa a Fábrica) o "ON_HOLD" (Frenado)
     materials: List[SimulatedMaterial]
 
 @router.post("/simulate_batch", response_model=SimulateBatchResponse)
@@ -563,7 +570,11 @@ def simulate_batch(
             )
         )
 
-    suggested_status = "AMBAR" if batch_is_blocked else "BORRADOR"
+    suggested_status = (
+        ProductionBatchStatus.ON_HOLD.value
+        if batch_is_blocked
+        else ProductionBatchStatus.DRAFT.value
+    )
 
     return SimulateBatchResponse(
         suggested_status=suggested_status,
@@ -631,4 +642,63 @@ def get_pending_instances(
                 order_project_name=order.project_name,
                 order_id=order.id,
             ))
+    return result
+
+
+# ==========================================
+# 11. CENTRO DE IMPRESIÓN — SOLICITUDES DE ETIQUETAS
+# ==========================================
+
+
+class LabelRequestItem(BaseModel):
+    instance_id: int
+    custom_name: str
+    client_name: str
+    project_name: str
+    declared_bundles: int
+
+
+@router.get("/label_requests", response_model=List[LabelRequestItem])
+def list_label_requests(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Instancias con declared_bundles > 0 en producción activa (IN_PRODUCTION)
+    o cuyo lote está en PACKING; enriquecidas con cliente y proyecto.
+    """
+    instances = session.exec(
+        select(SalesOrderItemInstance)
+        .outerjoin(ProductionBatch, SalesOrderItemInstance.production_batch_id == ProductionBatch.id)
+        .where(
+            SalesOrderItemInstance.declared_bundles > 0,
+            or_(
+                SalesOrderItemInstance.production_status == InstanceStatus.IN_PRODUCTION,
+                ProductionBatch.status == ProductionBatchStatus.PACKING,
+            ),
+        )
+    ).all()
+
+    result: List[LabelRequestItem] = []
+    for inst in instances:
+        item = session.exec(
+            select(SalesOrderItem).where(SalesOrderItem.id == inst.sales_order_item_id)
+        ).first()
+        if not item:
+            continue
+        order = session.exec(
+            select(SalesOrder).where(SalesOrder.id == item.sales_order_id)
+        ).first()
+        if not order:
+            continue
+        client = session.get(Client, order.client_id)
+        result.append(
+            LabelRequestItem(
+                instance_id=inst.id,
+                custom_name=inst.custom_name,
+                client_name=client.full_name if client else "",
+                project_name=order.project_name,
+                declared_bundles=inst.declared_bundles or 0,
+            )
+        )
     return result

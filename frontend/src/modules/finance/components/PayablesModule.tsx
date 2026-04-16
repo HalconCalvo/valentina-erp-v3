@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { TrendingDown, Clock, CheckCircle2, AlertCircle, Calendar, ArrowLeft, Check, Layers, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -11,14 +11,40 @@ import { BankAccount } from '../../../types/treasury';
 import { PaymentRequestModal } from './PaymentRequestModal';
 import { InvoiceDetailModal } from './InvoiceDetailModal';
 
-type PayableFilter = 'ALL' | 'THIS_FRIDAY' | 'NEXT_15_DAYS' | 'FUTURE' | null;
+type PayableFilter =
+ | 'ALL'
+    | 'THIS_FRIDAY'
+    | 'NEXT_15_DAYS'
+    | 'FUTURE'
+    | 'DUE_0_7'
+    | 'DUE_8_15'
+    | 'DUE_GT_15'
+    | null;
 type SortKey = 'provider_name' | 'invoice_number' | 'due_date' | 'outstanding_balance';
+
+function invoiceDueDayDiff(inv: PendingInvoice): number | null {
+    if (!inv.due_date) return null;
+    const due = new Date(inv.due_date);
+    due.setMinutes(due.getMinutes() + due.getTimezoneOffset());
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    due.setHours(0, 0, 0, 0);
+    return Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+}
 
 interface PayablesModuleProps {
     onSubSectionChange?: (isActive: boolean) => void;
+    /** friday_week: corte viernes (Tesorería). calendar: 0–7 / 8–15 />15 días (Gerencia V4). */
+    dueBucketMode?: 'friday_week' | 'calendar';
+    /** Incrementar desde el padre para simular «Regresar» al hub de tarjetas. */
+    parentBackSignal?: number;
 }
 
-export const PayablesModule: React.FC<PayablesModuleProps> = ({ onSubSectionChange }) => {
+export const PayablesModule: React.FC<PayablesModuleProps> = ({
+    onSubSectionChange,
+    dueBucketMode = 'friday_week',
+    parentBackSignal = 0,
+}) => {
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase().trim();
     const isChecker = ['DIRECTOR', 'GERENCIA'].includes(userRole);
 
@@ -37,6 +63,16 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({ onSubSectionChan
     const [editingRequest, setEditingRequest] = useState<SupplierPayment | null>(null);
 
     const [viewingInvoice, setViewingInvoice] = useState<PendingInvoice | null>(null);
+
+    const lastParentBackSig = useRef(0);
+    useEffect(() => {
+        if (parentBackSignal > lastParentBackSig.current) {
+            lastParentBackSig.current = parentBackSignal;
+            setActiveFilter(null);
+            setSortConfig(null);
+            onSubSectionChange?.(false);
+        }
+    }, [parentBackSignal, onSubSectionChange]);
 
     const handleFilterChange = (filter: PayableFilter) => {
         setActiveFilter(filter);
@@ -82,9 +118,43 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({ onSubSectionChan
         return () => clearInterval(intervalId);
     }, []);
 
+    const calendarBucketStats = useMemo(() => {
+        let n07 = 0,
+            a07 = 0,
+            n815 = 0,
+            a815 = 0,
+            n16 = 0,
+            a16 = 0;
+        for (const inv of invoices) {
+            const d = invoiceDueDayDiff(inv);
+            if (d === null) continue;
+            if (d <= 7) {
+                n07++;
+                a07 += inv.outstanding_balance;
+            } else if (d <= 15) {
+                n815++;
+                a815 += inv.outstanding_balance;
+            } else {
+                n16++;
+                a16 += inv.outstanding_balance;
+            }
+        }
+        return { n07, a07, n815, a815, n16, a16 };
+    }, [invoices]);
+
     const getFilteredInvoices = () => {
         if (!activeFilter) return [];
         if (activeFilter === 'ALL') return invoices;
+
+        if (dueBucketMode === 'calendar') {
+            return invoices.filter((inv) => {
+                const d = invoiceDueDayDiff(inv);
+                if (activeFilter === 'DUE_0_7') return d !== null && d <= 7;
+                if (activeFilter === 'DUE_8_15') return d !== null && d >= 8 && d <= 15;
+                if (activeFilter === 'DUE_GT_15') return d !== null && d > 15;
+                return false;
+            });
+        }
 
         return invoices.filter(inv => {
             if (!inv.due_date) return false;
@@ -194,9 +264,12 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({ onSubSectionChan
     const theme = (() => {
         switch (activeFilter) {
             case 'ALL': return { border: 'border-indigo-300', bgLight: 'bg-indigo-50', textTitle: 'text-indigo-950', textIcon: 'text-indigo-600', btnHover: 'hover:bg-indigo-100 hover:text-indigo-800 hover:border-indigo-300', btnAction: 'bg-indigo-200 hover:bg-indigo-300 text-indigo-950 border border-indigo-300' };
-            case 'THIS_FRIDAY': return { border: 'border-red-300', bgLight: 'bg-red-50', textTitle: 'text-red-950', textIcon: 'text-red-600', btnHover: 'hover:bg-red-100 hover:text-red-800 hover:border-red-300', btnAction: 'bg-red-200 hover:bg-red-300 text-red-950 border border-red-300' };
-            case 'NEXT_15_DAYS': return { border: 'border-orange-200', bgLight: 'bg-orange-50', textTitle: 'text-orange-900', textIcon: 'text-orange-500', btnHover: 'hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200', btnAction: 'bg-orange-100 hover:bg-orange-200 text-orange-800 border border-orange-200' };
-            case 'FUTURE': return { border: 'border-yellow-300', bgLight: 'bg-yellow-50', textTitle: 'text-yellow-900', textIcon: 'text-yellow-500', btnHover: 'hover:bg-yellow-50 hover:text-yellow-700 hover:border-yellow-300', btnAction: 'bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border border-yellow-300' };
+            case 'THIS_FRIDAY':
+            case 'DUE_0_7': return { border: 'border-red-300', bgLight: 'bg-red-50', textTitle: 'text-red-950', textIcon: 'text-red-600', btnHover: 'hover:bg-red-100 hover:text-red-800 hover:border-red-300', btnAction: 'bg-red-200 hover:bg-red-300 text-red-950 border border-red-300' };
+            case 'NEXT_15_DAYS':
+            case 'DUE_8_15': return { border: 'border-orange-200', bgLight: 'bg-orange-50', textTitle: 'text-orange-900', textIcon: 'text-orange-500', btnHover: 'hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200', btnAction: 'bg-orange-100 hover:bg-orange-200 text-orange-800 border border-orange-200' };
+            case 'FUTURE':
+            case 'DUE_GT_15': return { border: 'border-yellow-300', bgLight: 'bg-yellow-50', textTitle: 'text-yellow-900', textIcon: 'text-yellow-500', btnHover: 'hover:bg-yellow-50 hover:text-yellow-700 hover:border-yellow-300', btnAction: 'bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border border-yellow-300' };
             default: return { border: 'border-slate-200', bgLight: 'bg-slate-50', textTitle: 'text-slate-800', textIcon: 'text-slate-500', btnHover: 'hover:bg-slate-50 hover:text-slate-700', btnAction: 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200' };
         }
     })();
@@ -207,6 +280,9 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({ onSubSectionChan
             case 'THIS_FRIDAY': return <><AlertCircle className={theme.textIcon} size={20} /> Pago Inmediato (Vence este Viernes)</>;
             case 'NEXT_15_DAYS': return <><Calendar className={theme.textIcon} size={20} /> Proyección Corta (Próximos 15 Días)</>;
             case 'FUTURE': return <><TrendingDown className={theme.textIcon} size={20} /> Largo Plazo (Más de 15 Días)</>;
+            case 'DUE_0_7': return <><AlertCircle className={theme.textIcon} size={20} /> Inmediato (0–7 días)</>;
+            case 'DUE_8_15': return <><Calendar className={theme.textIcon} size={20} /> 8 a 15 días</>;
+            case 'DUE_GT_15': return <><TrendingDown className={theme.textIcon} size={20} /> Mayores a 15 días</>;
             default: return '';
         }
     };
@@ -235,67 +311,128 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({ onSubSectionChan
 
             {activeFilter === null ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-4">
-                    
-                    <div className="w-full relative">
-                        <Card onClick={() => handleFilterChange('THIS_FRIDAY')} className="p-6 border-l-4 border-l-red-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl">
-                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-red-50 text-red-700 border-r border-red-100 font-black text-3xl group-hover:bg-red-100">
-                                {stats?.overdue_count || 0}
+                    {dueBucketMode === 'calendar' ? (
+                        <>
+                            <div className="w-full relative">
+                                <Card onClick={() => handleFilterChange('DUE_0_7')} className="p-6 border-l-4 border-l-red-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl">
+                                    <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-red-50 text-red-700 border-r border-red-100 font-black text-3xl group-hover:bg-red-100">
+                                        {calendarBucketStats.n07}
+                                    </div>
+                                    <div className="ml-16 h-full flex flex-col justify-between">
+                                        <div>
+                                            <h4 className="font-bold text-red-800 flex items-center gap-2"><AlertCircle size={18} /> 4.1 Inmediato</h4>
+                                            <p className="text-sm text-slate-500 mt-2 mb-4">0–7 días (vencidas incluidas)</p>
+                                        </div>
+                                        <div className="text-lg font-black text-red-600 text-right tracking-tight">{formatCurrency(calendarBucketStats.a07)}</div>
+                                    </div>
+                                </Card>
                             </div>
-                            <div className="ml-16 h-full flex flex-col justify-between">
-                                <div>
-                                    <h4 className="font-bold text-red-800 flex items-center gap-2"><AlertCircle size={18} /> Pago Inmediato</h4>
-                                    <p className="text-sm text-slate-500 mt-2 mb-4">Para este viernes</p>
-                                </div>
-                                <div className="text-lg font-black text-red-600 text-right tracking-tight">{formatCurrency(stats?.overdue_amount || 0)}</div>
+                            <div className="w-full relative">
+                                <Card onClick={() => handleFilterChange('DUE_8_15')} className="p-6 border-l-4 border-l-orange-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl">
+                                    <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-orange-50 text-orange-700 border-r border-orange-100 font-black text-3xl group-hover:bg-orange-100">
+                                        {calendarBucketStats.n815}
+                                    </div>
+                                    <div className="ml-16 h-full flex flex-col justify-between">
+                                        <div>
+                                            <h4 className="font-bold text-orange-800 flex items-center gap-2"><Calendar size={18} /> 4.2 8–15 días</h4>
+                                            <p className="text-sm text-slate-500 mt-2 mb-4">Ventana intermedia</p>
+                                        </div>
+                                        <div className="text-lg font-black text-orange-600 text-right tracking-tight">{formatCurrency(calendarBucketStats.a815)}</div>
+                                    </div>
+                                </Card>
                             </div>
-                        </Card>
-                    </div>
+                            <div className="w-full relative">
+                                <Card onClick={() => handleFilterChange('DUE_GT_15')} className="p-6 border-l-4 border-l-yellow-400 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl">
+                                    <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-yellow-50 text-yellow-700 border-r border-yellow-100 font-black text-3xl group-hover:bg-yellow-100">
+                                        {calendarBucketStats.n16}
+                                    </div>
+                                    <div className="ml-16 h-full flex flex-col justify-between">
+                                        <div>
+                                            <h4 className="font-bold text-yellow-800 flex items-center gap-2"><TrendingDown size={18} /> 4.3 &gt; 15 días</h4>
+                                            <p className="text-sm text-slate-500 mt-2 mb-4">Documentos con vencimiento lejano</p>
+                                        </div>
+                                        <div className="text-lg font-black text-yellow-600 text-right tracking-tight">{formatCurrency(calendarBucketStats.a16)}</div>
+                                    </div>
+                                </Card>
+                            </div>
+                            <div className="w-full relative">
+                                <Card onClick={() => handleFilterChange('ALL')} className="p-6 border-l-4 border-l-indigo-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl">
+                                    <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50 text-indigo-700 border-r border-indigo-100 font-black text-3xl group-hover:bg-indigo-100">
+                                        {totalAllCount}
+                                    </div>
+                                    <div className="ml-16 h-full flex flex-col justify-between">
+                                        <div>
+                                            <h4 className="font-bold text-indigo-800 flex items-center gap-2"><Layers size={18} /> 4.4 Todos</h4>
+                                            <p className="text-sm text-slate-500 mt-2 mb-4">Documentos por pagar</p>
+                                        </div>
+                                        <div className="text-lg font-black text-indigo-600 text-right tracking-tight">{formatCurrency(totalAllAmount)}</div>
+                                    </div>
+                                </Card>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <div className="w-full relative">
+                                <Card onClick={() => handleFilterChange('THIS_FRIDAY')} className="p-6 border-l-4 border-l-red-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl">
+                                    <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-red-50 text-red-700 border-r border-red-100 font-black text-3xl group-hover:bg-red-100">
+                                        {stats?.overdue_count || 0}
+                                    </div>
+                                    <div className="ml-16 h-full flex flex-col justify-between">
+                                        <div>
+                                            <h4 className="font-bold text-red-800 flex items-center gap-2"><AlertCircle size={18} /> Pago Inmediato</h4>
+                                            <p className="text-sm text-slate-500 mt-2 mb-4">Para este viernes</p>
+                                        </div>
+                                        <div className="text-lg font-black text-red-600 text-right tracking-tight">{formatCurrency(stats?.overdue_amount || 0)}</div>
+                                    </div>
+                                </Card>
+                            </div>
 
-                    <div className="w-full relative">
-                        <Card onClick={() => handleFilterChange('NEXT_15_DAYS')} className="p-6 border-l-4 border-l-orange-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl">
-                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-orange-50 text-orange-700 border-r border-orange-100 font-black text-3xl group-hover:bg-orange-100">
-                                {stats?.next_period_count || 0}
+                            <div className="w-full relative">
+                                <Card onClick={() => handleFilterChange('NEXT_15_DAYS')} className="p-6 border-l-4 border-l-orange-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl">
+                                    <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-orange-50 text-orange-700 border-r border-orange-100 font-black text-3xl group-hover:bg-orange-100">
+                                        {stats?.next_period_count || 0}
+                                    </div>
+                                    <div className="ml-16 h-full flex flex-col justify-between">
+                                        <div>
+                                            <h4 className="font-bold text-orange-800 flex items-center gap-2"><Calendar size={18} /> Proyección Corta</h4>
+                                            <p className="text-sm text-slate-500 mt-2 mb-4">Próximos 15 días</p>
+                                        </div>
+                                        <div className="text-lg font-black text-orange-600 text-right tracking-tight">{formatCurrency(stats?.next_period_amount || 0)}</div>
+                                    </div>
+                                </Card>
                             </div>
-                            <div className="ml-16 h-full flex flex-col justify-between">
-                                <div>
-                                    <h4 className="font-bold text-orange-800 flex items-center gap-2"><Calendar size={18} /> Proyección Corta</h4>
-                                    <p className="text-sm text-slate-500 mt-2 mb-4">Próximos 15 días</p>
-                                </div>
-                                <div className="text-lg font-black text-orange-600 text-right tracking-tight">{formatCurrency(stats?.next_period_amount || 0)}</div>
-                            </div>
-                        </Card>
-                    </div>
 
-                    <div className="w-full relative">
-                        <Card onClick={() => handleFilterChange('FUTURE')} className="p-6 border-l-4 border-l-yellow-400 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl">
-                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-yellow-50 text-yellow-700 border-r border-yellow-100 font-black text-3xl group-hover:bg-yellow-100">
-                                {stats?.future_count || 0}
+                            <div className="w-full relative">
+                                <Card onClick={() => handleFilterChange('FUTURE')} className="p-6 border-l-4 border-l-yellow-400 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl">
+                                    <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-yellow-50 text-yellow-700 border-r border-yellow-100 font-black text-3xl group-hover:bg-yellow-100">
+                                        {stats?.future_count || 0}
+                                    </div>
+                                    <div className="ml-16 h-full flex flex-col justify-between">
+                                        <div>
+                                            <h4 className="font-bold text-yellow-800 flex items-center gap-2"><TrendingDown size={18} /> Largo Plazo</h4>
+                                            <p className="text-sm text-slate-500 mt-2 mb-4">Más de 15 días</p>
+                                        </div>
+                                        <div className="text-lg font-black text-yellow-600 text-right tracking-tight">{formatCurrency(stats?.future_amount || 0)}</div>
+                                    </div>
+                                </Card>
                             </div>
-                            <div className="ml-16 h-full flex flex-col justify-between">
-                                <div>
-                                    <h4 className="font-bold text-yellow-800 flex items-center gap-2"><TrendingDown size={18} /> Largo Plazo</h4>
-                                    <p className="text-sm text-slate-500 mt-2 mb-4">Más de 15 días</p>
-                                </div>
-                                <div className="text-lg font-black text-yellow-600 text-right tracking-tight">{formatCurrency(stats?.future_amount || 0)}</div>
-                            </div>
-                        </Card>
-                    </div>
 
-                    <div className="w-full relative">
-                        <Card onClick={() => handleFilterChange('ALL')} className="p-6 border-l-4 border-l-indigo-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl">
-                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50 text-indigo-700 border-r border-indigo-100 font-black text-3xl group-hover:bg-indigo-100">
-                                {totalAllCount}
+                            <div className="w-full relative">
+                                <Card onClick={() => handleFilterChange('ALL')} className="p-6 border-l-4 border-l-indigo-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl">
+                                    <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50 text-indigo-700 border-r border-indigo-100 font-black text-3xl group-hover:bg-indigo-100">
+                                        {totalAllCount}
+                                    </div>
+                                    <div className="ml-16 h-full flex flex-col justify-between">
+                                        <div>
+                                            <h4 className="font-bold text-indigo-800 flex items-center gap-2"><Layers size={18} /> Todas</h4>
+                                            <p className="text-sm text-slate-500 mt-2 mb-4">Archivo Maestro</p>
+                                        </div>
+                                        <div className="text-lg font-black text-indigo-600 text-right tracking-tight">{formatCurrency(totalAllAmount)}</div>
+                                    </div>
+                                </Card>
                             </div>
-                            <div className="ml-16 h-full flex flex-col justify-between">
-                                <div>
-                                    <h4 className="font-bold text-indigo-800 flex items-center gap-2"><Layers size={18} /> Todas</h4>
-                                    <p className="text-sm text-slate-500 mt-2 mb-4">Archivo Maestro</p>
-                                </div>
-                                <div className="text-lg font-black text-indigo-600 text-right tracking-tight">{formatCurrency(totalAllAmount)}</div>
-                            </div>
-                        </Card>
-                    </div>
-
+                        </>
+                    )}
                 </div>
             ) : (
                 <div className="space-y-6">

@@ -21,7 +21,7 @@ import { designService } from '../../../api/design-service';
 import { productionService } from '../../../api/production-service';
 import { VersionStatus } from '../../../types/design';
 
-type ModuleView = 'HOME' | 'CATALOG' | 'DEFICIT' | 'PRINTING';
+type ModuleView = 'HOME' | 'CATALOG' | 'DEFICIT';
 
 const DesignCatalogPage: React.FC = () => {
     const navigate = useNavigate();
@@ -78,8 +78,8 @@ const DesignCatalogPage: React.FC = () => {
             setPendingInstancesCount(pending.length);
 
             const batches = await productionService.getBatches();
-            setAmberBatchesCount(batches.filter(b => b.status === 'AMBAR').length);
-            setActiveBatchesCount(batches.filter(b => b.status === 'EN_PRODUCCION' || b.status === 'TERMINADO').length);
+            setAmberBatchesCount(batches.filter(b => b.status === 'ON_HOLD').length);
+            setActiveBatchesCount(batches.filter(b => b.status === 'IN_PRODUCTION' || b.status === 'FINISHED').length);
         } catch (err) {
             console.error("Error cargando métricas", err);
         }
@@ -270,7 +270,7 @@ const DesignCatalogPage: React.FC = () => {
                         </Card>
 
                         {/* Tarjeta 4: Centro de Impresión */}
-                        <Card onClick={() => setCurrentView('PRINTING')} className="p-4 cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-emerald-500 transform hover:-translate-y-1 bg-white shadow-sm h-full">
+                        <Card onClick={() => navigate('/design/print-center')} className="p-4 cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-emerald-500 transform hover:-translate-y-1 bg-white shadow-sm h-full">
                             <div className="flex justify-between items-start">
                                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Módulo 4</p>
                                 <Printer size={14} className="text-emerald-500" />
@@ -437,24 +437,6 @@ const DesignCatalogPage: React.FC = () => {
                             </div>
                             <Card className="p-12 text-center bg-white border border-slate-200 shadow-sm flex flex-col items-center justify-center">
                                 <ShieldAlert size={48} className="text-orange-300 mb-4"/>
-                                <h3 className="text-xl font-bold text-slate-700">Módulo en Construcción</h3>
-                            </Card>
-                        </div>
-                    )}
-
-                    {/* --- MÓDULO 4: IMPRESIÓN --- */}
-                    {currentView === 'PRINTING' && (
-                        <div className="space-y-6">
-                            <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-200">
-                                <div>
-                                    <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                                        <Printer className="text-emerald-500"/> Centro de Impresión y Control de Piso
-                                    </h2>
-                                    <p className="text-slate-500 text-sm mt-1">Emisión de etiquetas ZPL, manifiestos PDF y control de lotes activos.</p>
-                                </div>
-                            </div>
-                            <Card className="p-12 text-center bg-white border border-slate-200 shadow-sm flex flex-col items-center justify-center">
-                                <Printer size={48} className="text-slate-300 mb-4"/>
                                 <h3 className="text-xl font-bold text-slate-700">Módulo en Construcción</h3>
                             </Card>
                         </div>

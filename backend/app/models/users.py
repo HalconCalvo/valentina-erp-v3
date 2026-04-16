@@ -21,7 +21,9 @@ class UserUpdate(SQLModel):
     password: str | None = None 
     is_active: bool | None = None
     commission_rate: float | None = None 
-    monthly_sales_target: float | None = None # NUEVA COLUMNA V3.5
+    monthly_sales_target: float | None = None
+    monthly_quota: float | None = None  # Meta mensual (V5); editable solo ADMIN/DIRECTOR
+    global_commission_rate: float | None = None
 
 # 2. Base (Atributos compartidos)
 class UserBase(SQLModel):
@@ -30,13 +32,16 @@ class UserBase(SQLModel):
     is_active: bool = True
     role: UserRole = Field(default=UserRole.SALES) 
     commission_rate: float = Field(default=0.0)
-    monthly_sales_target: float = Field(default=0.0) # NUEVA COLUMNA V3.5
+    monthly_sales_target: float = Field(default=0.0)
+    monthly_quota: float | None = Field(default=None)  # Meta mensual explícita (V5)
+    global_commission_rate: float = Field(default=0.0)
 
 # 3. Tabla de Base de Datos (Lo que se guarda)
 class User(UserBase, table=True):
     __tablename__ = "users"
     id: int | None = Field(default=None, primary_key=True)
     hashed_password: str
+    is_superuser: bool = Field(default=False)
 
 # 4. Creación (Input del API - Incluye password plano)
 class UserCreate(UserBase):
@@ -45,6 +50,6 @@ class UserCreate(UserBase):
 # 5. Público (Output del API - Oculta el password)
 class UserPublic(UserBase):
     id: int
-    # AGREGAMOS ESTO EXPLÍCITAMENTE PARA FORZAR QUE SE ENVÍE
     commission_rate: float | None = 0.0
-    monthly_sales_target: float | None = 0.0 # NUEVA COLUMNA V3.5
+    monthly_sales_target: float | None = 0.0
+    global_commission_rate: float | None = 0.0

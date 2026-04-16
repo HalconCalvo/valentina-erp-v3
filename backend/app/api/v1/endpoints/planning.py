@@ -26,6 +26,7 @@ from app.models.sales import (
     InstanceStatus, SalesOrderStatus,
 )
 from app.models.foundations import Client
+from app.models.design import ProductMaster, ProductVersion
 from app.services.planning_service import (
     compute_semaphore, compute_semaphore_label,
     trigger_double_green, reopen_as_warranty,
@@ -82,15 +83,23 @@ def _serialize_instance(inst: SalesOrderItemInstance, now: datetime, session: Op
         "IP": inst.scheduled_inst_stone.isoformat() if inst.scheduled_inst_stone else None,
     }
 
-    # Enrich with parent item / order / client data when session is available
-    product_name: Optional[str] = None
-    order_folio:  Optional[str] = None
-    client_name:  Optional[str] = None
-    project_name: Optional[str] = None
+    # Enrich with parent item / order / client / product category when session is available
+    product_name:     Optional[str] = None
+    product_category: Optional[str] = None
+    order_folio:      Optional[str] = None
+    client_name:      Optional[str] = None
+    project_name:     Optional[str] = None
     if session:
         item = session.get(SalesOrderItem, inst.sales_order_item_id)
         if item:
             product_name = item.product_name
+            # Walk version → master to get category from design_product_masters
+            if item.origin_version_id:
+                version = session.get(ProductVersion, item.origin_version_id)
+                if version:
+                    master = session.get(ProductMaster, version.master_id)
+                    if master:
+                        product_category = master.category
             order = session.get(SalesOrder, item.sales_order_id)
             if order:
                 order_folio  = f"OV-{str(order.id).zfill(4)}"
@@ -104,6 +113,7 @@ def _serialize_instance(inst: SalesOrderItemInstance, now: datetime, session: Op
         "id": inst.id,
         "custom_name": inst.custom_name,
         "product_name": product_name,
+        "product_category": product_category,
         "order_folio": order_folio,
         "client_name": client_name,
         "project_name": project_name,
@@ -172,6 +182,41 @@ def get_calendar_feed(
     )
     instances = session.exec(stmt).all()
 
+    # ── Bulk category lookup: 3 queries instead of N×3 ──────────────────────
+    # Chain: SalesOrderItem.origin_version_id → ProductVersion → ProductMaster.category
+    item_ids = list({inst.sales_order_item_id for inst in instances})
+    category_by_item: dict = {}
+    if item_ids:
+        items_q = session.exec(
+            select(SalesOrderItem).where(SalesOrderItem.id.in_(item_ids))
+        ).all()
+        version_ids = [it.origin_version_id for it in items_q if it.origin_version_id]
+        versions_map: dict = {}
+        if version_ids:
+            versions_map = {
+                v.id: v for v in session.exec(
+                    select(ProductVersion).where(ProductVersion.id.in_(version_ids))
+                ).all()
+            }
+        master_ids = list({v.master_id for v in versions_map.values()})
+        masters_map: dict = {}
+        if master_ids:
+            masters_map = {
+                m.id: m for m in session.exec(
+                    select(ProductMaster).where(ProductMaster.id.in_(master_ids))
+                ).all()
+            }
+        for it in items_q:
+            cat = None
+            if it.origin_version_id:
+                ver = versions_map.get(it.origin_version_id)
+                if ver:
+                    mst = masters_map.get(ver.master_id)
+                    if mst:
+                        cat = mst.category
+            category_by_item[it.id] = cat
+    # ────────────────────────────────────────────────────────────────────────
+
     # Construir píldoras por día
     pills_by_day: dict = {}
     field_map = {
@@ -183,6 +228,7 @@ def get_calendar_feed(
 
     for inst in instances:
         semaphore = compute_semaphore(inst, now)
+        product_category = category_by_item.get(inst.sales_order_item_id)
         for field, code in field_map.items():
             dt: Optional[datetime] = getattr(inst, field)
             if dt is None:
@@ -195,6 +241,7 @@ def get_calendar_feed(
             pills_by_day[day_key].append({
                 "instance_id": inst.id,
                 "custom_name": inst.custom_name,
+                "product_category": product_category,
                 "lane": code,
                 "lane_label": f"{code} {inst.custom_name}",
                 "datetime": dt.isoformat(),

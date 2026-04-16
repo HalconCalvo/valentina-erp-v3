@@ -54,7 +54,7 @@ def _sync_pos_to_invoices(session: SessionDep):
         po = session.exec(select(PurchaseOrder).where(PurchaseOrder.folio == inv_str)).first()
         
         # Si la orden fue Cancelada, Rechazada o se le revocó la firma...
-        if po and po.status in ["CANCELADA", "RECHAZADA", "BORRADOR"]:
+        if po and po.status in ["CANCELADA", "RECHAZADA", "DRAFT"]:
             # A) Anulamos la Factura
             inv.status = getattr(InvoiceStatus, "CANCELLED", "CANCELLED")
             inv.outstanding_balance = 0

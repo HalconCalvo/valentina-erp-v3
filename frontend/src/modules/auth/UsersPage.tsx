@@ -4,7 +4,7 @@ import {
   Plus, UserCog, Shield, Mail, Key, X, 
   CheckCircle, Trash2, Pencil, RefreshCw,
   Percent, Briefcase, PenTool, Package, Hammer, User,
-  TrendingUp, Truck 
+  TrendingUp, Truck, Target
 } from 'lucide-react';
 
 // --- 1. CONFIGURACIÓN DE ROLES (Nombres visuales) ---
@@ -21,6 +21,9 @@ const ROLE_OPTIONS = {
 
 export default function UsersPage() {
   const { users, loading, createUser, updateUser, deleteUser, fetchUsers } = useUsers();
+
+  const editorRole = (localStorage.getItem('user_role') || '').toUpperCase();
+  const canEditMonthlyQuota = ['ADMIN', 'DIRECTOR'].includes(editorRole);
   
   const [showForm, setShowForm] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -29,10 +32,12 @@ export default function UsersPage() {
   const initialForm = {
     full_name: '',
     email: '',
-    password: '', 
-    role: 'LOGISTICS', // Que por defecto ofrezca crear Instaladores (opcional)
+    password: '',
+    role: 'LOGISTICS',
     is_active: true,
-    commission_rate: 0 
+    commission_rate: 0,
+    global_commission_rate: 0,
+    monthly_quota: '' as number | string,
   };
 
   const [form, setForm] = useState(initialForm);
@@ -69,13 +74,16 @@ export default function UsersPage() {
   // --- MANEJADORES ---
 
   const handleEditClick = (user: any) => {
+      const mq = user.monthly_quota ?? user.monthly_sales_target;
       setForm({
           full_name: user.full_name,
           email: user.email,
-          password: '', 
-          role: user.role, 
+          password: '',
+          role: user.role,
           is_active: user.is_active,
-          commission_rate: user.commission_rate || 0 
+          commission_rate: user.commission_rate || 0,
+          global_commission_rate: user.global_commission_rate || 0,
+          monthly_quota: mq != null && mq !== '' ? mq : '',
       });
       setEditingId(user.id);
       setIsEditing(true);
@@ -99,6 +107,15 @@ export default function UsersPage() {
     let result;
     const payload: any = { ...form };
     payload.commission_rate = parseFloat(payload.commission_rate.toString());
+    payload.global_commission_rate = parseFloat(payload.global_commission_rate.toString());
+    if (form.monthly_quota !== '' && form.monthly_quota != null) {
+      payload.monthly_quota = parseFloat(String(form.monthly_quota)) || 0;
+    } else {
+      payload.monthly_quota = null;
+    }
+    if (!canEditMonthlyQuota) {
+      delete payload.monthly_quota;
+    }
 
     if (isEditing && editingId) {
         if (!payload.password) delete payload.password;
@@ -125,8 +142,9 @@ export default function UsersPage() {
     setShowForm(false);
   };
 
-  // Lógica para mostrar la comisión: Muestra si es Ventas O Director
   const showCommission = form.role === 'SALES' || form.role === 'DIRECTOR';
+  const showGlobalCommission = form.role === 'DIRECTOR';
+  const showMonthlyQuota = form.role === 'SALES' || form.role === 'VENTAS';
 
   return (
     <div className="space-y-6 p-6 pb-24 animate-in fade-in duration-500">
@@ -201,7 +219,7 @@ export default function UsersPage() {
                         </div>
                     </div>
 
-                    {/* GRUPO DE ROL Y COMISIÓN */}
+                    {/* GRUPO DE ROL Y COMISIÓN DE VENTA */}
                     <div className="grid grid-cols-2 gap-4">
                         {/* Rol */}
                         <div className={showCommission ? '' : 'col-span-2'}>
@@ -220,10 +238,10 @@ export default function UsersPage() {
                             </div>
                         </div>
 
-                        {/* COMISIÓN (Visible si es Ventas o Director) */}
+                        {/* COMISIÓN DE VENTA (Ventas o Director) */}
                         {showCommission && (
-                             <div className="animate-in fade-in slide-in-from-left-4 duration-300">
-                                <label className="text-xs font-bold text-emerald-600 uppercase tracking-wide">Comisión (%)</label>
+                            <div className="animate-in fade-in slide-in-from-left-4 duration-300">
+                                <label className="text-xs font-bold text-emerald-600 uppercase tracking-wide">Comisión Venta (%)</label>
                                 <div className="relative mt-1">
                                     <Percent size={18} className="absolute left-3 top-2.5 text-emerald-500"/>
                                     <input 
@@ -234,12 +252,54 @@ export default function UsersPage() {
                                         className="w-full pl-10 p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all outline-none font-bold text-emerald-700" 
                                         placeholder="0.0"
                                         value={form.commission_rate}
-                                        onChange={e => setForm({...form, commission_rate: parseFloat(e.target.value)})}
+                                        onChange={e => setForm({...form, commission_rate: parseFloat(e.target.value) || 0})}
                                     />
                                 </div>
                             </div>
                         )}
                     </div>
+
+                    {/* META MENSUAL (Ventas — visible solo rol SALES/VENTAS; editable solo ADMIN/DIRECTOR) */}
+                    {showMonthlyQuota && (
+                        <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+                            <label className="text-xs font-bold text-sky-700 uppercase tracking-wide flex items-center gap-1">
+                                <Target size={14} /> Meta mensual (Venta cerrada mes)
+                            </label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                disabled={!canEditMonthlyQuota}
+                                className={`w-full mt-1 p-2.5 border rounded-lg outline-none ${canEditMonthlyQuota ? 'border-sky-200 bg-sky-50 focus:ring-2 focus:ring-sky-500' : 'border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed'}`}
+                                placeholder="Ej. 2000000"
+                                value={form.monthly_quota === '' ? '' : form.monthly_quota}
+                                onChange={(e) => setForm({ ...form, monthly_quota: e.target.value === '' ? '' : e.target.value })}
+                            />
+                            {!canEditMonthlyQuota && (
+                                <p className="text-[10px] text-slate-500 mt-1">Solo Administración o Dirección puede editar la meta.</p>
+                            )}
+                        </div>
+                    )}
+
+                    {/* COMISIÓN GLOBAL (Solo Director) */}
+                    {showGlobalCommission && (
+                        <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Comisión Global (%)</label>
+                            <div className="relative mt-1">
+                                <Percent size={18} className="absolute left-3 top-2.5 text-slate-400"/>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    max="100"
+                                    className="w-full pl-10 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                                    placeholder="0.00"
+                                    value={form.global_commission_rate}
+                                    onChange={e => setForm({...form, global_commission_rate: parseFloat(e.target.value) || 0})}
+                                />
+                            </div>
+                        </div>
+                    )}
 
                     {/* Contraseña */}
                     <div className="bg-orange-50 p-4 rounded-lg border border-orange-100">
@@ -289,12 +349,16 @@ export default function UsersPage() {
                         <td className="px-6 py-4 text-slate-400 text-xs font-mono">#{user.id}</td>
                         <td className="px-6 py-4">
                             <div className="flex flex-col">
-                                <span className="font-semibold text-slate-900 text-sm flex items-center gap-2">
+                                <span className="font-semibold text-slate-900 text-sm flex items-center gap-1.5 flex-wrap">
                                     {user.full_name}
-                                    {/* Muestra la etiqueta de comisión si es Ventas o Director y tiene comisión > 0 */}
-                                    {(user.role === 'SALES' || user.role === 'DIRECTOR') && (
-                                        <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200 font-bold font-mono flex items-center gap-0.5">
-                                           <Percent size={8}/> {user.commission_rate}%
+                                    {(user.role === 'SALES' || user.role === 'DIRECTOR') && (user.commission_rate ?? 0) > 0 && (
+                                        <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200 font-bold font-mono flex items-center gap-0.5" title="Comisión de Venta">
+                                            <Percent size={8}/> {user.commission_rate}%
+                                        </span>
+                                    )}
+                                    {user.role === 'DIRECTOR' && (user.global_commission_rate ?? 0) > 0 && (
+                                        <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-300 font-bold font-mono flex items-center gap-0.5" title="Comisión Global por Recaudo">
+                                            <Shield size={8}/> {user.global_commission_rate}%
                                         </span>
                                     )}
                                 </span>

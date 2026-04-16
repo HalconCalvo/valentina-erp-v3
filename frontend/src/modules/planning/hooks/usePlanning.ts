@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { planningService, CalendarFeed, HealthPanel, InstanceSchedule } from '../../../api/planning-service';
+import { planningService, CalendarFeed, HealthPanel, InstanceSchedule, CalendarPill } from '../../../api/planning-service';
 
 // ============================================================
 // SEMAPHORE HELPERS
@@ -28,11 +28,99 @@ export function getSemaphoreConfig(semaphore: string) {
   return SEMAPHORE_CONFIG[semaphore] ?? SEMAPHORE_CONFIG['GRAY'];
 }
 
+// ============================================================
+// INSTANCE LABEL FORMATTING
+// ============================================================
+
+/**
+ * Builds the compact display label: "[Category] | [Alias]"
+ *
+ * Priority:
+ *  - Both category + alias → "Cocina | Casa 23 Calle 41"
+ *  - Only category         → "Cocina"
+ *  - Only alias            → "Casa 23 Calle 41"
+ *  - Neither               → productName fallback, or "—"
+ */
+export function formatInstanceLabel(
+  category: string | null | undefined,
+  alias: string,
+  productName?: string | null,
+): string {
+  const cat  = category?.trim() || '';
+  const name = alias?.trim()    || '';
+  if (cat && name) return `${cat} | ${name}`;
+  if (cat)         return cat;
+  if (name)        return name;
+  return productName?.trim() || '—';
+}
+
+// ============================================================
+// FOCUS-MODE SEARCH MATCHING
+// ============================================================
+
+/**
+ * Returns true if a CalendarPill matches the search query.
+ * Checks custom_name, product_category and production_status directly
+ * from the pill, then falls back to the richer InstanceSchedule fields
+ * (folio, client, project, product) via the lookup map built from the
+ * health panel.
+ */
+export function matchesPillQuery(
+  pill: CalendarPill,
+  query: string,
+  lookup: Record<number, InstanceSchedule>
+): boolean {
+  if (!query.trim()) return true;
+  const q = query.trim().toLowerCase();
+  if (pill.custom_name.toLowerCase().includes(q)) return true;
+  if (pill.product_category?.toLowerCase().includes(q)) return true;
+  if (pill.production_status?.toLowerCase().includes(q)) return true;
+  const inst = lookup[pill.instance_id];
+  if (!inst) return false;
+  return (
+    (inst.order_folio?.toLowerCase().includes(q)       ?? false) ||
+    (inst.client_name?.toLowerCase().includes(q)       ?? false) ||
+    (inst.project_name?.toLowerCase().includes(q)      ?? false) ||
+    (inst.product_name?.toLowerCase().includes(q)      ?? false) ||
+    (inst.product_category?.toLowerCase().includes(q)  ?? false)
+  );
+}
+
 export const LANE_COLORS: Record<string, string> = {
   PM: 'bg-violet-200 text-violet-800 border-violet-300',
   PP: 'bg-stone-200 text-stone-700 border-stone-300',
   IM: 'bg-sky-200 text-sky-800 border-sky-300',
   IP: 'bg-cyan-200 text-cyan-800 border-cyan-300',
+};
+
+// ============================================================
+// SHARED SCHEDULING UTILITIES
+// ============================================================
+
+/** Maps a CalendarPill lane code to the backend field name used in reschedule PATCH. */
+export const LANE_FIELD_MAP: Record<string, string> = {
+  PM: 'scheduled_prod_mdf',
+  PP: 'scheduled_prod_stone',
+  IM: 'scheduled_inst_mdf',
+  IP: 'scheduled_inst_stone',
+};
+
+/** Zero-pads year/month/day into a YYYY-MM-DD calendar key. */
+export function formatDateKey(year: number, month: number, day: number): string {
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+/** Emoji dots used across pill and day-view components. */
+export const SEMAPHORE_DOTS: Record<string, string> = {
+  GRAY:         '⬜',
+  YELLOW:       '🟡',
+  RED:          '🔴',
+  BLUE:         '🔵',
+  BLUE_GREEN:   '🔵🟢',
+  DOUBLE_BLUE:  '🔵🔵',
+  GREEN:        '🟢',
+  DOUBLE_GREEN: '🟢🟢',
+  WARRANTY:     '⚠️',
 };
 
 // ============================================================
@@ -74,7 +162,16 @@ export function usePlanningCalendar() {
 
   const refresh = () => fetch(year, month);
 
-  return { year, month, data, loading, error, prevMonth, nextMonth, refresh };
+  /** Navigate to the month that contains the given YYYY-MM-DD date string */
+  const goToDate = useCallback((dateStr: string) => {
+    const [y, m] = dateStr.split('-').map(Number);
+    if (!isNaN(y) && !isNaN(m)) {
+      setYear(y);
+      setMonth(m);
+    }
+  }, []);
+
+  return { year, month, data, loading, error, prevMonth, nextMonth, refresh, goToDate };
 }
 
 // ============================================================

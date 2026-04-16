@@ -157,7 +157,7 @@ def emit_bulk_purchase_order(*, db: Session = Depends(get_session), data: POCrea
     po = PurchaseOrder(
         provider_id=data.provider_id,
         folio=new_folio,
-        status="BORRADOR",
+        status="DRAFT",
         total_estimated_amount=0.0,
         is_advance=True,
         created_by_user_id=current_user.id 
@@ -210,7 +210,7 @@ def revoke_purchase_order(*, db: Session = Depends(get_session), po_id: int, cur
     if not po: raise HTTPException(status_code=404)
     if po.status != "AUTORIZADA": raise HTTPException(status_code=400)
 
-    po.status = "BORRADOR"
+    po.status = "DRAFT"
     po.authorized_by = None
     po.authorized_at = None
     db.add(po)
@@ -221,7 +221,7 @@ def revoke_purchase_order(*, db: Session = Depends(get_session), po_id: int, cur
 def reject_purchase_order(*, db: Session = Depends(get_session), po_id: int, action: str, current_user: CurrentUser):
     po = db.get(PurchaseOrder, po_id)
     if not po: raise HTTPException(status_code=404, detail="Orden no encontrada")
-    if po.status != "BORRADOR": raise HTTPException(status_code=400, detail="Solo se pueden rechazar órdenes en Borrador")
+    if po.status != "DRAFT": raise HTTPException(status_code=400, detail="Solo se pueden rechazar órdenes en Borrador")
 
     items = db.exec(select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po.id)).all()
     
@@ -251,7 +251,7 @@ def reject_purchase_order(*, db: Session = Depends(get_session), po_id: int, act
 def remove_item_from_purchase_order(*, db: Session = Depends(get_session), po_id: int, item_id: int, current_user: CurrentUser):
     po = db.get(PurchaseOrder, po_id)
     if not po: raise HTTPException(status_code=404, detail="Orden de compra no encontrada.")
-    if po.status not in ["BORRADOR", "RECHAZADA"]:
+    if po.status not in ["DRAFT", "RECHAZADA"]:
         raise HTTPException(status_code=400, detail="Solo se pueden modificar órdenes en Borrador.")
 
     po_item = db.get(PurchaseOrderItem, item_id)
@@ -324,6 +324,8 @@ def cancel_dispatched_order(*, db: Session = Depends(get_session), po_id: int, c
 
 @router.put("/orders/{po_id}/receive")
 def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, current_user: CurrentUser, data: dict = Body(...)):
+    from app.models.finance import PurchaseInvoice, SupplierPayment, PaymentStatus, InvoiceStatus
+    
     po = db.get(PurchaseOrder, po_id)
     if not po: raise HTTPException(status_code=404, detail="Orden no encontrada")
 
@@ -331,6 +333,7 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
     setattr(po, 'invoice_folio_reported', data.get("invoice_folio"))
     setattr(po, 'invoice_total_reported', data.get("invoice_total"))
     
+    # 1. Ingresar stock físico
     items = db.exec(select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po.id)).all()
     for item in items:
         if item.material_id:
@@ -339,21 +342,52 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
                 mat.physical_stock = (mat.physical_stock or 0) + item.quantity_ordered
                 db.add(mat)
 
-    prov = db.get(Provider, po.provider_id)
-    credit_days = getattr(prov, 'credit_days', 0)
-    due_date = datetime.now() + timedelta(days=credit_days)
+    # 2. MATEMÁTICAS DE ANTICIPO VS SALDO
+    ant_invoices = db.exec(select(PurchaseInvoice).where(PurchaseInvoice.invoice_number == f"ANT-{po.folio}")).all()
+    total_pagado_anticipos = 0.0
+    
+    for ant in ant_invoices:
+        # Sumamos solo lo que Tesorería realmente pagó y aprobó
+        pagos = db.exec(select(func.sum(SupplierPayment.amount)).where(
+            SupplierPayment.purchase_invoice_id == ant.id,
+            SupplierPayment.status == getattr(PaymentStatus, "PAID", "PAID")
+        )).one() or 0.0
+        total_pagado_anticipos += float(pagos)
 
-    new_payable = text("""
-        INSERT INTO accounts_payable (
-            provider_id, purchase_order_id, invoice_folio, total_amount, due_date, status, created_at
-        ) VALUES (
-            :prov_id, :po_id, :folio, :total, :due, 'PENDIENTE', :now
-        )
-    """)
-    db.exec(new_payable.bindparams(prov_id=po.provider_id, po_id=po.id, folio=data.get("invoice_folio"), total=data.get("invoice_total"), due=due_date, now=datetime.now()))
+        # Matamos el documento proforma en Finanzas
+        ant.status = getattr(InvoiceStatus, "PAID", "PAID")
+        ant.outstanding_balance = 0
+        db.add(ant)
+
+    # 3. La Resta: Total Real - Lo que ya pagó Finanzas
+    total_recibido_con_iva = float(data.get("invoice_total", 0))
+    saldo_restante = total_recibido_con_iva - total_pagado_anticipos
+
+    # Si hay saldo vivo, se genera la deuda en CxP
+    if saldo_restante > 0.01:
+        prov = db.get(Provider, po.provider_id)
+        credit_days = getattr(prov, 'credit_days', 0) or 0
+        due_date = datetime.now() + timedelta(days=credit_days)
+
+        new_payable = text("""
+            INSERT INTO accounts_payable (
+                provider_id, purchase_order_id, invoice_folio, total_amount, due_date, status, created_at
+            ) VALUES (
+                :prov_id, :po_id, :folio, :total, :due, 'PENDIENTE', :now
+            )
+        """)
+        db.exec(new_payable.bindparams(
+            prov_id=po.provider_id, 
+            po_id=po.id, 
+            folio=data.get("invoice_folio"), 
+            total=saldo_restante, 
+            due=due_date, 
+            now=datetime.now()
+        ))
+
     db.add(po)
     db.commit()
-    return {"status": "success", "message": "Inventario y CxP actualizados."}
+    return {"status": "success", "message": "Inventario ingresado y finanzas conciliadas."}
 
 @router.put("/orders/{po_id}/report-discrepancy")
 def report_cost_discrepancy(*, db: Session = Depends(get_session), po_id: int, data: dict = Body(...), current_user: CurrentUser):
@@ -429,7 +463,7 @@ def get_admin_pending_tasks(db: Session = Depends(get_session)):
     
     # 2. Cuenta solo las que están en borrador (Card B)
     orders_to_authorize = db.execute(
-        text("SELECT COUNT(id) FROM purchase_orders WHERE UPPER(status) = 'BORRADOR'")
+        text("SELECT COUNT(id) FROM purchase_orders WHERE UPPER(status) = 'DRAFT'")
     ).scalar() or 0
 
     # 3. Cuenta solo las autorizadas por despachar (Card C)
@@ -517,7 +551,7 @@ def create_manual_order(
     new_order = PurchaseOrder(
         provider_id=provider.id,
         folio=f"OC-M{timestamp}",
-        status="BORRADOR",
+        status="DRAFT",
         total_estimated_amount=subtotal,
         created_by_user_id=current_user.id,
         is_advance=True
@@ -555,3 +589,41 @@ def create_manual_order(
         
     db.commit()
     return {"message": "Orden manual creada con éxito", "order_id": new_order.id}
+
+@router.post("/orders/{po_id}/request-advance")
+def request_order_advance(*, db: Session = Depends(get_session), po_id: int, current_user: CurrentUser, data: dict = Body(...)):
+    from app.models.finance import PurchaseInvoice, InvoiceStatus
+    
+    po = db.get(PurchaseOrder, po_id)
+    if not po: raise HTTPException(status_code=404, detail="Orden no encontrada")
+
+    # --- CANDADO ANTI-DUPLICADOS ---
+    # Verificamos si ya hay un anticipo flotando en Finanzas para este folio
+    existing_ant = db.exec(select(PurchaseInvoice).where(
+        PurchaseInvoice.invoice_number == f"ANT-{po.folio}",
+        PurchaseInvoice.status == getattr(InvoiceStatus, "PENDING", "PENDING")
+    )).first()
+
+    if existing_ant:
+        raise HTTPException(
+            status_code=400, 
+            detail="Ya solicitaste un anticipo para esta OC. Tesorería lo está procesando."
+        )
+    # -------------------------------
+
+    amount = float(data.get("amount", 0))
+    if amount <= 0: raise HTTPException(status_code=400, detail="El monto debe ser mayor a 0")
+
+    # Creamos la "Factura Proforma" de Anticipo
+    inv = PurchaseInvoice(
+        provider_id=po.provider_id,
+        invoice_number=f"ANT-{po.folio}",
+        issue_date=datetime.now().date(),
+        due_date=datetime.now().date(), 
+        total_amount=amount,
+        outstanding_balance=amount,
+        status=getattr(InvoiceStatus, "PENDING", "PENDING")
+    )
+    db.add(inv)
+    db.commit()
+    return {"status": "success", "message": "Anticipo solicitado a Tesorería"}

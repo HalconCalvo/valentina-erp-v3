@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { HealthPanel, InstanceSchedule } from '../../../api/planning-service';
-import { getSemaphoreConfig } from '../hooks/usePlanning';
+import { getSemaphoreConfig, formatInstanceLabel } from '../hooks/usePlanning';
 
 interface Props {
   data: HealthPanel | null;
@@ -8,6 +8,11 @@ interface Props {
   onInstanceClick?: (instance: InstanceSchedule) => void;
   onInstanceDragStart?: (instance: InstanceSchedule) => void;
   highlightId?: number | null;
+  /** Controlled search query — lifted to PlanningPage for cross-view focus mode */
+  searchQuery: string;
+  onSearchQueryChange: (q: string) => void;
+  /** When true, drag-to-calendar is disabled (Vendedor view) */
+  readOnly?: boolean;
 }
 
 type Tab = 'RED' | 'YELLOW' | 'GRAY' | 'WARRANTY' | 'BLUE' | 'ALL';
@@ -76,23 +81,25 @@ function InstanceCard({
   onClick,
   onDragStart,
   isHighlighted,
+  isDraggable = true,
 }: {
   instance: InstanceSchedule;
   onClick?: (inst: InstanceSchedule) => void;
   onDragStart?: (inst: InstanceSchedule) => void;
   isHighlighted: boolean;
+  isDraggable?: boolean;
 }) {
   const cfg = getSemaphoreConfig(instance.semaphore);
   const schedEntries = Object.entries(instance.schedule).filter(([, v]) => v !== null) as [string, string][];
 
   return (
     <div
-      draggable
-      onDragStart={() => onDragStart?.(instance)}
+      draggable={isDraggable}
+      onDragStart={isDraggable ? () => onDragStart?.(instance) : undefined}
       onClick={() => onClick?.(instance)}
       className={`
         w-full text-left px-3 py-3 rounded-xl border select-none transition-all
-        cursor-grab active:cursor-grabbing hover:shadow-md active:scale-[0.98]
+        ${isDraggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} hover:shadow-md active:scale-[0.98]
         ${isHighlighted
           ? 'border-indigo-400 ring-2 ring-indigo-200 shadow-md bg-indigo-50/40'
           : `border-slate-200 bg-white hover:border-slate-300`
@@ -105,18 +112,18 @@ function InstanceCard({
         <span className="text-lg leading-none mt-0.5 shrink-0">{cfg.dot}</span>
 
         <div className="flex-1 min-w-0">
-          {/* Main title: custom_name */}
+          {/* Main title: [Category] | [Alias] */}
           <p className="text-sm font-bold text-slate-800 leading-snug break-words">
             {instance.is_warranty_reopened && (
               <span className="mr-1 text-orange-500">⚠️</span>
             )}
-            {instance.custom_name}
+            {formatInstanceLabel(instance.product_category, instance.custom_name, instance.product_name)}
           </p>
 
-          {/* Subtitle: product name */}
-          {instance.product_name && (
+          {/* Subtitle: client + project context */}
+          {(instance.client_name || instance.project_name) && (
             <p className="text-[11px] text-slate-400 mt-0.5 truncate">
-              {instance.product_name}
+              {[instance.client_name, instance.project_name].filter(Boolean).join(' · ')}
             </p>
           )}
 
@@ -164,11 +171,12 @@ function InstanceCard({
   );
 }
 
-export default function HealthSidebar({ data, loading, onInstanceClick, onInstanceDragStart, highlightId }: Props) {
+export default function HealthSidebar({ data, loading, onInstanceClick, onInstanceDragStart, highlightId, searchQuery, onSearchQueryChange, readOnly = false }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('RED');
 
-  // ── Search state — persists across re-fetches (does NOT reset on data refresh) ──
-  const [query, setQuery] = useState('');
+  // query is now controlled from PlanningPage (searchQuery / onSearchQueryChange)
+  const query    = searchQuery;
+  const setQuery = onSearchQueryChange;
 
   // Compute active instances count for the BLUE "Activas" pseudo-tab
   const activeCount = data
@@ -198,10 +206,11 @@ export default function HealthSidebar({ data, loading, onInstanceClick, onInstan
     return rawInstances.filter(inst => {
       return (
         inst.custom_name.toLowerCase().includes(q) ||
-        (inst.order_folio?.toLowerCase().includes(q) ?? false) ||
-        (inst.client_name?.toLowerCase().includes(q) ?? false) ||
-        (inst.project_name?.toLowerCase().includes(q) ?? false) ||
-        (inst.product_name?.toLowerCase().includes(q) ?? false)
+        (inst.product_category?.toLowerCase().includes(q) ?? false) ||
+        (inst.order_folio?.toLowerCase().includes(q)      ?? false) ||
+        (inst.client_name?.toLowerCase().includes(q)      ?? false) ||
+        (inst.project_name?.toLowerCase().includes(q)     ?? false) ||
+        (inst.product_name?.toLowerCase().includes(q)     ?? false)
       );
     });
   }, [rawInstances, query]);
@@ -352,6 +361,7 @@ export default function HealthSidebar({ data, loading, onInstanceClick, onInstan
             onClick={onInstanceClick}
             onDragStart={onInstanceDragStart}
             isHighlighted={highlightId === inst.id}
+            isDraggable={!readOnly}
           />
         ))}
       </div>

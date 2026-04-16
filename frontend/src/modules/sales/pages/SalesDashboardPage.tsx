@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
     Target, FileText, Coins, Users, Search,
@@ -21,14 +21,153 @@ import client from '../../../api/axios-client';
 import { SalesOrderDetailModal } from '../components/SalesOrderDetailModal';
 import { FinancialReviewModal } from '../../management/components/FinancialReviewModal';
 import BaptismModal from '../components/BaptismModal';
+import { AccountsReceivableAgingPanel } from '../../finance/components/AccountsReceivableAgingPanel';
+import { aggregateCarteraMonitorTotals, loadSalesOrdersWithAdministrationAgingCxc } from '../utils/receivableCxcOrders';
 
 type SalesSection = 'GOALS' | 'QUOTES' | 'COLLECTIONS' | 'MONITOR' | null;
 type GoalDetailView = 'COMMISSIONS' | 'CLOSED' | 'STREET' | 'EFFECTIVENESS' | null;
 type QuoteDetailView = 'DRAFTS' | 'REVIEW' | 'AUTHORIZED' | 'EXPIRING' | 'HISTORY' | null;
-type CollectionDetailView = 'RETAINED' | 'PAYABLE' | 'ADVANCES' | null;
+type CollectionDetailView = 'RETAINED' | 'PAYABLE' | 'ADVANCES' | 'AR_AGING' | null;
+
+const COLLECTION_DETAIL_KEYS: CollectionDetailView[] = ['RETAINED', 'PAYABLE', 'ADVANCES', 'AR_AGING'];
+
+/** Normaliza status del API (mayúsculas, tolerante a variaciones). */
+function normalizeSalesStatus(status: string | undefined): string {
+    return String(status ?? '').toUpperCase().trim();
+}
+
+function statusInList(status: string | undefined, list: readonly string[]): boolean {
+    const n = normalizeSalesStatus(status);
+    return list.some((x) => x === n);
+}
+
+/**
+ * Venta cerrada + comisión reconocida (Termómetro "Mis Ingresos" y detalle A. Comisiones Generadas).
+ * Incluye pipeline post-venta; excluye solo cotizaciones no cerradas con cliente.
+ */
+const STATUSES_COMMISSION_RECOGNIZED = ['SOLD', 'INSTALLED', 'FINISHED', 'COMPLETED', 'IN_PRODUCTION'] as const;
+
+/** Monto acumulado OV (detalle B. Venta Cerrada): mismo universo que comisiones reconocidas. */
+const STATUSES_CLOSED_SALE = STATUSES_COMMISSION_RECOGNIZED;
+
+/**
+ * Comisiones pagables (sección 3 Cobranza): alineado al detalle PAYABLE.
+ * Sin IN_PRODUCTION: la comisión suele liberarse cuando el cliente ya liquidó o el OV está en cierre administrativo.
+ */
+const STATUSES_PAYABLE_COMMISSION = ['SOLD', 'INSTALLED', 'FINISHED', 'COMPLETED'] as const;
+
+/** Fecha de OC del cliente vs mes calendario actual (comparación por YYYY-MM-DD). */
+function isClientPoDateInCurrentMonth(clientPoDate: string | null | undefined): boolean {
+    if (!clientPoDate) return false;
+    const part = String(clientPoDate).slice(0, 10);
+    const seg = part.split('-');
+    if (seg.length < 2) return false;
+    const y = Number(seg[0]);
+    const m = Number(seg[1]);
+    const n = new Date();
+    return y === n.getFullYear() && m === n.getMonth() + 1;
+}
+
+function quotaProgressToneClass(pct: number): string {
+    if (pct <= 20) return 'text-red-600';
+    if (pct <= 40) return 'text-orange-500';
+    if (pct <= 80) return 'text-amber-500';
+    return 'text-emerald-600';
+}
+
+function readStoredCollectionView(): CollectionDetailView {
+    const raw = sessionStorage.getItem('sales_activeCollectionView');
+    if (!raw || !COLLECTION_DETAIL_KEYS.includes(raw as CollectionDetailView)) return null;
+    return raw as CollectionDetailView;
+}
+
+/**
+ * Captura OC solo para flujo &quot;Generar OV&quot;. Inputs no controlados desde el padre:
+ * al teclear no se re-renderiza SalesDashboardPage; el estado vive en el DOM del modal.
+ */
+const ClientOcCaptureModal: React.FC<{
+    orderId: number;
+    onCancel: () => void;
+    onConfirm: (orderId: number, folio: string, dateStrYmd: string) => Promise<void>;
+    isSubmitting: boolean;
+}> = ({ orderId, onCancel, onConfirm, isSubmitting }) => {
+    const folioRef = useRef<HTMLInputElement>(null);
+    const dateRef = useRef<HTMLInputElement>(null);
+
+    const handleSubmit = async () => {
+        const trimmed = folioRef.current?.value?.trim() ?? '';
+        if (!trimmed) {
+            alert('Ingresa el folio de la OC del cliente.');
+            return;
+        }
+        const dateStr = dateRef.current?.value ?? '';
+        if (!dateStr) {
+            alert('Selecciona la fecha de la OC del cliente.');
+            return;
+        }
+        await onConfirm(orderId, trimmed, dateStr);
+    };
+
+    return (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-slate-200">
+                <h3 className="text-lg font-black text-slate-800 mb-1">Generar OV — Orden de compra del cliente</h3>
+                <p className="text-sm text-slate-500 mb-4">
+                    Captura folio y fecha de la OC del cliente. Con esto se valida el semáforo financiero y la cotización pasa a &quot;Esperando anticipo&quot;.
+                </p>
+                <div className="space-y-4">
+                    <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase">Folio de la OC</label>
+                        <input
+                            ref={folioRef}
+                            className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                            defaultValue=""
+                            placeholder="Ej. OC-2026-0042"
+                            autoFocus
+                            disabled={isSubmitting}
+                        />
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase">Fecha de la OC</label>
+                        <input
+                            ref={dateRef}
+                            type="date"
+                            className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                            defaultValue={new Date().toISOString().slice(0, 10)}
+                            disabled={isSubmitting}
+                        />
+                    </div>
+                </div>
+                <div className="flex gap-3 mt-6">
+                    <Button
+                        variant="outline"
+                        className="flex-1"
+                        disabled={isSubmitting}
+                        onClick={() => {
+                            onCancel();
+                        }}
+                    >
+                        Cancelar
+                    </Button>
+                    <Button
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                        disabled={isSubmitting}
+                        onClick={() => void handleSubmit()}
+                    >
+                        Generar OV y ejecutar semáforo
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const SalesDashboardPage: React.FC = () => {
     const navigate = useNavigate();
+
+    // Only DIRECTOR / MANAGER can open the Financial Audit modal and see margins/costs
+    const userRole  = (localStorage.getItem('user_role') || '').toUpperCase().trim();
+    const canAudit  = ['DIRECTOR', 'MANAGER', 'ADMIN', 'ADMINISTRADOR', 'GERENCIA'].includes(userRole);
 
     const [orders, setOrders] = useState<SalesOrder[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -50,9 +189,7 @@ const SalesDashboardPage: React.FC = () => {
     const [activeQuoteView, setActiveQuoteView] = useState<QuoteDetailView>(
         (sessionStorage.getItem('sales_activeQuoteView') as QuoteDetailView) || null
     ); 
-    const [activeCollectionView, setActiveCollectionView] = useState<CollectionDetailView>(
-        (sessionStorage.getItem('sales_activeCollectionView') as CollectionDetailView) || null
-    );
+    const [activeCollectionView, setActiveCollectionView] = useState<CollectionDetailView>(readStoredCollectionView);
 
     useEffect(() => {
         if (activeCollectionView) sessionStorage.setItem('sales_activeCollectionView', activeCollectionView);
@@ -75,31 +212,146 @@ const SalesDashboardPage: React.FC = () => {
     }, [activeQuoteView]);
 
     const [stats, setStats] = useState({
-        commGenerated: 0, activeCommCount: 0, wonCount: 0, closedSales: 0, moneyOnStreet: 0, streetCount: 0, battingRate: 0, totalResolved: 0,
+        commGenerated: 0, activeCommCount: 0, wonCount: 0, closedSales: 0, closedSalesMonth: 0, closedOrdersMonthCount: 0,
+        moneyOnStreet: 0, streetCount: 0, battingRate: 0, totalResolved: 0,
         drafts: 0, draftsVal: 0, inReview: 0, reviewVal: 0, authorized: 0, authVal: 0, expiring: 0, expiringVal: 0,
         retainedComm: 0, retainedCount: 0, payableComm: 0, payableCount: 0, pendingAdvance: 0, advanceVal: 0, pendingInvoices: 0, invoicesVal: 0,
-        activeProjectsCount: 0, historyCount: 0
+        activeProjectsCount: 0, historyCount: 0,
+        quotaProgressPct: null as number | null,
+        quotaProgressTone: 'text-slate-500',
+        monthlyQuota: 0,
     });
 
+    const [monthlyQuota, setMonthlyQuota] = useState(0);
+    const [ocModalOpen, setOcModalOpen] = useState(false);
+    const [ocModalOrderId, setOcModalOrderId] = useState<number | null>(null);
+
     useEffect(() => {
-        loadData(); 
-        const interval = setInterval(() => { loadData(true); }, 15000);
-        return () => clearInterval(interval); 
+        client.get('/users/me')
+            .then((res) => {
+                const u = res.data;
+                const q = u.monthly_quota ?? u.monthly_sales_target;
+                setMonthlyQuota(typeof q === 'number' ? q : parseFloat(q) || 0);
+            })
+            .catch(() => setMonthlyQuota(0));
     }, []);
+
+    useEffect(() => {
+        loadData();
+    }, []);
+
+    useEffect(() => {
+        if (ocModalOpen) return;
+        const interval = setInterval(() => {
+            loadData(true);
+        }, 15000);
+        return () => clearInterval(interval);
+    }, [ocModalOpen]);
 
     const loadData = async (silent = false) => {
         if (!silent) setIsLoading(true);
         try {
-            const data = await salesService.getOrders();
-            const uniqueOrders = data ? Array.from(new Map(data.map((o: SalesOrder) => [o.id, o])).values()) : [];
+            const uniqueOrders = await loadSalesOrdersWithAdministrationAgingCxc();
             setOrders(uniqueOrders as SalesOrder[]);
-            calculateMetrics(uniqueOrders as SalesOrder[]);
         } catch (error) {
             console.error("Error cargando cotizaciones:", error);
         } finally {
             if (!silent) setIsLoading(false);
         }
     };
+
+    const calculateMetrics = useCallback((allOrders: SalesOrder[]) => {
+        let closedSalesMonth = 0;
+        let closedOrdersMonthCount = 0;
+
+        let s = {
+            commGenerated: 0, activeCommCount: 0, wonCount: 0, closedSales: 0, closedSalesMonth: 0, closedOrdersMonthCount: 0,
+            moneyOnStreet: 0, streetCount: 0, battingRate: 0, totalResolved: 0,
+            drafts: 0, draftsVal: 0, inReview: 0, reviewVal: 0, authorized: 0, authVal: 0, expiring: 0, expiringVal: 0,
+            retainedComm: 0, retainedCount: 0, payableComm: 0, payableCount: 0, pendingAdvance: 0, advanceVal: 0, pendingInvoices: 0, invoicesVal: 0, finalInvoices: 0, finalInvoicesVal: 0,
+            activeProjectsCount: 0,
+            historyCount: allOrders.length,
+            quotaProgressPct: null as number | null,
+            quotaProgressTone: 'text-slate-500',
+            monthlyQuota: Number(monthlyQuota) || 0,
+        };
+
+        let lostCount = 0;
+        const fifteenDaysFromNow = new Date();
+        fifteenDaysFromNow.setDate(new Date().getDate() + 15);
+
+        allOrders.forEach(o => {
+            const st = normalizeSalesStatus(o.status);
+            const price = Number(o.total_price) || 0;
+            const comm = Number(o.commission_amount) || 0;
+            
+            if (statusInList(o.status, STATUSES_CLOSED_SALE)) {
+                s.closedSales += price; 
+                s.wonCount++;
+                if (isClientPoDateInCurrentMonth(o.client_po_date)) {
+                    closedSalesMonth += price;
+                    closedOrdersMonthCount++;
+                }
+            }
+            
+            if (statusInList(o.status, STATUSES_COMMISSION_RECOGNIZED)) {
+                s.commGenerated += comm; 
+                s.activeCommCount++; 
+            }
+
+            if (statusInList(o.status, STATUSES_PAYABLE_COMMISSION)) {
+                s.payableComm += comm; 
+                s.payableCount++;
+            }
+
+            if (st === 'CLIENT_REJECTED') lostCount++;
+            if (['ACCEPTED', 'WAITING_ADVANCE', 'SENT'].includes(st)) { s.moneyOnStreet += comm; s.streetCount++; }
+            if (['DRAFT', 'CHANGE_REQUESTED', 'REJECTED'].includes(st)) { s.drafts++; s.draftsVal += price; }
+            if (st === 'SENT') { s.inReview++; s.reviewVal += price; }
+            if (st === 'ACCEPTED') { s.authorized++; s.authVal += price; }
+
+            if (o.valid_until && ['DRAFT', 'ACCEPTED', 'SENT'].includes(st)) {
+                const validDate = new Date(o.valid_until);
+                if (validDate <= fifteenDaysFromNow) { s.expiring++; s.expiringVal += price; }
+            }
+
+            if (['ACCEPTED', 'WAITING_ADVANCE'].includes(st)) { s.retainedComm += comm; s.retainedCount++; }
+            
+            if (['WAITING_ADVANCE', 'SOLD', 'IN_PRODUCTION', 'FINISHED', 'COMPLETED'].includes(st)) {
+                s.activeProjectsCount++;
+            }
+
+            if (st === 'WAITING_ADVANCE') { 
+                const advancePercentage = (o.advance_percent || 60) / 100;
+                s.pendingAdvance++; 
+                s.advanceVal += (price * advancePercentage); 
+            }
+        });
+
+        const cartera = aggregateCarteraMonitorTotals(allOrders);
+        s.pendingInvoices = cartera.docCount;
+        s.invoicesVal = cartera.amount;
+
+        s.closedSalesMonth = closedSalesMonth;
+        s.closedOrdersMonthCount = closedOrdersMonthCount;
+        s.totalResolved = s.wonCount + lostCount;
+        s.battingRate = s.totalResolved > 0 ? Math.round((s.wonCount / s.totalResolved) * 100) : 0;
+
+        const qMeta = Number(monthlyQuota) || 0;
+        if (qMeta > 0) {
+            const qpct = Math.min(100, Math.round((closedSalesMonth / qMeta) * 100));
+            s.quotaProgressPct = qpct;
+            s.quotaProgressTone = quotaProgressToneClass(qpct);
+        } else {
+            s.quotaProgressPct = null;
+            s.quotaProgressTone = 'text-slate-500';
+        }
+        setStats(s);
+    }, [monthlyQuota]);
+
+    useEffect(() => {
+        calculateMetrics(orders);
+    }, [orders, calculateMetrics]);
 
     const handleRequestAuth = async (orderId: number) => {
         if (!window.confirm("¿Estás seguro de enviar esta cotización a Dirección para su revisión y autorización?")) return;
@@ -119,21 +371,31 @@ const SalesDashboardPage: React.FC = () => {
         }
     };
 
-    const handleMarkAdvance = async (orderId: number) => {
-        if (!window.confirm("¿El cliente ha aceptado la cotización? Se ejecutará el Semáforo Financiero para validar la vigencia de los costos antes de proceder.")) return;
+    /** Solo desde cotización ACCEPTED — acción &quot;Generar OV&quot; (no reutilizar para otras filas). */
+    const openClientOcModal = (orderId: number) => {
+        if (!window.confirm('¿Generar la orden de venta (OV)? Deberás capturar el folio y la fecha de la OC del cliente; luego se validará el semáforo financiero (3%).')) return;
+        setOcModalOrderId(orderId);
+        setOcModalOpen(true);
+    };
+
+    const submitClientOcModal = async (orderId: number, folio: string, dateStrYmd: string) => {
         setIsLoading(true);
         try {
-            await client.post(`/sales/orders/${orderId}/mark_waiting_advance`);
+            const client_po_date = `${dateStrYmd}T12:00:00`;
+            await salesService.requestAdvance(orderId, { client_po_folio: folio, client_po_date });
+            setOcModalOpen(false);
+            setOcModalOrderId(null);
             alert("🟢 SEMÁFORO VERDE: Los costos son estables. La orden ha pasado a 'Esperando Anticipo'.");
             await loadData();
         } catch (error: any) {
             if (error.response?.status === 409) {
                 alert(`🔴 ALERTA FINANCIERA\n\n${error.response.data.detail}`);
-                await loadData(); 
+                await loadData();
             } else {
                 alert("Error al procesar: " + (error.response?.data?.detail || error.message));
-                setIsLoading(false);
             }
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -195,74 +457,6 @@ const SalesDashboardPage: React.FC = () => {
         }
     };
 
-    const calculateMetrics = (allOrders: SalesOrder[]) => {
-        let s = {
-            commGenerated: 0, activeCommCount: 0, wonCount: 0, closedSales: 0, moneyOnStreet: 0, streetCount: 0, battingRate: 0, totalResolved: 0,
-            drafts: 0, draftsVal: 0, inReview: 0, reviewVal: 0, authorized: 0, authVal: 0, expiring: 0, expiringVal: 0,
-            retainedComm: 0, retainedCount: 0, payableComm: 0, payableCount: 0, pendingAdvance: 0, advanceVal: 0, pendingInvoices: 0, invoicesVal: 0, finalInvoices: 0, finalInvoicesVal: 0,
-            activeProjectsCount: 0,
-            historyCount: allOrders.length 
-        };
-
-        let lostCount = 0;
-        const fifteenDaysFromNow = new Date();
-        fifteenDaysFromNow.setDate(new Date().getDate() + 15);
-
-        allOrders.forEach(o => {
-            const st = o.status;
-            const price = Number(o.total_price) || 0;
-            const comm = Number(o.commission_amount) || 0;
-            
-            if (['SOLD', 'INSTALLED', 'FINISHED'].includes(st)) {
-                s.closedSales += price; 
-                s.wonCount++; 
-            }
-            
-            if (['SOLD', 'INSTALLED'].includes(st)) {
-                s.commGenerated += comm; 
-                s.activeCommCount++; 
-                s.payableComm += comm; 
-                s.payableCount++;
-            }
-
-            if (st === 'CLIENT_REJECTED') lostCount++;
-            if (['ACCEPTED', 'WAITING_ADVANCE', 'SENT'].includes(st)) { s.moneyOnStreet += comm; s.streetCount++; }
-            if (['DRAFT', 'CHANGE_REQUESTED', 'REJECTED'].includes(st)) { s.drafts++; s.draftsVal += price; }
-            if (st === 'SENT') { s.inReview++; s.reviewVal += price; }
-            if (st === 'ACCEPTED') { s.authorized++; s.authVal += price; }
-
-            if (o.valid_until && ['DRAFT', 'ACCEPTED', 'SENT'].includes(st)) {
-                const validDate = new Date(o.valid_until);
-                if (validDate <= fifteenDaysFromNow) { s.expiring++; s.expiringVal += price; }
-            }
-
-            if (['ACCEPTED', 'WAITING_ADVANCE'].includes(st)) { s.retainedComm += comm; s.retainedCount++; }
-            
-            if (['WAITING_ADVANCE', 'SOLD', 'IN_PRODUCTION', 'FINISHED', 'COMPLETED'].includes(st)) {
-                s.activeProjectsCount++;
-            }
-
-            if (st === 'WAITING_ADVANCE') { 
-                const advancePercentage = (o.advance_percent || 60) / 100;
-                s.pendingAdvance++; 
-                s.advanceVal += (price * advancePercentage); 
-            }
-
-            if (o.payments && Array.isArray(o.payments)) {
-                o.payments.forEach((p: any) => {
-                    if (p.status === 'PENDING') {
-                        s.pendingInvoices++;
-                        s.invoicesVal += Number(p.amount) || 0;
-                    }
-                });
-            }
-        });
-
-        s.totalResolved = s.wonCount + lostCount;
-        s.battingRate = s.totalResolved > 0 ? Math.round((s.wonCount / s.totalResolved) * 100) : 0;
-        setStats(s);
-    };
-
     const formatCurrency = (amount: number) => amount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 
     const getCountSize = (count: number) => {
@@ -287,7 +481,9 @@ const SalesDashboardPage: React.FC = () => {
             'SOLD': 'Vendida / En Producción',
             'CLIENT_REJECTED': 'Perdida',
             'INSTALLED': 'Instalada',
-            'FINISHED': 'Finalizada Cerrada'
+            'FINISHED': 'Finalizada Cerrada',
+            'COMPLETED': 'Completada',
+            'IN_PRODUCTION': 'En Producción'
         };
         return labels[status] || status;
     };
@@ -341,7 +537,7 @@ const SalesDashboardPage: React.FC = () => {
 
     const getSectionTitle = () => {
         if (activeGoalView === 'COMMISSIONS') return 'Detalle: Comisiones Generadas';
-        if (activeGoalView === 'CLOSED') return 'Detalle: Venta Cerrada (Histórico)';
+        if (activeGoalView === 'CLOSED') return 'Detalle: Venta Cerrada (mes en curso · por fecha OC)';
         if (activeGoalView === 'STREET') return 'Detalle: Comisiones por Confirmar';
         if (activeGoalView === 'EFFECTIVENESS') return 'Detalle: Efectividad (Ganadas vs Perdidas)';
         if (activeQuoteView === 'DRAFTS') return 'Archivo: Borradores y Ajustes';
@@ -352,6 +548,7 @@ const SalesDashboardPage: React.FC = () => {
         if (activeCollectionView === 'RETAINED') return 'Gestión: Comisiones Retenidas';
         if (activeCollectionView === 'PAYABLE') return 'Gestión: Comisiones Pagables';
         if (activeCollectionView === 'ADVANCES') return 'Gestión: Anticipos Pendientes';
+        if (activeCollectionView === 'AR_AGING') return 'Cuentas por Cobrar — Antigüedad (consulta)';
         switch(activeSection) {
             case 'GOALS': return 'Mi Meta y Mis Ingresos';
             case 'QUOTES': return 'Mis Cotizaciones (Archivo)';
@@ -366,19 +563,23 @@ const SalesDashboardPage: React.FC = () => {
         let emptyMessage = "No hay datos para mostrar.";
 
         if (activeGoalView === 'COMMISSIONS') {
-            filteredOrders = orders.filter(o => ['SOLD', 'INSTALLED'].includes(o.status));
+            filteredOrders = orders.filter(o => statusInList(o.status, STATUSES_COMMISSION_RECOGNIZED));
             emptyMessage = "No tienes comisiones activas en proceso de entrega/cobro.";
         } 
         else if (activeGoalView === 'CLOSED') {
-            filteredOrders = orders.filter(o => ['SOLD', 'INSTALLED', 'FINISHED'].includes(o.status));
-            emptyMessage = "Aún no hay ventas cerradas en tu histórico.";
+            filteredOrders = orders.filter(o =>
+                statusInList(o.status, STATUSES_CLOSED_SALE) && isClientPoDateInCurrentMonth(o.client_po_date)
+            );
+            emptyMessage = "No hay ventas con OC registrada en el mes en curso. Si faltan datos historicos, pide a Administración completarlos en Rayos X.";
         } 
         else if (activeGoalView === 'STREET') {
-            filteredOrders = orders.filter(o => ['ACCEPTED', 'WAITING_ADVANCE', 'SENT'].includes(o.status));
+            filteredOrders = orders.filter(o => ['ACCEPTED', 'WAITING_ADVANCE', 'SENT'].includes(normalizeSalesStatus(o.status)));
             emptyMessage = "No tienes cotizaciones enviadas o esperando respuesta del cliente.";
         } 
         else if (activeGoalView === 'EFFECTIVENESS') {
-            filteredOrders = orders.filter(o => ['SOLD', 'INSTALLED', 'FINISHED', 'CLIENT_REJECTED'].includes(o.status));
+            filteredOrders = orders.filter(o =>
+                statusInList(o.status, STATUSES_CLOSED_SALE) || normalizeSalesStatus(o.status) === 'CLIENT_REJECTED'
+            );
             emptyMessage = "Aún no tienes proyectos ganados o perdidos para medir efectividad.";
         }
 
@@ -392,6 +593,12 @@ const SalesDashboardPage: React.FC = () => {
                             <th className="px-6 py-4 font-bold">Cliente</th>
                             <th className="px-6 py-4 font-bold">Folio / Proyecto</th>
                             <th className="px-6 py-4 font-bold">Estatus</th>
+                            {activeGoalView === 'CLOSED' && (
+                                <>
+                                    <th className="px-6 py-4 font-bold">Folio OC</th>
+                                    <th className="px-6 py-4 font-bold">Fecha OC</th>
+                                </>
+                            )}
                             <th className="px-6 py-4 font-bold text-right">Monto de Venta</th>
                             {['COMMISSIONS', 'CLOSED', 'STREET'].includes(activeGoalView || '') && (
                                 <th className="px-6 py-4 font-bold text-right text-emerald-600">Tu Comisión</th>
@@ -406,6 +613,16 @@ const SalesDashboardPage: React.FC = () => {
                                 <td className="px-6 py-4 font-medium text-slate-600">{getClientName(order)}</td>
                                 <td className="px-6 py-4 font-bold text-slate-800">{getDocumentPrefix(order.status)}-{order.id?.toString().padStart(4,'0')} - {order.project_name}</td>
                                 <td className="px-6 py-4"><Badge variant="outline" className="bg-white">{getStatusLabel(order.status)}</Badge></td>
+                                {activeGoalView === 'CLOSED' && (
+                                    <>
+                                        <td className="px-6 py-4 font-mono text-slate-700">{(order as any).client_po_folio || '—'}</td>
+                                        <td className="px-6 py-4 text-slate-600">
+                                            {(order as any).client_po_date
+                                                ? new Date((order as any).client_po_date).toLocaleDateString('es-MX')
+                                                : '—'}
+                                        </td>
+                                    </>
+                                )}
                                 <td className="px-6 py-4 text-right font-bold text-slate-700">{formatCurrency(order.total_price || 0)}</td>
                                 
                                 {['COMMISSIONS', 'CLOSED', 'STREET'].includes(activeGoalView || '') && (
@@ -416,7 +633,7 @@ const SalesDashboardPage: React.FC = () => {
                                 
                                 {activeGoalView === 'EFFECTIVENESS' && (
                                     <td className="px-6 py-4 text-center">
-                                        {['SOLD', 'INSTALLED', 'FINISHED'].includes(order.status) ? (
+                                        {statusInList(order.status, STATUSES_CLOSED_SALE) ? (
                                             <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200"><CheckCircle size={12} className="mr-1"/> Ganada</Badge>
                                         ) : (
                                             <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200"><XCircle size={12} className="mr-1"/> Perdida</Badge>
@@ -442,13 +659,13 @@ const SalesDashboardPage: React.FC = () => {
         let emptyMessage = "No hay datos para mostrar.";
 
         if (activeCollectionView === 'RETAINED') {
-            filteredOrders = orders.filter(o => ['ACCEPTED', 'WAITING_ADVANCE'].includes(o.status));
+            filteredOrders = orders.filter(o => ['ACCEPTED', 'WAITING_ADVANCE'].includes(normalizeSalesStatus(o.status)));
             emptyMessage = "No tienes comisiones retenidas. Todo está cobrado o en borrador.";
         } else if (activeCollectionView === 'PAYABLE') {
-            filteredOrders = orders.filter(o => ['SOLD', 'INSTALLED', 'FINISHED'].includes(o.status));
+            filteredOrders = orders.filter(o => statusInList(o.status, STATUSES_PAYABLE_COMMISSION));
             emptyMessage = "No tienes comisiones liberadas para pago en este momento.";
         } else if (activeCollectionView === 'ADVANCES') {
-            filteredOrders = orders.filter(o => o.status === 'WAITING_ADVANCE');
+            filteredOrders = orders.filter(o => normalizeSalesStatus(o.status) === 'WAITING_ADVANCE');
             emptyMessage = "Excelente, no hay anticipos pendientes por cobrar.";
         } 
 
@@ -642,9 +859,11 @@ const SalesDashboardPage: React.FC = () => {
                                         {/* ACCIONES DEL HISTÓRICO GENERAL (Usa el Modal de Autorización Auditable) */}
                                         {activeQuoteView === 'HISTORY' ? (
                                             <>
-                                                <Button variant="outline" size="sm" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 px-3 shadow-sm flex items-center gap-1" onClick={() => setViewingOrderIdForAudit(order.id!)}>
-                                                    <Eye size={14} /> Auditar
-                                                </Button>
+                                                {canAudit && (
+                                                    <Button variant="outline" size="sm" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 px-3 shadow-sm flex items-center gap-1" onClick={() => setViewingOrderIdForAudit(order.id!)}>
+                                                        <Eye size={14} /> Auditar
+                                                    </Button>
+                                                )}
                                                 <Button variant="outline" size="sm" className="text-slate-500 border-slate-200 hover:bg-slate-50 px-2" onClick={(e) => { e.preventDefault(); handleViewPDF(order.id!); }} title="Descargar PDF">
                                                     <FileDown size={14} />
                                                 </Button>
@@ -683,8 +902,8 @@ const SalesDashboardPage: React.FC = () => {
                                                     <XCircle size={18} />
                                                 </button>
                                                 <div className="w-px h-5 bg-slate-300 mx-1"></div>
-                                                <Button size="sm" className="bg-green-500 hover:bg-green-600 text-white flex items-center gap-1 ml-1 shadow-sm px-2 text-xs" onClick={() => handleMarkAdvance(order.id!)}>
-                                                    <CheckCircle size={14} /> Confirmar
+                                                <Button size="sm" className="bg-green-500 hover:bg-green-600 text-white flex items-center gap-1 ml-1 shadow-sm px-2 text-xs" onClick={() => openClientOcModal(order.id!)}>
+                                                    <CheckCircle size={14} /> Generar OV
                                                 </Button>
                                             </div>
                                         ) : 
@@ -692,9 +911,11 @@ const SalesDashboardPage: React.FC = () => {
                                         /* ACCIONES POR DEFECTO (EN BÚSQUEDA LIBRE O REVISIÓN) */
                                         (
                                             <>
-                                                <Button variant="outline" size="sm" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 px-3 shadow-sm flex items-center gap-1" onClick={() => setViewingOrderIdForAudit(order.id!)}>
-                                                    <Eye size={14} /> Auditar
-                                                </Button>
+                                                {canAudit && (
+                                                    <Button variant="outline" size="sm" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 px-3 shadow-sm flex items-center gap-1" onClick={() => setViewingOrderIdForAudit(order.id!)}>
+                                                        <Eye size={14} /> Auditar
+                                                    </Button>
+                                                )}
                                                 <Button variant="outline" size="sm" className="text-slate-500 border-slate-200 hover:bg-slate-50 px-2" onClick={(e) => { e.preventDefault(); handleViewPDF(order.id!); }} title="Descargar PDF">
                                                     <FileDown size={14} />
                                                 </Button>
@@ -748,6 +969,22 @@ const SalesDashboardPage: React.FC = () => {
             setSavingInstances(false);
         }
     };
+
+    // ── SEMÁFOROS DE PRODUCCIÓN ────────────────────────────────────────
+    const SEMAPHORE_MAP: Record<string, { dot: string; label: string; bg: string; text: string }> = {
+        GRAY:         { dot: '⬜', label: 'Sin iniciar',        bg: 'bg-slate-100',   text: 'text-slate-500'  },
+        YELLOW:       { dot: '🟡', label: 'Alerta ≤15 días',    bg: 'bg-amber-50',    text: 'text-amber-700'  },
+        RED:          { dot: '🔴', label: 'Crítico / Vencido',  bg: 'bg-red-50',      text: 'text-red-700'    },
+        BLUE:         { dot: '🔵', label: 'En Producción',       bg: 'bg-blue-50',     text: 'text-blue-700'   },
+        BLUE_GREEN:   { dot: '🔵🟢', label: 'Listo p/ Instalar', bg: 'bg-teal-50',     text: 'text-teal-700'   },
+        DOUBLE_BLUE:  { dot: '🔵🔵', label: 'En Producción',     bg: 'bg-blue-50',     text: 'text-blue-700'   },
+        GREEN:        { dot: '🟢', label: 'Instalado',           bg: 'bg-emerald-50',  text: 'text-emerald-700'},
+        DOUBLE_GREEN: { dot: '🟢🟢', label: 'Completado',        bg: 'bg-emerald-50',  text: 'text-emerald-700'},
+        WARRANTY:     { dot: '⚠️', label: 'En Garantía',         bg: 'bg-yellow-50',   text: 'text-yellow-700' },
+    };
+
+    const getSemaphoreInfo = (semaphore?: string | null) =>
+        SEMAPHORE_MAP[semaphore ?? 'GRAY'] ?? SEMAPHORE_MAP['GRAY'];
 
     // ── MONITOR OPERATIVO: Render ──────────────────────────────────────
     const renderMonitorSection = () => {
@@ -831,6 +1068,18 @@ const SalesDashboardPage: React.FC = () => {
                                 </div>
 
                                 <div className="flex items-center gap-3 shrink-0">
+                                    <button
+                                        type="button"
+                                        className="p-2 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-100 transition-colors"
+                                        title="Rayos X (detalle de OV)"
+                                        aria-label="Abrir Rayos X"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setViewingOrderIdForFormat(order.id!);
+                                        }}
+                                    >
+                                        <FileSearch size={18} />
+                                    </button>
                                     <p className="text-sm font-bold text-slate-700">{formatCurrency(order.total_price || 0)}</p>
                                     {instances.length > 0 && (
                                         <span className="text-[10px] bg-slate-100 text-slate-500 rounded-full px-2 py-0.5 font-medium">
@@ -853,13 +1102,21 @@ const SalesDashboardPage: React.FC = () => {
                                                 Instancias — Asigna un alias descriptivo (ej. "Casa 123, Calle 98 – Cocina")
                                             </p>
                                             <div className="space-y-2 mb-4">
-                                                {instances.map((inst: any, idx: number) => (
+                                                {instances.map((inst: any, idx: number) => {
+                                                    const sem = getSemaphoreInfo(inst.semaphore);
+                                                    const productName = (order.items ?? []).find((it: any) => (it.instances ?? []).some((i: any) => i.id === inst.id))?.product_name ?? 'Producto';
+                                                    return (
                                                     <div key={inst.id} className="flex items-center gap-3 bg-white rounded-xl border border-slate-200 px-3 py-2">
                                                         <span className="w-6 h-6 flex items-center justify-center bg-indigo-100 text-indigo-700 rounded-full text-[10px] font-bold shrink-0">
                                                             {idx + 1}
                                                         </span>
-                                                        <div className="w-28 shrink-0">
-                                                            <p className="text-xs text-slate-400 truncate">{(order.items ?? []).find((it: any) => (it.instances ?? []).some((i: any) => i.id === inst.id))?.product_name ?? 'Producto'}</p>
+                                                        {/* Semáforo de producción */}
+                                                        <div className={`flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-lg border ${sem.bg} border-current/10`} title={sem.label}>
+                                                            <span className="text-xs leading-none">{sem.dot}</span>
+                                                            <span className={`text-[9px] font-bold uppercase tracking-wide ${sem.text} hidden sm:inline`}>{sem.label}</span>
+                                                        </div>
+                                                        <div className="w-24 shrink-0">
+                                                            <p className="text-xs text-slate-400 truncate">{productName}</p>
                                                         </div>
                                                         <input
                                                             type="text"
@@ -869,7 +1126,8 @@ const SalesDashboardPage: React.FC = () => {
                                                             className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-1.5 text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition bg-white"
                                                         />
                                                     </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                             <div className="flex justify-end gap-2">
                                                 <button
@@ -908,7 +1166,13 @@ const SalesDashboardPage: React.FC = () => {
                 <div>
                     <h1 className="text-3xl font-black text-slate-800 tracking-tight">{getSectionTitle()}</h1>
                     <p className="text-slate-500 mt-1 font-medium">
-                        {activeSection === null ? 'Radar de ventas, comisiones y seguimiento de clientes.' : (activeGoalView !== null || activeQuoteView !== null || activeCollectionView !== null) ? 'Desglose detallado de Cobranza.' : 'Ejecución y detalle operativo.'}
+                        {activeSection === null
+                            ? 'Radar de ventas, comisiones y seguimiento de clientes.'
+                            : activeCollectionView === 'AR_AGING'
+                              ? 'Antigüedad de saldos — misma cartera que Administración y Tesorería (C).'
+                              : activeGoalView !== null || activeQuoteView !== null || activeCollectionView !== null
+                                ? 'Desglose detallado de Cobranza.'
+                                : 'Ejecución y detalle operativo.'}
                     </p>
                 </div>
                 <div className="flex gap-3">
@@ -1033,20 +1297,32 @@ const SalesDashboardPage: React.FC = () => {
                                         </Card>
                                     </div>
 
-                                    <div className="w-full relative h-40">
+                                    <div className="w-full relative min-h-40">
                                         <Card onClick={() => setActiveGoalView('CLOSED')} className="p-6 border-l-4 border-l-blue-500 bg-white cursor-pointer hover:shadow-lg transition-all group overflow-hidden h-full flex flex-col justify-between">
-                                            <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-blue-50 text-blue-700 border-r border-blue-100 font-black group-hover:bg-blue-100 transition-colors ${getCountSize(stats.wonCount)}`}>
-                                                {stats.wonCount}
+                                            <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-blue-50 text-blue-700 border-r border-blue-100 font-black group-hover:bg-blue-100 transition-colors ${getCountSize(stats.closedOrdersMonthCount ?? 0)}`}>
+                                                {stats.closedOrdersMonthCount ?? 0}
                                             </div>
-                                            <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                                            <div className="ml-16 h-full flex flex-col justify-between pl-2 gap-2">
                                                 <div className="flex justify-between items-start">
                                                     <div>
                                                         <h4 className="font-bold text-slate-800 flex items-center gap-2"><CheckCircle size={18} className="text-blue-500"/> B. Venta Cerrada</h4>
-                                                        <p className="text-sm text-slate-500 mt-1 mb-2 truncate">Monto acumulado de OV generadas.</p>
+                                                        <p className="text-sm text-slate-500 mt-1 mb-1">Suma del mes (fecha OC) vs tu meta mensual.</p>
                                                     </div>
-                                                    <ArrowLeftCircle size={20} className="text-blue-200 group-hover:text-blue-500 transform rotate-180 transition-all"/>
+                                                    <ArrowLeftCircle size={20} className="text-blue-200 group-hover:text-blue-500 transform rotate-180 transition-all shrink-0"/>
                                                 </div>
-                                                <div className="text-lg font-black text-blue-600 text-right leading-none truncate">{formatCurrency(stats.closedSales)}</div>
+                                                <div className="text-lg font-black text-blue-600 text-right leading-tight">
+                                                    {formatCurrency(stats.closedSalesMonth ?? 0)}
+                                                    <span className="block text-[11px] font-bold text-slate-400 mt-1">
+                                                        {monthlyQuota > 0
+                                                            ? <>de {formatCurrency(monthlyQuota)}</>
+                                                            : <>sin meta configurada</>}
+                                                    </span>
+                                                </div>
+                                                {stats.quotaProgressPct !== null && monthlyQuota > 0 && (
+                                                    <div className={`text-right text-sm font-black ${stats.quotaProgressTone || 'text-slate-600'}`}>
+                                                        {stats.quotaProgressPct}% alcanzado
+                                                    </div>
+                                                )}
                                             </div>
                                         </Card>
                                     </div>
@@ -1272,7 +1548,7 @@ const SalesDashboardPage: React.FC = () => {
                                     </div>
 
                                     <div className="w-full relative h-40">
-                                        <Card onClick={() => navigate('/finance/pending-invoices')} className="p-6 border-l-4 border-l-indigo-500 bg-white cursor-pointer hover:shadow-lg transition-all group overflow-hidden h-full flex flex-col justify-between">
+                                        <Card onClick={() => setActiveCollectionView('AR_AGING')} className="p-6 border-l-4 border-l-indigo-500 bg-white cursor-pointer hover:shadow-lg transition-all group overflow-hidden h-full flex flex-col justify-between">
                                             <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50 text-indigo-700 border-r border-indigo-100 font-black group-hover:bg-indigo-100 transition-colors ${getCountSize(stats.pendingInvoices)}`}>
                                                 {stats.pendingInvoices}
                                             </div>
@@ -1280,7 +1556,7 @@ const SalesDashboardPage: React.FC = () => {
                                                 <div className="flex justify-between items-start">
                                                     <div>
                                                         <h4 className="font-bold text-slate-800 flex items-center gap-2"><FileSearch size={18} className="text-indigo-500"/> D. Cuentas por Cobrar</h4>
-                                                        <p className="text-sm text-slate-500 mt-1 mb-2 truncate">Facturas emitidas y pendientes de cobro.</p>
+                                                        <p className="text-sm text-slate-500 mt-1 mb-2 truncate">Misma cartera que Administración — facturas pendientes de cobro.</p>
                                                     </div>
                                                     <ArrowLeftCircle size={20} className="text-indigo-200 group-hover:text-indigo-500 transform rotate-180 transition-all"/>
                                                 </div>
@@ -1289,6 +1565,12 @@ const SalesDashboardPage: React.FC = () => {
                                         </Card>
                                     </div>
                                 </div>
+                            ) : activeCollectionView === 'AR_AGING' ? (
+                                <AccountsReceivableAgingPanel
+                                    variant="embedded"
+                                    suppressTopBar
+                                    onEmbeddedBack={() => setActiveCollectionView(null)}
+                                />
                             ) : (
                                 renderCollectionDetailTable()
                             )}
@@ -1305,8 +1587,8 @@ const SalesDashboardPage: React.FC = () => {
                 />
             )}
             
-            {/* EL MODAL DE AUDITORÍA HISTÓRICA CONECTADO A TODAS LAS VISTAS DE LECTURA */}
-            {viewingOrderIdForAudit !== null && (
+            {/* EL MODAL DE AUDITORÍA HISTÓRICA — doble guarda: botón oculto + render bloqueado */}
+            {viewingOrderIdForAudit !== null && canAudit && (
                 <FinancialReviewModal 
                     orderId={viewingOrderIdForAudit}
                     onClose={() => setViewingOrderIdForAudit(null)}
@@ -1321,6 +1603,20 @@ const SalesDashboardPage: React.FC = () => {
                     order={orders.find(o => o.id === baptismOrderId) ?? null}
                     onClose={() => setBaptismOrderId(null)}
                     onComplete={() => { setBaptismOrderId(null); loadData(); }}
+                />
+            )}
+
+            {ocModalOpen && ocModalOrderId != null && (
+                <ClientOcCaptureModal
+                    key={ocModalOrderId}
+                    orderId={ocModalOrderId}
+                    isSubmitting={isLoading}
+                    onCancel={() => {
+                        setOcModalOpen(false);
+                        setOcModalOrderId(null);
+                        setIsLoading(false);
+                    }}
+                    onConfirm={(oid, folio, dateStrYmd) => submitClientOcModal(oid, folio, dateStrYmd)}
                 />
             )}
 

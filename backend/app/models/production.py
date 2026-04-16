@@ -19,13 +19,24 @@ class PayrollPaymentType(str, Enum):
 # ==========================================
 # 1. LOTES DE PRODUCCIÓN (FÁBRICA)
 # ==========================================
+class ProductionBatchStatus(str, Enum):
+    """Estados del lote en piso de fábrica (valores en inglés)."""
+    PLANNED = "PLANNED"
+    DRAFT = "DRAFT"
+    ON_HOLD = "ON_HOLD"
+    IN_PRODUCTION = "IN_PRODUCTION"
+    PACKING = "PACKING"
+    READY_TO_INSTALL = "READY_TO_INSTALL"
+    FINISHED = "FINISHED"
+
+
 class ProductionBatch(SQLModel, table=True):
     __tablename__ = "production_batches"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     folio: str = Field(index=True, unique=True)
     batch_type: str = Field(default="STANDARD")
-    status: str = Field(default="PLANNED")
+    status: ProductionBatchStatus = Field(default=ProductionBatchStatus.PLANNED)
     estimated_merma_percent: float = Field(default=0.0)
     
     created_at: datetime = Field(default_factory=datetime.utcnow)

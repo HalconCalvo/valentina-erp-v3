@@ -251,13 +251,23 @@ const AccountsPayablePage: React.FC = () => {
                                         <div className="text-[10px] text-slate-400">Total: {formatCurrency(inv.total_amount)}</div>
                                     </td>
                                     <td className="px-6 py-4 text-center">
-                                        <Button 
-                                            size="sm" 
-                                            className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm hover:scale-105 transition-transform"
-                                            onClick={() => setSelectedInvoice(inv)}
-                                        >
-                                            <DollarSign size={14} className="mr-1"/> Solicitar
-                                        </Button>
+                                        {inv.invoice_number.startsWith('ANT-') ? (
+                                            <Button 
+                                                size="sm" 
+                                                className="bg-orange-500 hover:bg-orange-600 text-white shadow-sm hover:scale-105 transition-transform font-black text-[10px] tracking-widest"
+                                                onClick={() => setSelectedInvoice(inv)}
+                                            >
+                                                <AlertTriangle size={14} className="mr-1"/> PAGO ANTICIPADO
+                                            </Button>
+                                        ) : (
+                                            <Button 
+                                                size="sm" 
+                                                className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm hover:scale-105 transition-transform font-black text-[10px] tracking-widest"
+                                                onClick={() => setSelectedInvoice(inv)}
+                                            >
+                                                <DollarSign size={14} className="mr-1"/> SE SOLICITA PAGO
+                                            </Button>
+                                        )}
                                     </td>
                                 </tr>
                             ))}

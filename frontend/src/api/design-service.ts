@@ -27,6 +27,14 @@ export interface SimulateBatchResponse {
   materials: SimulatedMaterial[];
 }
 
+export interface LabelRequestItem {
+  instance_id: number;
+  custom_name: string;
+  client_name: string;
+  project_name: string;
+  declared_bundles: number;
+}
+
 export const designService = {
     // ==========================================
     // MAESTROS (Familias de Productos)
@@ -130,5 +138,10 @@ export const designService = {
             batch_type: batchType
         });
         return response.data;
-    }
+    },
+
+    getLabelRequests: async (): Promise<LabelRequestItem[]> => {
+        const response = await axiosClient.get('/design/label_requests');
+        return response.data;
+    },
 };

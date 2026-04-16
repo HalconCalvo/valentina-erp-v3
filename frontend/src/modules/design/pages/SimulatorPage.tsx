@@ -81,8 +81,8 @@ export default function SimulatorPage() {
         await productionService.assignInstanceToBatch(newBatch.id, instanceId);
       }
 
-      if (simulationResult.suggested_status === 'AMBAR') {
-        await productionService.updateBatchStatus(newBatch.id, 'AMBAR');
+      if (simulationResult.suggested_status === 'ON_HOLD') {
+        await productionService.updateBatchStatus(newBatch.id, 'ON_HOLD');
       }
 
       alert(`¡Lote ${newBatch.folio} inyectado con éxito en Producción!`);
@@ -332,18 +332,18 @@ export default function SimulatorPage() {
             ) : (
               <div className="animate-in slide-in-from-bottom-2">
                 <div className={`p-4 rounded-lg mb-6 flex justify-between items-center border shadow-sm ${
-                  simulationResult.suggested_status === 'AMBAR' 
+                  simulationResult.suggested_status === 'ON_HOLD' 
                     ? 'bg-orange-50 border-orange-200 text-orange-800' 
                     : 'bg-emerald-50 border-emerald-200 text-emerald-800'
                 }`}>
                   <div className="flex items-center gap-3">
-                    {simulationResult.suggested_status === 'AMBAR' ? <AlertTriangle size={28} className="text-orange-500"/> : <ShieldCheck size={28} className="text-emerald-500" />}
+                    {simulationResult.suggested_status === 'ON_HOLD' ? <AlertTriangle size={28} className="text-orange-500"/> : <ShieldCheck size={28} className="text-emerald-500" />}
                     <div>
                       <h3 className="font-black text-lg">
-                        Veredicto: {simulationResult.suggested_status === 'AMBAR' ? 'LOTE EN ÁMBAR (Faltantes Críticos)' : 'LOTE EN VERDE (Suficiencia)'}
+                        Veredicto: {simulationResult.suggested_status === 'ON_HOLD' ? 'LOTE EN ÁMBAR (Faltantes Críticos)' : 'LOTE EN VERDE (Suficiencia)'}
                       </h3>
                       <p className="text-sm font-medium opacity-90 mt-0.5">
-                        {simulationResult.suggested_status === 'AMBAR' 
+                        {simulationResult.suggested_status === 'ON_HOLD' 
                           ? 'Falta material núcleo. Nacerá bloqueado para Sierras/CNC.' 
                           : 'Material núcleo completo. Puede avanzar a Sierras.'}
                       </p>
@@ -354,7 +354,7 @@ export default function SimulatorPage() {
                     onClick={handleCreateBatch}
                     disabled={creating}
                     className={`px-6 py-3 rounded-lg font-bold shadow text-white transition flex items-center gap-2 ${
-                      simulationResult.suggested_status === 'AMBAR' 
+                      simulationResult.suggested_status === 'ON_HOLD' 
                         ? 'bg-orange-600 hover:bg-orange-700' 
                         : 'bg-emerald-600 hover:bg-emerald-700'
                     }`}

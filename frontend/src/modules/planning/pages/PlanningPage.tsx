@@ -1,28 +1,99 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import PlanningCalendar from '../components/PlanningCalendar';
+import WeekView from '../components/WeekView';
+import DayView from '../components/DayView';
 import HealthSidebar from '../components/HealthSidebar';
 import InstanceEditModal from '../components/InstanceEditModal';
 import { usePlanningCalendar, useHealthPanel } from '../hooks/usePlanning';
 import { InstanceSchedule, CalendarPill, planningService } from '../../../api/planning-service';
 
+type ViewMode = 'month' | 'week' | 'day';
+
+const VIEW_TABS: { key: ViewMode; label: string; icon: string }[] = [
+  { key: 'month', label: 'Mes',    icon: '📅' },
+  { key: 'week',  label: 'Semana', icon: '📆' },
+  { key: 'day',   label: 'Día',    icon: '🗓️'  },
+];
+
+function getTodayKey(): string {
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = String(today.getMonth() + 1).padStart(2, '0');
+  const d = String(today.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function addDays(dateStr: string, n: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + n);
+  const ny = dt.getFullYear();
+  const nm = String(dt.getMonth() + 1).padStart(2, '0');
+  const nd = String(dt.getDate()).padStart(2, '0');
+  return `${ny}-${nm}-${nd}`;
+}
+
 export default function PlanningPage() {
   const calendar = usePlanningCalendar();
   const health   = useHealthPanel();
 
-  // ── Highlight in calendar when sidebar card is clicked ──────────────
+  // Vendedores (SALES role) can view the calendar but cannot move or reschedule anything
+  const userRole = (localStorage.getItem('user_role') || '').toUpperCase();
+  const readOnly = userRole === 'SALES';
+
+  // ── View mode state ──────────────────────────────────────────
+  const [viewMode, setViewMode] = useState<ViewMode>('month');
+  const [selectedDate, setSelectedDate] = useState<string>(getTodayKey());
+
+  // ── Shared weekend visibility (synced across Month and Week views) ──
+  const [weekendExpanded, setWeekendExpanded] = useState(false);
+
+  // ── Focus-mode search query (shared across HealthSidebar + all calendar views) ──
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // ── Instance lookup map built from health panel data for rich pill matching ──
+  const instanceLookup = useMemo<Record<number, InstanceSchedule>>(() => {
+    if (!health.data) return {};
+    const all = [
+      ...health.data.critical,
+      ...health.data.alerts,
+      ...health.data.planned,
+      ...health.data.in_process,
+      ...health.data.ready_to_install,
+      ...health.data.in_transit,
+      ...health.data.installed,
+      ...health.data.warranty,
+    ];
+    return Object.fromEntries(all.map(inst => [inst.id, inst]));
+  }, [health.data]);
+
+  // ── Sync calendar month/year when selectedDate changes ───────
+  useEffect(() => {
+    const [y, m] = selectedDate.split('-').map(Number);
+    if (y !== calendar.year || m !== calendar.month) {
+      calendar.goToDate(selectedDate);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate]);
+
+  // ── Highlight in calendar when sidebar card is clicked ───────
   const [highlightInstanceId, setHighlightInstanceId] = useState<number | null>(null);
 
-  // ── Instance being edited in the modal ──────────────────────────────
+  // ── Instance being edited in the modal ──────────────────────
   const [editingInstance, setEditingInstance] = useState<InstanceSchedule | null>(null);
   const [loadingInstance, setLoadingInstance] = useState(false);
 
-  // ── Drag-from-sidebar state ─────────────────────────────────────────
+  // ── Drag-from-sidebar state ──────────────────────────────────
   const [draggedInstance, setDraggedInstance] = useState<InstanceSchedule | null>(null);
 
+  // Destructure stable refresh callbacks to prevent handleRefresh identity churn
+  // (hook objects are new each render, but the individual callbacks are useCallback-stable)
+  const calendarRefresh = calendar.refresh;
+  const healthRefresh   = health.refresh;
   const handleRefresh = useCallback(() => {
-    calendar.refresh();
-    health.refresh();
-  }, [calendar, health]);
+    calendarRefresh();
+    healthRefresh();
+  }, [calendarRefresh, healthRefresh]);
 
   // Open edit modal from health sidebar card
   const handleHealthInstanceClick = (instance: InstanceSchedule) => {
@@ -31,37 +102,22 @@ export default function PlanningPage() {
   };
 
   // Open edit modal from calendar pill click
-  // Pill only has instance_id; we find the full object in health data or fetch it
   const handleCalendarPillClick = useCallback(async (pill: CalendarPill) => {
     setHighlightInstanceId(prev => prev === pill.instance_id ? null : pill.instance_id);
 
-    // Try to find in already-loaded health data
-    const healthData = health.data;
-    let found: InstanceSchedule | undefined;
-    if (healthData) {
-      const all = [
-        ...healthData.critical,
-        ...healthData.alerts,
-        ...healthData.planned,
-        ...healthData.in_process,
-        ...healthData.ready_to_install,
-        ...healthData.in_transit,
-        ...healthData.installed,
-        ...healthData.warranty,
-      ];
-      found = all.find(inst => inst.id === pill.instance_id);
-    }
+    // Use the pre-built lookup instead of rebuilding the combined array on every click
+    const found = instanceLookup[pill.instance_id];
 
     if (found) {
       setEditingInstance(found);
       return;
     }
 
-    // Not in health panel — build minimal InstanceSchedule from pill data
     setEditingInstance({
       id: pill.instance_id,
       custom_name: pill.custom_name,
       product_name: null,
+      product_category: pill.product_category,
       order_folio: null,
       client_name: null,
       project_name: null,
@@ -78,27 +134,29 @@ export default function PlanningPage() {
       original_signed_at: null,
       is_cancelled: false,
     });
-    // Kick off background fetch to get schedule dates
     setLoadingInstance(true);
     planningService.updateInstance(pill.instance_id, {}).then(res => {
       setEditingInstance(res.data);
     }).catch(() => {
-      // fallback already set above — keep minimal
+      // keep minimal fallback
     }).finally(() => {
       setLoadingInstance(false);
     });
-  }, [health.data]);
+  }, [instanceLookup]);
 
-  // Drag from sidebar: start
+  // Click on a day number in Month view → jump to Day view
+  const handleDayClick = useCallback((dayKey: string) => {
+    setSelectedDate(dayKey);
+    setViewMode('day');
+  }, []);
+
+  // Drag from sidebar
   const handleSidebarDragStart = useCallback((instance: InstanceSchedule) => {
     setDraggedInstance(instance);
   }, []);
 
-  // Drag from sidebar: dropped on calendar day
   const handleSidebarDrop = useCallback((dayKey: string, instance: InstanceSchedule) => {
     setDraggedInstance(null);
-    // Open edit modal pre-filled so user can pick which lane to assign the date
-    // We rebuild schedule with the dropped date pre-filled (user can adjust lanes)
     const iso = dayKey + 'T09:00:00.000Z';
     const modified: InstanceSchedule = {
       ...instance,
@@ -112,38 +170,130 @@ export default function PlanningPage() {
     setEditingInstance(modified);
   }, []);
 
-  const handleModalSaved = () => {
-    handleRefresh();
-  };
+  const handleModalSaved = () => handleRefresh();
+
+  // ── Week navigation ──────────────────────────────────────────
+  const handlePrevWeek = useCallback(() => setSelectedDate(d => addDays(d, -7)), []);
+  const handleNextWeek = useCallback(() => setSelectedDate(d => addDays(d, 7)), []);
+
+  // ── Day navigation ───────────────────────────────────────────
+  const handlePrevDay = useCallback(() => setSelectedDate(d => addDays(d, -1)), []);
+  const handleNextDay = useCallback(() => setSelectedDate(d => addDays(d, 1)), []);
+
+  const calendarData = calendar.data?.calendar ?? {};
+  const isLoading    = calendar.loading || loadingInstance;
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] bg-white overflow-hidden">
 
-      {/* ─── CALENDARIO MAESTRO (izquierda, ~75%) ─── */}
+      {/* ─── MAIN AREA (left, ~75%) ─── */}
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-        <PlanningCalendar
-          year={calendar.year}
-          month={calendar.month}
-          calendarData={calendar.data?.calendar ?? {}}
-          loading={calendar.loading || loadingInstance}
-          onPrevMonth={calendar.prevMonth}
-          onNextMonth={calendar.nextMonth}
-          onRefresh={handleRefresh}
-          highlightInstanceId={highlightInstanceId}
-          onPillClick={handleCalendarPillClick}
-          externalDragInstance={draggedInstance}
-          onExternalDrop={handleSidebarDrop}
-        />
+
+        {/* ── View Mode Tabs ── */}
+        <div className="flex items-center gap-1 px-4 pt-3 pb-0 border-b border-slate-100 shrink-0">
+          {VIEW_TABS.map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setViewMode(tab.key)}
+              className={`
+                flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-t-lg
+                transition-all border-b-2 -mb-px
+                ${viewMode === tab.key
+                  ? 'border-slate-800 text-slate-800 bg-white'
+                  : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50'}
+              `}
+            >
+              <span>{tab.icon}</span>
+              {tab.label}
+            </button>
+          ))}
+          <div className="flex-1" />
+          {/* Month quick-jump info when in week/day view */}
+          {viewMode !== 'month' && (
+            <button
+              onClick={() => setViewMode('month')}
+              className="text-[10px] text-slate-400 hover:text-slate-600 px-2 py-1 rounded-lg hover:bg-slate-50 transition-colors mr-1 mb-0.5"
+            >
+              ← Ver mes completo
+            </button>
+          )}
+        </div>
+
+        {/* ── View Content ── */}
+        <div className="flex-1 min-h-0 overflow-hidden">
+          {viewMode === 'month' && (
+            <PlanningCalendar
+              year={calendar.year}
+              month={calendar.month}
+              calendarData={calendarData}
+              loading={isLoading}
+              onPrevMonth={calendar.prevMonth}
+              onNextMonth={calendar.nextMonth}
+              onRefresh={handleRefresh}
+              highlightInstanceId={highlightInstanceId}
+              onPillClick={handleCalendarPillClick}
+              externalDragInstance={readOnly ? null : draggedInstance}
+              onExternalDrop={handleSidebarDrop}
+              onDayClick={handleDayClick}
+              weekendExpanded={weekendExpanded}
+              onWeekendToggle={setWeekendExpanded}
+              searchQuery={searchQuery}
+              instanceLookup={instanceLookup}
+              readOnly={readOnly}
+            />
+          )}
+
+          {viewMode === 'week' && (
+            <WeekView
+              calendarData={calendarData}
+              selectedDate={selectedDate}
+              onDateChange={setSelectedDate}
+              loading={isLoading}
+              onPrevWeek={handlePrevWeek}
+              onNextWeek={handleNextWeek}
+              onRefresh={handleRefresh}
+              highlightInstanceId={highlightInstanceId}
+              onPillClick={handleCalendarPillClick}
+              externalDragInstance={readOnly ? null : draggedInstance}
+              onExternalDrop={handleSidebarDrop}
+              onDayClick={handleDayClick}
+              weekendExpanded={weekendExpanded}
+              onWeekendToggle={setWeekendExpanded}
+              searchQuery={searchQuery}
+              instanceLookup={instanceLookup}
+              readOnly={readOnly}
+            />
+          )}
+
+          {viewMode === 'day' && (
+            <DayView
+              calendarData={calendarData}
+              selectedDate={selectedDate}
+              loading={isLoading}
+              onPrevDay={handlePrevDay}
+              onNextDay={handleNextDay}
+              onRefresh={handleRefresh}
+              highlightInstanceId={highlightInstanceId}
+              onPillClick={handleCalendarPillClick}
+              searchQuery={searchQuery}
+              instanceLookup={instanceLookup}
+              readOnly={readOnly}
+            />
+          )}
+        </div>
       </div>
 
-      {/* ─── PANEL DE SALUD (derecha, fijo ~288px) ─── */}
+      {/* ─── PANEL DE SALUD (right, fixed ~288px) ─── */}
       <div className="w-72 shrink-0 overflow-hidden">
         <HealthSidebar
           data={health.data}
           loading={health.loading}
           onInstanceClick={handleHealthInstanceClick}
-          onInstanceDragStart={handleSidebarDragStart}
+          onInstanceDragStart={readOnly ? undefined : handleSidebarDragStart}
           highlightId={highlightInstanceId}
+          searchQuery={searchQuery}
+          onSearchQueryChange={setSearchQuery}
+          readOnly={readOnly}
         />
       </div>
 
@@ -153,6 +303,7 @@ export default function PlanningPage() {
           instance={editingInstance}
           onClose={() => setEditingInstance(null)}
           onSaved={handleModalSaved}
+          readOnly={readOnly}
         />
       )}
     </div>

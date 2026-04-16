@@ -72,7 +72,7 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
     const frozenReqs = requisitions.filter(r => r.status?.toUpperCase() === 'APLAZADA');
 
     const reqMaterialIds = [...pendingReqs, ...frozenReqs].map(r => r.material_id);
-    const activeOrders = orders.filter(o => ['BORRADOR', 'AUTORIZADA', 'ENVIADA'].includes(o.status?.toUpperCase()));
+    const activeOrders = orders.filter(o => ['DRAFT', 'AUTORIZADA', 'ENVIADA'].includes(o.status?.toUpperCase()));
     const orderMaterialIds = activeOrders.flatMap(o => o.items?.map((i: any) => i.material_id) || []);
 
     const materialesAtendidos = [...reqMaterialIds, ...orderMaterialIds];

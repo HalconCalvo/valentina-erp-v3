@@ -1,4 +1,3 @@
-import React from 'react';
 import { CalendarPill } from '../../../api/planning-service';
 
 interface Props {
@@ -8,6 +7,8 @@ interface Props {
   onConfirmFixed: () => void;
   onCancel: () => void;
   loading?: boolean;
+  /** PATCH error message to surface when reschedule fails */
+  error?: string | null;
 }
 
 const LANE_LABELS: Record<string, string> = {
@@ -24,6 +25,7 @@ export default function RescheduleModal({
   onConfirmFixed,
   onCancel,
   loading,
+  error,
 }: Props) {
   if (!pill || !targetDate) return null;
 
@@ -55,6 +57,11 @@ export default function RescheduleModal({
             ¿Deseas recalcular proporcionalmente las fechas siguientes de esta instancia
             o mantenerlas (solo mover esta operación)?
           </p>
+          {error && (
+            <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-2.5 text-sm text-red-700">
+              ⚠️ {error}
+            </div>
+          )}
         </div>
 
         {/* Actions */}

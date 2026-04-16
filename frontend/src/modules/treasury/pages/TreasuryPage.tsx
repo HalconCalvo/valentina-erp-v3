@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   Plus, Landmark, ArrowDownRight, ArrowUpRight, Users, 
-  Clock, CheckCircle2, Wallet, ArrowLeft, Lock, Unlock, CheckCircle, 
-  Receipt, Filter, Wrench, Bell, Search, TrendingUp, AlertTriangle,
+  CheckCircle2, Wallet, ArrowLeft, CheckCircle, 
+  Bell, Search, TrendingUp, AlertTriangle,
   ShoppingCart, Tag, ArrowRight
 } from 'lucide-react';
 
@@ -23,23 +23,34 @@ import { AccountDetail } from '../components/AccountDetail';
 import { OrderStatementModal } from '../../finance/components/OrderStatementModal';
 
 // --- COMPONENTES COMPARTIDOS ---
-import { ReceivablesModule } from '../../finance/components/ReceivablesModule';
+import { AccountsReceivableAgingPanel } from '../../finance/components/AccountsReceivableAgingPanel';
 import { PayablesModule } from '../../finance/components/PayablesModule';
+import { PayrollAuditPanel, type PayrollLevel1 } from '../components/PayrollAuditPanel';
 
 // --- UI ---
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import Badge from '@/components/ui/Badge';
 
 type AdminSection = 'TASKS' | 'BANKS' | 'RECEIVABLES' | 'PAYABLES' | 'PAYROLL' | null;
-type PayrollView = 'GENERATED' | 'PAYABLE' | 'PAID';
-type PayrollCategory = 'COMMISSIONS' | 'INSTALLATIONS';
 
 export const TreasuryPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const userRole = (localStorage.getItem('user_role') || '').toUpperCase().trim();
   const isChecker = ['DIRECTOR', 'GERENCIA'].includes(userRole);
+  /** Rayos X / comisiones: mismo criterio amplio que cobranza admin */
+  const canFinanceRayosX = [
+    'DIRECTOR', 'GERENCIA', 'ADMIN', 'ADMINISTRADOR', 'FINANCE', 'FINANZAS',
+  ].includes(userRole);
+  /** Cierre semanal de costos fijos: alineado con treasury weekly-fixed-costs. */
+  const canCaptureWeeklyFixed = [
+    'DIRECTOR',
+    'GERENCIA',
+    'ADMIN',
+    'ADMINISTRADOR',
+    'FINANCE',
+    'FINANZAS',
+  ].includes(userRole);
 
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [isAccountsLoading, setIsAccountsLoading] = useState(true);
@@ -56,14 +67,15 @@ export const TreasuryPage = () => {
   
   const [alerts, setAlerts] = useState({ pending_requisitions: 0, pending_sales_advances: 0 });
 
-  const [allOrders, setAllOrders] = useState<SalesOrder[]>([]);
-  const [selectedSeller, setSelectedSeller] = useState<string>('ALL');
-  const [availableSellers, setAvailableSellers] = useState<{id: string, name: string}[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_allOrders, setAllOrders] = useState<SalesOrder[]>([]);
 
-  const [commissions, setCommissions] = useState({ 
-      generated: 0, payable: 0, paid: 0, 
-      generatedList: [] as any[], payableList: [] as any[], paidList: [] as any[],
-      payableCount: 0 
+  /** Resumen tarjeta dashboard nómina (totales independientes desde API). */
+  const [payrollDash, setPayrollDash] = useState({
+    commPayableCount: 0,
+    instPayableCount: 0,
+    commPayableTotal: 0,
+    instPayableTotal: 0,
   });
 
   const [activeSection, setActiveSection] = useState<AdminSection>(() => {
@@ -87,53 +99,35 @@ export const TreasuryPage = () => {
 
   const [isSubSectionActive, setIsSubSectionActive] = useState(false);
   const [selectedOrderForRayosX, setSelectedOrderForRayosX] = useState<SalesOrder | null>(null);
-  const [activePayrollView, setActivePayrollView] = useState<PayrollView>('PAYABLE');
-  const [payrollCategory, setPayrollCategory] = useState<PayrollCategory>('COMMISSIONS');
+  const [payrollLevel1, setPayrollLevel1] = useState<PayrollLevel1>(null);
 
-  const calculateCommissions = (orders: SalesOrder[], sellerFilter: string) => {
-      let commGen = 0, commPayable = 0, commPaid = 0;
-      let generatedList: any[] = [], payableList: any[] = [], paidList: any[] = [];
+  useEffect(() => {
+      if (activeSection !== 'PAYROLL') setPayrollLevel1(null);
+  }, [activeSection]);
 
-      const filteredOrders = sellerFilter === 'ALL' ? orders : orders.filter(o => o.user_id?.toString() === sellerFilter);
+  useEffect(() => {
+      if (activeSection === 'RECEIVABLES') setIsSubSectionActive(true);
+  }, [activeSection]);
 
-      filteredOrders.forEach((o: SalesOrder) => {
-          const status = String(o.status).toUpperCase();
-          const orderTotal = Number(o.total_price) || 1; 
-          const orderComm = Number(o.commission_amount) || 0;
-          const sellerName = (o as any).user?.full_name || (o as any).user?.username || (o.user_id ? `Asesor #${o.user_id}` : 'Sin Asignar');
-
-          if (['SOLD', 'INSTALLED', 'FINISHED'].includes(status)) {
-              let invoicedComm = 0;
-              if (o.payments && Array.isArray(o.payments)) {
-                  o.payments.forEach((p: any) => {
-                      const cxcAmount = Number(p.amount) || 0;
-                      const cxcComm = (cxcAmount / orderTotal) * orderComm;
-                      invoicedComm += cxcComm;
-
-                      if (p.status === 'PAID') {
-                          if (p.commission_paid) {
-                              commPaid += cxcComm; 
-                              paidList.push({ orderId: o.id, project: o.project_name, folio: p.invoice_folio || 'S/F', cxcAmount, commAmount: cxcComm, rawOrder: o, sellerName });
-                          } else {
-                              commPayable += cxcComm; 
-                              payableList.push({ orderId: o.id, project: o.project_name, folio: p.invoice_folio || 'S/F', cxcAmount, commAmount: cxcComm, rawOrder: o, sellerName });
-                          }
-                      } else {
-                          commGen += cxcComm; 
-                          generatedList.push({ orderId: o.id, project: o.project_name, folio: p.invoice_folio || 'S/F (Pendiente)', cxcAmount, commAmount: cxcComm, rawOrder: o, sellerName });
-                      }
-                  });
-              }
-
-              const uninvoicedComm = orderComm - invoicedComm;
-              if (uninvoicedComm > 0) {
-                  commGen += uninvoicedComm;
-                  generatedList.push({ orderId: o.id, project: o.project_name, folio: 'Capital Pendiente de Facturar', cxcAmount: 0, commAmount: uninvoicedComm, rawOrder: o, sellerName });
-              }
-          }
-      });
-      
-      setCommissions({ generated: commGen, payable: commPayable, paid: commPaid, generatedList, payableList, paidList, payableCount: payableList.length });
+  const handleRegresar = () => {
+    if (payrollLevel1 !== null) {
+      setPayrollLevel1(null);
+      return;
+    }
+    if (activeSection !== null) {
+      if (cameFromTasks && activeSection === 'RECEIVABLES') {
+        setActiveSection('TASKS');
+        setCameFromTasks(false);
+        setIsSubSectionActive(false);
+        return;
+      }
+      setActiveSection(null);
+      setSelectedAccountForDetail(null);
+      setIsSubSectionActive(false);
+      setCameFromTasks(false);
+      return;
+    }
+    navigate(-1);
   };
 
   const fetchData = async () => {
@@ -147,49 +141,63 @@ export const TreasuryPage = () => {
         setIsAccountsLoading(false);
       }
 
-      const [apStats, orders] = await Promise.all([
+      const [apStats, orders, rights] = await Promise.all([
         financeService.getPayableDashboardStats(),
-        salesService.getOrders()
+        salesService.getOrders(),
+        salesService.getInvoicingRights().catch(() => null),
       ]);
 
       const debt = (apStats?.overdue_amount || 0) + (apStats?.next_period_amount || 0) + (apStats?.future_amount || 0);
       setTotalPayables(debt);
-      setPayablesCount(apStats?.overdue_count || 0); 
+      const cxpDocs =
+        (apStats?.overdue_count || 0) +
+        (apStats?.next_period_count || 0) +
+        (apStats?.future_count || 0);
+      setPayablesCount(cxpDocs);
 
-      let receivableAmount = 0;
-      let recCount = 0;
-      let pendingSalesAdvancesCount = 0;
-
-      (orders || []).forEach((o: SalesOrder) => {
-          const pct = Number(o.advance_percent) || 60;
-          const status = String(o.status).toUpperCase();
-          const orderTotal = Number(o.total_price) || 1; 
-          
-          if (status === 'WAITING_ADVANCE') {
-              receivableAmount += orderTotal * (pct / 100);
-              recCount++;
-              pendingSalesAdvancesCount++;
-          } else if (status === 'SOLD' || status === 'INSTALLED') {
-              receivableAmount += orderTotal * ((100 - pct) / 100);
-              recCount++;
-          }
-      });
-      setTotalReceivables(receivableAmount);
-      setReceivablesCount(recCount);
-      
       const safeOrders = Array.isArray(orders) ? orders : [];
       setAllOrders(safeOrders);
 
-      const sellersMap = new Map();
-      safeOrders.forEach(o => {
-          if (o.user_id) {
-              const name = (o as any).user?.full_name || (o as any).user?.username || `Asesor #${o.user_id}`;
-              sellersMap.set(o.user_id.toString(), name);
+      /** Tarjeta padre «Por Cobrar» = A (anticipos) + B (avances obra) + C (antigüedad CXC PENDING), misma base que ReceivablesModule. */
+      let agingDocCount = 0;
+      let agingAmount = 0;
+      for (const o of safeOrders) {
+        const pays = o.payments;
+        if (!pays?.length) continue;
+        for (const cxc of pays) {
+          if (String((cxc as { status?: string }).status).toUpperCase() === 'PENDING') {
+            agingDocCount += 1;
+            agingAmount += Number((cxc as { amount?: number }).amount) || 0;
           }
-      });
-      setAvailableSellers(Array.from(sellersMap.entries()).map(([id, name]) => ({ id, name })));
+        }
+      }
 
-      calculateCommissions(safeOrders, selectedSeller);
+      const aDocs = rights?.advances.length ?? 0;
+      const aAmt = rights?.advance_pending_total ?? 0;
+      const bDocs = rights?.progress_instances.length ?? 0;
+      const bAmt = rights?.progress_work_total ?? 0;
+
+      setReceivablesCount(aDocs + bDocs + agingDocCount);
+      setTotalReceivables(aAmt + bAmt + agingAmount);
+
+      const pendingSalesAdvancesCount =
+        rights?.advances.length ??
+        safeOrders.filter((o) => String(o.status).toUpperCase() === 'WAITING_ADVANCE').length;
+
+      try {
+        const [coOv, instOv] = await Promise.all([
+          salesService.getCommissionsPayrollOverview(),
+          treasuryService.getInstallerPayrollOverview(),
+        ]);
+        setPayrollDash({
+          commPayableCount: coOv.payable.length,
+          instPayableCount: instOv.payable.length,
+          commPayableTotal: coOv.payable_total,
+          instPayableTotal: instOv.payable_total,
+        });
+      } catch {
+        /* ignore dashboard hint errors */
+      }
 
       try {
           const reqsRes = await client.get('/purchases/requisitions/');
@@ -215,10 +223,6 @@ export const TreasuryPage = () => {
     return () => clearInterval(intervalId);
   }, [isChecker]);
 
-  useEffect(() => {
-      calculateCommissions(allOrders, selectedSeller);
-  }, [selectedSeller]);
-
   const formatCurrency = (amount: number) => amount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 
   const getSectionTitle = () => {
@@ -240,17 +244,6 @@ export const TreasuryPage = () => {
       return 'text-3xl';
   };
 
-  const getActiveTableData = () => {
-      if (activePayrollView === 'GENERATED') {
-          return { title: 'A. Comisiones Generadas (Retenidas)', subtitle: 'Esperando cobranza.', list: commissions.generatedList, color: 'text-amber-800', bg: 'bg-amber-50', border: 'border-amber-200' };
-      }
-      if (activePayrollView === 'PAID') {
-          return { title: 'C. Comisiones Pagadas (Histórico)', subtitle: 'Transferidas al vendedor.', list: commissions.paidList, color: 'text-emerald-800', bg: 'bg-emerald-50', border: 'border-emerald-200' };
-      }
-      return { title: 'B. Comisiones Exigibles (Por Pagar)', subtitle: 'Listas para liquidar en nómina.', list: commissions.payableList, color: 'text-indigo-800', bg: 'bg-indigo-50', border: 'border-indigo-200' };
-  };
-
-  const activeTable = getActiveTableData();
   const totalTasksCount = alerts.pending_requisitions + alerts.pending_sales_advances;
 
   return (
@@ -270,29 +263,13 @@ export const TreasuryPage = () => {
               </p>
             </div>
 
-            {activeSection !== null && (
-              <button 
-                  onClick={() => {
-                    // ---> CORRECCIÓN: Limpiar TODOS los estados al regresar <---
-                    if (cameFromTasks && activeSection === 'RECEIVABLES') {
-                        setActiveSection('TASKS');
-                        setCameFromTasks(false);
-                        setIsSubSectionActive(false);
-                    } else {
-                        setActiveSection(null); 
-                        setSelectedAccountForDetail(null); 
-                        setIsSubSectionActive(false); 
-                        setActivePayrollView('PAYABLE'); 
-                        setSelectedSeller('ALL'); 
-                        setPayrollCategory('COMMISSIONS');
-                        setCameFromTasks(false);
-                    }
-                  }}
-                  className="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-bold hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm"
-              >
-                  <ArrowLeft size={18} /> {cameFromTasks && activeSection === 'RECEIVABLES' ? 'Regresar a Tareas' : 'Regresar al Tablero'}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={handleRegresar}
+              className="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-bold hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm"
+            >
+              <ArrowLeft size={18} /> Regresar
+            </button>
           </div>
       )}
 
@@ -402,8 +379,8 @@ export const TreasuryPage = () => {
           {/* ---> TARJETA 4: NÓMINA <--- */}
           <div className="w-full relative h-40">
               <Card onClick={() => setActiveSection('PAYROLL')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-indigo-500 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white overflow-hidden group">
-                  <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50 text-indigo-700 border-r border-indigo-100 font-black transition-colors group-hover:bg-indigo-100 ${getCountSize(commissions.payableCount)}`}>
-                      {commissions.payableCount}
+                  <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50 text-indigo-700 border-r border-indigo-100 font-black transition-colors group-hover:bg-indigo-100 ${getCountSize(payrollDash.commPayableCount + payrollDash.instPayableCount)}`}>
+                      {payrollDash.commPayableCount + payrollDash.instPayableCount}
                   </div>
                   <div className="ml-16 h-full flex flex-col justify-between pl-2">
                       <div className="flex justify-between items-start">
@@ -412,7 +389,7 @@ export const TreasuryPage = () => {
                       </div>
                       <div className="flex justify-end">
                           <div className="text-lg font-black text-indigo-600 tracking-tight leading-none truncate">
-                              {formatCurrency(commissions.payable)}
+                              {formatCurrency(payrollDash.commPayableTotal + payrollDash.instPayableTotal)}
                           </div>
                       </div>
                       <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
@@ -496,155 +473,45 @@ export const TreasuryPage = () => {
 
           {/* AQUÍ ES A DONDE VIAJA LA SUB-TARJETA DE VENTAS */}
           {activeSection === 'RECEIVABLES' && (
-              <ReceivablesModule 
-                  onSubSectionChange={setIsSubSectionActive} 
-                  defaultFilter={cameFromTasks ? "ADVANCES" : undefined}
-                  onBackOverride={cameFromTasks ? () => { 
-                      setIsSubSectionActive(false); // <-- CORRECCIÓN
-                      setCameFromTasks(false); 
-                      setActiveSection('TASKS'); 
-                  } : undefined}
+              <AccountsReceivableAgingPanel
+                  variant="embedded"
+                  embeddedBackLabel="Regresar a Tesorería"
+                  onEmbeddedBack={() => {
+                      setIsSubSectionActive(false);
+                      if (cameFromTasks) {
+                          setCameFromTasks(false);
+                          setActiveSection('TASKS');
+                      } else {
+                          setActiveSection(null);
+                      }
+                      void fetchData();
+                  }}
               />
           )}
           
-          {activeSection === 'PAYABLES' && <PayablesModule onSubSectionChange={setIsSubSectionActive} />}
+          {activeSection === 'PAYABLES' && (
+            <PayablesModule
+              onSubSectionChange={setIsSubSectionActive}
+              dueBucketMode="friday_week"
+            />
+          )}
 
           {activeSection === 'PAYROLL' && (
-            <div className="space-y-6">
-                <div className="flex border-b border-slate-200">
-                    <button
-                        className={`px-6 py-4 font-black text-sm border-b-2 transition-colors flex items-center gap-2 ${payrollCategory === 'COMMISSIONS' ? 'border-indigo-600 text-indigo-700 bg-indigo-50/50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
-                        onClick={() => setPayrollCategory('COMMISSIONS')}
-                    >
-                        <Receipt size={16} /> Comisiones (Ventas)
-                    </button>
-                    <button
-                        className={`px-6 py-4 font-black text-sm border-b-2 transition-colors flex items-center gap-2 ${payrollCategory === 'INSTALLATIONS' ? 'border-indigo-600 text-indigo-700 bg-indigo-50/50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
-                        onClick={() => setPayrollCategory('INSTALLATIONS')}
-                    >
-                        <Wrench size={16} /> Destajos (Instalaciones)
-                    </button>
-                </div>
-
-                {payrollCategory === 'COMMISSIONS' && (
-                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                        <div className="flex flex-col md:flex-row justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm gap-4">
-                            <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                                <Filter className="text-indigo-500" size={18} /> Filtrar Comisiones por Asesor
-                            </h3>
-                            <div className="flex items-center gap-3 w-full md:w-auto">
-                                <select 
-                                    className="bg-slate-50 border border-slate-200 text-slate-700 rounded-lg px-4 py-2.5 text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none w-full md:w-64 cursor-pointer shadow-sm"
-                                    value={selectedSeller}
-                                    onChange={(e) => setSelectedSeller(e.target.value)}
-                                >
-                                    <option value="ALL">💰 Todos los Asesores</option>
-                                    <option disabled>──────────</option>
-                                    {availableSellers.map(s => (
-                                        <option key={s.id} value={s.id}>{s.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <Card onClick={() => setActivePayrollView('GENERATED')} className={`p-6 border-l-4 border-l-amber-500 cursor-pointer transition-all duration-200 h-32 flex flex-col justify-between ${activePayrollView === 'GENERATED' ? 'bg-amber-50/50 ring-2 ring-amber-400 shadow-md transform scale-[1.02]' : 'bg-white hover:bg-slate-50'}`}>
-                                <h4 className="font-bold text-slate-800 flex items-center gap-2"><Lock size={18} className="text-amber-500"/> A. Retenidas</h4>
-                                <div className="flex justify-end">
-                                    <div className="text-lg font-black text-amber-600 tracking-tight leading-none truncate">{formatCurrency(commissions.generated)}</div>
-                                </div>
-                            </Card>
-
-                            <Card onClick={() => setActivePayrollView('PAYABLE')} className={`p-6 border-l-4 border-l-indigo-500 cursor-pointer transition-all duration-200 h-32 flex flex-col justify-between ${activePayrollView === 'PAYABLE' ? 'bg-indigo-50/50 ring-2 ring-indigo-400 shadow-md transform scale-[1.02]' : 'bg-white hover:bg-slate-50'}`}>
-                                <h4 className="font-bold text-indigo-800 flex items-center gap-2"><Unlock size={18} className="text-indigo-500"/> B. Por Pagar</h4>
-                                <div className="flex justify-end">
-                                    <div className="text-lg font-black text-indigo-600 tracking-tight leading-none truncate">{formatCurrency(commissions.payable)}</div>
-                                </div>
-                            </Card>
-
-                            <Card onClick={() => setActivePayrollView('PAID')} className={`p-6 border-l-4 border-l-emerald-500 cursor-pointer transition-all duration-200 h-32 flex flex-col justify-between ${activePayrollView === 'PAID' ? 'bg-emerald-50/50 ring-2 ring-emerald-400 shadow-md transform scale-[1.02]' : 'bg-white hover:bg-slate-50'}`}>
-                                <h4 className="font-bold text-slate-800 flex items-center gap-2"><CheckCircle size={18} className="text-emerald-500"/> C. Pagadas</h4>
-                                <div className="flex justify-end">
-                                    <div className="text-lg font-black text-emerald-600 tracking-tight leading-none truncate">{formatCurrency(commissions.paid)}</div>
-                                </div>
-                            </Card>
-                        </div>
-
-                        <div className={`rounded-xl shadow-sm border overflow-hidden mt-6 transition-colors duration-300 ${activeTable.border}`}>
-                            <div className={`p-4 border-b flex justify-between items-center ${activeTable.bg} ${activeTable.border}`}>
-                                <div>
-                                    <h3 className={`font-bold flex items-center gap-2 text-sm ${activeTable.color}`}>
-                                        <Receipt size={18}/> {activeTable.title}
-                                    </h3>
-                                    <p className={`text-xs mt-1 font-medium ${activeTable.color} opacity-80`}>{activeTable.subtitle}</p>
-                                </div>
-                                <Badge variant="outline" className={`bg-white font-bold ${activeTable.color}`}>
-                                    {activeTable.list.length} Registros
-                                </Badge>
-                            </div>
-                            
-                            {activeTable.list.length === 0 ? (
-                                <div className="p-12 text-center text-slate-500 bg-white italic">
-                                    No hay registros para este asesor en esta categoría.
-                                </div>
-                            ) : (
-                                <div className="overflow-x-auto bg-white">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead>
-                                            <tr className="bg-slate-50 border-b border-slate-100 text-[11px] uppercase tracking-wider text-slate-500 font-bold">
-                                                <th className="p-4">OV / Proyecto</th>
-                                                <th className="p-4">Asesor</th>
-                                                <th className="p-4 text-right">Efectivo Ref.</th>
-                                                <th className="p-4 text-right font-black text-slate-700">Comisión</th>
-                                                <th className="p-4 text-center">Acción</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {activeTable.list.map((item, idx) => (
-                                                <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                                                    <td className="p-4">
-                                                        <p className="font-bold text-slate-800 text-sm">OV-{item.orderId?.toString().padStart(4, '0')} - {item.project}</p>
-                                                        <p className="text-xs text-slate-500">{item.folio}</p>
-                                                    </td>
-                                                    <td className="p-4">
-                                                        <Badge variant="outline" className="bg-slate-50 text-slate-600">{item.sellerName}</Badge>
-                                                    </td>
-                                                    <td className="p-4 text-right font-medium text-slate-500">
-                                                        {item.cxcAmount > 0 ? formatCurrency(item.cxcAmount) : '-'}
-                                                    </td>
-                                                    <td className={`p-4 text-right font-black text-lg ${activePayrollView === 'PAYABLE' ? 'text-indigo-600 bg-indigo-50/30' : activePayrollView === 'GENERATED' ? 'text-amber-600' : 'text-emerald-600'}`}>
-                                                        {formatCurrency(item.commAmount)}
-                                                    </td>
-                                                    <td className="p-4 text-center">
-                                                        <Button 
-                                                            variant="outline" size="sm" 
-                                                            onClick={() => setSelectedOrderForRayosX(item.rawOrder)}
-                                                            className="text-xs text-slate-600 hover:text-slate-900 border-slate-200"
-                                                        >
-                                                            {activePayrollView === 'PAYABLE' ? 'Pagar --> Rayos X' : 'Ver Rayos X'}
-                                                        </Button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                {payrollCategory === 'INSTALLATIONS' && (
-                    <div className="p-12 text-center bg-white rounded-xl border border-slate-200 shadow-sm animate-in fade-in slide-in-from-right-4 duration-300">
-                        <Wrench size={48} className="mx-auto text-slate-300 mb-4" />
-                        <h3 className="text-2xl font-black text-slate-700">Módulo de Destajos en Construcción</h3>
-                        <p className="text-slate-500 mt-2 max-w-lg mx-auto font-medium">
-                            Aquí nacerá el control de pagos para el equipo de instalación. El sistema cruzará los muebles marcados como "Instalados" en la App de Logística y calculará el destajo a pagarle a cada cuadrilla.
-                        </p>
-                    </div>
-                )}
-
-            </div>
+            <PayrollAuditPanel
+              canCaptureWeeklyFixed={canCaptureWeeklyFixed}
+              payrollLevel1={payrollLevel1}
+              onPayrollLevel1Change={setPayrollLevel1}
+              accounts={accounts}
+              onOrderInspect={async (orderId) => {
+                try {
+                  const o = await salesService.getOrderDetail(orderId);
+                  setSelectedOrderForRayosX(o);
+                } catch (e) {
+                  console.error(e);
+                }
+              }}
+              onRefresh={fetchData}
+            />
           )}
 
         </div>
@@ -667,7 +534,10 @@ export const TreasuryPage = () => {
               onClose={() => setSelectedOrderForRayosX(null)}
               order={selectedOrderForRayosX}
               onSuccess={() => { fetchData(); }}
-              readOnly={!isChecker}
+              onOrderPatch={(patch) => {
+                setSelectedOrderForRayosX((prev) => (prev ? { ...prev, ...patch } : null));
+              }}
+              readOnly={!canFinanceRayosX}
           />
       )}
 

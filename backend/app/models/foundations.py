@@ -38,9 +38,13 @@ class GlobalConfig(SQLModel, table=True):
     annual_sales_target: float = Field(default=0.0)
     last_year_sales: float = Field(default=0.0)
 
-    # NUEVAS COLUMNAS V3.5: Eficiencia de Fábrica (Costo de Transformación)
+    # Eficiencia de Fábrica (Costo de Transformación)
     target_payroll_per_board: float = Field(default=0.0)
     target_overhead_per_board: float = Field(default=0.0)
+
+    # Nómina a Destajo (Tabulador Global de Instaladores)
+    default_leader_daily_rate: float = Field(default=800.0)
+    default_helper_daily_rate: float = Field(default=700.0)
     
     # Relaciones
     default_tax_rate_id: Optional[int] = Field(default=None, foreign_key="tax_rates.id")

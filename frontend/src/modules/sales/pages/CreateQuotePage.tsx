@@ -19,7 +19,6 @@ import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import { SalesOrderItem, SalesOrderStatus } from '../../../types/sales';
-import { RecipeViewerModal } from './RecipeViewerModal';
 
 // --- HELPERS DE FORMATO ---
 const formatCurrency = (amount: number | undefined | null) => {
@@ -77,7 +76,6 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
     const [commissionRate, setCommissionRate] = useState<number>(0);
     const [loadingCommission, setLoadingCommission] = useState(false);
 
-    const [viewingRecipeItem, setViewingRecipeItem] = useState<SalesOrderItem | null>(null);
 
     const INITIAL_HEADER = {
         created_at: new Date().toISOString().split('T')[0],
@@ -521,9 +519,9 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                                     return (
                                         <tr key={idx} className={editingIndex === idx ? 'bg-amber-50' : 'hover:bg-slate-50 transition-colors'}>
                                             <td className="px-4 py-3">
-                                                <button onClick={() => setViewingRecipeItem(item)} className="font-bold text-indigo-600 hover:text-indigo-800 hover:underline text-left text-sm transition-colors">
+                                                <span className="font-bold text-slate-800 text-sm">
                                                     {item.product_name}
-                                                </button>
+                                                </span>
                                             </td>
                                             <td className="text-center font-bold text-slate-700 px-2 py-3">{item.quantity}</td>
                                             
@@ -591,7 +589,6 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                 </div>
             </div>
 
-            <RecipeViewerModal item={viewingRecipeItem} onClose={() => setViewingRecipeItem(null)} />
 
         </div>
     );

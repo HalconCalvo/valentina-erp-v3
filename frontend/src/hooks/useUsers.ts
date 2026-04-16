@@ -9,6 +9,10 @@ export interface User {
     role: string;
     is_active: boolean;
     commission_rate?: number;
+    global_commission_rate?: number;
+    /** Meta mensual de ventas (V5); preferir sobre monthly_sales_target si existe */
+    monthly_quota?: number | null;
+    monthly_sales_target?: number | null;
 }
 
 export function useUsers() {

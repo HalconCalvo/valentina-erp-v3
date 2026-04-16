@@ -2,13 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from typing import List, Optional
 from sqlmodel import Session, select
-from datetime import datetime
 
 # Asumiendo que tu dependencia de base de datos está en app.api.deps o app.db.session
 # Ajusta esta importación si tu get_db está en otro lado
 from app.core.deps import get_session
 
-from app.models.design import ProductionBatch
+from app.models.production import ProductionBatch, ProductionBatchStatus
 from app.models.sales import SalesOrderItemInstance, SalesOrderItem, SalesOrder, PaymentStatus, InstanceStatus
 
 router = APIRouter()
@@ -27,6 +26,50 @@ class ProductionBatchResponse(BaseModel):
     estimated_merma_percent: float
     is_payment_cleared: bool
     instances: List[InstanceDetail] = []
+
+
+class RequestLabelsBody(BaseModel):
+    mdf_bundles: int
+    hardware_bundles: int
+
+
+class RequestLabelsResponse(BaseModel):
+    instance_id: int
+    mdf_bundles: int
+    hardware_bundles: int
+    total_bundles: int
+
+
+@router.post("/instances/{instance_id}/request_labels", response_model=RequestLabelsResponse)
+def request_labels(
+    instance_id: int,
+    body: RequestLabelsBody,
+    db: Session = Depends(get_session),
+):
+    """Registra bultos declarados para solicitud de etiquetas (empaque)."""
+    if body.mdf_bundles < 1 or body.hardware_bundles < 1:
+        raise HTTPException(
+            status_code=400,
+            detail="mdf_bundles y hardware_bundles deben ser al menos 1.",
+        )
+
+    instance = db.get(SalesOrderItemInstance, instance_id)
+    if not instance:
+        raise HTTPException(status_code=404, detail="Instancia no encontrada.")
+
+    total_bundles = body.mdf_bundles + body.hardware_bundles
+    instance.declared_bundles = total_bundles
+    db.add(instance)
+    db.commit()
+    db.refresh(instance)
+
+    return RequestLabelsResponse(
+        instance_id=instance.id,
+        mdf_bundles=body.mdf_bundles,
+        hardware_bundles=body.hardware_bundles,
+        total_bundles=total_bundles,
+    )
+
 
 @router.post("/", response_model=ProductionBatch, status_code=status.HTTP_201_CREATED)
 def create_production_batch(
@@ -51,7 +94,7 @@ def create_production_batch(
         folio=folio,
         batch_type=batch_type,
         estimated_merma_percent=estimated_merma_percent,
-        status="BORRADOR"
+        status=ProductionBatchStatus.DRAFT
     )
     db.add(new_batch)
     db.commit()
@@ -164,20 +207,34 @@ def update_batch_status(batch_id: int, status: str, db: Session = Depends(get_se
         raise HTTPException(status_code=404, detail="Lote no encontrado")
     
     # 2. Actualizar el estatus del lote
-    batch.status = status
+    try:
+        new_status = ProductionBatchStatus(status)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Estado de lote no válido")
+
+    batch.status = new_status
     db.add(batch)
     
-    # 3. Regla de Negocio: Si el lote se termina, los productos en su interior están listos
-    if status == "TERMINADO":
+    # 3. Sincronizar instancias solo en IN_PRODUCTION / READY_TO_INSTALL.
+    #    PACKING solo cambia el lote; las instancias siguen IN_PRODUCTION.
+    if new_status in (
+        ProductionBatchStatus.IN_PRODUCTION,
+        ProductionBatchStatus.READY_TO_INSTALL,
+    ):
         instances = db.exec(
             select(SalesOrderItemInstance)
             .where(SalesOrderItemInstance.production_batch_id == batch_id)
         ).all()
-        
-        for inst in instances:
-            inst.production_status = InstanceStatus.READY
-            db.add(inst)
-            
+
+        if new_status == ProductionBatchStatus.IN_PRODUCTION:
+            for inst in instances:
+                inst.production_status = InstanceStatus.IN_PRODUCTION
+                db.add(inst)
+        else:  # READY_TO_INSTALL
+            for inst in instances:
+                inst.production_status = InstanceStatus.READY
+                db.add(inst)
+
     # 4. Guardar cambios en la base de datos
     db.commit()
     db.refresh(batch)

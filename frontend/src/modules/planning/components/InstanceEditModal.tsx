@@ -11,30 +11,52 @@ interface Props {
   instance: InstanceSchedule | null;
   onClose: () => void;
   onSaved: () => void;
+  /** When true, date/name fields are disabled and the Save button is hidden */
+  readOnly?: boolean;
 }
 
 const LANE_META = [
-  { field: 'scheduled_prod_mdf',   code: 'PM', label: 'Producción MDF',    color: 'text-violet-700 bg-violet-50 border-violet-200' },
-  { field: 'scheduled_prod_stone', code: 'PP', label: 'Producción Piedra',  color: 'text-stone-700  bg-stone-50  border-stone-200'  },
-  { field: 'scheduled_inst_mdf',   code: 'IM', label: 'Instalación MDF',   color: 'text-sky-700    bg-sky-50    border-sky-200'    },
-  { field: 'scheduled_inst_stone', code: 'IP', label: 'Instalación Piedra', color: 'text-cyan-700   bg-cyan-50   border-cyan-200'   },
+  { field: 'scheduled_prod_mdf',   code: 'PM', label: 'Producción MDF',    color: 'text-violet-700 bg-violet-50 border-violet-200', ring: 'focus-within:ring-violet-300' },
+  { field: 'scheduled_prod_stone', code: 'PP', label: 'Producción Piedra',  color: 'text-stone-700  bg-stone-50  border-stone-200',  ring: 'focus-within:ring-stone-300'  },
+  { field: 'scheduled_inst_mdf',   code: 'IM', label: 'Instalación MDF',   color: 'text-sky-700    bg-sky-50    border-sky-200',    ring: 'focus-within:ring-sky-300'    },
+  { field: 'scheduled_inst_stone', code: 'IP', label: 'Instalación Piedra', color: 'text-cyan-700   bg-cyan-50   border-cyan-200',   ring: 'focus-within:ring-cyan-300'   },
 ] as const;
 
 type LaneField = typeof LANE_META[number]['field'];
 
-/** Convert ISO datetime string to datetime-local input value */
+// ─── Date helpers ─────────────────────────────────────────────────────────────
+
+const DAY_NAMES_ES   = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const MONTH_SHORT_ES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+/** ISO → "YYYY-MM-DD" for <input type="date"> */
 function toInputValue(iso: string | null): string {
   if (!iso) return '';
-  return iso.slice(0, 16); // "YYYY-MM-DDTHH:mm"
+  return iso.slice(0, 10);
 }
 
-/** Convert datetime-local input value to ISO string */
+/** "YYYY-MM-DD" → ISO string at 09:00 local time (avoids UTC midnight timezone shift) */
 function fromInputValue(val: string): string | null {
   if (!val) return null;
-  return new Date(val).toISOString();
+  return new Date(val + 'T09:00:00').toISOString();
 }
 
-export default function InstanceEditModal({ instance, onClose, onSaved }: Props) {
+/**
+ * "YYYY-MM-DD" → "Lunes 15/Abr/2026"
+ * Uses local Date construction to avoid UTC-offset day-shift.
+ */
+function formatDisplayDate(dateValue: string): string {
+  if (!dateValue) return '';
+  const [y, m, d] = dateValue.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  const dayName    = DAY_NAMES_ES[date.getDay()];
+  const monthShort = MONTH_SHORT_ES[m - 1];
+  return `${dayName} ${d}/${monthShort}/${y}`;
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+export default function InstanceEditModal({ instance, onClose, onSaved, readOnly = false }: Props) {
   const [name, setName]   = useState('');
   const [dates, setDates] = useState<Record<LaneField, string>>({
     scheduled_prod_mdf:   '',
@@ -42,8 +64,8 @@ export default function InstanceEditModal({ instance, onClose, onSaved }: Props)
     scheduled_inst_mdf:   '',
     scheduled_inst_stone: '',
   });
-  const [saving, setSaving]   = useState(false);
-  const [error,  setError]    = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error,  setError]  = useState<string | null>(null);
 
   useEffect(() => {
     if (!instance) return;
@@ -89,7 +111,7 @@ export default function InstanceEditModal({ instance, onClose, onSaved }: Props)
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden">
 
-        {/* Header */}
+        {/* ── Header ── */}
         <div className={`px-6 pt-5 pb-4 border-b border-slate-100 ${cfg.bg}`}>
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -109,7 +131,7 @@ export default function InstanceEditModal({ instance, onClose, onSaved }: Props)
           </div>
         </div>
 
-        {/* Body */}
+        {/* ── Body ── */}
         <div className="px-6 py-5 space-y-5">
 
           {/* Alias / custom_name */}
@@ -120,43 +142,89 @@ export default function InstanceEditModal({ instance, onClose, onSaved }: Props)
             <input
               type="text"
               value={name}
-              onChange={e => setName(e.target.value)}
+              onChange={e => !readOnly && setName(e.target.value)}
+              readOnly={readOnly}
               placeholder="Ej: Casa 123, Calle 98 – Cocina Integral"
-              className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition"
+              className={`w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition ${readOnly ? 'bg-slate-50 text-slate-500 cursor-not-allowed' : ''}`}
             />
           </div>
 
           {/* 4 Carriles */}
           <div>
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 block">
               Fechas Programadas — Matriz de 4 Carriles
             </label>
-            <div className="grid grid-cols-1 gap-2.5">
-              {LANE_META.map(lane => (
-                <div key={lane.field} className="flex items-center gap-3">
-                  <span className={`text-[10px] font-bold px-2 py-1 rounded-lg border shrink-0 w-10 text-center ${lane.color}`}>
-                    {lane.code}
-                  </span>
-                  <span className="text-xs text-slate-500 w-32 shrink-0">{lane.label}</span>
-                  <div className="flex-1 flex items-center gap-1.5">
-                    <input
-                      type="datetime-local"
-                      value={dates[lane.field]}
-                      onChange={e => setDates(prev => ({ ...prev, [lane.field]: e.target.value }))}
-                      className="flex-1 text-xs border border-slate-200 rounded-lg px-2.5 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition"
-                    />
-                    {dates[lane.field] && (
-                      <button
-                        onClick={() => handleClearDate(lane.field)}
-                        className="text-slate-300 hover:text-red-500 transition-colors text-sm"
-                        title="Limpiar fecha"
-                      >
-                        ✕
-                      </button>
-                    )}
+
+            <div className="space-y-3">
+              {LANE_META.map(lane => {
+                const hasDate     = !!dates[lane.field];
+                const displayText = hasDate
+                  ? `${lane.code}, ${formatDisplayDate(dates[lane.field])}`
+                  : 'Sin fecha — clic para programar';
+
+                return (
+                  <div key={lane.field} className="space-y-1.5">
+                    {/* Lane name label */}
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border shrink-0 ${lane.color}`}>
+                        {lane.code}
+                      </span>
+                      <span className="text-xs font-semibold text-slate-500">
+                        {lane.code} — {lane.label}
+                      </span>
+                    </div>
+
+                    {/* Date display chip + invisible overlay input */}
+                    <div className="flex items-center gap-2 pl-0.5">
+                      <div className="relative flex-1">
+                        {/* Visible styled chip */}
+                        <div className={`
+                          flex items-center gap-2.5 px-3 py-2.5 rounded-xl border
+                          cursor-pointer select-none transition-all
+                          ${hasDate
+                            ? `${lane.color} font-semibold`
+                            : 'border-slate-200 bg-slate-50 text-slate-400'}
+                        `}>
+                          <span className="shrink-0 text-base leading-none">
+                            {hasDate ? '📅' : '○'}
+                          </span>
+                          <span className={`flex-1 text-sm ${hasDate ? '' : 'italic'}`}>
+                            {displayText}
+                          </span>
+                          <span className={`shrink-0 text-[10px] font-bold uppercase tracking-wide
+                            ${hasDate ? 'opacity-50' : 'text-slate-400'}`}>
+                            editar
+                          </span>
+                        </div>
+
+                        {/* Invisible <input type="date"> overlaid — opens native picker on click */}
+                        {!readOnly && (
+                          <input
+                            type="date"
+                            value={dates[lane.field]}
+                            onChange={e =>
+                              setDates(prev => ({ ...prev, [lane.field]: e.target.value }))
+                            }
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            tabIndex={0}
+                          />
+                        )}
+                      </div>
+
+                      {/* Clear button — hidden for read-only */}
+                      {hasDate && !readOnly && (
+                        <button
+                          onClick={() => handleClearDate(lane.field)}
+                          className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all"
+                          title="Limpiar fecha"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -167,21 +235,30 @@ export default function InstanceEditModal({ instance, onClose, onSaved }: Props)
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-6 pb-6 pt-2 flex justify-end gap-3 border-t border-slate-100">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-50 transition"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-5 py-2 rounded-xl text-sm font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition disabled:opacity-50"
-          >
-            {saving ? 'Guardando...' : 'Guardar cambios'}
-          </button>
+        {/* ── Footer ── */}
+        <div className="px-6 pb-6 pt-2 flex justify-between items-center gap-3 border-t border-slate-100">
+          {readOnly ? (
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-1 rounded-lg border border-slate-200">
+              👁 Solo Lectura
+            </span>
+          ) : <span />}
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-50 transition"
+            >
+              {readOnly ? 'Cerrar' : 'Cancelar'}
+            </button>
+            {!readOnly && (
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="px-5 py-2 rounded-xl text-sm font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition disabled:opacity-50"
+              >
+                {saving ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

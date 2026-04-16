@@ -1,6 +1,53 @@
 import axiosClient from './axios-client';
 import { API_ROUTES } from './endpoints';
-import { SalesOrder, SalesOrderStatus, PaymentPayload } from '../types/sales'; // <-- Agregué PaymentPayload
+import {
+  SalesOrder,
+  SalesOrderStatus,
+  PaymentPayload,
+  PendingProgressInstance,
+  InvoicingRightsRead,
+  SalesCommissionRecord,
+  CommissionsPayrollOverview,
+  CustomerPayment,
+  PaymentType,
+} from '../types/sales';
+
+function pickArrayPayload(payload: unknown): unknown[] {
+    if (Array.isArray(payload)) return payload;
+    if (payload && typeof payload === 'object') {
+        const o = payload as Record<string, unknown>;
+        if (Array.isArray(o.items)) return o.items;
+        if (Array.isArray(o.data)) return o.data;
+        if (Array.isArray(o.payments)) return o.payments;
+    }
+    return [];
+}
+
+/** Acepta filas sueltas del API (snake_case / camelCase) → CustomerPayment PENDING */
+function normalizeToCustomerPayment(row: unknown): CustomerPayment | null {
+    if (!row || typeof row !== 'object') return null;
+    const r = row as Record<string, unknown>;
+    const id = Number(r.id);
+    const sales_order_id = Number(r.sales_order_id ?? r.order_id ?? r.salesOrderId);
+    if (!Number.isFinite(id) || !Number.isFinite(sales_order_id)) return null;
+    const status = String(r.status ?? 'PENDING').toUpperCase();
+    if (status !== 'PENDING') return null;
+    const rawPt = String(r.payment_type ?? r.paymentType ?? 'PROGRESS').toUpperCase();
+    const safePt: PaymentType = ['ADVANCE', 'PROGRESS', 'SETTLEMENT'].includes(rawPt) ? (rawPt as PaymentType) : 'PROGRESS';
+    return {
+        id,
+        sales_order_id,
+        payment_type: safePt,
+        invoice_folio: (r.invoice_folio as string) ?? (r.invoiceFolio as string) ?? null,
+        status: 'PENDING',
+        invoice_date: String(r.invoice_date ?? r.invoiceDate ?? r.created_at ?? new Date().toISOString()),
+        amount: Number(r.amount) || 0,
+        amortized_advance: Number(r.amortized_advance ?? r.amortizedAdvance) || 0,
+        payment_date: (r.payment_date as string) ?? (r.paymentDate as string) ?? null,
+        created_at: String(r.created_at ?? r.createdAt ?? new Date().toISOString()),
+        commission_paid: r.commission_paid === true,
+    };
+}
 
 export const salesService = {
     /**
@@ -127,12 +174,15 @@ export const salesService = {
     // =========================================================
 
     /**
-     * NUEVO: El cliente acepta la cotización, se manda a Administración para cobrar el anticipo
-     * (ACCEPTED -> WAITING_ADVANCE)
+     * El cliente acepta la cotización → OC obligatoria → WAITING_ADVANCE (V5).
      */
-    requestAdvance: async (orderId: number): Promise<void> => {
+    requestAdvance: async (
+        orderId: number,
+        payload: { client_po_folio: string; client_po_date: string }
+    ): Promise<SalesOrder> => {
         const url = `${API_ROUTES.SALES.ORDER_DETAIL(orderId)}/mark_waiting_advance`;
-        await axiosClient.post(url);
+        const response = await axiosClient.post(url, payload);
+        return response.data;
     },
 
     /**
@@ -177,5 +227,88 @@ export const salesService = {
     confirmCXCPayment: async (orderId: number, cxcId: number) => {
         const response = await axiosClient.post(`/sales/orders/${orderId}/confirm_payment/${cxcId}`);
         return response.data;
-    }
+    },
+
+    /**
+     * ADMINISTRACIÓN: Obtiene todas las instancias 🟢🟢 CERRADAS sin factura de avance.
+     * Alimenta la bandeja "Avances por Facturar" en PendingToInvoicePage.
+     */
+    getPendingProgressInstances: async (): Promise<PendingProgressInstance[]> => {
+        const response = await axiosClient.get('/sales/orders/pending-progress');
+        return response.data;
+    },
+
+    /**
+     * Tarjeta B (Pendiente de Facturar): anticipos sin CXC ADVANCE + piezas CLOSED sin factura admin.
+     * Totales y filas deben coincidir con PendingToInvoicePage y ReceivablesModule.
+     */
+    getInvoicingRights: async (): Promise<InvoicingRightsRead> => {
+        const response = await axiosClient.get('/sales/invoicing-rights');
+        return response.data;
+    },
+
+    /**
+     * CXC emitidas pendientes de cobro (misma noción que Administración C. Antigüedad).
+     * Fallback por varias rutas típicas en FastAPI; el backend debe exponer al menos una para rol SALES.
+     */
+    getPendingCustomerPaymentsForReceivable: async (): Promise<CustomerPayment[]> => {
+        const attempt = async (url: string, params?: Record<string, string>): Promise<CustomerPayment[]> => {
+            try {
+                const res = await axiosClient.get(url, params ? { params } : undefined);
+                const rows = pickArrayPayload(res.data);
+                const parsed = rows.map(normalizeToCustomerPayment).filter((x): x is CustomerPayment => x != null);
+                return parsed;
+            } catch {
+                return [];
+            }
+        };
+
+        const fromDedicated = await attempt('/sales/customer-payments/pending');
+        if (fromDedicated.length) return fromDedicated;
+
+        const fromAllCp = await attempt('/sales/customer-payments');
+        if (fromAllCp.length) return fromAllCp;
+
+        const fromPayments = await attempt('/sales/payments', { status: 'PENDING' });
+        if (fromPayments.length) return fromPayments;
+
+        return attempt('/sales/customer-payments', { status: 'PENDING' });
+    },
+
+    /**
+     * TESORERÍA/ADMIN: Obtiene el reporte de comisiones desde la tabla SalesCommission.
+     * Fuente de verdad única — no requiere cálculo en frontend.
+     */
+    getCommissions: async (params?: {
+        user_id?: number;
+        commission_type?: 'SELLER' | 'DIRECTOR_GLOBAL';
+        is_paid?: boolean;
+    }): Promise<SalesCommissionRecord[]> => {
+        const response = await axiosClient.get('/sales/commissions', { params });
+        return response.data;
+    },
+
+    getCommissionsPayrollOverview: async (): Promise<CommissionsPayrollOverview> => {
+        const response = await axiosClient.get('/sales/commissions/payroll-overview');
+        return response.data;
+    },
+
+    updateCommissionPayroll: async (
+        commissionId: number,
+        payload: { admin_notes?: string | null; payroll_deferred?: boolean }
+    ): Promise<void> => {
+        await axiosClient.patch(`/sales/commissions/${commissionId}/payroll`, payload);
+    },
+
+    /**
+     * Marca una comisión como pagada/no-pagada (legacy: bandera en CXC).
+     */
+    markCommissionPaid: async (paymentId: number, isPaid: boolean): Promise<void> => {
+        await axiosClient.patch(`/sales/payments/${paymentId}`, { commission_paid: isPaid });
+    },
+
+    /** Tesorería: marca comisión en tabla sales_commissions (verdad única para nómina). */
+    markCommissionPayrollPaid: async (commissionId: number, isPaid: boolean): Promise<void> => {
+        await axiosClient.patch(`/sales/commissions/${commissionId}/mark-paid`, { is_paid: isPaid });
+    },
 };

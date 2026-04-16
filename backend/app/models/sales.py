@@ -250,6 +250,10 @@ class SalesOrder(SQLModel, table=True):
     external_invoice_ref: Optional[str] = None
     is_warranty: bool = Field(default=False)
 
+    # V5: Orden de compra del cliente (obligatoria al cerrar venta → WAITING_ADVANCE)
+    client_po_folio: Optional[str] = Field(default=None, index=True)
+    client_po_date: Optional[datetime] = Field(default=None)
+
     items: List[SalesOrderItem] = Relationship(
         back_populates="order", 
         sa_relationship_kwargs={"cascade": "all, delete-orphan"}

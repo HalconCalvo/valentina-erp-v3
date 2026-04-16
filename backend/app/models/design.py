@@ -45,6 +45,9 @@ class ProductVersion(SQLModel, table=True):
     # Control de Estado (Vital para el flujo)
     status: str = Field(default=VersionStatus.DRAFT) 
     estimated_cost: float = Field(default=0.0) # Suma caché de materiales
+
+    # Días de instalación presupuestados (base para nómina a destajo)
+    installation_days: float = Field(default=1.0)
     
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -73,17 +76,3 @@ class VersionComponent(SQLModel, table=True):
     version: Optional["ProductVersion"] = Relationship(back_populates="components")
     # Nota: La relación 'material' se resolverá al importar Material si es necesario
     material: Optional["Material"] = Relationship()
-
-# ==========================================
-# NUEVAS TABLAS V3.5 (EL PUENTE A FÁBRICA)
-# ==========================================
-class ProductionBatch(SQLModel, table=True):
-    __tablename__ = "production_batches"
-    
-    id: Optional[int] = Field(default=None, primary_key=True)
-    folio: str = Field(index=True)
-    batch_type: str  # "MDF" o "PIEDRA"
-    status: str = Field(default="BORRADOR")  # BORRADOR, AMBAR, AZUL, EN_CORTE, TERMINADO
-    estimated_merma_percent: float = Field(default=0.0)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    created_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")

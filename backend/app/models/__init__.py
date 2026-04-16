@@ -18,7 +18,14 @@ from .finance import PurchaseInvoice, SupplierPayment, InvoiceStatus, PaymentSta
 from app.models.treasury import BankAccount, BankTransaction, WeeklyFixedCost
 
 # --- Módulo de Producción e Instalaciones (V3.5) ---
-from .production import ProductionBatch, InstallationAssignment, PayrollPayment, PayrollPaymentType, PayrollStatus
+from .production import (
+    ProductionBatch,
+    ProductionBatchStatus,
+    InstallationAssignment,
+    PayrollPayment,
+    PayrollPaymentType,
+    PayrollStatus,
+)
 
 # Exportación explícita para Alembic/SQLModel
 __all__ = [
@@ -37,6 +44,7 @@ __all__ = [
     "VersionComponent",
     "VersionStatus",
     "ProductionBatch",
+    "ProductionBatchStatus",
     
     # Ventas
     "SalesOrder",

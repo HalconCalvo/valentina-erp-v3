@@ -61,3 +61,56 @@ class AccountsPayableStats(SQLModel):
     overdue_amount: float # Deuda Vencida
     upcoming_amount: float # Por vencer en 30 días
     breakdown_by_age: Dict[str, float] # Ej: {"1-30": 5000, "31-60": 2000, "+90": 0}
+
+
+# ==========================================
+# SCHEMAS: CATÁLOGO DE PRODUCTOS TERMINADOS
+# ==========================================
+
+class ProductCreate(SQLModel):
+    """Payload para dar de alta un producto nuevo."""
+    sku: str
+    name: str
+    description: Optional[str] = None
+    category: Optional[str] = None
+    unit_of_measure: str = "PZA"
+    base_cost: float = 0.0
+    sale_price: float = 0.0
+    min_stock: float = 0.0
+
+
+class ProductUpdate(SQLModel):
+    """Campos editables de un producto (todos opcionales)."""
+    name: Optional[str] = None
+    description: Optional[str] = None
+    category: Optional[str] = None
+    unit_of_measure: Optional[str] = None
+    base_cost: Optional[float] = None
+    sale_price: Optional[float] = None
+    min_stock: Optional[float] = None
+    is_active: Optional[bool] = None
+
+
+class ProductRead(SQLModel):
+    """Representación de un producto al consultarlo."""
+    id: int
+    sku: str
+    name: str
+    description: Optional[str]
+    category: Optional[str]
+    unit_of_measure: str
+    base_cost: float
+    sale_price: float
+    stock_quantity: float
+    min_stock: float
+    is_active: bool
+    created_at: datetime
+
+
+class StockMovementCreate(SQLModel):
+    """Payload para registrar una entrada o ajuste de stock."""
+    movement_type: str   # ENTRADA | SALIDA | AJUSTE_POSITIVO | AJUSTE_NEGATIVO
+    quantity: float
+    unit_cost: Optional[float] = None
+    reference: Optional[str] = None
+    notes: Optional[str] = None
