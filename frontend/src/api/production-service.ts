@@ -43,4 +43,13 @@ export const productionService = {
     });
     return response.data;
   },
+
+  deleteBatch: async (batchId: number): Promise<{
+    message: string;
+    instances_reset: number;
+    reservations_cancelled: number;
+  }> => {
+    const response = await axiosClient.delete(`/production/${batchId}`);
+    return response.data;
+  },
 };

@@ -10,6 +10,9 @@ from app.core.deps import get_session
 from app.models.production import ProductionBatch, ProductionBatchStatus
 from app.models.foundations import Client
 from app.models.sales import SalesOrderItemInstance, SalesOrderItem, SalesOrder, PaymentStatus, InstanceStatus
+from app.models.inventory import InventoryReservation
+from app.models.design import VersionComponent
+from app.models.material import Material
 
 router = APIRouter()
 # --- SCHEMAS DE RESPUESTA EXTENDIDOS (V3.5) ---
@@ -232,6 +235,37 @@ def assign_instance_to_batch(
     instance.production_status = InstanceStatus.IN_PRODUCTION
     
     db.add(instance)
+
+    # Leer BOM de la instancia para comprometer material
+    item = db.exec(
+        select(SalesOrderItem)
+        .where(SalesOrderItem.id == instance.sales_order_item_id)
+    ).first()
+
+    if item and item.origin_version_id:
+        components = db.exec(
+            select(VersionComponent)
+            .where(VersionComponent.version_id == item.origin_version_id)
+        ).all()
+
+        for comp in components:
+            # Crear reserva
+            reservation = InventoryReservation(
+                production_batch_id=batch.id,
+                material_id=comp.material_id,
+                quantity_reserved=comp.quantity,
+                status="ACTIVA",
+            )
+            db.add(reservation)
+
+            # Actualizar committed_stock en el material
+            material = db.get(Material, comp.material_id)
+            if material:
+                material.committed_stock = (
+                    material.committed_stock or 0.0
+                ) + comp.quantity
+                db.add(material)
+
     db.commit()
     db.refresh(instance)
     
@@ -278,3 +312,71 @@ def update_batch_status(batch_id: int, status: str, db: Session = Depends(get_se
     db.refresh(batch)
     
     return batch
+
+
+@router.delete("/{batch_id}", status_code=200)
+def delete_production_batch(
+    batch_id: int,
+    db: Session = Depends(get_session),
+):
+    """
+    BOTÓN DE ALTO — Solo disponible si el lote está en DRAFT.
+    1. Regresa todas las instancias a PENDING
+    2. Cancela reservas ACTIVA → libera committed_stock
+    3. Elimina el lote
+    """
+    batch = db.get(ProductionBatch, batch_id)
+    if not batch:
+        raise HTTPException(status_code=404, detail="Lote no encontrado.")
+
+    if batch.status != ProductionBatchStatus.DRAFT:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Solo se pueden eliminar lotes en DRAFT. "
+                   f"Estado actual: {batch.status}"
+        )
+
+    folio = batch.folio
+
+    # 1. Regresar instancias a PENDING
+    instances = db.exec(
+        select(SalesOrderItemInstance)
+        .where(SalesOrderItemInstance.production_batch_id == batch_id)
+    ).all()
+
+    for inst in instances:
+        inst.production_status = InstanceStatus.PENDING
+        inst.production_batch_id = None
+        db.add(inst)
+
+    # 2. Cancelar reservas y liberar committed_stock
+    reservations = db.exec(
+        select(InventoryReservation)
+        .where(InventoryReservation.production_batch_id == batch_id)
+        .where(InventoryReservation.status == "ACTIVA")
+    ).all()
+
+    for res in reservations:
+        res.status = "CANCELADA"
+        db.add(res)
+
+        material = db.get(Material, res.material_id)
+        if material:
+            material.committed_stock = max(
+                0.0,
+                (material.committed_stock or 0.0) - res.quantity_reserved
+            )
+            db.add(material)
+        db.delete(res)
+
+    # 3. Eliminar el lote
+    db.delete(batch)
+    db.commit()
+
+    return {
+        "message": f"Lote {folio} eliminado. "
+                   f"{len(instances)} instancia(s) regresadas a PENDING. "
+                   f"{len(reservations)} reserva(s) canceladas.",
+        "instances_reset": len(instances),
+        "reservations_cancelled": len(reservations),
+    }

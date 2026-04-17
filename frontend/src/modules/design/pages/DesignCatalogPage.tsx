@@ -33,6 +33,7 @@ const DesignCatalogPage: React.FC = () => {
     const [viewHistory, setViewHistory] = useState<string[]>([]);
     const [liveBatches, setLiveBatches] = useState<any[]>([]);
     const [loadingLiveBatches, setLoadingLiveBatches] = useState(false);
+    const [deletingBatchId, setDeletingBatchId] = useState<number | null>(null);
 
     // --- SEGURIDAD ---
     const [userRole, setUserRole] = useState('ADMIN');
@@ -229,6 +230,26 @@ const DesignCatalogPage: React.FC = () => {
         const prev = viewHistory[viewHistory.length - 1];
         setViewHistory(h => h.slice(0, -1));
         setCurrentView(prev as any);
+    };
+
+    const handleDeleteBatch = async (batchId: number, folio: string) => {
+        if (!window.confirm(
+            `¿Detener el lote ${folio}?\n\n` +
+            `Las instancias regresarán a PENDIENTE y el material ` +
+            `comprometido quedará liberado.\n\n` +
+            `Esta acción no se puede deshacer.`
+        )) return;
+
+        setDeletingBatchId(batchId);
+        try {
+            const result = await productionService.deleteBatch(batchId);
+            alert(result.message);
+            await loadLiveBatches();
+        } catch (e: any) {
+            alert(e?.response?.data?.detail || 'Error al eliminar el lote.');
+        } finally {
+            setDeletingBatchId(null);
+        }
     };
 
     useEffect(() => {
@@ -770,10 +791,25 @@ const DesignCatalogPage: React.FC = () => {
                                                             {batch.batch_type}
                                                         </span>
                                                     </div>
-                                                    <span className={`text-xs font-bold px-3 py-1 
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`text-xs font-bold px-3 py-1 
                                      rounded-full ${cfg.color}`}>
-                                                        {cfg.label}
-                                                    </span>
+                                                            {cfg.label}
+                                                        </span>
+                                                        {batch.status === 'DRAFT' && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleDeleteBatch(batch.id, batch.folio)}
+                                                                disabled={deletingBatchId === batch.id}
+                                                                className="flex items-center gap-1.5 px-3 py-1 rounded-lg
+                   text-xs font-bold border border-red-300
+                   text-red-600 bg-red-50 hover:bg-red-100
+                   transition disabled:opacity-40"
+                                                            >
+                                                                {deletingBatchId === batch.id ? 'Deteniendo...' : '🛑 ALTO'}
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </div>
 
                                                 {/* Instancias del lote */}
