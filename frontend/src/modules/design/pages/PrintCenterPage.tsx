@@ -33,6 +33,73 @@ export default function PrintCenterPage() {
 
   const pendingCount = rows.length;
 
+  const handleGenerateLabels = async (instanceId: number) => {
+    try {
+      const baseUrl = import.meta.env.VITE_API_URL
+        || 'http://localhost:8000/api/v1';
+      const token = localStorage.getItem('token');
+      const response = await fetch(
+        `${baseUrl}/design/instances/${instanceId}/generate_labels`,
+        {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        }
+      );
+      if (!response.ok) {
+        const err = await response.json();
+        alert(`Error: ${err.detail}`);
+        return;
+      }
+      const data = await response.json();
+      // Mostrar el ZPL en una ventana nueva para copiar/enviar a impresora
+      const win = window.open('', '_blank');
+      if (win) {
+        win.document.write(`
+            <html>
+              <head>
+                <title>Etiquetas ZPL — ${data.instance_name}</title>
+                <style>
+                  body { font-family: monospace; padding: 20px; 
+                         background: #1e1e1e; color: #d4d4d4; }
+                  h2 { color: #4ec9b0; }
+                  .info { color: #9cdcfe; margin-bottom: 16px; }
+                  pre { background: #252526; padding: 20px; 
+                        border-radius: 8px; overflow-x: auto;
+                        border: 1px solid #3e3e3e; font-size: 13px;
+                        line-height: 1.5; }
+                  button { background: #0e639c; color: white; 
+                           border: none; padding: 10px 20px; 
+                           border-radius: 6px; cursor: pointer;
+                           font-size: 14px; margin-bottom: 16px; }
+                  button:hover { background: #1177bb; }
+                </style>
+              </head>
+              <body>
+                <h2>🏷️ Etiquetas ZPL — ${data.instance_name}</h2>
+                <div class="info">
+                  <p>Cliente: <strong>${data.client_name}</strong></p>
+                  <p>Proyecto: <strong>${data.project_name}</strong></p>
+                  <p>Total etiquetas: <strong>${data.total_labels}</strong>
+                     (${data.mdf_bundles} MDF + 
+                     ${data.hardware_bundles} HERRAJES)</p>
+                  <p>QR UUID: <code>${data.qr_uuid}</code></p>
+                </div>
+                <button onclick="navigator.clipboard.writeText(
+                  document.getElementById('zpl').textContent
+                ).then(() => alert('ZPL copiado al portapapeles'))">
+                  📋 Copiar ZPL al portapapeles
+                </button>
+                <pre id="zpl">${data.zpl_content}</pre>
+              </body>
+            </html>
+          `);
+        win.document.close();
+      }
+    } catch (e) {
+      alert('Error al generar etiquetas. Verifica la conexión.');
+    }
+  };
+
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-8 pb-24 animate-in fade-in duration-300">
       <div className="flex justify-end mb-6">
@@ -105,11 +172,7 @@ export default function PrintCenterPage() {
                       <td className="px-4 py-3 text-center">
                         <button
                           type="button"
-                          onClick={() =>
-                            alert(
-                              `Instancia #${row.instance_id}\nCliente: ${row.client_name}\nProyecto: ${row.project_name}\nInstancia: ${row.custom_name}\nTotal bultos: ${row.declared_bundles}`
-                            )
-                          }
+                          onClick={() => handleGenerateLabels(row.instance_id)}
                           className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
                         >
                           <Printer size={14} />

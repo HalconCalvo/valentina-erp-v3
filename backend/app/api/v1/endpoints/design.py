@@ -1,6 +1,7 @@
 from typing import List, Any, Dict
 import math
-import time 
+import time
+import uuid as uuid_lib
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy import or_
 from sqlmodel import Session, select
@@ -29,6 +30,7 @@ from app.models.sales import (
     SalesOrderItem,
 )
 from app.services.cloud_storage import upload_to_gcs
+from app.services.label_printer import generate_all_labels, concatenate_zpl
 
 # Schemas
 from app.schemas.design_schema import (
@@ -702,3 +704,82 @@ def list_label_requests(
             )
         )
     return result
+
+
+class GenerateLabelsResponse(BaseModel):
+    instance_id: int
+    instance_name: str
+    client_name: str
+    project_name: str
+    total_labels: int
+    mdf_bundles: int
+    hardware_bundles: int
+    zpl_content: str
+    qr_uuid: str
+
+
+@router.post(
+    "/instances/{instance_id}/generate_labels",
+    response_model=GenerateLabelsResponse,
+)
+def generate_labels(
+    instance_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Genera el ZPL completo para todas las etiquetas de una instancia.
+    Requiere que mdf_bundles y hardware_bundles estén declarados.
+    """
+    instance = session.get(SalesOrderItemInstance, instance_id)
+    if not instance:
+        raise HTTPException(status_code=404, detail="Instancia no encontrada.")
+
+    if not instance.mdf_bundles and not instance.hardware_bundles:
+        raise HTTPException(
+            status_code=400,
+            detail="Esta instancia no tiene bultos declarados. "
+                   "Declara los bultos desde Producción primero.",
+        )
+
+    # Subir la cadena para obtener cliente y proyecto
+    item = session.exec(
+        select(SalesOrderItem)
+        .where(SalesOrderItem.id == instance.sales_order_item_id)
+    ).first()
+    order = session.exec(
+        select(SalesOrder)
+        .where(SalesOrder.id == item.sales_order_id)
+    ).first() if item else None
+    client = session.get(Client, order.client_id) if order and order.client_id else None
+
+    # Usar QR existente o generar uno nuevo
+    qr_uuid = instance.qr_code or str(uuid_lib.uuid4())
+    if not instance.qr_code:
+        instance.qr_code = qr_uuid
+        session.add(instance)
+        session.commit()
+
+    mdf = instance.mdf_bundles or 0
+    hardware = instance.hardware_bundles or 0
+
+    labels = generate_all_labels(
+        client_name=client.full_name if client else "Sin cliente",
+        project_name=order.project_name if order else "Sin proyecto",
+        instance_name=instance.custom_name or f"Instancia #{instance_id}",
+        mdf_bundles=mdf,
+        hardware_bundles=hardware,
+        qr_uuid=qr_uuid,
+    )
+
+    return GenerateLabelsResponse(
+        instance_id=instance_id,
+        instance_name=instance.custom_name or "",
+        client_name=client.full_name if client else "",
+        project_name=order.project_name if order else "",
+        total_labels=len(labels),
+        mdf_bundles=mdf,
+        hardware_bundles=hardware,
+        zpl_content=concatenate_zpl(labels),
+        qr_uuid=qr_uuid,
+    )

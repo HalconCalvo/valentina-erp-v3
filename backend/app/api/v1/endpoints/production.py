@@ -65,7 +65,9 @@ def request_labels(
         raise HTTPException(status_code=404, detail="Instancia no encontrada.")
 
     total_bundles = body.mdf_bundles + body.hardware_bundles
-    instance.declared_bundles = total_bundles
+    instance.mdf_bundles = body.mdf_bundles
+    instance.hardware_bundles = body.hardware_bundles
+    instance.declared_bundles = body.mdf_bundles + body.hardware_bundles
     db.add(instance)
     db.commit()
     db.refresh(instance)
