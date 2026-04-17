@@ -34,8 +34,8 @@ export default function RescheduleModal({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md mx-4 overflow-hidden">
+    <div className="w-full max-w-md shrink-0">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full overflow-hidden">
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-slate-100">
           <h2 className="text-base font-semibold text-slate-800">

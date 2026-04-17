@@ -551,23 +551,29 @@ export default function WeekView({
         </div>
       )}
 
-      {/* ── Internal pill reschedule modal ── */}
-      <RescheduleModal
-        pill={pendingReschedule?.pill ?? null}
-        targetDate={pendingReschedule?.targetDate ?? null}
-        onConfirmProportional={() => confirmReschedule(true)}
-        onConfirmFixed={() => confirmReschedule(false)}
-        onCancel={() => setPendingReschedule(null)}
-        loading={actionLoading}
-        error={actionError}
-      />
-
-      {/* ── External sidebar drop — lane selector ── */}
-      <ExternalDropModal
-        pending={pendingExternalDrop}
-        onExternalDrop={onExternalDrop}
-        onCancel={() => setPendingExternalDrop(null)}
-      />
+      {/* ── Bottom-left stack: reschedule (arriba) + lane picker (abajo) — sin overlay ── */}
+      {(pendingReschedule || pendingExternalDrop) && (
+        <div className="fixed top-0 left-0 z-50 flex flex-col-reverse gap-3 items-start pointer-events-none max-w-[min(24rem,calc(100vw-6rem))]">
+          <div className="pointer-events-auto w-full">
+            <ExternalDropModal
+              pending={pendingExternalDrop}
+              onExternalDrop={onExternalDrop}
+              onCancel={() => setPendingExternalDrop(null)}
+            />
+          </div>
+          <div className="pointer-events-auto w-full">
+            <RescheduleModal
+              pill={pendingReschedule?.pill ?? null}
+              targetDate={pendingReschedule?.targetDate ?? null}
+              onConfirmProportional={() => confirmReschedule(true)}
+              onConfirmFixed={() => confirmReschedule(false)}
+              onCancel={() => setPendingReschedule(null)}
+              loading={actionLoading}
+              error={actionError}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

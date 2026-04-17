@@ -353,7 +353,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                     </h1>
                     {isDirector && <span className="text-xs font-bold text-amber-600 uppercase tracking-widest bg-amber-50 px-2 py-1 rounded w-fit mt-1">Modo Director Activo</span>}
                 </div>
-                <Button variant="secondary" onClick={() => navigate(-1)}><ArrowLeft size={18} className="mr-2"/> Regresar</Button>
+                <Button variant="secondary" onClick={() => navigate('/sales')}><ArrowLeft size={18} className="mr-2"/> Regresar</Button>
             </div>
 
             {hasAdvanceInvoice && (

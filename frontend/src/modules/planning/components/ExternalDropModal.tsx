@@ -26,8 +26,8 @@ export default function ExternalDropModal({ pending, onExternalDrop, onCancel }:
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-sm mx-4 overflow-hidden">
+    <div className="w-full max-w-sm shrink-0">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-sm overflow-hidden">
         <div className="px-6 pt-5 pb-4 border-b border-slate-100">
           <h2 className="text-sm font-semibold text-slate-800">¿En qué carril programar?</h2>
           <p className="text-xs text-slate-500 mt-1">

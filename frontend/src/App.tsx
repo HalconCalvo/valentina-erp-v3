@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
 // LAYOUT PRINCIPAL
 import MainLayout from './components/layout/MainLayout';
@@ -60,67 +60,80 @@ const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
   return children;
 };
 
-function App() {
-  return (
-    <Router>
-      <Routes>
-        {/* 1. RUTA PÚBLICA (Login) */}
-        <Route path="/login" element={<LoginPage />} />
+/** Rutas bajo Router: usa pathname como key para remontar páginas al cambiar de módulo. */
+function AppRoutes() {
+  const location = useLocation();
+  const key = location.pathname;
 
-        {/* 2. RUTAS PRIVADAS (Envueltas en MainLayout) */}
-        <Route element={
+  return (
+    <Routes>
+      {/* 1. RUTA PÚBLICA (Login) */}
+      <Route path="/login" element={<LoginPage />} />
+
+      {/* 2. RUTAS PRIVADAS (Envueltas en MainLayout) */}
+      <Route
+        element={
           <ProtectedRoute>
             <MainLayout />
           </ProtectedRoute>
-        }>
-            {/* Dashboard */}
-            <Route path="/" element={<Home />} />
+        }
+      >
+        {/* Dashboard */}
+        <Route path="/" element={<Home key={key} />} />
 
-            {/* Fundamentos */}
-            <Route path="/materials" element={<MaterialsPage />} />
-            <Route path="/providers" element={<ProvidersPage />} />
-            <Route path="/clients" element={<ClientsPage />} />
-            <Route path="/tax-rates" element={<TaxRatesPage />} />
-            <Route path="/config" element={<ConfigPage />} />
+        {/* Fundamentos */}
+        <Route path="/materials" element={<MaterialsPage key={key} />} />
+        <Route path="/providers" element={<ProvidersPage key={key} />} />
+        <Route path="/clients" element={<ClientsPage key={key} />} />
+        <Route path="/tax-rates" element={<TaxRatesPage key={key} />} />
+        <Route path="/config" element={<ConfigPage key={key} />} />
 
-            {/* Usuarios */}
-            <Route path="/users" element={<UsersPage />} />
-            
-            {/* Diseño */}
-            <Route path="/design" element={<DesignCatalogPage />} />
-            <Route path="/design/versions/:id" element={<DesignBuilderPage />} />
-            <Route path="/design/simulator" element={<SimulatorPage />} />
-            <Route path="/design/print-center" element={<PrintCenterPage />} /> 
+        {/* Usuarios */}
+        <Route path="/users" element={<UsersPage key={key} />} />
 
-            {/* Ventas */}
-            <Route path="/sales" element={<SalesDashboardPage />} />
-            <Route path="/sales/new" element={<CreateQuotePage />} />
-            <Route path="/sales/edit/:id" element={<CreateQuotePage />} />
+        {/* Diseño */}
+        <Route path="/design" element={<DesignCatalogPage key={key} />} />
+        <Route path="/design/versions/:id" element={<DesignBuilderPage key={key} />} />
+        <Route path="/design/simulator" element={<SimulatorPage key={key} />} />
+        <Route path="/design/print-center" element={<PrintCenterPage key={key} />} />
 
-            {/* --- INVENTARIO / COMPRAS --- */}
-            <Route path="/inventory" element={<InventoryDashboardPage />} /> {/* <--- EL NUEVO TABLERO */}
-            <Route path="/inventory/history" element={<Navigate to="/inventory" replace />} />
-            <Route path="/inventory/reception" element={<InventoryReceptionPage />} />
-            
-            {/* Tesorería y Finanzas */}
-            <Route path="/treasury" element={<TreasuryPage />} />
-            <Route path="/finance/aging" element={<AgingReportPage />} /> 
-            <Route path="/finance/pending-invoices" element={<PendingToInvoicePage />} /> 
+        {/* Ventas */}
+        <Route path="/sales" element={<SalesDashboardPage key={key} />} />
+        <Route path="/sales/new" element={<CreateQuotePage key={key} />} />
+        <Route path="/sales/edit/:id" element={<CreateQuotePage key={key} />} />
 
-            {/* ---> DIRECCIÓN Y GERENCIA <--- */}
-            <Route path="/director" element={<DirectorDashboard />} /> 
-            <Route path="/management" element={<ManagementDashboard />} />
+        {/* --- INVENTARIO / COMPRAS --- */}
+        <Route path="/inventory" element={<InventoryDashboardPage key={key} />} />
+        <Route path="/inventory/history" element={<Navigate to="/inventory" replace />} />
+        <Route path="/inventory/reception" element={<InventoryReceptionPage key={key} />} />
 
-            {/* --- PRODUCCIÓN V3.5 --- */}
-            <Route path="/production" element={<FactoryFloorPage />} />
+        {/* Tesorería y Finanzas */}
+        <Route path="/treasury" element={<TreasuryPage key={key} />} />
+        <Route path="/finance" element={<Navigate to="/finance/aging" replace />} />
+        <Route path="/finance/aging" element={<AgingReportPage key={key} />} />
+        <Route path="/finance/pending-invoices" element={<PendingToInvoicePage key={key} />} />
 
-            {/* --- PLANEACIÓN ESTRATÉGICA: TABLERO MAESTRO --- */}
-            <Route path="/planning" element={<PlanningPage />} />
-        </Route>
-        
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+        {/* ---> DIRECCIÓN Y GERENCIA <--- */}
+        <Route path="/director" element={<DirectorDashboard key={key} />} />
+        <Route path="/management" element={<ManagementDashboard key={key} />} />
+
+        {/* --- PRODUCCIÓN V3.5 --- */}
+        <Route path="/production" element={<FactoryFloorPage key={key} />} />
+
+        {/* --- PLANEACIÓN ESTRATÉGICA: TABLERO MAESTRO --- */}
+        <Route path="/planning" element={<PlanningPage key={key} />} />
+      </Route>
+
+      {/* Fallback */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <AppRoutes />
     </Router>
   );
 }

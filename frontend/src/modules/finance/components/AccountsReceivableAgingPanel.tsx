@@ -73,7 +73,7 @@ function ovDateFromOrder(order: SalesOrder): string {
 }
 
 /**
- * Filas del monitor: una por CXC PENDING, o una fila de saldo (Total − Pagado) si no hay facturas pendientes.
+ * Filas del monitor: una por CustomerPayment con status PENDING. Órdenes sin CXC pendiente no generan filas.
  */
 export function buildCarteraMonitorRows(orders: SalesOrder[]): CarteraMonitorRow[] {
     const rows: CarteraMonitorRow[] = [];
@@ -84,56 +84,30 @@ export function buildCarteraMonitorRows(orders: SalesOrder[]): CarteraMonitorRow
 
         const pays = paymentsArr(order);
         const pending = pays.filter((c) => String(c.status ?? '').toUpperCase() === 'PENDING');
+        if (pending.length === 0) continue;
+
         const clientName = getCarteraClientName(order);
         const ovDateYmd = ovDateFromOrder(order);
         const orderTotal = Number(order.total_price) || 0;
 
-        if (pending.length > 0) {
-            for (const cxc of pending) {
-                const invoiceDate = new Date(cxc.invoice_date);
-                const diffTime = Math.abs(today.getTime() - invoiceDate.getTime());
-                const daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                rows.push({
-                    rowKey: `${order.id}-cxc-${cxc.id}`,
-                    order,
-                    clientName,
-                    invoice_date: cxc.invoice_date,
-                    ovDateYmd,
-                    orderTotal,
-                    invoice_folio: cxc.invoice_folio ?? null,
-                    payment_type: cxc.payment_type,
-                    amount: Number(cxc.amount) || 0,
-                    daysOverdue,
-                    isBalanceSummary: false,
-                });
-            }
-            continue;
+        for (const cxc of pending) {
+            const invoiceDate = new Date(cxc.invoice_date);
+            const diffTime = Math.abs(today.getTime() - invoiceDate.getTime());
+            const daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            rows.push({
+                rowKey: `${order.id}-cxc-${cxc.id}`,
+                order,
+                clientName,
+                invoice_date: cxc.invoice_date,
+                ovDateYmd,
+                orderTotal,
+                invoice_folio: cxc.invoice_folio ?? null,
+                payment_type: cxc.payment_type,
+                amount: Number(cxc.amount) || 0,
+                daysOverdue,
+                isBalanceSummary: false,
+            });
         }
-
-        const paid = paidTotal(pays);
-        const balance = Math.max(0, orderTotal - paid);
-
-        const anchorRaw =
-            (order as unknown as { created_at?: string }).created_at ||
-            order.valid_until ||
-            today.toISOString();
-        const anchor = new Date(anchorRaw);
-        const diffTime = Math.abs(today.getTime() - anchor.getTime());
-        const daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-        rows.push({
-            rowKey: `${order.id}-balance`,
-            order,
-            clientName,
-            invoice_date: String(anchorRaw).slice(0, 10),
-            ovDateYmd,
-            orderTotal,
-            invoice_folio: null,
-            payment_type: 'BALANCE',
-            amount: balance,
-            daysOverdue,
-            isBalanceSummary: true,
-        });
     }
 
     return rows;
@@ -389,7 +363,7 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
             return;
         }
         sessionStorage.setItem('treasury_activeSection', 'RECEIVABLES');
-        navigate(-1);
+        navigate('/finance');
     };
 
     const outerClass =

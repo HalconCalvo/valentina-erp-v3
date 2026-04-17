@@ -33,6 +33,17 @@ function addDays(dateStr: string, n: number): string {
   return `${ny}-${nm}-${nd}`;
 }
 
+/** Mapa fecha → carril para resaltado en mes, alineado con `InstanceSchedule.schedule` */
+function highlightsFromInstance(instance: InstanceSchedule): Record<string, string> {
+  const out: Record<string, string> = {};
+  const { PM, PP, IM, IP } = instance.schedule;
+  if (PM) out[PM.slice(0, 10)] = 'PM';
+  if (PP) out[PP.slice(0, 10)] = 'PP';
+  if (IM) out[IM.slice(0, 10)] = 'IM';
+  if (IP) out[IP.slice(0, 10)] = 'IP';
+  return out;
+}
+
 export default function PlanningPage() {
   const calendar = usePlanningCalendar();
   const health   = useHealthPanel();
@@ -78,6 +89,9 @@ export default function PlanningPage() {
 
   // ── Highlight in calendar when sidebar card is clicked ───────
   const [highlightInstanceId, setHighlightInstanceId] = useState<number | null>(null);
+
+  /** fechas YYYY-MM-DD → sigla de carril (resaltado en mes + InstanceEditModal) */
+  const [highlightDays, setHighlightDays] = useState<Record<string, string>>(() => ({}));
 
   // ── Instance being edited in the modal ──────────────────────
   const [editingInstance, setEditingInstance] = useState<InstanceSchedule | null>(null);
@@ -172,6 +186,12 @@ export default function PlanningPage() {
 
   const handleModalSaved = () => handleRefresh();
 
+  // Inicializar resaltados del mes con las fechas ya guardadas en la instancia editada
+  useEffect(() => {
+    if (!editingInstance) return;
+    setHighlightDays(highlightsFromInstance(editingInstance));
+  }, [editingInstance?.id]);
+
   // ── Week navigation ──────────────────────────────────────────
   const handlePrevWeek = useCallback(() => setSelectedDate(d => addDays(d, -7)), []);
   const handleNextWeek = useCallback(() => setSelectedDate(d => addDays(d, 7)), []);
@@ -231,6 +251,7 @@ export default function PlanningPage() {
               onNextMonth={calendar.nextMonth}
               onRefresh={handleRefresh}
               highlightInstanceId={highlightInstanceId}
+              highlightDays={{ ...highlightDays }}
               onPillClick={handleCalendarPillClick}
               externalDragInstance={readOnly ? null : draggedInstance}
               onExternalDrop={handleSidebarDrop}
@@ -301,9 +322,20 @@ export default function PlanningPage() {
       {editingInstance && (
         <InstanceEditModal
           instance={editingInstance}
-          onClose={() => setEditingInstance(null)}
+          onClose={() => {
+            setEditingInstance(null);
+            setHighlightDays({});
+          }}
           onSaved={handleModalSaved}
           readOnly={readOnly}
+          onDateSelect={(dateStr, laneCode) =>
+            setHighlightDays(prev => {
+              const next = Object.fromEntries(
+                Object.entries(prev).filter(([, v]) => v !== laneCode),
+              );
+              return { ...next, [dateStr]: laneCode };
+            })
+          }
         />
       )}
     </div>

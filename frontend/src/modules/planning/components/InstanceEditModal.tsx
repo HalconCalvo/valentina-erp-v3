@@ -13,6 +13,8 @@ interface Props {
   onSaved: () => void;
   /** When true, date/name fields are disabled and the Save button is hidden */
   readOnly?: boolean;
+  /** Notificado al elegir un día en el mini calendario */
+  onDateSelect?: (dateStr: string, laneCode: string) => void;
 }
 
 const LANE_META = [
@@ -28,6 +30,19 @@ type LaneField = typeof LANE_META[number]['field'];
 
 const DAY_NAMES_ES   = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const MONTH_SHORT_ES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+/** Encabezados de semana: Lunes → Domingo (mini calendario) */
+const WEEKDAY_HEADERS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'] as const;
+
+function getDaysInMonth(year: number, month: number) {
+  return new Date(year, month, 0).getDate();
+}
+
+/** Columna 0 = Lunes: cuántas celdas vacías antes del día 1 (month 1–12) */
+function mondayFirstOffset(year: number, month: number) {
+  const sundayFirst = new Date(year, month - 1, 1).getDay();
+  return (sundayFirst + 6) % 7;
+}
 
 /** ISO → "YYYY-MM-DD" for <input type="date"> */
 function toInputValue(iso: string | null): string {
@@ -56,7 +71,7 @@ function formatDisplayDate(dateValue: string): string {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function InstanceEditModal({ instance, onClose, onSaved, readOnly = false }: Props) {
+export default function InstanceEditModal({ instance, onClose, onSaved, readOnly = false, onDateSelect }: Props) {
   const [name, setName]   = useState('');
   const [dates, setDates] = useState<Record<LaneField, string>>({
     scheduled_prod_mdf:   '',
@@ -66,6 +81,13 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
   });
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState<string | null>(null);
+
+  /** Mini calendario (Lunes primera columna) — reemplaza al picker nativo Sunday-first */
+  const [pickerOpenField, setPickerOpenField] = useState<LaneField | null>(null);
+  /** Panel reanclado arriba (top-4) mientras el mini calendario está abierto */
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [pickerYear, setPickerYear] = useState(() => new Date().getFullYear());
+  const [pickerMonth, setPickerMonth] = useState(() => new Date().getMonth() + 1);
 
   useEffect(() => {
     if (!instance) return;
@@ -77,7 +99,21 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
       scheduled_inst_stone: toInputValue(instance.schedule.IP),
     });
     setError(null);
+    setPickerOpenField(null);
+    setCalendarOpen(false);
   }, [instance]);
+
+  useEffect(() => {
+    if (!pickerOpenField) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t?.closest('[data-instance-date-picker]')) return;
+      setPickerOpenField(null);
+      setCalendarOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [pickerOpenField]);
 
   if (!instance) return null;
 
@@ -105,11 +141,57 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
 
   const handleClearDate = (field: LaneField) => {
     setDates(prev => ({ ...prev, [field]: '' }));
+    setPickerOpenField(null);
+    setCalendarOpen(false);
+  };
+
+  const openDatePicker = (field: LaneField) => {
+    const v = dates[field];
+    if (v) {
+      const [y, m] = v.split('-').map(Number);
+      setPickerYear(y);
+      setPickerMonth(m);
+    } else {
+      const n = new Date();
+      setPickerYear(n.getFullYear());
+      setPickerMonth(n.getMonth() + 1);
+    }
+    setPickerOpenField(field);
+    setCalendarOpen(true);
+  };
+
+  const goPrevMonth = () => {
+    setPickerMonth(m => {
+      if (m <= 1) {
+        setPickerYear(y => y - 1);
+        return 12;
+      }
+      return m - 1;
+    });
+  };
+
+  const goNextMonth = () => {
+    setPickerMonth(m => {
+      if (m >= 12) {
+        setPickerYear(y => y + 1);
+        return 1;
+      }
+      return m + 1;
+    });
+  };
+
+  const selectPickerDay = (field: LaneField, day: number) => {
+    const dayStr = `${pickerYear}-${String(pickerMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    setDates(prev => ({ ...prev, [field]: dayStr }));
+    const lane = LANE_META.find(l => l.field === field);
+    if (lane) onDateSelect?.(dayStr, lane.code);
+    setPickerOpenField(null);
+    setCalendarOpen(false);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden">
+    <div className="fixed top-0 left-0 z-[55] h-screen overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-visible">
 
         {/* ── Header ── */}
         <div className={`px-6 pt-5 pb-4 border-b border-slate-100 ${cfg.bg}`}>
@@ -174,17 +256,33 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
                       </span>
                     </div>
 
-                    {/* Date display chip + invisible overlay input */}
+                    {/* Date display chip + mini calendario (semana Lunes–Domingo) */}
                     <div className="flex items-center gap-2 pl-0.5">
-                      <div className="relative flex-1">
+                      <div
+                        className="relative flex-1"
+                        data-instance-date-picker
+                      >
                         {/* Visible styled chip */}
-                        <div className={`
+                        <div
+                          role={readOnly ? undefined : 'button'}
+                          tabIndex={readOnly ? undefined : 0}
+                          onClick={() => !readOnly && openDatePicker(lane.field)}
+                          onKeyDown={e => {
+                            if (readOnly) return;
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              openDatePicker(lane.field);
+                            }
+                          }}
+                          className={`
                           flex items-center gap-2.5 px-3 py-2.5 rounded-xl border
-                          cursor-pointer select-none transition-all
+                          select-none transition-all
+                          ${readOnly ? 'cursor-default' : 'cursor-pointer'}
                           ${hasDate
                             ? `${lane.color} font-semibold`
                             : 'border-slate-200 bg-slate-50 text-slate-400'}
-                        `}>
+                        `}
+                        >
                           <span className="shrink-0 text-base leading-none">
                             {hasDate ? '📅' : '○'}
                           </span>
@@ -197,18 +295,72 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
                           </span>
                         </div>
 
-                        {/* Invisible <input type="date"> overlaid — opens native picker on click */}
-                        {!readOnly && (
-                          <input
-                            type="date"
-                            value={dates[lane.field]}
-                            onChange={e =>
-                              setDates(prev => ({ ...prev, [lane.field]: e.target.value }))
-                            }
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                            tabIndex={0}
-                          />
-                        )}
+                        {!readOnly && pickerOpenField === lane.field && (() => {
+                          const daysInMonth = getDaysInMonth(pickerYear, pickerMonth);
+                          const lead = mondayFirstOffset(pickerYear, pickerMonth);
+                          const cells: (number | null)[] = [];
+                          for (let i = 0; i < lead; i++) cells.push(null);
+                          for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+                          while (cells.length % 7 !== 0) cells.push(null);
+                          const ymd = (d: number) =>
+                            `${pickerYear}-${String(pickerMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                          return (
+                            <div className="absolute left-0 top-full z-[60] mt-1 w-full max-w-[280px] rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
+                              <div className="mb-1 flex items-center justify-between gap-0.5">
+                                <button
+                                  type="button"
+                                  onClick={e => { e.stopPropagation(); goPrevMonth(); }}
+                                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-xs text-slate-600 hover:bg-slate-100"
+                                  aria-label="Mes anterior"
+                                >
+                                  ‹
+                                </button>
+                                <span className="min-w-0 flex-1 truncate text-center text-xs font-semibold text-slate-800">
+                                  {MONTH_SHORT_ES[pickerMonth - 1]} {pickerYear}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={e => { e.stopPropagation(); goNextMonth(); }}
+                                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-xs text-slate-600 hover:bg-slate-100"
+                                  aria-label="Mes siguiente"
+                                >
+                                  ›
+                                </button>
+                              </div>
+                              <div className="mb-0.5 grid grid-cols-7 gap-0.5 text-center text-xs font-semibold text-slate-400">
+                                {WEEKDAY_HEADERS.map(h => (
+                                  <div key={h} className="flex h-7 w-7 max-h-7 max-w-7 items-center justify-center">
+                                    {h}
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="grid grid-cols-7 gap-0.5">
+                                {cells.map((d, idx) =>
+                                  d === null ? (
+                                    <div key={`e-${idx}`} className="h-7 w-7 max-h-7 max-w-7 shrink-0" />
+                                  ) : (
+                                    <button
+                                      key={d}
+                                      type="button"
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        selectPickerDay(lane.field, d);
+                                      }}
+                                      className={`
+                                        flex h-7 w-7 max-h-7 max-w-7 shrink-0 items-center justify-center rounded-md text-xs font-medium transition-colors
+                                        ${dates[lane.field] === ymd(d)
+                                          ? 'bg-indigo-600 text-white'
+                                          : 'text-slate-700 hover:bg-slate-100'}
+                                      `}
+                                    >
+                                      {d}
+                                    </button>
+                                  ),
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       {/* Clear button — hidden for read-only */}

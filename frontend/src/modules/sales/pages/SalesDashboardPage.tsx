@@ -1602,7 +1602,25 @@ const SalesDashboardPage: React.FC = () => {
                     orderId={baptismOrderId}
                     order={orders.find(o => o.id === baptismOrderId) ?? null}
                     onClose={() => setBaptismOrderId(null)}
-                    onComplete={() => { setBaptismOrderId(null); loadData(); }}
+                    onComplete={async () => {
+                        const orderIdToRefresh = baptismOrderId;
+                        setBaptismOrderId(null);
+                        await loadData();
+                        if (orderIdToRefresh != null) {
+                            try {
+                                const fresh = await salesService.getOrderDetail(orderIdToRefresh);
+                                setOrders((prev) => {
+                                    const i = prev.findIndex((o) => o.id === orderIdToRefresh);
+                                    if (i === -1) return prev;
+                                    const next = [...prev];
+                                    next[i] = fresh;
+                                    return next;
+                                });
+                            } catch {
+                                /* el listado ya se actualizó con loadData */
+                            }
+                        }
+                    }}
                 />
             )}
 

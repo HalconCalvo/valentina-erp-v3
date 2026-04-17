@@ -127,7 +127,6 @@ export const TreasuryPage = () => {
       setCameFromTasks(false);
       return;
     }
-    navigate(-1);
   };
 
   const fetchData = async () => {
@@ -263,13 +262,15 @@ export const TreasuryPage = () => {
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={handleRegresar}
-              className="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-bold hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm"
-            >
-              <ArrowLeft size={18} /> Regresar
-            </button>
+            {activeSection !== null && (
+              <button
+                type="button"
+                onClick={handleRegresar}
+                className="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-bold hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm"
+              >
+                <ArrowLeft size={18} /> Regresar
+              </button>
+            )}
           </div>
       )}
 
