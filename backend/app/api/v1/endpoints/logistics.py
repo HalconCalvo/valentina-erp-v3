@@ -20,6 +20,8 @@ from app.models.design import ProductVersion
 from app.models.foundations import GlobalConfig, Client
 from app.models.users import User, UserRole
 from app.models.treasury import BankAccount, BankTransaction, TransactionType
+from app.models.inventory import InventoryReservation
+from app.models.material import Material
 from app.services.planning_service import trigger_double_green
 from app.services.cloud_storage import upload_to_gcs
 
@@ -483,6 +485,36 @@ def scan_bundle_qr(
     instance.current_location = "En Tránsito (Camión)"
     session.add(instance)
 
+    # ── BAJA CONTABLE DE INVENTARIO ──────────────────────────
+    # Regla inmutable: la baja ocurre al escanear QR (CARGADO)
+    # Se consumen las reservas ACTIVA de esta instancia
+    reservations = session.exec(
+        select(InventoryReservation).where(
+            InventoryReservation.instance_id == instance.id,
+            InventoryReservation.status == "ACTIVA",
+        )
+    ).all()
+
+    for res in reservations:
+        # Baja contable: reducir stock físico
+        material = session.get(Material, res.material_id)
+        if material:
+            material.physical_stock = max(
+                0.0,
+                (material.physical_stock or 0.0) - res.quantity_reserved
+            )
+            # Liberar committed_stock
+            material.committed_stock = max(
+                0.0,
+                (material.committed_stock or 0.0) - res.quantity_reserved
+            )
+            session.add(material)
+
+        # Marcar reserva como consumida
+        res.status = "CONSUMIDA"
+        session.add(res)
+    # ─────────────────────────────────────────────────────────
+
     # Leer tabulador global
     config = session.exec(select(GlobalConfig)).first()
     leader_rate = config.default_leader_daily_rate if config else 800.0
@@ -536,6 +568,7 @@ def scan_bundle_qr(
         "leader": {"id": assignment.leader_user_id, "name": leader.full_name if leader else None},
         "payroll_records_created": 1 + bool(assignment.helper_1_user_id) + bool(assignment.helper_2_user_id),
         "scanned_at": now.isoformat(),
+        "inventory_consumed": len(reservations),
     }
 
 

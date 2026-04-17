@@ -64,6 +64,9 @@ class InventoryReservation(SQLModel, table=True):
     
     id: Optional[int] = Field(default=None, primary_key=True)
     production_batch_id: int = Field(foreign_key="production_batches.id")
+    instance_id: Optional[int] = Field(
+        default=None, foreign_key="sales_order_item_instances.id"
+    )
     material_id: int = Field(foreign_key="materials.id")
     quantity_reserved: float
     status: str = Field(default="ACTIVA")  # ACTIVA, CONSUMIDA, CANCELADA

@@ -252,6 +252,7 @@ def assign_instance_to_batch(
             # Crear reserva
             reservation = InventoryReservation(
                 production_batch_id=batch.id,
+                instance_id=instance.id,
                 material_id=comp.material_id,
                 quantity_reserved=comp.quantity,
                 status="ACTIVA",
