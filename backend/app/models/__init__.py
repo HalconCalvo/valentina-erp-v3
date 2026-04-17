@@ -22,6 +22,7 @@ from .production import (
     ProductionBatch,
     ProductionBatchStatus,
     InstallationAssignment,
+    InstallationAssignmentStatus,
     PayrollPayment,
     PayrollPaymentType,
     PayrollStatus,
@@ -76,6 +77,7 @@ __all__ = [
 
     # Logística y Nómina
     "InstallationAssignment",
+    "InstallationAssignmentStatus",
     "PayrollPayment",
     "PayrollPaymentType",
     "PayrollStatus",

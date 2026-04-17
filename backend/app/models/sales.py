@@ -163,6 +163,10 @@ class SalesOrderItemInstance(SQLModel, table=True):
     original_signed_at: Optional[datetime] = Field(default=None)    # Snapshot del cierre original (historial)
     # ========================================================
 
+    evidence_photos_urls: Optional[List[str]] = Field(
+        default=None, sa_column=Column(JSON)
+    )
+
     payment: Optional["CustomerPayment"] = Relationship(back_populates="instances_paid")
     item: Optional["SalesOrderItem"] = Relationship(back_populates="instances")
 

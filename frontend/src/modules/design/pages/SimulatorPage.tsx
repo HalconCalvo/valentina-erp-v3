@@ -157,13 +157,17 @@ export default function SimulatorPage() {
   return (
     <div className="p-8 h-full bg-slate-50 flex flex-col max-w-7xl mx-auto animate-in fade-in duration-300">
       
-      {/* BOTÓN REGRESAR GENERAL */}
-      <button 
+      <div className="flex justify-end mb-6">
+        <button
           onClick={() => navigate('/design')}
-          className="flex items-center gap-2 text-indigo-600 hover:text-indigo-800 font-bold transition-colors mb-6 bg-indigo-50 px-4 py-2 rounded-lg w-fit shadow-sm"
-      >
-          <ArrowLeft size={18} /> Regresar al Panel Principal
-      </button>
+          className="flex items-center gap-2 bg-white border 
+                   border-slate-300 text-slate-700 px-4 py-2 
+                   rounded-lg font-bold hover:bg-slate-50 
+                   hover:text-indigo-600 transition-all shadow-sm"
+        >
+          <ArrowLeft size={18} /> Regresar
+        </button>
+      </div>
 
       <div className="mb-6 pb-4 border-b border-slate-200">
         <h1 className="text-3xl font-black text-slate-800 flex items-center gap-3">

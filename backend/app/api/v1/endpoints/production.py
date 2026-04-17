@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 from app.core.deps import get_session
 
 from app.models.production import ProductionBatch, ProductionBatchStatus
+from app.models.foundations import Client
 from app.models.sales import SalesOrderItemInstance, SalesOrderItem, SalesOrder, PaymentStatus, InstanceStatus
 
 router = APIRouter()
@@ -17,6 +18,9 @@ class InstanceDetail(BaseModel):
     custom_name: str
     production_status: str
     qr_code: Optional[str] = None
+    order_folio: Optional[str] = None
+    client_name: Optional[str] = None
+    project_name: Optional[str] = None
 
 class ProductionBatchResponse(BaseModel):
     id: int
@@ -133,14 +137,48 @@ def read_batches(db: Session = Depends(get_session)):
         # 3. Construir el objeto de respuesta
         batch_data = batch.model_dump()
         batch_data["is_payment_cleared"] = is_payment_cleared
-        batch_data["instances"] = [
-            InstanceDetail(
-                id=i.id, 
-                custom_name=i.custom_name, 
-                production_status=i.production_status.value if hasattr(i.production_status, 'value') else i.production_status,
-                qr_code=i.qr_code
-            ) for i in instances
-        ]
+        enriched_instances = []
+        for i in instances:
+            order_folio = None
+            client_name = None
+            project_name = None
+
+            item = db.exec(
+                select(SalesOrderItem)
+                .where(SalesOrderItem.id == i.sales_order_item_id)
+            ).first()
+
+            if item:
+                order = db.exec(
+                    select(SalesOrder)
+                    .where(SalesOrder.id == item.sales_order_id)
+                ).first()
+                if order:
+                    order_folio = f"OV-{str(order.id).zfill(4)}"
+                    project_name = order.project_name
+                    if order.client_id:
+                        client = db.exec(
+                            select(Client)
+                            .where(Client.id == order.client_id)
+                        ).first()
+                        if client:
+                            client_name = client.full_name
+
+            enriched_instances.append(InstanceDetail(
+                id=i.id,
+                custom_name=i.custom_name,
+                production_status=(
+                    i.production_status.value
+                    if hasattr(i.production_status, 'value')
+                    else i.production_status
+                ),
+                qr_code=i.qr_code,
+                order_folio=order_folio,
+                client_name=client_name,
+                project_name=project_name,
+            ))
+
+        batch_data["instances"] = enriched_instances
         result.append(batch_data)
         
     return result

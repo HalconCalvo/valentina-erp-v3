@@ -7,7 +7,8 @@ import {
     ChevronDown, ChevronRight, Layers, 
     FileText, AlertCircle, CheckCircle2,
     Paperclip, X, FileMinus, Lock,
-    Tag, ArrowLeft, Calculator, Printer, ShieldAlert
+    Tag, ArrowLeft, Calculator, Printer, ShieldAlert,
+    Package, RefreshCw
 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
@@ -21,7 +22,7 @@ import { designService } from '../../../api/design-service';
 import { productionService } from '../../../api/production-service';
 import { VersionStatus } from '../../../types/design';
 
-type ModuleView = 'HOME' | 'CATALOG' | 'DEFICIT';
+type ModuleView = 'HOME' | 'CATALOG' | 'DEFICIT' | 'SIMULATOR_MODULE' | 'SIMULATOR_BATCHES';
 
 const DesignCatalogPage: React.FC = () => {
     const navigate = useNavigate();
@@ -29,6 +30,9 @@ const DesignCatalogPage: React.FC = () => {
     
     // --- ESTADO DE VISTA MAESTRA ---
     const [currentView, setCurrentView] = useState<ModuleView>('HOME');
+    const [viewHistory, setViewHistory] = useState<string[]>([]);
+    const [liveBatches, setLiveBatches] = useState<any[]>([]);
+    const [loadingLiveBatches, setLoadingLiveBatches] = useState(false);
 
     // --- SEGURIDAD ---
     const [userRole, setUserRole] = useState('ADMIN');
@@ -80,8 +84,28 @@ const DesignCatalogPage: React.FC = () => {
             const batches = await productionService.getBatches();
             setAmberBatchesCount(batches.filter(b => b.status === 'ON_HOLD').length);
             setActiveBatchesCount(batches.filter(b => b.status === 'IN_PRODUCTION' || b.status === 'FINISHED').length);
+            setLiveBatches(
+                batches.filter((b: any) =>
+                    ['DRAFT', 'ON_HOLD', 'IN_PRODUCTION'].includes(b.status)
+                )
+            );
         } catch (err) {
             console.error("Error cargando métricas", err);
+        }
+    };
+
+    const loadLiveBatches = async () => {
+        setLoadingLiveBatches(true);
+        try {
+            const data = await productionService.getBatches();
+            const live = data.filter((b: any) =>
+                ['DRAFT', 'ON_HOLD', 'IN_PRODUCTION'].includes(b.status)
+            );
+            setLiveBatches(live);
+        } catch {
+            console.error('Error cargando lotes vivos');
+        } finally {
+            setLoadingLiveBatches(false);
         }
     };
 
@@ -157,21 +181,6 @@ const DesignCatalogPage: React.FC = () => {
         setIsModalOpen(true); setShowCategorySuggestions(false);
     };
 
-    useEffect(() => {
-        if (location.state) {
-            const state = location.state as any;
-            if (state.openNewModal) {
-                setCurrentView('CATALOG');
-                openCreateModal();
-                window.history.replaceState({}, document.title);
-            } else if (state.returnTo === 'CATALOG') {
-                // Si recibe la señal de regresar, abre directo el catálogo
-                setCurrentView('CATALOG');
-                window.history.replaceState({}, document.title);
-            }
-        }
-    }, [location.state]);
-
     const handleDelete = async (e: React.MouseEvent, id: number, productName: string) => {
         e.stopPropagation(); 
         if(isSales) return;
@@ -204,6 +213,38 @@ const DesignCatalogPage: React.FC = () => {
 
     const totalDrafts = masters.filter(m => m.versions?.[0]?.status === VersionStatus.DRAFT || !m.versions?.length).length;
 
+    const batchStatusConfig: Record<string, { label: string; color: string }> = {
+        DRAFT:         { label: 'Por Producir',  color: 'bg-gray-100 text-gray-700'   },
+        ON_HOLD:       { label: 'En Espera',     color: 'bg-amber-100 text-amber-700' },
+        IN_PRODUCTION: { label: 'En Producción', color: 'bg-blue-100 text-blue-700'   },
+    };
+
+    const navigateTo = (view: string) => {
+        setViewHistory(prev => [...prev, currentView]);
+        setCurrentView(view as any);
+    };
+
+    const navigateBack = () => {
+        if (viewHistory.length === 0) return;
+        const prev = viewHistory[viewHistory.length - 1];
+        setViewHistory(h => h.slice(0, -1));
+        setCurrentView(prev as any);
+    };
+
+    useEffect(() => {
+        if (location.state) {
+            const state = location.state as any;
+            if (state.openNewModal) {
+                navigateTo('CATALOG');
+                openCreateModal();
+                window.history.replaceState({}, document.title);
+            } else if (state.returnTo === 'CATALOG') {
+                navigateTo('CATALOG');
+                window.history.replaceState({}, document.title);
+            }
+        }
+    }, [location.state]);
+
     return (
         <div className="p-8 max-w-7xl mx-auto space-y-6 pb-24 animate-in fade-in duration-300">
             <input type="file" ref={fileInputRef} className="hidden" accept=".pdf,image/*" onChange={handleFileChange} />
@@ -224,65 +265,171 @@ const DesignCatalogPage: React.FC = () => {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6 pt-4">
-                        {/* Tarjeta 1: Catálogo */}
-                        <Card onClick={() => setCurrentView('CATALOG')} className="p-4 cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-indigo-500 transform hover:-translate-y-1 bg-white shadow-sm h-full">
-                            <div className="flex justify-between items-start">
-                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Módulo 1</p>
-                                <Layers size={14} className="text-indigo-500" />
-                            </div>
-                            <div className="mt-1 flex flex-col h-[80px] justify-between">
-                                <h3 className="text-xl font-bold text-slate-700 leading-tight">Catálogo de<br/>Ingeniería</h3>
-                                <div className="flex justify-between items-end w-full">
-                                    <p className="text-[10px] text-slate-400">El Génesis de Recetas</p>
-                                    <div className="text-xl font-black text-indigo-600/30">{totalDrafts}</div>
-                                </div>
-                            </div>
-                        </Card>
 
-                        {/* Tarjeta 2: Simulador */}
-                        <Card onClick={() => navigate('/design/simulator')} className="p-4 cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-blue-500 transform hover:-translate-y-1 bg-white shadow-sm h-full">
-                            <div className="flex justify-between items-start">
-                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Módulo 2</p>
-                                <Calculator size={14} className="text-blue-500" />
-                            </div>
-                            <div className="mt-1 flex flex-col h-[80px] justify-between">
-                                <h3 className="text-xl font-bold text-slate-700 leading-tight">Simulador y<br/>Lotificación</h3>
-                                <div className="flex justify-between items-end w-full">
-                                    <p className="text-[10px] text-slate-400">Puente a Fábrica</p>
-                                    <div className="text-xl font-black text-blue-600/30">{pendingInstancesCount}</div>
+                        {/* Tarjeta 1: Catálogo de Productos */}
+                        <div className="w-full relative h-40">
+                            <Card
+                                onClick={() => navigateTo('CATALOG')}
+                                className="p-5 cursor-pointer hover:shadow-xl transition-all
+                     border-l-4 border-l-indigo-500 transform
+                     hover:-translate-y-1 h-full flex flex-col
+                     justify-between bg-white overflow-hidden group"
+                            >
+                                <div className="absolute top-0 left-0 bottom-0 w-16
+                          flex items-center justify-center bg-indigo-50
+                          text-indigo-700 border-r border-indigo-100
+                          font-black transition-colors
+                          group-hover:bg-indigo-100 text-2xl">
+                                    {totalDrafts}
                                 </div>
-                            </div>
-                        </Card>
+                                <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                                    <div className="flex justify-between items-start">
+                                        <p className="text-[11px] font-black text-slate-500
+                            uppercase tracking-widest">
+                                            Módulo 1
+                                        </p>
+                                        <Layers size={16} className="text-indigo-500" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-base font-bold text-slate-700
+                             leading-tight">
+                                            Catálogo de<br/>Productos
+                                        </h3>
+                                    </div>
+                                    <div className="flex items-center justify-between
+                            pt-2 border-t border-slate-100">
+                                        <p className="text-[10px] text-slate-400 font-bold
+                            uppercase truncate">
+                                            El Génesis de Recetas
+                                        </p>
+                                    </div>
+                                </div>
+                            </Card>
+                        </div>
 
-                        {/* Tarjeta 3: Déficit y Mermas */}
-                        <Card onClick={() => setCurrentView('DEFICIT')} className="p-4 cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-orange-500 transform hover:-translate-y-1 bg-white shadow-sm h-full">
-                            <div className="flex justify-between items-start">
-                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Módulo 3</p>
-                                <ShieldAlert size={14} className="text-orange-500" />
-                            </div>
-                            <div className="mt-1 flex flex-col h-[80px] justify-between">
-                                <h3 className="text-xl font-bold text-slate-700 leading-tight">Control de<br/>Déficit y Mermas</h3>
-                                <div className="flex justify-between items-end w-full">
-                                    <p className="text-[10px] text-slate-400">Puente a Compras</p>
-                                    <div className="text-xl font-black text-orange-600/30">{amberBatchesCount}</div>
+                        {/* Tarjeta 2: Simulador y Creación de Lotes */}
+                        <div className="w-full relative h-40">
+                            <Card
+                                onClick={() => navigateTo('SIMULATOR_MODULE')}
+                                className="p-5 cursor-pointer hover:shadow-xl transition-all
+                     border-l-4 border-l-blue-500 transform
+                     hover:-translate-y-1 h-full flex flex-col
+                     justify-between bg-white overflow-hidden group"
+                            >
+                                <div className="absolute top-0 left-0 bottom-0 w-16
+                          flex items-center justify-center bg-blue-50
+                          text-blue-700 border-r border-blue-100
+                          font-black transition-colors
+                          group-hover:bg-blue-100 text-2xl">
+                                    {pendingInstancesCount}
                                 </div>
-                            </div>
-                        </Card>
+                                <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                                    <div className="flex justify-between items-start">
+                                        <p className="text-[11px] font-black text-slate-500
+                            uppercase tracking-widest">
+                                            Módulo 2
+                                        </p>
+                                        <Calculator size={16} className="text-blue-500" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-base font-bold text-slate-700
+                             leading-tight">
+                                            Simulador y<br/>Creación de Lotes
+                                        </h3>
+                                    </div>
+                                    <div className="flex items-center justify-between
+                            pt-2 border-t border-slate-100">
+                                        <p className="text-[10px] text-slate-400 font-bold
+                            uppercase truncate">
+                                            Puente a Fábrica
+                                        </p>
+                                    </div>
+                                </div>
+                            </Card>
+                        </div>
+
+                        {/* Tarjeta 3: Control de Déficit y Mermas */}
+                        <div className="w-full relative h-40">
+                            <Card
+                                onClick={() => navigateTo('DEFICIT')}
+                                className="p-5 cursor-pointer hover:shadow-xl transition-all
+                     border-l-4 border-l-orange-500 transform
+                     hover:-translate-y-1 h-full flex flex-col
+                     justify-between bg-white overflow-hidden group"
+                            >
+                                <div className="absolute top-0 left-0 bottom-0 w-16
+                          flex items-center justify-center bg-orange-50
+                          text-orange-700 border-r border-orange-100
+                          font-black transition-colors
+                          group-hover:bg-orange-100 text-2xl">
+                                    {amberBatchesCount}
+                                </div>
+                                <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                                    <div className="flex justify-between items-start">
+                                        <p className="text-[11px] font-black text-slate-500
+                            uppercase tracking-widest">
+                                            Módulo 3
+                                        </p>
+                                        <ShieldAlert size={16} className="text-orange-500" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-base font-bold text-slate-700
+                             leading-tight">
+                                            Control de<br/>Déficit y Mermas
+                                        </h3>
+                                    </div>
+                                    <div className="flex items-center justify-between
+                            pt-2 border-t border-slate-100">
+                                        <p className="text-[10px] text-slate-400 font-bold
+                            uppercase truncate">
+                                            Puente a Compras
+                                        </p>
+                                    </div>
+                                </div>
+                            </Card>
+                        </div>
 
                         {/* Tarjeta 4: Centro de Impresión */}
-                        <Card onClick={() => navigate('/design/print-center')} className="p-4 cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-emerald-500 transform hover:-translate-y-1 bg-white shadow-sm h-full">
-                            <div className="flex justify-between items-start">
-                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Módulo 4</p>
-                                <Printer size={14} className="text-emerald-500" />
-                            </div>
-                            <div className="mt-1 flex flex-col h-[80px] justify-between">
-                                <h3 className="text-xl font-bold text-slate-700 leading-tight">Centro de<br/>Impresión</h3>
-                                <div className="flex justify-between items-end w-full">
-                                    <p className="text-[10px] text-slate-400">Control de Piso</p>
-                                    <div className="text-xl font-black text-emerald-600/30">{activeBatchesCount}</div>
+                        <div className="w-full relative h-40">
+                            <Card
+                                onClick={() => navigate('/design/print-center')}
+                                className="p-5 cursor-pointer hover:shadow-xl transition-all
+                     border-l-4 border-l-emerald-500 transform
+                     hover:-translate-y-1 h-full flex flex-col
+                     justify-between bg-white overflow-hidden group"
+                            >
+                                <div className="absolute top-0 left-0 bottom-0 w-16
+                          flex items-center justify-center bg-emerald-50
+                          text-emerald-700 border-r border-emerald-100
+                          font-black transition-colors
+                          group-hover:bg-emerald-100 text-2xl">
+                                    {activeBatchesCount}
                                 </div>
-                            </div>
-                        </Card>
+                                <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                                    <div className="flex justify-between items-start">
+                                        <p className="text-[11px] font-black text-slate-500
+                            uppercase tracking-widest">
+                                            Módulo 4
+                                        </p>
+                                        <Printer size={16} className="text-emerald-500" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-base font-bold text-slate-700
+                             leading-tight">
+                                            Centro de<br/>Impresión
+                                        </h3>
+                                    </div>
+                                    <div className="flex items-center justify-between
+                            pt-2 border-t border-slate-100">
+                                        <p className="text-[10px] text-slate-400 font-bold
+                            uppercase truncate">
+                                            Control de Piso
+                                        </p>
+                                    </div>
+                                </div>
+                            </Card>
+                        </div>
+
                     </div>
                 </>
             )}
@@ -293,13 +440,126 @@ const DesignCatalogPage: React.FC = () => {
             {currentView !== 'HOME' && (
                 <div className="animate-in slide-in-from-right-8 duration-300">
                     
-                    {/* BOTÓN REGRESAR GENERAL */}
-                    <button 
-                        onClick={() => setCurrentView('HOME')}
-                        className="flex items-center gap-2 text-indigo-600 hover:text-indigo-800 font-bold transition-colors mb-6 bg-indigo-50 px-4 py-2 rounded-lg w-fit"
-                    >
-                        <ArrowLeft size={18} /> Regresar al Panel Principal
-                    </button>
+                    <div className="flex justify-end mb-6">
+                        <button
+                            onClick={navigateBack}
+                            className="flex items-center gap-2 bg-white border 
+                   border-slate-300 text-slate-700 px-4 py-2 
+                   rounded-lg font-bold hover:bg-slate-50 
+                   hover:text-indigo-600 transition-all shadow-sm"
+                        >
+                            <ArrowLeft size={18} /> Regresar
+                        </button>
+                    </div>
+
+                    {/* --- MÓDULO 2: SIMULADOR (vista intermedia 2A / 2B) --- */}
+                    {currentView === 'SIMULATOR_MODULE' && (
+                        <div className="space-y-6">
+                            <div className="flex justify-between items-center mb-6 
+                        pb-4 border-b border-slate-200">
+                                <div>
+                                    <h2 className="text-2xl font-bold text-slate-800 
+                           flex items-center gap-2">
+                                        <Calculator className="text-blue-500"/>
+                                        Simulador y Creación de Lotes
+                                    </h2>
+                                    <p className="text-slate-500 text-sm mt-1">
+                                        Agrupa productos pagados, cruza recetas contra inventario 
+                                        y supervisa los lotes enviados a fábrica.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                                {/* Sub-tarjeta 2A: Simulador */}
+                                <div className="w-full relative h-40">
+                                    <Card
+                                        onClick={() => navigate('/design/simulator')}
+                                        className="p-5 cursor-pointer hover:shadow-xl transition-all
+                     border-l-4 border-l-blue-500 transform
+                     hover:-translate-y-1 h-full flex flex-col
+                     justify-between bg-white overflow-hidden group"
+                                    >
+                                        <div className="absolute top-0 left-0 bottom-0 w-16
+                          flex items-center justify-center bg-blue-50
+                          text-blue-700 border-r border-blue-100
+                          font-black transition-colors
+                          group-hover:bg-blue-100 text-2xl">
+                                            {pendingInstancesCount}
+                                        </div>
+                                        <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                                            <div className="flex justify-between items-start">
+                                                <p className="text-[11px] font-black text-slate-500
+                            uppercase tracking-widest">
+                                                    2A. Simulador
+                                                </p>
+                                                <Calculator size={16} className="text-blue-500" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-base font-bold text-slate-700
+                             leading-tight">
+                                                    Simulador y<br/>Lotificación
+                                                </h3>
+                                            </div>
+                                            <div className="flex items-center justify-between
+                            pt-2 border-t border-slate-100">
+                                                <p className="text-[10px] text-slate-400 font-bold
+                            uppercase truncate">
+                                                    Órdenes pendientes de producir
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </Card>
+                                </div>
+
+                                {/* Sub-tarjeta 2B: Ver Lotes */}
+                                <div className="w-full relative h-40">
+                                    <Card
+                                        onClick={() => {
+                                            navigateTo('SIMULATOR_BATCHES');
+                                            loadLiveBatches();
+                                        }}
+                                        className="p-5 cursor-pointer hover:shadow-xl transition-all
+                     border-l-4 border-l-blue-300 transform
+                     hover:-translate-y-1 h-full flex flex-col
+                     justify-between bg-white overflow-hidden group"
+                                    >
+                                        <div className="absolute top-0 left-0 bottom-0 w-16
+                          flex items-center justify-center bg-blue-50
+                          text-blue-400 border-r border-blue-100
+                          font-black transition-colors
+                          group-hover:bg-blue-100 text-2xl">
+                                            {liveBatches.length}
+                                        </div>
+                                        <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                                            <div className="flex justify-between items-start">
+                                                <p className="text-[11px] font-black text-slate-500
+                            uppercase tracking-widest">
+                                                    2B. Ver Lotes
+                                                </p>
+                                                <Package size={16} className="text-blue-300" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-base font-bold text-slate-700
+                             leading-tight">
+                                                    Ver Lotes de<br/>Producción
+                                                </h3>
+                                            </div>
+                                            <div className="flex items-center justify-between
+                            pt-2 border-t border-slate-100">
+                                                <p className="text-[10px] text-slate-400 font-bold
+                            uppercase truncate">
+                                                    Lotes vivos en fábrica
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </Card>
+                                </div>
+
+                            </div>
+                        </div>
+                    )}
 
                     {/* --- MÓDULO 1: CATÁLOGO --- */}
                     {currentView === 'CATALOG' && (
@@ -439,6 +699,133 @@ const DesignCatalogPage: React.FC = () => {
                                 <ShieldAlert size={48} className="text-orange-300 mb-4"/>
                                 <h3 className="text-xl font-bold text-slate-700">Módulo en Construcción</h3>
                             </Card>
+                        </div>
+                    )}
+
+                    {/* --- MÓDULO 2B: LOTES DE PRODUCCIÓN --- */}
+                    {currentView === 'SIMULATOR_BATCHES' && (
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center mb-6 
+                        pb-4 border-b border-slate-200">
+                                <div>
+                                    <h2 className="text-2xl font-bold text-slate-800 
+                           flex items-center gap-2">
+                                        <Package className="text-blue-500"/>
+                                        Lotes de Producción
+                                    </h2>
+                                    <p className="text-slate-500 text-sm mt-1">
+                                        Lotes vivos enviados a fábrica (DRAFT · EN ESPERA ·
+                                        EN PRODUCCIÓN).
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={loadLiveBatches}
+                                    className="flex items-center gap-2 text-sm text-slate-500 
+                       hover:text-blue-600 border border-slate-200 
+                       rounded-lg px-3 py-2 hover:bg-blue-50 transition"
+                                >
+                                    <RefreshCw size={14} /> Actualizar
+                                </button>
+                            </div>
+
+                            {loadingLiveBatches ? (
+                                <div className="flex justify-center py-12 text-slate-400">
+                                    <RefreshCw className="animate-spin mr-2" size={20} />
+                                    Cargando lotes...
+                                </div>
+                            ) : liveBatches.length === 0 ? (
+                                <Card className="p-12 text-center bg-white border 
+                           border-slate-200 shadow-sm flex flex-col 
+                           items-center justify-center">
+                                    <Package size={48} className="text-blue-200 mb-4"/>
+                                    <h3 className="text-xl font-bold text-slate-700">
+                                        No hay lotes activos en fábrica
+                                    </h3>
+                                    <p className="text-slate-400 text-sm mt-2">
+                                        Los lotes aparecen aquí al crearlos desde el Simulador.
+                                    </p>
+                                </Card>
+                            ) : (
+                                <div className="flex flex-col gap-4">
+                                    {liveBatches.map((batch: any) => {
+                                        const cfg = batchStatusConfig[batch.status]
+                                            ?? { label: batch.status, color: 'bg-gray-100 text-gray-600' };
+                                        return (
+                                            <div
+                                                key={batch.id}
+                                                className="bg-white rounded-xl border border-slate-200 
+                             shadow-sm overflow-hidden"
+                                            >
+                                                {/* Header del lote */}
+                                                <div className="flex items-center justify-between 
+                                  px-5 py-3 bg-slate-50 
+                                  border-b border-slate-200">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="font-black text-slate-800 text-sm">
+                                                            {batch.folio}
+                                                        </span>
+                                                        <span className="text-xs font-semibold px-2 py-0.5 
+                                       rounded-full bg-slate-200 
+                                       text-slate-600">
+                                                            {batch.batch_type}
+                                                        </span>
+                                                    </div>
+                                                    <span className={`text-xs font-bold px-3 py-1 
+                                     rounded-full ${cfg.color}`}>
+                                                        {cfg.label}
+                                                    </span>
+                                                </div>
+
+                                                {/* Instancias del lote */}
+                                                {(batch.instances || []).length === 0 ? (
+                                                    <p className="px-5 py-3 text-xs text-slate-400 italic">
+                                                        Sin instancias asignadas.
+                                                    </p>
+                                                ) : (
+                                                    <div className="divide-y divide-slate-100">
+                                                        {(batch.instances || []).map((inst: any) => (
+                                                            <div
+                                                                key={inst.id}
+                                                                className="px-5 py-3 flex items-center gap-3
+                                                                                 hover:bg-slate-50 transition-colors"
+                                                            >
+                                                                {/* OV */}
+                                                                <span className="text-xs font-mono font-bold text-indigo-600
+                                                                                 shrink-0 bg-indigo-50 px-2 py-0.5 rounded-lg
+                                                                                 border border-indigo-100">
+                                                                    {inst.order_folio || `#${inst.id}`}
+                                                                </span>
+
+                                                                {/* Cliente */}
+                                                                <span className="text-xs text-slate-500 shrink-0 max-w-[120px]
+                                                                                 truncate" title={inst.client_name || ''}>
+                                                                    {inst.client_name || '—'}
+                                                                </span>
+
+                                                                <span className="text-slate-200 shrink-0">·</span>
+
+                                                                {/* Proyecto */}
+                                                                <span className="text-xs text-slate-500 shrink-0 max-w-[130px]
+                                                                                 truncate" title={inst.project_name || ''}>
+                                                                    {inst.project_name || '—'}
+                                                                </span>
+
+                                                                <span className="text-slate-200 shrink-0">·</span>
+
+                                                                {/* Nombre de instancia */}
+                                                                <span className="text-sm font-bold text-slate-800 flex-1
+                                                                                 min-w-0 truncate" title={inst.custom_name || ''}>
+                                                                    {inst.custom_name || '—'}
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

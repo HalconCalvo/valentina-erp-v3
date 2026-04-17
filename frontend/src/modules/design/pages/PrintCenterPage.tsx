@@ -35,13 +35,18 @@ export default function PrintCenterPage() {
 
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-8 pb-24 animate-in fade-in duration-300">
-      <button
-        type="button"
-        onClick={() => navigate('/design')}
-        className="flex items-center gap-2 text-indigo-600 hover:text-indigo-800 font-bold transition-colors bg-indigo-50 px-4 py-2 rounded-lg w-fit"
-      >
-        <ArrowLeft size={18} /> Volver a Diseño
-      </button>
+      <div className="flex justify-end mb-6">
+        <button
+          type="button"
+          onClick={() => navigate('/design')}
+          className="flex items-center gap-2 bg-white border 
+                   border-slate-300 text-slate-700 px-4 py-2 
+                   rounded-lg font-bold hover:bg-slate-50 
+                   hover:text-indigo-600 transition-all shadow-sm"
+        >
+          <ArrowLeft size={18} /> Regresar
+        </button>
+      </div>
 
       <div>
         <h1 className="text-3xl font-black text-slate-800">Centro de impresión</h1>

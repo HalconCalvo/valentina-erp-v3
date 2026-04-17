@@ -7,6 +7,12 @@ import { useState, useEffect } from 'react';
 import { planningService, InstanceSchedule } from '../../../api/planning-service';
 import { getSemaphoreConfig } from '../hooks/usePlanning';
 
+interface Installer {
+  id: number;
+  full_name: string;
+  role: string;
+}
+
 interface Props {
   instance: InstanceSchedule | null;
   onClose: () => void;
@@ -89,6 +95,20 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
   const [pickerYear, setPickerYear] = useState(() => new Date().getFullYear());
   const [pickerMonth, setPickerMonth] = useState(() => new Date().getMonth() + 1);
 
+  const [installers, setInstallers] = useState<Installer[]>([]);
+  const [imLeaderId, setImLeaderId] = useState<number | ''>('');
+  const [imHelper1Id, setImHelper1Id] = useState<number | ''>('');
+  const [imHelper2Id, setImHelper2Id] = useState<number | ''>('');
+  const [imSaving, setImSaving] = useState(false);
+  const [imError, setImError] = useState<string | null>(null);
+  const [imSuccess, setImSuccess] = useState(false);
+  const [ipLeaderId, setIpLeaderId] = useState<number | ''>('');
+  const [ipHelper1Id, setIpHelper1Id] = useState<number | ''>('');
+  const [ipHelper2Id, setIpHelper2Id] = useState<number | ''>('');
+  const [ipSaving, setIpSaving] = useState(false);
+  const [ipError, setIpError] = useState<string | null>(null);
+  const [ipSuccess, setIpSuccess] = useState(false);
+
   useEffect(() => {
     if (!instance) return;
     setName(instance.custom_name);
@@ -101,6 +121,16 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
     setError(null);
     setPickerOpenField(null);
     setCalendarOpen(false);
+    setImLeaderId('');
+    setImHelper1Id('');
+    setImHelper2Id('');
+    setImError(null);
+    setImSuccess(false);
+    setIpLeaderId('');
+    setIpHelper1Id('');
+    setIpHelper2Id('');
+    setIpError(null);
+    setIpSuccess(false);
   }, [instance]);
 
   useEffect(() => {
@@ -114,6 +144,20 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
   }, [pickerOpenField]);
+
+  useEffect(() => {
+    const hasInstallation = dates.scheduled_inst_mdf || dates.scheduled_inst_stone;
+    if (!instance || !hasInstallation) return;
+    planningService
+      .getInstallers()
+      .then((res) => {
+        const rows = Array.isArray(res.data) ? res.data : [];
+        setInstallers(
+          rows.filter((u: Installer) => String(u.role).toUpperCase() === 'LOGISTICS')
+        );
+      })
+      .catch(() => setInstallers([]));
+  }, [instance?.id, dates.scheduled_inst_mdf, dates.scheduled_inst_stone]);
 
   if (!instance) return null;
 
@@ -187,6 +231,52 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
     if (lane) onDateSelect?.(dayStr, lane.code);
     setPickerOpenField(null);
     setCalendarOpen(false);
+  };
+
+  const handleSaveImTeam = async () => {
+    if (!instance || !imLeaderId) return;
+    setImSaving(true);
+    setImError(null);
+    setImSuccess(false);
+    try {
+      await planningService.assignTeam(instance.id, {
+        leader_user_id: Number(imLeaderId),
+        helper_1_user_id: imHelper1Id ? Number(imHelper1Id) : null,
+        helper_2_user_id: imHelper2Id ? Number(imHelper2Id) : null,
+        assignment_date: dates.scheduled_inst_mdf,
+        lane: 'IM',
+      });
+      setImSuccess(true);
+      setTimeout(() => setImSuccess(false), 3000);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } } };
+      setImError(err?.response?.data?.detail ?? 'Error al asignar equipo IM.');
+    } finally {
+      setImSaving(false);
+    }
+  };
+
+  const handleSaveIpTeam = async () => {
+    if (!instance || !ipLeaderId) return;
+    setIpSaving(true);
+    setIpError(null);
+    setIpSuccess(false);
+    try {
+      await planningService.assignTeam(instance.id, {
+        leader_user_id: Number(ipLeaderId),
+        helper_1_user_id: ipHelper1Id ? Number(ipHelper1Id) : null,
+        helper_2_user_id: ipHelper2Id ? Number(ipHelper2Id) : null,
+        assignment_date: dates.scheduled_inst_stone,
+        lane: 'IP',
+      });
+      setIpSuccess(true);
+      setTimeout(() => setIpSuccess(false), 3000);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } } };
+      setIpError(err?.response?.data?.detail ?? 'Error al asignar equipo IP.');
+    } finally {
+      setIpSaving(false);
+    }
   };
 
   return (
@@ -366,11 +456,12 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
                       {/* Clear button — hidden for read-only */}
                       {hasDate && !readOnly && (
                         <button
+                          type="button"
                           onClick={() => handleClearDate(lane.field)}
-                          className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all"
-                          title="Limpiar fecha"
+                          className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all text-sm"
+                          title="Quitar del calendario"
                         >
-                          ✕
+                          📅✕
                         </button>
                       )}
                     </div>
@@ -379,6 +470,204 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
               })}
             </div>
           </div>
+
+          {dates.scheduled_inst_mdf && !readOnly && (
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 block">
+                👷 Equipo — Instalación MDF (IM)
+              </label>
+              {installers.length === 0 ? (
+                <p className="text-xs text-slate-400 italic">
+                  No hay instaladores con rol LOGISTICS.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">
+                      👷 Líder (obligatorio)
+                    </label>
+                    <select
+                      value={imLeaderId}
+                      onChange={(e) =>
+                        setImLeaderId(e.target.value ? Number(e.target.value) : '')
+                      }
+                      className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-300 transition"
+                    >
+                      <option value="">— Seleccionar líder —</option>
+                      {installers.map((i) => (
+                        <option key={i.id} value={i.id}>
+                          {i.full_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">
+                      🔧 Ayudante 1 (opcional)
+                    </label>
+                    <select
+                      value={imHelper1Id}
+                      onChange={(e) =>
+                        setImHelper1Id(e.target.value ? Number(e.target.value) : '')
+                      }
+                      className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-300 transition"
+                    >
+                      <option value="">— Sin ayudante 1 —</option>
+                      {installers
+                        .filter((i) => i.id !== Number(imLeaderId))
+                        .map((i) => (
+                          <option key={i.id} value={i.id}>
+                            {i.full_name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">
+                      🔧 Ayudante 2 (opcional)
+                    </label>
+                    <select
+                      value={imHelper2Id}
+                      onChange={(e) =>
+                        setImHelper2Id(e.target.value ? Number(e.target.value) : '')
+                      }
+                      className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-300 transition"
+                    >
+                      <option value="">— Sin ayudante 2 —</option>
+                      {installers
+                        .filter(
+                          (i) =>
+                            i.id !== Number(imLeaderId) &&
+                            i.id !== Number(imHelper1Id)
+                        )
+                        .map((i) => (
+                          <option key={i.id} value={i.id}>
+                            {i.full_name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  {imError && (
+                    <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                      {imError}
+                    </p>
+                  )}
+                  {imSuccess && (
+                    <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+                      ✅ Equipo IM asignado correctamente.
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveImTeam()}
+                    disabled={!imLeaderId || imSaving}
+                    className="w-full py-2.5 rounded-xl text-sm font-bold bg-sky-600 hover:bg-sky-700 text-white transition disabled:opacity-40"
+                  >
+                    {imSaving ? 'Guardando equipo...' : '👷 Guardar equipo instalador IM'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {dates.scheduled_inst_stone && !readOnly && (
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 block">
+                👷 Equipo — Instalación Piedra (IP)
+              </label>
+              {installers.length === 0 ? (
+                <p className="text-xs text-slate-400 italic">
+                  No hay instaladores con rol LOGISTICS.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">
+                      👷 Líder (obligatorio)
+                    </label>
+                    <select
+                      value={ipLeaderId}
+                      onChange={(e) =>
+                        setIpLeaderId(e.target.value ? Number(e.target.value) : '')
+                      }
+                      className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-300 transition"
+                    >
+                      <option value="">— Seleccionar líder —</option>
+                      {installers.map((i) => (
+                        <option key={i.id} value={i.id}>
+                          {i.full_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">
+                      🔧 Ayudante 1 (opcional)
+                    </label>
+                    <select
+                      value={ipHelper1Id}
+                      onChange={(e) =>
+                        setIpHelper1Id(e.target.value ? Number(e.target.value) : '')
+                      }
+                      className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-300 transition"
+                    >
+                      <option value="">— Sin ayudante 1 —</option>
+                      {installers
+                        .filter((i) => i.id !== Number(ipLeaderId))
+                        .map((i) => (
+                          <option key={i.id} value={i.id}>
+                            {i.full_name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">
+                      🔧 Ayudante 2 (opcional)
+                    </label>
+                    <select
+                      value={ipHelper2Id}
+                      onChange={(e) =>
+                        setIpHelper2Id(e.target.value ? Number(e.target.value) : '')
+                      }
+                      className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-300 transition"
+                    >
+                      <option value="">— Sin ayudante 2 —</option>
+                      {installers
+                        .filter(
+                          (i) =>
+                            i.id !== Number(ipLeaderId) &&
+                            i.id !== Number(ipHelper1Id)
+                        )
+                        .map((i) => (
+                          <option key={i.id} value={i.id}>
+                            {i.full_name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  {ipError && (
+                    <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                      {ipError}
+                    </p>
+                  )}
+                  {ipSuccess && (
+                    <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+                      ✅ Equipo IP asignado correctamente.
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveIpTeam()}
+                    disabled={!ipLeaderId || ipSaving}
+                    className="w-full py-2.5 rounded-xl text-sm font-bold bg-cyan-600 hover:bg-cyan-700 text-white transition disabled:opacity-40"
+                  >
+                    {ipSaving ? 'Guardando equipo...' : '👷 Guardar equipo instalador IP'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           {error && (
             <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">

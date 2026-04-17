@@ -10,7 +10,7 @@ Rutas:
   POST /planning/instances/{id}/reopen-warranty → Reabrir como Garantía ⚠️
   PATCH /planning/orders/{order_id}/baptize → Bautizo masivo de instancias (custom_names)
 """
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional, List, Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -20,7 +20,11 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_session
 from app.core.deps import get_current_active_user
-from app.models.users import User
+from app.models.users import User, UserRole
+from app.models.production import (
+    InstallationAssignment,
+    InstallationAssignmentStatus,
+)
 from app.models.sales import (
     SalesOrderItemInstance, SalesOrderItem, SalesOrder,
     InstanceStatus, SalesOrderStatus,
@@ -66,6 +70,14 @@ class BaptismEntry(BaseModel):
 
 class BaptismPayload(BaseModel):
     instances: List[BaptismEntry]
+
+
+class AssignTeamPayload(BaseModel):
+    leader_user_id: int
+    helper_1_user_id: Optional[int] = None
+    helper_2_user_id: Optional[int] = None
+    assignment_date: date  # Fecha de la jornada de instalación
+    lane: str = "IM"  # "IM" o "IP"
 
 
 # ============================================================
@@ -490,4 +502,129 @@ def baptize_instances(
         "order_id": order_id,
         "baptized_count": len(updated),
         "instances": updated,
+    }
+
+
+# ============================================================
+# 8. ASIGNAR / REASIGNAR EQUIPO INSTALADOR (IM/IP)
+# ============================================================
+
+@router.post("/instances/{instance_id}/assign-team")
+def assign_installation_team(
+    instance_id: int,
+    payload: AssignTeamPayload,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+) -> Any:
+    """
+    (DIRECTOR / GERENCIA / DESIGN)
+    Asigna o reasigna el equipo instalador a un evento IM/IP del calendario.
+    Solo guarda la asignación provisional — NO cambia el status de la instancia
+    ni genera nómina. El equipo puede reasignarse hasta el momento del escaneo QR.
+    """
+    # Permisos
+    allowed = {UserRole.DIRECTOR, UserRole.GERENCIA, UserRole.DESIGN}
+    if current_user.role not in allowed:
+        raise HTTPException(
+            status_code=403,
+            detail="Solo DIRECTOR, GERENCIA o DISEÑO pueden asignar equipos.",
+        )
+
+    # Validar instancia
+    inst = _get_instance_or_404(instance_id, session)
+
+    if payload.lane not in ("IM", "IP"):
+        raise HTTPException(
+            status_code=400,
+            detail="El carril debe ser IM (Instalación MDF) o IP (Instalación Piedra).",
+        )
+
+    if payload.lane == "IM" and not inst.scheduled_inst_mdf:
+        raise HTTPException(
+            status_code=400,
+            detail="La instancia no tiene fecha IM programada en el calendario.",
+        )
+    if payload.lane == "IP" and not inst.scheduled_inst_stone:
+        raise HTTPException(
+            status_code=400,
+            detail="La instancia no tiene fecha IP programada en el calendario.",
+        )
+
+    # Validar usuarios — todos deben existir y tener rol LOGISTICS
+    leader = session.get(User, payload.leader_user_id)
+    if not leader:
+        raise HTTPException(status_code=404, detail="Usuario Líder no encontrado.")
+    if leader.role != UserRole.LOGISTICS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"El Líder debe tener rol LOGISTICS. Rol actual: {leader.role}",
+        )
+    if payload.helper_1_user_id:
+        h1 = session.get(User, payload.helper_1_user_id)
+        if not h1:
+            raise HTTPException(status_code=404, detail="Ayudante 1 no encontrado.")
+        if h1.role != UserRole.LOGISTICS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Ayudante 1 debe tener rol LOGISTICS. Rol actual: {h1.role}",
+            )
+    if payload.helper_2_user_id:
+        h2 = session.get(User, payload.helper_2_user_id)
+        if not h2:
+            raise HTTPException(status_code=404, detail="Ayudante 2 no encontrado.")
+        if h2.role != UserRole.LOGISTICS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Ayudante 2 debe tener rol LOGISTICS. Rol actual: {h2.role}",
+            )
+
+    # Buscar asignación existente para esta instancia, carril (IM/IP) y SCHEDULED
+    # Si existe → reasignar (update). Si no → crear nueva.
+    assignment_dt = datetime.combine(payload.assignment_date, datetime.min.time())
+    stmt = select(InstallationAssignment).where(
+        InstallationAssignment.instance_id == instance_id,
+        InstallationAssignment.lane == payload.lane,
+        InstallationAssignment.status == InstallationAssignmentStatus.SCHEDULED,
+    )
+    existing = session.exec(stmt).first()
+
+    if existing:
+        existing.leader_user_id = payload.leader_user_id
+        existing.helper_1_user_id = payload.helper_1_user_id
+        existing.helper_2_user_id = payload.helper_2_user_id
+        existing.assignment_date = assignment_dt
+        existing.lane = payload.lane
+        session.add(existing)
+        assignment = existing
+    else:
+        assignment = InstallationAssignment(
+            instance_id=instance_id,
+            lane=payload.lane,
+            leader_user_id=payload.leader_user_id,
+            helper_1_user_id=payload.helper_1_user_id,
+            helper_2_user_id=payload.helper_2_user_id,
+            assignment_date=assignment_dt,
+            status=InstallationAssignmentStatus.SCHEDULED,
+        )
+        session.add(assignment)
+
+    session.commit()
+    session.refresh(assignment)
+
+    # Serializar respuesta enriquecida
+    leader_name = leader.full_name
+    h1_name = session.get(User, payload.helper_1_user_id).full_name if payload.helper_1_user_id else None
+    h2_name = session.get(User, payload.helper_2_user_id).full_name if payload.helper_2_user_id else None
+
+    return {
+        "assignment_id": assignment.id,
+        "instance_id": instance_id,
+        "instance_name": inst.custom_name,
+        "assignment_date": payload.assignment_date.isoformat(),
+        "lane": payload.lane,
+        "status": assignment.status,
+        "leader": {"id": payload.leader_user_id, "name": leader_name},
+        "helper_1": {"id": payload.helper_1_user_id, "name": h1_name} if payload.helper_1_user_id else None,
+        "helper_2": {"id": payload.helper_2_user_id, "name": h2_name} if payload.helper_2_user_id else None,
+        "action": "updated" if existing else "created",
     }

@@ -60,17 +60,25 @@ class ProductionBatch(SQLModel, table=True):
 # ==========================================
 # 2. ASIGNACIONES DE INSTALACIÓN (OBRA)
 # ==========================================
+class InstallationAssignmentStatus(str, Enum):
+    SCHEDULED = "SCHEDULED"
+    IN_PROGRESS = "IN_PROGRESS"
+    COMPLETED = "COMPLETED"
+
+
 class InstallationAssignment(SQLModel, table=True):
     __tablename__ = "installation_assignments"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     instance_id: int = Field(index=True) # Ligado a sales_order_item_instances.id
+    lane: str = Field(default="IM")  # "IM" o "IP"
     assignment_date: datetime
     
     leader_user_id: int = Field(foreign_key="users.id")
-    helper_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
-    
-    status: str = Field(default="SCHEDULED")
+    helper_1_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    helper_2_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+
+    status: InstallationAssignmentStatus = Field(default=InstallationAssignmentStatus.SCHEDULED)
     
     # Evidencias
     client_signature_url: Optional[str] = Field(default=None)

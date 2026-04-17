@@ -99,4 +99,18 @@ export const planningService = {
 
   baptizeInstances: (orderId: number, instances: BaptismEntry[]) =>
     client.patch(API_ROUTES.PLANNING.BAPTIZE(orderId), { instances }),
+
+  assignTeam: (
+    instanceId: number,
+    payload: {
+      leader_user_id: number;
+      helper_1_user_id?: number | null;
+      helper_2_user_id?: number | null;
+      assignment_date: string; // YYYY-MM-DD
+      lane: 'IM' | 'IP';
+    }
+  ) =>
+    client.post(`/planning/instances/${instanceId}/assign-team`, payload),
+
+  getInstallers: () => client.get('/users/?role=LOGISTICS'),
 };

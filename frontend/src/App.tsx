@@ -51,6 +51,9 @@ import FactoryFloorPage from './modules/production/pages/FactoryFloorPage';
 // 10. PLANEACIÓN ESTRATÉGICA: MATRIZ DE 4 CARRILES
 import PlanningPage from './modules/planning/pages/PlanningPage';
 
+// 11. LOGÍSTICA E INSTALACIÓN (iPad / cuadrilla)
+import InstallerWorkdayPage from './modules/logistics/pages/InstallerWorkdayPage';
+
 // --- GUARDIA DE SEGURIDAD ---
 const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
   const token = localStorage.getItem('token');
@@ -122,6 +125,9 @@ function AppRoutes() {
 
         {/* --- PLANEACIÓN ESTRATÉGICA: TABLERO MAESTRO --- */}
         <Route path="/planning" element={<PlanningPage key={key} />} />
+
+        {/* --- LOGÍSTICA E INSTALACIÓN --- */}
+        <Route path="/logistics" element={<InstallerWorkdayPage key={key} />} />
       </Route>
 
       {/* Fallback */}
