@@ -251,7 +251,11 @@ def assign_instance_to_batch(
         ).all()
 
         for comp in components:
-            # Crear reserva
+            material = db.get(Material, comp.material_id)
+            # Saltar materiales de tipo PROCESO — no son inventariables
+            if material and (material.category or "").upper() == "PROCESO":
+                continue
+
             reservation = InventoryReservation(
                 production_batch_id=batch.id,
                 instance_id=instance.id,
@@ -261,8 +265,6 @@ def assign_instance_to_batch(
             )
             db.add(reservation)
 
-            # Actualizar committed_stock en el material
-            material = db.get(Material, comp.material_id)
             if material:
                 material.committed_stock = (
                     material.committed_stock or 0.0
@@ -382,4 +384,36 @@ def delete_production_batch(
                    f"{len(reservations)} reserva(s) canceladas.",
         "instances_reset": len(instances),
         "reservations_cancelled": len(reservations),
+    }
+
+
+class DeclareStonePiecesBody(BaseModel):
+    stone_pieces: int
+
+
+@router.patch("/instances/{instance_id}/stone_pieces")
+def declare_stone_pieces(
+    instance_id: int,
+    body: DeclareStonePiecesBody,
+    db: Session = Depends(get_session),
+):
+    """Producción declara el número de piezas de piedra de una instancia."""
+    if body.stone_pieces < 1:
+        raise HTTPException(
+            status_code=400,
+            detail="El número de piezas debe ser al menos 1.",
+        )
+    instance = db.get(SalesOrderItemInstance, instance_id)
+    if not instance:
+        raise HTTPException(status_code=404, detail="Instancia no encontrada.")
+
+    instance.stone_pieces = body.stone_pieces
+    db.add(instance)
+    db.commit()
+    db.refresh(instance)
+
+    return {
+        "instance_id": instance.id,
+        "instance_name": instance.custom_name,
+        "stone_pieces": instance.stone_pieces,
     }

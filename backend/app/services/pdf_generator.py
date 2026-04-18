@@ -490,3 +490,234 @@ class PDFGenerator:
         
         buffer.seek(0)
         return buffer
+
+    def generate_stone_manifest(
+        self,
+        instance_name: str,
+        client_name: str,
+        project_name: str,
+        order_folio: str,
+        stone_pieces: int,
+        qr_uuid: str,
+        leader_name: str,
+        helper_1_name: str | None,
+        helper_2_name: str | None,
+        config,
+    ) -> BytesIO:
+        """
+        Genera el Manifiesto de Viaje para piezas de Piedra.
+        Tamaño: Carta (LETTER). Sin tabla de materiales.
+        """
+        from datetime import datetime
+        from reportlab.platypus import HRFlowable
+        import qrcode
+
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(
+            buffer, pagesize=LETTER,
+            rightMargin=60, leftMargin=60,
+            topMargin=50, bottomMargin=70
+        )
+        elements = []
+        now = datetime.now()
+        months = {
+            1:"Enero",2:"Febrero",3:"Marzo",4:"Abril",
+            5:"Mayo",6:"Junio",7:"Julio",8:"Agosto",
+            9:"Septiembre",10:"Octubre",11:"Noviembre",12:"Diciembre"
+        }
+        date_str = f"Mérida, Yucatán a {now.day} de {months[now.month]} de {now.year}"
+
+        # ── ENCABEZADO CON LOGO ──────────────────────────────────
+        logo_image_obj = None
+        if hasattr(config, 'logo_path') and config.logo_path:
+            logo_url = config.logo_path
+            if logo_url.startswith("http"):
+                try:
+                    ctx = ssl.create_default_context()
+                    ctx.check_hostname = False
+                    ctx.verify_mode = ssl.CERT_NONE
+                    with urlopen(logo_url, context=ctx) as response:
+                        img_data = response.read()
+                    logo_image_obj = BytesIO(img_data)
+                except Exception as e:
+                    print(f"Advertencia logo: {e}")
+            elif os.path.exists(logo_url):
+                logo_image_obj = logo_url
+
+        company_title = getattr(config, 'company_name', 'Valentina ERP')
+
+        right_block = [
+            Paragraph(
+                "<font size=16><b>MANIFIESTO DE VIAJE</b></font>",
+                self.styles['DateStyle']
+            ),
+            Paragraph(
+                "<font size=12 color='#1e40af'><b>PIEDRA</b></font>",
+                self.styles['DateStyle']
+            ),
+            Paragraph(date_str, self.styles['DateStyle']),
+        ]
+
+        if logo_image_obj:
+            try:
+                img_reader = ImageReader(logo_image_obj)
+                orig_w, orig_h = img_reader.getSize()
+                aspect = orig_h / float(orig_w)
+                max_w, max_h = 2.5 * inch, 1.2 * inch
+                new_w, new_h = max_w, max_w * aspect
+                if new_h > max_h:
+                    new_h, new_w = max_h, max_h / aspect
+                if isinstance(logo_image_obj, BytesIO):
+                    logo_image_obj.seek(0)
+                img = Image(logo_image_obj, width=new_w, height=new_h)
+                img.hAlign = 'LEFT'
+                header_data = [[img, right_block]]
+            except Exception:
+                header_data = [[
+                    Paragraph(f"<b>{company_title}</b>",
+                              self.styles['Heading3']),
+                    right_block
+                ]]
+        else:
+            header_data = [[
+                Paragraph(f"<b>{company_title}</b>",
+                          self.styles['Heading3']),
+                right_block
+            ]]
+
+        header_table = Table(header_data, colWidths=[3.5*inch, 3.5*inch])
+        header_table.setStyle(TableStyle([
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('ALIGN', (1,0), (1,0), 'RIGHT'),
+            ('LEFTPADDING', (0,0), (-1,-1), 0),
+            ('RIGHTPADDING', (0,0), (-1,-1), 0),
+        ]))
+        elements.append(header_table)
+        elements.append(Spacer(1, 20))
+        elements.append(HRFlowable(
+            width="100%", thickness=2,
+            color=colors.HexColor("#1e40af")
+        ))
+        elements.append(Spacer(1, 20))
+
+        # ── DATOS PRINCIPALES ────────────────────────────────────
+        info_style = ParagraphStyle(
+            'InfoLine',
+            parent=self.styles['Normal'],
+            fontSize=12,
+            leading=20,
+            spaceAfter=4,
+        )
+
+        elements.append(Paragraph(
+            f"<font color='#6b7280'>OV:</font>  "
+            f"<b>{order_folio}</b>",
+            info_style
+        ))
+        elements.append(Paragraph(
+            f"<font color='#6b7280'>Cliente:</font>  "
+            f"<b>{client_name}</b>",
+            info_style
+        ))
+        elements.append(Paragraph(
+            f"<font color='#6b7280'>Proyecto:</font>  "
+            f"<b>{project_name}</b>",
+            info_style
+        ))
+        elements.append(Paragraph(
+            f"<font color='#6b7280'>Instancia:</font>  "
+            f"<b>{instance_name}</b>",
+            info_style
+        ))
+        elements.append(Spacer(1, 20))
+        elements.append(HRFlowable(
+            width="100%", thickness=1,
+            color=colors.HexColor("#e5e7eb")
+        ))
+        elements.append(Spacer(1, 20))
+
+        # ── TOTAL DE PIEZAS (destacado) ──────────────────────────
+        pieces_style = ParagraphStyle(
+            'PiecesStyle',
+            parent=self.styles['Normal'],
+            fontSize=36,
+            leading=44,
+            alignment=1,  # Center
+            textColor=colors.HexColor("#1e40af"),
+        )
+        label_center = ParagraphStyle(
+            'LabelCenter',
+            parent=self.styles['Normal'],
+            fontSize=12,
+            leading=16,
+            alignment=1,
+            textColor=colors.HexColor("#6b7280"),
+        )
+        elements.append(Paragraph(
+            f"<b>{stone_pieces}</b>",
+            pieces_style
+        ))
+        elements.append(Paragraph("piezas de piedra", label_center))
+        elements.append(Spacer(1, 24))
+        elements.append(HRFlowable(
+            width="100%", thickness=1,
+            color=colors.HexColor("#e5e7eb")
+        ))
+        elements.append(Spacer(1, 20))
+
+        # ── EQUIPO INSTALADOR ────────────────────────────────────
+        elements.append(Paragraph(
+            f"<font color='#6b7280'>Líder:</font>  "
+            f"<b>{leader_name}</b>",
+            info_style
+        ))
+        if helper_1_name:
+            elements.append(Paragraph(
+                f"<font color='#6b7280'>Ayudante:</font>  "
+                f"<b>{helper_1_name}</b>",
+                info_style
+            ))
+        if helper_2_name:
+            elements.append(Paragraph(
+                f"<font color='#6b7280'>Ayudante:</font>  "
+                f"<b>{helper_2_name}</b>",
+                info_style
+            ))
+        elements.append(Spacer(1, 24))
+
+        # ── QR CODE ─────────────────────────────────────────────
+        try:
+            qr = qrcode.QRCode(
+                version=1,
+                error_correction=qrcode.constants.ERROR_CORRECT_M,
+                box_size=6,
+                border=2,
+            )
+            qr.add_data(qr_uuid)
+            qr.make(fit=True)
+            qr_img = qr.make_image(fill_color="black", back_color="white")
+            qr_buffer = BytesIO()
+            qr_img.save(qr_buffer, format="PNG")
+            qr_buffer.seek(0)
+            qr_element = Image(qr_buffer, width=1.5*inch, height=1.5*inch)
+            qr_element.hAlign = 'CENTER'
+            elements.append(qr_element)
+            elements.append(Paragraph(
+                f"<font size=8 color='#9ca3af'>{qr_uuid}</font>",
+                ParagraphStyle('QRLabel', parent=self.styles['Normal'],
+                               alignment=1, fontSize=8)
+            ))
+        except Exception as e:
+            print(f"Error generando QR: {e}")
+            elements.append(Paragraph(
+                f"QR: {qr_uuid}",
+                label_center
+            ))
+
+        doc.build(
+            elements,
+            onFirstPage=lambda c, d: self._draw_footer(c, d, config),
+            onLaterPages=lambda c, d: self._draw_footer(c, d, config),
+        )
+        buffer.seek(0)
+        return buffer

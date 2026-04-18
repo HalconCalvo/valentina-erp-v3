@@ -33,6 +33,7 @@ export interface LabelRequestItem {
   client_name: string;
   project_name: string;
   declared_bundles: number;
+  is_stone: boolean;
 }
 
 export const designService = {

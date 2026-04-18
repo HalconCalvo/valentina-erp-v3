@@ -524,6 +524,12 @@ def simulate_batch(
         ).all()
 
         for comp in components:
+            material = session.exec(
+                select(Material).where(Material.id == comp.material_id)
+            ).first()
+            # Saltar materiales de tipo PROCESO — no son inventariables
+            if material and (material.category or "").upper() == "PROCESO":
+                continue
             if comp.material_id in aggregated_bom:
                 aggregated_bom[comp.material_id] += comp.quantity
             else:
@@ -658,6 +664,7 @@ class LabelRequestItem(BaseModel):
     client_name: str
     project_name: str
     declared_bundles: int
+    is_stone: bool = False
 
 
 @router.get("/label_requests", response_model=List[LabelRequestItem])
@@ -673,7 +680,10 @@ def list_label_requests(
         select(SalesOrderItemInstance)
         .outerjoin(ProductionBatch, SalesOrderItemInstance.production_batch_id == ProductionBatch.id)
         .where(
-            SalesOrderItemInstance.declared_bundles > 0,
+            or_(
+                SalesOrderItemInstance.declared_bundles > 0,
+                SalesOrderItemInstance.stone_pieces > 0,
+            ),
             or_(
                 SalesOrderItemInstance.production_status == InstanceStatus.IN_PRODUCTION,
                 ProductionBatch.status == ProductionBatchStatus.PACKING,
@@ -694,6 +704,7 @@ def list_label_requests(
         if not order:
             continue
         client = session.get(Client, order.client_id)
+        is_stone = (inst.stone_pieces or 0) > 0
         result.append(
             LabelRequestItem(
                 instance_id=inst.id,
@@ -701,6 +712,7 @@ def list_label_requests(
                 client_name=client.full_name if client else "",
                 project_name=order.project_name,
                 declared_bundles=inst.declared_bundles or 0,
+                is_stone=is_stone,
             )
         )
     return result
@@ -782,4 +794,100 @@ def generate_labels(
         hardware_bundles=hardware,
         zpl_content=concatenate_zpl(labels),
         qr_uuid=qr_uuid,
+    )
+
+
+@router.get("/instances/{instance_id}/stone_manifest")
+def generate_stone_manifest(
+    instance_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Genera el PDF del Manifiesto de Viaje para piezas de Piedra.
+    Requiere stone_pieces declarado y equipo instalador asignado.
+    """
+    from fastapi.responses import StreamingResponse
+    from app.services.pdf_generator import PDFGenerator
+    from app.models.production import InstallationAssignment
+    from app.models.foundations import GlobalConfig
+
+    instance = session.get(SalesOrderItemInstance, instance_id)
+    if not instance:
+        raise HTTPException(status_code=404, detail="Instancia no encontrada.")
+
+    if not instance.stone_pieces:
+        raise HTTPException(
+            status_code=400,
+            detail="Esta instancia no tiene piezas de piedra declaradas. "
+                   "Declara las piezas desde Producción primero.",
+        )
+
+    # Subir cadena para obtener OV, cliente y proyecto
+    item = session.exec(
+        select(SalesOrderItem)
+        .where(SalesOrderItem.id == instance.sales_order_item_id)
+    ).first()
+    order = session.exec(
+        select(SalesOrder)
+        .where(SalesOrder.id == item.sales_order_id)
+    ).first() if item else None
+    client = session.get(Client, order.client_id) if order and order.client_id else None
+    order_folio = f"OV-{str(order.id).zfill(4)}" if order else "S/OV"
+
+    # Obtener equipo instalador (asignación IP más reciente)
+    assignment = session.exec(
+        select(InstallationAssignment)
+        .where(InstallationAssignment.instance_id == instance_id)
+        .where(InstallationAssignment.lane == "IP")
+        .order_by(InstallationAssignment.id.desc())
+    ).first()
+
+    leader_name = "Sin asignar"
+    helper_1_name = None
+    helper_2_name = None
+
+    if assignment:
+        leader = session.get(User, assignment.leader_user_id)
+        leader_name = leader.full_name if leader else "Sin asignar"
+        if assignment.helper_1_user_id:
+            h1 = session.get(User, assignment.helper_1_user_id)
+            helper_1_name = h1.full_name if h1 else None
+        if assignment.helper_2_user_id:
+            h2 = session.get(User, assignment.helper_2_user_id)
+            helper_2_name = h2.full_name if h2 else None
+
+    # Usar QR existente o generar uno
+    qr_uuid = instance.qr_code or str(uuid_lib.uuid4())
+    if not instance.qr_code:
+        instance.qr_code = qr_uuid
+        session.add(instance)
+        session.commit()
+
+    # Obtener config de empresa
+    config = session.exec(select(GlobalConfig)).first()
+
+    # Generar PDF
+    generator = PDFGenerator()
+    pdf_buffer = generator.generate_stone_manifest(
+        instance_name=instance.custom_name or f"Instancia #{instance_id}",
+        client_name=client.full_name if client else "Sin cliente",
+        project_name=order.project_name if order else "Sin proyecto",
+        order_folio=order_folio,
+        stone_pieces=instance.stone_pieces,
+        qr_uuid=qr_uuid,
+        leader_name=leader_name,
+        helper_1_name=helper_1_name,
+        helper_2_name=helper_2_name,
+        config=config,
+    )
+
+    filename = f"manifiesto_piedra_{instance_id}.pdf"
+    pdf_buffer.seek(0)
+    return StreamingResponse(
+        iter([pdf_buffer.read()]),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        },
     )

@@ -135,6 +135,7 @@ class SalesOrderItemInstance(SQLModel, table=True):
     declared_bundles: Optional[int] = Field(default=None)
     mdf_bundles: Optional[int] = Field(default=None)
     hardware_bundles: Optional[int] = Field(default=None)
+    stone_pieces: Optional[int] = Field(default=None)
     customer_payment_id: Optional[int] = Field(default=None, foreign_key="customer_payments.id")
     
     # ========================================================

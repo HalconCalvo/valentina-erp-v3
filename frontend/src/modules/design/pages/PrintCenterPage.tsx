@@ -100,6 +100,37 @@ export default function PrintCenterPage() {
     }
   };
 
+  const handleDownloadManifest = async (instanceId: number) => {
+    try {
+      const token = localStorage.getItem('token');
+      const baseUrl = import.meta.env.VITE_API_URL
+        || 'http://localhost:8000/api/v1';
+      const response = await fetch(
+        `${baseUrl}/design/instances/${instanceId}/stone_manifest`,
+        {
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${token}` },
+        }
+      );
+      if (!response.ok) {
+        const err = await response.json();
+        alert(`Error: ${err.detail}`);
+        return;
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `manifiesto_piedra_${instanceId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      alert('Error al descargar el manifiesto.');
+    }
+  };
+
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-8 pb-24 animate-in fade-in duration-300">
       <div className="flex justify-end mb-6">
@@ -149,6 +180,7 @@ export default function PrintCenterPage() {
                   <th className="px-4 py-3 font-semibold">Cliente</th>
                   <th className="px-4 py-3 font-semibold">Proyecto</th>
                   <th className="px-4 py-3 font-semibold">Instancia</th>
+                  <th className="px-4 py-3 font-semibold">Tipo</th>
                   <th className="px-4 py-3 font-semibold text-right">Total bultos</th>
                   <th className="px-4 py-3 font-semibold text-center w-48">Acción</th>
                 </tr>
@@ -156,7 +188,7 @@ export default function PrintCenterPage() {
               <tbody className="divide-y divide-slate-100">
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-10 text-center text-slate-400">
+                    <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
                       No hay solicitudes pendientes
                     </td>
                   </tr>
@@ -166,18 +198,33 @@ export default function PrintCenterPage() {
                       <td className="px-4 py-3 font-medium text-slate-800">{row.client_name}</td>
                       <td className="px-4 py-3 text-slate-700">{row.project_name}</td>
                       <td className="px-4 py-3 text-slate-800">{row.custom_name}</td>
+                      <td className="px-4 py-3 text-center">
+                        {row.is_stone ? '🪨 Piedra' : '🪵 MDF'}
+                      </td>
                       <td className="px-4 py-3 text-right tabular-nums text-slate-700">
                         {row.declared_bundles}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleGenerateLabels(row.instance_id)}
-                          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
-                        >
-                          <Printer size={14} />
-                          🖨️ Generar Etiquetas
-                        </button>
+                        <div className="flex items-center justify-center gap-2">
+                          {row.is_stone ? (
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadManifest(row.instance_id)}
+                              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-blue-600 bg-blue-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700"
+                            >
+                              🪨 Descargar Manifiesto
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleGenerateLabels(row.instance_id)}
+                              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
+                            >
+                              <Printer size={14} />
+                              🖨️ Generar Etiquetas
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))

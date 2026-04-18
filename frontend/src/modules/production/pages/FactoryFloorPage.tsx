@@ -20,6 +20,7 @@ export default function FactoryFloorPage() {
   const [labelsRequestedInstanceIds, setLabelsRequestedInstanceIds] = useState<Record<number, boolean>>(
     {}
   );
+  const [stoneByInstanceId, setStoneByInstanceId] = useState<Record<number, number>>({});
 
   const batchesForView = useMemo(() => {
     if (materialFilter === 'ALL') return batches;
@@ -224,6 +225,44 @@ export default function FactoryFloorPage() {
     });
   };
 
+  const setStonePieces = (instanceId: number, raw: string) => {
+    const n = parseInt(raw);
+    const value = Number.isFinite(n) && n >= 1 ? n : 0;
+    setStoneByInstanceId((prev) => ({ ...prev, [instanceId]: value }));
+  };
+
+  const handleDeclareStonePieces = async (instanceId: number) => {
+    const pieces = stoneByInstanceId[instanceId];
+    if (!pieces || pieces < 1) {
+      alert('Ingresa al menos 1 pieza de piedra.');
+      return;
+    }
+    try {
+      const token = localStorage.getItem('token');
+      const baseUrl = import.meta.env.VITE_API_URL
+        || 'http://localhost:8000/api/v1';
+      const response = await fetch(
+        `${baseUrl}/production/instances/${instanceId}/stone_pieces`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ stone_pieces: pieces }),
+        }
+      );
+      if (!response.ok) {
+        const err = await response.json();
+        alert(`Error: ${err.detail}`);
+        return;
+      }
+      alert(`✅ ${pieces} piezas de piedra declaradas correctamente.`);
+    } catch {
+      alert('Error al declarar piezas. Verifica la conexión.');
+    }
+  };
+
   const renderColumnEmpaque = () => {
     const status = STATUS_PACKING;
     const columnBatches = batchesForView.filter((b) => b.status === status);
@@ -290,6 +329,32 @@ export default function FactoryFloorPage() {
                         />
                       </label>
                     </div>
+                    {batch.batch_type === 'PIEDRA' && (
+                      <div className="mt-3 pt-3 border-t border-violet-100">
+                        <label className="flex flex-col gap-1">
+                          <span className="text-[10px] font-bold text-gray-500 uppercase">
+                            Piezas de Piedra
+                          </span>
+                          <div className="flex gap-2">
+                            <input
+                              type="number"
+                              min={1}
+                              step={1}
+                              className="flex-1 border border-gray-200 rounded-md px-2 py-1.5 text-sm"
+                              value={stoneByInstanceId[instance.id] || ''}
+                              onChange={(e) => setStonePieces(instance.id, e.target.value)}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleDeclareStonePieces(instance.id)}
+                              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 transition"
+                            >
+                              🪨 Declarar
+                            </button>
+                          </div>
+                        </label>
+                      </div>
+                    )}
                     {labelsDone ? (
                       <p className="w-full py-2 text-center text-xs font-bold text-emerald-600">
                         ✓ Etiquetas solicitadas
