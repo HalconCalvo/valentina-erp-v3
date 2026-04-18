@@ -80,25 +80,46 @@ def request_labels(
     )
 
 
+def _generate_folio(db: Session, batch_type: str) -> str:
+    """
+    Genera el siguiente folio secuencial para un lote.
+    Formato: LOTE-MDF-0001, LOTE-MDF-0002, LOTE-PIEDRA-0001...
+    Busca el último folio del mismo tipo y suma 1.
+    """
+    prefix = f"LOTE-{batch_type.upper()}-"
+    existing = db.exec(
+        select(ProductionBatch)
+        .where(ProductionBatch.folio.startswith(prefix))
+        .order_by(ProductionBatch.id.desc())
+    ).all()
+
+    if not existing:
+        return f"{prefix}0001"
+
+    # Extraer el número del último folio y sumar 1
+    last_folio = existing[0].folio
+    try:
+        last_num = int(last_folio.replace(prefix, ""))
+        next_num = last_num + 1
+    except ValueError:
+        next_num = len(existing) + 1
+
+    return f"{prefix}{str(next_num).zfill(4)}"
+
+
 @router.post("/", response_model=ProductionBatch, status_code=status.HTTP_201_CREATED)
 def create_production_batch(
     *,
     db: Session = Depends(get_session),
-    folio: str,
     batch_type: str,
     estimated_merma_percent: float = 0.0
 ):
     """
-    Crea un nuevo Lote de Producción (Borrador).
+    Crea un nuevo Lote de Producción con folio secuencial automático.
+    El folio ya no se recibe del frontend — se genera en el backend.
     """
-    # Verificar que el folio no exista
-    existing_batch = db.exec(select(ProductionBatch).where(ProductionBatch.folio == folio)).first()
-    if existing_batch:
-        raise HTTPException(
-            status_code=400,
-            detail="Ya existe un lote con este folio."
-        )
-    
+    folio = _generate_folio(db, batch_type)
+
     new_batch = ProductionBatch(
         folio=folio,
         batch_type=batch_type,
@@ -113,7 +134,10 @@ def create_production_batch(
 
 @router.get("/", response_model=List[ProductionBatchResponse])
 def read_batches(db: Session = Depends(get_session)):
-    batches = db.exec(select(ProductionBatch)).all()
+    batches = db.exec(
+        select(ProductionBatch)
+        .order_by(ProductionBatch.id.asc())
+    ).all()
     result = []
     
     for batch in batches:
@@ -250,10 +274,22 @@ def assign_instance_to_batch(
             .where(VersionComponent.version_id == item.origin_version_id)
         ).all()
 
+        # Categorías inventariables según tipo de lote
+        if batch.batch_type.upper() == "MDF":
+            skip_categories = {"PROCESO", "PIEDRA"}
+        elif batch.batch_type.upper() == "PIEDRA":
+            skip_categories = {
+                "PROCESO", "TABLERO", "HERRAJES",
+                "CHAPACINTA", "ACCESORIO", "ELECTRICIDAD",
+                "ELECTRODOMÉSTICO", "ESPECIAL",
+                "INSUMOS", "VIDRIO",
+            }
+        else:
+            skip_categories = {"PROCESO"}
+
         for comp in components:
             material = db.get(Material, comp.material_id)
-            # Saltar materiales de tipo PROCESO — no son inventariables
-            if material and (material.category or "").upper() == "PROCESO":
+            if material and (material.category or "").upper() in skip_categories:
                 continue
 
             reservation = InventoryReservation(

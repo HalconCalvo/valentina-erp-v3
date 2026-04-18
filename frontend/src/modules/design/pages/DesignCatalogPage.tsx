@@ -99,9 +99,11 @@ const DesignCatalogPage: React.FC = () => {
         setLoadingLiveBatches(true);
         try {
             const data = await productionService.getBatches();
-            const live = data.filter((b: any) =>
-                ['DRAFT', 'ON_HOLD', 'IN_PRODUCTION'].includes(b.status)
-            );
+            const live = data
+                .filter((b: any) =>
+                    ['DRAFT', 'ON_HOLD', 'IN_PRODUCTION'].includes(b.status)
+                )
+                .sort((a: any, b: any) => a.id - b.id);
             setLiveBatches(live);
         } catch {
             console.error('Error cargando lotes vivos');

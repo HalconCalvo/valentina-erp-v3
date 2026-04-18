@@ -70,9 +70,7 @@ export default function SimulatorPage() {
     
     setCreating(true);
     try {
-      const randomId = Math.floor(Math.random() * 10000);
       const newBatch = await productionService.createBatch({
-        folio: `LOTE-${batchType}-${randomId}`,
         batch_type: batchType,
         estimated_merma_percent: 5.0
       });
@@ -94,6 +92,33 @@ export default function SimulatorPage() {
     } catch (error) {
       console.error("Error creando el lote:", error);
       alert("Hubo un error al inyectar el lote en fábrica.");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleCreateStoneBatch = async () => {
+    if (selectedIds.length === 0) return;
+    setCreating(true);
+    try {
+      const newBatch = await productionService.createBatch({
+        batch_type: 'PIEDRA',
+        estimated_merma_percent: 0.0,
+      });
+
+      for (const instanceId of selectedIds) {
+        await productionService.assignInstanceToBatch(
+          newBatch.id, instanceId
+        );
+      }
+
+      alert(`✅ Lote ${newBatch.folio} de Piedra creado en Producción.`);
+      setSelectedIds([]);
+      setSimulationResult(null);
+      loadPendingInstances();
+    } catch (error: any) {
+      const serverError = error.response?.data?.detail || error.message;
+      alert(`Error al crear lote de Piedra:\n${JSON.stringify(serverError, null, 2)}`);
     } finally {
       setCreating(false);
     }
@@ -302,25 +327,45 @@ export default function SimulatorPage() {
               <div className="flex-1">
                 <label className="block text-sm font-bold text-slate-700 mb-2">Línea de Producción:</label>
                 <div className="flex gap-4">
-                  <label className={`flex-1 p-3 border rounded-lg cursor-pointer flex items-center justify-center gap-2 font-bold transition ${batchType === 'MDF' ? 'bg-slate-800 text-white border-slate-800 shadow-md' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}>
+                  <label className={`flex-1 p-3 border rounded-lg cursor-pointer flex flex-col items-center justify-center gap-1 font-bold transition ${batchType === 'MDF' ? 'bg-slate-800 text-white border-slate-800 shadow-md' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}>
                     <input type="radio" name="bType" className="hidden" checked={batchType === 'MDF'} onChange={() => {setBatchType('MDF'); setSimulationResult(null);}} />
-                    Lote MDF / Tablero
+                    <span>Lote MDF</span>
+                    <span className={`text-[10px] font-normal ${batchType === 'MDF' ? 'text-slate-300' : 'text-slate-400'}`}>
+                      Requiere simulación de inventario
+                    </span>
                   </label>
-                  <label className={`flex-1 p-3 border rounded-lg cursor-pointer flex items-center justify-center gap-2 font-bold transition ${batchType === 'PIEDRA' ? 'bg-slate-800 text-white border-slate-800 shadow-md' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}>
+                  <label className={`flex-1 p-3 border rounded-lg cursor-pointer flex flex-col items-center justify-center gap-1 font-bold transition ${batchType === 'PIEDRA' ? 'bg-slate-800 text-white border-slate-800 shadow-md' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}>
                     <input type="radio" name="bType" className="hidden" checked={batchType === 'PIEDRA'} onChange={() => {setBatchType('PIEDRA'); setSimulationResult(null);}} />
-                    Lote PIEDRA
+                    <span>Lote Piedra</span>
+                    <span className={`text-[10px] font-normal ${batchType === 'PIEDRA' ? 'text-slate-300' : 'text-slate-400'}`}>
+                      Creación directa sin simulación
+                    </span>
                   </label>
                 </div>
               </div>
               
               <div className="flex items-end pt-6">
-                <button 
-                  onClick={handleSimulate}
-                  disabled={selectedIds.length === 0 || simulating}
-                  className="bg-blue-600 text-white px-8 py-3 rounded-lg font-bold shadow hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
-                >
-                  {simulating ? <><RefreshCw className="animate-spin" size={18}/> Calculando...</> : 'Ejecutar Simulación'}
-                </button>
+                {batchType === 'MDF' ? (
+                  <button
+                    onClick={handleSimulate}
+                    disabled={selectedIds.length === 0 || simulating}
+                    className="bg-blue-600 text-white px-8 py-3 rounded-lg font-bold shadow hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
+                  >
+                    {simulating
+                      ? <><RefreshCw className="animate-spin" size={18}/> Calculando...</>
+                      : 'Ejecutar Simulación'}
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleCreateStoneBatch}
+                    disabled={selectedIds.length === 0 || creating}
+                    className="bg-stone-700 text-white px-8 py-3 rounded-lg font-bold shadow hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
+                  >
+                    {creating
+                      ? <><RefreshCw className="animate-spin" size={18}/> Creando...</>
+                      : <><Factory size={18}/> Crear Lote Piedra</>}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -329,9 +374,25 @@ export default function SimulatorPage() {
           <div className="flex-1 p-6 bg-slate-50 overflow-y-auto">
             {!simulationResult ? (
               <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm gap-2">
-                <Beaker size={40} className="opacity-20 mb-2" />
-                <p>Selecciona órdenes en el radar y ejecuta el simulador</p>
-                <p>para ver el cruce de inventario.</p>
+                {batchType === 'MDF' ? (
+                  <>
+                    <Beaker size={40} className="opacity-20 mb-2" />
+                    <p>Selecciona órdenes en el radar y ejecuta el simulador</p>
+                    <p>para ver el cruce de inventario.</p>
+                  </>
+                ) : (
+                  <>
+                    <Factory size={40} className="opacity-20 mb-2" />
+                    <p className="font-semibold text-slate-500">
+                      Lote de Piedra
+                    </p>
+                    <p>Selecciona las instancias y haz clic en</p>
+                    <p><b>Crear Lote Piedra</b> para enviarlo directamente a Producción.</p>
+                    <p className="text-xs mt-2 text-slate-300">
+                      No se requiere simulación de inventario.
+                    </p>
+                  </>
+                )}
               </div>
             ) : (
               <div className="animate-in slide-in-from-bottom-2">

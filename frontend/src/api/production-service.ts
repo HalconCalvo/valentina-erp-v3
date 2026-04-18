@@ -9,8 +9,17 @@ export const productionService = {
   },
   
   // Crear un nuevo lote 
-  createBatch: async (data: { folio: string; batch_type: string; estimated_merma_percent?: number }): Promise<ProductionBatch> => {
-    const response = await axiosClient.post('/production/', null, { params: data });
+  createBatch: async (data: { batch_type: string; estimated_merma_percent?: number }): Promise<ProductionBatch> => {
+    const response = await axiosClient.post(
+      '/production/',
+      null,
+      {
+        params: {
+          batch_type: data.batch_type,
+          estimated_merma_percent: data.estimated_merma_percent ?? 5.0,
+        },
+      }
+    );
     return response.data;
   },
 
