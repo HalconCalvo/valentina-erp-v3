@@ -127,7 +127,11 @@ class SalesOrderItemInstance(SQLModel, table=True):
     
     custom_name: str = Field(index=True)  
     production_status: InstanceStatus = Field(default=InstanceStatus.PENDING)
-    production_batch_id: Optional[int] = Field(default=None) 
+    production_batch_id: Optional[int] = Field(default=None)
+    stone_batch_id: Optional[int] = Field(
+        default=None,
+        foreign_key="production_batches.id",
+    )
     is_cancelled: bool = Field(default=False) 
     
     qr_code: Optional[str] = Field(default=None, unique=True, index=True) 

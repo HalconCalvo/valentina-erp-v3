@@ -125,10 +125,11 @@ export const designService = {
     // ==========================================
     // SIMULADOR Y LOTIFICACIÓN (NUEVO)
     // ==========================================
-    getPendingInstances: async (): Promise<PendingInstance[]> => {
-        // En caso de que API_ROUTES no lo tenga, usamos la ruta directa
+    getPendingInstances: async (batchType: string = 'MDF'): Promise<PendingInstance[]> => {
         const url = '/design/pending_instances';
-        const response = await axiosClient.get(url);
+        const response = await axiosClient.get(url, {
+            params: { batch_type: batchType },
+        });
         return response.data;
     },
 

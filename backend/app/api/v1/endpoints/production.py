@@ -257,7 +257,10 @@ def assign_instance_to_batch(
     # ---------------------------------------------------------
 
     # Si pasa los candados, asignamos la llave foránea y cambiamos el estatus
-    instance.production_batch_id = batch.id
+    if batch.batch_type.upper() == "PIEDRA":
+        instance.stone_batch_id = batch.id
+    else:
+        instance.production_batch_id = batch.id
     instance.production_status = InstanceStatus.IN_PRODUCTION
     
     db.add(instance)

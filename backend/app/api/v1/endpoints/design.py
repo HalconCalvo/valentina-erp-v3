@@ -186,6 +186,36 @@ def delete_product_master(
 # 2. GESTIÓN DE VERSIONES (Recetas)
 # ==========================================
 
+MDF_CATEGORIES = {"TABLERO"}
+STONE_CATEGORIES = {"PIEDRA"}
+
+
+def _update_version_flags(
+    version: ProductVersion,
+    components: list,
+    session: Session,
+) -> None:
+    """
+    Calcula y actualiza has_mdf_components y has_stone_components
+    según los materiales de la receta. Se llama al crear o editar.
+    """
+    has_mdf = False
+    has_stone = False
+    for comp in components:
+        material = session.get(Material, comp.material_id)
+        if not material:
+            continue
+        cat = (material.category or "").upper()
+        if cat in MDF_CATEGORIES:
+            has_mdf = True
+        if cat in STONE_CATEGORIES:
+            has_stone = True
+        if has_mdf and has_stone:
+            break
+    version.has_mdf_components = has_mdf
+    version.has_stone_components = has_stone
+
+
 @router.post("/versions", response_model=ProductVersionRead)
 def create_product_version(
     version_in: ProductVersionCreate,
@@ -259,6 +289,11 @@ def create_product_version(
 
     # 3. Consolidar el costo y cerrar la transacción
     db_version.estimated_cost = round(total_estimated_cost, 2)
+    all_comps = session.exec(
+        select(VersionComponent)
+        .where(VersionComponent.version_id == db_version.id)
+    ).all()
+    _update_version_flags(db_version, all_comps, session)
     session.add(db_version)
     session.commit()
     session.refresh(db_version)
@@ -305,8 +340,13 @@ def update_product_version(
             session.add(new_comp)
 
     db_version.estimated_cost = round(total_estimated_cost, 2)
+    all_comps = session.exec(
+        select(VersionComponent)
+        .where(VersionComponent.version_id == db_version.id)
+    ).all()
+    _update_version_flags(db_version, all_comps, session)
     session.add(db_version)
-    
+
     session.commit()
     session.refresh(db_version)
     return db_version
@@ -619,19 +659,27 @@ _CONFIRMED_ORDER_STATUSES = {
 
 @router.get("/pending_instances", response_model=List[PendingInstanceResponse])
 def get_pending_instances(
+    batch_type: str = "MDF",
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
     """
     Instancias sin lote asignado cuya OV está confirmada.
     Regla ampliada: incluye OVs con anticipo pagado (PARTIAL/PAID)
     O cuyo estatus de orden ya es WAITING_ADVANCE/SOLD/IN_PRODUCTION.
     """
-    instances = session.exec(
-        select(SalesOrderItemInstance)
-        .where(SalesOrderItemInstance.production_batch_id == None)
-        .where(SalesOrderItemInstance.is_cancelled == False)
-    ).all()
+    if batch_type.upper() == "PIEDRA":
+        instances = session.exec(
+            select(SalesOrderItemInstance)
+            .where(SalesOrderItemInstance.stone_batch_id == None)
+            .where(SalesOrderItemInstance.is_cancelled == False)
+        ).all()
+    else:
+        instances = session.exec(
+            select(SalesOrderItemInstance)
+            .where(SalesOrderItemInstance.production_batch_id == None)
+            .where(SalesOrderItemInstance.is_cancelled == False)
+        ).all()
 
     result = []
     for inst in instances:
@@ -649,14 +697,29 @@ def get_pending_instances(
         is_paid = order.payment_status in [PaymentStatus.PARTIAL, PaymentStatus.PAID]
         is_confirmed_status = order.status in _CONFIRMED_ORDER_STATUSES
 
-        if is_paid or is_confirmed_status:
-            result.append(PendingInstanceResponse(
-                id=inst.id,
-                custom_name=inst.custom_name,
-                product_name=item.product_name,
-                order_project_name=order.project_name,
-                order_id=order.id,
-            ))
+        if not (is_paid or is_confirmed_status):
+            continue
+
+        version = (
+            session.get(ProductVersion, item.origin_version_id)
+            if item.origin_version_id
+            else None
+        )
+
+        if batch_type.upper() == "PIEDRA":
+            if version and not version.has_stone_components:
+                continue
+        else:
+            if version and not version.has_mdf_components:
+                continue
+
+        result.append(PendingInstanceResponse(
+            id=inst.id,
+            custom_name=inst.custom_name,
+            product_name=item.product_name,
+            order_project_name=order.project_name,
+            order_id=order.id,
+        ))
     return result
 
 

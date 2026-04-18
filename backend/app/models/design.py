@@ -48,6 +48,9 @@ class ProductVersion(SQLModel, table=True):
 
     # Días de instalación presupuestados (base para nómina a destajo)
     installation_days: float = Field(default=1.0)
+
+    has_mdf_components: bool = Field(default=False)
+    has_stone_components: bool = Field(default=False)
     
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)

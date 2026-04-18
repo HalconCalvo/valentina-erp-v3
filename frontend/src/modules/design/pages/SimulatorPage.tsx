@@ -29,12 +29,14 @@ export default function SimulatorPage() {
 
   useEffect(() => {
     loadPendingInstances();
-  }, []);
+    setSelectedIds([]);
+    setSimulationResult(null);
+  }, [batchType]);
 
   const loadPendingInstances = async () => {
     setLoadingRadar(true);
     try {
-      const data = await designService.getPendingInstances();
+      const data = await designService.getPendingInstances(batchType);
       setPendingInstances(data);
     } catch (error) {
       console.error("Error cargando el radar:", error);
