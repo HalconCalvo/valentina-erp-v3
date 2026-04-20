@@ -245,12 +245,23 @@ def assign_instance_to_batch(
             detail="CANDADO RTM: Esta instancia está cancelada. No puede pasar a producción."
         )
     
-    # Regla B: Solo instancias en estado PENDING pueden asignarse a un lote nuevo
-    if instance.production_status != InstanceStatus.PENDING:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"CANDADO RTM: La instancia ya está en proceso o terminada (Estatus: {instance.production_status})."
-        )
+    # Regla B: Verificar que el lote correspondiente no esté asignado
+    if batch.batch_type.upper() == "PIEDRA":
+        if instance.stone_batch_id is not None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"CANDADO RTM: Esta instancia ya tiene un "
+                       f"Lote Piedra asignado "
+                       f"(stone_batch_id={instance.stone_batch_id})."
+            )
+    else:  # MDF u otros
+        if instance.production_batch_id is not None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"CANDADO RTM: Esta instancia ya tiene un "
+                       f"Lote MDF asignado "
+                       f"(production_batch_id={instance.production_batch_id})."
+            )
         
     # (Futuro) Regla C: Aquí podríamos cruzar con Tesorería para ver si la orden de venta tiene anticipo pagado.
 

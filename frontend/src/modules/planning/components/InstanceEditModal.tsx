@@ -21,6 +21,7 @@ interface Props {
   readOnly?: boolean;
   /** Notificado al elegir un día en el mini calendario */
   onDateSelect?: (dateStr: string, laneCode: string) => void;
+  onUnscheduleAll?: () => void;
 }
 
 const LANE_META = [
@@ -77,7 +78,7 @@ function formatDisplayDate(dateValue: string): string {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function InstanceEditModal({ instance, onClose, onSaved, readOnly = false, onDateSelect }: Props) {
+export default function InstanceEditModal({ instance, onClose, onSaved, readOnly = false, onDateSelect, onUnscheduleAll }: Props) {
   const [name, setName]   = useState('');
   const [dates, setDates] = useState<Record<LaneField, string>>({
     scheduled_prod_mdf:   '',
@@ -168,11 +169,27 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
     setError(null);
     try {
       await planningService.updateInstance(instance.id, {
-        custom_name:          name.trim() || instance.custom_name,
-        scheduled_prod_mdf:   fromInputValue(dates.scheduled_prod_mdf),
-        scheduled_prod_stone: fromInputValue(dates.scheduled_prod_stone),
-        scheduled_inst_mdf:   fromInputValue(dates.scheduled_inst_mdf),
-        scheduled_inst_stone: fromInputValue(dates.scheduled_inst_stone),
+        custom_name: name.trim() || instance.custom_name,
+        scheduled_prod_mdf: dates.scheduled_prod_mdf
+          ? fromInputValue(dates.scheduled_prod_mdf)
+          : undefined,
+        scheduled_prod_stone: dates.scheduled_prod_stone
+          ? fromInputValue(dates.scheduled_prod_stone)
+          : undefined,
+        scheduled_inst_mdf: dates.scheduled_inst_mdf
+          ? fromInputValue(dates.scheduled_inst_mdf)
+          : undefined,
+        scheduled_inst_stone: dates.scheduled_inst_stone
+          ? fromInputValue(dates.scheduled_inst_stone)
+          : undefined,
+        clear_prod_mdf: !dates.scheduled_prod_mdf &&
+          !!instance.schedule.PM,
+        clear_prod_stone: !dates.scheduled_prod_stone &&
+          !!instance.schedule.PP,
+        clear_inst_mdf: !dates.scheduled_inst_mdf &&
+          !!instance.schedule.IM,
+        clear_inst_stone: !dates.scheduled_inst_stone &&
+          !!instance.schedule.IP,
       });
       onSaved();
       onClose();
@@ -678,12 +695,36 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
 
         {/* ── Footer ── */}
         <div className="px-6 pb-6 pt-2 flex justify-between items-center gap-3 border-t border-slate-100">
-          {readOnly ? (
-            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-1 rounded-lg border border-slate-200">
-              👁 Solo Lectura
-            </span>
-          ) : <span />}
-          <div className="flex gap-3">
+          {/* Izquierda: Desprogramar todo */}
+          <div>
+            {!readOnly &&
+              (instance.schedule.PM ||
+                instance.schedule.PP ||
+                instance.schedule.IM ||
+                instance.schedule.IP) && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (!window.confirm(
+                    '¿Desprogramar todos los procesos de esta instancia?\n\n' +
+                    'Se eliminarán PM, PP, IM e IP del calendario.'
+                  )) return;
+                  onUnscheduleAll?.();
+                }}
+                className="px-4 py-2 text-sm font-bold text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition"
+              >
+                🗑️ Desprogramar todo
+              </button>
+            )}
+          </div>
+
+          {/* Derecha: readonly badge + Cancelar + Guardar */}
+          <div className="flex gap-3 items-center">
+            {readOnly ? (
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-1 rounded-lg border border-slate-200">
+                👁 Solo Lectura
+              </span>
+            ) : null}
             <button
               onClick={onClose}
               className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-50 transition"

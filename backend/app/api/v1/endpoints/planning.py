@@ -11,7 +11,7 @@ Rutas:
   PATCH /planning/orders/{order_id}/baptize → Bautizo masivo de instancias (custom_names)
 """
 from datetime import datetime, date
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Union
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -45,11 +45,19 @@ router = APIRouter()
 # ============================================================
 
 class InstanceScheduleUpdate(BaseModel):
+    model_config = {"populate_by_name": True}
+
     custom_name: Optional[str] = None
-    scheduled_prod_mdf: Optional[datetime] = None
-    scheduled_prod_stone: Optional[datetime] = None
-    scheduled_inst_mdf: Optional[datetime] = None
-    scheduled_inst_stone: Optional[datetime] = None
+    scheduled_prod_mdf: Union[datetime, None] = None
+    scheduled_prod_stone: Union[datetime, None] = None
+    scheduled_inst_mdf: Union[datetime, None] = None
+    scheduled_inst_stone: Union[datetime, None] = None
+
+    # Campos explícitos para indicar "borrar esta fecha"
+    clear_prod_mdf: bool = False
+    clear_prod_stone: bool = False
+    clear_inst_mdf: bool = False
+    clear_inst_stone: bool = False
 
 
 class ReschedulePayload(BaseModel):
@@ -341,13 +349,29 @@ def update_instance_schedule(
 
     if payload.custom_name is not None:
         inst.custom_name = payload.custom_name
-    if payload.scheduled_prod_mdf is not None:
+
+    # Prod MDF
+    if payload.clear_prod_mdf:
+        inst.scheduled_prod_mdf = None
+    elif payload.scheduled_prod_mdf is not None:
         inst.scheduled_prod_mdf = payload.scheduled_prod_mdf
-    if payload.scheduled_prod_stone is not None:
+
+    # Prod Stone
+    if payload.clear_prod_stone:
+        inst.scheduled_prod_stone = None
+    elif payload.scheduled_prod_stone is not None:
         inst.scheduled_prod_stone = payload.scheduled_prod_stone
-    if payload.scheduled_inst_mdf is not None:
+
+    # Inst MDF
+    if payload.clear_inst_mdf:
+        inst.scheduled_inst_mdf = None
+    elif payload.scheduled_inst_mdf is not None:
         inst.scheduled_inst_mdf = payload.scheduled_inst_mdf
-    if payload.scheduled_inst_stone is not None:
+
+    # Inst Stone
+    if payload.clear_inst_stone:
+        inst.scheduled_inst_stone = None
+    elif payload.scheduled_inst_stone is not None:
         inst.scheduled_inst_stone = payload.scheduled_inst_stone
 
     session.add(inst)

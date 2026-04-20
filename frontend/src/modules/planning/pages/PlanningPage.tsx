@@ -186,6 +186,23 @@ export default function PlanningPage() {
 
   const handleModalSaved = () => handleRefresh();
 
+  const handleUnscheduleAll = useCallback(async () => {
+    if (!editingInstance) return;
+    try {
+      await planningService.updateInstance(editingInstance.id, {
+        clear_prod_mdf:   true,
+        clear_prod_stone: true,
+        clear_inst_mdf:   true,
+        clear_inst_stone: true,
+      });
+      setEditingInstance(null);
+      setHighlightDays({});
+      handleRefresh();
+    } catch {
+      alert('Error al desprogramar la instancia. Intenta de nuevo.');
+    }
+  }, [editingInstance, handleRefresh]);
+
   // Inicializar resaltados del mes con las fechas ya guardadas en la instancia editada
   useEffect(() => {
     if (!editingInstance) return;
@@ -305,7 +322,31 @@ export default function PlanningPage() {
       </div>
 
       {/* ─── PANEL DE SALUD (right, fixed ~288px) ─── */}
-      <div className="w-72 shrink-0 overflow-hidden">
+      <div
+        className="w-72 shrink-0 overflow-hidden"
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          const instanceId = e.dataTransfer.getData('pill_instance_id');
+          if (!instanceId) return;
+          const id = Number(instanceId);
+          if (!window.confirm(
+            '¿Desprogramar todos los procesos de esta instancia?\n\n' +
+            'Se eliminarán PM, PP, IM e IP del calendario.'
+          )) return;
+          planningService.updateInstance(id, {
+            clear_prod_mdf:   true,
+            clear_prod_stone: true,
+            clear_inst_mdf:   true,
+            clear_inst_stone: true,
+          })
+            .then(() => handleRefresh())
+            .catch(() => alert('Error al desprogramar.'));
+        }}
+      >
         <HealthSidebar
           data={health.data}
           loading={health.loading}
@@ -327,6 +368,7 @@ export default function PlanningPage() {
             setHighlightDays({});
           }}
           onSaved={handleModalSaved}
+          onUnscheduleAll={handleUnscheduleAll}
           readOnly={readOnly}
           onDateSelect={(dateStr, laneCode) =>
             setHighlightDays(prev => {

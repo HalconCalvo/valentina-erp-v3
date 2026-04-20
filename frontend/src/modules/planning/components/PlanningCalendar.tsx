@@ -413,6 +413,7 @@ export default function PlanningCalendar({
     if (readOnly) return;
     setDragState({ pill, sourceDate: dayKey });
     e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('pill_instance_id', String(pill.instance_id));
   }, [readOnly]);
 
   const handleDragOver = useCallback((e: React.DragEvent, dayKey: string) => {

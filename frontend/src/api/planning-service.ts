@@ -82,6 +82,10 @@ export const planningService = {
     scheduled_prod_stone: string | null;
     scheduled_inst_mdf: string | null;
     scheduled_inst_stone: string | null;
+    clear_prod_mdf: boolean;
+    clear_prod_stone: boolean;
+    clear_inst_mdf: boolean;
+    clear_inst_stone: boolean;
   }>) =>
     client.patch<InstanceSchedule>(API_ROUTES.PLANNING.INSTANCE(id), data),
 
