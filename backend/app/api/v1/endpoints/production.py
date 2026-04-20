@@ -401,7 +401,11 @@ def delete_production_batch(
 
     for inst in instances:
         inst.production_status = InstanceStatus.PENDING
-        inst.production_batch_id = None
+        # Limpiar el campo correcto según tipo de lote
+        if batch.batch_type.upper() == "PIEDRA":
+            inst.stone_batch_id = None
+        else:
+            inst.production_batch_id = None
         db.add(inst)
 
     # 2. Cancelar reservas y liberar committed_stock
