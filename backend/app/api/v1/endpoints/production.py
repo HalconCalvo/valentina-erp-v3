@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from typing import List, Optional
+from sqlalchemy import or_
 from sqlmodel import Session, select
 
 # Asumiendo que tu dependencia de base de datos está en app.api.deps o app.db.session
@@ -394,10 +395,16 @@ def delete_production_batch(
     folio = batch.folio
 
     # 1. Regresar instancias a PENDING
-    instances = db.exec(
-        select(SalesOrderItemInstance)
-        .where(SalesOrderItemInstance.production_batch_id == batch_id)
-    ).all()
+    if batch.batch_type.upper() == "PIEDRA":
+        instances = db.exec(
+            select(SalesOrderItemInstance)
+            .where(SalesOrderItemInstance.stone_batch_id == batch_id)
+        ).all()
+    else:
+        instances = db.exec(
+            select(SalesOrderItemInstance)
+            .where(SalesOrderItemInstance.production_batch_id == batch_id)
+        ).all()
 
     for inst in instances:
         inst.production_status = InstanceStatus.PENDING
