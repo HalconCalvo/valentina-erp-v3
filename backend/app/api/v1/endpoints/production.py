@@ -25,6 +25,8 @@ class InstanceDetail(BaseModel):
     order_folio: Optional[str] = None
     client_name: Optional[str] = None
     project_name: Optional[str] = None
+    key_material_sku: Optional[str] = None
+    key_material_name: Optional[str] = None
 
 class ProductionBatchResponse(BaseModel):
     id: int
@@ -201,6 +203,29 @@ def read_batches(db: Session = Depends(get_session)):
                         if client:
                             client_name = client.full_name
 
+            # Material clave según tipo de lote
+            key_material_sku = None
+            key_material_name = None
+
+            if item and item.origin_version_id:
+                components = db.exec(
+                    select(VersionComponent)
+                    .where(VersionComponent.version_id == item.origin_version_id)
+                ).all()
+                for comp in components:
+                    mat = db.get(Material, comp.material_id)
+                    if not mat:
+                        continue
+                    cat = (mat.category or '').upper()
+                    if batch.batch_type.upper() == 'PIEDRA' and cat == 'PIEDRA':
+                        key_material_sku = mat.sku
+                        key_material_name = mat.name
+                        break
+                    elif batch.batch_type.upper() != 'PIEDRA' and cat == 'TABLERO':
+                        key_material_sku = mat.sku
+                        key_material_name = mat.name
+                        break
+
             enriched_instances.append(InstanceDetail(
                 id=i.id,
                 custom_name=i.custom_name,
@@ -213,6 +238,8 @@ def read_batches(db: Session = Depends(get_session)):
                 order_folio=order_folio,
                 client_name=client_name,
                 project_name=project_name,
+                key_material_sku=key_material_sku,
+                key_material_name=key_material_name,
             ))
 
         batch_data["instances"] = enriched_instances
@@ -280,8 +307,9 @@ def assign_instance_to_batch(
         instance.stone_batch_id = batch.id
     else:
         instance.production_batch_id = batch.id
-    instance.production_status = InstanceStatus.IN_PRODUCTION
-    
+    # NO cambiamos production_status aquí.
+    # El status cambia cuando el Jefe mueve el lote a IN_PRODUCTION.
+
     db.add(instance)
 
     # Leer BOM de la instancia para comprometer material
@@ -356,10 +384,17 @@ def update_batch_status(batch_id: int, status: str, db: Session = Depends(get_se
         ProductionBatchStatus.IN_PRODUCTION,
         ProductionBatchStatus.READY_TO_INSTALL,
     ):
-        instances = db.exec(
-            select(SalesOrderItemInstance)
-            .where(SalesOrderItemInstance.production_batch_id == batch_id)
-        ).all()
+        # Buscar instancias según tipo de lote
+        if batch.batch_type.upper() == "PIEDRA":
+            instances = db.exec(
+                select(SalesOrderItemInstance)
+                .where(SalesOrderItemInstance.stone_batch_id == batch_id)
+            ).all()
+        else:
+            instances = db.exec(
+                select(SalesOrderItemInstance)
+                .where(SalesOrderItemInstance.production_batch_id == batch_id)
+            ).all()
 
         if new_status == ProductionBatchStatus.IN_PRODUCTION:
             for inst in instances:
