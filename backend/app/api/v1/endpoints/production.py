@@ -143,10 +143,17 @@ def read_batches(db: Session = Depends(get_session)):
     
     for batch in batches:
         # 1. Obtener instancias (bultos) asignadas a este lote
-        instances = db.exec(
-            select(SalesOrderItemInstance)
-            .where(SalesOrderItemInstance.production_batch_id == batch.id)
-        ).all()
+        # Buscar instancias según tipo de lote
+        if batch.batch_type.upper() == "PIEDRA":
+            instances = db.exec(
+                select(SalesOrderItemInstance)
+                .where(SalesOrderItemInstance.stone_batch_id == batch.id)
+            ).all()
+        else:
+            instances = db.exec(
+                select(SalesOrderItemInstance)
+                .where(SalesOrderItemInstance.production_batch_id == batch.id)
+            ).all()
         
         # 2. Lógica Financiera: Buscar si hay adeudos en las órdenes vinculadas
         is_payment_cleared = True
