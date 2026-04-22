@@ -61,4 +61,11 @@ export const productionService = {
     const response = await axiosClient.delete(`/production/${batchId}`);
     return response.data;
   },
+
+  markInstanceReady: async (instanceId: number): Promise<any> => {
+    const response = await axiosClient.patch(
+      `/production/instances/${instanceId}/ready`
+    );
+    return response.data;
+  },
 };

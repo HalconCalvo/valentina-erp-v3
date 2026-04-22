@@ -175,7 +175,25 @@ def read_batches(db: Session = Depends(get_session)):
     for batch in batches:
         # 1. Obtener instancias (bultos) asignadas a este lote
         # Buscar instancias según tipo de lote
-        if batch.batch_type.upper() == "PIEDRA":
+        if batch.status == ProductionBatchStatus.PACKING:
+            # En empaque: solo instancias que aún no son READY
+            if batch.batch_type.upper() == "PIEDRA":
+                instances = db.exec(
+                    select(SalesOrderItemInstance)
+                    .where(
+                        SalesOrderItemInstance.stone_batch_id == batch.id,
+                        SalesOrderItemInstance.production_status != InstanceStatus.READY,
+                    )
+                ).all()
+            else:
+                instances = db.exec(
+                    select(SalesOrderItemInstance)
+                    .where(
+                        SalesOrderItemInstance.production_batch_id == batch.id,
+                        SalesOrderItemInstance.production_status != InstanceStatus.READY,
+                    )
+                ).all()
+        elif batch.batch_type.upper() == "PIEDRA":
             instances = db.exec(
                 select(SalesOrderItemInstance)
                 .where(SalesOrderItemInstance.stone_batch_id == batch.id)
@@ -185,7 +203,7 @@ def read_batches(db: Session = Depends(get_session)):
                 select(SalesOrderItemInstance)
                 .where(SalesOrderItemInstance.production_batch_id == batch.id)
             ).all()
-        
+
         # 2. Lógica Financiera: Buscar si hay adeudos en las órdenes vinculadas
         is_payment_cleared = True
         if not instances:
@@ -627,3 +645,109 @@ def get_instance_herrajes(
         order_folio=order_folio,
         herrajes=herrajes,
     )
+
+
+@router.get("/instances/ready")
+def get_ready_instances(db: Session = Depends(get_session)):
+    """
+    Devuelve todas las instancias con production_status = READY
+    enriquecidas con OV, cliente y proyecto.
+    """
+    instances = db.exec(
+        select(SalesOrderItemInstance)
+        .where(
+            SalesOrderItemInstance.production_status == InstanceStatus.READY
+        )
+    ).all()
+
+    result = []
+    for i in instances:
+        order_folio = None
+        client_name = None
+        project_name = None
+        batch_folio = None
+        qr_code = i.qr_code
+
+        item = db.exec(
+            select(SalesOrderItem)
+            .where(SalesOrderItem.id == i.sales_order_item_id)
+        ).first()
+        if item:
+            order = db.exec(
+                select(SalesOrder)
+                .where(SalesOrder.id == item.sales_order_id)
+            ).first()
+            if order:
+                order_folio = f"OV-{str(order.id).zfill(4)}"
+                project_name = order.project_name
+                if order.client_id:
+                    client = db.get(Client, order.client_id)
+                    if client:
+                        client_name = client.full_name
+
+        # Obtener folio del lote
+        batch_id = i.production_batch_id or i.stone_batch_id
+        if batch_id:
+            batch = db.get(ProductionBatch, batch_id)
+            if batch:
+                batch_folio = batch.folio
+
+        result.append({
+            "id": i.id,
+            "custom_name": i.custom_name,
+            "production_status": (
+                i.production_status.value
+                if hasattr(i.production_status, 'value')
+                else i.production_status
+            ),
+            "qr_code": qr_code,
+            "order_folio": order_folio,
+            "client_name": client_name,
+            "project_name": project_name,
+            "batch_folio": batch_folio,
+        })
+
+    return result
+
+
+@router.patch("/instances/{instance_id}/ready")
+def mark_instance_ready(
+    instance_id: int,
+    db: Session = Depends(get_session),
+):
+    """
+    Mueve una instancia individual de IN_PRODUCTION a READY.
+    Se usa al arrastrar desde Empaque a Listo para Instalarse.
+    """
+    instance = db.get(SalesOrderItemInstance, instance_id)
+    if not instance:
+        raise HTTPException(
+            status_code=404, detail="Instancia no encontrada."
+        )
+    # Si ya está READY, es idempotente — no hacer nada
+    if instance.production_status == InstanceStatus.READY:
+        return {
+            "instance_id": instance.id,
+            "custom_name": instance.custom_name,
+            "production_status": instance.production_status,
+        }
+
+    # Acepta IN_PRODUCTION o cualquier status activo
+    if instance.production_status not in [
+        InstanceStatus.IN_PRODUCTION,
+        InstanceStatus.PENDING,
+    ]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No se puede mover esta instancia. "
+                   f"Estado actual: {instance.production_status}"
+        )
+    instance.production_status = InstanceStatus.READY
+    db.add(instance)
+    db.commit()
+    db.refresh(instance)
+    return {
+        "instance_id": instance.id,
+        "custom_name": instance.custom_name,
+        "production_status": instance.production_status,
+    }

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { productionService } from '../../../api/production-service';
+import axiosClient from '../../../api/axios-client';
 import { ProductionBatch } from '../../../types/production';
 import { Lock, Package, AlertCircle, ArrowRight, CheckCircle2, Boxes } from 'lucide-react';
 
@@ -31,6 +32,10 @@ export default function ProductionKanbanPage() {
   const [expandedInstanceId, setExpandedInstanceId] = useState<number | null>(null);
   const [herrajes, setHerrajes] = useState<Record<number, any>>({});
   const [loadingHerrajes, setLoadingHerrajes] = useState<Record<number, boolean>>({});
+  const [selectedPackingIds, setSelectedPackingIds] =
+    useState<number[]>([]);
+  const [movingToReady, setMovingToReady] = useState(false);
+  const [readyInstances, setReadyInstances] = useState<any[]>([]);
 
   const batchesForView = useMemo(() => {
     if (materialFilter === 'ALL') return batches;
@@ -39,7 +44,17 @@ export default function ProductionKanbanPage() {
 
   useEffect(() => {
     loadBatches();
+    loadReadyInstances();
   }, []);
+
+  const loadReadyInstances = async () => {
+    try {
+      const response = await axiosClient.get('/production/instances/ready');
+      setReadyInstances(response.data);
+    } catch {
+      console.error('Error cargando instancias listas');
+    }
+  };
 
   const loadBatches = async () => {
     try {
@@ -103,36 +118,51 @@ export default function ProductionKanbanPage() {
   };
 
   const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault(); // Necesario para permitir el "Drop"
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
   };
 
-  const handleDrop = async (e: React.DragEvent, newStatus: string) => {
+  const handleDrop = async (
+    e: React.DragEvent, newStatus: string
+  ) => {
     e.preventDefault();
+
+    // Intentar mover instancia individual (desde Empaque)
+    const instanceIdStr = e.dataTransfer.getData('packingInstanceId');
+    if (instanceIdStr && instanceIdStr !== '' && newStatus === STATUS_READY_TO_INSTALL) {
+      // Si hay instancias seleccionadas, moverlas todas; si no, solo la arrastrada
+      const idsToMove = selectedPackingIds.length > 0
+        ? selectedPackingIds
+        : [Number(instanceIdStr)];
+      await handleMoveToReady(idsToMove);
+      return;
+    }
+
+    // Fallback: mover lote completo (columnas 1 y 2)
     const batchIdStr = e.dataTransfer.getData('batchId');
     if (!batchIdStr) return;
-    
+
     const batchId = parseInt(batchIdStr);
     const batch = batches.find(b => b.id === batchId);
-    
     if (!batch) return;
     if (batch.status === newStatus) return;
 
-    // Reglas de Negocio Estrictas
     if (batch.status === 'IN_PRODUCTION' && newStatus === 'DRAFT') {
       alert("Operación denegada: Un lote en producción no puede regresar a la fila de espera.");
       return;
     }
 
-    // Actualización Optimista
     const previousBatches = [...batches];
-    setBatches(prev => prev.map(b => b.id === batchId ? { ...b, status: newStatus } : b));
+    setBatches(prev => prev.map(b =>
+      b.id === batchId ? { ...b, status: newStatus } : b
+    ));
 
     try {
       await productionService.updateBatchStatus(batchId, newStatus);
     } catch (error: any) {
       console.error("Error actualizando estatus:", error);
-      alert("No se pudo actualizar el estatus en el servidor. Revirtiendo cambio.");
-      setBatches(previousBatches); // Revertir si falla
+      alert("No se pudo actualizar el estatus.");
+      setBatches(previousBatches);
     }
   };
 
@@ -395,201 +425,311 @@ export default function ProductionKanbanPage() {
     }
   };
 
+  const togglePackingSelection = (instanceId: number) => {
+    setSelectedPackingIds(prev =>
+      prev.includes(instanceId)
+        ? prev.filter(id => id !== instanceId)
+        : [...prev, instanceId]
+    );
+  };
+
+  const handleMoveToReady = async (instanceIds: number[]) => {
+    console.log('handleMoveToReady llamado con:', instanceIds);
+    if (instanceIds.length === 0) return;
+    setMovingToReady(true);
+    try {
+      for (const id of instanceIds) {
+        await productionService.markInstanceReady(id);
+      }
+      setSelectedPackingIds([]);
+      // Limpiar estados de bultos de las instancias movidas
+      setBultosByInstanceId(prev => {
+        const next = { ...prev };
+        instanceIds.forEach(id => delete next[id]);
+        return next;
+      });
+      setStoneByInstanceId(prev => {
+        const next = { ...prev };
+        instanceIds.forEach(id => delete next[id]);
+        return next;
+      });
+      setLabelsRequestedInstanceIds(prev => {
+        const next = { ...prev };
+        instanceIds.forEach(id => delete next[id]);
+        return next;
+      });
+      // Recargar con pequeño delay para dar tiempo al backend
+      await new Promise(resolve => setTimeout(resolve, 100));
+      await loadBatches();
+      await loadReadyInstances();
+    } catch (error: any) {
+      console.error('Error:', error);
+      alert(
+        error?.response?.data?.detail ||
+        'Error al mover instancias.'
+      );
+    } finally {
+      setMovingToReady(false);
+    }
+  };
+
   const renderColumnEmpaque = () => {
     const status = STATUS_PACKING;
-    const columnBatches = batchesForView.filter((b) => b.status === status);
-    const instanceCount = columnBatches.reduce((n, b) => n + (b.instances?.length ?? 0), 0);
+    const columnBatches = batchesForView.filter(b => b.status === status);
+    const allInstances = columnBatches.flatMap(batch =>
+      (batch.instances || []).map((inst: any) => ({
+        ...inst,
+        batch_folio: batch.folio,
+        batch_type: batch.batch_type,
+      }))
+    );
 
     return (
       <div
         className="bg-violet-50/60 p-4 rounded-xl w-[22rem] flex-shrink-0 flex flex-col border border-violet-200"
-        onDragOver={handleDragOver}
-        onDrop={(e) => handleDrop(e, status)}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          // Instancia individual desde Empaque (no aplica aquí)
+          // Lote desde En Producción
+          const batchIdStr = e.dataTransfer.getData('batchId');
+          if (batchIdStr && batchIdStr !== '') {
+            handleDrop(e, STATUS_PACKING);
+          }
+        }}
       >
+        {/* Header */}
         <div className="flex justify-between items-center mb-4">
           <h2 className="font-bold text-violet-900 uppercase tracking-wide text-sm flex items-center gap-2">
             <Boxes size={16} /> 3. En Empaque
           </h2>
           <span className="bg-violet-200 text-violet-900 text-xs font-bold px-2 py-1 rounded-full">
-            {instanceCount}
+            {allInstances.length}
           </span>
         </div>
-        <div className="flex flex-col gap-4 overflow-y-auto pr-1">
-          {columnBatches.map((batch) => (
-            <div key={batch.id} className="space-y-2">
-              <div
-                draggable
-                onDragStart={(e) => handleDragStart(e, batch.id, false)}
-                className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-violet-100/80 border border-violet-200 text-xs font-bold text-violet-900 cursor-grab active:cursor-grabbing"
-              >
-                <span className="truncate">Lote {batch.folio}</span>
-                <span className="text-[10px] font-medium text-violet-600 shrink-0">
-                  Arrastrar → Listo
-                </span>
-              </div>
-              {(batch.instances || []).map((instance) => {
-                const { mdf, herrajes } = getBultosRow(instance.id);
-                const canSolicitar = mdf > 0 && herrajes > 0;
-                const labelsDone = labelsRequestedInstanceIds[instance.id];
-                return (
-                  <div
-                    key={instance.id}
-                    className="bg-white p-3 rounded-lg shadow-sm border border-violet-100 border-l-4 border-l-violet-400"
-                  >
-                    <div className="mb-3">
-                      <div className="flex items-center gap-1.5 mb-1">
-                        {instance.order_folio && (
-                          <span className="text-[10px] font-mono font-bold
-                                           text-indigo-600 bg-indigo-50
-                                           px-1.5 py-0.5 rounded border
-                                           border-indigo-100">
-                            {instance.order_folio}
-                          </span>
-                        )}
-                        {instance.client_name && (
-                          <span className="text-[10px] text-slate-500 truncate">
-                            {instance.client_name}
-                          </span>
-                        )}
-                      </div>
-                      <p className="font-bold text-gray-800 text-sm">
-                        {instance.custom_name}
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 mb-3">
-                      <label className="flex flex-col gap-1">
-                        <span className="text-[10px] font-bold text-gray-500 uppercase">Bultos MDF</span>
-                        <input
-                          type="number"
-                          min={0}
-                          step={1}
-                          className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm"
-                          value={mdf || ''}
-                          onChange={(e) => setBultosField(instance.id, 'mdf', e.target.value)}
-                        />
-                      </label>
-                      <label className="flex flex-col gap-1">
-                        <span className="text-[10px] font-bold text-gray-500 uppercase">Bultos Herrajes</span>
-                        <input
-                          type="number"
-                          min={0}
-                          step={1}
-                          className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm"
-                          value={herrajes || ''}
-                          onChange={(e) => setBultosField(instance.id, 'herrajes', e.target.value)}
-                        />
-                      </label>
-                    </div>
-                    {batch.batch_type === 'PIEDRA' && (
-                      <div className="mt-3 pt-3 border-t border-violet-100">
-                        <label className="flex flex-col gap-1">
-                          <span className="text-[10px] font-bold text-gray-500 uppercase">
-                            Piezas de Piedra
-                          </span>
-                          <div className="flex gap-2">
-                            <input
-                              type="number"
-                              min={1}
-                              step={1}
-                              className="flex-1 border border-gray-200 rounded-md px-2 py-1.5 text-sm"
-                              value={stoneByInstanceId[instance.id] || ''}
-                              onChange={(e) => setStonePieces(instance.id, e.target.value)}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleDeclareStonePieces(instance.id)}
-                              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 transition"
-                            >
-                              🪨 Declarar
-                            </button>
-                          </div>
-                        </label>
-                      </div>
-                    )}
-                    {labelsDone ? (
-                      <p className="w-full py-2 text-center text-xs font-bold text-emerald-600">
-                        ✓ Etiquetas solicitadas
-                      </p>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={!canSolicitar}
-                        onClick={async () => {
-                          try {
-                            await productionService.requestLabels(instance.id, mdf, herrajes);
-                            setLabelsRequestedInstanceIds((prev) => ({
-                              ...prev,
-                              [instance.id]: true,
-                            }));
-                          } catch (error: unknown) {
-                            const err = error as { response?: { data?: { detail?: unknown } }; message?: string };
-                            const detail = err.response?.data?.detail;
-                            const msg =
-                              typeof detail === 'string'
-                                ? detail
-                                : JSON.stringify(detail ?? err.message ?? error);
-                            alert(msg);
-                          }
-                        }}
-                        className="w-full py-2 rounded-lg text-xs font-bold border transition disabled:opacity-40 disabled:cursor-not-allowed bg-violet-600 text-white border-violet-600 hover:bg-violet-700"
-                      >
-                        🏷️ Solicitar Etiquetas
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-          {columnBatches.length === 0 && (
+
+        {/* Botón mover seleccionadas */}
+        {selectedPackingIds.length > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              console.log('BOTÓN VERDE CLICKEADO', selectedPackingIds);
+              handleMoveToReady(selectedPackingIds);
+            }}
+            disabled={movingToReady}
+            className="mb-3 w-full py-2 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            <CheckCircle2 size={14} />
+            {movingToReady
+              ? 'Moviendo...'
+              : `Mover ${selectedPackingIds.length} a Listo`}
+          </button>
+        )}
+
+        <div className="flex flex-col gap-3 overflow-y-auto pr-1">
+          {allInstances.length === 0 && (
             <div className="border-2 border-dashed border-violet-200 rounded-lg p-6 text-center text-violet-500 text-sm">
-              Sin lotes en empaque
+              Sin instancias en empaque
             </div>
           )}
+          {allInstances.map((instance: any) => {
+            const { mdf, herrajes } = getBultosRow(instance.id);
+            const canSolicitar = mdf > 0 && herrajes > 0;
+            const labelsDone = labelsRequestedInstanceIds[instance.id];
+            const isSelected = selectedPackingIds.includes(instance.id);
+
+            return (
+              <div
+                key={instance.id}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('packingInstanceId', String(instance.id));
+                  e.dataTransfer.effectAllowed = 'move';
+                }}
+                className={`p-3 rounded-lg shadow-sm border border-l-4 border-l-violet-400 cursor-grab active:cursor-grabbing transition ${
+                  isSelected
+                    ? 'bg-emerald-50 border-emerald-200'
+                    : 'bg-white border-violet-100'
+                }`}
+              >
+                {/* Checkbox + Info */}
+                <div className="flex items-start gap-2 mb-3">
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => togglePackingSelection(instance.id)}
+                    className="mt-1 shrink-0 cursor-pointer accent-emerald-600"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      {instance.order_folio && (
+                        <span className="text-[10px] font-mono font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
+                          {instance.order_folio}
+                        </span>
+                      )}
+                      {instance.client_name && (
+                        <span className="text-[10px] text-slate-500 truncate">
+                          {instance.client_name}
+                        </span>
+                      )}
+                    </div>
+                    <p className="font-bold text-gray-800 text-sm truncate">
+                      {instance.custom_name}
+                    </p>
+                    <p className="text-[10px] text-violet-600 font-medium">
+                      {instance.batch_folio}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Bultos MDF/Herrajes */}
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase">Bultos MDF</span>
+                    <input
+                      type="number" min={0} step={1}
+                      className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm"
+                      value={mdf || ''}
+                      onChange={(e) => setBultosField(instance.id, 'mdf', e.target.value)}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase">Bultos Herrajes</span>
+                    <input
+                      type="number" min={0} step={1}
+                      className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm"
+                      value={herrajes || ''}
+                      onChange={(e) => setBultosField(instance.id, 'herrajes', e.target.value)}
+                    />
+                  </label>
+                </div>
+
+                {/* Piezas de Piedra — solo lotes PIEDRA */}
+                {instance.batch_type === 'PIEDRA' && (
+                  <div className="mt-2 mb-3 pt-2 border-t border-violet-100">
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase">Piezas de Piedra</span>
+                      <div className="flex gap-2">
+                        <input
+                          type="number" min={1} step={1}
+                          className="flex-1 border border-gray-200 rounded-md px-2 py-1.5 text-sm"
+                          value={stoneByInstanceId[instance.id] || ''}
+                          onChange={(e) => setStonePieces(instance.id, e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleDeclareStonePieces(instance.id)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 transition"
+                        >
+                          🪨 Declarar
+                        </button>
+                      </div>
+                    </label>
+                  </div>
+                )}
+
+                {/* Botón etiquetas */}
+                {labelsDone ? (
+                  <p className="w-full py-2 text-center text-xs font-bold text-emerald-600">
+                    ✓ Etiquetas solicitadas
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={!canSolicitar}
+                    onClick={async () => {
+                      try {
+                        await productionService.requestLabels(instance.id, mdf, herrajes);
+                        setLabelsRequestedInstanceIds(prev => ({
+                          ...prev, [instance.id]: true,
+                        }));
+                      } catch (error: unknown) {
+                        const err = error as {
+                          response?: { data?: { detail?: unknown } };
+                          message?: string
+                        };
+                        const detail = err.response?.data?.detail;
+                        const msg =
+                          typeof detail === 'string'
+                            ? detail
+                            : JSON.stringify(detail ?? err.message ?? error);
+                        alert(msg);
+                      }
+                    }}
+                    className="w-full py-2 rounded-lg text-xs font-bold border transition disabled:opacity-40 disabled:cursor-not-allowed bg-violet-600 text-white border-violet-600 hover:bg-violet-700"
+                  >
+                    🏷️ Solicitar Etiquetas
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     );
   };
 
   const renderColumn4 = () => {
-    const status = STATUS_READY_TO_INSTALL;
-    const finishedBatches = batchesForView.filter(b => b.status === status);
-    
-    // Extracción de productos de los lotes terminados
-    const readyInstances = finishedBatches.flatMap(b => b.instances || []);
+    const allReady = readyInstances;
 
     return (
-      <div 
+      <div
         className="bg-emerald-50 p-4 rounded-xl w-80 flex-shrink-0 flex flex-col border border-emerald-200"
-        onDragOver={handleDragOver}
-        onDrop={(e) => handleDrop(e, status)}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          const instanceIdStr = e.dataTransfer.getData('packingInstanceId');
+          if (instanceIdStr && instanceIdStr !== '') {
+            const idsToMove = selectedPackingIds.length > 0
+              ? selectedPackingIds
+              : [Number(instanceIdStr)];
+            handleMoveToReady(idsToMove);
+            return;
+          }
+          const batchIdStr = e.dataTransfer.getData('batchId');
+          if (batchIdStr && batchIdStr !== '') {
+            handleDrop(e, STATUS_READY_TO_INSTALL);
+          }
+        }}
       >
         <div className="flex justify-between items-center mb-4">
           <h2 className="font-bold text-emerald-800 uppercase tracking-wide text-sm flex items-center gap-2">
             <CheckCircle2 size={16} /> 4. Listo para Instalarse
           </h2>
-          <span className="bg-emerald-200 text-emerald-800 text-xs font-bold px-2 py-1 rounded-full">{readyInstances.length}</span>
+          <span className="bg-emerald-200 text-emerald-800 text-xs font-bold px-2 py-1 rounded-full">
+            {allReady.length}
+          </span>
         </div>
-        
+
         <div className="flex flex-col gap-3 overflow-y-auto pr-1">
-          {readyInstances.map(instance => (
-            <div 
-              key={instance.id} 
+          {allReady.map((instance: any) => (
+            <div
+              key={instance.id}
               className="bg-white p-3 rounded-lg shadow-sm border border-emerald-200 border-l-4 border-l-emerald-500"
             >
-              <div className="flex flex-col">
-                <span className="font-bold text-gray-800 text-sm">{instance.custom_name}</span>
-                <span className="text-[10px] text-gray-400 font-mono mt-1">ID Producto: #{instance.id}</span>
-                {instance.qr_code && (
-                  <span className="text-xs font-semibold bg-gray-100 text-gray-600 px-2 py-1 rounded mt-2 w-fit">
-                    QR: {instance.qr_code}
+              <div className="flex items-center gap-1.5 mb-1">
+                {instance.order_folio && (
+                  <span className="text-[10px] font-mono font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
+                    {instance.order_folio}
+                  </span>
+                )}
+                {instance.client_name && (
+                  <span className="text-[10px] text-slate-500 truncate">
+                    {instance.client_name}
                   </span>
                 )}
               </div>
+              <p className="font-bold text-gray-800 text-sm">{instance.custom_name}</p>
+              <p className="text-[10px] text-emerald-600 font-medium mt-0.5">{instance.batch_folio}</p>
+              {instance.qr_code && (
+                <span className="text-xs font-semibold bg-gray-100 text-gray-600 px-2 py-1 rounded mt-2 w-fit block">
+                  QR: {instance.qr_code}
+                </span>
+              )}
             </div>
           ))}
-          
-          {readyInstances.length === 0 && (
+
+          {allReady.length === 0 && (
             <div className="border-2 border-dashed border-emerald-200 rounded-lg p-6 text-center text-emerald-500 text-sm">
               Aduana vacía
             </div>
