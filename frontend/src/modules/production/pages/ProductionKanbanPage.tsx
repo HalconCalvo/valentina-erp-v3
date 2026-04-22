@@ -46,6 +46,31 @@ export default function ProductionKanbanPage() {
       setLoading(true);
       const data = await productionService.getBatches();
       setBatches(data);
+
+      const initialBultos: Record<number, {mdf: number; herrajes: number}> = {};
+      const initialStone: Record<number, number> = {};
+      const initialLabels: Record<number, boolean> = {};
+
+      data.forEach((batch: any) => {
+        (batch.instances || []).forEach((inst: any) => {
+          if (inst.mdf_bundles || inst.hardware_bundles) {
+            initialBultos[inst.id] = {
+              mdf: inst.mdf_bundles || 0,
+              herrajes: inst.hardware_bundles || 0,
+            };
+          }
+          if (inst.stone_pieces) {
+            initialStone[inst.id] = inst.stone_pieces;
+          }
+          if (inst.declared_bundles && inst.declared_bundles > 0) {
+            initialLabels[inst.id] = true;
+          }
+        });
+      });
+
+      setBultosByInstanceId(initialBultos);
+      setStoneByInstanceId(initialStone);
+      setLabelsRequestedInstanceIds(initialLabels);
     } catch (error) {
       console.error("Error al cargar los lotes:", error);
     } finally {
@@ -191,6 +216,34 @@ export default function ProductionKanbanPage() {
                   </div>
                 )}
 
+                {(() => {
+                  const summary = getBatchSummary(batch);
+                  if (!summary) return null;
+                  return (
+                    <div className="mt-2 space-y-0.5">
+                      {summary.ovs.map((ov: string) => (
+                        <span key={ov}
+                              className="inline-block text-[10px] font-mono
+                                         font-bold text-indigo-600 bg-indigo-50
+                                         px-1.5 py-0.5 rounded border
+                                         border-indigo-100 mr-1">
+                          {ov}
+                        </span>
+                      ))}
+                      {summary.clients[0] && (
+                        <p className="text-[10px] text-slate-500 truncate">
+                          {summary.clients[0]}
+                        </p>
+                      )}
+                      {summary.projects[0] && (
+                        <p className="text-[10px] text-slate-400 truncate">
+                          {summary.projects[0]}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-100/50">
                   <span className={`text-xs font-semibold px-2 py-1 rounded ${isLocked ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
                     {batch.batch_type}
@@ -240,6 +293,35 @@ export default function ProductionKanbanPage() {
               <div className="flex justify-between items-start mb-2">
                 <span className="font-bold text-gray-800">{batch.folio}</span>
               </div>
+
+              {(() => {
+                const summary = getBatchSummary(batch);
+                if (!summary) return null;
+                return (
+                  <div className="mt-2 space-y-0.5">
+                    {summary.ovs.map((ov: string) => (
+                      <span key={ov}
+                            className="inline-block text-[10px] font-mono
+                                       font-bold text-indigo-600 bg-indigo-50
+                                       px-1.5 py-0.5 rounded border
+                                       border-indigo-100 mr-1">
+                        {ov}
+                      </span>
+                    ))}
+                    {summary.clients[0] && (
+                      <p className="text-[10px] text-slate-500 truncate">
+                        {summary.clients[0]}
+                      </p>
+                    )}
+                    {summary.projects[0] && (
+                      <p className="text-[10px] text-slate-400 truncate">
+                        {summary.projects[0]}
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
+
               <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-100">
                 <span className="text-xs font-semibold bg-gray-100 text-gray-600 px-2 py-1 rounded">
                   {batch.batch_type}
@@ -354,7 +436,26 @@ export default function ProductionKanbanPage() {
                     key={instance.id}
                     className="bg-white p-3 rounded-lg shadow-sm border border-violet-100 border-l-4 border-l-violet-400"
                   >
-                    <p className="font-bold text-gray-800 text-sm mb-3">{instance.custom_name}</p>
+                    <div className="mb-3">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        {instance.order_folio && (
+                          <span className="text-[10px] font-mono font-bold
+                                           text-indigo-600 bg-indigo-50
+                                           px-1.5 py-0.5 rounded border
+                                           border-indigo-100">
+                            {instance.order_folio}
+                          </span>
+                        )}
+                        {instance.client_name && (
+                          <span className="text-[10px] text-slate-500 truncate">
+                            {instance.client_name}
+                          </span>
+                        )}
+                      </div>
+                      <p className="font-bold text-gray-800 text-sm">
+                        {instance.custom_name}
+                      </p>
+                    </div>
                     <div className="grid grid-cols-2 gap-2 mb-3">
                       <label className="flex flex-col gap-1">
                         <span className="text-[10px] font-bold text-gray-500 uppercase">Bultos MDF</span>
@@ -496,6 +597,21 @@ export default function ProductionKanbanPage() {
         </div>
       </div>
     );
+  };
+
+  const getBatchSummary = (batch: any) => {
+    const instances = batch.instances || [];
+    if (instances.length === 0) return null;
+    const ovs = [...new Set(
+      instances.map((i: any) => i.order_folio).filter(Boolean)
+    )] as string[];
+    const clients = [...new Set(
+      instances.map((i: any) => i.client_name).filter(Boolean)
+    )] as string[];
+    const projects = [...new Set(
+      instances.map((i: any) => i.project_name).filter(Boolean)
+    )] as string[];
+    return { ovs, clients, projects };
   };
 
   return (

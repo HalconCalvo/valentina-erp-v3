@@ -52,6 +52,10 @@ class InstanceDetail(BaseModel):
     project_name: Optional[str] = None
     key_material_sku: Optional[str] = None
     key_material_name: Optional[str] = None
+    mdf_bundles: Optional[int] = None
+    hardware_bundles: Optional[int] = None
+    stone_pieces: Optional[int] = None
+    declared_bundles: Optional[int] = None
 
 class ProductionBatchResponse(BaseModel):
     id: int
@@ -265,6 +269,10 @@ def read_batches(db: Session = Depends(get_session)):
                 project_name=project_name,
                 key_material_sku=key_material_sku,
                 key_material_name=key_material_name,
+                mdf_bundles=i.mdf_bundles,
+                hardware_bundles=i.hardware_bundles,
+                stone_pieces=i.stone_pieces,
+                declared_bundles=i.declared_bundles,
             ))
 
         batch_data["instances"] = enriched_instances
