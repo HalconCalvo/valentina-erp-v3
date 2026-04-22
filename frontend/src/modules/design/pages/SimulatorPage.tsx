@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom'; 
 import { designService, PendingInstance, SimulateBatchResponse } from '../../../api/design-service';
 import { productionService } from '../../../api/production-service';
@@ -26,6 +26,18 @@ export default function SimulatorPage() {
   // ── Bautizo masivo de selección ────────────────────────────────────
   const [showMassBaptism, setShowMassBaptism] = useState(false);
   const [baptismNames, setBaptismNames] = useState<Record<number, string>>({});
+
+  // ── Agrupación por OV ───────────────────────────────────────────────
+  const [expandedOrderIds, setExpandedOrderIds] =
+    useState<Set<number>>(new Set());
+
+  const toggleOrderExpand = (orderId: number) => {
+    setExpandedOrderIds(prev => {
+      const next = new Set(prev);
+      next.has(orderId) ? next.delete(orderId) : next.add(orderId);
+      return next;
+    });
+  };
 
   useEffect(() => {
     loadPendingInstances();
@@ -181,6 +193,27 @@ export default function SimulatorPage() {
     }
   };
 
+  const instancesByOrder = useMemo(() => {
+    const groups = new Map<number, {
+      order_id: number;
+      order_project_name: string;
+      client_name: string | null;
+      instances: typeof pendingInstances;
+    }>();
+    for (const inst of pendingInstances) {
+      if (!groups.has(inst.order_id)) {
+        groups.set(inst.order_id, {
+          order_id: inst.order_id,
+          order_project_name: inst.order_project_name,
+          client_name: inst.client_name ?? null,
+          instances: [],
+        });
+      }
+      groups.get(inst.order_id)!.instances.push(inst);
+    }
+    return Array.from(groups.values());
+  }, [pendingInstances]);
+
   return (
     <div className="p-8 h-full bg-slate-50 flex flex-col max-w-7xl mx-auto animate-in fade-in duration-300">
       
@@ -227,91 +260,156 @@ export default function SimulatorPage() {
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
             {loadingRadar ? (
               <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2">
                 <RefreshCw className="animate-spin" size={24} />
                 <p className="text-sm">Escaneando ventas...</p>
               </div>
-            ) : pendingInstances.length === 0 ? (
+            ) : instancesByOrder.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                 <Package size={32} className="mb-2 opacity-50"/>
-                 <p className="text-sm">No hay órdenes pendientes pagadas.</p>
+                <Package size={32} className="mb-2 opacity-50"/>
+                <p className="text-sm">No hay órdenes pendientes pagadas.</p>
               </div>
             ) : (
-              pendingInstances.map(inst => (
-                <div
-                  key={inst.id}
-                  className={`p-3 rounded-lg border transition ${
-                    selectedIds.includes(inst.id)
-                      ? 'bg-blue-50 border-blue-400 shadow-sm'
-                      : 'bg-white border-slate-200 hover:border-blue-300'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    {/* Checkbox */}
-                    <div
-                      className="mt-1 cursor-pointer shrink-0"
-                      onClick={() => { if (editingId !== inst.id) toggleSelection(inst.id); }}
+              instancesByOrder.map(group => {
+                const isExpanded = expandedOrderIds.has(group.order_id);
+                const selectedInGroup = group.instances.filter(
+                  i => selectedIds.includes(i.id)
+                ).length;
+                return (
+                  <div key={group.order_id}
+                       className="border border-slate-200 rounded-lg overflow-hidden">
+                    {/* Tarjeta OV — clickeable para expandir */}
+                    <button
+                      type="button"
+                      onClick={() => toggleOrderExpand(group.order_id)}
+                      className="w-full text-left p-3 bg-slate-50 hover:bg-slate-100 transition flex items-center justify-between gap-2"
                     >
-                      {selectedIds.includes(inst.id)
-                        ? <CheckSquare size={18} className="text-blue-600" />
-                        : <Square size={18} className="text-slate-300" />}
-                    </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-mono font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 shrink-0">
+                            OV-{String(group.order_id).padStart(4, '0')}
+                          </span>
+                          {selectedInGroup > 0 && (
+                            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 shrink-0">
+                              {selectedInGroup} sel.
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs font-bold text-slate-700 truncate mt-0.5">
+                          {group.order_project_name}
+                        </p>
+                        {group.client_name && (
+                          <p className="text-[10px] text-slate-400 truncate">
+                            {group.client_name}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[10px] text-slate-400">
+                          {group.instances.length} inst.
+                        </span>
+                        <span className={`text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+                          ▼
+                        </span>
+                      </div>
+                    </button>
 
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      {editingId === inst.id ? (
-                        /* ── Inline rename form ── */
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            autoFocus
-                            type="text"
-                            value={editingName}
-                            onChange={e => setEditingName(e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter') saveEdit(inst.id); if (e.key === 'Escape') cancelEdit(); }}
-                            className="flex-1 text-sm border border-indigo-300 rounded-lg px-2 py-1 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                          />
-                          <button
-                            onClick={() => saveEdit(inst.id)}
-                            disabled={savingName}
-                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                          >
-                            <Check size={15} />
-                          </button>
-                          <button
-                            onClick={cancelEdit}
-                            className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-lg transition"
-                          >
-                            <X size={15} />
-                          </button>
-                        </div>
-                      ) : (
-                        /* ── Display mode ── */
-                        <div className="flex items-start justify-between gap-1">
+                    {/* Instancias expandibles */}
+                    {isExpanded && (
+                      <div className="flex flex-col divide-y divide-slate-100">
+                        {group.instances.map(inst => (
                           <div
-                            className="cursor-pointer flex-1 min-w-0"
-                            onClick={() => toggleSelection(inst.id)}
+                            key={inst.id}
+                            className={`p-3 transition ${
+                              selectedIds.includes(inst.id)
+                                ? 'bg-blue-50'
+                                : 'bg-white hover:bg-slate-50'
+                            }`}
                           >
-                            <h3 className="font-bold text-slate-800 text-sm truncate">{inst.custom_name}</h3>
-                            <p className="text-xs text-slate-500">{inst.product_name}</p>
-                            <p className="text-[10px] font-mono text-slate-400 mt-0.5">
-                              {inst.order_project_name}
-                            </p>
+                            <div className="flex items-start gap-3">
+                              {/* Checkbox */}
+                              <div
+                                className="mt-1 cursor-pointer shrink-0"
+                                onClick={() => {
+                                  if (editingId !== inst.id)
+                                    toggleSelection(inst.id);
+                                }}
+                              >
+                                {selectedIds.includes(inst.id)
+                                  ? <CheckSquare size={18} className="text-blue-600" />
+                                  : <Square size={18} className="text-slate-300" />}
+                              </div>
+
+                              {/* Content */}
+                              <div className="flex-1 min-w-0">
+                                {editingId === inst.id ? (
+                                  <div className="flex items-center gap-1.5">
+                                    <input
+                                      autoFocus
+                                      type="text"
+                                      value={editingName}
+                                      onChange={e => setEditingName(e.target.value)}
+                                      onKeyDown={e => {
+                                        if (e.key === 'Enter') saveEdit(inst.id);
+                                        if (e.key === 'Escape') cancelEdit();
+                                      }}
+                                      className="flex-1 text-sm border border-indigo-300 rounded-lg px-2 py-1 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                                    />
+                                    <button
+                                      onClick={() => saveEdit(inst.id)}
+                                      disabled={savingName}
+                                      className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                                    >
+                                      <Check size={15} />
+                                    </button>
+                                    <button
+                                      onClick={cancelEdit}
+                                      className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-lg transition"
+                                    >
+                                      <X size={15} />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-start justify-between gap-1">
+                                    <div
+                                      className="cursor-pointer flex-1 min-w-0"
+                                      onClick={() => toggleSelection(inst.id)}
+                                    >
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-[10px] font-mono font-bold text-indigo-600 shrink-0">
+                                          OV-{String(inst.order_id).padStart(4, '0')}
+                                        </span>
+                                        <h3 className="font-bold text-slate-800 text-sm truncate">
+                                          {inst.custom_name}
+                                        </h3>
+                                      </div>
+                                      <p className="text-xs text-slate-500">
+                                        {inst.product_name}
+                                      </p>
+                                    </div>
+                                    <button
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        startEdit(inst);
+                                      }}
+                                      className="p-1.5 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition shrink-0"
+                                      title="Renombrar instancia"
+                                    >
+                                      <Pencil size={13} />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                          <button
-                            onClick={e => { e.stopPropagation(); startEdit(inst); }}
-                            className="p-1.5 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition shrink-0"
-                            title="Renombrar instancia"
-                          >
-                            <Pencil size={13} />
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>

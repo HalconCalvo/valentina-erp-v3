@@ -16,7 +16,32 @@ from app.models.design import VersionComponent
 from app.models.material import Material
 
 router = APIRouter()
+
+# --- CATEGORÍAS DE HERRAJES PARA INSTALACIÓN ---
+HERRAJES_CATEGORIES = {
+    "HERRAJES", "ACCESORIO", "ELECTRICIDAD",
+    "ELECTRODOMÉSTICO", "VIDRIO"
+}
+
 # --- SCHEMAS DE RESPUESTA EXTENDIDOS (V3.5) ---
+class HerrajeItem(BaseModel):
+    material_id: int
+    sku: str
+    name: str
+    category: str
+    quantity: float
+    usage_unit: str
+
+
+class HerrajesResponse(BaseModel):
+    instance_id: int
+    custom_name: str
+    client_name: Optional[str] = None
+    project_name: Optional[str] = None
+    order_folio: Optional[str] = None
+    herrajes: List[HerrajeItem] = []
+
+
 class InstanceDetail(BaseModel):
     id: int
     custom_name: str
@@ -520,3 +545,77 @@ def declare_stone_pieces(
         "instance_name": instance.custom_name,
         "stone_pieces": instance.stone_pieces,
     }
+
+
+@router.get(
+    "/instances/{instance_id}/herrajes",
+    response_model=HerrajesResponse
+)
+def get_instance_herrajes(
+    instance_id: int,
+    db: Session = Depends(get_session),
+):
+    """
+    Devuelve la lista de Herrajes para Instalación de una
+    instancia — materiales que Almacén debe surtir.
+    Categorías incluidas: HERRAJES, ACCESORIO, ELECTRICIDAD,
+    ELECTRODOMÉSTICO, VIDRIO.
+    Cantidad en unidad de uso (quantity de la receta).
+    """
+    instance = db.get(SalesOrderItemInstance, instance_id)
+    if not instance:
+        raise HTTPException(
+            status_code=404,
+            detail="Instancia no encontrada."
+        )
+
+    # Subir cadena para obtener cliente y proyecto
+    item = db.exec(
+        select(SalesOrderItem)
+        .where(SalesOrderItem.id == instance.sales_order_item_id)
+    ).first()
+    order = db.exec(
+        select(SalesOrder)
+        .where(SalesOrder.id == item.sales_order_id)
+    ).first() if item else None
+    client = db.get(Client, order.client_id) \
+        if order and order.client_id else None
+    order_folio = f"OV-{str(order.id).zfill(4)}" if order else None
+
+    # Leer BOM y filtrar herrajes
+    herrajes = []
+    if item and item.origin_version_id:
+        components = db.exec(
+            select(VersionComponent)
+            .where(VersionComponent.version_id ==
+                   item.origin_version_id)
+        ).all()
+        for comp in components:
+            mat = db.get(Material, comp.material_id)
+            if not mat:
+                continue
+            cat = (mat.category or '').upper()
+            # Normalizar ELECTRODOMÉSTICO con o sin tilde
+            cat_norm = cat.replace('É', 'E').replace('Ó', 'O')
+            cats_norm = {
+                c.replace('É', 'E').replace('Ó', 'O')
+                for c in HERRAJES_CATEGORIES
+            }
+            if cat_norm in cats_norm:
+                herrajes.append(HerrajeItem(
+                    material_id=mat.id,
+                    sku=mat.sku,
+                    name=mat.name,
+                    category=mat.category,
+                    quantity=comp.quantity,
+                    usage_unit=mat.usage_unit,
+                ))
+
+    return HerrajesResponse(
+        instance_id=instance_id,
+        custom_name=instance.custom_name or '',
+        client_name=client.full_name if client else None,
+        project_name=order.project_name if order else None,
+        order_folio=order_folio,
+        herrajes=herrajes,
+    )

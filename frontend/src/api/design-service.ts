@@ -9,6 +9,7 @@ export interface PendingInstance {
   product_name: string;
   order_project_name: string;
   order_id: number;
+  client_name?: string | null;
 }
 
 export interface SimulatedMaterial {

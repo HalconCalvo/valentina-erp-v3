@@ -24,6 +24,7 @@ import { OrderStatementModal } from '../../finance/components/OrderStatementModa
 
 // --- COMPONENTES COMPARTIDOS ---
 import { AccountsReceivableAgingPanel } from '../../finance/components/AccountsReceivableAgingPanel';
+import { ReceivablesModule } from '../../finance/components/ReceivablesModule';
 import { PayablesModule } from '../../finance/components/PayablesModule';
 import { PayrollAuditPanel, type PayrollLevel1 } from '../components/PayrollAuditPanel';
 
@@ -103,10 +104,6 @@ export const TreasuryPage = () => {
 
   useEffect(() => {
       if (activeSection !== 'PAYROLL') setPayrollLevel1(null);
-  }, [activeSection]);
-
-  useEffect(() => {
-      if (activeSection === 'RECEIVABLES') setIsSubSectionActive(true);
   }, [activeSection]);
 
   const handleRegresar = () => {
@@ -474,10 +471,10 @@ export const TreasuryPage = () => {
 
           {/* AQUÍ ES A DONDE VIAJA LA SUB-TARJETA DE VENTAS */}
           {activeSection === 'RECEIVABLES' && (
-              <AccountsReceivableAgingPanel
-                  variant="embedded"
-                  embeddedBackLabel="Regresar a Tesorería"
-                  onEmbeddedBack={() => {
+              <ReceivablesModule
+                  onSubSectionChange={setIsSubSectionActive}
+                  financeReturnPath="/treasury"
+                  onBackOverride={() => {
                       setIsSubSectionActive(false);
                       if (cameFromTasks) {
                           setCameFromTasks(false);

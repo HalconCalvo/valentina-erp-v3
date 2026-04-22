@@ -297,7 +297,7 @@ export default function HealthSidebar({ data, loading, onInstanceClick, onInstan
                       tab.key === 'BLUE' ? 'bg-blue-500' :
                       'bg-slate-400'}
                   `}>
-                    {count > 9 ? '9+' : count}
+                    {count > 99 ? '99+' : count}
                   </span>
                 )}
               </div>

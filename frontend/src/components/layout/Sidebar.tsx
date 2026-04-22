@@ -27,10 +27,10 @@ const menuItems = [
   { icon: Users, label: 'Monitor Clientes', path: '/clients', allowedRoles: ['DIRECTOR', 'GERENCIA', 'SALES', 'ADMIN'] },
   
   // 🔒 CANDADO APLICADO: Ventas ya NO puede entrar a Diseño e Ingeniería.
-  { icon: Ruler, label: 'Diseño e Ingeniería', path: '/design', allowedRoles: ['DIRECTOR', 'GERENCIA', 'DESIGN', 'PRODUCTION'] },
+  { icon: Ruler, label: 'Diseño e Ingeniería', path: '/design', allowedRoles: ['DIRECTOR', 'GERENCIA', 'DESIGN'] },
   
-  { icon: Factory, label: 'Producción', path: '/production', allowedRoles: ['DIRECTOR', 'GERENCIA', 'DESIGN', 'PRODUCTION'] },
-  { icon: CalendarDays, label: 'Planeación Maestra', path: '/planning', allowedRoles: ['DIRECTOR', 'GERENCIA', 'DESIGN', 'PRODUCTION', 'SALES'] },
+  { icon: Factory, label: 'Producción', path: '/production', allowedRoles: ['DIRECTOR', 'GERENCIA', 'ADMIN', 'DESIGN', 'PRODUCTION'] },
+  { icon: CalendarDays, label: 'Planeación Maestra', path: '/planning', allowedRoles: ['DIRECTOR', 'GERENCIA', 'DESIGN', 'PRODUCTION', 'ADMIN', 'SALES'] },
   { icon: Truck, label: 'Logística e Instalación', path: '/logistics', allowedRoles: ['DIRECTOR', 'GERENCIA', 'ADMIN', 'WAREHOUSE', 'SALES', 'LOGISTICS', 'PRODUCTION'] },
   { icon: ClipboardList, label: 'Compras y Almacén', path: '/inventory', allowedRoles: ['DIRECTOR', 'GERENCIA', 'ADMIN', 'WAREHOUSE', 'PRODUCTION'] },
   { icon: Package, label: 'Catálogo Materiales', path: '/materials', allowedRoles: ['DIRECTOR', 'GERENCIA', 'ADMIN', 'DESIGN', 'WAREHOUSE', 'PRODUCTION'] }, 
@@ -46,12 +46,12 @@ const rolePriorities: Record<string, string[]> = {
   // Ahora el Director ve su panel estratégico antes que la gerencia
   'DIRECTOR': ['/', '/director', '/planning', '/management', '/treasury'],
   'GERENCIA': ['/', '/management', '/planning', '/treasury', '/production', '/sales'],
-  'ADMIN': ['/', '/treasury', '/inventory', '/providers', '/materials'],
+  'ADMIN': ['/', '/treasury', '/planning', '/inventory', '/providers', '/materials'],
   // Ventas ya no necesita priorizar /design
   'SALES': ['/', '/sales', '/planning', '/clients', '/logistics'],
   'DESIGN': ['/', '/design', '/planning', '/materials', '/production'],
   'WAREHOUSE': ['/', '/inventory', '/providers', '/materials', '/logistics'],
-  'PRODUCTION': ['/', '/production', '/planning', '/inventory', '/design'],
+  'PRODUCTION': ['/', '/production', '/planning', '/inventory'],
   'LOGISTICS': ['/', '/logistics', '/production']
 };
 

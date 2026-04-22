@@ -48,9 +48,14 @@ export default function PlanningPage() {
   const calendar = usePlanningCalendar();
   const health   = useHealthPanel();
 
-  // Vendedores (SALES role) can view the calendar but cannot move or reschedule anything
   const userRole = (localStorage.getItem('user_role') || '').toUpperCase();
-  const readOnly = userRole === 'SALES';
+
+  const PLANNING_FULL_ACCESS = ['DIRECTOR', 'GERENCIA', 'DESIGN'];
+  const PLANNING_READ_ONLY = ['PRODUCTION', 'ADMIN', 'SALES'];
+  const PLANNING_NO_ACCESS = ['LOGISTICS', 'WAREHOUSE'];
+
+  const readOnly = PLANNING_READ_ONLY.includes(userRole);
+  const noAccess = PLANNING_NO_ACCESS.includes(userRole);
 
   // ── View mode state ──────────────────────────────────────────
   const [viewMode, setViewMode] = useState<ViewMode>('month');
@@ -219,6 +224,21 @@ export default function PlanningPage() {
 
   const calendarData = calendar.data?.calendar ?? {};
   const isLoading    = calendar.loading || loadingInstance;
+
+  if (noAccess) {
+    return (
+      <div className="flex flex-col items-center justify-center 
+                      h-full text-slate-400 gap-3">
+        <span className="text-5xl">🔒</span>
+        <p className="text-lg font-bold text-slate-600">
+          Acceso Restringido
+        </p>
+        <p className="text-sm">
+          No tienes permisos para ver la Planeación Estratégica.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] bg-white overflow-hidden">

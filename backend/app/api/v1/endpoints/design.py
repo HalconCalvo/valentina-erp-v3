@@ -1,4 +1,4 @@
-from typing import List, Any, Dict
+from typing import List, Any, Dict, Optional
 import math
 import time
 import uuid as uuid_lib
@@ -647,6 +647,7 @@ class PendingInstanceResponse(BaseModel):
     product_name: str
     order_project_name: str
     order_id: int
+    client_name: Optional[str] = None
 
 # Órdenes confirmadas = tienen anticipo pagado O su status ya avanzó a producción
 _CONFIRMED_ORDER_STATUSES = {
@@ -713,12 +714,20 @@ def get_pending_instances(
             if version and not version.has_mdf_components:
                 continue
 
+        # Obtener nombre del cliente
+        client_name = None
+        if order and order.client_id:
+            client = session.get(Client, order.client_id)
+            if client:
+                client_name = client.full_name
+
         result.append(PendingInstanceResponse(
             id=inst.id,
             custom_name=inst.custom_name,
             product_name=item.product_name,
             order_project_name=order.project_name,
             order_id=order.id,
+            client_name=client_name,
         ))
     return result
 

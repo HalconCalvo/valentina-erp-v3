@@ -47,6 +47,10 @@ import PendingToInvoicePage from './modules/finance/pages/PendingToInvoicePage';
 
 // 9. PRODUCCIÓN (¡NUEVO V3.5!)
 import FactoryFloorPage from './modules/production/pages/FactoryFloorPage';
+import ProductionKanbanPage from './modules/production/pages/ProductionKanbanPage';
+import ProductionInProcessPage from './modules/production/pages/ProductionInProcessPage';
+import ProductionReadyPage from './modules/production/pages/ProductionReadyPage';
+import ProductionBlueprintsPage from './modules/production/pages/ProductionBlueprintsPage';
 
 // 10. PLANEACIÓN ESTRATÉGICA: MATRIZ DE 4 CARRILES
 import PlanningPage from './modules/planning/pages/PlanningPage';
@@ -122,6 +126,10 @@ function AppRoutes() {
 
         {/* --- PRODUCCIÓN V3.5 --- */}
         <Route path="/production" element={<FactoryFloorPage key={key} />} />
+        <Route path="/production/kanban" element={<ProductionKanbanPage key={key} />} />
+        <Route path="/production/in-process" element={<ProductionInProcessPage key={key} />} />
+        <Route path="/production/ready" element={<ProductionReadyPage key={key} />} />
+        <Route path="/production/blueprints" element={<ProductionBlueprintsPage key={key} />} />
 
         {/* --- PLANEACIÓN ESTRATÉGICA: TABLERO MAESTRO --- */}
         <Route path="/planning" element={<PlanningPage key={key} />} />
