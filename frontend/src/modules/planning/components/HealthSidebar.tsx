@@ -15,7 +15,7 @@ interface Props {
   readOnly?: boolean;
 }
 
-type Tab = 'RED' | 'YELLOW' | 'GRAY' | 'WARRANTY' | 'BLUE' | 'ALL';
+type Tab = 'RED' | 'YELLOW' | 'GRAY' | 'SCHEDULED' | 'WARRANTY' | 'BLUE' | 'ALL';
 
 interface TabConfig {
   key: Tab;
@@ -24,6 +24,12 @@ interface TabConfig {
   dataKey: (data: HealthPanel) => InstanceSchedule[];
   countKey: string;
   dotClass: string;
+}
+
+/** True si la instancia tiene al menos una fecha programada (PM, PP, IM o IP). */
+function hasAnyScheduledDate(inst: InstanceSchedule): boolean {
+  const s = inst.schedule;
+  return !!(s.PM || s.PP || s.IM || s.IP);
 }
 
 const TABS: TabConfig[] = [
@@ -47,9 +53,17 @@ const TABS: TabConfig[] = [
     key: 'GRAY',
     icon: '⬜',
     label: 'Planeación',
-    dataKey: d => d.planned,
-    countKey: 'GRAY',
+    dataKey: d => d.planned.filter(i => !hasAnyScheduledDate(i)),
+    countKey: '_UNSCHEDULED',
     dotClass: 'bg-slate-300',
+  },
+  {
+    key: 'SCHEDULED',
+    icon: '🟣',
+    label: 'Programadas',
+    dataKey: d => d.planned.filter(i => hasAnyScheduledDate(i)),
+    countKey: '_SCHEDULED',
+    dotClass: 'bg-purple-500',
   },
   {
     key: 'WARRANTY',
@@ -62,9 +76,9 @@ const TABS: TabConfig[] = [
   {
     key: 'BLUE',
     icon: '🔵',
-    label: 'Activas',
-    dataKey: d => [...d.in_process, ...d.ready_to_install, ...d.in_transit, ...d.installed],
-    countKey: '_ACTIVE',
+    label: 'En Producción',
+    dataKey: d => d.in_process,
+    countKey: 'BLUE',
     dotClass: 'bg-blue-500',
   },
 ];
@@ -171,24 +185,119 @@ function InstanceCard({
   );
 }
 
+interface OvGroup {
+  orderFolio: string;
+  clientName: string | null;
+  projectName: string | null;
+  instances: InstanceSchedule[];
+}
+
+function groupByOv(instances: InstanceSchedule[]): OvGroup[] {
+  const map = new Map<string, OvGroup>();
+  for (const inst of instances) {
+    const folio = inst.order_folio ?? 'SIN_OV';
+    if (!map.has(folio)) {
+      map.set(folio, {
+        orderFolio: folio,
+        clientName: inst.client_name,
+        projectName: inst.project_name,
+        instances: [],
+      });
+    }
+    map.get(folio)!.instances.push(inst);
+  }
+  // Ordenar descendente (más reciente primero) — asume folio tipo "OV-0001"
+  return Array.from(map.values()).sort((a, b) =>
+    b.orderFolio.localeCompare(a.orderFolio, undefined, { numeric: true })
+  );
+}
+
+function OvGroupCard({
+  group,
+  expanded,
+  onToggle,
+  onInstanceClick,
+  onInstanceDragStart,
+  highlightId,
+  isDraggable,
+}: {
+  group: OvGroup;
+  expanded: boolean;
+  onToggle: () => void;
+  onInstanceClick?: (inst: InstanceSchedule) => void;
+  onInstanceDragStart?: (inst: InstanceSchedule) => void;
+  highlightId?: number | null;
+  isDraggable: boolean;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+      {/* Cabecera OV — clickable */}
+      <button
+        onClick={onToggle}
+        className="w-full px-3 py-2.5 flex items-center gap-2 hover:bg-slate-50 transition-colors text-left"
+      >
+        <span className={`text-slate-400 text-xs shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`}>
+          ▶
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 border border-indigo-100 rounded px-1.5 py-0.5 font-mono">
+              {group.orderFolio}
+            </span>
+            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 rounded-full px-1.5 py-0.5">
+              {group.instances.length}
+            </span>
+          </div>
+          {(group.clientName || group.projectName) && (
+            <p className="text-[10px] text-slate-400 mt-0.5 truncate">
+              {[group.clientName, group.projectName].filter(Boolean).join(' · ')}
+            </p>
+          )}
+        </div>
+      </button>
+
+      {/* Cascada de instancias */}
+      {expanded && (
+        <div className="px-2 pb-2 space-y-2 border-t border-slate-100 pt-2 bg-slate-50/40">
+          {group.instances.map(inst => (
+            <InstanceCard
+              key={inst.id}
+              instance={inst}
+              onClick={onInstanceClick}
+              onDragStart={onInstanceDragStart}
+              isHighlighted={highlightId === inst.id}
+              isDraggable={isDraggable}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function HealthSidebar({ data, loading, onInstanceClick, onInstanceDragStart, highlightId, searchQuery, onSearchQueryChange, readOnly = false }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('RED');
+  const [expandedOvs, setExpandedOvs] = useState<Set<string>>(new Set());
+  const toggleOv = (folio: string) => {
+    setExpandedOvs(prev => {
+      const next = new Set(prev);
+      if (next.has(folio)) next.delete(folio);
+      else next.add(folio);
+      return next;
+    });
+  };
 
   // query is now controlled from PlanningPage (searchQuery / onSearchQueryChange)
   const query    = searchQuery;
   const setQuery = onSearchQueryChange;
 
   // Compute active instances count for the BLUE "Activas" pseudo-tab
-  const activeCount = data
-    ? (data.counts['BLUE'] ?? 0) +
-      (data.counts['BLUE_GREEN'] ?? 0) +
-      (data.counts['DOUBLE_BLUE'] ?? 0) +
-      (data.counts['GREEN'] ?? 0)
-    : 0;
+  const activeCount = data ? (data.counts['BLUE'] ?? 0) : 0;
 
   const getCount = (tab: TabConfig): number => {
     if (!data) return 0;
-    if (tab.key === 'BLUE') return activeCount;
+    if (tab.key === 'GRAY') return data.planned.filter(i => !hasAnyScheduledDate(i)).length;
+    if (tab.key === 'SCHEDULED') return data.planned.filter(i => hasAnyScheduledDate(i)).length;
     return data.counts[tab.countKey] ?? 0;
   };
 
@@ -214,6 +323,8 @@ export default function HealthSidebar({ data, loading, onInstanceClick, onInstan
       );
     });
   }, [rawInstances, query]);
+
+  const ovGroups = useMemo(() => groupByOv(instances), [instances]);
 
   const isFiltering = query.trim().length > 0;
 
@@ -295,6 +406,7 @@ export default function HealthSidebar({ data, loading, onInstanceClick, onInstan
                       tab.key === 'YELLOW' ? 'bg-amber-400' :
                       tab.key === 'WARRANTY' ? 'bg-orange-500' :
                       tab.key === 'BLUE' ? 'bg-blue-500' :
+                      tab.key === 'SCHEDULED' ? 'bg-purple-500' :
                       'bg-slate-400'}
                   `}>
                     {count > 99 ? '99+' : count}
@@ -338,15 +450,17 @@ export default function HealthSidebar({ data, loading, onInstanceClick, onInstan
             ) : (
               <>
                 <span className="text-3xl mb-2">
-                  {activeTab === 'RED'      ? '🟢' :
-                   activeTab === 'YELLOW'   ? '✅' :
-                   activeTab === 'WARRANTY' ? '🛡️' : '📋'}
+                  {activeTab === 'RED'       ? '🟢' :
+                   activeTab === 'YELLOW'    ? '✅' :
+                   activeTab === 'WARRANTY'  ? '🛡️' :
+                   activeTab === 'SCHEDULED' ? '🟣' : '📋'}
                 </span>
                 <p className="text-xs text-center leading-relaxed">
-                  {activeTab === 'RED'      ? 'Sin instancias críticas. ¡Todo en orden!' :
-                   activeTab === 'YELLOW'   ? 'Sin alertas próximas.' :
-                   activeTab === 'WARRANTY' ? 'Sin garantías activas.' :
-                   activeTab === 'BLUE'     ? 'Sin instancias en proceso.' :
+                  {activeTab === 'RED'       ? 'Sin instancias críticas. ¡Todo en orden!' :
+                   activeTab === 'YELLOW'    ? 'Sin alertas próximas.' :
+                   activeTab === 'WARRANTY'  ? 'Sin garantías activas.' :
+                   activeTab === 'BLUE'      ? 'Sin instancias en producción.' :
+                   activeTab === 'SCHEDULED' ? 'Sin instancias programadas aún.' :
                    'Sin instancias en planeación.'}
                 </p>
               </>
@@ -354,13 +468,15 @@ export default function HealthSidebar({ data, loading, onInstanceClick, onInstan
           </div>
         )}
 
-        {!loading && instances.map(inst => (
-          <InstanceCard
-            key={inst.id}
-            instance={inst}
-            onClick={onInstanceClick}
-            onDragStart={onInstanceDragStart}
-            isHighlighted={highlightId === inst.id}
+        {!loading && ovGroups.map(group => (
+          <OvGroupCard
+            key={group.orderFolio}
+            group={group}
+            expanded={expandedOvs.has(group.orderFolio)}
+            onToggle={() => toggleOv(group.orderFolio)}
+            onInstanceClick={onInstanceClick}
+            onInstanceDragStart={onInstanceDragStart}
+            highlightId={highlightId}
             isDraggable={!readOnly}
           />
         ))}
@@ -371,7 +487,7 @@ export default function HealthSidebar({ data, loading, onInstanceClick, onInstan
         <div className="px-3 py-3 border-t border-slate-100 grid grid-cols-3 gap-2">
           {[
             { label: 'Críticos', count: data.counts['RED'] ?? 0,   bg: 'bg-red-50',   text: 'text-red-700'   },
-            { label: 'En Proc.',  count: activeCount,               bg: 'bg-blue-50',  text: 'text-blue-700'  },
+            { label: 'En Prod.',  count: activeCount,               bg: 'bg-blue-50',  text: 'text-blue-700'  },
             { label: 'Alertas',  count: data.counts['YELLOW'] ?? 0, bg: 'bg-amber-50', text: 'text-amber-700' },
           ].map(item => (
             <div key={item.label} className={`${item.bg} rounded-xl p-2 text-center`}>

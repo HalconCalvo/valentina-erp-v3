@@ -383,6 +383,7 @@ export default function PlanningPage() {
       {editingInstance && (
         <InstanceEditModal
           instance={editingInstance}
+          calendarData={calendarData}
           onClose={() => {
             setEditingInstance(null);
             setHighlightDays({});

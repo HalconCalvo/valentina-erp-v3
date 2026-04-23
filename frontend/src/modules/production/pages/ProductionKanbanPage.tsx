@@ -12,6 +12,30 @@ type MaterialFilter = 'ALL' | 'MDF' | 'PIEDRA';
 
 const PRODUCTION_READ_ONLY_ROLES = ['ADMIN', 'DESIGN', 'GERENCIA'];
 
+/** Devuelve el badge de urgencia del lote según el peor semáforo de sus instancias. */
+function getBatchUrgencyBadge(batch: any): { label: string; className: string } | null {
+  const instances = batch.instances || [];
+  let hasRed = false;
+  let hasYellow = false;
+  for (const inst of instances) {
+    if (inst.semaphore === 'RED') hasRed = true;
+    else if (inst.semaphore === 'YELLOW') hasYellow = true;
+  }
+  if (hasRed) {
+    return {
+      label: '🔴 URGENTE',
+      className: 'bg-red-100 text-red-700 border-red-300',
+    };
+  }
+  if (hasYellow) {
+    return {
+      label: '🟡 PRÓXIMO',
+      className: 'bg-amber-100 text-amber-700 border-amber-300',
+    };
+  }
+  return null;
+}
+
 export default function ProductionKanbanPage() {
   const navigate = useNavigate();
   const userRole = (localStorage.getItem('user_role') || '').toUpperCase();
@@ -239,7 +263,16 @@ export default function ProductionKanbanPage() {
                   <span className={`font-bold ${isLocked ? 'text-red-800' : 'text-gray-800'}`}>{batch.folio}</span>
                   {isLocked && <Lock size={16} className="text-red-500" title="Anticipo pendiente o Lote vacío" />}
                 </div>
-                
+                {(() => {
+                  const badge = getBatchUrgencyBadge(batch);
+                  if (!badge) return null;
+                  return (
+                    <div className={`text-[10px] font-black px-2 py-1 rounded border flex items-center justify-center mb-2 ${badge.className}`}>
+                      {badge.label}
+                    </div>
+                  );
+                })()}
+
                 {isLocked && (
                   <div className="text-[10px] font-bold text-red-600 bg-red-100 px-2 py-1 rounded flex items-center gap-1 mb-2">
                     <AlertCircle size={12} /> Bloqueado por Finanzas
@@ -533,8 +566,12 @@ export default function ProductionKanbanPage() {
             </div>
           )}
           {allInstances.map((instance: any) => {
+            const isStone = instance.batch_type === 'PIEDRA';
             const { mdf, herrajes } = getBultosRow(instance.id);
-            const canSolicitar = mdf > 0 && herrajes > 0;
+            const stonePieces = stoneByInstanceId[instance.id] ?? 0;
+            const canSolicitar = isStone
+              ? stonePieces >= 1
+              : mdf > 0 && herrajes > 0;
             const labelsDone = labelsRequestedInstanceIds[instance.id];
             const isSelected = selectedPackingIds.includes(instance.id);
 
@@ -582,30 +619,32 @@ export default function ProductionKanbanPage() {
                   </div>
                 </div>
 
-                {/* Bultos MDF/Herrajes */}
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                  <label className="flex flex-col gap-1">
-                    <span className="text-[10px] font-bold text-gray-500 uppercase">Bultos MDF</span>
-                    <input
-                      type="number" min={0} step={1}
-                      className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm"
-                      value={mdf || ''}
-                      onChange={(e) => setBultosField(instance.id, 'mdf', e.target.value)}
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-[10px] font-bold text-gray-500 uppercase">Bultos Herrajes</span>
-                    <input
-                      type="number" min={0} step={1}
-                      className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm"
-                      value={herrajes || ''}
-                      onChange={(e) => setBultosField(instance.id, 'herrajes', e.target.value)}
-                    />
-                  </label>
-                </div>
+                {/* Bultos MDF/Herrajes — solo para lotes no-PIEDRA */}
+                {!isStone && (
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase">Bultos MDF</span>
+                      <input
+                        type="number" min={0} step={1}
+                        className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm"
+                        value={mdf || ''}
+                        onChange={(e) => setBultosField(instance.id, 'mdf', e.target.value)}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase">Bultos Herrajes</span>
+                      <input
+                        type="number" min={0} step={1}
+                        className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm"
+                        value={herrajes || ''}
+                        onChange={(e) => setBultosField(instance.id, 'herrajes', e.target.value)}
+                      />
+                    </label>
+                  </div>
+                )}
 
                 {/* Piezas de Piedra — solo lotes PIEDRA */}
-                {instance.batch_type === 'PIEDRA' && (
+                {isStone && (
                   <div className="mt-2 mb-3 pt-2 border-t border-violet-100">
                     <label className="flex flex-col gap-1">
                       <span className="text-[10px] font-bold text-gray-500 uppercase">Piezas de Piedra</span>
@@ -639,7 +678,11 @@ export default function ProductionKanbanPage() {
                     disabled={!canSolicitar}
                     onClick={async () => {
                       try {
-                        await productionService.requestLabels(instance.id, mdf, herrajes);
+                        await productionService.requestLabels(
+                          instance.id,
+                          isStone ? 1 : mdf,
+                          isStone ? 1 : herrajes,
+                        );
                         setLabelsRequestedInstanceIds(prev => ({
                           ...prev, [instance.id]: true,
                         }));
@@ -702,32 +745,72 @@ export default function ProductionKanbanPage() {
         </div>
 
         <div className="flex flex-col gap-3 overflow-y-auto pr-1">
-          {allReady.map((instance: any) => (
-            <div
-              key={instance.id}
-              className="bg-white p-3 rounded-lg shadow-sm border border-emerald-200 border-l-4 border-l-emerald-500"
-            >
-              <div className="flex items-center gap-1.5 mb-1">
-                {instance.order_folio && (
-                  <span className="text-[10px] font-mono font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
-                    {instance.order_folio}
+          {allReady.map((instance: any, idx: number) => {
+            const isStoneTrack = instance.track === 'PIEDRA';
+            const otherLabel = (() => {
+              const ots = instance.other_track_status;
+              const otherName = isStoneTrack ? 'MDF' : 'Piedra';
+              if (!ots) return null;
+              if (ots === 'READY_TO_INSTALL' || ots === 'PACKING') {
+                return `${otherName}: listo / empacando`;
+              }
+              if (ots === 'IN_PRODUCTION') {
+                return `${otherName}: en producción`;
+              }
+              if (ots === 'DRAFT' || ots === 'ON_HOLD') {
+                return `${otherName}: pendiente`;
+              }
+              return `${otherName}: ${ots}`;
+            })();
+            return (
+              <div
+                key={`${instance.id}-${instance.track}-${idx}`}
+                className={`bg-white p-3 rounded-lg shadow-sm border border-l-4 ${
+                  isStoneTrack
+                    ? 'border-stone-200 border-l-stone-500'
+                    : 'border-emerald-200 border-l-emerald-500'
+                }`}
+              >
+                {/* Badge de track */}
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${
+                    isStoneTrack
+                      ? 'bg-stone-100 text-stone-700 border-stone-300'
+                      : 'bg-emerald-100 text-emerald-700 border-emerald-300'
+                  }`}>
+                    {isStoneTrack ? '🪨 Track Piedra' : '🪵 Track MDF'}
                   </span>
+                </div>
+
+                <div className="flex items-center gap-1.5 mb-1">
+                  {instance.order_folio && (
+                    <span className="text-[10px] font-mono font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
+                      {instance.order_folio}
+                    </span>
+                  )}
+                  {instance.client_name && (
+                    <span className="text-[10px] text-slate-500 truncate">
+                      {instance.client_name}
+                    </span>
+                  )}
+                </div>
+                <p className="font-bold text-gray-800 text-sm">{instance.custom_name}</p>
+                <p className="text-[10px] text-emerald-600 font-medium mt-0.5">{instance.batch_folio}</p>
+
+                {otherLabel && (
+                  <p className="text-[10px] text-slate-500 mt-1 italic">
+                    {otherLabel}
+                  </p>
                 )}
-                {instance.client_name && (
-                  <span className="text-[10px] text-slate-500 truncate">
-                    {instance.client_name}
+
+                {instance.qr_code && (
+                  <span className="text-xs font-semibold bg-gray-100 text-gray-600 px-2 py-1 rounded mt-2 w-fit block">
+                    QR: {instance.qr_code}
                   </span>
                 )}
               </div>
-              <p className="font-bold text-gray-800 text-sm">{instance.custom_name}</p>
-              <p className="text-[10px] text-emerald-600 font-medium mt-0.5">{instance.batch_folio}</p>
-              {instance.qr_code && (
-                <span className="text-xs font-semibold bg-gray-100 text-gray-600 px-2 py-1 rounded mt-2 w-fit block">
-                  QR: {instance.qr_code}
-                </span>
-              )}
-            </div>
-          ))}
+            );
+          })}
 
           {allReady.length === 0 && (
             <div className="border-2 border-dashed border-emerald-200 rounded-lg p-6 text-center text-emerald-500 text-sm">
@@ -885,22 +968,31 @@ export default function ProductionKanbanPage() {
                         <p className="font-bold text-slate-800 text-sm">
                           {inst.custom_name || '—'}
                         </p>
-                        {/* Material clave */}
-                        {inst.key_material_sku && (
-                          <div className="mt-1.5 flex items-center gap-2">
-                            <span className="text-[10px] font-bold uppercase
-                                             tracking-wide text-slate-400">
-                              {selectedBatch.batch_type === 'PIEDRA'
-                                ? '🪨 Piedra' : '🪵 Tablero'}
-                            </span>
-                            <span className="text-xs font-mono text-slate-600
-                                             bg-white border border-slate-200
-                                             px-2 py-0.5 rounded">
-                              {inst.key_material_sku}
-                            </span>
-                            <span className="text-xs text-slate-600 truncate">
-                              {inst.key_material_name}
-                            </span>
+                        {/* Material(es) clave — puede haber más de uno */}
+                        {inst.key_materials && inst.key_materials.length > 0 && (
+                          <div className="mt-1.5 flex flex-col gap-1">
+                            {inst.key_materials.map((km: any, idx: number) => (
+                              <div key={`${km.sku}-${idx}`} className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[10px] font-bold uppercase
+                                                 tracking-wide text-slate-400">
+                                  {selectedBatch.batch_type === 'PIEDRA'
+                                    ? '🪨 Piedra' : '🪵 Tablero'}
+                                </span>
+                                <span className="text-xs font-mono text-slate-600
+                                                 bg-white border border-slate-200
+                                                 px-2 py-0.5 rounded">
+                                  {km.sku}
+                                </span>
+                                <span className="text-xs text-slate-600 truncate flex-1">
+                                  {km.name}
+                                </span>
+                                <span className="text-xs font-bold text-slate-700
+                                                 bg-amber-50 border border-amber-200
+                                                 px-2 py-0.5 rounded whitespace-nowrap">
+                                  {km.quantity} {km.usage_unit}
+                                </span>
+                              </div>
+                            ))}
                           </div>
                         )}
                         {/* Botón herrajes */}

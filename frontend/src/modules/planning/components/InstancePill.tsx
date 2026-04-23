@@ -1,5 +1,5 @@
 import { CalendarPill } from '../../../api/planning-service';
-import { LANE_COLORS, SEMAPHORE_DOTS, formatInstanceLabel } from '../hooks/usePlanning';
+import { LANE_COLORS } from '../hooks/usePlanning';
 
 interface Props {
   pill: CalendarPill;
@@ -11,15 +11,14 @@ interface Props {
 
 export default function InstancePill({ pill, onClick, draggable, onDragStart }: Props) {
   const laneClass = LANE_COLORS[pill.lane] ?? 'bg-gray-200 text-gray-700 border-gray-300';
-  const dot = SEMAPHORE_DOTS[pill.semaphore] ?? '⬜';
-  const label = formatInstanceLabel(pill.product_category, pill.custom_name);
+  const alias = pill.custom_name?.trim() || '—';
 
   return (
     <div
       draggable={draggable}
       onDragStart={onDragStart ? (e) => onDragStart(e, pill) : undefined}
       onClick={() => onClick?.(pill)}
-      title={`${label} — ${pill.lane_label} — ${pill.semaphore_label}`}
+      title={`${pill.lane}|${alias} — ${pill.lane_label}`}
       className={`
         flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[10px] font-medium
         cursor-pointer select-none min-w-0 overflow-hidden
@@ -30,8 +29,8 @@ export default function InstancePill({ pill, onClick, draggable, onDragStart }: 
       `}
     >
       <span className="shrink-0 font-bold">{pill.lane}</span>
-      <span className="flex-1 min-w-0 truncate">{label}</span>
-      <span className="shrink-0 leading-none">{dot}</span>
+      <span className="shrink-0 opacity-40">|</span>
+      <span className="flex-1 min-w-0 truncate">{alias}</span>
     </div>
   );
 }

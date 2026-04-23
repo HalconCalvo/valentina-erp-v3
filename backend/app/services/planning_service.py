@@ -11,7 +11,7 @@ from typing import Optional, List, Tuple
 from sqlmodel import Session, select
 
 from app.models.sales import SalesOrderItemInstance, InstanceStatus
-from app.models.production import PayrollPayment, InstallationAssignment, PayrollStatus
+from app.models.production import PayrollPayment, InstallationAssignment, PayrollStatus, ProductionBatch, ProductionBatchStatus
 
 
 # ============================================================
@@ -31,14 +31,95 @@ class SemaphoreColor(str):
     WARRANTY = "WARRANTY"   # ⚠️ Garantía
 
 
-def compute_semaphore(instance: SalesOrderItemInstance, reference_date: Optional[datetime] = None) -> str:
+# Escala de "atraso" del semáforo. Números más bajos = más atrasado/urgente.
+# Usado para resolver el semáforo de una instancia con dos tracks (MDF + PIEDRA):
+# el track más atrasado gana.
+_SEMAPHORE_SEVERITY = {
+    SemaphoreColor.RED:          1,
+    SemaphoreColor.YELLOW:       2,
+    SemaphoreColor.GRAY:         3,
+    SemaphoreColor.BLUE:         4,
+    SemaphoreColor.BLUE_GREEN:   5,
+    SemaphoreColor.DOUBLE_BLUE:  6,
+    SemaphoreColor.GREEN:        7,
+    SemaphoreColor.DOUBLE_GREEN: 8,
+}
+
+def _worst_semaphore(colors: list) -> str:
+    """Dada una lista de colores, retorna el más atrasado (menor severidad)."""
+    if not colors:
+        return SemaphoreColor.GRAY
+    return min(colors, key=lambda c: _SEMAPHORE_SEVERITY.get(c, 99))
+
+
+def _compute_track_semaphore(
+    scheduled_dates: list,
+    batch_id,
+    batch_status,
+    reference_date: datetime,
+) -> Optional[str]:
     """
-    Calcula el color del semáforo para una instancia.
-    Retorna un valor de SemaphoreColor.
+    Calcula el semáforo de un track individual (MDF o PIEDRA).
+    Retorna None si el track no aplica (no hay fechas ni lote).
+
+    - scheduled_dates: lista de fechas datetime del track (PM e IM para MDF; PP e IP para PIEDRA).
+    - batch_id: ID del lote del track (production_batch_id o stone_batch_id). None si no hay lote.
+    - batch_status: status del lote si existe (ProductionBatchStatus) o None.
+    """
+    # Si el lote ya existe, el semáforo lo determina el avance del lote.
+    if batch_id and batch_status is not None:
+        if batch_status == ProductionBatchStatus.READY_TO_INSTALL:
+            return SemaphoreColor.BLUE_GREEN
+        if batch_status == ProductionBatchStatus.PACKING:
+            # En empaque = ya pasó producción, listo para instalar operativamente.
+            return SemaphoreColor.BLUE_GREEN
+        if batch_status == ProductionBatchStatus.IN_PRODUCTION:
+            return SemaphoreColor.BLUE
+        # DRAFT / ON_HOLD → el lote existe pero no ha arrancado. Tratar como programado.
+        # Aún así, si hay fecha vencida el color debe ser rojo.
+
+    # Sin lote o lote no arrancado → el semáforo depende de las fechas.
+    if not scheduled_dates:
+        # No hay ni fechas ni lote → track no aplica.
+        if not batch_id:
+            return None
+        # Hay lote DRAFT/ON_HOLD sin fechas → tratarlo como GRAY.
+        return SemaphoreColor.GRAY
+
+    earliest = min(scheduled_dates)
+    days_until = (earliest - reference_date).days
+
+    if days_until < 0:
+        return SemaphoreColor.RED
+    elif days_until <= 15:
+        return SemaphoreColor.YELLOW
+    else:
+        return SemaphoreColor.GRAY
+
+
+def compute_semaphore(
+    instance: SalesOrderItemInstance,
+    reference_date: Optional[datetime] = None,
+    session: Optional[Session] = None,
+) -> str:
+    """
+    Calcula el color del semáforo de una instancia usando la Ley del Track Más Atrasado.
+
+    Una instancia tiene hasta dos tracks paralelos:
+      - Track MDF:    fechas PM e IM + production_batch_id
+      - Track PIEDRA: fechas PP e IP + stone_batch_id
+
+    El semáforo final es el del track más atrasado entre los activos.
+
+    Estados terminales globales (WARRANTY, CLOSED, INSTALLED, CARGADO) se respetan
+    como retorno directo porque son derivados de toda la instancia, no de un solo track.
+
+    Si `session` no se provee, se usa production_status como fallback global (comportamiento legacy).
+    Si `session` se provee, se consultan los lotes para determinar el estado real de cada track.
     """
     now = reference_date or datetime.utcnow()
 
-    # Estados terminales — no dependen de fechas
+    # Estados terminales globales — no dependen de tracks individuales
     if instance.production_status == InstanceStatus.WARRANTY:
         return SemaphoreColor.WARRANTY
     if instance.production_status == InstanceStatus.CLOSED:
@@ -47,34 +128,59 @@ def compute_semaphore(instance: SalesOrderItemInstance, reference_date: Optional
         return SemaphoreColor.GREEN
     if instance.production_status == InstanceStatus.CARGADO:
         return SemaphoreColor.DOUBLE_BLUE
-    if instance.production_status == InstanceStatus.READY:
-        return SemaphoreColor.BLUE_GREEN
-    if instance.production_status == InstanceStatus.IN_PRODUCTION:
-        return SemaphoreColor.BLUE
 
-    # Estado PENDING — depende de fechas programadas
-    # Usamos la fecha más próxima de las 4 programadas como referencia
-    scheduled_dates = [
-        d for d in [
-            instance.scheduled_prod_mdf,
-            instance.scheduled_prod_stone,
-            instance.scheduled_inst_mdf,
-            instance.scheduled_inst_stone,
-        ] if d is not None
-    ]
+    # Fallback legacy: si no se pasa session, usar comportamiento antiguo basado en production_status
+    if session is None:
+        if instance.production_status == InstanceStatus.READY:
+            return SemaphoreColor.BLUE_GREEN
+        if instance.production_status == InstanceStatus.IN_PRODUCTION:
+            return SemaphoreColor.BLUE
 
-    if not scheduled_dates:
-        return SemaphoreColor.GRAY  # Sin fechas programadas
+        # PENDING: depende de fechas (cualquiera de las 4)
+        scheduled_dates = [
+            d for d in [
+                instance.scheduled_prod_mdf,
+                instance.scheduled_prod_stone,
+                instance.scheduled_inst_mdf,
+                instance.scheduled_inst_stone,
+            ] if d is not None
+        ]
+        if not scheduled_dates:
+            return SemaphoreColor.GRAY
+        earliest = min(scheduled_dates)
+        days_until = (earliest - now).days
+        if days_until < 0:
+            return SemaphoreColor.RED
+        elif days_until <= 15:
+            return SemaphoreColor.YELLOW
+        else:
+            return SemaphoreColor.GRAY
 
-    earliest = min(scheduled_dates)
-    days_until = (earliest - now).days
+    # Camino moderno: con session, evaluamos cada track por separado.
+    # Track MDF
+    mdf_dates = [d for d in [instance.scheduled_prod_mdf, instance.scheduled_inst_mdf] if d is not None]
+    mdf_batch_status = None
+    if instance.production_batch_id:
+        mdf_batch = session.get(ProductionBatch, instance.production_batch_id)
+        mdf_batch_status = mdf_batch.status if mdf_batch else None
+    mdf_color = _compute_track_semaphore(mdf_dates, instance.production_batch_id, mdf_batch_status, now)
 
-    if days_until < 0:
-        return SemaphoreColor.RED       # Fecha vencida sin lote
-    elif days_until <= 15:
-        return SemaphoreColor.YELLOW    # Alerta: faltan ≤ 15 días
-    else:
-        return SemaphoreColor.GRAY      # Programado (> 15 días)
+    # Track PIEDRA
+    stone_dates = [d for d in [instance.scheduled_prod_stone, instance.scheduled_inst_stone] if d is not None]
+    stone_batch_status = None
+    if instance.stone_batch_id:
+        stone_batch = session.get(ProductionBatch, instance.stone_batch_id)
+        stone_batch_status = stone_batch.status if stone_batch else None
+    stone_color = _compute_track_semaphore(stone_dates, instance.stone_batch_id, stone_batch_status, now)
+
+    # Recolectar tracks activos (None = track no aplica a esta instancia)
+    active = [c for c in [mdf_color, stone_color] if c is not None]
+
+    if not active:
+        # Ningún track activo — instancia sin fechas ni lotes
+        return SemaphoreColor.GRAY
+
+    return _worst_semaphore(active)
 
 
 def compute_semaphore_label(color: str) -> str:

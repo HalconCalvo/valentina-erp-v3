@@ -4,7 +4,7 @@
  * de una instancia desde cualquier punto del módulo de planeación.
  */
 import { useState, useEffect } from 'react';
-import { planningService, InstanceSchedule } from '../../../api/planning-service';
+import { planningService, InstanceSchedule, CalendarPill } from '../../../api/planning-service';
 import { getSemaphoreConfig } from '../hooks/usePlanning';
 
 interface Installer {
@@ -22,6 +22,8 @@ interface Props {
   /** Notificado al elegir un día en el mini calendario */
   onDateSelect?: (dateStr: string, laneCode: string) => void;
   onUnscheduleAll?: () => void;
+  /** Datos del calendario para validar capacidad (máx 4 instancias por carril por día) */
+  calendarData?: Record<string, CalendarPill[]>;
 }
 
 const LANE_META = [
@@ -76,9 +78,77 @@ function formatDisplayDate(dateValue: string): string {
   return `${dayName} ${d}/${monthShort}/${y}`;
 }
 
+// ─── Track status helper ──────────────────────────────────────────────────────
+
+type TrackKey = 'MDF' | 'STONE';
+
+interface TrackStatus {
+  label: string;
+  color: string;
+  icon: string;
+}
+
+function computeTrackStatus(
+  trackKey: TrackKey,
+  instance: InstanceSchedule,
+): TrackStatus | null {
+  const sched = instance.schedule;
+  const prodDate = trackKey === 'MDF' ? sched.PM : sched.PP;
+  const instDate = trackKey === 'MDF' ? sched.IM : sched.IP;
+  const hasDates = !!(prodDate || instDate);
+
+  // Track no aplica: ni fechas de ese track.
+  if (!hasDates) {
+    return {
+      label: 'No aplica',
+      color: 'text-slate-400 bg-slate-50 border-slate-200',
+      icon: '○',
+    };
+  }
+
+  // Estado global heredado (aproximación mientras no tengamos estado por track en el backend)
+  const ps = instance.production_status;
+  if (ps === 'CLOSED') {
+    return { label: 'Cerrado', color: 'text-emerald-700 bg-emerald-50 border-emerald-200', icon: '🟢🟢' };
+  }
+  if (ps === 'INSTALLED') {
+    return { label: 'Instalado', color: 'text-emerald-700 bg-emerald-50 border-emerald-200', icon: '🟢' };
+  }
+  if (ps === 'CARGADO') {
+    return { label: 'En tránsito', color: 'text-blue-700 bg-blue-50 border-blue-200', icon: '🔵🔵' };
+  }
+  if (ps === 'READY') {
+    return { label: 'Listo para instalar', color: 'text-cyan-700 bg-cyan-50 border-cyan-200', icon: '🔵🟢' };
+  }
+  if (ps === 'IN_PRODUCTION') {
+    return { label: 'En producción', color: 'text-blue-700 bg-blue-50 border-blue-200', icon: '🔵' };
+  }
+  if (ps === 'WARRANTY') {
+    return { label: 'Garantía', color: 'text-orange-700 bg-orange-50 border-orange-200', icon: '⚠️' };
+  }
+
+  // PENDING: calcular según fechas del track
+  const earliestStr = [prodDate, instDate].filter(Boolean).sort()[0] as string | undefined;
+  if (!earliestStr) {
+    return { label: 'Programado', color: 'text-slate-600 bg-slate-100 border-slate-300', icon: '⬜' };
+  }
+  const earliest = new Date(earliestStr);
+  const now = new Date();
+  const diffMs = earliest.getTime() - now.getTime();
+  const days = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+  if (days < 0) {
+    return { label: 'Vencido sin lote', color: 'text-red-700 bg-red-50 border-red-300', icon: '🔴' };
+  }
+  if (days <= 15) {
+    return { label: 'Próximo (≤15 días)', color: 'text-amber-700 bg-amber-50 border-amber-300', icon: '🟡' };
+  }
+  return { label: 'Programado', color: 'text-purple-700 bg-purple-50 border-purple-300', icon: '🟣' };
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function InstanceEditModal({ instance, onClose, onSaved, readOnly = false, onDateSelect, onUnscheduleAll }: Props) {
+export default function InstanceEditModal({ instance, onClose, onSaved, readOnly = false, onDateSelect, onUnscheduleAll, calendarData = {} }: Props) {
   const [name, setName]   = useState('');
   const [dates, setDates] = useState<Record<LaneField, string>>({
     scheduled_prod_mdf:   '',
@@ -164,7 +234,25 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
 
   const cfg = getSemaphoreConfig(instance.semaphore);
 
+  // ── Validación de orden lógico: IM y IP no pueden ser anteriores a PM ──
+  const orderError = (() => {
+    const pm = dates.scheduled_prod_mdf;
+    const im = dates.scheduled_inst_mdf;
+    const ip = dates.scheduled_inst_stone;
+    if (im && pm && im < pm) {
+      return `IM (${formatDisplayDate(im)}) no puede ser anterior a PM (${formatDisplayDate(pm)}). No se puede instalar antes de producir.`;
+    }
+    if (ip && pm && ip < pm) {
+      return `IP (${formatDisplayDate(ip)}) no puede ser anterior a PM (${formatDisplayDate(pm)}). No se puede instalar antes de producir.`;
+    }
+    return null;
+  })();
+
   const handleSave = async () => {
+    if (orderError) {
+      setError(orderError);
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -243,19 +331,81 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
 
   const selectPickerDay = (field: LaneField, day: number) => {
     const dayStr = `${pickerYear}-${String(pickerMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    setDates(prev => ({ ...prev, [field]: dayStr }));
     const lane = LANE_META.find(l => l.field === field);
-    if (lane) onDateSelect?.(dayStr, lane.code);
+    if (!lane) return;
+
+    // Contar cuántas instancias (distintas a la actual) ya tienen este carril en esta fecha
+    const pillsThatDay = calendarData[dayStr] ?? [];
+    const sameLanePills = pillsThatDay.filter(
+      p => p.lane === lane.code && p.instance_id !== instance.id
+    );
+    const count = sameLanePills.length;
+
+    // Construir lista legible de instancias ya programadas
+    const buildList = () =>
+      sameLanePills
+        .map(p => `  • ${lane.code}|${p.custom_name}`)
+        .join('\n');
+
+    let shouldProceed = true;
+    if (count >= 4) {
+      // Alerta grande: capacidad interna superada
+      shouldProceed = window.confirm(
+        `⚠️ YA ESTÁN PROGRAMADAS ${count} ${lane.code} PARA ESE DÍA\n\n` +
+        `Capacidad interna superada. Solo continúa si usarás recursos externos.\n\n` +
+        `Instancias ya programadas:\n${buildList()}\n\n` +
+        `¿Continuar de todos modos?`
+      );
+    } else if (count >= 1) {
+      // Alerta chica: mostrar instancias ya programadas
+      shouldProceed = window.confirm(
+        `Ya ${count === 1 ? 'hay' : 'están'} ${count} ${count === 1 ? 'instancia programada' : 'instancias programadas'} para ${lane.code} el ${formatDisplayDate(dayStr)}:\n\n` +
+        `${buildList()}\n\n` +
+        `¿Programar también esta instancia en la misma fecha?`
+      );
+    }
+
+    if (!shouldProceed) {
+      // Usuario canceló — cerrar picker sin cambiar fecha
+      setPickerOpenField(null);
+      setCalendarOpen(false);
+      return;
+    }
+
+    setDates(prev => ({ ...prev, [field]: dayStr }));
+    onDateSelect?.(dayStr, lane.code);
     setPickerOpenField(null);
     setCalendarOpen(false);
   };
 
   const handleSaveImTeam = async () => {
     if (!instance || !imLeaderId) return;
+
+    // Bloquear si hay error de orden lógico
+    if (orderError) {
+      setImError(orderError);
+      return;
+    }
+
     setImSaving(true);
     setImError(null);
     setImSuccess(false);
     try {
+      // Paso 1: Persistir las 4 fechas del estado local antes de asignar equipo.
+      // Esto garantiza que el backend no rechace el assign-team por falta de fecha.
+      await planningService.updateInstance(instance.id, {
+        custom_name: name.trim() || instance.custom_name,
+        scheduled_prod_mdf: dates.scheduled_prod_mdf ? fromInputValue(dates.scheduled_prod_mdf) : undefined,
+        scheduled_prod_stone: dates.scheduled_prod_stone ? fromInputValue(dates.scheduled_prod_stone) : undefined,
+        scheduled_inst_mdf: dates.scheduled_inst_mdf ? fromInputValue(dates.scheduled_inst_mdf) : undefined,
+        scheduled_inst_stone: dates.scheduled_inst_stone ? fromInputValue(dates.scheduled_inst_stone) : undefined,
+        clear_prod_mdf: !dates.scheduled_prod_mdf && !!instance.schedule.PM,
+        clear_prod_stone: !dates.scheduled_prod_stone && !!instance.schedule.PP,
+        clear_inst_mdf: !dates.scheduled_inst_mdf && !!instance.schedule.IM,
+        clear_inst_stone: !dates.scheduled_inst_stone && !!instance.schedule.IP,
+      });
+
+      // Paso 2: Asignar equipo instalador.
       await planningService.assignTeam(instance.id, {
         leader_user_id: Number(imLeaderId),
         helper_1_user_id: imHelper1Id ? Number(imHelper1Id) : null,
@@ -263,6 +413,9 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
         assignment_date: dates.scheduled_inst_mdf,
         lane: 'IM',
       });
+
+      // Refrescar calendario del padre para reflejar los nuevos datos
+      onSaved();
       setImSuccess(true);
       setTimeout(() => setImSuccess(false), 3000);
     } catch (e: unknown) {
@@ -275,10 +428,31 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
 
   const handleSaveIpTeam = async () => {
     if (!instance || !ipLeaderId) return;
+
+    // Bloquear si hay error de orden lógico
+    if (orderError) {
+      setIpError(orderError);
+      return;
+    }
+
     setIpSaving(true);
     setIpError(null);
     setIpSuccess(false);
     try {
+      // Paso 1: Persistir las 4 fechas del estado local antes de asignar equipo.
+      await planningService.updateInstance(instance.id, {
+        custom_name: name.trim() || instance.custom_name,
+        scheduled_prod_mdf: dates.scheduled_prod_mdf ? fromInputValue(dates.scheduled_prod_mdf) : undefined,
+        scheduled_prod_stone: dates.scheduled_prod_stone ? fromInputValue(dates.scheduled_prod_stone) : undefined,
+        scheduled_inst_mdf: dates.scheduled_inst_mdf ? fromInputValue(dates.scheduled_inst_mdf) : undefined,
+        scheduled_inst_stone: dates.scheduled_inst_stone ? fromInputValue(dates.scheduled_inst_stone) : undefined,
+        clear_prod_mdf: !dates.scheduled_prod_mdf && !!instance.schedule.PM,
+        clear_prod_stone: !dates.scheduled_prod_stone && !!instance.schedule.PP,
+        clear_inst_mdf: !dates.scheduled_inst_mdf && !!instance.schedule.IM,
+        clear_inst_stone: !dates.scheduled_inst_stone && !!instance.schedule.IP,
+      });
+
+      // Paso 2: Asignar equipo instalador.
       await planningService.assignTeam(instance.id, {
         leader_user_id: Number(ipLeaderId),
         helper_1_user_id: ipHelper1Id ? Number(ipHelper1Id) : null,
@@ -286,6 +460,8 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
         assignment_date: dates.scheduled_inst_stone,
         lane: 'IP',
       });
+
+      onSaved();
       setIpSuccess(true);
       setTimeout(() => setIpSuccess(false), 3000);
     } catch (e: unknown) {
@@ -336,6 +512,37 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
               placeholder="Ej: Casa 123, Calle 98 – Cocina Integral"
               className={`w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition ${readOnly ? 'bg-slate-50 text-slate-500 cursor-not-allowed' : ''}`}
             />
+          </div>
+
+          {/* Mini-tablero de tracks: estado independiente de MDF y PIEDRA */}
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">
+              Estado de Tracks
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {(['MDF', 'STONE'] as TrackKey[]).map(trackKey => {
+                const status = computeTrackStatus(trackKey, instance);
+                if (!status) return null;
+                const isStone = trackKey === 'STONE';
+                return (
+                  <div
+                    key={trackKey}
+                    className={`rounded-xl border px-3 py-2.5 ${status.color}`}
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider">
+                        {isStone ? '🪨 Track Piedra' : '🪵 Track MDF'}
+                      </span>
+                      <span className="text-sm leading-none">{status.icon}</span>
+                    </div>
+                    <p className="text-xs font-semibold">{status.label}</p>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-slate-400 mt-2 italic">
+              El semáforo de la instancia refleja el track más atrasado.
+            </p>
           </div>
 
           {/* 4 Carriles */}
@@ -577,7 +784,8 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
                   <button
                     type="button"
                     onClick={() => void handleSaveImTeam()}
-                    disabled={!imLeaderId || imSaving}
+                    disabled={!imLeaderId || imSaving || !!orderError}
+                    title={orderError ?? undefined}
                     className="w-full py-2.5 rounded-xl text-sm font-bold bg-sky-600 hover:bg-sky-700 text-white transition disabled:opacity-40"
                   >
                     {imSaving ? 'Guardando equipo...' : '👷 Guardar equipo instalador IM'}
@@ -676,7 +884,8 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
                   <button
                     type="button"
                     onClick={() => void handleSaveIpTeam()}
-                    disabled={!ipLeaderId || ipSaving}
+                    disabled={!ipLeaderId || ipSaving || !!orderError}
+                    title={orderError ?? undefined}
                     className="w-full py-2.5 rounded-xl text-sm font-bold bg-cyan-600 hover:bg-cyan-700 text-white transition disabled:opacity-40"
                   >
                     {ipSaving ? 'Guardando equipo...' : '👷 Guardar equipo instalador IP'}
@@ -684,6 +893,12 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
                 </div>
               )}
             </div>
+          )}
+
+          {orderError && (
+            <p className="text-xs text-red-700 bg-red-50 border-2 border-red-300 rounded-xl px-3 py-2.5 font-semibold">
+              ⛔ {orderError}
+            </p>
           )}
 
           {error && (
@@ -734,7 +949,8 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
             {!readOnly && (
               <button
                 onClick={handleSave}
-                disabled={saving}
+                disabled={saving || !!orderError}
+                title={orderError ?? undefined}
                 className="px-5 py-2 rounded-xl text-sm font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition disabled:opacity-50"
               >
                 {saving ? 'Guardando...' : 'Guardar cambios'}

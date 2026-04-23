@@ -249,27 +249,33 @@ const ManagementDashboard: React.FC = () => {
 
     const totalTasks = alerts.pending_requisitions + alerts.pending_sales_advances;
 
+    const hideOwnHeader =
+        (root === 'CXC' && recvSubOpen) ||
+        (root === 'CXP' && paySubOpen);
+
     return (
         <div className="p-8 max-w-7xl mx-auto pb-24 space-y-6 animate-fadeIn">
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4">
-                <div>
-                    <h1 className="text-3xl font-black text-slate-800 tracking-tight">{getTitle()}</h1>
-                    <p className="text-slate-500 mt-1 font-medium">
-                        {root === null
-                            ? 'Jerarquía operativa: pendientes, bóveda, CXC, CXP y nómina.'
-                            : 'Use «Regresar» para volver al nivel inmediato anterior.'}
-                    </p>
+            {!hideOwnHeader && (
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4">
+                    <div>
+                        <h1 className="text-3xl font-black text-slate-800 tracking-tight">{getTitle()}</h1>
+                        <p className="text-slate-500 mt-1 font-medium">
+                            {root === null
+                                ? 'Jerarquía operativa: pendientes, bóveda, CXC, CXP y nómina.'
+                                : 'Use «Regresar» para volver al nivel inmediato anterior.'}
+                        </p>
+                    </div>
+                    {root !== null && (
+                        <button
+                            type="button"
+                            onClick={handleRegresar}
+                            className="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-bold hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm"
+                        >
+                            <ArrowLeft size={18} /> Regresar
+                        </button>
+                    )}
                 </div>
-                {root !== null && (
-                    <button
-                        type="button"
-                        onClick={handleRegresar}
-                        className="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-bold hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm"
-                    >
-                        <ArrowLeft size={18} /> Regresar
-                    </button>
-                )}
-            </div>
+            )}
 
             {root === null && (
                 <div

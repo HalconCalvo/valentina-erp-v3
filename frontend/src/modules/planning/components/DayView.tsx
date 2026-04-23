@@ -1,5 +1,5 @@
 import { CalendarPill, InstanceSchedule } from '../../../api/planning-service';
-import { getSemaphoreConfig, LANE_COLORS, matchesPillQuery, SEMAPHORE_DOTS, formatInstanceLabel } from '../hooks/usePlanning';
+import { LANE_COLORS, matchesPillQuery } from '../hooks/usePlanning';
 
 const FULL_DAY_NAMES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const MONTH_NAMES = [
@@ -57,10 +57,8 @@ function PillCard({
   onClick?: (pill: CalendarPill) => void;
   isHighlighted: boolean;
 }) {
-  const semCfg = getSemaphoreConfig(pill.semaphore);
   const laneClass = LANE_COLORS[pill.lane] ?? 'bg-gray-200 text-gray-700 border-gray-300';
-  const dot = SEMAPHORE_DOTS[pill.semaphore] ?? '⬜';
-  const label = formatInstanceLabel(pill.product_category, pill.custom_name);
+  const alias = pill.custom_name?.trim() || '—';
 
   return (
     <button
@@ -87,19 +85,13 @@ function PillCard({
               <span className="text-orange-500 text-xs">⚠️</span>
             )}
             <p className="text-sm font-bold text-slate-800 leading-snug">
-              {label}
+              {alias}
             </p>
           </div>
 
           <div className="mt-1 flex items-center gap-2 flex-wrap">
-            {/* Lane label */}
             <span className="text-[10px] text-slate-400 font-medium">
               {pill.lane_label}
-            </span>
-            <span className="text-slate-200">·</span>
-            {/* Status */}
-            <span className={`text-[10px] font-semibold ${semCfg.text}`}>
-              {dot} {pill.semaphore_label}
             </span>
           </div>
 

@@ -31,6 +31,8 @@ from app.models.sales import (
 )
 from app.services.cloud_storage import upload_to_gcs
 from app.services.label_printer import generate_all_labels, concatenate_zpl
+from app.services.planning_service import compute_semaphore
+from datetime import datetime
 
 # Schemas
 from app.schemas.design_schema import (
@@ -648,6 +650,8 @@ class PendingInstanceResponse(BaseModel):
     order_project_name: str
     order_id: int
     client_name: Optional[str] = None
+    semaphore: Optional[str] = None
+    schedule: Optional[dict] = None
 
 # Órdenes confirmadas = tienen anticipo pagado O su status ya avanzó a producción
 _CONFIRMED_ORDER_STATUSES = {
@@ -728,6 +732,13 @@ def get_pending_instances(
             order_project_name=order.project_name,
             order_id=order.id,
             client_name=client_name,
+            semaphore=compute_semaphore(inst, datetime.utcnow(), session=session),
+            schedule={
+                "PM": inst.scheduled_prod_mdf.isoformat() if inst.scheduled_prod_mdf else None,
+                "PP": inst.scheduled_prod_stone.isoformat() if inst.scheduled_prod_stone else None,
+                "IM": inst.scheduled_inst_mdf.isoformat() if inst.scheduled_inst_mdf else None,
+                "IP": inst.scheduled_inst_stone.isoformat() if inst.scheduled_inst_stone else None,
+            },
         ))
     return result
 

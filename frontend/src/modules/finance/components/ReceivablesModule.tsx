@@ -258,7 +258,7 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
                     </div>
 
                     <div className="w-full relative">
-                        <Card onClick={() => navigate('/finance/aging', { state: { returnTo: financeReturnPath } })} className="p-6 border-l-4 border-l-emerald-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-all hover:shadow-lg hover:-translate-y-1">
+                        <Card onClick={() => navigate('/finance/aging', { state: { returnTo: financeReturnPath, openSection: financeReturnPath === '/management' ? 'RECEIVABLES' : undefined } })} className="p-6 border-l-4 border-l-emerald-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-all hover:shadow-lg hover:-translate-y-1">
                             <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-emerald-50 text-emerald-700 border-r border-emerald-100 font-black group-hover:bg-emerald-100 transition-colors ${getCountSize(pendingInvoices.length)}`}>
                                 {pendingInvoices.length}
                             </div>

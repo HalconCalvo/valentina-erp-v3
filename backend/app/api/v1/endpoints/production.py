@@ -1,3 +1,6 @@
+import math
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from typing import List, Optional
@@ -10,10 +13,11 @@ from app.core.deps import get_session
 
 from app.models.production import ProductionBatch, ProductionBatchStatus
 from app.models.foundations import Client
-from app.models.sales import SalesOrderItemInstance, SalesOrderItem, SalesOrder, PaymentStatus, InstanceStatus
+from app.models.sales import SalesOrderItemInstance, SalesOrderItem, SalesOrder, PaymentStatus, InstanceStatus, CustomerPayment
 from app.models.inventory import InventoryReservation
 from app.models.design import VersionComponent
 from app.models.material import Material
+from app.services.planning_service import compute_semaphore
 
 router = APIRouter()
 
@@ -42,6 +46,13 @@ class HerrajesResponse(BaseModel):
     herrajes: List[HerrajeItem] = []
 
 
+class KeyMaterial(BaseModel):
+    sku: str
+    name: str
+    quantity: int
+    usage_unit: str
+
+
 class InstanceDetail(BaseModel):
     id: int
     custom_name: str
@@ -50,12 +61,12 @@ class InstanceDetail(BaseModel):
     order_folio: Optional[str] = None
     client_name: Optional[str] = None
     project_name: Optional[str] = None
-    key_material_sku: Optional[str] = None
-    key_material_name: Optional[str] = None
+    key_materials: List[KeyMaterial] = []
     mdf_bundles: Optional[int] = None
     hardware_bundles: Optional[int] = None
     stone_pieces: Optional[int] = None
     declared_bundles: Optional[int] = None
+    semaphore: Optional[str] = None
 
 class ProductionBatchResponse(BaseModel):
     id: int
@@ -204,21 +215,37 @@ def read_batches(db: Session = Depends(get_session)):
                 .where(SalesOrderItemInstance.production_batch_id == batch.id)
             ).all()
 
-        # 2. Lógica Financiera: Buscar si hay adeudos en las órdenes vinculadas
+        # 2. Lógica Financiera: Verificar anticipo pagado leyendo directamente de customer_payments
+        #    (fuente de verdad, no depende del campo denormalizado sales_orders.payment_status)
         is_payment_cleared = True
         if not instances:
             # Regla: Un lote sin instancias no se puede enviar a producción
-            is_payment_cleared = False 
+            is_payment_cleared = False
         else:
+            # Reunir los IDs únicos de todas las OVs vinculadas a este lote
+            order_ids_in_batch = set()
             for inst in instances:
-                # Subir en la jerarquía: Instancia -> Item -> Orden
-                item = db.exec(select(SalesOrderItem).where(SalesOrderItem.id == inst.sales_order_item_id)).first()
+                item = db.exec(
+                    select(SalesOrderItem).where(SalesOrderItem.id == inst.sales_order_item_id)
+                ).first()
                 if item:
-                    order = db.exec(select(SalesOrder).where(SalesOrder.id == item.sales_order_id)).first()
-                    # Si el anticipo no ha sido cubierto (PENDING), bloqueamos el lote
-                    if order and order.payment_status == PaymentStatus.PENDING:
-                        is_payment_cleared = False
-                        break 
+                    order_ids_in_batch.add(item.sales_order_id)
+
+            # Para cada OV, verificar que exista al menos un CustomerPayment
+            # de tipo ADVANCE con status PAID. Si alguna OV no tiene anticipo pagado,
+            # el lote completo queda bloqueado.
+            for order_id in order_ids_in_batch:
+                advance_paid = db.exec(
+                    select(CustomerPayment)
+                    .where(
+                        CustomerPayment.sales_order_id == order_id,
+                        CustomerPayment.payment_type == "ADVANCE",
+                        CustomerPayment.status == "PAID",
+                    )
+                ).first()
+                if not advance_paid:
+                    is_payment_cleared = False
+                    break
         
         # 3. Construir el objeto de respuesta
         batch_data = batch.model_dump()
@@ -250,28 +277,28 @@ def read_batches(db: Session = Depends(get_session)):
                         if client:
                             client_name = client.full_name
 
-            # Material clave según tipo de lote
-            key_material_sku = None
-            key_material_name = None
+            # Material(es) clave según tipo de lote — lista, no un único material.
+            # Redondeo hacia arriba (math.ceil) sobre comp.quantity.
+            key_materials_list: List[KeyMaterial] = []
 
             if item and item.origin_version_id:
                 components = db.exec(
                     select(VersionComponent)
                     .where(VersionComponent.version_id == item.origin_version_id)
                 ).all()
+                target_category = 'PIEDRA' if batch.batch_type.upper() == 'PIEDRA' else 'TABLERO'
                 for comp in components:
                     mat = db.get(Material, comp.material_id)
                     if not mat:
                         continue
                     cat = (mat.category or '').upper()
-                    if batch.batch_type.upper() == 'PIEDRA' and cat == 'PIEDRA':
-                        key_material_sku = mat.sku
-                        key_material_name = mat.name
-                        break
-                    elif batch.batch_type.upper() != 'PIEDRA' and cat == 'TABLERO':
-                        key_material_sku = mat.sku
-                        key_material_name = mat.name
-                        break
+                    if cat == target_category:
+                        key_materials_list.append(KeyMaterial(
+                            sku=mat.sku,
+                            name=mat.name,
+                            quantity=math.ceil(float(comp.quantity or 0)),
+                            usage_unit=mat.usage_unit or '',
+                        ))
 
             enriched_instances.append(InstanceDetail(
                 id=i.id,
@@ -285,12 +312,12 @@ def read_batches(db: Session = Depends(get_session)):
                 order_folio=order_folio,
                 client_name=client_name,
                 project_name=project_name,
-                key_material_sku=key_material_sku,
-                key_material_name=key_material_name,
+                key_materials=key_materials_list,
                 mdf_bundles=i.mdf_bundles,
                 hardware_bundles=i.hardware_bundles,
                 stone_pieces=i.stone_pieces,
                 declared_bundles=i.declared_bundles,
+                semaphore=compute_semaphore(i, datetime.utcnow(), session=db),
             ))
 
         batch_data["instances"] = enriched_instances
@@ -650,62 +677,91 @@ def get_instance_herrajes(
 @router.get("/instances/ready")
 def get_ready_instances(db: Session = Depends(get_session)):
     """
-    Devuelve todas las instancias con production_status = READY
-    enriquecidas con OV, cliente y proyecto.
+    Devuelve una entrada POR CADA TRACK LISTO de una instancia.
+    Una instancia puede aparecer dos veces si tanto su lote MDF como su lote PIEDRA
+    están en READY_TO_INSTALL. Cada entrada representa un track independiente
+    que puede instalarse por separado.
     """
-    instances = db.exec(
-        select(SalesOrderItemInstance)
-        .where(
-            SalesOrderItemInstance.production_status == InstanceStatus.READY
-        )
+    # Buscar todos los lotes en READY_TO_INSTALL
+    ready_batches = db.exec(
+        select(ProductionBatch)
+        .where(ProductionBatch.status == ProductionBatchStatus.READY_TO_INSTALL)
     ).all()
 
     result = []
-    for i in instances:
-        order_folio = None
-        client_name = None
-        project_name = None
-        batch_folio = None
-        qr_code = i.qr_code
+    for batch in ready_batches:
+        is_stone_batch = batch.batch_type.upper() == "PIEDRA"
 
-        item = db.exec(
-            select(SalesOrderItem)
-            .where(SalesOrderItem.id == i.sales_order_item_id)
-        ).first()
-        if item:
-            order = db.exec(
-                select(SalesOrder)
-                .where(SalesOrder.id == item.sales_order_id)
+        # Obtener instancias de este lote
+        if is_stone_batch:
+            instances = db.exec(
+                select(SalesOrderItemInstance)
+                .where(SalesOrderItemInstance.stone_batch_id == batch.id)
+            ).all()
+        else:
+            instances = db.exec(
+                select(SalesOrderItemInstance)
+                .where(SalesOrderItemInstance.production_batch_id == batch.id)
+            ).all()
+
+        for i in instances:
+            # Omitir instancias canceladas
+            if i.is_cancelled:
+                continue
+            # Omitir instancias ya cerradas globalmente
+            if i.production_status == InstanceStatus.CLOSED:
+                continue
+
+            # Enriquecer con OV/cliente/proyecto
+            order_folio = None
+            client_name = None
+            project_name = None
+
+            item = db.exec(
+                select(SalesOrderItem)
+                .where(SalesOrderItem.id == i.sales_order_item_id)
             ).first()
-            if order:
-                order_folio = f"OV-{str(order.id).zfill(4)}"
-                project_name = order.project_name
-                if order.client_id:
-                    client = db.get(Client, order.client_id)
-                    if client:
-                        client_name = client.full_name
+            if item:
+                order = db.exec(
+                    select(SalesOrder)
+                    .where(SalesOrder.id == item.sales_order_id)
+                ).first()
+                if order:
+                    order_folio = f"OV-{str(order.id).zfill(4)}"
+                    project_name = order.project_name
+                    if order.client_id:
+                        client = db.get(Client, order.client_id)
+                        if client:
+                            client_name = client.full_name
 
-        # Obtener folio del lote
-        batch_id = i.production_batch_id or i.stone_batch_id
-        if batch_id:
-            batch = db.get(ProductionBatch, batch_id)
-            if batch:
-                batch_folio = batch.folio
+            # Estado del otro track (para mostrar indicador en la tarjeta)
+            other_track_status = None
+            if is_stone_batch and i.production_batch_id:
+                other = db.get(ProductionBatch, i.production_batch_id)
+                if other:
+                    other_track_status = other.status.value if hasattr(other.status, 'value') else other.status
+            elif not is_stone_batch and i.stone_batch_id:
+                other = db.get(ProductionBatch, i.stone_batch_id)
+                if other:
+                    other_track_status = other.status.value if hasattr(other.status, 'value') else other.status
 
-        result.append({
-            "id": i.id,
-            "custom_name": i.custom_name,
-            "production_status": (
-                i.production_status.value
-                if hasattr(i.production_status, 'value')
-                else i.production_status
-            ),
-            "qr_code": qr_code,
-            "order_folio": order_folio,
-            "client_name": client_name,
-            "project_name": project_name,
-            "batch_folio": batch_folio,
-        })
+            result.append({
+                "id": i.id,
+                "track": "PIEDRA" if is_stone_batch else "MDF",
+                "custom_name": i.custom_name,
+                "production_status": (
+                    i.production_status.value
+                    if hasattr(i.production_status, 'value')
+                    else i.production_status
+                ),
+                "qr_code": i.qr_code,
+                "order_folio": order_folio,
+                "client_name": client_name,
+                "project_name": project_name,
+                "batch_folio": batch.folio,
+                "batch_type": batch.batch_type,
+                "other_track_status": other_track_status,
+            })
 
     return result
 

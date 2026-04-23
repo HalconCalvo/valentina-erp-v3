@@ -244,7 +244,9 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
 }) => {
     const navigate = useNavigate();
     const location = useLocation();
-    const returnToFromState = (location.state as { returnTo?: string } | null)?.returnTo;
+    const returnToState = (location.state as { returnTo?: string; openSection?: string } | null);
+    const returnToFromState = returnToState?.returnTo;
+    const openSectionToForward = returnToState?.openSection;
     const returnToPath = returnToPathProp ?? returnToFromState;
 
     const allowFinanceActions = userCanPerformFinanceCXCActions();
@@ -359,7 +361,7 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
             return;
         }
         if (returnToPath) {
-            navigate(returnToPath);
+            navigate(returnToPath, openSectionToForward ? { state: { openSection: openSectionToForward } } : undefined);
             return;
         }
         sessionStorage.setItem('treasury_activeSection', 'RECEIVABLES');

@@ -10,6 +10,13 @@ export interface PendingInstance {
   order_project_name: string;
   order_id: number;
   client_name?: string | null;
+  semaphore?: string | null;
+  schedule?: {
+    PM: string | null;
+    PP: string | null;
+    IM: string | null;
+    IP: string | null;
+  } | null;
 }
 
 export interface SimulatedMaterial {

@@ -95,7 +95,7 @@ class AssignTeamPayload(BaseModel):
 def _serialize_instance(inst: SalesOrderItemInstance, now: datetime, session: Optional[Session] = None) -> dict:
     """Serializa una instancia con semáforo calculado.
     Si se provee `session`, enriquece con product_name y order_folio del padre."""
-    semaphore = compute_semaphore(inst, now)
+    semaphore = compute_semaphore(inst, now, session=session)
     schedule = {
         "PM": inst.scheduled_prod_mdf.isoformat() if inst.scheduled_prod_mdf else None,
         "PP": inst.scheduled_prod_stone.isoformat() if inst.scheduled_prod_stone else None,
@@ -247,7 +247,7 @@ def get_calendar_feed(
     }
 
     for inst in instances:
-        semaphore = compute_semaphore(inst, now)
+        semaphore = compute_semaphore(inst, now, session=session)
         product_category = category_by_item.get(inst.sales_order_item_id)
         for field, code in field_map.items():
             dt: Optional[datetime] = getattr(inst, field)
@@ -316,7 +316,7 @@ def get_health_panel(
     }
 
     for inst in instances:
-        color = compute_semaphore(inst, now)
+        color = compute_semaphore(inst, now, session=session)
         if color in groups:
             groups[color].append(_serialize_instance(inst, now, session))
 
@@ -373,6 +373,21 @@ def update_instance_schedule(
         inst.scheduled_inst_stone = None
     elif payload.scheduled_inst_stone is not None:
         inst.scheduled_inst_stone = payload.scheduled_inst_stone
+
+    # Validación de orden lógico: IM y IP no pueden ser anteriores a PM.
+    # Mismo día es válido (comparación >=).
+    if inst.scheduled_inst_mdf and inst.scheduled_prod_mdf:
+        if inst.scheduled_inst_mdf < inst.scheduled_prod_mdf:
+            raise HTTPException(
+                status_code=400,
+                detail="IM no puede ser anterior a PM. No se puede instalar MDF antes de producir MDF.",
+            )
+    if inst.scheduled_inst_stone and inst.scheduled_prod_mdf:
+        if inst.scheduled_inst_stone < inst.scheduled_prod_mdf:
+            raise HTTPException(
+                status_code=400,
+                detail="IP no puede ser anterior a PM. No se puede instalar Piedra antes de producir MDF.",
+            )
 
     session.add(inst)
     session.commit()

@@ -6,6 +6,40 @@ import { planningService } from '../../../api/planning-service';
 // IMPORTACIÓN CORREGIDA: Se agregaron Calculator y RefreshCw
 import { Package, CheckSquare, Square, AlertTriangle, ShieldCheck, Factory, Beaker, ArrowLeft, Calculator, RefreshCw, Pencil, Check, X, Tag } from 'lucide-react';
 
+/** Devuelve el emoji del foco según el color del semáforo. */
+function semaphoreDot(color?: string | null): string {
+  switch (color) {
+    case 'RED':         return '🔴';
+    case 'YELLOW':      return '🟡';
+    case 'GRAY':        return '⬜';
+    case 'BLUE':        return '🔵';
+    case 'BLUE_GREEN':  return '🔵🟢';
+    case 'DOUBLE_BLUE': return '🔵🔵';
+    case 'GREEN':       return '🟢';
+    case 'DOUBLE_GREEN':return '🟢🟢';
+    case 'WARRANTY':    return '⚠️';
+    default:            return '⬜';
+  }
+}
+
+/** True si la instancia tiene al menos una fecha programada. */
+function isScheduled(inst: { schedule?: { PM: string | null; PP: string | null; IM: string | null; IP: string | null } | null }): boolean {
+  const s = inst.schedule;
+  if (!s) return false;
+  return !!(s.PM || s.PP || s.IM || s.IP);
+}
+
+/** Devuelve un semáforo "efectivo" — si GRAY + schedule, lo tratamos como SCHEDULED (púrpura). */
+function effectiveSemaphore(inst: { semaphore?: string | null; schedule?: { PM: string | null; PP: string | null; IM: string | null; IP: string | null } | null }): string {
+  if (inst.semaphore === 'GRAY' && isScheduled(inst)) return 'SCHEDULED';
+  return inst.semaphore ?? 'GRAY';
+}
+
+function semaphoreDotWithScheduled(color: string): string {
+  if (color === 'SCHEDULED') return '🟣';
+  return semaphoreDot(color);
+}
+
 export default function SimulatorPage() {
   const navigate = useNavigate(); 
   
@@ -307,6 +341,33 @@ export default function SimulatorPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
+                        {(() => {
+                          // Contar semáforos efectivos de las instancias del grupo
+                          const counts: Record<string, number> = {};
+                          group.instances.forEach(i => {
+                            const s = effectiveSemaphore(i);
+                            counts[s] = (counts[s] ?? 0) + 1;
+                          });
+                          // Mostrar en orden de prioridad: RED, YELLOW, SCHEDULED, otros
+                          const priority = ['RED', 'YELLOW', 'SCHEDULED', 'GRAY', 'BLUE', 'BLUE_GREEN', 'DOUBLE_BLUE', 'GREEN', 'DOUBLE_GREEN', 'WARRANTY'];
+                          const summary = priority
+                            .filter(k => counts[k] > 0)
+                            .map(k => ({ color: k, count: counts[k] }));
+                          return (
+                            <div className="flex items-center gap-1">
+                              {summary.map(s => (
+                                <span
+                                  key={s.color}
+                                  className="text-xs flex items-center gap-0.5"
+                                  title={`${s.color}: ${s.count}`}
+                                >
+                                  <span className="text-sm leading-none">{semaphoreDotWithScheduled(s.color)}</span>
+                                  <span className="text-[10px] font-bold text-slate-600">{s.count}</span>
+                                </span>
+                              ))}
+                            </div>
+                          );
+                        })()}
                         <span className="text-[10px] text-slate-400">
                           {group.instances.length} inst.
                         </span>
@@ -378,6 +439,9 @@ export default function SimulatorPage() {
                                       onClick={() => toggleSelection(inst.id)}
                                     >
                                       <div className="flex items-center gap-1.5">
+                                        <span className="text-sm leading-none shrink-0" title={`Semáforo: ${effectiveSemaphore(inst)}`}>
+                                          {semaphoreDotWithScheduled(effectiveSemaphore(inst))}
+                                        </span>
                                         <span className="text-[10px] font-mono font-bold text-indigo-600 shrink-0">
                                           OV-{String(inst.order_id).padStart(4, '0')}
                                         </span>
