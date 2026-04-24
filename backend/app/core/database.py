@@ -11,7 +11,12 @@ DATABASE_URL_ENV = os.getenv("DATABASE_URL")
 
 if DATABASE_URL_ENV:
     # Nube (Cloud Run)
-    SQLALCHEMY_DATABASE_URL = DATABASE_URL_ENV
+    # SQLAlchemy 2.x requiere postgresql+psycopg2:// en lugar de postgres:// o postgresql://
+    SQLALCHEMY_DATABASE_URL = DATABASE_URL_ENV.replace(
+        "postgres://", "postgresql+psycopg2://"
+    ).replace(
+        "postgresql://", "postgresql+psycopg2://"
+    )
     connect_args = {"check_same_thread": False} if "sqlite" in DATABASE_URL_ENV else {}
 else:
     # Local (Mac)
