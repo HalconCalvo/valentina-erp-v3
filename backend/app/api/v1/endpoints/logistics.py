@@ -250,6 +250,7 @@ def register_client_signature(
     assignment_id: int,
     payload: SignaturePayload,
     session: SessionDep,
+    current_user: CurrentUser,
 ):
     """
     ENDPOINT PARA EL IPAD: recaba la firma digital del cliente.

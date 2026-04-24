@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 from sqlalchemy.exc import IntegrityError
 
 from app.core.database import get_session
+from app.core.deps import CurrentUser
 from app.services.cloud_storage import upload_to_gcs  # <--- LA TUBERÍA BLINDADA
 
 # --- MODELOS ---
@@ -20,7 +21,7 @@ router = APIRouter()
 # 1. CONFIGURACIÓN GLOBAL & IDENTIDAD
 # ==========================================
 @router.get("/config", response_model=GlobalConfig)
-def get_global_config(session: Session = Depends(get_session)):
+def get_global_config(current_user: CurrentUser, session: Session = Depends(get_session)):
     config = session.exec(select(GlobalConfig)).first()
     if not config:
         default_config = GlobalConfig(

@@ -9,7 +9,7 @@ from sqlmodel import Session, select
 
 # Asumiendo que tu dependencia de base de datos está en app.api.deps o app.db.session
 # Ajusta esta importación si tu get_db está en otro lado
-from app.core.deps import get_session
+from app.core.deps import get_session, CurrentUser
 
 from app.models.production import ProductionBatch, ProductionBatchStatus
 from app.models.foundations import Client
@@ -94,6 +94,7 @@ class RequestLabelsResponse(BaseModel):
 def request_labels(
     instance_id: int,
     body: RequestLabelsBody,
+    current_user: CurrentUser,
     db: Session = Depends(get_session),
 ):
     """Registra bultos declarados para solicitud de etiquetas (empaque)."""
@@ -153,6 +154,7 @@ def _generate_folio(db: Session, batch_type: str) -> str:
 @router.post("/", response_model=ProductionBatch, status_code=status.HTTP_201_CREATED)
 def create_production_batch(
     *,
+    current_user: CurrentUser,
     db: Session = Depends(get_session),
     batch_type: str,
     estimated_merma_percent: float = 0.0
@@ -161,6 +163,11 @@ def create_production_batch(
     Crea un nuevo Lote de Producción con folio secuencial automático.
     El folio ya no se recibe del frontend — se genera en el backend.
     """
+    allowed = {"DESIGN", "ADMIN", "ADMINISTRADOR", "GERENCIA", "DIRECTOR"}
+    role = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
+    if role.upper() not in allowed:
+        raise HTTPException(status_code=403, detail="No tienes permisos para esta operación.")
+
     folio = _generate_folio(db, batch_type)
 
     new_batch = ProductionBatch(
@@ -176,7 +183,7 @@ def create_production_batch(
 
 
 @router.get("/", response_model=List[ProductionBatchResponse])
-def read_batches(db: Session = Depends(get_session)):
+def read_batches(current_user: CurrentUser, db: Session = Depends(get_session)):
     batches = db.exec(
         select(ProductionBatch)
         .where(ProductionBatch.status != ProductionBatchStatus.DEAD)
@@ -330,6 +337,7 @@ def read_batches(db: Session = Depends(get_session)):
 @router.post("/{batch_id}/assign_instance/{instance_id}")
 def assign_instance_to_batch(
     *,
+    current_user: CurrentUser,
     db: Session = Depends(get_session),
     batch_id: int,
     instance_id: int
@@ -338,6 +346,11 @@ def assign_instance_to_batch(
     CANDADO RTM: Asigna una instancia (bultos) a un Lote de Producción.
     Aquí validamos que la instancia sea apta para fabricarse.
     """
+    allowed = {"DESIGN", "ADMIN", "ADMINISTRADOR", "GERENCIA", "DIRECTOR"}
+    role = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
+    if role.upper() not in allowed:
+        raise HTTPException(status_code=403, detail="No tienes permisos para esta operación.")
+
     # 1. Buscar Lote
     batch = db.get(ProductionBatch, batch_id)
     if not batch:
@@ -442,7 +455,12 @@ def assign_instance_to_batch(
     return {"message": "Instancia asignada exitosamente al lote", "instance": instance}
 
 @router.patch("/{batch_id}/status")
-def update_batch_status(batch_id: int, status: str, db: Session = Depends(get_session)):
+def update_batch_status(batch_id: int, status: str, current_user: CurrentUser, db: Session = Depends(get_session)):
+    allowed = {"DESIGN", "ADMIN", "ADMINISTRADOR", "GERENCIA", "DIRECTOR"}
+    role = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
+    if role.upper() not in allowed:
+        raise HTTPException(status_code=403, detail="No tienes permisos para esta operación.")
+
     # 1. Buscar el lote
     batch = db.exec(select(ProductionBatch).where(ProductionBatch.id == batch_id)).first()
     if not batch:
@@ -494,6 +512,7 @@ def update_batch_status(batch_id: int, status: str, db: Session = Depends(get_se
 @router.delete("/{batch_id}", status_code=200)
 def delete_production_batch(
     batch_id: int,
+    current_user: CurrentUser,
     db: Session = Depends(get_session),
 ):
     """
@@ -502,6 +521,11 @@ def delete_production_batch(
     2. Cancela reservas ACTIVA → libera committed_stock
     3. Elimina el lote
     """
+    allowed = {"DESIGN", "ADMIN", "ADMINISTRADOR", "GERENCIA", "DIRECTOR"}
+    role = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
+    if role.upper() not in allowed:
+        raise HTTPException(status_code=403, detail="No tienes permisos para esta operación.")
+
     batch = db.get(ProductionBatch, batch_id)
     if not batch:
         raise HTTPException(status_code=404, detail="Lote no encontrado.")
@@ -577,6 +601,7 @@ class DeclareStonePiecesBody(BaseModel):
 def declare_stone_pieces(
     instance_id: int,
     body: DeclareStonePiecesBody,
+    current_user: CurrentUser,
     db: Session = Depends(get_session),
 ):
     """Producción declara el número de piezas de piedra de una instancia."""
@@ -604,6 +629,7 @@ def declare_stone_pieces(
 @router.get("/instances/{instance_id}/blueprint")
 def get_instance_blueprint(
     instance_id: int,
+    current_user: CurrentUser,
     db: Session = Depends(get_session),
 ):
     """Devuelve la URL del plano de la versión del producto de una instancia."""
@@ -636,6 +662,7 @@ def get_instance_blueprint(
 )
 def get_instance_herrajes(
     instance_id: int,
+    current_user: CurrentUser,
     db: Session = Depends(get_session),
 ):
     """
@@ -705,7 +732,7 @@ def get_instance_herrajes(
 
 
 @router.get("/instances/ready")
-def get_ready_instances(db: Session = Depends(get_session)):
+def get_ready_instances(current_user: CurrentUser, db: Session = Depends(get_session)):
     """
     Devuelve una entrada POR CADA TRACK LISTO de una instancia.
     Una instancia puede aparecer dos veces si tanto su lote MDF como su lote PIEDRA
@@ -799,6 +826,7 @@ def get_ready_instances(db: Session = Depends(get_session)):
 @router.patch("/instances/{instance_id}/ready")
 def mark_instance_ready(
     instance_id: int,
+    current_user: CurrentUser,
     db: Session = Depends(get_session),
 ):
     """
