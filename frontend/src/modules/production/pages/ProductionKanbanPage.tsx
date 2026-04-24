@@ -50,46 +50,67 @@ async function generateHerrajesPDF(
   const margin = 15;
   let y = margin;
 
-  // ── Header limpio: logo + nombre de empresa ───────────────
+  // ── Header: logo + empresa + título + datos lote ─────────
   const companyName = config?.company_name || 'VALENTINA ERP';
 
   let logoLoaded = false;
   let logoImgData: string | null = null;
-  const logoSize = 18; // mm — alto y ancho del logo
-
-  // Usar logo base64 pre-cargado desde el backend (evita CORS de GCS en canvas)
   if (logoB64) {
     logoImgData = logoB64;
     logoLoaded = true;
   }
 
+  const logoH = 16;
+  let logoW = logoH; // fallback cuadrado
+
+  // Calcular proporciones reales del logo para no deformar
+  if (logoLoaded && logoImgData) {
+    try {
+      const sizeImg = new Image();
+      sizeImg.src = logoImgData;
+      await new Promise<void>(resolve => {
+        sizeImg.onload = () => resolve();
+        setTimeout(resolve, 500); // timeout seguro
+      });
+      if (sizeImg.naturalWidth && sizeImg.naturalHeight) {
+        logoW = logoH * (sizeImg.naturalWidth / sizeImg.naturalHeight);
+      }
+    } catch { /* usar cuadrado como fallback */ }
+  }
+
   let textX = margin;
   if (logoLoaded && logoImgData) {
-    (doc as any).addImage(logoImgData, 'PNG', margin, margin, logoSize, logoSize);
-    textX = margin + logoSize + 4;
+    try {
+      (doc as any).addImage(logoImgData, 'PNG', margin, margin, logoW, logoH);
+      textX = margin + logoW + 4;
+    } catch {
+      textX = margin;
+    }
   }
 
   doc.setTextColor(30, 41, 59); // slate-800
-  doc.setFontSize(14);
+  doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
   doc.text(companyName.toUpperCase(), textX, margin + 7);
 
-  doc.setFontSize(8);
+  doc.setFontSize(7.5);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 116, 139); // slate-500
   doc.text('LISTA DE HERRAJES PARA INSTALACIÓN', textX, margin + 13);
 
-  doc.setFontSize(7.5);
+  doc.setFontSize(7);
   doc.setTextColor(148, 163, 184); // slate-400
-  const batchInfo = `Lote: ${batch.folio}  ·  ${batch.batch_type}  ·  ${new Date().toLocaleDateString('es-MX')}`;
-  doc.text(batchInfo, pageWidth - margin, margin + 7, { align: 'right' });
+  const batchLabel = batch.folio ? `Lote: ${batch.folio}` : batch.instances?.[0]?.custom_name || '';
+  const dateLabel = new Date().toLocaleDateString('es-MX');
+  doc.text(`${batchLabel}`, pageWidth - margin, margin + 7, { align: 'right' });
+  doc.text(`${batch.batch_type || ''}  ·  ${dateLabel}`, pageWidth - margin, margin + 13, { align: 'right' });
 
-  const headerHeight = logoLoaded ? margin + logoSize + 4 : margin + 18;
+  const headerHeight = margin + logoH + 4;
   doc.setDrawColor(226, 232, 240); // slate-200
   doc.setLineWidth(0.3);
   doc.line(margin, headerHeight, pageWidth - margin, headerHeight);
 
-  y = headerHeight + 6;
+  y = headerHeight + 5;
 
   const instances = batch.instances || [];
 
