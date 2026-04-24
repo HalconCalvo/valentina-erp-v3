@@ -11,7 +11,7 @@ export default function ProductionInProcessPage() {
     productionService.getBatches()
       .then(data => {
         setBatches(
-          data.filter(b => b.status === 'IN_PRODUCTION')
+          data.filter(b => ['IN_PRODUCTION', 'PACKING'].includes(b.status))
         );
       })
       .catch(() => {})
@@ -42,7 +42,7 @@ export default function ProductionInProcessPage() {
           🔵 Instancias en Proceso
         </h2>
         <p className="text-slate-500 text-sm mt-1">
-          {totalInstances} instancia(s) actualmente en fabricación
+          {totalInstances} instancia(s) en fabricación o empaque
           en {batches.length} lote(s).
         </p>
       </div>
@@ -62,20 +62,37 @@ export default function ProductionInProcessPage() {
                  className="bg-white rounded-xl border
                             border-slate-200 shadow-sm overflow-hidden">
               {/* Header del lote */}
-              <div className="flex items-center justify-between
-                              px-5 py-3 bg-blue-50
-                              border-b border-blue-100">
+              <div className={`flex items-center justify-between
+                              px-5 py-3 border-b
+                              ${batch.status === 'PACKING'
+                                ? 'bg-violet-50 border-violet-100'
+                                : 'bg-blue-50 border-blue-100'}`}>
                 <div className="flex items-center gap-3">
-                  <span className="text-sm font-black text-blue-700">
+                  <span className={`text-sm font-black
+                                   ${batch.status === 'PACKING'
+                                     ? 'text-violet-700'
+                                     : 'text-blue-700'}`}>
                     {batch.folio}
                   </span>
-                  <span className="text-xs font-semibold px-2 py-0.5
-                                   rounded-full bg-blue-100
-                                   text-blue-600">
+                  <span className={`text-xs font-semibold px-2 py-0.5
+                                   rounded-full
+                                   ${batch.status === 'PACKING'
+                                     ? 'bg-violet-100 text-violet-600'
+                                     : 'bg-blue-100 text-blue-600'}`}>
                     {batch.batch_type}
                   </span>
+                  <span className={`text-xs font-bold px-2 py-0.5
+                                   rounded-full
+                                   ${batch.status === 'PACKING'
+                                     ? 'bg-violet-200 text-violet-700'
+                                     : 'bg-blue-200 text-blue-700'}`}>
+                    {batch.status === 'PACKING' ? '📦 Empaque' : '🔵 En Producción'}
+                  </span>
                 </div>
-                <span className="text-xs text-blue-500 font-medium">
+                <span className={`text-xs font-medium
+                                 ${batch.status === 'PACKING'
+                                   ? 'text-violet-500'
+                                   : 'text-blue-500'}`}>
                   {batch.instances?.length ?? 0} instancia(s)
                 </span>
               </div>

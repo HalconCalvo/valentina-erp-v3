@@ -28,6 +28,7 @@ class ProductionBatchStatus(str, Enum):
     PACKING = "PACKING"
     READY_TO_INSTALL = "READY_TO_INSTALL"
     FINISHED = "FINISHED"
+    DEAD = "DEAD"
 
 
 class ProductionBatch(SQLModel, table=True):

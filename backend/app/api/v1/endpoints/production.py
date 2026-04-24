@@ -179,6 +179,7 @@ def create_production_batch(
 def read_batches(db: Session = Depends(get_session)):
     batches = db.exec(
         select(ProductionBatch)
+        .where(ProductionBatch.status != ProductionBatchStatus.DEAD)
         .order_by(ProductionBatch.id.asc())
     ).all()
     result = []
@@ -800,6 +801,50 @@ def mark_instance_ready(
         )
     instance.production_status = InstanceStatus.READY
     db.add(instance)
+    db.flush()  # Persiste el READY antes de contar instancias activas
+
+    # Verificar si el lote asociado quedó vacío tras este cambio.
+    # Un lote muere cuando ya no tiene instancias activas en PACKING
+    # (todas pasaron a READY o superiores).
+    # Aplica al track MDF (production_batch_id) y al track PIEDRA (stone_batch_id).
+    for batch_id in filter(None, [instance.production_batch_id, instance.stone_batch_id]):
+        batch = db.get(ProductionBatch, batch_id)
+        if not batch or batch.status != ProductionBatchStatus.PACKING:
+            continue
+
+        # Contar instancias del lote que NO sean READY/CLOSED/INSTALLED/CARGADO
+        is_stone = batch.batch_type.upper() == "PIEDRA"
+        if is_stone:
+            active_count = db.exec(
+                select(SalesOrderItemInstance)
+                .where(
+                    SalesOrderItemInstance.stone_batch_id == batch_id,
+                    SalesOrderItemInstance.production_status.notin_([
+                        InstanceStatus.READY,
+                        InstanceStatus.CARGADO,
+                        InstanceStatus.INSTALLED,
+                        InstanceStatus.CLOSED,
+                    ])
+                )
+            ).all()
+        else:
+            active_count = db.exec(
+                select(SalesOrderItemInstance)
+                .where(
+                    SalesOrderItemInstance.production_batch_id == batch_id,
+                    SalesOrderItemInstance.production_status.notin_([
+                        InstanceStatus.READY,
+                        InstanceStatus.CARGADO,
+                        InstanceStatus.INSTALLED,
+                        InstanceStatus.CLOSED,
+                    ])
+                )
+            ).all()
+
+        if len(active_count) == 0:
+            batch.status = ProductionBatchStatus.DEAD
+            db.add(batch)
+
     db.commit()
     db.refresh(instance)
     return {
