@@ -15,7 +15,7 @@ from app.models.production import ProductionBatch, ProductionBatchStatus
 from app.models.foundations import Client
 from app.models.sales import SalesOrderItemInstance, SalesOrderItem, SalesOrder, PaymentStatus, InstanceStatus, CustomerPayment
 from app.models.inventory import InventoryReservation
-from app.models.design import VersionComponent
+from app.models.design import VersionComponent, ProductVersion
 from app.models.material import Material
 from app.services.planning_service import compute_semaphore
 
@@ -598,6 +598,35 @@ def declare_stone_pieces(
         "instance_id": instance.id,
         "instance_name": instance.custom_name,
         "stone_pieces": instance.stone_pieces,
+    }
+
+
+@router.get("/instances/{instance_id}/blueprint")
+def get_instance_blueprint(
+    instance_id: int,
+    db: Session = Depends(get_session),
+):
+    """Devuelve la URL del plano de la versión del producto de una instancia."""
+    instance = db.get(SalesOrderItemInstance, instance_id)
+    if not instance:
+        raise HTTPException(status_code=404, detail="Instancia no encontrada.")
+
+    item = db.exec(
+        select(SalesOrderItem)
+        .where(SalesOrderItem.id == instance.sales_order_item_id)
+    ).first()
+    if not item or not item.origin_version_id:
+        return {"blueprint_path": None}
+
+    version = db.get(ProductVersion, item.origin_version_id)
+    if not version:
+        return {"blueprint_path": None}
+
+    return {
+        "instance_id": instance_id,
+        "version_id": version.id,
+        "version_name": version.version_name,
+        "blueprint_path": version.blueprint_path,
     }
 
 

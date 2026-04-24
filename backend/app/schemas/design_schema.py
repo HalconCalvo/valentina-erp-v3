@@ -26,7 +26,6 @@ class ProductMasterBase(SQLModel):
     client_id: int
     name: str
     category: str = "General"
-    blueprint_path: Optional[str] = None  # <--- CAMPO NUEVO AGREGADO
 
 # Esquema Ligero para incrustar dentro de la Versión
 class ProductMasterSummary(ProductMasterBase):
@@ -55,6 +54,7 @@ class ProductVersionRead(ProductVersionBase):
     master_id: int
     created_at: datetime
     components: List[VersionComponentRead] = []
+    blueprint_path: Optional[str] = None
     
     # === LA SOLUCIÓN ===
     # Aquí inyectamos el objeto completo del Producto Padre

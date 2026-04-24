@@ -26,7 +26,6 @@ class ProductMaster(SQLModel, table=True):
     category: str = Field(default="General") # Cocina, Closet, Baño
     created_at: datetime = Field(default_factory=datetime.utcnow)
     is_active: bool = Field(default=True)
-    blueprint_path: Optional[str] = None  # <--- NUEVO CAMPO
     
     # Relaciones
     client: Optional["Client"] = Relationship()
@@ -53,6 +52,7 @@ class ProductVersion(SQLModel, table=True):
     has_stone_components: bool = Field(default=False)
     
     is_active: bool = Field(default=True)
+    blueprint_path: Optional[str] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     
     # Relaciones

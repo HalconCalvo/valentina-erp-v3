@@ -35,6 +35,7 @@ export interface ProductVersion {
     estimated_cost: number;    // Suma de los componentes al momento de guardar
     is_active: boolean;
     created_at?: string;
+    blueprint_path?: string | null;
     
     // La lista de ingredientes
     components: VersionComponent[];
@@ -48,9 +49,6 @@ export interface ProductMaster {
     category: string;          // Ej: "Cocinas", "Closets", "Vanities"
     is_active: boolean;
     created_at?: string;
-
-    // --- NUEVO CAMPO PARA PLANOS ---
-    blueprint_path?: string | null; 
     
     // Helper para mostrar el nombre del cliente en tablas sin hacer otro JOIN
     client_name?: string; 

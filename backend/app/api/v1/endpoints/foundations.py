@@ -38,6 +38,32 @@ def get_global_config(session: Session = Depends(get_session)):
         return default_config
     return config
 
+@router.get("/logo-base64")
+def get_logo_base64(session: Session = Depends(get_session)):
+    """
+    Descarga el logo de la empresa desde GCS y lo devuelve como base64.
+    Evita el problema de CORS al cargar imágenes desde el frontend para canvas/PDF.
+    """
+    import base64
+    import urllib.request
+
+    config = session.exec(select(GlobalConfig)).first()
+    if not config or not config.logo_path:
+        return {"base64": None, "content_type": None}
+
+    try:
+        with urllib.request.urlopen(config.logo_path, timeout=5) as response:
+            image_data = response.read()
+            content_type = response.headers.get('Content-Type', 'image/png')
+            encoded = base64.b64encode(image_data).decode('utf-8')
+            return {
+                "base64": f"data:{content_type};base64,{encoded}",
+                "content_type": content_type,
+            }
+    except Exception:
+        return {"base64": None, "content_type": None}
+
+
 @router.put("/config", response_model=GlobalConfig)
 def update_global_config(config_in: GlobalConfig, session: Session = Depends(get_session)):
     db_config = session.exec(select(GlobalConfig)).first()

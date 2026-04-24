@@ -152,20 +152,8 @@ def delete_product_master(
     master = session.get(ProductMaster, master_id)
     if not master:
         raise HTTPException(status_code=404, detail="Diseño no encontrado")
-    
-    # 1. Borrar archivo de Google Cloud
-    if master.blueprint_path and "storage.googleapis.com" in master.blueprint_path:
-        try:
-            filename = master.blueprint_path.split("/")[-1]
-            blob_name = f"blueprints/{filename}"
-            storage_client = storage.Client()
-            bucket = storage_client.bucket(BUCKET_NAME)
-            blob = bucket.blob(blob_name)
-            blob.delete()
-        except Exception as e:
-            print(f"Advertencia al borrar plano Cloud: {e}")
 
-    # 2. Obtener y borrar versiones y componentes
+    # 1. Obtener y borrar versiones y componentes
     versions = session.exec(
         select(ProductVersion).where(ProductVersion.master_id == master_id)
     ).all()
@@ -481,12 +469,6 @@ async def upload_master_blueprint(
     if not public_url:
         raise HTTPException(status_code=500, detail="Error al subir el archivo a Google Cloud")
     
-    # 3. Guardar la URL en la base de datos
-    master.blueprint_path = public_url
-    session.add(master)
-    session.commit()
-    session.refresh(master)
-
     return {"message": "Archivo subido correctamente", "path": public_url}
 
 @router.delete("/masters/{master_id}/blueprint")
@@ -499,16 +481,54 @@ def delete_master_blueprint(
     if not master:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
 
-    # Nota: Por seguridad, solo borramos la referencia en la BD.
-    # El archivo en la nube se puede quedar como histórico o borrarse manualmente.
-    # Si quieres borrarlo de la nube, necesitaríamos una función 'delete_from_gcs' en el futuro.
-    
-    master.blueprint_path = None
-    session.add(master)
-    session.commit()
-    session.refresh(master)
-
     return {"message": "Referencia al plano eliminada correctamente"}
+
+
+@router.post("/versions/{version_id}/blueprint-file")
+async def upload_version_blueprint_file(
+    version_id: int,
+    blueprint: UploadFile = File(...),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Sube el archivo de plano de una versión a GCS y devuelve la URL pública.
+    NO guarda el path en la BD — el frontend llama a PATCH /blueprint después.
+    """
+    version = session.get(ProductVersion, version_id)
+    if not version:
+        raise HTTPException(status_code=404, detail="Versión no encontrada.")
+
+    file_extension = blueprint.filename.split(".")[-1] if blueprint.filename else "pdf"
+    filename = f"version_{version_id}_{uuid4().hex[:6]}.{file_extension}"
+    blob_name = f"blueprints/versions/{filename}"
+
+    public_url = upload_to_gcs(blueprint.file, blob_name, content_type=blueprint.content_type)
+    if not public_url:
+        raise HTTPException(status_code=500, detail="Error al subir el archivo a Google Cloud.")
+
+    return {"path": public_url, "version_id": version_id}
+
+
+class BlueprintUpdate(BaseModel):
+    blueprint_path: str
+
+@router.patch("/versions/{version_id}/blueprint")
+def update_version_blueprint(
+    version_id: int,
+    body: BlueprintUpdate,
+    session: Session = Depends(get_session),
+):
+    """Registra o actualiza la URL del plano de una versión."""
+    version = session.get(ProductVersion, version_id)
+    if not version:
+        raise HTTPException(status_code=404, detail="Versión no encontrada.")
+    version.blueprint_path = body.blueprint_path
+    session.add(version)
+    session.commit()
+    session.refresh(version)
+    return {"version_id": version.id, "blueprint_path": version.blueprint_path}
+
 
 # ==========================================
 # 9. SIMULADOR Y LOTIFICACIÓN (V3.5)

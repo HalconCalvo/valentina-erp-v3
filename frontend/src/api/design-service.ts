@@ -130,6 +130,14 @@ export const designService = {
         await axiosClient.delete(url);
     },
 
+    updateVersionBlueprint: async (versionId: number, blueprintPath: string): Promise<any> => {
+        const response = await axiosClient.patch(
+            `/design/versions/${versionId}/blueprint`,
+            { blueprint_path: blueprintPath }
+        );
+        return response.data;
+    },
+
     // ==========================================
     // SIMULADOR Y LOTIFICACIÓN (NUEVO)
     // ==========================================

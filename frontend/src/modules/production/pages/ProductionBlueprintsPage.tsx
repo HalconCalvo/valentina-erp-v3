@@ -4,23 +4,42 @@ import { designService } from '../../../api/design-service';
 
 export default function ProductionBlueprintsPage() {
   const navigate = useNavigate();
-  const [masters, setMasters] = useState<any[]>([]);
+  const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
   useEffect(() => {
+    // Cargar todos los masters y sus versiones
     designService.getMasters()
-      .then(res => {
-        const data = Array.isArray(res) ? res : (res as any).data ?? [];
-        setMasters(data.filter((m: any) => m.blueprint_path));
+      .then(async res => {
+        const masters = Array.isArray(res) ? res : (res as any).data ?? [];
+        // Aplanar: una entrada por versión que tenga blueprint_path
+        const flat: any[] = [];
+        for (const master of masters) {
+          const versions = master.versions ?? [];
+          for (const v of versions) {
+            if (v.blueprint_path) {
+              flat.push({
+                master_id: master.id,
+                master_name: master.name,
+                category: master.category,
+                version_id: v.id,
+                version_name: v.version_name,
+                blueprint_path: v.blueprint_path,
+              });
+            }
+          }
+        }
+        setItems(flat);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
-  const filtered = masters.filter(m =>
-    m.name.toLowerCase().includes(search.toLowerCase()) ||
-    (m.category || '').toLowerCase().includes(search.toLowerCase())
+  const filtered = items.filter(i =>
+    i.master_name.toLowerCase().includes(search.toLowerCase()) ||
+    (i.category || '').toLowerCase().includes(search.toLowerCase()) ||
+    i.version_name.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -37,19 +56,18 @@ export default function ProductionBlueprintsPage() {
         </button>
       </div>
       <div className="mb-6 pb-4 border-b border-slate-200">
-        <h2 className="text-2xl font-bold text-slate-800
-                       flex items-center gap-2">
+        <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
           📐 Planos de Productos
         </h2>
         <p className="text-slate-500 text-sm mt-1">
-          Catálogo técnico completo — solo lectura.
+          Catálogo técnico por versión — solo lectura.
         </p>
       </div>
 
       <div className="mb-4">
         <input
           type="text"
-          placeholder="Buscar producto o categoría..."
+          placeholder="Buscar producto, versión o categoría..."
           value={search}
           onChange={e => setSearch(e.target.value)}
           className="w-full border border-slate-200 rounded-xl
@@ -67,21 +85,28 @@ export default function ProductionBlueprintsPage() {
         </p>
       ) : (
         <div className="flex flex-col gap-3">
-          {filtered.map(master => (
-            <div key={master.id}
+          {filtered.map(item => (
+            <div key={`${item.master_id}-${item.version_id}`}
                  className="bg-white rounded-xl border border-slate-200
                             shadow-sm px-5 py-4 flex items-center
                             justify-between gap-4">
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-slate-800 truncate">
-                  {master.name}
+                  {item.master_name}
                 </p>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {master.category}
-                </p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-xs text-slate-500">
+                    {item.category}
+                  </span>
+                  <span className="text-[10px] font-bold text-indigo-600
+                                   bg-indigo-50 border border-indigo-100
+                                   px-1.5 py-0.5 rounded">
+                    {item.version_name}
+                  </span>
+                </div>
               </div>
               <a
-                href={master.blueprint_path}
+                href={item.blueprint_path}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 px-4 py-2

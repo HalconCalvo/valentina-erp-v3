@@ -63,7 +63,7 @@ const DesignCatalogPage: React.FC = () => {
     const [expandedClients, setExpandedClients] = useState<Set<number>>(new Set());
 
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const [uploadingId, setUploadingId] = useState<number | null>(null);
+    const [uploadingVersionId, setUploadingVersionId] = useState<number | null>(null);
     const [viewingBlueprintUrl, setViewingBlueprintUrl] = useState<string | null>(null);
 
     const [formState, setFormState] = useState({ name: '', category: 'General', client_id: 0 });
@@ -119,27 +119,58 @@ const DesignCatalogPage: React.FC = () => {
         "Tiene Plano": m.blueprint_path ? 'SÍ' : 'NO', "Versiones Activas": m.versions ? m.versions.length : 0
     });
 
-    const handleUploadClick = (masterId: number) => {
+    const handleUploadClick = (versionId: number) => {
         if(isSales) return;
-        setUploadingId(masterId);
+        setUploadingVersionId(versionId);
         setTimeout(() => { if (fileInputRef.current) fileInputRef.current.click(); }, 50);
     };
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]; if (!file || !uploadingId) return;
-        try { await designService.uploadBlueprint(uploadingId, file); alert("✅ Plano adjuntado."); await loadMasters(); } 
-        catch (error) { console.error(error); alert("Error al subir."); } 
-        finally { if (fileInputRef.current) fileInputRef.current.value = ''; setUploadingId(null); }
+        const file = e.target.files?.[0];
+        if (!file || !uploadingVersionId) return;
+        try {
+            const formData = new FormData();
+            formData.append('blueprint', file);
+            const token = localStorage.getItem('token');
+            const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+            const uploadRes = await fetch(
+                `${baseUrl}/design/versions/${uploadingVersionId}/blueprint-file`,
+                {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData,
+                }
+            );
+            if (!uploadRes.ok) {
+                const err = await uploadRes.json();
+                throw new Error(err.detail || 'Error al subir el archivo');
+            }
+            const { path } = await uploadRes.json();
+            await designService.updateVersionBlueprint(uploadingVersionId, path);
+            alert("✅ Plano adjuntado a la versión.");
+            await loadMasters();
+        } catch (error: any) {
+            console.error(error);
+            alert(`Error al subir: ${error.message}`);
+        } finally {
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            setUploadingVersionId(null);
+        }
     };
 
     const handleViewBlueprint = (path: string) => setViewingBlueprintUrl(path); 
     const closeBlueprintModal = () => setViewingBlueprintUrl(null);
 
-    const handleDeleteBlueprint = async (e: React.MouseEvent, masterId: number) => {
+    const handleDeleteVersionBlueprint = async (e: React.MouseEvent, versionId: number) => {
         e.stopPropagation();
         if(isSales) return;
-        if (window.confirm("¿Eliminar plano?")) {
-            try { await designService.deleteBlueprint(masterId); await loadMasters(); } catch (error) { alert("Error."); }
+        if (window.confirm("¿Eliminar el plano de esta versión?")) {
+            try {
+                await designService.updateVersionBlueprint(versionId, '');
+                await loadMasters();
+            } catch (error) {
+                alert("Error al eliminar el plano.");
+            }
         }
     };
 
@@ -673,15 +704,15 @@ const DesignCatalogPage: React.FC = () => {
                                                                                     {v ? <span className={`font-mono px-2 py-1 rounded text-xs border ${isReady ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{v.version_name}</span> : <span className="text-xs text-slate-400 italic">Pendiente</span>}
                                                                                 </td>
                                                                                 <td className="px-6 py-4 text-center">
-                                                                                    <div className="flex items-center justify-center gap-2">
-                                                                                        {product.blueprint_path ? (
-                                                                                            <>
-                                                                                                <button onClick={(e) => { e.stopPropagation(); handleViewBlueprint(product.blueprint_path!); }} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded" title="Ver Plano"><FileText size={16}/></button>
-                                                                                                {!isSales && <button onClick={(e) => handleDeleteBlueprint(e, product.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded" title="Quitar Plano"><FileMinus size={16}/></button>}
-                                                                                            </>
-                                                                                        ) : (
-                                                                                            !isSales ? <button onClick={(e) => { e.stopPropagation(); handleUploadClick(product.id); }} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="Adjuntar Plano"><Paperclip size={16}/></button> : null
-                                                                                        )}
+                                                                    <div className="flex items-center justify-center gap-2">
+                                                                        {v?.blueprint_path ? (
+                                                                            <>
+                                                                                <button onClick={(e) => { e.stopPropagation(); handleViewBlueprint(v.blueprint_path!); }} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded" title="Ver Plano"><FileText size={16}/></button>
+                                                                                {!isSales && <button onClick={(e) => { e.stopPropagation(); handleDeleteVersionBlueprint(e, v.id!); }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded" title="Quitar Plano"><FileMinus size={16}/></button>}
+                                                                            </>
+                                                                        ) : (
+                                                                            !isSales && v ? <button onClick={(e) => { e.stopPropagation(); handleUploadClick(v.id!); }} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="Adjuntar Plano a esta versión"><Paperclip size={16}/></button> : null
+                                                                        )}
                                                                                         {!isSales && (
                                                                                             <>
                                                                                                 <div className="w-px h-4 bg-slate-200 mx-1"></div>

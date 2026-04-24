@@ -4,6 +4,7 @@ import { productionService } from '../../../api/production-service';
 import axiosClient from '../../../api/axios-client';
 import { ProductionBatch } from '../../../types/production';
 import { Lock, Package, AlertCircle, ArrowRight, CheckCircle2, Boxes } from 'lucide-react';
+import { jsPDF } from 'jspdf';
 
 const STATUS_READY_TO_INSTALL = 'READY_TO_INSTALL';
 const STATUS_PACKING = 'PACKING';
@@ -36,6 +37,194 @@ function getBatchUrgencyBadge(batch: any): { label: string; className: string } 
   return null;
 }
 
+async function generateHerrajesPDF(
+  batch: any,
+  config?: { company_name: string; logo_path?: string | null } | null,
+  logoB64?: string | null
+) {
+  const token = localStorage.getItem('token');
+  const baseUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000/api/v1';
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 15;
+  let y = margin;
+
+  // ── Header limpio: logo + nombre de empresa ───────────────
+  const companyName = config?.company_name || 'VALENTINA ERP';
+
+  let logoLoaded = false;
+  let logoImgData: string | null = null;
+  const logoSize = 18; // mm — alto y ancho del logo
+
+  // Usar logo base64 pre-cargado desde el backend (evita CORS de GCS en canvas)
+  if (logoB64) {
+    logoImgData = logoB64;
+    logoLoaded = true;
+  }
+
+  let textX = margin;
+  if (logoLoaded && logoImgData) {
+    (doc as any).addImage(logoImgData, 'PNG', margin, margin, logoSize, logoSize);
+    textX = margin + logoSize + 4;
+  }
+
+  doc.setTextColor(30, 41, 59); // slate-800
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text(companyName.toUpperCase(), textX, margin + 7);
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 116, 139); // slate-500
+  doc.text('LISTA DE HERRAJES PARA INSTALACIÓN', textX, margin + 13);
+
+  doc.setFontSize(7.5);
+  doc.setTextColor(148, 163, 184); // slate-400
+  const batchInfo = `Lote: ${batch.folio}  ·  ${batch.batch_type}  ·  ${new Date().toLocaleDateString('es-MX')}`;
+  doc.text(batchInfo, pageWidth - margin, margin + 7, { align: 'right' });
+
+  const headerHeight = logoLoaded ? margin + logoSize + 4 : margin + 18;
+  doc.setDrawColor(226, 232, 240); // slate-200
+  doc.setLineWidth(0.3);
+  doc.line(margin, headerHeight, pageWidth - margin, headerHeight);
+
+  y = headerHeight + 6;
+
+  const instances = batch.instances || [];
+
+  for (let idx = 0; idx < instances.length; idx++) {
+    const inst = instances[idx];
+
+    let herrajesData: any = null;
+    try {
+      const res = await fetch(`${baseUrl}/production/instances/${inst.id}/herrajes`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      herrajesData = await res.json();
+    } catch {
+      herrajesData = null;
+    }
+
+    const herrajes = herrajesData?.herrajes ?? [];
+
+    const blockHeight = 10 + herrajes.length * 7 + 8;
+    if (y + blockHeight > 275) {
+      doc.addPage();
+      y = margin;
+    }
+
+    // ── Header instancia ─────────────────────────────────────
+    doc.setFillColor(241, 245, 249);
+    doc.rect(margin, y, pageWidth - margin * 2, 8, 'F');
+    doc.setTextColor(30, 41, 59);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${String(idx + 1).padStart(2, '0')}. ${inst.custom_name || '—'}`, margin + 2, y + 5.5);
+    if (inst.order_folio) {
+      doc.setFont('helvetica', 'normal');
+      doc.text(inst.order_folio, pageWidth - margin - 20, y + 5.5);
+    }
+    y += 10;
+
+    if (inst.client_name || inst.project_name) {
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139);
+      doc.text(
+        [inst.client_name, inst.project_name].filter(Boolean).join(' · '),
+        margin + 2, y
+      );
+      y += 6;
+    }
+
+    if (herrajes.length === 0) {
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.setFont('helvetica', 'italic');
+      doc.text('Sin herrajes en la receta de esta instancia.', margin + 2, y);
+      y += 7;
+    } else {
+      // ── Encabezado tabla ────────────────────────────────────
+      doc.setFillColor(226, 232, 240);
+      doc.rect(margin, y, pageWidth - margin * 2, 6, 'F');
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(51, 65, 85);
+      doc.text('SKU', margin + 2, y + 4.2);
+      doc.text('MATERIAL', margin + 32, y + 4.2);
+      doc.text('CANT.', pageWidth - margin - 28, y + 4.2);
+      doc.text('UNIDAD', pageWidth - margin - 14, y + 4.2);
+      y += 7;
+
+      for (let hi = 0; hi < herrajes.length; hi++) {
+        const h = herrajes[hi];
+        if (y > 275) { doc.addPage(); y = margin; }
+
+        if (hi % 2 === 0) {
+          doc.setFillColor(248, 250, 252);
+          doc.rect(margin, y - 1, pageWidth - margin * 2, 6.5, 'F');
+        }
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(30, 41, 59);
+        doc.text(h.sku || '—', margin + 2, y + 4);
+        const name = h.name?.length > 45 ? h.name.substring(0, 42) + '...' : (h.name || '—');
+        doc.text(name, margin + 32, y + 4);
+        doc.text(String(h.quantity ?? '—'), pageWidth - margin - 28, y + 4);
+        doc.text(h.usage_unit || '—', pageWidth - margin - 14, y + 4);
+        y += 6.5;
+      }
+    }
+
+    doc.setDrawColor(203, 213, 225);
+    doc.line(margin, y + 2, pageWidth - margin, y + 2);
+    y += 7;
+  }
+
+  // ── Footer ───────────────────────────────────────────────────
+  const totalPages = (doc.internal as any).getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    doc.setFontSize(7);
+    doc.setTextColor(148, 163, 184);
+    doc.setFont('helvetica', 'normal');
+    doc.text(
+      `VALENTINA ERP · ${batch.folio} · Página ${p} de ${totalPages}`,
+      margin, 290
+    );
+  }
+
+  doc.save(`herrajes_${batch.folio}_${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
+async function openBlueprintLinks(batch: any) {
+  const token = localStorage.getItem('token');
+  const baseUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000/api/v1';
+  const instances = batch.instances || [];
+  const opened: Set<string> = new Set();
+
+  for (const inst of instances) {
+    try {
+      const res = await fetch(`${baseUrl}/production/instances/${inst.id}/blueprint`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (data.blueprint_path && !opened.has(data.blueprint_path)) {
+        opened.add(data.blueprint_path);
+        window.open(data.blueprint_path, '_blank');
+      }
+    } catch {
+      // silenciar errores individuales
+    }
+  }
+
+  if (opened.size === 0) {
+    alert('No hay planos disponibles para las instancias de este lote.');
+  }
+}
+
 export default function ProductionKanbanPage() {
   const navigate = useNavigate();
   const userRole = (localStorage.getItem('user_role') || '').toUpperCase();
@@ -53,13 +242,23 @@ export default function ProductionKanbanPage() {
   );
   const [stoneByInstanceId, setStoneByInstanceId] = useState<Record<number, number>>({});
   const [selectedBatch, setSelectedBatch] = useState<any | null>(null);
-  const [expandedInstanceId, setExpandedInstanceId] = useState<number | null>(null);
-  const [herrajes, setHerrajes] = useState<Record<number, any>>({});
-  const [loadingHerrajes, setLoadingHerrajes] = useState<Record<number, boolean>>({});
+  const [herrajesPreview, setHerrajesPreview] = useState<{
+    instId: number;
+    instName: string;
+    orderFolio: string | null;
+    herrajes: any[];
+    blueprintPath: string | null;
+  } | null>(null);
+  const [loadingHerrajesPreview, setLoadingHerrajesPreview] = useState(false);
   const [selectedPackingIds, setSelectedPackingIds] =
     useState<number[]>([]);
   const [movingToReady, setMovingToReady] = useState(false);
   const [readyInstances, setReadyInstances] = useState<any[]>([]);
+  const [companyConfig, setCompanyConfig] = useState<{
+    company_name: string;
+    logo_path?: string | null;
+  } | null>(null);
+  const [logoBase64, setLogoBase64] = useState<string | null>(null);
 
   const batchesForView = useMemo(() => {
     if (materialFilter === 'ALL') return batches;
@@ -69,6 +268,21 @@ export default function ProductionKanbanPage() {
   useEffect(() => {
     loadBatches();
     loadReadyInstances();
+    // Cargar config de empresa para el PDF
+    const token = localStorage.getItem('token');
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+    fetch(`${baseUrl}/foundations/config`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then(data => setCompanyConfig({ company_name: data.company_name, logo_path: data.logo_path }))
+      .catch(() => setCompanyConfig({ company_name: 'VALENTINA ERP', logo_path: null }));
+    fetch(`${baseUrl}/foundations/logo-base64`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then(data => { if (data.base64) setLogoBase64(data.base64); })
+      .catch(() => {});
   }, []);
 
   const loadReadyInstances = async () => {
@@ -190,31 +404,33 @@ export default function ProductionKanbanPage() {
     }
   };
 
-  const loadHerrajes = async (instanceId: number) => {
-    if (herrajes[instanceId]) {
-      setExpandedInstanceId(
-        expandedInstanceId === instanceId ? null : instanceId
-      );
-      return;
-    }
-    setLoadingHerrajes(prev => ({ ...prev, [instanceId]: true }));
+  const loadHerrajesPreview = async (inst: any) => {
+    setLoadingHerrajesPreview(true);
+    setHerrajesPreview(null);
+    const token = localStorage.getItem('token');
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
     try {
-      const token = localStorage.getItem('token');
-      const baseUrl = import.meta.env.VITE_API_URL
-        || 'http://localhost:8000/api/v1';
-      const res = await fetch(
-        `${baseUrl}/production/instances/${instanceId}/herrajes`,
-        { headers: { 'Authorization': `Bearer ${token}` } }
-      );
-      const data = await res.json();
-      setHerrajes(prev => ({ ...prev, [instanceId]: data }));
-      setExpandedInstanceId(instanceId);
+      const [herrajesRes, blueprintRes] = await Promise.all([
+        fetch(`${baseUrl}/production/instances/${inst.id}/herrajes`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }),
+        fetch(`${baseUrl}/production/instances/${inst.id}/blueprint`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }),
+      ]);
+      const herrajesData = herrajesRes.ok ? await herrajesRes.json() : null;
+      const blueprintData = blueprintRes.ok ? await blueprintRes.json() : null;
+      setHerrajesPreview({
+        instId: inst.id,
+        instName: inst.custom_name || '—',
+        orderFolio: inst.order_folio ?? null,
+        herrajes: herrajesData?.herrajes ?? [],
+        blueprintPath: blueprintData?.blueprint_path ?? null,
+      });
     } catch {
-      alert('Error al cargar herrajes.');
+      alert('Error al cargar herrajes. Verifica la conexión.');
     } finally {
-      setLoadingHerrajes(prev => ({
-        ...prev, [instanceId]: false
-      }));
+      setLoadingHerrajesPreview(false);
     }
   };
 
@@ -577,7 +793,7 @@ export default function ProductionKanbanPage() {
 
             return (
               <div
-                key={instance.id}
+                key={`${instance.id}-${instance.batch_folio}`}
                 draggable
                 onDragStart={(e) => {
                   e.dataTransfer.setData('packingInstanceId', String(instance.id));
@@ -904,7 +1120,7 @@ export default function ProductionKanbanPage() {
         <div
           className="fixed inset-0 z-50 flex items-center 
                      justify-center bg-black/40 backdrop-blur-sm"
-          onClick={() => { setSelectedBatch(null); setExpandedInstanceId(null); }}
+          onClick={() => setSelectedBatch(null)}
         >
           <div
             className="bg-white rounded-2xl shadow-2xl border
@@ -926,7 +1142,7 @@ export default function ProductionKanbanPage() {
                 </p>
               </div>
               <button
-                onClick={() => { setSelectedBatch(null); setExpandedInstanceId(null); }}
+                onClick={() => setSelectedBatch(null)}
                 className="text-slate-400 hover:text-slate-600
                            text-lg leading-none p-1"
               >
@@ -995,63 +1211,47 @@ export default function ProductionKanbanPage() {
                             ))}
                           </div>
                         )}
-                        {/* Botón herrajes */}
-                        <button
-                          type="button"
-                          onClick={() => loadHerrajes(inst.id)}
-                          className="mt-2 flex items-center gap-1.5 text-xs
-                                     font-bold text-amber-700 bg-amber-50
-                                     border border-amber-200 px-3 py-1.5
-                                     rounded-lg hover:bg-amber-100 transition"
-                        >
-                          {loadingHerrajes[inst.id]
-                            ? 'Cargando...'
-                            : expandedInstanceId === inst.id
-                              ? '▲ Ocultar herrajes'
-                              : '🔧 Ver herrajes para instalación'}
-                        </button>
-                      </div>
-
-                      {/* Panel herrajes expandible */}
-                      {expandedInstanceId === inst.id &&
-                       herrajes[inst.id] && (
-                        <div className="border-t border-amber-100
-                                        bg-amber-50/50 px-4 py-3">
-                          {herrajes[inst.id].herrajes.length === 0 ? (
-                            <p className="text-xs text-slate-400 italic">
-                              Sin herrajes en esta receta.
-                            </p>
-                          ) : (
-                            <div className="flex flex-col gap-1.5">
-                              <p className="text-[10px] font-black text-amber-700
-                                             uppercase tracking-wider mb-2">
-                                Herrajes para Instalación —
-                                {herrajes[inst.id].herrajes.length} ítem(s)
-                              </p>
-                              {herrajes[inst.id].herrajes.map((h: any) => (
-                                <div key={h.material_id}
-                                     className="flex items-center gap-3
-                                                bg-white rounded-lg border
-                                                border-amber-100 px-3 py-2">
-                                  <span className="text-xs font-mono
-                                                   text-slate-500 shrink-0
-                                                   w-24 truncate">
-                                    {h.sku}
-                                  </span>
-                                  <span className="text-xs text-slate-700
-                                                   flex-1 truncate font-medium">
-                                    {h.name}
-                                  </span>
-                                  <span className="text-xs font-black
-                                                   text-amber-700 shrink-0">
-                                    {h.quantity} {h.usage_unit}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                        {/* Acciones: Herrajes y Planos */}
+                        <div className="mt-2 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => loadHerrajesPreview(inst)}
+                            disabled={loadingHerrajesPreview}
+                            className="flex items-center gap-1.5 text-xs font-bold
+                                       text-amber-700 bg-amber-50 border border-amber-200
+                                       px-3 py-1.5 rounded-lg hover:bg-amber-100 transition
+                                       disabled:opacity-50"
+                          >
+                            📋 Herrajes
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const token = localStorage.getItem('token');
+                              const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+                              try {
+                                const res = await fetch(
+                                  `${baseUrl}/production/instances/${inst.id}/blueprint`,
+                                  { headers: { 'Authorization': `Bearer ${token}` } }
+                                );
+                                const data = await res.json();
+                                if (data.blueprint_path) {
+                                  window.open(data.blueprint_path, '_blank');
+                                } else {
+                                  alert('Esta instancia no tiene plano disponible.');
+                                }
+                              } catch {
+                                alert('Error al obtener el plano.');
+                              }
+                            }}
+                            className="flex items-center gap-1.5 text-xs font-bold
+                                       text-indigo-700 bg-indigo-50 border border-indigo-200
+                                       px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition"
+                          >
+                            📐 Planos
+                          </button>
                         </div>
-                      )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1062,13 +1262,123 @@ export default function ProductionKanbanPage() {
             <div className="px-6 py-4 border-t border-slate-100
                             flex justify-end">
               <button
-                onClick={() => { setSelectedBatch(null); setExpandedInstanceId(null); }}
+                onClick={() => setSelectedBatch(null)}
                 className="px-5 py-2 rounded-xl text-sm font-bold
                            bg-slate-100 hover:bg-slate-200
                            text-slate-700 transition"
               >
                 Cerrar
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de vista previa de herrajes */}
+      {herrajesPreview && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => setHerrajesPreview(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl border border-slate-200
+                       w-full max-w-2xl mx-4 overflow-hidden max-h-[85vh] flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="px-6 py-4 bg-amber-50 border-b border-amber-100 flex items-start justify-between">
+              <div>
+                <h2 className="text-base font-black text-slate-800">
+                  📋 Lista de Herrajes para Instalación
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {herrajesPreview.instName}
+                  {herrajesPreview.orderFolio && ` · ${herrajesPreview.orderFolio}`}
+                </p>
+              </div>
+              <button
+                onClick={() => setHerrajesPreview(null)}
+                className="text-slate-400 hover:text-slate-600 text-lg p-1"
+              >✕</button>
+            </div>
+
+            {/* Body */}
+            <div className="overflow-y-auto flex-1 px-6 py-4">
+              {herrajesPreview.herrajes.length === 0 ? (
+                <p className="text-slate-400 italic text-sm text-center py-8">
+                  Sin herrajes en la receta de esta instancia.
+                </p>
+              ) : (
+                <table className="w-full text-left text-sm border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-600 text-xs uppercase tracking-wider">
+                      <th className="px-3 py-2 font-bold">SKU</th>
+                      <th className="px-3 py-2 font-bold">Material</th>
+                      <th className="px-3 py-2 font-bold text-right">Cantidad</th>
+                      <th className="px-3 py-2 font-bold">Unidad</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {herrajesPreview.herrajes.map((h: any, i: number) => (
+                      <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                        <td className="px-3 py-2 font-mono text-xs text-slate-500">{h.sku}</td>
+                        <td className="px-3 py-2 font-medium text-slate-800">{h.name}</td>
+                        <td className="px-3 py-2 text-right font-bold text-slate-800">{h.quantity}</td>
+                        <td className="px-3 py-2 text-slate-500">{h.usage_unit}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-slate-100 flex justify-between items-center gap-3">
+              {herrajesPreview.blueprintPath ? (
+                <a
+                  href={herrajesPreview.blueprintPath}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm
+                             font-bold text-indigo-600 border border-indigo-200
+                             bg-indigo-50 hover:bg-indigo-100 transition"
+                >
+                  📐 Ver Plano
+                </a>
+              ) : (
+                <span className="text-xs text-slate-400 italic">Sin plano disponible</span>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setHerrajesPreview(null)}
+                  className="px-4 py-2 text-sm text-slate-500 border border-slate-200
+                             rounded-xl hover:bg-slate-50 transition"
+                >
+                  Cerrar
+                </button>
+                <button
+                  onClick={() => {
+                    if (herrajesPreview) {
+                      void generateHerrajesPDF({
+                        folio: herrajesPreview.instName,
+                        batch_type: '',
+                        instances: [{
+                          id: herrajesPreview.instId,
+                          custom_name: herrajesPreview.instName,
+                          order_folio: herrajesPreview.orderFolio,
+                          client_name: null,
+                        }],
+                      }, companyConfig, logoBase64);
+                    }
+                  }}
+                  disabled={herrajesPreview.herrajes.length === 0}
+                  className="px-5 py-2 rounded-xl text-sm font-bold bg-amber-600
+                             hover:bg-amber-700 text-white transition disabled:opacity-40"
+                >
+                  🖨️ Imprimir PDF
+                </button>
+              </div>
             </div>
           </div>
         </div>

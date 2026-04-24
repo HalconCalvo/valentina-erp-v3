@@ -14,7 +14,9 @@ def upload_to_gcs(file_obj, destination_blob_name, content_type="application/oct
     try:
         # 1. BUSQUEDA INTELIGENTE DE LA LLAVE
         # Opción A: Estamos en tu Mac (carpeta actual)
-        local_path = os.path.join(os.getcwd(), CREDENTIALS_FILENAME)
+        # Ruta absoluta relativa a este mismo archivo — funciona desde cualquier directorio
+        local_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', CREDENTIALS_FILENAME)
+        local_path = os.path.normpath(local_path)
         
         # Opción B: Estamos en Render (carpeta de secretos)
         render_path = f"/etc/secrets/{CREDENTIALS_FILENAME}"
