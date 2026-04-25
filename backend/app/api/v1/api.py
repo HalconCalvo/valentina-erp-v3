@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import foundations, auth, users, design, sales, inventory, login, treasury, analytics, production, purchases, logistics
 from app.api.v1.endpoints import finance
 from app.api.v1.endpoints import planning
+from app.api.v1.endpoints import petty_cash
 
 api_router = APIRouter()
 
@@ -32,3 +33,6 @@ api_router.include_router(treasury.router, prefix="/treasury", tags=["Treasury"]
 
 # --- PLANEACIÓN ESTRATÉGICA: MATRIZ DE 4 CARRILES ---
 api_router.include_router(planning.router, prefix="/planning", tags=["planning"])
+
+# --- CAJA CHICA ---
+api_router.include_router(petty_cash.router, prefix="/petty-cash", tags=["Petty Cash"])

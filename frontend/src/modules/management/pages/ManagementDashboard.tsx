@@ -439,6 +439,7 @@ const ManagementDashboard: React.FC = () => {
                             </div>
                         </Card>
                     </div>
+
                 </div>
             )}
 

@@ -28,6 +28,9 @@ from .production import (
     PayrollStatus,
 )
 
+# --- Módulo de Caja Chica ---
+from .petty_cash import PettyCashFund, PettyCashMovement
+
 # Exportación explícita para Alembic/SQLModel
 __all__ = [
     # Cimientos
@@ -81,4 +84,8 @@ __all__ = [
     "PayrollPayment",
     "PayrollPaymentType",
     "PayrollStatus",
+
+    # Caja Chica
+    "PettyCashFund",
+    "PettyCashMovement",
 ]

@@ -4,7 +4,7 @@ import {
   Plus, Landmark, ArrowDownRight, ArrowUpRight, Users, 
   CheckCircle2, Wallet, ArrowLeft, CheckCircle, 
   Bell, Search, TrendingUp, AlertTriangle,
-  ShoppingCart, Tag, ArrowRight
+  ShoppingCart, Tag, ArrowRight, Banknote
 } from 'lucide-react';
 
 // --- SERVICIOS Y TIPOS ---
@@ -14,6 +14,9 @@ import { salesService } from '../../../api/sales-service';
 import client from '../../../api/axios-client'; 
 import { BankAccount } from '../../../types/treasury';
 import { SalesOrder } from '../../../types/sales';
+import { pettyCashService } from '../../../api/petty-cash-service';
+import { PettyCashFund } from '../../../types/petty_cash';
+import PettyCashPanel from '../../management/components/PettyCashPanel';
 
 // --- COMPONENTES BANCARIOS (Locales) ---
 import { BankAccountCard } from '../components/BankAccountCard';
@@ -32,7 +35,7 @@ import { PayrollAuditPanel, type PayrollLevel1 } from '../components/PayrollAudi
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 
-type AdminSection = 'TASKS' | 'BANKS' | 'RECEIVABLES' | 'PAYABLES' | 'PAYROLL' | null;
+type AdminSection = 'TASKS' | 'BANKS' | 'RECEIVABLES' | 'PAYABLES' | 'PAYROLL' | 'PETTY_CASH' | null;
 
 export const TreasuryPage = () => {
   const navigate = useNavigate();
@@ -100,6 +103,7 @@ export const TreasuryPage = () => {
 
   const [isSubSectionActive, setIsSubSectionActive] = useState(false);
   const [selectedOrderForRayosX, setSelectedOrderForRayosX] = useState<SalesOrder | null>(null);
+  const [pettyCashFund, setPettyCashFund] = useState<PettyCashFund | null>(null);
   const [payrollLevel1, setPayrollLevel1] = useState<PayrollLevel1>(null);
 
   useEffect(() => {
@@ -207,6 +211,13 @@ export const TreasuryPage = () => {
           console.error("Error cargando notificaciones de compras", e);
       }
 
+      try {
+        const fund = await pettyCashService.getFund();
+        setPettyCashFund(fund);
+      } catch {
+        /* ignore petty cash load errors */
+      }
+
     } catch (error) {
       console.error('Error al cargar datos del Dashboard', error);
       setIsAccountsLoading(false);
@@ -228,6 +239,7 @@ export const TreasuryPage = () => {
         case 'RECEIVABLES': return 'Cuentas por Cobrar';
         case 'PAYABLES': return 'Cuentas por Pagar';
         case 'PAYROLL': return 'Centro de Nómina y Destajos';
+        case 'PETTY_CASH': return 'Caja Chica';
         default: return isChecker ? 'Tesorería y Flujo Maestro' : 'Administración Central';
     }
   };
@@ -398,6 +410,47 @@ export const TreasuryPage = () => {
               </Card>
           </div>
 
+          {/* ---> TARJETA 5: CAJA CHICA <--- */}
+          <div className="w-full relative h-40">
+            <Card
+              onClick={() => setActiveSection('PETTY_CASH')}
+              className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-amber-600 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white overflow-hidden group"
+            >
+              <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center border-r border-amber-100 font-black text-sm transition-colors group-hover:bg-amber-100 ${
+                pettyCashFund && pettyCashFund.current_balance <= pettyCashFund.minimum_balance
+                  ? 'bg-red-50 text-red-600'
+                  : 'bg-amber-50 text-emerald-600'
+              }`}>
+                {pettyCashFund ? formatCurrency(pettyCashFund.current_balance) : '—'}
+              </div>
+              <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                <div className="flex justify-between items-start">
+                  <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">5. Caja Chica</p>
+                  <Banknote size={16} className="text-amber-600" />
+                </div>
+                <div className={`text-lg font-black tracking-tight leading-none truncate text-right ${
+                  pettyCashFund && pettyCashFund.current_balance <= pettyCashFund.minimum_balance
+                    ? 'text-red-600'
+                    : 'text-emerald-600'
+                }`}>
+                  {pettyCashFund ? formatCurrency(pettyCashFund.current_balance) : 'Cargando...'}
+                </div>
+                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+                  <p className={`text-[10px] font-bold uppercase truncate ${
+                    pettyCashFund && pettyCashFund.current_balance <= pettyCashFund.minimum_balance
+                      ? 'text-amber-600'
+                      : 'text-slate-400'
+                  }`}>
+                    {pettyCashFund && pettyCashFund.current_balance <= pettyCashFund.minimum_balance
+                      ? '⚠️ Saldo bajo — Reponer'
+                      : 'Saldo disponible'}
+                  </p>
+                  <Banknote size={14} className="text-amber-400" />
+                </div>
+              </div>
+            </Card>
+          </div>
+
         </div>
       )}
 
@@ -509,6 +562,14 @@ export const TreasuryPage = () => {
                 }
               }}
               onRefresh={fetchData}
+            />
+          )}
+
+          {activeSection === 'PETTY_CASH' && (
+            <PettyCashPanel
+              onBack={() => setActiveSection(null)}
+              onRefresh={fetchData}
+              userRole={userRole}
             />
           )}
 
