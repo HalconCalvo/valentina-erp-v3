@@ -416,12 +416,8 @@ export const TreasuryPage = () => {
               onClick={() => setActiveSection('PETTY_CASH')}
               className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-amber-600 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white overflow-hidden group"
             >
-              <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center border-r border-amber-100 font-black text-sm transition-colors group-hover:bg-amber-100 ${
-                pettyCashFund && pettyCashFund.current_balance <= pettyCashFund.minimum_balance
-                  ? 'bg-red-50 text-red-600'
-                  : 'bg-amber-50 text-emerald-600'
-              }`}>
-                {pettyCashFund ? formatCurrency(pettyCashFund.current_balance) : '—'}
+              <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-amber-50 border-r border-amber-100 group-hover:bg-amber-100 transition-colors">
+                <Banknote size={28} className="text-amber-500" />
               </div>
               <div className="ml-16 h-full flex flex-col justify-between pl-2">
                 <div className="flex justify-between items-start">
