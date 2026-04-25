@@ -201,7 +201,7 @@ export default function Sidebar() {
       <div className="p-4 border-t border-slate-100 bg-slate-50/50">
         <div className="mb-3 text-center px-2">
             <span className="text-sm font-bold text-slate-800 truncate block" title={config?.company_name}>
-              {loading ? 'Cargando...' : (config?.company_name || 'SGP V3')}
+              {loading ? 'Cargando...' : (config?.company_name || 'Valentina v3.8')}
             </span>
         </div>
 

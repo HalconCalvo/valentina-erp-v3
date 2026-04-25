@@ -41,8 +41,8 @@ def create_initial_data():
                 cost_tolerance_percent=3.0,
                 quote_validity_days=15,
                 default_edgebanding_factor=25.0,
-                annual_sales_target=12000000.0, # 12 MDP anuales de meta
-                last_year_sales=9500000.0,
+                annual_sales_target=16000000.0, # 12 MDP anuales de meta
+                last_year_sales=12500000.0,
                 target_payroll_per_board=210.0, # Metas de eficiencia
                 target_overhead_per_board=205.0,
                 default_tax_rate_id=tax_std.id if tax_std else 1

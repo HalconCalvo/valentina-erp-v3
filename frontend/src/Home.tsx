@@ -30,7 +30,7 @@ const Home: React.FC = () => {
       case 'WAREHOUSE': return { title: 'Almacén', subtitle: 'Control de inventarios y entradas.', color: 'from-orange-500 to-amber-600' };
       case 'PRODUCTION': return { title: 'Fábrica', subtitle: 'Gestión de transformación.', color: 'from-blue-600 to-indigo-700' };
       case 'LOGISTICS': return { title: 'Logística', subtitle: 'Gestión de rutas e instalaciones.', color: 'from-cyan-600 to-blue-700' };
-      default: return { title: 'Bienvenido', subtitle: 'Sistema de Gestión Valentina', color: 'from-slate-600 to-slate-800' };
+      default: return { title: 'Bienvenido', subtitle: 'Valentina v3.8', color: 'from-slate-600 to-slate-800' };
     }
   };
 

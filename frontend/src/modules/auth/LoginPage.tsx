@@ -94,7 +94,7 @@ export default function LoginPage() {
                  <div className="flex items-baseline gap-2">
                     <span className="font-serif italic text-6xl text-white font-medium tracking-wide">Valentina</span>
                  </div>
-                 <p className="text-sm text-slate-400 font-mono mt-1 tracking-tight uppercase pl-1">Sistema de Producción v3.6</p>
+                 <p className="text-sm text-slate-400 font-mono mt-1 tracking-tight uppercase pl-1">Valentina v3.8</p>
             </div>
         </div>
       </div>
@@ -124,7 +124,7 @@ export default function LoginPage() {
                         <input 
                             type="text" required
                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                            placeholder="usuario@sgp.com"
+                            placeholder="usuario@valentina.com"
                             value={email} onChange={e => setEmail(e.target.value)}
                         />
                     </div>
