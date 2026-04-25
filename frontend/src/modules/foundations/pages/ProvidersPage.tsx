@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useProviders } from '../hooks/useProviders';
 import { Provider } from '../../../types/foundations';
-import { Plus, Search, Edit, Trash2, X, Phone, Mail, User, Building2, Smartphone } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, X, Phone, Mail, User, Building2, Smartphone, Upload } from 'lucide-react';
 
 // 1. IMPORTAR BOTÓN DE EXPORTACIÓN
 import ExportButton from '@/components/ui/ExportButton';
@@ -12,6 +12,8 @@ export default function ProvidersPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [importingCsv, setImportingCsv] = useState(false);
+  const csvInputRef = useRef<HTMLInputElement>(null);
   
   const initialForm: Provider = { 
     business_name: '', 
@@ -78,9 +80,41 @@ export default function ProvidersPage() {
     (p.contact_name && p.contact_name.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
+  const handleCsvImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportingCsv(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const token = localStorage.getItem('token');
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+      const res = await fetch(`${baseUrl}/foundations/providers/import-csv`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+      });
+      const result = await res.json();
+      alert(`✅ Importación completada:\n${result.created} creados\n${result.updated} actualizados\n${result.errors?.length ?? 0} errores`);
+      window.location.reload();
+    } catch {
+      alert('Error al importar el CSV.');
+    } finally {
+      setImportingCsv(false);
+      if (csvInputRef.current) csvInputRef.current.value = '';
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fadeIn pb-24">
-      
+      <input
+        type="file"
+        ref={csvInputRef}
+        className="hidden"
+        accept=".csv"
+        onChange={handleCsvImport}
+      />
+
       {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
@@ -95,6 +129,15 @@ export default function ProvidersPage() {
                 fileName="Reporte_Proveedores" 
                 mapping={mapProvidersForExcel}
             />
+
+            <button
+                onClick={() => csvInputRef.current?.click()}
+                disabled={importingCsv}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all transform hover:-translate-y-0.5 disabled:opacity-50"
+            >
+                <Upload size={18} />
+                {importingCsv ? 'Importando...' : 'Importar CSV'}
+            </button>
             
             <button 
                 onClick={handleOpenCreate}

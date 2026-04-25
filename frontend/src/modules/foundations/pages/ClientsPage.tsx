@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useClients, Client } from '../hooks/useClients';
 import { 
   Plus, User, Mail, Phone, 
-  Smartphone, FileText, X, Pencil, Trash2, Users, Building2 
+  Smartphone, FileText, X, Pencil, Trash2, Users, Building2, Upload
 } from 'lucide-react';
 
 import ExportButton from '@/components/ui/ExportButton';
@@ -13,6 +13,8 @@ export default function ClientsPage() {
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false); 
   const [activeTab, setActiveTab] = useState<'general' | 'contacts'>('general');
+  const [importingCsv, setImportingCsv] = useState(false);
+  const csvInputRef = useRef<HTMLInputElement>(null);
   
   const initialForm: Client = { 
     id: undefined, 
@@ -135,8 +137,41 @@ export default function ClientsPage() {
       );
   };
 
+  const handleCsvImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportingCsv(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const token = localStorage.getItem('token');
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+      const res = await fetch(`${baseUrl}/foundations/clients/import-csv`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+      });
+      const result = await res.json();
+      alert(`✅ Importación completada:\n${result.created} creados\n${result.updated} actualizados\n${result.errors?.length ?? 0} errores`);
+      window.location.reload();
+    } catch {
+      alert('Error al importar el CSV.');
+    } finally {
+      setImportingCsv(false);
+      if (csvInputRef.current) csvInputRef.current.value = '';
+    }
+  };
+
   return (
     <div className="space-y-6 p-6">
+      <input
+        type="file"
+        ref={csvInputRef}
+        className="hidden"
+        accept=".csv"
+        onChange={handleCsvImport}
+      />
+
       {/* HEADER */}
       <div className="flex justify-between items-center">
         <div>
@@ -146,6 +181,14 @@ export default function ClientsPage() {
         
         <div className="flex gap-3">
             <ExportButton data={clients} fileName="Cartera_Clientes_Completa" mapping={mapClientsForExcel}/>
+            <button
+                onClick={() => csvInputRef.current?.click()}
+                disabled={importingCsv}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all transform hover:-translate-y-0.5 disabled:opacity-50"
+            >
+                <Upload size={18} />
+                {importingCsv ? 'Importando...' : 'Importar CSV'}
+            </button>
             <button 
                 onClick={() => { setIsEditing(false); setForm(initialForm); setShowModal(true); }} 
                 className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 font-medium shadow-sm"

@@ -174,6 +174,78 @@ def delete_provider(provider_id: int, session: Session = Depends(get_session)):
     session.commit()
     return {"ok": True}
 
+@router.post("/providers/import-csv")
+async def import_providers_csv(
+    file: UploadFile = File(...),
+    session: Session = Depends(get_session)
+):
+    """Importación masiva de proveedores desde CSV."""
+    if not file.filename.endswith('.csv'):
+        raise HTTPException(status_code=400, detail="El archivo debe ser un CSV.")
+
+    content = await file.read()
+    try:
+        csv_string = content.decode('utf-8-sig')
+    except UnicodeDecodeError:
+        csv_string = content.decode('latin-1')
+
+    import csv as csv_module
+
+    sample = csv_string[:2048]
+    try:
+        dialect = csv_module.Sniffer().sniff(sample)
+        delimiter = dialect.delimiter
+    except Exception:
+        delimiter = ','
+
+    csv_reader = csv_module.DictReader(io.StringIO(csv_string), delimiter=delimiter)
+    summary = {"processed": 0, "created": 0, "updated": 0, "errors": []}
+
+    for row_idx, row in enumerate(csv_reader):
+        try:
+            clean = {k.strip().lower(): (v.strip() if v else '') for k, v in row.items() if k}
+            business_name = clean.get('business_name', '').strip()
+            if not business_name:
+                continue
+
+            credit_days = 0
+            try:
+                credit_days = int(clean.get('credit_days', 0) or 0)
+            except ValueError:
+                credit_days = 0
+
+            existing = session.exec(
+                select(Provider).where(Provider.business_name == business_name)
+            ).first()
+
+            data = {
+                "business_name": business_name,
+                "rfc_tax_id": clean.get('rfc_tax_id') or None,
+                "credit_days": credit_days,
+                "phone": clean.get('phone') or None,
+                "phone2": clean.get('phone2') or None,
+                "contact_name": clean.get('contact_name') or None,
+                "contact_cellphone": clean.get('contact_cellphone') or None,
+                "contact_email": clean.get('contact_email') or None,
+                "is_active": True,
+            }
+
+            if existing:
+                for k, v in data.items():
+                    setattr(existing, k, v)
+                summary["updated"] += 1
+            else:
+                session.add(Provider(**data))
+                summary["created"] += 1
+
+            summary["processed"] += 1
+
+        except Exception as e:
+            summary["errors"].append(f"Fila {row_idx + 2}: {str(e)}")
+
+    session.commit()
+    return summary
+
 # ==========================================
 # 3. CLIENTES
 # ==========================================
@@ -216,6 +288,88 @@ def delete_client(client_id: int, session: Session = Depends(get_session)):
     session.add(db_client)
     session.commit()
     return {"ok": True}
+
+@router.post("/clients/import-csv")
+async def import_clients_csv(
+    file: UploadFile = File(...),
+    session: Session = Depends(get_session)
+):
+    """Importación masiva de clientes desde CSV."""
+    if not file.filename.endswith('.csv'):
+        raise HTTPException(status_code=400, detail="El archivo debe ser un CSV.")
+
+    content = await file.read()
+    try:
+        csv_string = content.decode('utf-8-sig')
+    except UnicodeDecodeError:
+        csv_string = content.decode('latin-1')
+
+    import csv as csv_module
+
+    sample = csv_string[:2048]
+    try:
+        dialect = csv_module.Sniffer().sniff(sample)
+        delimiter = dialect.delimiter
+    except Exception:
+        delimiter = ','
+
+    csv_reader = csv_module.DictReader(io.StringIO(csv_string), delimiter=delimiter)
+    summary = {"processed": 0, "created": 0, "updated": 0, "errors": []}
+
+    for row_idx, row in enumerate(csv_reader):
+        try:
+            clean = {k.strip().lower(): (v.strip() if v else '') for k, v in row.items() if k}
+            full_name = clean.get('full_name', '').strip()
+            email = clean.get('email', '').strip()
+            phone = clean.get('phone', '').strip()
+            if not full_name or not email or not phone:
+                continue
+
+            existing = session.exec(
+                select(Client).where(Client.full_name == full_name)
+            ).first()
+
+            data = {
+                "full_name": full_name,
+                "email": email,
+                "phone": phone,
+                "rfc_tax_id": clean.get('rfc_tax_id') or None,
+                "fiscal_address": clean.get('fiscal_address') or None,
+                "contact_name": clean.get('contact_name') or None,
+                "contact_phone": clean.get('contact_phone') or None,
+                "contact_dept": clean.get('contact_dept') or None,
+                "contact_email": clean.get('contact_email') or None,
+                "contact2_name": clean.get('contact2_name') or None,
+                "contact2_phone": clean.get('contact2_phone') or None,
+                "contact2_dept": clean.get('contact2_dept') or None,
+                "contact2_email": clean.get('contact2_email') or None,
+                "contact3_name": clean.get('contact3_name') or None,
+                "contact3_phone": clean.get('contact3_phone') or None,
+                "contact3_dept": clean.get('contact3_dept') or None,
+                "contact3_email": clean.get('contact3_email') or None,
+                "contact4_name": clean.get('contact4_name') or None,
+                "contact4_phone": clean.get('contact4_phone') or None,
+                "contact4_dept": clean.get('contact4_dept') or None,
+                "contact4_email": clean.get('contact4_email') or None,
+                "notes": clean.get('notes') or None,
+                "is_active": True,
+            }
+
+            if existing:
+                for k, v in data.items():
+                    setattr(existing, k, v)
+                summary["updated"] += 1
+            else:
+                session.add(Client(**data))
+                summary["created"] += 1
+
+            summary["processed"] += 1
+
+        except Exception as e:
+            summary["errors"].append(f"Fila {row_idx + 2}: {str(e)}")
+
+    session.commit()
+    return summary
 
 # ==========================================
 # 4. TASAS DE IMPUESTOS
