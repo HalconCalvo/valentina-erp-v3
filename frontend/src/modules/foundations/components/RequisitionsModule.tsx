@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
-    ClipboardList, AlertTriangle, Clock, CheckCircle, Package, 
-    Snowflake, ArrowLeft, Search, Plus, X, Tag, ArrowUpRight, Trash2 
+    ClipboardList, AlertTriangle, Clock, Package,
+    Snowflake, ArrowLeft, Search, Plus, X, Tag, ArrowUpRight
 } from 'lucide-react';
 import axiosClient from '../../../api/axios-client';
 import { Button } from '@/components/ui/Button';
@@ -10,7 +10,7 @@ import { Card } from '@/components/ui/Card';
 interface Material { id: number; sku: string; name: string; physical_stock: number; min_stock: number; usage_unit: string; }
 interface Requisition { id: number; material_id: number; custom_description?: string; requested_quantity: number; status: string; notes: string; created_at: string; }
 
-type RequisitionSubSection = 'NEW' | 'CRITICAL' | 'FROZEN' | null;
+type RequisitionSubSection = 'CRITICAL' | 'FROZEN' | null;
 
 interface RequisitionsModuleProps {
     onSubSectionChange?: (isActive: boolean) => void;
@@ -64,15 +64,10 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
     }, []);
 
     // ---> FILTROS ROBUSTOS <---
-    const pendingReqs = requisitions.filter(r => {
-        const s = r.status?.toUpperCase();
-        return s === 'PENDIENTE' || s === 'EN_COMPRA';
-    });
-
     const frozenReqs = requisitions.filter(r => r.status?.toUpperCase() === 'APLAZADA');
 
-    const reqMaterialIds = [...pendingReqs, ...frozenReqs].map(r => r.material_id);
-    const activeOrders = orders.filter(o => ['DRAFT', 'AUTORIZADA', 'ENVIADA'].includes(o.status?.toUpperCase()));
+    const reqMaterialIds = [...frozenReqs].map(r => r.material_id);
+    const activeOrders = orders.filter(o => ['DRAFT', 'ENVIADA'].includes(o.status?.toUpperCase()));
     const orderMaterialIds = activeOrders.flatMap(o => o.items?.map((i: any) => i.material_id) || []);
 
     const materialesAtendidos = [...reqMaterialIds, ...orderMaterialIds];
@@ -147,97 +142,6 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
         const desc = req.custom_description || '';
         return notes.includes('Valentina') || notes.includes('[AUTO]') || desc === 'REPOSICIÓN AUTOMÁTICA';
     };
-
-    const renderNewRequestsTable = () => (
-        <Card className="p-8 bg-white animate-in slide-in-from-right-4 duration-300 space-y-6 rounded-3xl border-slate-100 shadow-xl">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-6">
-                <div>
-                    <h3 className="text-2xl font-black text-slate-800 flex items-center gap-2 uppercase tracking-tighter"><ClipboardList className="text-red-600"/> Solicitudes de la Fábrica</h3>
-                    <p className="text-slate-500 font-medium italic text-sm">Gestión de requisiciones pendientes.</p>
-                </div>
-                <div className="flex gap-2">
-                    <Button onClick={() => setShowManualForm(!showManualForm)} className={`${showManualForm ? 'bg-slate-500' : 'bg-red-600 hover:bg-red-700'} text-white font-black uppercase text-[10px] tracking-widest px-4 shadow-md`}>
-                        {showManualForm ? <X size={16} className="mr-2"/> : <Plus size={16} className="mr-2"/>} {showManualForm ? 'Cancelar' : 'Nueva Manual'}
-                    </Button>
-                    <Button onClick={() => setActiveSubSection(null)} variant="outline" className="font-black uppercase text-[10px] tracking-widest px-4 border-slate-300"><ArrowLeft size={16} className="mr-2"/> Regresar</Button>
-                </div>
-            </div>
-
-            {showManualForm && (
-                <div className="bg-red-50/50 p-6 rounded-2xl border border-red-100 mb-6 relative z-30">
-                    <form onSubmit={handleCreateManualReq} className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-                        <div className="md:col-span-4 relative">
-                            <div className="relative">
-                                <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
-                                <input type="text" placeholder="Buscar por SKU o Nombre..." className="w-full text-sm border border-slate-300 rounded-lg pl-9 pr-4 py-2 bg-white" value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setShowMatDropdown(true); }} onFocus={() => setShowMatDropdown(true)} />
-                                {showMatDropdown && (
-                                    <ul className="absolute z-50 w-full bg-white border border-slate-200 rounded-lg shadow-2xl mt-1 max-h-48 overflow-auto">
-                                        {filteredMaterials.map(m => (
-                                            <li key={m.id} className="px-4 py-2 hover:bg-red-50 cursor-pointer text-sm border-b border-slate-50" onClick={() => { setManualMatId(m.id.toString()); setSearchTerm(`[${m.sku}] ${m.name}`); setShowMatDropdown(false); }}>
-                                                <span className="font-bold text-red-700">[{m.sku}]</span> <span className="text-slate-700">{m.name}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
-                            </div>
-                        </div>
-                        <div className="md:col-span-2">
-                            <input type="number" step="0.01" className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2" value={manualQty} onChange={e => setManualQty(e.target.value)} placeholder="Cant." />
-                        </div>
-                        <div className="md:col-span-4">
-                            <input type="text" className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2" value={manualNotes} onChange={e => setManualNotes(e.target.value)} placeholder="Notas..." />
-                        </div>
-                        <div className="md:col-span-2">
-                            <Button type="submit" className="w-full bg-red-600 text-white font-black text-xs uppercase h-10 shadow-md">Solicitar</Button>
-                        </div>
-                    </form>
-                </div>
-            )}
-
-            {pendingReqs.length === 0 ? (
-                <div className="text-center py-20 bg-slate-50 rounded-2xl border border-slate-100 border-dashed">
-                    <CheckCircle className="mx-auto text-emerald-400 mb-4" size={48}/><p className="text-emerald-600 font-black uppercase tracking-widest text-sm">Todo al día</p>
-                </div>
-            ) : (
-                <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm relative z-10">
-                    <table className="w-full text-sm text-left">
-                        <thead className="bg-slate-50 text-slate-500 font-black uppercase text-[10px] border-b border-slate-200">
-                            <tr><th className="p-4">Material / Solicitud</th><th className="p-4 text-center">Cantidad</th><th className="p-4">Notas</th><th className="p-4 text-right">Acciones</th></tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {pendingReqs.map(req => (
-                                <tr key={req.id} className="hover:bg-slate-50 transition-colors">
-                                    <td className="p-4 font-bold text-slate-700 uppercase">
-                                        <div className="flex flex-col">
-                                            {getMaterialName(req)}
-                                            {isAutomaticReq(req) && <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest mt-1">Alarma del Sistema</span>}
-                                        </div>
-                                    </td>
-                                    <td className="p-4 text-center text-red-700 font-black text-lg">{req.requested_quantity}</td>
-                                    <td className="p-4 text-slate-500 italic text-xs max-w-xs truncate">{req.notes || 'Sin notas'}</td>
-                                    <td className="p-4 text-right flex justify-end gap-2">
-                                        {req.status?.toUpperCase() === 'PENDIENTE' ? (
-                                            <button onClick={() => handleUpdateStatus(req.id, 'EN_COMPRA')} title="Autorizar" className="p-2 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100"><CheckCircle size={18}/></button>
-                                        ) : (
-                                            <span className="text-[10px] font-black text-emerald-600 uppercase bg-emerald-50 px-2 py-1 rounded border border-emerald-200 flex items-center gap-1"><CheckCircle size={12}/> Autorizada</span>
-                                        )}
-                                        
-                                        {/* Copo de nieve visible para TODAS (Auto y Manuales) */}
-                                        <button onClick={() => handleUpdateStatus(req.id, 'APLAZADA')} title="Congelar / Aplazar Compra" className="p-2 bg-blue-50 text-blue-500 rounded-xl border border-blue-100 hover:bg-blue-600 hover:text-white transition-colors"><Snowflake size={18}/></button>
-                                        
-                                        {/* Basurero SOLO para las Manuales */}
-                                        {!isAutomaticReq(req) && (
-                                            <button onClick={() => handleDeleteReq(req.id)} title="Eliminar Solicitud Manual" className="p-2 bg-rose-50 text-rose-500 rounded-xl border border-rose-100 hover:bg-rose-600 hover:text-white transition-colors"><Trash2 size={18}/></button>
-                                        )}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            )}
-        </Card>
-    );
 
     const renderCriticalStockTable = () => (
         <Card className="p-8 bg-white animate-in slide-in-from-right-4 duration-300 space-y-6 rounded-3xl border-slate-100 shadow-xl">
@@ -325,14 +229,12 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
         </Card>
     );
 
-    if (activeSubSection === 'NEW') return renderNewRequestsTable();
     if (activeSubSection === 'CRITICAL') return renderCriticalStockTable();
-    if (activeSubSection === 'FROZEN') return renderFrozenReqsTable(); 
+    if (activeSubSection === 'FROZEN') return renderFrozenReqsTable();
 
     const subMenuItems = [
-        { id: 'NEW', title: 'A. PENDIENTES', count: pendingReqs.length, color: 'red', bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-100', desc: 'Solicitudes de Fábrica' },
-        { id: 'CRITICAL', title: 'B. CRÍTICO', count: criticalStock.length, color: 'orange', bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-100', desc: 'Stock bajo el mínimo' },
-        { id: 'FROZEN', title: 'C. CONGELADORA', count: frozenReqs.length, color: 'slate', bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-100', desc: 'Requisiciones Aplazadas' },
+        { id: 'CRITICAL', title: 'A. STOCK CRÍTICO', count: criticalStock.length, color: 'orange', bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-100', desc: 'Stock bajo el mínimo' },
+        { id: 'FROZEN', title: 'B. CONGELADORA', count: frozenReqs.length, color: 'slate', bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-100', desc: 'Requisiciones Aplazadas' },
     ];
 
     return (

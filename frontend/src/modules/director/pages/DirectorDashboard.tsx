@@ -341,7 +341,7 @@ const DirectorDashboard: React.FC = () => {
 
                     {/* 6. SALIDAS DE CAPITAL */}
                     <div className="w-full relative h-40">
-                        <Card onClick={() => navigate('/inventory', { state: { openSection: 'PURCHASE_ORDERS', targetTab: 'BRAKE' } as any })} className={`p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white relative overflow-hidden group ${pendingPurchaseAuths > 0 ? 'border-l-red-500 ring-2 ring-red-100' : 'border-l-slate-300'}`}>
+                        <Card onClick={() => navigate('/inventory', { state: { openSection: 'PURCHASE_ORDERS', targetTab: 'BRAKE', returnTo: '/director' } as any })} className={`p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white relative overflow-hidden group ${pendingPurchaseAuths > 0 ? 'border-l-red-500 ring-2 ring-red-100' : 'border-l-slate-300'}`}>
                             <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center border-r font-black text-3xl transition-colors ${pendingPurchaseAuths > 0 ? 'bg-red-50 text-red-600 border-red-100 group-hover:bg-red-100' : 'bg-slate-50 text-slate-400 border-slate-100 group-hover:bg-slate-100'}`}>
                                 {pendingPurchaseAuths > 0 ? pendingPurchaseAuths : <CheckCircle size={28} className="text-slate-300" />}
                             </div>

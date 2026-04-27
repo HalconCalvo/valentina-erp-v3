@@ -56,8 +56,8 @@ export const InventoryDashboardPage = () => {
                 ]);
                 
                 // 1. Tarjeta Requisiciones (Pendientes de Asignar Material)
-                const pendingReqs = resReqs.data.filter((r: any) => r.status === 'PENDIENTE' || r.status === 'EN_COMPRA');
-                setPendingTasksCount(pendingReqs.length);
+                const frozenReqs = resReqs.data.filter((r: any) => r.status === 'APLAZADA');
+                setPendingTasksCount(frozenReqs.length);
                 
                 // 3. Tarjeta Recepción (Órdenes en tránsito real)
                 setReceptionsCount(resOrdersTransit.data.length || 0); 
@@ -139,8 +139,8 @@ export const InventoryDashboardPage = () => {
                             <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50 text-indigo-700 border-r border-indigo-100 font-black text-3xl transition-colors group-hover:bg-indigo-100">{pendingTasksCount}</div>
                             <div className="ml-16 h-full flex flex-col justify-between">
                                 <div className="flex justify-between items-start"><p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">1. Requisiciones</p><ClipboardList size={16} className="text-indigo-500" /></div>
-                                <div className="mt-4 flex justify-end"><div className="text-2xl font-black text-indigo-600 tracking-tight">Pendientes</div></div>
-                                <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100"><p className="text-[10px] text-slate-400 font-bold uppercase">Lo que pide la fábrica</p><ArrowUpRight size={14} className="text-indigo-400"/></div>
+                                <div className="mt-4 flex justify-end"><div className="text-2xl font-black text-indigo-600 tracking-tight">Alertas</div></div>
+                                <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100"><p className="text-[10px] text-slate-400 font-bold uppercase">Stock crítico y aplazadas</p><ArrowUpRight size={14} className="text-indigo-400"/></div>
                             </div>
                         </Card>
                     </div>
@@ -192,7 +192,14 @@ export const InventoryDashboardPage = () => {
                     {activeSection === 'PURCHASE_ORDERS' && renderActiveSection('Órdenes de Compra', 
                         <PurchaseOrdersModule 
                             onSubSectionChange={(active) => setIsSubSectionActive(active)} 
-                            targetTab={targetTab} 
+                            targetTab={targetTab}
+                            onExternalBack={returnToPath ? () => {
+                                navigate(returnToPath);
+                                setReturnToPath(null);
+                                setActiveSection(null);
+                                setIsSubSectionActive(false);
+                                setTargetTab(null);
+                            } : undefined}
                         />
                     )}
                     

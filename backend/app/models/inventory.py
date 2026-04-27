@@ -83,6 +83,10 @@ class PurchaseRequisition(SQLModel, table=True):
     status: str = Field(default="PENDIENTE")  # PENDIENTE, EN_COMPRA, APLAZADA, PROCESADA
     requested_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
     notes: Optional[str] = None
+    provider_id: Optional[int] = Field(
+        default=None, foreign_key="providers.id"
+    )
+    expected_unit_cost: Optional[float] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 

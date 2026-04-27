@@ -14,9 +14,10 @@ type SubSection = 'CREATION' | 'BRAKE' | 'SENDING' | null;
 interface PurchaseOrdersModuleProps {
     onSubSectionChange?: (active: boolean) => void;
     targetTab?: string | null;
+    onExternalBack?: () => void;
 }
 
-export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSubSectionChange, targetTab }) => {
+export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSubSectionChange, targetTab, onExternalBack }) => {
     const [activeSubSection, setActiveSubSection] = useState<SubSection>(targetTab as SubSection || null);
     const [loading, setLoading] = useState(true);
     const [suggestedOrders, setSuggestedOrders] = useState<any[]>([]);
@@ -34,6 +35,31 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
 
     const [activeDropdown, setActiveDropdown] = useState<{type: 'provider' | 'sku' | 'material' | null, index: number | null}>({type: null, index: null});
 
+    const [assignModal, setAssignModal] = useState<{
+        open: boolean;
+        requisitionId: number | null;
+        itemName: string;
+        currentQty: number;
+    }>({ open: false, requisitionId: null, itemName: '', currentQty: 0 });
+
+    const [assignForm, setAssignForm] = useState({
+        provider_id: '',
+        provider_search: '',
+        expected_unit_cost: '0.00',
+    });
+
+    const [assignProviderFocused, setAssignProviderFocused] = useState(false);
+
+    const [isReqModalOpen, setIsReqModalOpen] = useState(false);
+    const [reqForm, setReqForm] = useState({
+        description: '',
+        qty: '1',
+        notes: '',
+        isCatalogItem: false,
+        material_id: '',
+        material_search: '',
+    });
+
     const getRole = () => {
         const userRaw = localStorage.getItem('user');
         const userRoleDirect = localStorage.getItem('user_role');
@@ -50,7 +76,10 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         return userRoleDirect || roleDirect || 'GUEST';
     };
 
-    const role = getRole().toUpperCase(); 
+    const role = getRole().toUpperCase();
+    const canCreateDirectOC = ['ADMIN', 'GERENCIA', 'DIRECTOR'].includes(role);
+    const canCreateRequisition = ['PRODUCTION', 'WAREHOUSE', 'DESIGN',
+                                   'LOGISTICS', 'SALES'].includes(role);
 
     useEffect(() => {
         if (targetTab) {
@@ -276,6 +305,63 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         }
     };
 
+    const handleSubmitRequisition = async () => {
+        if (!reqForm.description && !reqForm.material_id) {
+            return alert("Describe qué necesitas o selecciona un material.");
+        }
+        if (!reqForm.qty || parseFloat(reqForm.qty) <= 0) {
+            return alert("Ingresa una cantidad válida.");
+        }
+        setLoading(true);
+        try {
+            await axiosClient.post('/purchases/requisitions/', {
+                material_id: reqForm.material_id ? parseInt(reqForm.material_id) : null,
+                custom_description: !reqForm.material_id ? reqForm.description : null,
+                requested_quantity: parseFloat(reqForm.qty),
+                notes: reqForm.notes.trim()
+                    ? `[MANUAL] ${reqForm.notes}`
+                    : '[MANUAL] Petición Ad-hoc',
+            });
+            setIsReqModalOpen(false);
+            setReqForm({
+                description: '', qty: '1', notes: '',
+                isCatalogItem: false, material_id: '', material_search: ''
+            });
+            fetchPlanning(true);
+        } catch (error: any) {
+            alert(error.response?.data?.detail || "Error al crear la solicitud.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleAssignProvider = async () => {
+        if (!assignModal.requisitionId || !assignForm.provider_id) {
+            return alert("Selecciona un proveedor.");
+        }
+        const cost = parseFloat(assignForm.expected_unit_cost);
+        if (isNaN(cost) || cost < 0) {
+            return alert("Ingresa un precio unitario válido.");
+        }
+        setLoading(true);
+        try {
+            await axiosClient.put(
+                `/purchases/requisitions/${assignModal.requisitionId}/assign`,
+                {
+                    provider_id: parseInt(assignForm.provider_id),
+                    expected_unit_cost: cost,
+                }
+            );
+            setAssignModal({ open: false, requisitionId: null, itemName: '', currentQty: 0 });
+            setAssignForm({ provider_id: '', provider_search: '', expected_unit_cost: '0.00' });
+            fetchPlanning(true);
+        } catch (error: any) {
+            alert(error.response?.data?.detail || "Error al asignar proveedor.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleTransferCriticalItem = async (requisitionId: number, materialName: string) => {
         if (!window.confirm(`¿Sustituir "${materialName}"? Se moverá a Asignación Pendiente.`)) return;
         setLoading(true);
@@ -474,6 +560,27 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                                     <td className="px-8 py-3 text-right text-xs font-black text-slate-800">${((item.qty || 0) * (item.expected_cost || 0)).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
                                                     <td className="px-6 py-3 text-center">
                                                         <div className="flex justify-center gap-2">
+                                                            {isUnassigned && (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setAssignModal({
+                                                                            open: true,
+                                                                            requisitionId: item.requisition_id,
+                                                                            itemName: item.name,
+                                                                            currentQty: item.qty,
+                                                                        });
+                                                                        setAssignForm({
+                                                                            provider_id: '',
+                                                                            provider_search: '',
+                                                                            expected_unit_cost: '0.00',
+                                                                        });
+                                                                    }}
+                                                                    title="Asignar Proveedor y Precio"
+                                                                    className="p-1.5 bg-indigo-50 text-indigo-600 rounded-md hover:bg-indigo-600 hover:text-white transition-colors shadow-sm border border-indigo-100"
+                                                                >
+                                                                    <Building2 size={16} />
+                                                                </button>
+                                                            )}
                                                             {!isCritical && (
                                                                 <button onClick={() => handleFreezeRequisition(item.requisition_id)} title="Congelar / Aplazar Compra" className="p-1.5 bg-blue-50 text-blue-500 rounded-md hover:bg-blue-600 hover:text-white transition-colors shadow-sm border border-blue-100">
                                                                     <Snowflake size={16} />
@@ -671,12 +778,22 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                             {activeSubSection === 'CREATION' ? (
                                 <>
                                     <Search size={28} className="text-indigo-600"/> Inteligencia de Abastecimiento
-                                    <Button 
-                                        onClick={() => setIsManualModalOpen(true)} 
-                                        className="ml-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] tracking-widest px-5 rounded-lg shadow-md h-8 flex items-center gap-2"
-                                    >
-                                        <Plus size={14} /> OC DIRECTA
-                                    </Button>
+                                    {canCreateDirectOC && (
+                                        <Button
+                                            onClick={() => setIsManualModalOpen(true)}
+                                            className="ml-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] tracking-widest px-5 rounded-lg shadow-md h-8 flex items-center gap-2"
+                                        >
+                                            <Plus size={14} /> OC DIRECTA
+                                        </Button>
+                                    )}
+                                    {canCreateRequisition && (
+                                        <Button
+                                            onClick={() => setIsReqModalOpen(true)}
+                                            className="ml-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[10px] tracking-widest px-5 rounded-lg shadow-md h-8 flex items-center gap-2"
+                                        >
+                                            <Plus size={14} /> Solicitud Manual
+                                        </Button>
+                                    )}
                                 </>
                             ) : activeSubSection === 'BRAKE' ? (
                                 <><Ban size={28} className="text-rose-600"/> Mesa de Control / Freno</>
@@ -688,7 +805,13 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                             <Button onClick={handleForceRefresh} variant="outline" className="border-slate-300 rounded-full px-4 py-2" title="Forzar Sincronización">
                                 <RefreshCw size={16} className="text-slate-500" />
                             </Button>
-                            <Button onClick={() => setActiveSubSection(null)} variant="outline" className="font-black uppercase text-[10px] tracking-widest border-slate-300 rounded-full px-6 py-2"><ArrowLeft size={16} className="mr-2"/> Regresar</Button>
+                            <Button onClick={() => {
+                                if (onExternalBack) {
+                                    onExternalBack();
+                                } else {
+                                    setActiveSubSection(null);
+                                }
+                            }} variant="outline" className="font-black uppercase text-[10px] tracking-widest border-slate-300 rounded-full px-6 py-2"><ArrowLeft size={16} className="mr-2"/> Regresar</Button>
                         </div>
                     </div>
                     {loading ? (
@@ -956,6 +1079,248 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                             </div>
                         </div>
 
+                    </div>
+                </div>
+            )}
+
+            {isReqModalOpen && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border-t-4 border-t-indigo-500 animate-in zoom-in-95 duration-200">
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                            <div>
+                                <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
+                                    <ShoppingCart size={20} className="text-indigo-600" />
+                                    Nueva Solicitud de Compra
+                                </h3>
+                                <p className="text-xs text-slate-500 mt-1 font-bold uppercase">
+                                    Administración cotizará y generará la OC
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setIsReqModalOpen(false)}
+                                className="text-slate-400 hover:text-slate-600"
+                            >
+                                <XCircle size={22} />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            {/* Búsqueda en catálogo */}
+                            <div className="relative">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                    Material (del catálogo o descripción libre)
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder="Buscar en catálogo o escribir descripción..."
+                                    value={reqForm.material_search || reqForm.description}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setReqForm(f => ({
+                                            ...f,
+                                            material_search: val,
+                                            description: val,
+                                            material_id: '',
+                                        }));
+                                    }}
+                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-indigo-400"
+                                />
+                                {reqForm.material_search && !reqForm.material_id && (
+                                    <ul className="absolute z-50 w-full bg-white border border-slate-200 rounded-lg shadow-xl mt-1 max-h-40 overflow-auto">
+                                        {materialsList
+                                            .filter(m => getMatDesc(m).toLowerCase().includes(reqForm.material_search.toLowerCase()) ||
+                                                        getMatSku(m).toLowerCase().includes(reqForm.material_search.toLowerCase()))
+                                            .slice(0, 8)
+                                            .map((m, i) => (
+                                                <li
+                                                    key={i}
+                                                    onMouseDown={() => setReqForm(f => ({
+                                                        ...f,
+                                                        material_id: String(m.id),
+                                                        material_search: getMatDesc(m),
+                                                        description: getMatDesc(m),
+                                                    }))}
+                                                    className="px-4 py-2 text-xs font-bold text-slate-700 uppercase cursor-pointer hover:bg-indigo-50 hover:text-indigo-700 border-b border-slate-50 last:border-0 flex justify-between"
+                                                >
+                                                    <span>{getMatDesc(m)}</span>
+                                                    <span className="text-indigo-400 text-[10px]">{getMatSku(m)}</span>
+                                                </li>
+                                            ))}
+                                        {materialsList.filter(m =>
+                                            getMatDesc(m).toLowerCase().includes(reqForm.material_search.toLowerCase()) ||
+                                            getMatSku(m).toLowerCase().includes(reqForm.material_search.toLowerCase())
+                                        ).length === 0 && (
+                                            <li className="px-4 py-3 text-xs font-bold text-slate-400 italic">
+                                                No está en catálogo — se usará como descripción libre ✓
+                                            </li>
+                                        )}
+                                    </ul>
+                                )}
+                                {reqForm.material_id && (
+                                    <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded mt-1 inline-flex items-center gap-1">
+                                        <CheckCircle2 size={10} /> Del catálogo
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Cantidad */}
+                            <div>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                    Cantidad
+                                </label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    step="0.01"
+                                    value={reqForm.qty}
+                                    onChange={(e) => setReqForm(f => ({ ...f, qty: e.target.value }))}
+                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-indigo-400"
+                                />
+                            </div>
+
+                            {/* Notas */}
+                            <div>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                    Notas (opcional)
+                                </label>
+                                <textarea
+                                    rows={2}
+                                    placeholder="Urgencia, especificaciones, proyecto..."
+                                    value={reqForm.notes}
+                                    onChange={(e) => setReqForm(f => ({ ...f, notes: e.target.value }))}
+                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-indigo-400 resize-none"
+                                />
+                            </div>
+                        </div>
+                        <div className="p-6 border-t border-slate-100 flex gap-3 justify-end">
+                            <Button
+                                variant="outline"
+                                onClick={() => setIsReqModalOpen(false)}
+                                className="border-slate-200 text-slate-500 font-black uppercase text-[10px] px-5"
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                onClick={handleSubmitRequisition}
+                                disabled={loading || (!reqForm.description && !reqForm.material_id)}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[10px] px-6 shadow-md"
+                            >
+                                <Plus size={14} className="mr-2" /> Enviar Solicitud
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {assignModal.open && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border-t-4 border-t-indigo-500 animate-in zoom-in-95 duration-200">
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                            <div>
+                                <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
+                                    <Building2 size={20} className="text-indigo-600" />
+                                    Asignar Proveedor
+                                </h3>
+                                <p className="text-xs text-slate-500 mt-1 font-bold uppercase truncate">
+                                    {assignModal.itemName} — Qty: {assignModal.currentQty}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setAssignModal({ open: false, requisitionId: null, itemName: '', currentQty: 0 })}
+                                className="text-slate-400 hover:text-slate-600"
+                            >
+                                <XCircle size={22} />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            {/* Selector de Proveedor */}
+                            <div className="relative">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                    Proveedor
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder="Buscar o seleccionar proveedor..."
+                                    value={assignForm.provider_search}
+                                    onChange={(e) => setAssignForm(f => ({ 
+                                        ...f, 
+                                        provider_search: e.target.value, 
+                                        provider_id: '' 
+                                    }))}
+                                    onFocus={() => setAssignProviderFocused(true)}
+                                    onBlur={() => setTimeout(() => setAssignProviderFocused(false), 200)}
+                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-indigo-400"
+                                />
+                                {assignProviderFocused && !assignForm.provider_id && (
+                                    <ul className="absolute z-50 w-full bg-white border border-slate-200 rounded-lg shadow-xl mt-1 max-h-48 overflow-auto">
+                                        {providersList
+                                            .filter(p => 
+                                                assignForm.provider_search === '' || 
+                                                getProvName(p).toLowerCase().includes(assignForm.provider_search.toLowerCase())
+                                            )
+                                            .map((p, i) => (
+                                                <li
+                                                    key={i}
+                                                    onMouseDown={() => setAssignForm(f => ({
+                                                        ...f,
+                                                        provider_id: String(p.id),
+                                                        provider_search: getProvName(p),
+                                                    }))}
+                                                    className="px-4 py-2 text-xs font-bold text-slate-700 uppercase cursor-pointer hover:bg-indigo-50 hover:text-indigo-700 border-b border-slate-50 last:border-0"
+                                                >
+                                                    {getProvName(p)}
+                                                </li>
+                                            ))}
+                                        {providersList.filter(p => 
+                                            assignForm.provider_search === '' || 
+                                            getProvName(p).toLowerCase().includes(assignForm.provider_search.toLowerCase())
+                                        ).length === 0 && (
+                                            <li className="px-4 py-3 text-xs font-bold text-slate-400 italic">
+                                                Sin coincidencias
+                                            </li>
+                                        )}
+                                    </ul>
+                                )}
+                                {assignForm.provider_id && (
+                                    <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded mt-1 inline-flex items-center gap-1">
+                                        <CheckCircle2 size={10} /> Seleccionado
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Precio Unitario */}
+                            <div>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                    Precio Unitario Estimado
+                                </label>
+                                <div className="flex items-center border border-slate-200 rounded-lg px-3 py-2 focus-within:border-indigo-400">
+                                    <span className="text-sm font-bold text-slate-400 mr-2">$</span>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={assignForm.expected_unit_cost}
+                                        onChange={(e) => setAssignForm(f => ({ ...f, expected_unit_cost: e.target.value }))}
+                                        className="w-full text-sm font-bold text-slate-700 outline-none"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-6 border-t border-slate-100 flex gap-3 justify-end">
+                            <Button
+                                variant="outline"
+                                onClick={() => setAssignModal({ open: false, requisitionId: null, itemName: '', currentQty: 0 })}
+                                className="border-slate-200 text-slate-500 font-black uppercase text-[10px] px-5"
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                onClick={handleAssignProvider}
+                                disabled={!assignForm.provider_id || loading}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[10px] px-6 shadow-md"
+                            >
+                                <Building2 size={14} className="mr-2" /> Asignar
+                            </Button>
+                        </div>
                     </div>
                 </div>
             )}

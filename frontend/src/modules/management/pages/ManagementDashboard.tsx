@@ -163,16 +163,13 @@ const ManagementDashboard: React.FC = () => {
             }
 
             try {
-                const reqsRes = await client.get('/purchases/requisitions/');
-                const pend = reqsRes.data.filter(
-                    (r: { status?: string }) => r.status === 'PENDIENTE' || r.status === 'EN_COMPRA'
-                );
+                const notifRes = await client.get('/purchases/notifications/pending-tasks');
                 setAlerts({
-                    pending_requisitions: pend.length,
+                    pending_requisitions: notifRes.data.orders_to_authorize || 0,
                     pending_sales_advances: rights?.advances.length ?? 0,
                 });
             } catch (e) {
-                console.error('Error cargando requisiciones (Gerencia)', e);
+                console.error('Error cargando notificaciones de compras (Gerencia)', e);
             }
         } catch (e) {
             console.error('ManagementDashboard loadData', e);
@@ -448,7 +445,7 @@ const ManagementDashboard: React.FC = () => {
                     <Card
                         onClick={() =>
                             navigate('/inventory', {
-                                state: { openSection: 'REQUISITIONS', returnTo: '/management' },
+                                state: { openSection: 'PURCHASE_ORDERS', targetTab: 'BRAKE', returnTo: '/management' },
                             })
                         }
                         className="p-6 border-l-4 border-l-orange-500 bg-white cursor-pointer hover:shadow-lg transition-all group relative overflow-hidden h-40 flex flex-col justify-between"
@@ -473,7 +470,7 @@ const ManagementDashboard: React.FC = () => {
                             </div>
                             <div className="flex justify-end">
                                 <div className="text-lg font-bold text-orange-600 tracking-tight leading-none truncate">
-                                    Requisiciones por procesar
+                                    OCs en espera de firma
                                 </div>
                             </div>
                         </div>

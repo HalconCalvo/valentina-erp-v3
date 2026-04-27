@@ -99,6 +99,25 @@ def update_requisition_status(*, db: Session = Depends(get_session), req_id: int
     db.refresh(req)
     return req
 
+@router.put("/requisitions/{req_id}/assign")
+def assign_requisition_provider(
+    *,
+    db: Session = Depends(get_session),
+    req_id: int,
+    provider_id: int = Body(...),
+    expected_unit_cost: float = Body(...),
+    current_user: CurrentUser
+):
+    req = db.get(PurchaseRequisition, req_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Requisición no encontrada")
+    req.provider_id = provider_id
+    req.expected_unit_cost = expected_unit_cost
+    db.add(req)
+    db.commit()
+    db.refresh(req)
+    return {"ok": True, "req_id": req_id}
+
 @router.get("/orders/", response_model=List[dict])
 def read_purchase_orders(*, db: Session = Depends(get_session), status: str | None = None, skip: int = 0, limit: int = 200):
     statement = select(PurchaseOrder).order_by(PurchaseOrder.id.desc())
@@ -191,6 +210,13 @@ def emit_bulk_purchase_order(*, db: Session = Depends(get_session), data: POCrea
 
 @router.put("/orders/{po_id}/authorize")
 def authorize_purchase_order(*, db: Session = Depends(get_session), po_id: int, current_user: CurrentUser):
+    allowed_roles = ["DIRECTOR", "GERENCIA"]
+    if current_user.role.upper() not in allowed_roles:
+        raise HTTPException(
+            status_code=403,
+            detail="Solo Dirección y Gerencia pueden autorizar órdenes de compra."
+        )
+
     po = db.get(PurchaseOrder, po_id)
     if not po: raise HTTPException(status_code=404)
 
@@ -423,8 +449,15 @@ def get_purchase_planning(db: Session = Depends(get_session)):
             if mat:
                 mat_sku = mat.sku
                 mat_name = mat.name
-                exp_cost = getattr(mat, 'current_cost', getattr(mat, 'standard_cost', getattr(mat, 'cost', 0.0))) or 0.0
-                prov_id = getattr(mat, 'provider_id', 0) or 0 
+                mat_cost = getattr(mat, 'current_cost', getattr(mat, 'standard_cost', getattr(mat, 'cost', 0.0))) or 0.0
+                exp_cost = req.expected_unit_cost if req.expected_unit_cost else mat_cost
+                prov_id = req.provider_id if req.provider_id else (getattr(mat, 'provider_id', 0) or 0)
+
+        # Para requisiciones sin material (descripción libre):
+        # usar provider_id y expected_unit_cost de la propia requisición
+        if not req.material_id:
+            prov_id = req.provider_id or 0
+            exp_cost = req.expected_unit_cost or 0.0
 
         if prov_id not in groups:
             prov_name = ""
