@@ -438,52 +438,6 @@ def rename_product_category(
     session.commit()
     return {"message": "Categoría corregida", "updated_products": count}
 
-# ==========================================
-# 8. SUBIR PLANO / IMAGEN AL MASTER (NUBE) - VERSIÓN CORREGIDA
-# ==========================================
-@router.post("/masters/{master_id}/blueprint")
-async def upload_master_blueprint(
-    master_id: int,
-    blueprint: UploadFile = File(...),
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user)
-):
-    """
-    Sube un plano (PDF) o imagen al producto maestro.
-    Usa la tubería centralizada 'upload_to_gcs'.
-    """
-    master = session.get(ProductMaster, master_id)
-    if not master:
-        raise HTTPException(status_code=404, detail="Producto no encontrado")
-
-    # 1. Definir nombre del archivo
-    # Usamos uuid para evitar colisiones
-    file_extension = blueprint.filename.split(".")[-1]
-    filename = f"{master_id}_{uuid4().hex[:6]}.{file_extension}"
-    blob_name = f"blueprints/{filename}"
-
-    # 2. Subir usando nuestra herramienta BLINDADA
-    # Aquí pasamos explícitamente el content_type para que acepte PDF y JPG
-    public_url = upload_to_gcs(blueprint.file, blob_name, content_type=blueprint.content_type)
-
-    if not public_url:
-        raise HTTPException(status_code=500, detail="Error al subir el archivo a Google Cloud")
-    
-    return {"message": "Archivo subido correctamente", "path": public_url}
-
-@router.delete("/masters/{master_id}/blueprint")
-def delete_master_blueprint(
-    master_id: int,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user)
-):
-    master = session.get(ProductMaster, master_id)
-    if not master:
-        raise HTTPException(status_code=404, detail="Producto no encontrado")
-
-    return {"message": "Referencia al plano eliminada correctamente"}
-
-
 @router.post("/versions/{version_id}/blueprint-file")
 async def upload_version_blueprint_file(
     version_id: int,
