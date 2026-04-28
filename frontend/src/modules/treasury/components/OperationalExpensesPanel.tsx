@@ -98,36 +98,21 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
         }
     };
 
-    const totalPendiente = expenses
-        .filter(e => String(e.status).toUpperCase() === 'PENDIENTE')
-        .reduce((sum, e) => sum + e.total_amount, 0);
-
     const canWrite = ['DIRECTOR', 'GERENCIA', 'ADMIN'].includes(userRole.toUpperCase().trim());
 
     return (
         <div className="space-y-6 animate-in fade-in duration-300">
 
-            {/* KPI + acción */}
-            <Card className="p-6 bg-white border border-slate-200 rounded-2xl">
-                <div className="flex justify-between items-center">
-                    <div>
-                        <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">
-                            Total Pendiente de Pago
-                        </p>
-                        <p className="text-3xl font-black text-rose-600 mt-1">
-                            {fmt(totalPendiente)}
-                        </p>
-                    </div>
-                    {canWrite && (
-                        <Button
-                            onClick={() => { setShowModal(true); setError(null); }}
-                            className="bg-rose-600 hover:bg-rose-700 text-white font-black uppercase text-xs px-5 h-10 flex items-center gap-2 shadow-md"
-                        >
-                            <Plus size={16} /> Nuevo Gasto
-                        </Button>
-                    )}
+            {canWrite && (
+                <div className="flex justify-end">
+                    <Button
+                        onClick={() => { setShowModal(true); setError(null); }}
+                        className="bg-rose-600 hover:bg-rose-700 text-white font-black uppercase text-xs px-5 h-10 flex items-center gap-2 shadow-md"
+                    >
+                        <Plus size={16} /> Nuevo Gasto
+                    </Button>
                 </div>
-            </Card>
+            )}
 
             {/* Tabla */}
             <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
