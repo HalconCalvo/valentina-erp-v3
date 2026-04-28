@@ -1,0 +1,50 @@
+<svg width="680" height="680" viewBox="0 0 680 680" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e40af"/>
+      <stop offset="50%" style="stop-color:#2563eb"/>
+      <stop offset="100%" style="stop-color:#06b6d4"/>
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#67e8f9;stop-opacity:0.25"/>
+      <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:0.05"/>
+    </linearGradient>
+    <linearGradient id="accentGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0ea5e9;stop-opacity:0.3"/>
+      <stop offset="100%" style="stop-color:#06b6d4;stop-opacity:0.05"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Fondo principal -->
+  <rect x="0" y="0" width="680" height="680" rx="120" fill="url(#bgGrad)"/>
+
+  <!-- Círculos decorativos -->
+  <circle cx="600" cy="80" r="200" fill="url(#accentGrad)"/>
+  <circle cx="80" cy="600" r="160" fill="url(#accentGrad2)"/>
+
+  <!-- Líneas decorativas -->
+  <line x1="80" y1="130" x2="600" y2="130" stroke="white" stroke-width="1" stroke-opacity="0.12"/>
+  <line x1="80" y1="540" x2="600" y2="540" stroke="white" stroke-width="1" stroke-opacity="0.12"/>
+
+  <!-- La V gruesa — blanco sólido -->
+  <path d="M 100 140 L 340 520 L 580 140" 
+        fill="none" 
+        stroke="#ffffff" 
+        stroke-width="130" 
+        stroke-linecap="round" 
+        stroke-linejoin="round"/>
+
+  <!-- Destello cian en la punta -->
+  <circle cx="340" cy="520" r="30" fill="#67e8f9" fill-opacity="0.65"/>
+  <circle cx="340" cy="520" r="14" fill="white" fill-opacity="0.95"/>
+
+  <!-- Texto Valentina -->
+  <text x="340" y="622" 
+        text-anchor="middle" 
+        font-family="Georgia, 'Times New Roman', serif" 
+        font-size="54" 
+        font-weight="700" 
+        letter-spacing="6"
+        fill="white" 
+        fill-opacity="0.93">Valentina</text>
+</svg>
