@@ -244,7 +244,7 @@ export default function PlanningPage() {
     <div className="flex h-[calc(100vh-3.5rem)] bg-white overflow-x-auto">
 
       {/* ─── MAIN AREA (left, ~75%) ─── */}
-      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+      <div className="flex-1 min-w-[320px] flex flex-col overflow-hidden">
 
         {/* ── View Mode Tabs ── */}
         <div className="flex items-center gap-1 px-4 pt-3 pb-0 border-b border-slate-100 shrink-0">

@@ -68,7 +68,7 @@ export function DataTable<TData, TValue>({
             h-[75vh] en monitores grandes 
             overflow-auto activa la barra de desplazamiento vertical 
         */}
-        <div className="relative w-full overflow-auto h-[65vh] lg:h-[75vh]">
+        <div className="relative w-full overflow-auto h-[65vh] lg:h-[75vh] touch-pan-x touch-pan-y">
           <table className="w-full caption-bottom text-sm text-left relative">
             
             {/* HEADERS FIJOS (Sticky) */}
