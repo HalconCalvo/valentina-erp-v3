@@ -1129,7 +1129,14 @@ export default function ProductionKanbanPage() {
           <p className="text-gray-500 font-medium animate-pulse">Consultando piso de fábrica...</p>
         </div>
       ) : (
-        <div className="flex gap-6 overflow-x-auto pb-4 h-[calc(100vh-200px)] touch-pan-x">
+        <div 
+          className="flex gap-6 pb-4 h-[calc(100vh-200px)]"
+          style={{ 
+            overflowX: 'auto', 
+            WebkitOverflowScrolling: 'touch',
+            scrollSnapType: 'x mandatory'
+          }}
+        >
           {renderColumn1()}
           {renderColumn2()}
           {renderColumnEmpaque()}

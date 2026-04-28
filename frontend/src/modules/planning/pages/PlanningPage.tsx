@@ -241,7 +241,10 @@ export default function PlanningPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] bg-white overflow-x-auto">
+    <div 
+      className="flex h-[calc(100vh-3.5rem)] bg-white"
+      style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}
+    >
 
       {/* ─── MAIN AREA (left, ~75%) ─── */}
       <div className="flex-1 min-w-[320px] flex flex-col overflow-hidden">
