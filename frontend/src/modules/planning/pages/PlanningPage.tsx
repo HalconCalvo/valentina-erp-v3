@@ -57,6 +57,9 @@ export default function PlanningPage() {
   const readOnly = PLANNING_READ_ONLY.includes(userRole);
   const noAccess = PLANNING_NO_ACCESS.includes(userRole);
 
+  // ── Sidebar toggle (iPad) ────────────────────────────────────
+  const [showSidebar, setShowSidebar] = useState(false);
+
   // ── View mode state ──────────────────────────────────────────
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [selectedDate, setSelectedDate] = useState<string>(getTodayKey());
@@ -268,6 +271,13 @@ export default function PlanningPage() {
             </button>
           ))}
           <div className="flex-1" />
+          {/* Toggle sidebar on iPad */}
+          <button
+            onClick={() => setShowSidebar(!showSidebar)}
+            className="lg:hidden flex items-center gap-2 px-3 py-1.5 text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg mr-1"
+          >
+            {showSidebar ? 'Ocultar Panel' : '📋 Panel de Salud'}
+          </button>
           {/* Month quick-jump info when in week/day view */}
           {viewMode !== 'month' && (
             <button
@@ -346,7 +356,7 @@ export default function PlanningPage() {
 
       {/* ─── PANEL DE SALUD (right, fixed ~288px) ─── */}
       <div
-        className="w-72 shrink-0 overflow-y-auto"
+        className={`w-72 shrink-0 overflow-y-auto ${showSidebar ? 'block' : 'hidden'} lg:block`}
         onDragOver={(e) => {
           e.preventDefault();
           e.dataTransfer.dropEffect = 'move';
