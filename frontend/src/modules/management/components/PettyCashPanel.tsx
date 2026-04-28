@@ -11,8 +11,8 @@ import {
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
 const CATEGORIES: PettyCashCategory[] = [
-  'GASOLINA', 'PAPELERÍA', 'LIMPIEZA', 'COMIDA', 'TRANSPORTE',
-  'MENSAJERÍA', 'INSUMOS', 'M.O. EXTERNA', 'REFACC Y ACCESORIOS', 'OTRO',
+  'PLANTA', 'COMUNICACIONES', 'COMBUSTIBLES', 'TRANSPORTE',
+  'INSUMOS', 'MAQUINARIA', 'EXTERNOS', 'MAQUILA', 'OTRO',
 ];
 
 const MANAGER_ROLES = ['DIRECTOR', 'GERENCIA'];

@@ -3,9 +3,14 @@ import axiosClient from '../../../api/axios-client';
 import { Button } from '@/components/ui/Button';
 import { Plus, XCircle, Receipt } from 'lucide-react';
 
-const OVERHEAD_CATEGORIES = [
+const OVERHEAD_CATEGORIES_BASE = [
     'PLANTA', 'COMUNICACIONES', 'COMBUSTIBLES', 'TRANSPORTE',
-    'INSUMOS', 'MAQUINARIA', 'EXTERNOS', 'MAQUILA', 'OTRO',
+    'MAQUINARIA', 'EXTERNOS', 'MAQUILA', 'OTRO',
+];
+
+const OVERHEAD_CATEGORIES_DIRECTOR = [
+    'PLANTA', 'COMUNICACIONES', 'COMBUSTIBLES', 'TRANSPORTE',
+    'INSUMOS', 'MAQUINARIA', 'EXTERNOS', 'MAQUILA', 'MATERIALES', 'OTRO',
 ];
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -17,6 +22,7 @@ const CATEGORY_COLORS: Record<string, string> = {
     MAQUINARIA:     'bg-slate-50 text-slate-700 border-slate-200',
     EXTERNOS:       'bg-violet-50 text-violet-700 border-violet-200',
     MAQUILA:        'bg-rose-50 text-rose-700 border-rose-200',
+    MATERIALES:     'bg-teal-50 text-teal-700 border-teal-200',
     OTRO:           'bg-gray-50 text-gray-700 border-gray-200',
 };
 
@@ -149,6 +155,7 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
     };
 
     const canWrite = ['DIRECTOR', 'GERENCIA', 'ADMIN'].includes(userRole.toUpperCase().trim());
+    const isDirector = userRole.toUpperCase().trim() === 'DIRECTOR';
 
     return (
         <div className="space-y-6 animate-in fade-in duration-300">
@@ -263,7 +270,10 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
                                     }`}
                                 >
                                     <option value="">— Seleccionar categoría —</option>
-                                    {OVERHEAD_CATEGORIES.map(c => (
+                                    {(isDirector
+                                        ? OVERHEAD_CATEGORIES_DIRECTOR
+                                        : OVERHEAD_CATEGORIES_BASE
+                                    ).map(c => (
                                         <option key={c} value={c}>{c}</option>
                                     ))}
                                 </select>

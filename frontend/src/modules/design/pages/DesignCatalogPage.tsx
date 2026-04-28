@@ -318,7 +318,7 @@ const DesignCatalogPage: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 pt-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-4">
 
                         {/* Tarjeta 1: Catálogo de Productos */}
                         <div className="w-full relative h-40">

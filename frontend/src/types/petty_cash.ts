@@ -1,15 +1,14 @@
 export type MovementType = 'EGRESO' | 'REPOSICION';
 
 export type PettyCashCategory =
-  | 'GASOLINA'
-  | 'PAPELERÍA'
-  | 'LIMPIEZA'
-  | 'COMIDA'
+  | 'PLANTA'
+  | 'COMUNICACIONES'
+  | 'COMBUSTIBLES'
   | 'TRANSPORTE'
-  | 'MENSAJERÍA'
   | 'INSUMOS'
-  | 'M.O. EXTERNA'
-  | 'REFACC Y ACCESORIOS'
+  | 'MAQUINARIA'
+  | 'EXTERNOS'
+  | 'MAQUILA'
   | 'OTRO';
 
 export interface PettyCashFund {

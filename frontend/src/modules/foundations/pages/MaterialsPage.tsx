@@ -486,12 +486,14 @@ export default function MaterialsPage() {
       )}
 
       {/* --- TABLA --- */}
-      <DataTable 
-        columns={columns} 
-        data={materials} 
-        searchKey="name"
-        toolbar={MaterialsTableToolbar} 
-      />
+      <div className="overflow-x-auto">
+        <DataTable 
+          columns={columns} 
+          data={materials} 
+          searchKey="name"
+          toolbar={MaterialsTableToolbar} 
+        />
+      </div>
 
       <style>{`.input-std { width: 100%; padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 0.375rem; font-size: 0.875rem; color: #1e293b; transition: all 0.2s; } .input-std:focus { outline: none; border-color: #6366f1; ring: 2px solid #e0e7ff; }`}</style>
     </div>

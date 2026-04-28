@@ -241,7 +241,7 @@ export default function PlanningPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] bg-white overflow-hidden">
+    <div className="flex h-[calc(100vh-3.5rem)] bg-white overflow-x-auto">
 
       {/* ─── MAIN AREA (left, ~75%) ─── */}
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
@@ -343,7 +343,7 @@ export default function PlanningPage() {
 
       {/* ─── PANEL DE SALUD (right, fixed ~288px) ─── */}
       <div
-        className="w-72 shrink-0 overflow-hidden"
+        className="w-72 shrink-0 overflow-y-auto"
         onDragOver={(e) => {
           e.preventDefault();
           e.dataTransfer.dropEffect = 'move';
