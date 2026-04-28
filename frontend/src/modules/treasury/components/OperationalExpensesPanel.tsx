@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import axiosClient from '../../../api/axios-client';
 import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
 import { Plus, XCircle, Receipt } from 'lucide-react';
 
 const OVERHEAD_CATEGORIES = [
     'PLANTA', 'COMUNICACIONES', 'COMBUSTIBLES', 'TRANSPORTE',
-    'INSUMOS', 'MAQUINARIA', 'EXTERNOS', 'OTRO',
+    'INSUMOS', 'MAQUINARIA', 'EXTERNOS', 'MAQUILA', 'OTRO',
 ];
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -17,6 +16,7 @@ const CATEGORY_COLORS: Record<string, string> = {
     INSUMOS:        'bg-emerald-50 text-emerald-700 border-emerald-200',
     MAQUINARIA:     'bg-slate-50 text-slate-700 border-slate-200',
     EXTERNOS:       'bg-violet-50 text-violet-700 border-violet-200',
+    MAQUILA:        'bg-rose-50 text-rose-700 border-rose-200',
     OTRO:           'bg-gray-50 text-gray-700 border-gray-200',
 };
 
@@ -29,6 +29,7 @@ interface Expense {
     status: string;
     created_at: string;
     overhead_category: string | null;
+    instance_id: number | null;
 }
 
 interface Props {
@@ -45,6 +46,7 @@ const emptyForm = () => ({
     issue_date: new Date().toISOString().slice(0, 10),
     due_date: '',
     notes: '',
+    instance_id: null as number | null,
 });
 
 export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onRefresh, userRole }) => {
@@ -53,6 +55,12 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [form, setForm] = useState(emptyForm());
+
+    const [orders, setOrders] = useState<any[]>([]);
+    const [selectedOrderId, setSelectedOrderId] = useState<string>('');
+    const [selectedInstanceId, setSelectedInstanceId] = useState<string>('');
+    const [instances, setInstances] = useState<any[]>([]);
+    const [loadingOrders, setLoadingOrders] = useState(false);
 
     const fmt = (n: number) =>
         n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
@@ -66,7 +74,41 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
         }
     };
 
-    useEffect(() => { load(); }, []);
+    useEffect(() => {
+        load();
+        const loadOrders = async () => {
+            setLoadingOrders(true);
+            try {
+                const res = await axiosClient.get('/sales/orders/');
+            const activeOrders = res.data.filter((o: any) =>
+                ['SOLD', 'IN_PRODUCTION', 'FINISHED', 'COMPLETED'].includes(o.status)
+            );
+                setOrders(activeOrders);
+            } catch {
+                /* ignore */
+            } finally {
+                setLoadingOrders(false);
+            }
+        };
+        loadOrders();
+    }, []);
+
+    const handleOrderChange = async (orderId: string) => {
+        setSelectedOrderId(orderId);
+        setSelectedInstanceId('');
+        setInstances([]);
+        if (!orderId) return;
+        try {
+            const res = await axiosClient.get(`/sales/orders/${orderId}`);
+            const order = res.data;
+            const allInstances = (order.items ?? []).flatMap(
+                (item: any) => item.instances ?? []
+            );
+            setInstances(allInstances);
+        } catch {
+            setInstances([]);
+        }
+    };
 
     const handleSubmit = async () => {
         if (!form.concept)            return setError('El concepto es obligatorio.');
@@ -74,6 +116,8 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
         if (!form.total_amount || parseFloat(form.total_amount) <= 0)
                                        return setError('El monto debe ser mayor a 0.');
         if (!form.due_date)            return setError('La fecha de vencimiento es obligatoria.');
+        if (form.overhead_category === 'MAQUILA' && !selectedInstanceId)
+                                       return setError('Para MAQUILA debes seleccionar una instancia.');
 
         setLoading(true);
         setError(null);
@@ -86,9 +130,15 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
                 issue_date: form.issue_date,
                 due_date: form.due_date,
                 notes: form.notes || null,
+                instance_id: form.overhead_category === 'MAQUILA'
+                    ? parseInt(selectedInstanceId)
+                    : null,
             });
             setShowModal(false);
             setForm(emptyForm());
+            setSelectedOrderId('');
+            setSelectedInstanceId('');
+            setInstances([]);
             await load();
             onRefresh();
         } catch (e: any) {
@@ -145,6 +195,11 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
                                     </td>
                                     <td className="px-4 py-3 font-bold text-slate-700">
                                         {e.provider_name || '—'}
+                                        {e.overhead_category === 'MAQUILA' && e.instance_id && (
+                                            <span className="text-[10px] text-rose-600 font-bold block">
+                                                Instancia #{e.instance_id}
+                                            </span>
+                                        )}
                                     </td>
                                     <td className="px-4 py-3">
                                         {e.overhead_category ? (
@@ -213,6 +268,58 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
                                     ))}
                                 </select>
                             </div>
+
+                            {/* Selectores OV e Instancia — solo para MAQUILA */}
+                            {form.overhead_category === 'MAQUILA' && (
+                                <>
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                            Orden de Venta *
+                                        </label>
+                                        <select
+                                            value={selectedOrderId}
+                                            onChange={e => handleOrderChange(e.target.value)}
+                                            disabled={loadingOrders}
+                                            className={`w-full border rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none ${
+                                                !selectedOrderId
+                                                    ? 'border-red-300 bg-red-50'
+                                                    : 'border-slate-200'
+                                            }`}
+                                        >
+                                            <option value="">— Seleccionar OV —</option>
+                                            {orders.map((o: any) => (
+                                                <option key={o.id} value={o.id}>
+                                                    OV-{String(o.id).padStart(4, '0')} — {o.project_name || o.client_name || ''}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {selectedOrderId && (
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                                Instancia *
+                                            </label>
+                                            <select
+                                                value={selectedInstanceId}
+                                                onChange={e => setSelectedInstanceId(e.target.value)}
+                                                className={`w-full border rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none ${
+                                                    !selectedInstanceId
+                                                        ? 'border-red-300 bg-red-50'
+                                                        : 'border-slate-200'
+                                                }`}
+                                            >
+                                                <option value="">— Seleccionar instancia —</option>
+                                                {instances.map((inst: any) => (
+                                                    <option key={inst.id} value={inst.id}>
+                                                        {inst.custom_name || `Instancia ${inst.id}`}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
+                                </>
+                            )}
 
                             {/* Proveedor */}
                             <div>

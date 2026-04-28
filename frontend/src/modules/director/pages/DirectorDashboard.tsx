@@ -65,8 +65,32 @@ const DirectorDashboard: React.FC = () => {
 
     // --- ESTADOS SIMULADOS (Para lo que aún no está conectado) ---
     const [mockCriticalInstances] = useState(3);
-    const [mockProfitability] = useState(32.4); 
-    const [mockCostPerBoard] = useState(415.50);
+
+    const [showOverheadDetail, setShowOverheadDetail] = useState(false);
+    const [showPayrollDetail, setShowPayrollDetail] = useState(false);
+    const [showPiecesDetail, setShowPiecesDetail] = useState(false);
+
+    const [costKpi, setCostKpi] = useState<{
+        cost_per_piece: number;
+        overhead_per_piece: number;
+        payroll_per_piece: number;
+        pieces_produced: number;
+        overhead_total: number;
+        payroll_production: number;
+        total_cost: number;
+        overhead_by_category: Record<string, number>;
+        has_weekly_payroll: boolean;
+        week_start: string;
+        week_end: string;
+        pieces_mdf: number;
+        pieces_stone: number;
+        maquila_total: number;
+        maquila_by_instance: Array<{
+            instance_id: number;
+            total: number;
+            provider_name: string;
+        }>;
+    } | null>(null);
 
     const [totalBankBalance, setTotalBankBalance] = useState(0);
     const [totalCXC, setTotalCXC] = useState(0);
@@ -124,6 +148,20 @@ const DirectorDashboard: React.FC = () => {
                 }
             } catch (notifErr) {
                 console.error("Fallo conectando con notificaciones de compras:", notifErr);
+            }
+
+            // COST KPI
+            try {
+                const kpiRes = await fetch(
+                    `${baseUrl}/api/v1/treasury/cost-kpi`,
+                    { headers: { 'Authorization': `Bearer ${token}` } }
+                );
+                if (kpiRes.ok) {
+                    const kpiData = await kpiRes.json();
+                    setCostKpi(kpiData);
+                }
+            } catch {
+                /* ignore cost kpi errors */
             }
 
             // LIQUIDEZ — Datos reales
@@ -212,6 +250,9 @@ const DirectorDashboard: React.FC = () => {
     };
 
     const handleBack = () => {
+        setShowOverheadDetail(false);
+        setShowPayrollDetail(false);
+        setShowPiecesDetail(false);
         if (activeSalesView !== null) { setActiveSalesView(null); } 
         else { setActiveSection(null); setActiveSalesView(null); }
     };
@@ -383,32 +424,71 @@ const DirectorDashboard: React.FC = () => {
                         </Card>
                     </div>
 
-                    {/* 4. RENTABILIDAD (BLOQUEADA) */}
-                    <div className="w-full relative h-40 opacity-80">
-                        <Card className="p-5 border-l-4 border-l-amber-300 bg-slate-50 relative overflow-hidden h-full flex flex-col justify-between cursor-not-allowed">
-                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-amber-50/50 text-amber-500 border-r border-amber-100 font-black text-2xl">%</div>
+                    {/* 4. RENTABILIDAD — ACTIVA */}
+                    <div className="w-full relative h-40">
+                        <Card
+                            onClick={() => openMainSection('PROFITABILITY')}
+                            className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-amber-500 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white relative overflow-hidden group"
+                        >
+                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-amber-50 text-amber-700 border-r border-amber-100 font-black text-xl transition-colors group-hover:bg-amber-100">
+                                $
+                            </div>
                             <div className="ml-16 h-full flex flex-col justify-between pl-2">
                                 <div className="flex justify-between items-start">
                                     <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">4. Rentabilidad</p>
-                                    <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-black tracking-widest flex items-center gap-1"><Lock size={10}/> PRÓXIMAMENTE</span>
+                                    <ShieldAlert size={16} className="text-amber-500" />
                                 </div>
-                                <div className="flex justify-end"><div className="text-2xl font-black text-slate-400 tracking-tight leading-none truncate flex items-baseline gap-1">{mockProfitability}<span className="text-sm font-bold text-slate-300 uppercase">MARGEN</span></div></div>
-                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200"><p className="text-[10px] text-slate-400 font-bold uppercase truncate">La Verdad del Negocio</p><ShieldAlert size={14} className="text-slate-300"/></div>
+                                <div className="flex justify-end">
+                                    <div className="text-xl font-black text-amber-600 tracking-tight leading-none truncate">
+                                        {costKpi
+                                            ? formatCurrency(costKpi.total_cost)
+                                            : 'Sin datos'}
+                                    </div>
+                                </div>
+                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
+                                        Costo total semana
+                                    </p>
+                                    <ShieldAlert size={14} className="text-amber-400"/>
+                                </div>
                             </div>
                         </Card>
                     </div>
 
-                    {/* 5. EFICIENCIA (BLOQUEADA) */}
-                    <div className="w-full relative h-40 opacity-80">
-                        <Card className="p-5 border-l-4 border-l-slate-400 bg-slate-50 relative overflow-hidden h-full flex flex-col justify-between cursor-not-allowed">
-                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-slate-100 text-slate-400 border-r border-slate-200 font-black text-2xl">$</div>
+                    {/* 5. EFICIENCIA FÁBRICA — ACTIVA */}
+                    <div className="w-full relative h-40">
+                        <Card
+                            onClick={() => openMainSection('EFFICIENCY')}
+                            className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-slate-600 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white relative overflow-hidden group"
+                        >
+                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-slate-50 text-slate-700 border-r border-slate-200 font-black text-xl transition-colors group-hover:bg-slate-100">
+                                $
+                            </div>
                             <div className="ml-16 h-full flex flex-col justify-between pl-2">
                                 <div className="flex justify-between items-start">
                                     <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">5. Eficiencia Fábrica</p>
-                                    <span className="text-[9px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-black tracking-widest flex items-center gap-1"><Lock size={10}/> PRÓXIMAMENTE</span>
+                                    <Target size={16} className="text-slate-500" />
                                 </div>
-                                <div className="flex justify-end"><div className="text-2xl font-black text-slate-400 tracking-tight leading-none truncate flex items-baseline gap-1">{mockCostPerBoard.toFixed(2)} <span className="text-sm font-bold text-slate-300 uppercase">/ TABLERO</span></div></div>
-                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200"><p className="text-[10px] text-slate-400 font-bold uppercase truncate">Costo de Transformación</p><Target size={14} className="text-slate-300"/></div>
+                                <div className="flex justify-end">
+                                    <div className="text-xl font-black text-slate-700 tracking-tight leading-none truncate flex items-baseline gap-1">
+                                        {costKpi
+                                            ? formatCurrency(costKpi.cost_per_piece)
+                                            : 'Sin datos'}
+                                        {costKpi && (
+                                            <span className="text-sm font-bold text-slate-400 uppercase">
+                                                / pieza
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
+                                        {costKpi
+                                            ? `${costKpi.pieces_produced} piezas esta semana`
+                                            : 'Costo por pieza'}
+                                    </p>
+                                    <Target size={14} className="text-slate-400"/>
+                                </div>
                             </div>
                         </Card>
                     </div>
@@ -578,6 +658,185 @@ const DirectorDashboard: React.FC = () => {
                                     </p>
                                 </Card>
                             </div>
+                        </div>
+                    )}
+
+                    {/* 4. DESGLOSE RENTABILIDAD */}
+                    {activeSection === 'PROFITABILITY' && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <Card
+                                onClick={() => setShowOverheadDetail(!showOverheadDetail)}
+                                className="p-6 border-l-4 border-l-amber-500 bg-white relative overflow-hidden h-40 flex flex-col justify-between cursor-pointer hover:shadow-lg transition-all transform hover:-translate-y-1"
+                            >
+                                <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-amber-50 text-amber-700 border-r border-amber-100 font-black text-xl">$</div>
+                                <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                                    <h4 className="font-bold text-slate-800 text-sm uppercase tracking-tight">💰 Overhead</h4>
+                                    <div className="text-2xl font-black text-amber-700 text-right leading-none">
+                                        {formatCurrency(costKpi?.overhead_total ?? 0)}
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase flex items-center gap-1">
+                                        Gastos operativos semana
+                                        <span className="text-amber-400">{showOverheadDetail ? '▲' : '▼'}</span>
+                                    </p>
+                                </div>
+                            </Card>
+
+                            <Card
+                                onClick={() => setShowPayrollDetail(!showPayrollDetail)}
+                                className="p-6 border-l-4 border-l-indigo-500 bg-white relative overflow-hidden h-40 flex flex-col justify-between cursor-pointer hover:shadow-lg transition-all transform hover:-translate-y-1"
+                            >
+                                <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50 text-indigo-700 border-r border-indigo-100 font-black text-xl">$</div>
+                                <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                                    <h4 className="font-bold text-slate-800 text-sm uppercase tracking-tight">👷 Nómina Producción</h4>
+                                    <div className="text-2xl font-black text-indigo-700 text-right leading-none">
+                                        {formatCurrency(costKpi?.payroll_production ?? 0)}
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase flex items-center gap-1">
+                                        {costKpi?.has_weekly_payroll ? 'Capturada esta semana' : '⚠️ Sin captura semanal'}
+                                        <span className="text-indigo-400">{showPayrollDetail ? '▲' : '▼'}</span>
+                                    </p>
+                                </div>
+                            </Card>
+
+                            <Card
+                                onClick={() => setShowPiecesDetail(!showPiecesDetail)}
+                                className="p-6 border-l-4 border-l-emerald-500 bg-white relative overflow-hidden h-40 flex flex-col justify-between cursor-pointer hover:shadow-lg transition-all transform hover:-translate-y-1"
+                            >
+                                <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-emerald-50 text-emerald-700 border-r border-emerald-100 font-black text-xl">📦</div>
+                                <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                                    <h4 className="font-bold text-slate-800 text-sm uppercase tracking-tight">🏭 Piezas Producidas</h4>
+                                    <div className="text-2xl font-black text-emerald-700 text-right leading-none">
+                                        {costKpi?.pieces_produced ?? 0}
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase flex items-center gap-1">
+                                        Instancias READY esta semana
+                                        <span className="text-emerald-400">{showPiecesDetail ? '▲' : '▼'}</span>
+                                    </p>
+                                </div>
+                            </Card>
+
+                            {showPiecesDetail && (
+                            <div className="md:col-span-3 animate-in slide-in-from-top-2 duration-300">
+                                <Card className="p-6 border-l-4 border-l-emerald-600 bg-white">
+                                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-4">
+                                        Desglose Piezas por Tipo
+                                    </p>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
+                                            <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest">🪵 MDF</p>
+                                            <p className="text-3xl font-black text-amber-700 mt-1">
+                                                {costKpi?.pieces_mdf ?? 0}
+                                            </p>
+                                            <p className="text-[10px] text-amber-400 font-bold uppercase mt-1">piezas</p>
+                                        </div>
+                                        <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">🪨 Piedra</p>
+                                            <p className="text-3xl font-black text-slate-700 mt-1">
+                                                {costKpi?.pieces_stone ?? 0}
+                                            </p>
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">piezas</p>
+                                        </div>
+                                    </div>
+                                </Card>
+                            </div>
+                            )}
+
+                            {showPayrollDetail && (
+                            <div className="md:col-span-3 animate-in slide-in-from-top-2 duration-300">
+                                <Card className="p-6 border-l-4 border-l-indigo-600 bg-white">
+                                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-4">
+                                        Desglose Nómina Semanal por Departamento
+                                    </p>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="bg-indigo-50 rounded-xl p-4 border border-indigo-100">
+                                            <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Producción</p>
+                                            <p className="text-2xl font-black text-indigo-700 mt-1">
+                                                {formatCurrency(costKpi?.payroll_production ?? 0)}
+                                            </p>
+                                        </div>
+                                        <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Administración</p>
+                                            <p className="text-2xl font-black text-slate-700 mt-1">
+                                                {formatCurrency(costKpi?.payroll_admin ?? 0)}
+                                            </p>
+                                        </div>
+                                        <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100">
+                                            <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Diseño y Ventas</p>
+                                            <p className="text-2xl font-black text-emerald-700 mt-1">
+                                                {formatCurrency(costKpi?.payroll_design_sales ?? 0)}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </Card>
+                            </div>
+                            )}
+
+                            {showOverheadDetail && (
+                            <div className="md:col-span-3">
+                                <Card className="p-6 border-l-4 border-l-amber-600 bg-white relative overflow-hidden animate-in slide-in-from-top-2 duration-300">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">
+                                            Desglose Overhead por Categoría
+                                        </p>
+                                        <p className="text-2xl font-black text-amber-600">
+                                            {formatCurrency(costKpi?.total_cost ?? 0)}
+                                            <span className="text-sm font-bold text-slate-400 ml-2">costo total</span>
+                                        </p>
+                                    </div>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                        {Object.entries(costKpi?.overhead_by_category ?? {}).map(([cat, amt]) => (
+                                            <div key={cat} className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{cat}</p>
+                                                <p className="text-lg font-black text-slate-800 mt-1">{formatCurrency(amt as number)}</p>
+                                            </div>
+                                        ))}
+                                        {Object.keys(costKpi?.overhead_by_category ?? {}).length === 0 && (
+                                            <p className="text-xs text-slate-400 col-span-4 text-center py-4">
+                                                Sin gastos operativos registrados esta semana
+                                            </p>
+                                        )}
+                                    </div>
+                                </Card>
+                            </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* 5. DESGLOSE EFICIENCIA */}
+                    {activeSection === 'EFFICIENCY' && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <Card className="p-6 border-l-4 border-l-slate-700 bg-white relative overflow-hidden h-40 flex flex-col justify-between">
+                                <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-slate-50 text-slate-700 border-r border-slate-200 font-black text-xl">$</div>
+                                <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                                    <h4 className="font-bold text-slate-800 text-sm uppercase tracking-tight">💵 Costo / Pieza</h4>
+                                    <div className="text-2xl font-black text-slate-800 text-right leading-none">
+                                        {formatCurrency(costKpi?.cost_per_piece ?? 0)}
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase">Overhead + MO</p>
+                                </div>
+                            </Card>
+
+                            <Card className="p-6 border-l-4 border-l-amber-500 bg-white relative overflow-hidden h-40 flex flex-col justify-between">
+                                <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-amber-50 text-amber-700 border-r border-amber-100 font-black text-xl">$</div>
+                                <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                                    <h4 className="font-bold text-slate-800 text-sm uppercase tracking-tight">🏗️ Overhead / Pieza</h4>
+                                    <div className="text-2xl font-black text-amber-700 text-right leading-none">
+                                        {formatCurrency(costKpi?.overhead_per_piece ?? 0)}
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase">Gastos operativos</p>
+                                </div>
+                            </Card>
+
+                            <Card className="p-6 border-l-4 border-l-indigo-500 bg-white relative overflow-hidden h-40 flex flex-col justify-between">
+                                <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50 text-indigo-700 border-r border-indigo-100 font-black text-xl">$</div>
+                                <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                                    <h4 className="font-bold text-slate-800 text-sm uppercase tracking-tight">👷 MO / Pieza</h4>
+                                    <div className="text-2xl font-black text-indigo-700 text-right leading-none">
+                                        {formatCurrency(costKpi?.payroll_per_piece ?? 0)}
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase">Nómina producción</p>
+                                </div>
+                            </Card>
                         </div>
                     )}
                 </div>

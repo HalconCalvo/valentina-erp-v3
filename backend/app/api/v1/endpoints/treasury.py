@@ -2,7 +2,7 @@ from typing import Any, List, Optional
 from datetime import date, datetime
 from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, status
-from sqlmodel import select
+from sqlmodel import select, func, text
 
 # --- TUS DEPENDENCIAS EXACTAS ---
 from app.core.deps import SessionDep, CurrentUser
@@ -229,3 +229,139 @@ def get_latest_weekly_fixed_cost(session: SessionDep, current_user: CurrentUser)
     stmt = select(WeeklyFixedCost).order_by(WeeklyFixedCost.week_reference_date.desc())
     row = session.exec(stmt).first()
     return row
+
+
+# ------------------------------------------------------------------
+# COST KPI
+# ------------------------------------------------------------------
+@router.get("/cost-kpi")
+def get_cost_kpi(
+    session: SessionDep,
+    current_user: CurrentUser,
+    week_date: Optional[date] = None,
+) -> Any:
+    """
+    KPI de costo real por pieza producida.
+
+    Semana = Jueves a Miércoles.
+    Si no se especifica week_date, usa la semana actual.
+    """
+    from datetime import timedelta
+
+    today = week_date or date.today()
+    days_since_thursday = (today.weekday() - 3) % 7
+    week_start = today - timedelta(days=days_since_thursday)
+    week_end = week_start + timedelta(days=6)
+
+    # 1. Overhead normal — excluye MAQUILA
+    overhead_rows = session.exec(text("""
+        SELECT overhead_category, SUM(total_amount) as total
+        FROM accounts_payable
+        WHERE DATE(created_at) >= :start
+          AND DATE(created_at) <= :end
+          AND (overhead_category != 'MAQUILA' OR overhead_category IS NULL)
+        GROUP BY overhead_category
+    """).bindparams(
+        start=week_start.isoformat(),
+        end=week_end.isoformat()
+    )).all()
+
+    overhead_by_category: dict = {}
+    overhead_total = 0.0
+    for row in overhead_rows:
+        cat = row[0] or 'SIN_CATEGORIA'
+        amt = float(row[1] or 0)
+        overhead_by_category[cat] = amt
+        overhead_total += amt
+
+    # MAQUILA — costo directo por instancia (NO se divide entre piezas)
+    maquila_rows = session.exec(text("""
+        SELECT ap.instance_id, SUM(ap.total_amount) as total,
+               p.business_name as provider_name
+        FROM accounts_payable ap
+        LEFT JOIN providers p ON ap.provider_id = p.id
+        WHERE DATE(ap.created_at) >= :start
+          AND DATE(ap.created_at) <= :end
+          AND ap.overhead_category = 'MAQUILA'
+          AND ap.instance_id IS NOT NULL
+        GROUP BY ap.instance_id, p.business_name
+    """).bindparams(
+        start=week_start.isoformat(),
+        end=week_end.isoformat()
+    )).all()
+
+    maquila_total = 0.0
+    maquila_by_instance = []
+    for row in maquila_rows:
+        amt = float(row[1] or 0)
+        maquila_total += amt
+        maquila_by_instance.append({
+            "instance_id": row[0],
+            "total": amt,
+            "provider_name": row[2] or "Sin proveedor"
+        })
+
+    # 2. Nómina de producción — WeeklyFixedCost de la semana
+    weekly = session.exec(
+        select(WeeklyFixedCost)
+        .where(WeeklyFixedCost.week_reference_date >= week_start)
+        .where(WeeklyFixedCost.week_reference_date <= week_end)
+        .order_by(WeeklyFixedCost.week_reference_date.desc())
+    ).first()
+
+    payroll_production = float(weekly.production_plant_payroll) if weekly else 0.0
+    payroll_admin = float(weekly.admin_payroll) if weekly else 0.0
+    payroll_design_sales = float(weekly.design_sales_payroll) if weekly else 0.0
+
+    # 3. Piezas producidas — instancias que pasaron a READY en la semana
+    from app.models.sales import SalesOrderItemInstance, InstanceStatus
+
+    # Piezas MDF (tienen production_batch_id, no stone_batch_id)
+    pieces_mdf = session.exec(
+        select(func.count(SalesOrderItemInstance.id))
+        .where(SalesOrderItemInstance.production_status == InstanceStatus.READY)
+        .where(SalesOrderItemInstance.completed_at >= datetime.combine(week_start, datetime.min.time()))
+        .where(SalesOrderItemInstance.completed_at <= datetime.combine(week_end, datetime.max.time()))
+        .where(SalesOrderItemInstance.production_batch_id.isnot(None))
+        .where(SalesOrderItemInstance.stone_batch_id.is_(None))
+    ).one()
+    pieces_mdf = int(pieces_mdf or 0)
+
+    # Piezas Piedra (tienen stone_batch_id)
+    pieces_stone = session.exec(
+        select(func.count(SalesOrderItemInstance.id))
+        .where(SalesOrderItemInstance.production_status == InstanceStatus.READY)
+        .where(SalesOrderItemInstance.completed_at >= datetime.combine(week_start, datetime.min.time()))
+        .where(SalesOrderItemInstance.completed_at <= datetime.combine(week_end, datetime.max.time()))
+        .where(SalesOrderItemInstance.stone_batch_id.isnot(None))
+    ).one()
+    pieces_stone = int(pieces_stone or 0)
+
+    pieces_produced = pieces_mdf + pieces_stone
+
+    # 4. Costo por pieza
+    total_cost = overhead_total + payroll_production + maquila_total
+    cost_per_piece = round(total_cost / pieces_produced, 2) if pieces_produced > 0 else 0.0
+
+    overhead_per_piece = round(overhead_total / pieces_produced, 2) if pieces_produced > 0 else 0.0
+    payroll_per_piece = round(payroll_production / pieces_produced, 2) if pieces_produced > 0 else 0.0
+
+    return {
+        "week_start": week_start.isoformat(),
+        "week_end": week_end.isoformat(),
+        "pieces_produced": pieces_produced,
+        "overhead_total": round(overhead_total, 2),
+        "payroll_production": round(payroll_production, 2),
+        "payroll_admin": round(payroll_admin, 2),
+        "payroll_design_sales": round(payroll_design_sales, 2),
+        "total_cost": round(total_cost, 2),
+        "cost_per_piece": cost_per_piece,
+        "overhead_per_piece": overhead_per_piece,
+        "payroll_per_piece": payroll_per_piece,
+        "overhead_by_category": overhead_by_category,
+        "has_weekly_payroll": weekly is not None,
+        "pieces_mdf": pieces_mdf,
+        "pieces_stone": pieces_stone,
+        "maquila_total": round(maquila_total, 2),
+        "maquila_by_instance": maquila_by_instance,
+    }

@@ -676,7 +676,7 @@ def request_order_advance(*, db: Session = Depends(get_session), po_id: int, cur
 
 OVERHEAD_CATEGORIES = [
     'PLANTA', 'COMUNICACIONES', 'COMBUSTIBLES', 'TRANSPORTE',
-    'INSUMOS', 'MAQUINARIA', 'EXTERNOS', 'OTRO'
+    'INSUMOS', 'MAQUINARIA', 'EXTERNOS', 'MAQUILA', 'OTRO'
 ]
 
 
@@ -688,6 +688,7 @@ class OperationalExpenseCreate(BaseModel):
     issue_date: date
     due_date: date
     notes: Optional[str] = None
+    instance_id: Optional[int] = None
 
 
 @router.post("/operational-expenses")
@@ -737,10 +738,10 @@ def create_operational_expense(
         INSERT INTO accounts_payable (
             provider_id, purchase_order_id, invoice_folio,
             total_amount, due_date, status, created_at,
-            overhead_category
+            overhead_category, instance_id
         ) VALUES (
             :prov_id, NULL, :folio, :total, :due, 'PENDIENTE', :now,
-            :category
+            :category, :instance_id
         )
     """)
     db.exec(new_expense.bindparams(
@@ -749,7 +750,8 @@ def create_operational_expense(
         total=data.total_amount,
         due=data.due_date,
         now=datetime.now(),
-        category=data.overhead_category
+        category=data.overhead_category,
+        instance_id=data.instance_id
     ))
     db.commit()
 
@@ -777,7 +779,7 @@ def get_operational_expenses(
     rows = db.exec(text("""
         SELECT ap.id, ap.invoice_folio, ap.total_amount, ap.due_date,
                ap.status, ap.created_at, ap.overhead_category,
-               p.business_name as provider_name
+               ap.instance_id, p.business_name as provider_name
         FROM accounts_payable ap
         LEFT JOIN providers p ON ap.provider_id = p.id
         WHERE ap.purchase_order_id IS NULL

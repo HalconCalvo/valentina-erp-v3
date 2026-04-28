@@ -56,7 +56,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
 
     const OVERHEAD_CATEGORIES = [
         'PLANTA', 'COMUNICACIONES', 'COMBUSTIBLES', 'TRANSPORTE',
-        'INSUMOS', 'MAQUINARIA', 'EXTERNOS', 'OTRO'
+        'INSUMOS', 'MAQUINARIA', 'EXTERNOS', 'MAQUILA', 'OTRO'
     ];
 
     const [isReqModalOpen, setIsReqModalOpen] = useState(false);
