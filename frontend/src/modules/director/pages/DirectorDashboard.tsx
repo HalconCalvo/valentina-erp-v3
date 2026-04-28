@@ -5,7 +5,7 @@ import {
     ArrowLeft, AlertTriangle, Clock, CheckCircle,
     BarChart3, Target, AlertCircle, PieChart, ShieldAlert,
     ThumbsUp, ThumbsDown, Package, Layers, ArrowLeftCircle,
-    FileSearch, RefreshCw, Lock
+    FileSearch, RefreshCw, Lock, XCircle
 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
@@ -63,8 +63,27 @@ const DirectorDashboard: React.FC = () => {
     // --- ESTADO PARA FIRMAS DE COMPRAS ---
     const [pendingPurchaseAuths, setPendingPurchaseAuths] = useState<number>(0);
 
-    // --- ESTADOS SIMULADOS (Para lo que aún no está conectado) ---
-    const [mockCriticalInstances] = useState(3);
+    const [selectedHealthGroup, setSelectedHealthGroup] = useState<{
+        title: string;
+        color: string;
+        instances: any[];
+    } | null>(null);
+
+    const [healthData, setHealthData] = useState<{
+        counts: {
+            RED: number;
+            YELLOW: number;
+            BLUE: number;
+            BLUE_GREEN: number;
+            DOUBLE_BLUE: number;
+            GREEN: number;
+            GRAY: number;
+        };
+        critical: any[];
+        alerts: any[];
+        in_process: any[];
+        ready_to_install: any[];
+    } | null>(null);
 
     const [showOverheadDetail, setShowOverheadDetail] = useState(false);
     const [showPayrollDetail, setShowPayrollDetail] = useState(false);
@@ -209,6 +228,19 @@ const DirectorDashboard: React.FC = () => {
                 console.error('Error cargando datos de liquidez:', e);
             }
 
+            try {
+                const healthRes = await fetch(
+                    `${baseUrl}/api/v1/planning/instances/health`,
+                    { headers: { 'Authorization': `Bearer ${token}` } }
+                );
+                if (healthRes.ok) {
+                    const healthJson = await healthRes.json();
+                    setHealthData(healthJson);
+                }
+            } catch {
+                /* ignore health errors */
+            }
+
         } catch (error) {
             console.error("Error cargando datos del Director:", error);
         } finally {
@@ -250,6 +282,7 @@ const DirectorDashboard: React.FC = () => {
     };
 
     const handleBack = () => {
+        setSelectedHealthGroup(null);
         setShowOverheadDetail(false);
         setShowPayrollDetail(false);
         setShowPiecesDetail(false);
@@ -373,19 +406,66 @@ const DirectorDashboard: React.FC = () => {
                         </Card>
                     </div>
 
-                    {/* 2. OPERACIÓN */}
-                    <div className="w-full relative h-40">
-                        <Card onClick={() => openMainSection('OPERATIONS')} className={`p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white relative overflow-hidden group ${mockCriticalInstances > 0 ? 'border-l-red-500 ring-2 ring-red-100' : 'border-l-blue-500'}`}>
-                            <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center border-r font-black text-3xl transition-colors ${mockCriticalInstances > 0 ? 'bg-red-50 text-red-600 border-red-100 group-hover:bg-red-100' : 'bg-blue-50 text-blue-700 border-blue-100 group-hover:bg-blue-100'}`}>
-                                {mockCriticalInstances}
+                    {/* 2. RUTA CRÍTICA — ACTIVA */}
+                    {(() => {
+                        const redCount = healthData?.counts?.RED ?? 0;
+                        const yellowCount = healthData?.counts?.YELLOW ?? 0;
+                        const blueCount = healthData?.counts?.BLUE ?? 0;
+                        const alertCount = redCount + yellowCount;
+                        const borderColor = redCount > 0
+                            ? 'border-l-red-500 ring-2 ring-red-100'
+                            : yellowCount > 0
+                                ? 'border-l-amber-500 ring-2 ring-amber-100'
+                                : 'border-l-blue-500';
+                        const leftBg = redCount > 0
+                            ? 'bg-red-50 text-red-600 border-red-100 group-hover:bg-red-100'
+                            : yellowCount > 0
+                                ? 'bg-amber-50 text-amber-600 border-amber-100 group-hover:bg-amber-100'
+                                : 'bg-blue-50 text-blue-700 border-blue-100 group-hover:bg-blue-100';
+                        const textColor = redCount > 0
+                            ? 'text-red-600'
+                            : yellowCount > 0
+                                ? 'text-amber-600'
+                                : 'text-blue-600';
+                        const iconColor = redCount > 0
+                            ? 'text-red-500'
+                            : yellowCount > 0
+                                ? 'text-amber-500'
+                                : 'text-blue-500';
+                        return (
+                            <div className="w-full relative h-40">
+                                <Card
+                                    onClick={() => openMainSection('OPERATIONS')}
+                                    className={`p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white relative overflow-hidden group ${borderColor}`}
+                                >
+                                    <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center border-r font-black text-3xl transition-colors ${leftBg}`}>
+                                        {alertCount > 0 ? alertCount : <CheckCircle size={28} className="text-slate-300" />}
+                                    </div>
+                                    <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                                        <div className="flex justify-between items-start">
+                                            <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">2. Ruta Crítica</p>
+                                            <Factory size={16} className={iconColor} />
+                                        </div>
+                                        <div className="flex justify-end">
+                                            <div className={`text-xl font-black tracking-tight leading-none truncate ${textColor}`}>
+                                                {redCount > 0
+                                                    ? `${redCount} 🔴 · ${yellowCount} 🟡`
+                                                    : yellowCount > 0
+                                                        ? `${yellowCount} 🟡 en alerta`
+                                                        : `${blueCount} en proceso`}
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
+                                                Ejecución Física
+                                            </p>
+                                            <AlertCircle size={14} className={iconColor} />
+                                        </div>
+                                    </div>
+                                </Card>
                             </div>
-                            <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                <div className="flex justify-between items-start"><p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">2. Ruta Crítica</p><Factory size={16} className={mockCriticalInstances > 0 ? 'text-red-500' : 'text-blue-500'} /></div>
-                                <div className="flex justify-end"><div className={`text-2xl font-black tracking-tight leading-none truncate flex items-baseline gap-1 ${mockCriticalInstances > 0 ? 'text-red-600' : 'text-blue-600'}`}>{mockCriticalInstances} <span className={`text-sm font-bold uppercase ${mockCriticalInstances > 0 ? 'text-red-400' : 'text-blue-400'}`}>Críticas</span></div></div>
-                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100"><p className="text-[10px] text-slate-400 font-bold uppercase truncate">Ejecución Física</p><AlertCircle size={14} className={mockCriticalInstances > 0 ? 'text-red-400' : 'text-blue-400'}/></div>
-                            </div>
-                        </Card>
-                    </div>
+                        );
+                    })()}
 
                     {/* 3. LIQUIDEZ — ACTIVA */}
                     <div className="w-full relative h-40">
@@ -559,35 +639,119 @@ const DirectorDashboard: React.FC = () => {
                     {/* 2. DESGLOSE OPERACIONES */}
                     {activeSection === 'OPERATIONS' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <Card className="p-6 border-l-4 border-l-red-500 bg-white relative overflow-hidden h-40 flex flex-col justify-between">
-                                <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-red-50 text-red-700 border-r border-red-100 font-black text-3xl">3</div>
+                            {/* B. CUELLOS DE BOTELLA 🔴 */}
+                            <Card
+                                onClick={() => setSelectedHealthGroup({
+                                    title: '🔴 Cuellos de Botella',
+                                    color: 'red',
+                                    instances: healthData?.critical ?? []
+                                })}
+                                className={`p-6 border-l-4 bg-white relative overflow-hidden h-40 flex flex-col justify-between cursor-pointer hover:shadow-lg transition-all transform hover:-translate-y-1 ${
+                                (healthData?.counts?.RED ?? 0) > 0
+                                    ? 'border-l-red-500 ring-2 ring-red-100'
+                                    : 'border-l-slate-200'
+                            }`}>
+                                <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center border-r font-black text-3xl ${
+                                    (healthData?.counts?.RED ?? 0) > 0
+                                        ? 'bg-red-50 text-red-600 border-red-100'
+                                        : 'bg-slate-50 text-slate-300 border-slate-100'
+                                }`}>
+                                    {healthData?.counts?.RED ?? 0}
+                                </div>
                                 <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                    <h4 className="font-bold text-red-800 flex items-center gap-2 truncate"><AlertCircle size={18} className="text-red-500"/> A. Cuellos de Botella</h4>
-                                    <div className="text-3xl font-black text-red-600 text-right leading-none">Látigo</div>
+                                    <h4 className="font-bold text-slate-800 flex items-center gap-2 text-sm uppercase tracking-tight">
+                                        🔴 B. Cuellos de Botella
+                                    </h4>
+                                    <div className={`text-2xl font-black text-right leading-none ${
+                                        (healthData?.counts?.RED ?? 0) > 0 ? 'text-red-600' : 'text-slate-300'
+                                    }`}>
+                                        {(healthData?.counts?.RED ?? 0) > 0 ? 'Acción inmediata' : 'Sin críticos'}
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase">
+                                        Fecha vencida sin avance
+                                    </p>
                                 </div>
                             </Card>
 
-                            <Card className="p-6 border-l-4 border-l-amber-500 bg-white relative overflow-hidden h-40 flex flex-col justify-between">
-                                <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-amber-50 text-amber-700 border-r border-amber-100 font-black text-3xl">8</div>
+                            {/* C. RIESGO CORTO PLAZO 🟡 */}
+                            <Card
+                                onClick={() => setSelectedHealthGroup({
+                                    title: '🟡 Riesgo Corto Plazo',
+                                    color: 'amber',
+                                    instances: healthData?.alerts ?? []
+                                })}
+                                className={`p-6 border-l-4 bg-white relative overflow-hidden h-40 flex flex-col justify-between cursor-pointer hover:shadow-lg transition-all transform hover:-translate-y-1 ${
+                                (healthData?.counts?.YELLOW ?? 0) > 0
+                                    ? 'border-l-amber-500'
+                                    : 'border-l-slate-200'
+                            }`}>
+                                <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center border-r font-black text-3xl ${
+                                    (healthData?.counts?.YELLOW ?? 0) > 0
+                                        ? 'bg-amber-50 text-amber-600 border-amber-100'
+                                        : 'bg-slate-50 text-slate-300 border-slate-100'
+                                }`}>
+                                    {healthData?.counts?.YELLOW ?? 0}
+                                </div>
                                 <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                    <h4 className="font-bold text-amber-800 flex items-center gap-2 truncate"><Clock size={18} className="text-amber-500"/> B. Riesgo a Corto Plazo</h4>
-                                    <div className="text-3xl font-black text-amber-600 text-right leading-none">Prevención</div>
+                                    <h4 className="font-bold text-slate-800 flex items-center gap-2 text-sm uppercase tracking-tight">
+                                        🟡 C. Riesgo Corto Plazo
+                                    </h4>
+                                    <div className={`text-2xl font-black text-right leading-none ${
+                                        (healthData?.counts?.YELLOW ?? 0) > 0 ? 'text-amber-600' : 'text-slate-300'
+                                    }`}>
+                                        {(healthData?.counts?.YELLOW ?? 0) > 0 ? 'Prevención' : 'Sin alertas'}
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase">
+                                        Menos de 15 días sin iniciar
+                                    </p>
                                 </div>
                             </Card>
 
-                            <Card className="p-6 border-l-4 border-l-emerald-500 bg-white relative overflow-hidden h-40 flex flex-col justify-between">
-                                <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-emerald-50 text-emerald-700 border-r border-emerald-100 font-black text-3xl">5</div>
+                            {/* D. CARGA DE PISO 🔵 */}
+                            <Card
+                                onClick={() => setSelectedHealthGroup({
+                                    title: '🔵 Carga de Piso',
+                                    color: 'blue',
+                                    instances: healthData?.in_process ?? []
+                                })}
+                                className="p-6 border-l-4 border-l-blue-500 bg-white relative overflow-hidden h-40 flex flex-col justify-between cursor-pointer hover:shadow-lg transition-all transform hover:-translate-y-1">
+                                <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-blue-50 text-blue-700 border-r border-blue-100 font-black text-3xl">
+                                    {healthData?.counts?.BLUE ?? 0}
+                                </div>
                                 <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                    <h4 className="font-bold text-slate-800 flex items-center gap-2 truncate"><CheckCircle size={18} className="text-emerald-500"/> C. Dinero en la Mesa</h4>
-                                    <div className="text-3xl font-black text-emerald-600 text-right leading-none">Terminados</div>
+                                    <h4 className="font-bold text-slate-800 flex items-center gap-2 text-sm uppercase tracking-tight">
+                                        🔵 D. Carga de Piso
+                                    </h4>
+                                    <div className="text-2xl font-black text-blue-600 text-right leading-none">
+                                        En producción
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase">
+                                        Lotes activos en fábrica
+                                    </p>
                                 </div>
                             </Card>
 
-                            <Card className="p-6 border-l-4 border-l-blue-500 bg-white relative overflow-hidden h-40 flex flex-col justify-between">
-                                <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-blue-50 text-blue-700 border-r border-blue-100 font-black text-3xl">12</div>
+                            {/* LISTOS PARA INSTALAR 🔵🟢 */}
+                            <Card
+                                onClick={() => setSelectedHealthGroup({
+                                    title: '🔵🟢 Listos para Instalar',
+                                    color: 'emerald',
+                                    instances: healthData?.ready_to_install ?? []
+                                })}
+                                className="p-6 border-l-4 border-l-emerald-500 bg-white relative overflow-hidden h-40 flex flex-col justify-between cursor-pointer hover:shadow-lg transition-all transform hover:-translate-y-1">
+                                <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-emerald-50 text-emerald-700 border-r border-emerald-100 font-black text-3xl">
+                                    {healthData?.counts?.BLUE_GREEN ?? 0}
+                                </div>
                                 <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                    <h4 className="font-bold text-slate-800 flex items-center gap-2 truncate"><Layers size={18} className="text-blue-500"/> D. Carga de Piso</h4>
-                                    <div className="text-3xl font-black text-blue-600 text-right leading-none">Activos</div>
+                                    <h4 className="font-bold text-slate-800 flex items-center gap-2 text-sm uppercase tracking-tight">
+                                        🔵🟢 Listos para Instalar
+                                    </h4>
+                                    <div className="text-2xl font-black text-emerald-600 text-right leading-none">
+                                        En andén
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase">
+                                        Empacados y en espera
+                                    </p>
                                 </div>
                             </Card>
                         </div>
@@ -851,6 +1015,86 @@ const DirectorDashboard: React.FC = () => {
                         loadData(); 
                     }}
                 />
+            )}
+
+            {selectedHealthGroup && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[80vh]">
+
+                        {/* Header */}
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
+                            <div>
+                                <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">
+                                    {selectedHealthGroup.title}
+                                </h3>
+                                <p className="text-xs text-slate-500 mt-1 font-bold uppercase">
+                                    {selectedHealthGroup.instances.length} instancia{selectedHealthGroup.instances.length !== 1 ? 's' : ''}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setSelectedHealthGroup(null)}
+                                className="text-slate-400 hover:text-slate-600 transition-colors"
+                            >
+                                <XCircle size={24} />
+                            </button>
+                        </div>
+
+                        {/* Lista de instancias */}
+                        <div className="flex-1 overflow-y-auto">
+                            {selectedHealthGroup.instances.length === 0 ? (
+                                <div className="text-center py-16 text-slate-400 font-bold uppercase text-xs">
+                                    Sin instancias en este grupo
+                                </div>
+                            ) : (
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
+                                        <tr>
+                                            <th className="px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">OV</th>
+                                            <th className="px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">Proyecto / Cliente</th>
+                                            <th className="px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">Instancia</th>
+                                            <th className="px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">Fecha Límite</th>
+                                            <th className="px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">Semáforo</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {selectedHealthGroup.instances.map((inst: any) => (
+                                            <tr key={inst.id} className="hover:bg-slate-50 transition-colors">
+                                                <td className="px-4 py-3 font-black text-indigo-600 text-xs">
+                                                    {inst.order_folio || '—'}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <p className="font-bold text-slate-800 text-xs">{inst.project_name || '—'}</p>
+                                                    <p className="text-[10px] text-slate-500">{inst.client_name || '—'}</p>
+                                                </td>
+                                                <td className="px-4 py-3 font-bold text-slate-700 text-xs">
+                                                    {inst.custom_name || `Instancia ${inst.id}`}
+                                                </td>
+                                                <td className="px-4 py-3 text-xs text-slate-500">
+                                                    {inst.delivery_deadline
+                                                        ? new Date(inst.delivery_deadline).toLocaleDateString('es-MX')
+                                                        : '—'}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border uppercase ${
+                                                        inst.semaphore === 'RED'
+                                                            ? 'bg-red-50 text-red-700 border-red-200'
+                                                            : inst.semaphore === 'YELLOW'
+                                                                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                                                : inst.semaphore === 'BLUE'
+                                                                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                    }`}>
+                                                        {inst.semaphore_label || inst.semaphore}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
