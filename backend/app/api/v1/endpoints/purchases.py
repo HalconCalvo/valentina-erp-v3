@@ -3,7 +3,7 @@ from fastapi.responses import StreamingResponse
 from sqlmodel import Session, select, text, Field, SQLModel
 from typing import List, Optional
 from pydantic import BaseModel
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from sqlalchemy import func
 from types import SimpleNamespace
 
@@ -27,6 +27,7 @@ class ManualOrderItemCreate(BaseModel):
 class ManualOrderCreate(BaseModel):
     provider_name: str
     items: List[ManualOrderItemCreate]
+    overhead_category: Optional[str] = None
 
 class RequisitionCreate(BaseModel):
     material_id: int | None = None
@@ -38,6 +39,7 @@ class RequisitionCreate(BaseModel):
 class POCreateFromPlanning(BaseModel):
     provider_id: int | None
     items: List[dict]
+    overhead_category: Optional[str] = None
 
 @router.post("/requisitions/", response_model=PurchaseRequisition, status_code=status.HTTP_201_CREATED)
 def create_requisition(*, db: Session = Depends(get_session), req_in: RequisitionCreate):
@@ -179,7 +181,8 @@ def emit_bulk_purchase_order(*, db: Session = Depends(get_session), data: POCrea
         status="DRAFT",
         total_estimated_amount=0.0,
         is_advance=True,
-        created_by_user_id=current_user.id 
+        created_by_user_id=current_user.id,
+        overhead_category=data.overhead_category
     )
     db.add(po)
     db.flush() 
@@ -397,18 +400,22 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
 
         new_payable = text("""
             INSERT INTO accounts_payable (
-                provider_id, purchase_order_id, invoice_folio, total_amount, due_date, status, created_at
+                provider_id, purchase_order_id, invoice_folio,
+                total_amount, due_date, status, created_at,
+                overhead_category
             ) VALUES (
-                :prov_id, :po_id, :folio, :total, :due, 'PENDIENTE', :now
+                :prov_id, :po_id, :folio, :total, :due, 'PENDIENTE', :now,
+                :category
             )
         """)
         db.exec(new_payable.bindparams(
-            prov_id=po.provider_id, 
-            po_id=po.id, 
-            folio=data.get("invoice_folio"), 
-            total=saldo_restante, 
-            due=due_date, 
-            now=datetime.now()
+            prov_id=po.provider_id,
+            po_id=po.id,
+            folio=data.get("invoice_folio"),
+            total=saldo_restante,
+            due=due_date,
+            now=datetime.now(),
+            category=getattr(po, 'overhead_category', None)
         ))
 
     db.add(po)
@@ -587,7 +594,8 @@ def create_manual_order(
         status="DRAFT",
         total_estimated_amount=subtotal,
         created_by_user_id=current_user.id,
-        is_advance=True
+        is_advance=True,
+        overhead_category=order_in.overhead_category
     )
     db.add(new_order)
     db.commit()
@@ -660,3 +668,121 @@ def request_order_advance(*, db: Session = Depends(get_session), po_id: int, cur
     db.add(inv)
     db.commit()
     return {"status": "success", "message": "Anticipo solicitado a Tesorería"}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GASTOS OPERATIVOS (overhead directo a CxP sin OC)
+# ─────────────────────────────────────────────────────────────────────────────
+
+OVERHEAD_CATEGORIES = [
+    'PLANTA', 'COMUNICACIONES', 'COMBUSTIBLES', 'TRANSPORTE',
+    'INSUMOS', 'MAQUINARIA', 'EXTERNOS', 'OTRO'
+]
+
+
+class OperationalExpenseCreate(BaseModel):
+    provider_name: Optional[str] = None
+    concept: str
+    overhead_category: str
+    total_amount: float
+    issue_date: date
+    due_date: date
+    notes: Optional[str] = None
+
+
+@router.post("/operational-expenses")
+def create_operational_expense(
+    *,
+    db: Session = Depends(get_session),
+    data: OperationalExpenseCreate,
+    current_user: CurrentUser
+):
+    allowed = ["DIRECTOR", "GERENCIA", "ADMIN"]
+    role = current_user.role.value if hasattr(current_user.role, "value") \
+        else str(current_user.role)
+    if role.upper() not in allowed:
+        raise HTTPException(status_code=403, detail="Sin permisos.")
+
+    if data.overhead_category not in OVERHEAD_CATEGORIES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Categoría inválida. Opciones: {OVERHEAD_CATEGORIES}"
+        )
+
+    if data.total_amount <= 0:
+        raise HTTPException(
+            status_code=400, detail="El monto debe ser mayor a 0."
+        )
+
+    provider_id = None
+    if data.provider_name:
+        from app.models.foundations import Provider
+        prov = db.exec(
+            select(Provider).where(
+                Provider.business_name.ilike(data.provider_name)
+            )
+        ).first()
+        if not prov:
+            prov = Provider(
+                business_name=data.provider_name,
+                credit_days=0,
+                is_active=True
+            )
+            db.add(prov)
+            db.flush()
+        provider_id = prov.id
+
+    folio = f"GASTO-{datetime.now().strftime('%y%m%d%H%M%S')}"
+    new_expense = text("""
+        INSERT INTO accounts_payable (
+            provider_id, purchase_order_id, invoice_folio,
+            total_amount, due_date, status, created_at,
+            overhead_category
+        ) VALUES (
+            :prov_id, NULL, :folio, :total, :due, 'PENDIENTE', :now,
+            :category
+        )
+    """)
+    db.exec(new_expense.bindparams(
+        prov_id=provider_id,
+        folio=folio,
+        total=data.total_amount,
+        due=data.due_date,
+        now=datetime.now(),
+        category=data.overhead_category
+    ))
+    db.commit()
+
+    return {
+        "ok": True,
+        "folio": folio,
+        "message": "Gasto operativo registrado en CXP."
+    }
+
+
+@router.get("/operational-expenses")
+def get_operational_expenses(
+    *,
+    db: Session = Depends(get_session),
+    current_user: CurrentUser,
+    skip: int = 0,
+    limit: int = 100
+):
+    allowed = ["DIRECTOR", "GERENCIA", "ADMIN"]
+    role = current_user.role.value if hasattr(current_user.role, "value") \
+        else str(current_user.role)
+    if role.upper() not in allowed:
+        raise HTTPException(status_code=403, detail="Sin permisos.")
+
+    rows = db.exec(text("""
+        SELECT ap.id, ap.invoice_folio, ap.total_amount, ap.due_date,
+               ap.status, ap.created_at, ap.overhead_category,
+               p.business_name as provider_name
+        FROM accounts_payable ap
+        LEFT JOIN providers p ON ap.provider_id = p.id
+        WHERE ap.purchase_order_id IS NULL
+        ORDER BY ap.created_at DESC
+        LIMIT :limit OFFSET :skip
+    """).bindparams(limit=limit, skip=skip)).all()
+
+    return [dict(r._mapping) for r in rows]

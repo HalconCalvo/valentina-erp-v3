@@ -4,7 +4,7 @@ import {
   Plus, Landmark, ArrowDownRight, ArrowUpRight, Users, 
   CheckCircle2, Wallet, ArrowLeft, CheckCircle, 
   Bell, Search, TrendingUp, AlertTriangle,
-  ShoppingCart, Tag, ArrowRight, Banknote
+  ShoppingCart, Tag, ArrowRight, Banknote, Receipt
 } from 'lucide-react';
 
 // --- SERVICIOS Y TIPOS ---
@@ -17,6 +17,7 @@ import { SalesOrder } from '../../../types/sales';
 import { pettyCashService } from '../../../api/petty-cash-service';
 import { PettyCashFund } from '../../../types/petty_cash';
 import PettyCashPanel from '../../management/components/PettyCashPanel';
+import { OperationalExpensesPanel } from '../components/OperationalExpensesPanel';
 
 // --- COMPONENTES BANCARIOS (Locales) ---
 import { BankAccountCard } from '../components/BankAccountCard';
@@ -35,7 +36,7 @@ import { PayrollAuditPanel, type PayrollLevel1 } from '../components/PayrollAudi
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 
-type AdminSection = 'TASKS' | 'BANKS' | 'RECEIVABLES' | 'PAYABLES' | 'PAYROLL' | 'PETTY_CASH' | null;
+type AdminSection = 'TASKS' | 'BANKS' | 'RECEIVABLES' | 'PAYABLES' | 'PAYROLL' | 'PETTY_CASH' | 'OPERATIONAL_EXPENSES' | null;
 
 export const TreasuryPage = () => {
   const navigate = useNavigate();
@@ -104,6 +105,7 @@ export const TreasuryPage = () => {
   const [isSubSectionActive, setIsSubSectionActive] = useState(false);
   const [selectedOrderForRayosX, setSelectedOrderForRayosX] = useState<SalesOrder | null>(null);
   const [pettyCashFund, setPettyCashFund] = useState<PettyCashFund | null>(null);
+  const [operationalExpensesCount, setOperationalExpensesCount] = useState(0);
   const [payrollLevel1, setPayrollLevel1] = useState<PayrollLevel1>(null);
 
   useEffect(() => {
@@ -218,6 +220,16 @@ export const TreasuryPage = () => {
         /* ignore petty cash load errors */
       }
 
+      try {
+        const expRes = await client.get('/purchases/operational-expenses?limit=100');
+        const pending = expRes.data.filter((e: any) =>
+          String(e.status).toUpperCase() === 'PENDIENTE'
+        );
+        setOperationalExpensesCount(pending.length);
+      } catch {
+        /* ignore */
+      }
+
     } catch (error) {
       console.error('Error al cargar datos del Dashboard', error);
       setIsAccountsLoading(false);
@@ -240,6 +252,7 @@ export const TreasuryPage = () => {
         case 'PAYABLES': return 'Cuentas por Pagar';
         case 'PAYROLL': return 'Centro de Nómina y Destajos';
         case 'PETTY_CASH': return 'Caja Chica';
+        case 'OPERATIONAL_EXPENSES': return 'Gastos Operativos';
         default: return isChecker ? 'Tesorería y Flujo Maestro' : 'Administración Central';
     }
   };
@@ -447,6 +460,43 @@ export const TreasuryPage = () => {
             </Card>
           </div>
 
+          {/* ---> TARJETA 6: GASTOS OPERATIVOS <--- */}
+          <div className="w-full relative h-40">
+            <Card
+              onClick={() => setActiveSection('OPERATIONAL_EXPENSES')}
+              className={`p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white overflow-hidden group ${
+                operationalExpensesCount > 0
+                  ? 'border-l-rose-500 ring-2 ring-rose-100'
+                  : 'border-l-slate-300'
+              }`}
+            >
+              <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center border-r font-black transition-colors text-2xl ${
+                operationalExpensesCount > 0
+                  ? 'bg-rose-50 text-rose-700 border-rose-100 group-hover:bg-rose-100'
+                  : 'bg-slate-50 text-slate-400 border-slate-100 group-hover:bg-slate-100'
+              }`}>
+                {operationalExpensesCount > 0 ? operationalExpensesCount : <Receipt size={28} className="text-slate-300" />}
+              </div>
+              <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                <div className="flex justify-between items-start">
+                  <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">6. Gastos Operativos</p>
+                  <Receipt size={16} className={operationalExpensesCount > 0 ? 'text-rose-500' : 'text-slate-300'} />
+                </div>
+                <div className={`text-lg font-black tracking-tight leading-none truncate text-right ${
+                  operationalExpensesCount > 0 ? 'text-rose-600' : 'text-slate-500'
+                }`}>
+                  {operationalExpensesCount > 0 ? `${operationalExpensesCount} pendientes` : 'Al día'}
+                </div>
+                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
+                    Renta, luz, teléfono, etc.
+                  </p>
+                  <Receipt size={14} className="text-slate-300" />
+                </div>
+              </div>
+            </Card>
+          </div>
+
         </div>
       )}
 
@@ -563,6 +613,14 @@ export const TreasuryPage = () => {
 
           {activeSection === 'PETTY_CASH' && (
             <PettyCashPanel
+              onBack={() => setActiveSection(null)}
+              onRefresh={fetchData}
+              userRole={userRole}
+            />
+          )}
+
+          {activeSection === 'OPERATIONAL_EXPENSES' && (
+            <OperationalExpensesPanel
               onBack={() => setActiveSection(null)}
               onRefresh={fetchData}
               userRole={userRole}

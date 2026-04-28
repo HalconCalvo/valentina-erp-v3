@@ -29,7 +29,8 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
 
     const [isManualModalOpen, setIsManualModalOpen] = useState(false);
     const [manualOrderForm, setManualOrderForm] = useState({ 
-        provider_name: '', 
+        provider_name: '',
+        overhead_category: '',
         items: [{ sku: '', material_name: '', qty: 1, expected_cost: '0.00' }] 
     });
 
@@ -49,6 +50,14 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     });
 
     const [assignProviderFocused, setAssignProviderFocused] = useState(false);
+
+    const [pendingCategory, setPendingCategory] = useState<string>('');
+    const [categoryError, setCategoryError] = useState<string | null>(null);
+
+    const OVERHEAD_CATEGORIES = [
+        'PLANTA', 'COMUNICACIONES', 'COMBUSTIBLES', 'TRANSPORTE',
+        'INSUMOS', 'MAQUINARIA', 'EXTERNOS', 'OTRO'
+    ];
 
     const [isReqModalOpen, setIsReqModalOpen] = useState(false);
     const [reqForm, setReqForm] = useState({
@@ -179,11 +188,16 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     const handleEmitPurchaseOrder = async (group: any) => {
         const itemsToEmit = group.items.filter((item: any) => selectedItems[`${group.provider_id}-${item.material_id}`]);
         if (itemsToEmit.length === 0) return alert("Debe seleccionar al menos un producto.");
+        if (!pendingCategory) {
+            setCategoryError("Debes seleccionar una categoría antes de generar la OC.");
+            return;
+        }
         if (!window.confirm(`¿Confirmar emisión de Orden de Compra para ${group.provider_name}?`)) return;
         setLoading(true);
         try {
             const payload = {
                 provider_id: group.provider_id,
+                overhead_category: pendingCategory,
                 items: itemsToEmit.map((item: any) => ({
                     requisition_id: item.requisition_id,
                     material_id: item.material_id,
@@ -228,11 +242,15 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         if (!manualOrderForm.provider_name || validItems.length === 0) {
             return alert("Por favor, completa el proveedor y al menos un material válido.");
         }
+        if (!manualOrderForm.overhead_category) {
+            return alert("Debes seleccionar una categoría de gasto.");
+        }
         
         setLoading(true);
         try {
             const payload = {
                 provider_name: manualOrderForm.provider_name,
+                overhead_category: manualOrderForm.overhead_category,
                 items: validItems.map(it => ({
                     sku: it.sku,
                     name: it.material_name,
@@ -243,7 +261,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
             await axiosClient.post('/purchases/orders/manual', payload);
             
             setIsManualModalOpen(false);
-            setManualOrderForm({ provider_name: '', items: [{ sku: '', material_name: '', qty: 1, expected_cost: '0.00' }] });
+            setManualOrderForm({ provider_name: '', overhead_category: '', items: [{ sku: '', material_name: '', qty: 1, expected_cost: '0.00' }] });
             fetchBrakeOrders(true);
         } catch (error: any) {
             alert(error.response?.data?.detail || "Error al crear la orden manual.");
@@ -605,9 +623,33 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 </table>
                             </div>
                             <div className="p-8 bg-white flex justify-between items-end border-t border-slate-50">
-                                <Button onClick={() => handleEmitPurchaseOrder(group)} className="bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-200 shadow-sm font-black uppercase text-xs h-12 px-10" disabled={isUnassigned || loading || selectedInGroup.length === 0}>
-                                    Generar Orden de Compra ({selectedInGroup.length})
-                                </Button>
+                                <div className="flex flex-col gap-2">
+                                    <div className="flex flex-col gap-1">
+                                        <select
+                                            value={pendingCategory}
+                                            onChange={e => {
+                                                setPendingCategory(e.target.value);
+                                                setCategoryError(null);
+                                            }}
+                                            className={`border rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none ${
+                                                categoryError
+                                                    ? 'border-red-400 bg-red-50'
+                                                    : 'border-slate-200'
+                                            }`}
+                                        >
+                                            <option value="">— Categoría de gasto —</option>
+                                            {OVERHEAD_CATEGORIES.map(c => (
+                                                <option key={c} value={c}>{c}</option>
+                                            ))}
+                                        </select>
+                                        {categoryError && (
+                                            <p className="text-xs text-red-600 font-bold">{categoryError}</p>
+                                        )}
+                                    </div>
+                                    <Button onClick={() => handleEmitPurchaseOrder(group)} className="bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-200 shadow-sm font-black uppercase text-xs h-12 px-10" disabled={isUnassigned || loading || selectedInGroup.length === 0}>
+                                        Generar Orden de Compra ({selectedInGroup.length})
+                                    </Button>
+                                </div>
                                 <div className="w-80 space-y-1 pr-14">
                                     <div className="flex justify-between items-center px-2 py-1 text-slate-500"><span className="text-[10px] font-black uppercase tracking-widest">Subtotal</span><span className="text-sm font-bold">${subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
                                     <div className="flex justify-between items-center px-2 py-1 border-b border-slate-100 pb-3 text-slate-500"><span className="text-[10px] font-black uppercase tracking-widest">IVA (16%)</span><span className="text-sm font-bold">${iva.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
@@ -890,6 +932,32 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                             <button onClick={() => setIsManualModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
                                 <XCircle size={24} />
                             </button>
+                        </div>
+
+                        {/* Categoría de gasto */}
+                        <div className="px-6 py-3 border-b border-slate-100 bg-slate-50/30">
+                            <div className="flex items-center gap-4">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest whitespace-nowrap">
+                                    Categoría de Gasto *
+                                </label>
+                                <select
+                                    value={manualOrderForm.overhead_category}
+                                    onChange={e => setManualOrderForm({
+                                        ...manualOrderForm,
+                                        overhead_category: e.target.value
+                                    })}
+                                    className={`border rounded-lg px-3 py-1.5 text-sm font-bold text-slate-700 focus:outline-none flex-1 ${
+                                        !manualOrderForm.overhead_category
+                                            ? 'border-red-300 bg-red-50'
+                                            : 'border-slate-200 bg-white'
+                                    }`}
+                                >
+                                    <option value="">— Seleccionar categoría —</option>
+                                    {OVERHEAD_CATEGORIES.map(c => (
+                                        <option key={c} value={c}>{c}</option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
                         
                         <div className="flex-1 overflow-x-auto overflow-y-visible relative bg-white pb-6">

@@ -114,6 +114,7 @@ class PurchaseOrder(SQLModel, table=True):
     exchange_rate: Optional[float] = Field(default=1.0)
     
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    overhead_category: Optional[str] = Field(default=None)
 
 
 class PurchaseOrderItem(SQLModel, table=True):
