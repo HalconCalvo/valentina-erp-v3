@@ -43,3 +43,11 @@ class PettyCashMovementRead(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class PettyCashMovementUpdate(BaseModel):
+    amount: Optional[float] = None
+    concept: Optional[str] = None
+    category: Optional[str] = None
+    notes: Optional[str] = None
+    movement_date: Optional[datetime] = None

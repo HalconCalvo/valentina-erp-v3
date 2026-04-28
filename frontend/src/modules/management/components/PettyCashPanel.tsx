@@ -4,6 +4,7 @@ import {
   PettyCashFund,
   PettyCashMovement,
   PettyCashMovementCreate,
+  PettyCashMovementUpdate,
   PettyCashCategory,
 } from '../../../types/petty_cash';
 
@@ -87,6 +88,9 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  const [editingMovement, setEditingMovement] = useState<PettyCashMovement | null>(null);
+  const [editForm, setEditForm] = useState<PettyCashMovementUpdate>({});
+
   const receiptRef = useRef<HTMLInputElement>(null);
   const [uploadTarget, setUploadTarget] = useState<number | null>(null);
 
@@ -157,6 +161,19 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
       onRefresh();
     } catch (e: any) {
       alert(e?.response?.data?.detail || 'Error al eliminar el movimiento.');
+    }
+  };
+
+  const handleEdit = async () => {
+    if (!editingMovement) return;
+    try {
+      await pettyCashService.updateMovement(editingMovement.id, editForm);
+      setEditingMovement(null);
+      setEditForm({});
+      await load();
+      onRefresh();
+    } catch (e: any) {
+      setFormError(e?.response?.data?.detail || 'Error al actualizar movimiento.');
     }
   };
 
@@ -300,10 +317,28 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
                   </td>
                   {isManager && (
                     <td className="px-4 py-3 text-center">
-                      <button onClick={() => handleDelete(m.id)}
-                        className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Eliminar">
-                        🗑️
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => {
+                            setEditingMovement(m);
+                            setEditForm({
+                              amount: m.amount,
+                              concept: m.concept,
+                              category: m.category ?? undefined,
+                              notes: m.notes ?? undefined,
+                              movement_date: m.movement_date?.slice(0, 10),
+                            });
+                          }}
+                          className="p-1.5 bg-amber-50 text-amber-600 rounded-lg border border-amber-100 hover:bg-amber-100 transition-colors"
+                          title="Editar movimiento"
+                        >
+                          ✏️
+                        </button>
+                        <button onClick={() => handleDelete(m.id)}
+                          className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Eliminar">
+                          🗑️
+                        </button>
+                      </div>
                     </td>
                   )}
                 </tr>
@@ -443,6 +478,84 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
               <button onClick={() => setShowReposModal(false)}
                 className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-lg text-sm">
                 Cancelar
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── MODAL EDITAR MOVIMIENTO ───────────────────────────────────────── */}
+      {editingMovement && (
+        <Modal
+          title={`Editar ${editingMovement.movement_type === 'EGRESO' ? 'Egreso' : 'Reposición'}`}
+          onClose={() => { setEditingMovement(null); setEditForm({}); setFormError(null); }}
+        >
+          <div className="space-y-3">
+            <div>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Concepto</label>
+              <input
+                type="text"
+                value={editForm.concept ?? ''}
+                onChange={e => setEditForm(f => ({ ...f, concept: e.target.value }))}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-amber-400"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Monto</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={editForm.amount ?? ''}
+                onChange={e => setEditForm(f => ({ ...f, amount: parseFloat(e.target.value) }))}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-amber-400"
+              />
+            </div>
+            {editingMovement.movement_type === 'EGRESO' && (
+              <div>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Categoría</label>
+                <select
+                  value={editForm.category ?? 'OTRO'}
+                  onChange={e => setEditForm(f => ({ ...f, category: e.target.value as PettyCashCategory }))}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-amber-400"
+                >
+                  {CATEGORIES.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Fecha</label>
+              <input
+                type="date"
+                value={editForm.movement_date ?? ''}
+                onChange={e => setEditForm(f => ({ ...f, movement_date: e.target.value }))}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-amber-400"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Notas</label>
+              <textarea
+                rows={2}
+                value={editForm.notes ?? ''}
+                onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-amber-400 resize-none"
+              />
+            </div>
+            {formError && <p className="text-xs text-red-600 font-bold">{formError}</p>}
+            <div className="flex gap-2 justify-end pt-2">
+              <button
+                onClick={() => { setEditingMovement(null); setEditForm({}); setFormError(null); }}
+                className="px-4 py-2 text-xs font-black uppercase border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleEdit}
+                className="px-4 py-2 text-xs font-black uppercase bg-amber-500 hover:bg-amber-600 text-white rounded-lg shadow"
+              >
+                Guardar Cambios
               </button>
             </div>
           </div>

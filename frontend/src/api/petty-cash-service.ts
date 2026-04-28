@@ -37,6 +37,14 @@ export const pettyCashService = {
     return res.data;
   },
 
+  updateMovement: async (
+    id: number,
+    data: Partial<PettyCashMovementCreate>
+  ): Promise<PettyCashMovement> => {
+    const res = await client.patch(`/petty-cash/movements/${id}`, data);
+    return res.data;
+  },
+
   deleteMovement: async (id: number): Promise<void> => {
     await client.delete(`/petty-cash/movements/${id}`);
   },

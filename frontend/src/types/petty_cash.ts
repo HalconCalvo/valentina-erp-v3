@@ -42,3 +42,11 @@ export interface PettyCashMovementCreate {
   notes?: string;
   movement_date?: string;
 }
+
+export interface PettyCashMovementUpdate {
+  amount?: number;
+  concept?: string;
+  category?: PettyCashCategory;
+  notes?: string;
+  movement_date?: string;
+}

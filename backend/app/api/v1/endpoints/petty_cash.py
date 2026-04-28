@@ -11,6 +11,7 @@ from app.schemas.petty_cash_schema import (
     PettyCashFundUpdate,
     PettyCashMovementCreate,
     PettyCashMovementRead,
+    PettyCashMovementUpdate,
 )
 from app.services.cloud_storage import upload_to_gcs
 
@@ -139,6 +140,61 @@ def create_movement(
         movement_date=body.movement_date or datetime.utcnow(),
         created_by_id=current_user.id,
     )
+    db.add(movement)
+    db.commit()
+    db.refresh(movement)
+    return _movement_to_read(movement, db)
+
+
+# ─────────────────────────────────────────
+# PATCH /petty-cash/movements/{id}
+# ─────────────────────────────────────────
+@router.patch("/movements/{movement_id}", response_model=PettyCashMovementRead)
+def update_movement(
+    movement_id: int,
+    body: PettyCashMovementUpdate,
+    current_user: CurrentUser,
+    db: Session = Depends(get_session),
+):
+    _check_role(current_user)
+
+    movement = db.get(PettyCashMovement, movement_id)
+    if not movement:
+        raise HTTPException(status_code=404, detail="Movimiento no encontrado.")
+
+    fund = _get_or_create_fund(db)
+
+    if body.amount is not None and body.amount != movement.amount:
+        diff = body.amount - movement.amount
+        if movement.movement_type == "EGRESO":
+            new_balance = fund.current_balance - diff
+            if new_balance < 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="El nuevo monto dejaría el saldo en negativo.",
+                )
+        else:
+            new_balance = fund.current_balance + diff
+            if new_balance > fund.fund_amount:
+                raise HTTPException(
+                    status_code=400,
+                    detail="El nuevo monto excede el fondo configurado.",
+                )
+        fund.current_balance = new_balance
+        fund.updated_at = datetime.utcnow()
+        fund.updated_by_id = current_user.id
+        db.add(fund)
+        movement.amount = body.amount
+
+    if body.concept is not None:
+        movement.concept = body.concept
+    if body.category is not None:
+        movement.category = body.category
+    if body.notes is not None:
+        movement.notes = body.notes
+    if body.movement_date is not None:
+        movement.movement_date = body.movement_date
+
     db.add(movement)
     db.commit()
     db.refresh(movement)
