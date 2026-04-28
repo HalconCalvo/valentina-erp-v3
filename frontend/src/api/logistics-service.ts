@@ -12,6 +12,7 @@ export interface WorkdayAssignment {
   client_address: string;
   evidence_photos_count: number;
   has_signature: boolean;
+  all_lanes_installed?: boolean;
   team: {
     leader: { id: number; name: string };
     helper_1: { id: number; name: string } | null;
@@ -60,6 +61,16 @@ export const uploadEvidencePhotos = async (
   );
   return data;
 };
+
+// Marcar carril como físicamente instalado (antes de la firma)
+export async function markAssignmentInstalled(
+    assignmentId: number
+): Promise<{ ok: boolean; message: string }> {
+    const response = await apiClient.put(
+        `/logistics/assignments/${assignmentId}/mark-installed`
+    );
+    return response.data;
+}
 
 // Firma digital del cliente
 export const submitClientSignature = async (

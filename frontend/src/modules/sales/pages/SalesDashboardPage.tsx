@@ -22,6 +22,7 @@ import { SalesOrderDetailModal } from '../components/SalesOrderDetailModal';
 import { FinancialReviewModal } from '../../management/components/FinancialReviewModal';
 import BaptismModal from '../components/BaptismModal';
 import { AccountsReceivableAgingPanel } from '../../finance/components/AccountsReceivableAgingPanel';
+import { OrderStatementModal } from '../../finance/components/OrderStatementModal';
 import { aggregateCarteraMonitorTotals, loadSalesOrdersWithAdministrationAgingCxc } from '../utils/receivableCxcOrders';
 
 type SalesSection = 'GOALS' | 'QUOTES' | 'COLLECTIONS' | 'MONITOR' | null;
@@ -177,6 +178,7 @@ const SalesDashboardPage: React.FC = () => {
     const [quoteSortConfig, setQuoteSortConfig] = useState<{ key: 'DATE' | 'FOLIO' | 'CLIENT' | 'SELLER' | 'STATUS' | null, direction: 'asc' | 'desc' }>({ key: null, direction: 'desc' });
 
     const [viewingOrderIdForFormat, setViewingOrderIdForFormat] = useState<number | null>(null);
+    const [rayosXOrder, setRayosXOrder] = useState<SalesOrder | null>(null);
     const [viewingOrderIdForAudit, setViewingOrderIdForAudit] = useState<number | null>(null);
     const [baptismOrderId, setBaptismOrderId] = useState<number | null>(null);
 
@@ -1070,15 +1072,14 @@ const SalesDashboardPage: React.FC = () => {
                                 <div className="flex items-center gap-3 shrink-0">
                                     <button
                                         type="button"
-                                        className="p-2 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-100 transition-colors"
-                                        title="Rayos X (detalle de OV)"
-                                        aria-label="Abrir Rayos X"
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            setViewingOrderIdForFormat(order.id!);
+                                            setRayosXOrder(order);
                                         }}
+                                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 text-xs font-black rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 transform hover:-translate-y-0.5"
                                     >
-                                        <FileSearch size={18} />
+                                        <FileSearch size={14} />
+                                        Rayos X
                                     </button>
                                     <p className="text-sm font-bold text-slate-700">{formatCurrency(order.total_price || 0)}</p>
                                     {instances.length > 0 && (
@@ -1592,6 +1593,19 @@ const SalesDashboardPage: React.FC = () => {
                 <FinancialReviewModal 
                     orderId={viewingOrderIdForAudit}
                     onClose={() => setViewingOrderIdForAudit(null)}
+                    readOnly={true}
+                />
+            )}
+
+            {rayosXOrder && (
+                <OrderStatementModal
+                    isOpen={!!rayosXOrder}
+                    onClose={() => setRayosXOrder(null)}
+                    order={rayosXOrder}
+                    onSuccess={() => setRayosXOrder(null)}
+                    onOrderPatch={(patch) =>
+                        setRayosXOrder((prev) => (prev ? { ...prev, ...patch } : null))
+                    }
                     readOnly={true}
                 />
             )}

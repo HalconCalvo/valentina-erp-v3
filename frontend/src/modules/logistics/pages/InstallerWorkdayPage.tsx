@@ -4,6 +4,7 @@ import {
   scanBundleQR,
   uploadEvidencePhotos,
   submitClientSignature,
+  markAssignmentInstalled,
   type WorkdayAssignment as WorkdayAssignmentRow,
 } from '../../../api/logistics-service';
 import QRScanner from '../components/QRScanner';
@@ -134,13 +135,31 @@ export default function InstallerWorkdayPage() {
     }
   };
 
+  const handleMarkInstalled = async () => {
+    if (!selected) return;
+    if (!window.confirm('¿Confirmar que el trabajo físico está terminado?')) return;
+    const assignmentId = selected.assignment_id;
+    try {
+      await markAssignmentInstalled(assignmentId);
+      showMessage('🟢 Trabajo terminado. Esperando firma del cliente.');
+      const list = await load({ silent: true });
+      setSelected((prev) => {
+        if (!prev) return null;
+        return list.find((a) => a.assignment_id === assignmentId) ?? prev;
+      });
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } } };
+      showError(err?.response?.data?.detail || 'Error al marcar como instalado.');
+    }
+  };
+
   const statusBadge = (status: string) => {
     const map: Record<string, { label: string; color: string }> = {
       SCHEDULED: { label: 'Programado', color: 'bg-gray-200 text-gray-700' },
       IN_PROGRESS: { label: 'En tránsito', color: 'bg-blue-100 text-blue-700' },
       READY: { label: 'Listo', color: 'bg-blue-100 text-blue-700' },
       CARGADO: { label: '🔵🔵 Cargado', color: 'bg-blue-200 text-blue-800' },
-      INSTALLED: { label: '🟢 Instalado', color: 'bg-green-100 text-green-700' },
+      INSTALLED: { label: '🟢 Trabajo Terminado', color: 'bg-green-200 text-green-800' },
     };
     const s = map[status] || {
       label: status,
@@ -350,13 +369,29 @@ export default function InstallerWorkdayPage() {
               >
                 Subir fotos de evidencia
               </button>
-              <button
-                type="button"
-                onClick={() => setView('signature')}
-                className="w-full py-4 rounded-2xl bg-green-600 text-white font-semibold active:bg-green-700"
-              >
-                Firma del cliente
-              </button>
+              {selected.assignment_status === 'CARGADO' && (
+                <button
+                  type="button"
+                  onClick={() => void handleMarkInstalled()}
+                  className="w-full py-4 rounded-2xl bg-green-500 text-white font-semibold active:bg-green-600"
+                >
+                  ✅ Trabajo Terminado
+                </button>
+              )}
+              {selected.assignment_status === 'INSTALLED' && !selected.all_lanes_installed && (
+                <div className="w-full py-4 rounded-2xl bg-yellow-50 border border-yellow-200 text-yellow-700 text-center text-sm font-semibold">
+                  🟡 Esperando que otros carriles terminen...
+                </div>
+              )}
+              {selected.all_lanes_installed && (
+                <button
+                  type="button"
+                  onClick={() => setView('signature')}
+                  className="w-full py-4 rounded-2xl bg-emerald-600 text-white font-semibold active:bg-emerald-700"
+                >
+                  🟢🟢 Firma del cliente
+                </button>
+              )}
             </div>
           </div>
         </>

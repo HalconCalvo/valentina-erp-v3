@@ -64,6 +64,7 @@ class ProductionBatch(SQLModel, table=True):
 class InstallationAssignmentStatus(str, Enum):
     SCHEDULED = "SCHEDULED"
     IN_PROGRESS = "IN_PROGRESS"
+    INSTALLED = "INSTALLED"
     COMPLETED = "COMPLETED"
 
 

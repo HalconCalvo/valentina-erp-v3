@@ -28,6 +28,31 @@ from app.services.cloud_storage import upload_to_gcs
 router = APIRouter()
 
 
+def _check_all_lanes_installed(instance_id: int, session: Session) -> bool:
+    """
+    Retorna True si TODOS los carriles activos de la instancia
+    están en estado INSTALLED o COMPLETED.
+    Retorna False si algún carril está en SCHEDULED, IN_PROGRESS o CARGADO.
+    """
+    assignments = session.exec(
+        select(InstallationAssignment).where(
+            InstallationAssignment.instance_id == instance_id,
+            InstallationAssignment.status != InstallationAssignmentStatus.COMPLETED
+        )
+    ).all()
+
+    if not assignments:
+        return False
+
+    return all(
+        a.status in [
+            InstallationAssignmentStatus.INSTALLED,
+            InstallationAssignmentStatus.COMPLETED,
+        ]
+        for a in assignments
+    )
+
+
 def _upload_file_to_gcs(file_bytes: bytes, blob_name: str, content_type: str) -> str:
     """Adaptador sobre `upload_to_gcs` (espera un file-like), sin modificar cloud_storage."""
     url = upload_to_gcs(BytesIO(file_bytes), blob_name, content_type=content_type)
@@ -261,6 +286,12 @@ def register_client_signature(
     if not assignment:
         raise HTTPException(status_code=404, detail="Asignación no encontrada.")
 
+    if not _check_all_lanes_installed(assignment.instance_id, session):
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede firmar hasta que todos los carriles estén marcados como instalados."
+        )
+
     now = datetime.utcnow()
 
     assignment.client_signature_url = payload.signature_url
@@ -287,6 +318,43 @@ def register_client_signature(
         "payroll_released": len(double_green_result.get("payroll_released", [])),
         "warranty_end_date": str(assignment.warranty_end_date),
         "admin_notification": "Instancia finalizada. Proceder con facturación de avance.",
+    }
+
+
+@router.put("/assignments/{assignment_id}/mark-installed")
+def mark_assignment_installed(
+    assignment_id: int,
+    session: SessionDep,
+    current_user: CurrentUser,
+):
+    """
+    El instalador marca su carril como terminado físicamente.
+    Verde Simple 🟢 — trabajo hecho, esperando firma.
+    Cualquier usuario autenticado puede ejecutar este endpoint.
+    """
+    assignment = session.get(InstallationAssignment, assignment_id)
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Asignación no encontrada.")
+
+    if assignment.status not in [
+        InstallationAssignmentStatus.IN_PROGRESS,
+        InstallationAssignmentStatus.SCHEDULED,
+    ]:
+        raise HTTPException(
+            status_code=400,
+            detail="Solo se puede marcar como instalado desde SCHEDULED o IN_PROGRESS."
+        )
+
+    assignment.status = InstallationAssignmentStatus.INSTALLED
+    session.add(assignment)
+    session.commit()
+    session.refresh(assignment)
+
+    return {
+        "ok": True,
+        "assignment_id": assignment_id,
+        "status": "INSTALLED",
+        "message": "🟢 Trabajo terminado. Esperando firma del cliente."
     }
 
 
@@ -671,6 +739,7 @@ def get_my_workday(
             InstallationAssignment.status.in_([
                 InstallationAssignmentStatus.SCHEDULED,
                 InstallationAssignmentStatus.IN_PROGRESS,
+                InstallationAssignmentStatus.INSTALLED,
                 InstallationAssignmentStatus.COMPLETED,
             ]),
         )
@@ -679,6 +748,7 @@ def get_my_workday(
             InstallationAssignment.status.in_([
                 InstallationAssignmentStatus.SCHEDULED,
                 InstallationAssignmentStatus.IN_PROGRESS,
+                InstallationAssignmentStatus.INSTALLED,
                 InstallationAssignmentStatus.COMPLETED,
             ]),
         )
@@ -716,6 +786,9 @@ def get_my_workday(
             "leader_name": leader.full_name if leader else None,
             "evidence_photos_count": len(instance.evidence_photos_urls or []),
             "has_signature": bool(assignment.client_signature_url),
+            "all_lanes_installed": _check_all_lanes_installed(
+                assignment.instance_id, session
+            ),
             "team": {
                 "leader": {"id": assignment.leader_user_id, "name": leader.full_name if leader else None},
                 "helper_1": {"id": helper_1.id, "name": helper_1.full_name} if helper_1 else None,

@@ -476,7 +476,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
               </div>
               <div className="flex justify-end">
                 <div className="text-lg font-black text-indigo-600 tracking-tight leading-none truncate">
-                  {adminV4Labels ? '5.1 Comisiones' : 'Comisiones'}
+                  {fmt(coOverview?.payable_total ?? 0)}
                 </div>
               </div>
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
@@ -504,7 +504,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
               </div>
               <div className="flex justify-end">
                 <div className="text-lg font-black text-emerald-600 tracking-tight leading-none truncate">
-                  {adminV4Labels ? '5.2 Instalaciones' : 'Instalaciones'}
+                  {fmt(instOverview?.payable_total ?? 0)}
                 </div>
               </div>
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
@@ -532,7 +532,13 @@ export const PayrollAuditPanel: React.FC<Props> = ({
               </div>
               <div className="flex justify-end">
                 <div className="text-lg font-black text-violet-700 tracking-tight leading-none truncate">
-                  {adminV4Labels ? '5.3 Captura semanal' : 'Nómina semanal'}
+                  {weeklyLast
+                    ? fmt(
+                        (weeklyLast.admin_payroll || 0) +
+                        (weeklyLast.design_sales_payroll || 0) +
+                        (weeklyLast.production_plant_payroll || 0)
+                      )
+                    : '—'}
                 </div>
               </div>
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">

@@ -899,6 +899,24 @@ def mark_instance_ready(
             ).all()
 
         if len(active_count) == 0:
+            # Liberar reservas de inventario antes de marcar DEAD
+            dead_reservations = db.exec(
+                select(InventoryReservation)
+                .where(InventoryReservation.production_batch_id == batch_id)
+                .where(InventoryReservation.status == "ACTIVA")
+            ).all()
+
+            for res in dead_reservations:
+                res.status = "CANCELADA"
+                db.add(res)
+                material = db.get(Material, res.material_id)
+                if material:
+                    material.committed_stock = max(
+                        0.0,
+                        (material.committed_stock or 0.0) - res.quantity_reserved
+                    )
+                    db.add(material)
+
             batch.status = ProductionBatchStatus.DEAD
             db.add(batch)
 

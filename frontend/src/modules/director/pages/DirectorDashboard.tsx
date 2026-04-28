@@ -15,7 +15,10 @@ import { Button } from '@/components/ui/Button';
 // --- SERVICIOS ---
 import { FinancialReviewModal } from '../../management/components/FinancialReviewModal';
 import { salesService } from '../../../api/sales-service';
+import { treasuryService } from '../../../api/treasury-service';
+import { financeService } from '../../../api/finance-service';
 import { SalesOrder } from '../../../types/sales';
+import { BankAccount } from '../../../types/treasury';
 
 // Posibles vistas desplegables (Nivel 1)
 type DirectorSection = 'SALES' | 'OPERATIONS' | 'LIQUIDITY' | 'PROFITABILITY' | 'EFFICIENCY' | null;
@@ -61,10 +64,14 @@ const DirectorDashboard: React.FC = () => {
     const [pendingPurchaseAuths, setPendingPurchaseAuths] = useState<number>(0);
 
     // --- ESTADOS SIMULADOS (Para lo que aún no está conectado) ---
-    const [mockCriticalInstances] = useState(3); 
-    const [mockNetLiquidity] = useState(840500); 
+    const [mockCriticalInstances] = useState(3);
     const [mockProfitability] = useState(32.4); 
-    const [mockCostPerBoard] = useState(415.50); 
+    const [mockCostPerBoard] = useState(415.50);
+
+    const [totalBankBalance, setTotalBankBalance] = useState(0);
+    const [totalCXC, setTotalCXC] = useState(0);
+    const [totalCXP, setTotalCXP] = useState(0);
+    const [liquidityNet, setLiquidityNet] = useState(0);
 
     useEffect(() => {
         loadData(); 
@@ -117,6 +124,51 @@ const DirectorDashboard: React.FC = () => {
                 }
             } catch (notifErr) {
                 console.error("Fallo conectando con notificaciones de compras:", notifErr);
+            }
+
+            // LIQUIDEZ — Datos reales
+            try {
+                const [accs, apStats, orders2, rights] = await Promise.all([
+                    treasuryService.getAccounts(),
+                    financeService.getPayableDashboardStats(),
+                    salesService.getOrders().catch(() => []),
+                    salesService.getInvoicingRights().catch(() => null),
+                ]);
+
+                // Bancos
+                const bancos = (accs || []).reduce(
+                    (sum: number, acc: BankAccount) => sum + (acc.current_balance || 0), 0
+                );
+                setTotalBankBalance(bancos);
+
+                // CXP
+                const cxp = (apStats?.overdue_amount || 0) +
+                    (apStats?.next_period_amount || 0) +
+                    (apStats?.future_amount || 0);
+                setTotalCXP(cxp);
+
+                // CXC
+                const orderList = Array.isArray(orders2) ? orders2 : [];
+                let agingAmt = 0;
+                for (const o of orderList) {
+                    const pays = o.payments;
+                    if (!pays?.length) continue;
+                    for (const cxc of pays) {
+                        if (String((cxc as { status?: string }).status).toUpperCase() === 'PENDING') {
+                            agingAmt += Number((cxc as { amount?: number }).amount) || 0;
+                        }
+                    }
+                }
+                const aAmt = rights?.advance_pending_total ?? 0;
+                const bAmt = rights?.progress_work_total ?? 0;
+                const cxcTotal = aAmt + bAmt + agingAmt;
+                setTotalCXC(cxcTotal);
+
+                // Liquidez Neta
+                setLiquidityNet(bancos + cxcTotal - cxp);
+
+            } catch (e) {
+                console.error('Error cargando datos de liquidez:', e);
             }
 
         } catch (error) {
@@ -294,17 +346,39 @@ const DirectorDashboard: React.FC = () => {
                         </Card>
                     </div>
 
-                    {/* 3. LIQUIDEZ (BLOQUEADA) */}
-                    <div className="w-full relative h-40 opacity-80">
-                        <Card className="p-5 border-l-4 border-l-indigo-300 bg-slate-50 relative overflow-hidden h-full flex flex-col justify-between cursor-not-allowed">
-                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50/50 text-indigo-400 border-r border-indigo-100 font-black text-2xl">$</div>
+                    {/* 3. LIQUIDEZ — ACTIVA */}
+                    <div className="w-full relative h-40">
+                        <Card
+                            onClick={() => openMainSection('LIQUIDITY')}
+                            className={`p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white relative overflow-hidden group ${
+                                liquidityNet < 0 ? 'border-l-red-500 ring-2 ring-red-100' : 'border-l-indigo-500'
+                            }`}
+                        >
+                            <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center border-r font-black text-xl transition-colors ${
+                                liquidityNet < 0
+                                    ? 'bg-red-50 text-red-600 border-red-100 group-hover:bg-red-100'
+                                    : 'bg-indigo-50 text-indigo-700 border-indigo-100 group-hover:bg-indigo-100'
+                            }`}>
+                                $
+                            </div>
                             <div className="ml-16 h-full flex flex-col justify-between pl-2">
                                 <div className="flex justify-between items-start">
                                     <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">3. Liquidez</p>
-                                    <span className="text-[9px] bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded font-black tracking-widest flex items-center gap-1"><Lock size={10}/> PRÓXIMAMENTE</span>
+                                    <PieChart size={16} className={liquidityNet < 0 ? 'text-red-500' : 'text-indigo-500'} />
                                 </div>
-                                <div className="flex justify-end"><div className="text-2xl font-black text-slate-400 tracking-tight leading-none truncate">{formatCurrency(mockNetLiquidity)}</div></div>
-                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200"><p className="text-[10px] text-slate-400 font-bold uppercase truncate">Posición Neta</p><PieChart size={14} className="text-slate-300"/></div>
+                                <div className="flex justify-end">
+                                    <div className={`text-xl font-black tracking-tight leading-none truncate ${
+                                        liquidityNet < 0 ? 'text-red-600' : 'text-indigo-600'
+                                    }`}>
+                                        {formatCurrency(liquidityNet)}
+                                    </div>
+                                </div>
+                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
+                                        Bancos + CXC - CXP
+                                    </p>
+                                    <PieChart size={14} className={liquidityNet < 0 ? 'text-red-400' : 'text-indigo-400'} />
+                                </div>
                             </div>
                         </Card>
                     </div>
@@ -436,6 +510,74 @@ const DirectorDashboard: React.FC = () => {
                                     <div className="text-3xl font-black text-blue-600 text-right leading-none">Activos</div>
                                 </div>
                             </Card>
+                        </div>
+                    )}
+
+                    {/* 3. DESGLOSE LIQUIDEZ */}
+                    {activeSection === 'LIQUIDITY' && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <Card className="p-6 border-l-4 border-l-slate-800 bg-white relative overflow-hidden h-40 flex flex-col justify-between">
+                                <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-slate-50 text-slate-700 border-r border-slate-200 font-black text-xl">$</div>
+                                <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                                    <h4 className="font-bold text-slate-800 flex items-center gap-2 text-sm uppercase tracking-tight">
+                                        🏦 Bancos
+                                    </h4>
+                                    <div className="text-2xl font-black text-slate-800 text-right leading-none">
+                                        {formatCurrency(totalBankBalance)}
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase">Saldo disponible</p>
+                                </div>
+                            </Card>
+
+                            <Card className="p-6 border-l-4 border-l-emerald-500 bg-white relative overflow-hidden h-40 flex flex-col justify-between">
+                                <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-emerald-50 text-emerald-700 border-r border-emerald-100 font-black text-xl">+</div>
+                                <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                                    <h4 className="font-bold text-slate-800 flex items-center gap-2 text-sm uppercase tracking-tight">
+                                        📥 Por Cobrar
+                                    </h4>
+                                    <div className="text-2xl font-black text-emerald-600 text-right leading-none">
+                                        {formatCurrency(totalCXC)}
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase">CXC activo</p>
+                                </div>
+                            </Card>
+
+                            <Card className="p-6 border-l-4 border-l-red-500 bg-white relative overflow-hidden h-40 flex flex-col justify-between">
+                                <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-red-50 text-red-700 border-r border-red-100 font-black text-xl">-</div>
+                                <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                                    <h4 className="font-bold text-slate-800 flex items-center gap-2 text-sm uppercase tracking-tight">
+                                        📤 Por Pagar
+                                    </h4>
+                                    <div className="text-2xl font-black text-red-600 text-right leading-none">
+                                        {formatCurrency(totalCXP)}
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase">CXP pendiente</p>
+                                </div>
+                            </Card>
+
+                            <div className="md:col-span-3">
+                                <Card className={`p-6 border-l-4 bg-white relative overflow-hidden h-32 flex flex-col justify-between ${
+                                    liquidityNet < 0 ? 'border-l-red-600' : 'border-l-indigo-600'
+                                }`}>
+                                    <div className="flex justify-between items-center">
+                                        <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">
+                                            Posición Neta = Bancos + CXC - CXP
+                                        </p>
+                                        <p className={`text-3xl font-black ${
+                                            liquidityNet < 0 ? 'text-red-600' : 'text-indigo-600'
+                                        }`}>
+                                            {formatCurrency(liquidityNet)}
+                                        </p>
+                                    </div>
+                                    <p className={`text-sm font-bold uppercase ${
+                                        liquidityNet < 0 ? 'text-red-500' : 'text-indigo-400'
+                                    }`}>
+                                        {liquidityNet < 0
+                                            ? '⚠️ Posición negativa — revisar flujo de caja'
+                                            : '✅ Posición saludable'}
+                                    </p>
+                                </Card>
+                            </div>
                         </div>
                     )}
                 </div>
