@@ -691,7 +691,7 @@ const DesignCatalogPage: React.FC = () => {
                                                                                         {product.name}
                                                                                     </div>
                                                                                     <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-500 text-xs mt-1 inline-block">
-                                                                                        SKU: PRD-{product.id.toString().padStart(4, '0')} {v ? `- V${v.id}` : ''}
+                                                                                        SKU: PRD-{product.id.toString().padStart(4, '0')} {v ? `- ${v.version_name}` : ''}
                                                                                     </span>
                                                                                 </td>
                                                                                 <td className="px-6 py-4 text-center">
