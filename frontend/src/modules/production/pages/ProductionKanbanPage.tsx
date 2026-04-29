@@ -271,6 +271,7 @@ export default function ProductionKanbanPage() {
     blueprintPath: string | null;
   } | null>(null);
   const [loadingHerrajesPreview, setLoadingHerrajesPreview] = useState(false);
+  const [dispatchingHardware, setDispatchingHardware] = useState<number | null>(null);
   const [selectedPackingIds, setSelectedPackingIds] =
     useState<number[]>([]);
   const [movingToReady, setMovingToReady] = useState(false);
@@ -422,6 +423,37 @@ export default function ProductionKanbanPage() {
       console.error("Error actualizando estatus:", error);
       alert("No se pudo actualizar el estatus.");
       setBatches(previousBatches);
+    }
+  };
+
+  const handleDispatchHardware = async (inst: any) => {
+    if (inst.hardware_dispatched) return;
+    if (!confirm(`¿Confirmas que los herrajes de "${inst.custom_name}" ya fueron surtidos a producción?`)) return;
+    setDispatchingHardware(inst.id);
+    try {
+      const token = localStorage.getItem('token');
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+      await fetch(`${baseUrl}/production/instances/${inst.id}/dispatch-hardware`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      // Actualizar selectedBatch inmediatamente sin cerrar el modal
+      setSelectedBatch((prev: any) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          instances: prev.instances.map((i: any) =>
+            i.id === inst.id
+              ? { ...i, hardware_dispatched: true, hardware_dispatched_at: new Date().toISOString() }
+              : i
+          ),
+        };
+      });
+      await loadBatches();
+    } catch {
+      alert('Error al marcar herrajes como surtidos.');
+    } finally {
+      setDispatchingHardware(null);
     }
   };
 
@@ -1278,6 +1310,25 @@ export default function ProductionKanbanPage() {
                           >
                             📐 Planos
                           </button>
+                          {inst.hardware_dispatched ? (
+                            <span className="flex items-center gap-1.5 text-xs font-bold
+                                             text-emerald-700 bg-emerald-50 border border-emerald-200
+                                             px-3 py-1.5 rounded-lg">
+                              ✅ Herrajes Surtidos
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleDispatchHardware(inst)}
+                              disabled={dispatchingHardware === inst.id}
+                              className="flex items-center gap-1.5 text-xs font-bold
+                                         text-orange-700 bg-orange-50 border border-orange-200
+                                         px-3 py-1.5 rounded-lg hover:bg-orange-100 transition
+                                         disabled:opacity-50"
+                            >
+                              📦 Marcar Surtido
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>

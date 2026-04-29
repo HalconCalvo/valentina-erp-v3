@@ -67,6 +67,8 @@ class InstanceDetail(BaseModel):
     stone_pieces: Optional[int] = None
     declared_bundles: Optional[int] = None
     semaphore: Optional[str] = None
+    hardware_dispatched: bool = False
+    hardware_dispatched_at: Optional[str] = None
 
 class ProductionBatchResponse(BaseModel):
     id: int
@@ -88,6 +90,32 @@ class RequestLabelsResponse(BaseModel):
     mdf_bundles: int
     hardware_bundles: int
     total_bundles: int
+
+
+@router.patch("/instances/{instance_id}/dispatch-hardware")
+def dispatch_hardware(
+    instance_id: int,
+    current_user: CurrentUser,
+    db: Session = Depends(get_session),
+):
+    """Marca los herrajes de una instancia como surtidos a producción."""
+    instance = db.get(SalesOrderItemInstance, instance_id)
+    if not instance:
+        raise HTTPException(status_code=404, detail="Instancia no encontrada")
+    if instance.hardware_dispatched:
+        raise HTTPException(status_code=400, detail="Los herrajes ya fueron marcados como surtidos")
+    instance.hardware_dispatched = True
+    instance.hardware_dispatched_at = datetime.utcnow()
+    instance.hardware_dispatched_by_user_id = current_user.id
+    db.add(instance)
+    db.commit()
+    db.refresh(instance)
+    return {
+        "ok": True,
+        "instance_id": instance_id,
+        "hardware_dispatched_at": instance.hardware_dispatched_at,
+        "hardware_dispatched_by_user_id": instance.hardware_dispatched_by_user_id,
+    }
 
 
 @router.post("/instances/{instance_id}/request_labels", response_model=RequestLabelsResponse)
@@ -326,6 +354,8 @@ def read_batches(current_user: CurrentUser, db: Session = Depends(get_session)):
                 stone_pieces=i.stone_pieces,
                 declared_bundles=i.declared_bundles,
                 semaphore=compute_semaphore(i, datetime.utcnow(), session=db),
+                hardware_dispatched=i.hardware_dispatched or False,
+                hardware_dispatched_at=str(i.hardware_dispatched_at) if i.hardware_dispatched_at else None,
             ))
 
         batch_data["instances"] = enriched_instances
