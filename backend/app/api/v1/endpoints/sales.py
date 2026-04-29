@@ -880,6 +880,20 @@ def register_progress_invoice(
     for inst in candidates:
         inst.customer_payment_id = new_cxc.id
         session.add(inst)
+        # Liberar nómina a READY_TO_PAY al facturar
+        from app.models.production import PayrollPayment, PayrollStatus
+        from app.models.production import InstallationAssignment
+        payroll_stmt = (
+            select(PayrollPayment)
+            .join(InstallationAssignment,
+                  PayrollPayment.installation_assignment_id == InstallationAssignment.id)
+            .where(InstallationAssignment.instance_id == inst.id)
+            .where(PayrollPayment.status == PayrollStatus.PENDING_SIGNATURE)
+        )
+        payroll_rows = session.exec(payroll_stmt).all()
+        for pp in payroll_rows:
+            pp.status = PayrollStatus.READY_TO_PAY
+            session.add(pp)
         linked.append({
             "instance_id": inst.id,
             "custom_name": inst.custom_name,

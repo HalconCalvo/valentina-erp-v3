@@ -244,23 +244,6 @@ def trigger_double_green(
     instance.warranty_started_at = now
     session.add(instance)
 
-    # C: Mover PayrollPayments vinculados a READY_TO_PAY
-    payroll_updated: List[int] = []
-    stmt = (
-        select(PayrollPayment)
-        .join(InstallationAssignment,
-              PayrollPayment.installation_assignment_id == InstallationAssignment.id)
-        .where(InstallationAssignment.instance_id == instance.id)
-        .where(PayrollPayment.status == PayrollStatus.PENDING_SIGNATURE)
-    )
-    payroll_rows = session.exec(stmt).all()
-    for pp in payroll_rows:
-        pp.status = PayrollStatus.READY_TO_PAY
-        session.add(pp)
-        payroll_updated.append(pp.id)
-
-    session.flush()
-
     return {
         "instance_id": instance.id,
         "custom_name": instance.custom_name,
@@ -268,7 +251,6 @@ def trigger_double_green(
         "signed_at": now.isoformat(),
         "warranty_started_at": now.isoformat(),
         "warranty_expires_at": (now + timedelta(days=365)).isoformat(),
-        "payroll_payments_released": payroll_updated,
         "admin_notification": (
             f"Instancia '{instance.custom_name}' cerrada. "
             "Iniciar Solicitud de Estimación/Facturación en Administración."
