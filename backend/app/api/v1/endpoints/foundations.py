@@ -431,6 +431,44 @@ def toggle_tax_rate(tax_id: int, session: Session = Depends(get_session)):
 # 5. MATERIALES
 # ==========================================
 # --- IMPORTE NECESARIO (Asegúrate de que 'Provider' esté importado al inicio del archivo) ---
+@router.patch("/materials/{material_id}/adjust-stock")
+def adjust_material_stock(
+    material_id: int,
+    body: dict,
+    current_user: CurrentUser,
+    session: Session = Depends(get_session),
+):
+    """
+    Ajusta el stock físico de un material.
+    body: { "counted_quantity": float, "notes": str }
+    Genera AJUSTE_POSITIVO o AJUSTE_NEGATIVO según la diferencia.
+    """
+    material = session.get(Material, material_id)
+    if not material:
+        raise HTTPException(status_code=404, detail="Material no encontrado")
+
+    counted = float(body.get("counted_quantity", 0))
+    notes = body.get("notes", f"Inventario físico")
+    difference = counted - material.physical_stock
+
+    if difference == 0:
+        return {"ok": True, "message": "Sin diferencia, stock no modificado"}
+
+    movement_type = "AJUSTE_POSITIVO" if difference > 0 else "AJUSTE_NEGATIVO"
+    material.physical_stock = counted
+    session.add(material)
+    session.commit()
+    session.refresh(material)
+
+    return {
+        "ok": True,
+        "material_id": material_id,
+        "movement_type": movement_type,
+        "difference": difference,
+        "new_stock": material.physical_stock,
+    }
+
+
 @router.get("/materials")
 def read_materials(session: Session = Depends(get_session)):
     # Usamos un JOIN para traer el nombre del proveedor

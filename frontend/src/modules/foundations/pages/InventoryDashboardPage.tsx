@@ -8,6 +8,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { RequisitionsModule } from '../components/RequisitionsModule';
 import { PurchaseOrdersModule } from '../components/PurchaseOrdersModule';
 import InventoryReceptionPage from './InventoryReceptionPage';
+import { PhysicalInventoryModule } from '../components/PhysicalInventoryModule';
 
 type InventorySection = 'REQUISITIONS' | 'PURCHASE_ORDERS' | 'RECEPTIONS' | 'PHYSICAL_INVENTORY' | null;
 
@@ -15,6 +16,7 @@ export const InventoryDashboardPage = () => {
     const navigate = useNavigate();
     const [activeSection, setActiveSection] = useState<InventorySection>(null);
     const [isSubSectionActive, setIsSubSectionActive] = useState(false);
+    const [physicalInventorySubSection, setPhysicalInventorySubSection] = useState<string | null>(null);
     
     // ---> NUEVO: MEMORIA PARA LA SUB-PESTAÑA (EL "FRENO") <---
     const [targetTab, setTargetTab] = useState<string | null>(null);
@@ -85,36 +87,44 @@ export const InventoryDashboardPage = () => {
         return () => clearInterval(intervalId);
     }, []);
 
-    const renderActiveSection = (title: string, component: React.ReactNode) => (
-        <div className="space-y-6 animate-fadeIn">
-            {!isSubSectionActive && (
-                <div className="flex justify-between items-center border-b border-slate-200 pb-4">
-                    <h2 className="text-3xl font-black text-slate-800 tracking-tight">{title}</h2>
-                    <button 
-                        onClick={() => {
-                            if (returnToPath && activeSection != null) {
-                                navigate(returnToPath);
-                                setReturnToPath(null);
-                                setActiveSection(null);
-                                setIsSubSectionActive(false);
-                                setTargetTab(null);
-                                return;
-                            }
-                            setActiveSection(null);
-                            setIsSubSectionActive(false);
-                            setTargetTab(null); // Limpiamos la sub-pestaña al salir
-                        }} 
-                        className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 font-bold rounded-lg hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm"
-                    >
-                        <ArrowLeft size={18} /> {returnToPath ? 'Regresar' : 'Regresar al Tablero'}
-                    </button>
+    const renderActiveSection = (title: string, component: React.ReactNode) => {
+        const isPhysicalWithSub = activeSection === 'PHYSICAL_INVENTORY' && physicalInventorySubSection !== null;
+        const handleBack = () => {
+            if (isPhysicalWithSub) {
+                setPhysicalInventorySubSection(null);
+                return;
+            }
+            if (returnToPath && activeSection != null) {
+                navigate(returnToPath);
+                setReturnToPath(null);
+                setActiveSection(null);
+                setIsSubSectionActive(false);
+                setTargetTab(null);
+                return;
+            }
+            setActiveSection(null);
+            setIsSubSectionActive(false);
+            setTargetTab(null);
+        };
+        return (
+            <div className="space-y-6 animate-fadeIn">
+                {!isSubSectionActive && (
+                    <div className="flex justify-between items-center border-b border-slate-200 pb-4">
+                        <h2 className="text-3xl font-black text-slate-800 tracking-tight">{title}</h2>
+                        <button
+                            onClick={handleBack}
+                            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 font-bold rounded-lg hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm"
+                        >
+                            <ArrowLeft size={18} /> Regresar
+                        </button>
+                    </div>
+                )}
+                <div className="mt-2">
+                    {component}
                 </div>
-            )}
-            <div className="mt-2">
-                {component}
             </div>
-        </div>
-    );
+        );
+    };
 
     return (
         <div className="p-8 max-w-7xl mx-auto space-y-6 animate-fadeIn pb-24">
@@ -208,7 +218,10 @@ export const InventoryDashboardPage = () => {
                     )}
                     
                     {activeSection === 'PHYSICAL_INVENTORY' && renderActiveSection('Inventario Físico', 
-                        <div className="p-12 text-center bg-slate-50 border border-slate-200 rounded-xl border-dashed">🚧 Módulo en construcción</div>
+                        <PhysicalInventoryModule
+                            activeSubSection={physicalInventorySubSection}
+                            onSubSectionChange={setPhysicalInventorySubSection}
+                        />
                     )}
                 </div>
             )}
