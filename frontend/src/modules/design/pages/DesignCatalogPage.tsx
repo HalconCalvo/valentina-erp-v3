@@ -70,12 +70,6 @@ const DesignCatalogPage: React.FC = () => {
 
     useEffect(() => { loadMasters(); fetchClients(); }, [loadMasters, fetchClients]);
 
-    useEffect(() => {
-        if (clients.length > 0 && masters.length > 0 && expandedClients.size === 0) {
-            const allIds = new Set(clients.map(c => c.id));
-            setExpandedClients(allIds);
-        }
-    }, [clients.length, masters.length]);
 
     const loadDashboardMetrics = async () => {
         try {

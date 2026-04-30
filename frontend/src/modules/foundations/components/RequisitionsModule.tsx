@@ -10,7 +10,7 @@ import { Card } from '@/components/ui/Card';
 interface Material { id: number; sku: string; name: string; physical_stock: number; min_stock: number; usage_unit: string; }
 interface Requisition { id: number; material_id: number; custom_description?: string; requested_quantity: number; status: string; notes: string; created_at: string; }
 
-type RequisitionSubSection = 'CRITICAL' | 'FROZEN' | null;
+type RequisitionSubSection = 'CRITICAL' | 'FROZEN' | 'NEW' | null;
 
 interface RequisitionsModuleProps {
     onSubSectionChange?: (isActive: boolean) => void;
@@ -24,7 +24,6 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
     const [activeSubSection, setActiveSubSection] = useState<RequisitionSubSection>(null);
 
     const [showManualForm, setShowManualForm] = useState(false);
-    const [isCatalogItem, setIsCatalogItem] = useState(true);
     const [manualMatId, setManualMatId] = useState('');
     const [customDesc, setCustomDesc] = useState('');
     const [manualQty, setManualQty] = useState('');
@@ -95,12 +94,12 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
 
     const handleCreateManualReq = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (isCatalogItem && !manualMatId) return alert("Selecciona material.");
+        if (!manualMatId && !searchTerm.trim()) return alert("Ingresa un material o descripción.");
         setIsLoading(true);
         try {
             await axiosClient.post('/purchases/requisitions/', {
-                material_id: isCatalogItem ? parseInt(manualMatId) : null,
-                custom_description: !isCatalogItem ? customDesc : null,
+                material_id: manualMatId ? parseInt(manualMatId) : null,
+                custom_description: !manualMatId ? searchTerm.trim() : null,
                 requested_quantity: parseFloat(manualQty),
                 notes: manualNotes.trim() ? `[MANUAL] ${manualNotes}` : "[MANUAL] Petición Ad-hoc"
             });
@@ -142,6 +141,85 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
         const desc = req.custom_description || '';
         return notes.includes('Valentina') || notes.includes('[AUTO]') || desc === 'REPOSICIÓN AUTOMÁTICA';
     };
+
+    const renderNewRequisitionForm = () => (
+        <Card className="p-8 bg-white animate-in slide-in-from-right-4 duration-300 space-y-6 rounded-3xl border-slate-100 shadow-xl">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-6">
+                <div>
+                    <h3 className="text-2xl font-black text-slate-800 flex items-center gap-2 uppercase tracking-tighter">
+                        <Plus className="text-indigo-500"/> Nueva Requisición
+                    </h3>
+                    <p className="text-slate-500 font-medium italic text-sm">Solicitud manual de material o servicio.</p>
+                </div>
+                <Button onClick={() => setActiveSubSection(null)} variant="outline" className="font-black uppercase text-[10px] tracking-widest px-4 border-slate-300">
+                    <ArrowLeft size={16} className="mr-2"/> Regresar
+                </Button>
+            </div>
+
+            <form onSubmit={handleCreateManualReq} className="space-y-6 max-w-xl">
+                {/* Material o descripción libre */}
+                <div className="relative">
+                    <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Material o Descripción</label>
+                    <input
+                        type="text"
+                        placeholder="Buscar material o escribir descripción..."
+                        value={searchTerm}
+                        onChange={e => {
+                            setSearchTerm(e.target.value);
+                            if (!e.target.value) setManualMatId('');
+                            setShowMatDropdown(true);
+                        }}
+                        onFocus={() => setShowMatDropdown(true)}
+                        required
+                        className="mt-1 w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-400"
+                    />
+                    {showMatDropdown && filteredMaterials.length > 0 && (
+                        <div className="absolute z-20 w-full bg-white border border-slate-200 rounded-xl shadow-xl mt-1 max-h-48 overflow-y-auto">
+                            {filteredMaterials.map(m => (
+                                <div key={m.id}
+                                    onClick={() => { setManualMatId(String(m.id)); setSearchTerm(`[${m.sku}] ${m.name}`); setShowMatDropdown(false); }}
+                                    className="px-4 py-2.5 hover:bg-indigo-50 cursor-pointer text-sm font-medium text-slate-700">
+                                    <span className="font-mono text-xs text-slate-400 mr-2">{m.sku}</span>{m.name}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* Cantidad */}
+                <div>
+                    <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Cantidad</label>
+                    <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        placeholder="0"
+                        value={manualQty}
+                        onChange={e => setManualQty(e.target.value)}
+                        required
+                        className="mt-1 w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-400"
+                    />
+                </div>
+
+                {/* Notas */}
+                <div>
+                    <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Notas (opcional)</label>
+                    <textarea
+                        placeholder="Motivo de la solicitud..."
+                        value={manualNotes}
+                        onChange={e => setManualNotes(e.target.value)}
+                        rows={3}
+                        className="mt-1 w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-400 resize-none"
+                    />
+                </div>
+
+                <Button type="submit" disabled={isLoading}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase tracking-widest py-3">
+                    <Plus size={16} className="mr-2"/> Crear Requisición
+                </Button>
+            </form>
+        </Card>
+    );
 
     const renderCriticalStockTable = () => (
         <Card className="p-8 bg-white animate-in slide-in-from-right-4 duration-300 space-y-6 rounded-3xl border-slate-100 shadow-xl">
@@ -231,10 +309,12 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
 
     if (activeSubSection === 'CRITICAL') return renderCriticalStockTable();
     if (activeSubSection === 'FROZEN') return renderFrozenReqsTable();
+    if (activeSubSection === 'NEW') return renderNewRequisitionForm();
 
     const subMenuItems = [
         { id: 'CRITICAL', title: 'A. STOCK CRÍTICO', count: criticalStock.length, color: 'orange', bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-100', desc: 'Stock bajo el mínimo' },
         { id: 'FROZEN', title: 'B. CONGELADORA', count: frozenReqs.length, color: 'slate', bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-100', desc: 'Requisiciones Aplazadas' },
+        { id: 'NEW', title: 'C. NUEVA REQUISICIÓN', count: '+', color: 'indigo', bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-100', desc: 'Solicitud Manual' },
     ];
 
     return (
