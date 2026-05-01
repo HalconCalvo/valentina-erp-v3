@@ -356,7 +356,14 @@ export default function PlanningPage() {
 
       {/* ─── PANEL DE SALUD (right, fixed ~288px) ─── */}
       <div
-        className={`w-72 shrink-0 overflow-y-auto ${showSidebar ? 'block' : 'hidden'} lg:block`}
+        className={`
+          shrink-0 overflow-y-auto
+          lg:block lg:static lg:w-72
+          ${showSidebar ? 'block' : 'hidden'}
+          fixed top-14 right-0 bottom-0 w-80 z-40
+          bg-white border-l border-slate-200 shadow-2xl
+          lg:shadow-none lg:border-l lg:z-auto
+        `}
         onDragOver={(e) => {
           e.preventDefault();
           e.dataTransfer.dropEffect = 'move';
@@ -412,6 +419,14 @@ export default function PlanningPage() {
               return { ...next, [dateStr]: laneCode };
             })
           }
+        />
+      )}
+
+      {/* Overlay para cerrar sidebar en iPad */}
+      {showSidebar && (
+        <div 
+          className="lg:hidden fixed inset-0 z-30 bg-black/30 backdrop-blur-sm"
+          onClick={() => setShowSidebar(false)}
         />
       )}
     </div>
