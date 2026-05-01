@@ -75,7 +75,7 @@ export function DataTable<TData, TValue>({
             WebkitOverflowScrolling: 'touch' 
           }}
         >
-          <table className="w-full caption-bottom text-sm text-left relative">
+          <table className="w-full caption-bottom text-sm text-left relative" style={{ minWidth: '900px' }}>
             
             {/* HEADERS FIJOS (Sticky) */}
             <thead className="sticky top-0 z-20 bg-slate-50 border-b border-slate-200 shadow-sm">
