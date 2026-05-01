@@ -55,7 +55,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     const [categoryError, setCategoryError] = useState<string | null>(null);
 
     const OVERHEAD_CATEGORIES = [
-        'PLANTA', 'COMUNICACIONES', 'COMBUSTIBLES', 'TRANSPORTE',
+        'MATERIALES', 'PLANTA', 'COMUNICACIONES', 'COMBUSTIBLES', 'TRANSPORTE',
         'INSUMOS', 'MAQUINARIA', 'EXTERNOS', 'MAQUILA', 'OTRO'
     ];
 

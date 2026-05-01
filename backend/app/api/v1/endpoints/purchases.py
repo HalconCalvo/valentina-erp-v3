@@ -675,7 +675,7 @@ def request_order_advance(*, db: Session = Depends(get_session), po_id: int, cur
 # ─────────────────────────────────────────────────────────────────────────────
 
 OVERHEAD_CATEGORIES = [
-    'PLANTA', 'COMUNICACIONES', 'COMBUSTIBLES', 'TRANSPORTE',
+    'MATERIALES', 'PLANTA', 'COMUNICACIONES', 'COMBUSTIBLES', 'TRANSPORTE',
     'INSUMOS', 'MAQUINARIA', 'EXTERNOS', 'MAQUILA', 'OTRO'
 ]
 
