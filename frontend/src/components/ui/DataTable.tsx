@@ -62,7 +62,7 @@ export function DataTable<TData, TValue>({
       {/* TOOLBAR */}
       {Toolbar && <Toolbar table={table} />}
 
-      <div className="rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col">
+      <div className="rounded-md border border-slate-200 bg-white shadow-sm flex flex-col">
         {/* Altura dinámica: 
             h-[65vh] en laptop
             h-[75vh] en monitores grandes 
@@ -71,7 +71,8 @@ export function DataTable<TData, TValue>({
         <div 
           className="relative w-full h-[65vh] lg:h-[75vh]"
           style={{ 
-            overflow: 'auto',
+            overflowX: 'auto',
+            overflowY: 'auto',
             WebkitOverflowScrolling: 'touch' 
           }}
         >
