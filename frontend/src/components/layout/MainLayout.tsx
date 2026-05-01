@@ -18,7 +18,7 @@ export default function MainLayout() {
 
         {/* 3. Área Scrollable */}
         {/* overflow-y-auto: Permite que solo el contenido haga scroll, no toda la página */}
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50 p-6">
+        <main className="flex-1 overflow-x-auto overflow-y-auto bg-slate-50 p-6">
           <div className="max-w-7xl mx-auto">
             {/* Aquí se inyectan las páginas (Ventas, Dashboard, etc.) */}
             <Outlet /> 
