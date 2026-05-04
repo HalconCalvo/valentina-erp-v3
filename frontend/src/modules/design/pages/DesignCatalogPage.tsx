@@ -961,10 +961,24 @@ const DesignCatalogPage: React.FC = () => {
                                 {filteredProductSuggestions.map(p => (
                                     <div
                                         key={p.id}
-                                        onMouseDown={() => {
+                                        onMouseDown={async () => {
                                             setIsModalOpen(false);
                                             if (p.versions && p.versions.length > 0) {
                                                 navigate(`/design/versions/${p.versions[0].id}`);
+                                            } else {
+                                                try {
+                                                    const newVersion = await designService.createVersion({
+                                                        master_id: p.id,
+                                                        version_name: "V1.0",
+                                                        status: VersionStatus.DRAFT,
+                                                        is_active: true,
+                                                        components: []
+                                                    });
+                                                    await loadMasters();
+                                                    navigate(`/design/versions/${newVersion.id}`);
+                                                } catch {
+                                                    alert("Error al abrir el producto.");
+                                                }
                                             }
                                         }}
                                         className="px-4 py-2.5 text-sm text-slate-700 hover:bg-indigo-50

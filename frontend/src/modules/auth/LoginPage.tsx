@@ -43,9 +43,7 @@ export default function LoginPage() {
         };
 
         console.log("Enviando credenciales...", params.toString());
-
         const { data } = await client.post<AuthResponse>('/login/access-token', params, config);
-
         console.log("Login Exitoso:", data);
 
         localStorage.setItem('token', data.access_token);
@@ -94,7 +92,7 @@ export default function LoginPage() {
                  <div className="flex items-baseline gap-2">
                     <span className="font-serif italic text-6xl text-white font-medium tracking-wide">Valentina</span>
                  </div>
-                 <p className="text-sm text-slate-400 font-mono mt-1 tracking-tight uppercase pl-1">SISTEMA DE PRODUCCIÓN v3.8.23</p>
+                 <p className="text-sm text-slate-400 font-mono mt-1 tracking-tight uppercase pl-1">SISTEMA DE PRODUCCIÓN v3.8.24</p>
             </div>
         </div>
       </div>
