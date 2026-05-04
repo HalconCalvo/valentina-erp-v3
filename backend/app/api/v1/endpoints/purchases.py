@@ -14,6 +14,7 @@ from app.models.users import UserRole
 from app.core.deps import get_session, CurrentUser
 from app.services.purchase_manager import PurchaseManager
 from app.services.pdf_generator import PDFGenerator
+from app.services.email_service import send_purchase_order_email
 
 router = APIRouter()
 
@@ -788,3 +789,108 @@ def get_operational_expenses(
     """).bindparams(limit=limit, skip=skip)).all()
 
     return [dict(r._mapping) for r in rows]
+
+
+@router.post("/orders/{po_id}/send-email")
+def send_purchase_order_by_email(
+    *,
+    db: Session = Depends(get_session),
+    po_id: int,
+    data: dict = Body(...),
+    current_user: CurrentUser
+):
+    from app.models.users import User
+    from types import SimpleNamespace
+
+    po = db.get(PurchaseOrder, po_id)
+    if not po:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    if po.status != "AUTORIZADA":
+        raise HTTPException(
+            status_code=400,
+            detail="Solo se pueden enviar órdenes Autorizadas"
+        )
+
+    to_email = data.get("to_email", "").strip()
+    if not to_email or "@" not in to_email:
+        raise HTTPException(status_code=400, detail="Correo del proveedor inválido")
+
+    config = db.exec(select(GlobalConfig)).first()
+    if not config or not config.smtp_email or not config.smtp_password:
+        raise HTTPException(
+            status_code=400,
+            detail="Configura el correo de envío en Ajustes antes de usar esta función (smtp_email y smtp_password en GlobalConfig)."
+        )
+
+    # Generar PDF
+    items = db.exec(
+        select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po.id)
+    ).all()
+
+    creator = None
+    if getattr(po, "created_by_user_id", None):
+        creator = db.get(User, po.created_by_user_id)
+    elaborado_por = "Sistema"
+    if creator:
+        elaborado_por = getattr(
+            creator, "full_name",
+            getattr(creator, "username", getattr(creator, "email", "Sistema"))
+        )
+
+    mock_items = []
+    for it in items:
+        mat = db.get(Material, it.material_id) if it.material_id else None
+        mock_items.append(SimpleNamespace(
+            material=mat,
+            custom_description=it.custom_description,
+            quantity_ordered=it.quantity_ordered,
+            expected_unit_cost=it.expected_unit_cost,
+            sku=getattr(it, "sku", None)
+        ))
+
+    mock_po = SimpleNamespace(
+        folio=po.folio,
+        created_at=po.created_at,
+        authorized_by=getattr(po, "authorized_by", None),
+        created_by=elaborado_por,
+        items=mock_items
+    )
+
+    provider = db.get(Provider, po.provider_id)
+    if not provider:
+        raise HTTPException(status_code=404, detail="Proveedor no encontrado")
+
+    pdf_gen = PDFGenerator()
+    pdf_buffer = pdf_gen.generate_po_pdf(
+        order=mock_po, provider=provider, config=config
+    )
+
+    company_name = getattr(config, "company_name", "Valentina") or "Valentina"
+    smtp_host = getattr(config, "smtp_host", None) or "smtp.gmail.com"
+
+    try:
+        send_purchase_order_email(
+            smtp_host=smtp_host,
+            smtp_email=config.smtp_email,
+            smtp_password=config.smtp_password,
+            to_email=to_email,
+            provider_name=provider.business_name,
+            folio=po.folio,
+            pdf_buffer=pdf_buffer,
+            company_name=company_name
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al enviar el correo: {str(e)}"
+        )
+
+    # Marcar como ENVIADA automáticamente
+    po.status = "ENVIADA"
+    db.add(po)
+    db.commit()
+
+    return {
+        "status": "success",
+        "message": f"OC {po.folio} enviada por correo a {to_email}"
+    }

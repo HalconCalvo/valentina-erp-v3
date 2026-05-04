@@ -50,6 +50,11 @@ class GlobalConfig(SQLModel, table=True):
     default_tax_rate_id: Optional[int] = Field(default=None, foreign_key="tax_rates.id")
     updated_at: datetime = Field(default_factory=datetime.now)
 
+    # Configuración SMTP
+    smtp_email: Optional[str] = Field(default=None)
+    smtp_password: Optional[str] = Field(default=None)
+    smtp_host: Optional[str] = Field(default="smtp.gmail.com")
+
 
 class Provider(SQLModel, table=True):
     __tablename__ = "providers"

@@ -50,6 +50,13 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     });
 
     const [assignProviderFocused, setAssignProviderFocused] = useState(false);
+    const [emailModal, setEmailModal] = useState<{
+        open: boolean;
+        orderId: number | null;
+        folio: string;
+        providerEmail: string;
+    }>({ open: false, orderId: null, folio: '', providerEmail: '' });
+    const [sendingEmail, setSendingEmail] = useState(false);
 
     const [pendingCategory, setPendingCategory] = useState<string>('');
     const [categoryError, setCategoryError] = useState<string | null>(null);
@@ -461,6 +468,28 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         }
     };
 
+    const handleSendByEmail = async () => {
+        if (!emailModal.orderId) return;
+        const email = emailModal.providerEmail.trim();
+        if (!email || !email.includes('@')) {
+            return alert('Ingresa un correo válido.');
+        }
+        setSendingEmail(true);
+        try {
+            await axiosClient.post(
+                `/purchases/orders/${emailModal.orderId}/send-email`,
+                { to_email: email }
+            );
+            alert(`✅ OC ${emailModal.folio} enviada por correo a ${email}`);
+            setEmailModal({ open: false, orderId: null, folio: '', providerEmail: '' });
+            fetchBrakeOrders(true);
+        } catch (error: any) {
+            alert(error.response?.data?.detail || 'Error al enviar el correo.');
+        } finally {
+            setSendingEmail(false);
+        }
+    };
+
     const isAutomaticItem = (item: any) => {
         const notes = item.notes || '';
         const desc = item.original_desc || '';
@@ -765,7 +794,25 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 <div className="p-8 bg-slate-50/50 flex justify-between items-center border-t border-slate-100">
                                     <div className="flex gap-4">
                                         {canDispatch && (
-                                            <Button onClick={() => handleDispatchOrder(order.id, order.folio)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-xs h-12 px-10 shadow-lg"><Send size={16} className="mr-3" /> Enviar OC a Proveedor</Button>
+                                            <div className="flex flex-col gap-2">
+                                                <Button
+                                                    onClick={() => setEmailModal({
+                                                        open: true,
+                                                        orderId: order.id,
+                                                        folio: order.folio,
+                                                        providerEmail: ''
+                                                    })}
+                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-xs h-12 px-10 shadow-lg"
+                                                >
+                                                    <Send size={16} className="mr-3" /> Enviar por Correo
+                                                </Button>
+                                                <button
+                                                    onClick={() => handleDispatchOrder(order.id, order.folio)}
+                                                    className="text-[9px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest underline underline-offset-2"
+                                                >
+                                                    Marcar como enviado (sin correo)
+                                                </button>
+                                            </div>
                                         )}
                                         {canDispatch && (
                                             <Button onClick={() => handleRequestAdvance(order.id, order.folio, total)} variant="outline" className="border-orange-300 text-orange-600 font-black uppercase text-[10px] px-6 h-12 hover:bg-orange-50"><AlertTriangle size={14} className="mr-2" /> Pedir Anticipo</Button>
@@ -1392,6 +1439,71 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                     </div>
                 </div>
             )}
+        {emailModal.open && (
+            <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border-t-4 border-t-emerald-500 animate-in zoom-in-95 duration-200">
+                    <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                        <div>
+                            <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
+                                <Send size={20} className="text-emerald-600" />
+                                Enviar OC por Correo
+                            </h3>
+                            <p className="text-xs text-slate-500 mt-1 font-bold uppercase">
+                                Folio: {emailModal.folio}
+                            </p>
+                        </div>
+                        <button
+                            onClick={() => setEmailModal({ open: false, orderId: null, folio: '', providerEmail: '' })}
+                            className="text-slate-400 hover:text-slate-600"
+                        >
+                            <XCircle size={22} />
+                        </button>
+                    </div>
+                    <div className="p-6 space-y-4">
+                        <div>
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                Correo del Proveedor
+                            </label>
+                            <input
+                                type="email"
+                                placeholder="proveedor@empresa.com"
+                                value={emailModal.providerEmail}
+                                onChange={(e) => setEmailModal(m => ({ ...m, providerEmail: e.target.value }))}
+                                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-emerald-400"
+                                autoFocus
+                            />
+                        </div>
+                        <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3">
+                            <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">
+                                ✅ Se adjuntará el PDF oficial de la OC
+                            </p>
+                            <p className="text-[10px] text-emerald-600 mt-1">
+                                La orden quedará marcada como ENVIADA automáticamente.
+                            </p>
+                        </div>
+                    </div>
+                    <div className="p-6 border-t border-slate-100 flex gap-3 justify-end">
+                        <Button
+                            variant="outline"
+                            onClick={() => setEmailModal({ open: false, orderId: null, folio: '', providerEmail: '' })}
+                            className="border-slate-200 text-slate-500 font-black uppercase text-[10px] px-5"
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            onClick={handleSendByEmail}
+                            disabled={sendingEmail || !emailModal.providerEmail.includes('@')}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] px-6 shadow-md"
+                        >
+                            {sendingEmail
+                                ? <><Loader2 size={14} className="animate-spin mr-2" /> Enviando...</>
+                                : <><Send size={14} className="mr-2" /> Enviar OC</>
+                            }
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        )}
         </div>
     );
 };

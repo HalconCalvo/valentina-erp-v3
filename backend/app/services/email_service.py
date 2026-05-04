@@ -1,54 +1,49 @@
 import smtplib
-import os
+import ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.mime.application import MIMEApplication
-from dotenv import load_dotenv
+from email.mime.base import MIMEBase
+from email import encoders
+from io import BytesIO
 
-load_dotenv()
 
-class EmailService:
-    @staticmethod
-    def send_purchase_order(to_email, folio, provider_name, pdf_buffer):
-        # Leemos las llaves del .env
-        smtp_server = os.getenv("SMTP_SERVER")
-        smtp_port = int(os.getenv("SMTP_PORT", 587))
-        smtp_user = os.getenv("SMTP_USER")
-        smtp_pass = os.getenv("SMTP_PASSWORD")
-        from_name = os.getenv("SMTP_FROM_NAME")
+def send_purchase_order_email(
+    smtp_host: str,
+    smtp_email: str,
+    smtp_password: str,
+    to_email: str,
+    provider_name: str,
+    folio: str,
+    pdf_buffer: BytesIO,
+    company_name: str = "Valentina"
+) -> None:
+    msg = MIMEMultipart()
+    msg["From"] = smtp_email
+    msg["To"] = to_email
+    msg["Subject"] = f"Orden de Compra {folio} — {company_name}"
 
-        # Creamos el paquete
-        msg = MIMEMultipart()
-        msg['From'] = f"{from_name} <{smtp_user}>"
-        msg['To'] = to_email
-        msg['Subject'] = f"ORDEN DE COMPRA: {folio} - INCAMEX"
+    body = (
+        f"Estimado proveedor {provider_name},\n\n"
+        f"Adjuntamos la Orden de Compra {folio} para su atención.\n"
+        f"Por favor confírmenos de recibido.\n\n"
+        f"Saludos,\n{company_name}"
+    )
+    msg.attach(MIMEText(body, "plain", "utf-8"))
 
-        # Cuerpo del mensaje
-        body = f"""
-        Estimado equipo de {provider_name},
+    part = MIMEBase("application", "octet-stream")
+    pdf_buffer.seek(0)
+    part.set_payload(pdf_buffer.read())
+    encoders.encode_base64(part)
+    part.add_header(
+        "Content-Disposition",
+        f'attachment; filename="OC_{folio}.pdf"'
+    )
+    msg.attach(part)
 
-        Adjunto a este correo enviamos la Orden de Compra oficial con folio {folio}.
-        Agradecemos confirmen de recibido y nos indiquen la fecha estimada de entrega.
-
-        Saludos cordiales,
-        Departamento de Compras - INCAMEX
-        """
-        msg.attach(MIMEText(body, 'plain'))
-
-        # Adjuntamos el PDF desde la memoria RAM
-        pdf_buffer.seek(0)
-        part = MIMEApplication(pdf_buffer.read(), Name=f"OC_{folio}.pdf")
-        part['Content-Disposition'] = f'attachment; filename="OC_{folio}.pdf"'
-        msg.attach(part)
-
-        # ¡El cartero sale a GoDaddy!
-        try:
-            server = smtplib.SMTP(smtp_server, smtp_port)
-            server.starttls() # Seguridad TLS
-            server.login(smtp_user, smtp_pass)
-            server.send_message(msg)
-            server.quit()
-            return True
-        except Exception as e:
-            print(f"Error al enviar correo: {e}")
-            return False
+    port = 587
+    context = ssl.create_default_context()
+    with smtplib.SMTP(smtp_host, port) as server:
+        server.ehlo()
+        server.starttls(context=context)
+        server.login(smtp_email, smtp_password)
+        server.sendmail(smtp_email, to_email, msg.as_string())
