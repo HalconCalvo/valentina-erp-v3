@@ -60,6 +60,7 @@ const DesignCatalogPage: React.FC = () => {
     const [currentId, setCurrentId] = useState<number | null>(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
+  const [showProductSuggestions, setShowProductSuggestions] = useState(false);
     const [expandedClients, setExpandedClients] = useState<Set<number>>(new Set());
 
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -178,6 +179,23 @@ const DesignCatalogPage: React.FC = () => {
         if (!formState.category) return uniqueCategories;
         return uniqueCategories.filter(c => c.toLowerCase().includes(formState.category.toLowerCase()));
     }, [uniqueCategories, formState.category]);
+
+    const clientProducts = useMemo(() => {
+        if (!formState.client_id) return [];
+        return masters.filter(m => m.client_id === Number(formState.client_id));
+    }, [masters, formState.client_id]);
+
+    const filteredProductSuggestions = useMemo(() => {
+        if (!formState.name || formState.name.length < 2) return clientProducts;
+        return clientProducts.filter(p =>
+            p.name.toLowerCase().includes(formState.name.toLowerCase())
+        );
+    }, [clientProducts, formState.name]);
+
+    const exactMatch = useMemo(() =>
+        clientProducts.some(p => p.name.toLowerCase() === formState.name.toLowerCase()),
+        [clientProducts, formState.name]
+    );
 
     const groupedProducts = useMemo(() => {
         const filtered = masters.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -899,14 +917,71 @@ const DesignCatalogPage: React.FC = () => {
                  <div className="space-y-5 py-2">
                     <div>
                         <label className="block text-sm font-semibold text-slate-700 mb-1.5">Cliente Asignado</label>
-                        <select className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none shadow-sm" value={formState.client_id} onChange={(e) => setFormState({...formState, client_id: Number(e.target.value)})}>
+                        <select className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none shadow-sm" value={formState.client_id} onChange={(e) => {
+                                        setFormState({...formState, client_id: Number(e.target.value), name: ''});
+                                        setShowProductSuggestions(false);
+                                    }}>
                             <option value={0}>-- Catálogo Interno (Stock) --</option>
                             {clients.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
                         </select>
                     </div>
-                    <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Nombre del Producto</label>
-                        <Input placeholder="Ej. Cocina Tipo A - Torre Norte" value={formState.name} onChange={(e) => setFormState({...formState, name: e.target.value})} className="shadow-sm"/>
+                    <div className="relative">
+                        <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                            Nombre del Producto
+                            {formState.client_id > 0 && clientProducts.length > 0 && (
+                                <span className="ml-2 text-xs font-normal text-slate-400">
+                                    ({clientProducts.length} productos existentes para este cliente)
+                                </span>
+                            )}
+                        </label>
+                        <Input
+                            placeholder="Ej. Cocina Tipo A - Torre Norte"
+                            value={formState.name}
+                            onChange={(e) => {
+                                setFormState({...formState, name: e.target.value});
+                                setShowProductSuggestions(true);
+                            }}
+                            onFocus={() => setShowProductSuggestions(true)}
+                            onBlur={() => setTimeout(() => setShowProductSuggestions(false), 200)}
+                            className="shadow-sm"
+                        />
+                        {showProductSuggestions && formState.client_id > 0 && filteredProductSuggestions.length > 0 && (
+                            <div className="absolute z-50 w-full mt-1 bg-white rounded-lg shadow-xl border border-slate-200 max-h-52 overflow-auto">
+                                {exactMatch && (
+                                    <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 flex items-center gap-2">
+                                        <AlertCircle size={14} className="text-amber-600 shrink-0"/>
+                                        <span className="text-xs font-semibold text-amber-700">
+                                            Ya existe un producto con este nombre exacto
+                                        </span>
+                                    </div>
+                                )}
+                                <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                                    Productos existentes de este cliente
+                                </div>
+                                {filteredProductSuggestions.map(p => (
+                                    <div
+                                        key={p.id}
+                                        onMouseDown={() => {
+                                            setIsModalOpen(false);
+                                            if (p.versions && p.versions.length > 0) {
+                                                navigate(`/design/versions/${p.versions[0].id}`);
+                                            }
+                                        }}
+                                        className="px-4 py-2.5 text-sm text-slate-700 hover:bg-indigo-50
+                                                   hover:text-indigo-700 cursor-pointer border-b
+                                                   border-slate-100 last:border-b-0 flex items-center
+                                                   justify-between group"
+                                    >
+                                        <span className="font-medium">{p.name}</span>
+                                        <span className="text-[10px] text-slate-400 group-hover:text-indigo-400
+                                                         font-mono shrink-0 ml-2">
+                                            PRD-{p.id.toString().padStart(4, '0')}
+                                            {p.versions?.[0]?.version_name ? ` · ${p.versions[0].version_name}` : ''}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                     <div className="relative">
                         <label className="block text-sm font-semibold text-slate-700 mb-1.5">Categoría Técnica</label>
