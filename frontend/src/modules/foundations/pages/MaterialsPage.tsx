@@ -26,6 +26,7 @@ export default function MaterialsPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
   const [showPurchaseUnitSuggestions, setShowPurchaseUnitSuggestions] = useState(false);
+  const [skuExists, setSkuExists] = useState(false);
   
   const initialFormState: Partial<Material> = {
     sku: '', name: '', category: '', 
@@ -275,6 +276,21 @@ export default function MaterialsPage() {
     }
   };
 
+  const handleSkuBlur = () => {
+      if (!form.sku || isEditing) return;
+      const found = materials.find(
+          m => m.sku.trim().toUpperCase() === (form.sku || '').trim().toUpperCase()
+      );
+      if (found) {
+          setSkuExists(true);
+          setForm(found);
+          setEditingId(found.id || null);
+          setIsEditing(true);
+      } else {
+          setSkuExists(false);
+      }
+  };
+
   const handleEdit = (material: Material) => {
     if(isReadOnly) return;
     setForm(material);
@@ -325,6 +341,7 @@ export default function MaterialsPage() {
       setIsEditing(false);
       setEditingId(null);
       setShowForm(false);
+      setSkuExists(false);
   };
 
   const filteredCategories = existingCategories.filter(c => 
@@ -387,7 +404,27 @@ export default function MaterialsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="md:col-span-1">
                         <label className="text-xs font-bold text-slate-500 uppercase">SKU (Único)</label>
-                        <input className="input-std font-mono" placeholder="Ej. TAB-BL-15" value={form.sku} onChange={e => setForm({...form, sku: e.target.value})} autoFocus={!isEditing}/>
+                        <input
+                            className={`input-std font-mono ${skuExists ? 'border-amber-400 bg-amber-50' : ''}`}
+                            placeholder="Ej. TAB-BL-15"
+                            value={form.sku}
+                            onChange={e => {
+                                setForm({...form, sku: e.target.value});
+                                setSkuExists(false);
+                                setIsEditing(false);
+                                setEditingId(null);
+                            }}
+                            onBlur={handleSkuBlur}
+                            autoFocus={!isEditing}
+                        />
+                        {skuExists && (
+                            <div className="flex items-center gap-1.5 mt-1 px-1">
+                                <AlertTriangle size={12} className="text-amber-600 shrink-0" />
+                                <span className="text-[10px] font-bold text-amber-700">
+                                    SKU existente — puedes modificar y guardar cambios
+                                </span>
+                            </div>
+                        )}
                     </div>
                     <div className="md:col-span-2">
                         <label className="text-xs font-bold text-slate-500 uppercase">Nombre / Descripción</label>
