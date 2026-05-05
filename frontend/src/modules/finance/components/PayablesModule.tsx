@@ -99,22 +99,28 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
     const loadData = async (showSpinner = true) => {
         if (showSpinner) setIsFinanceLoading(true);
         try {
-            const [statsData, invoicesData, pendingReqData, approvedReqData, accountsData] = await Promise.all([
+            const [statsData, invoicesData, pendingReqData, approvedReqData] = await Promise.all([
                 financeService.getPayableDashboardStats(),
                 financeService.getPendingInvoices(),
-                financeService.getPendingApprovals(), 
+                financeService.getPendingApprovals(),
                 financeService.getApprovedPayments(),
-                treasuryService.getAccounts()
             ]);
             setStats(statsData);
             setInvoices(invoicesData);
             setSentRequests(pendingReqData);
             setApprovedRequests(approvedReqData);
-            setAccounts(accountsData);
         } catch (error) {
             console.error("Error al refrescar pagos", error);
         } finally {
             if (showSpinner) setIsFinanceLoading(false);
+        }
+
+        // getAccounts falla para roles sin acceso a bóveda — se carga por separado
+        try {
+            const accountsData = await treasuryService.getAccounts();
+            setAccounts(accountsData);
+        } catch {
+            // Sin acceso a cuentas bancarias — normal para roles no financieros
         }
     };
 
