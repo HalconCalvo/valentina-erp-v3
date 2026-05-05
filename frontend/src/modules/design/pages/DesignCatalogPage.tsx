@@ -18,6 +18,7 @@ import Modal from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import ExportButton from '@/components/ui/ExportButton';
 
+import * as XLSX from 'xlsx';
 import { designService } from '../../../api/design-service';
 import { productionService } from '../../../api/production-service';
 import { VersionStatus } from '../../../types/design';
@@ -249,6 +250,72 @@ const DesignCatalogPage: React.FC = () => {
         a.download = `Recetas_${clientName.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.json`;
         a.click();
         URL.revokeObjectURL(url);
+    };
+
+    const handleBackupExcel = () => {
+        const productosData = masters.map(m => ({
+            'ID':         m.id,
+            'Cliente':    getClientName(m.client_id),
+            'Producto':   m.name,
+            'Categoría':  m.category,
+            'Versiones':  (m.versions || []).length,
+            'Estado':     (m.versions || []).some(v => v.status === 'READY')
+                              ? 'LISTO' : 'BORRADOR',
+            'Exportado':  new Date().toLocaleDateString('es-MX')
+        }));
+
+        const versionesData: any[] = [];
+        masters.forEach(m => {
+            (m.versions || []).forEach(v => {
+                versionesData.push({
+                    'ID Versión':       v.id,
+                    'ID Producto':      m.id,
+                    'Cliente':          getClientName(m.client_id),
+                    'Producto':         m.name,
+                    'Versión':          v.version_name,
+                    'Status':           v.status,
+                    'Costo Estimado':   v.estimated_cost || 0,
+                    'Días Instalación': v.installation_days || 1,
+                    'Tiene MDF':        v.has_mdf_components ? 'SÍ' : 'NO',
+                    'Tiene Piedra':     v.has_stone_components ? 'SÍ' : 'NO',
+                });
+            });
+        });
+
+        const recetasData: any[] = [];
+        masters.forEach(m => {
+            (m.versions || []).forEach(v => {
+                (v.components || []).forEach(c => {
+                    recetasData.push({
+                        'ID Componente':  c.id,
+                        'ID Versión':     v.id,
+                        'ID Producto':    m.id,
+                        'Cliente':        getClientName(m.client_id),
+                        'Producto':       m.name,
+                        'Versión':        v.version_name,
+                        'ID Material':    c.material_id,
+                        'Cantidad':       c.quantity,
+                    });
+                });
+            });
+        });
+
+        const wb = XLSX.utils.book_new();
+
+        const ws1 = XLSX.utils.json_to_sheet(productosData);
+        const ws2 = XLSX.utils.json_to_sheet(versionesData);
+        const ws3 = XLSX.utils.json_to_sheet(recetasData);
+
+        ws1['!cols'] = [40,80,80,60,40,40,60].map(w => ({ wch: w/5 }));
+        ws2['!cols'] = [40,40,80,80,60,60,60,60,40,40].map(w => ({ wch: w/5 }));
+        ws3['!cols'] = [40,40,40,80,80,60,40,60].map(w => ({ wch: w/5 }));
+
+        XLSX.utils.book_append_sheet(wb, ws1, 'Productos');
+        XLSX.utils.book_append_sheet(wb, ws2, 'Versiones');
+        XLSX.utils.book_append_sheet(wb, ws3, 'Recetas');
+
+        const fecha = new Date().toISOString().slice(0, 10);
+        XLSX.writeFile(wb, `Respaldo_Recetas_${fecha}.xlsx`);
     };
 
     const handleImportRecipes = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -737,6 +804,17 @@ const DesignCatalogPage: React.FC = () => {
                                 </div>
                                 <div className="flex gap-3 items-center">
                                     <ExportButton data={masters} fileName="Catalogo_Productos" mapping={mapMastersForExcel} label="Exportar"/>
+                                    {!isSales && (
+                                        <button
+                                            onClick={handleBackupExcel}
+                                            className="flex items-center gap-2 px-3 py-2 text-xs font-bold
+                                                       text-emerald-700 bg-emerald-50 border border-emerald-200
+                                                       rounded-lg hover:bg-emerald-100 transition-colors shadow-sm"
+                                            title="Descargar respaldo completo en Excel (3 hojas)"
+                                        >
+                                            <Download size={14} /> Respaldo Excel
+                                        </button>
+                                    )}
                                     <div className="relative">
                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                                         <input type="text" placeholder="Buscar producto..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm w-64 focus:ring-2 focus:ring-indigo-500 shadow-sm"/>
