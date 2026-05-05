@@ -474,7 +474,11 @@ const DesignCatalogPage: React.FC = () => {
     useEffect(() => {
         if (location.state) {
             const state = location.state as any;
-            if (state.openNewModal) {
+            if (state.reset) {
+                setCurrentView('HOME');
+                setViewHistory([]);
+                window.history.replaceState({}, document.title);
+            } else if (state.openNewModal) {
                 navigateTo('CATALOG');
                 openCreateModal();
                 window.history.replaceState({}, document.title);

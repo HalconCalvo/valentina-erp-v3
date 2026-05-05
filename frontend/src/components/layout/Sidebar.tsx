@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Package, ShoppingCart, Factory, 
   Truck, Settings, LogOut, ChevronRight, Users, Briefcase, 
@@ -177,11 +177,17 @@ export default function Sidebar() {
         {sortedMenu.map((item) => {
           const active = isActive(item.path);
           return (
-            <Link
+            <button
               key={item.path}
-              to={item.path}
+              onClick={() => {
+                // Limpiar sessionStorage de secciones activas
+                sessionStorage.removeItem('treasury_activeSection');
+                navigate(item.path, { 
+                    state: { reset: true, ts: Date.now() } 
+                });
+              }}
               className={`
-                group flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200
+                w-full group flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200
                 ${active 
                   ? 'bg-indigo-50 text-indigo-700'
                   : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
@@ -193,7 +199,7 @@ export default function Sidebar() {
                 <span>{item.label}</span>
               </div>
               <ChevronRight size={14} className={`transition-opacity ${active ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'}`} />
-            </Link>
+            </button>
           );
         })}
       </nav>

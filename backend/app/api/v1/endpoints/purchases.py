@@ -369,7 +369,12 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
         if item.material_id:
             mat = db.get(Material, item.material_id)
             if mat:
-                mat.physical_stock = (mat.physical_stock or 0) + item.quantity_ordered
+                route = (getattr(mat, 'production_route', 'MATERIAL') or 'MATERIAL').upper()
+                if route != 'MATERIAL':
+                    continue
+                factor = float(getattr(mat, 'conversion_factor', 1) or 1)
+                qty_in_usage_units = float(item.quantity_ordered or 0) * factor
+                mat.physical_stock = (mat.physical_stock or 0) + qty_in_usage_units
                 db.add(mat)
 
     # 2. MATEMÁTICAS DE ANTICIPO VS SALDO

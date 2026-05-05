@@ -91,9 +91,13 @@ export const TreasuryPage = () => {
   const [cameFromTasks, setCameFromTasks] = useState(false);
 
   useEffect(() => {
-      if (location.state && location.state.openSection) {
+      if (location.state?.reset) {
+          setActiveSection(null);
+          setIsSubSectionActive(false);
+          window.history.replaceState({}, document.title);
+      } else if (location.state?.openSection) {
           setActiveSection(location.state.openSection as AdminSection);
-          window.history.replaceState({}, document.title); 
+          window.history.replaceState({}, document.title);
       }
   }, [location.state]);
 
