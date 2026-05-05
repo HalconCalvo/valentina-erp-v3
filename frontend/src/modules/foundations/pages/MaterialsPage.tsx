@@ -25,6 +25,7 @@ export default function MaterialsPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
+  const [showPurchaseUnitSuggestions, setShowPurchaseUnitSuggestions] = useState(false);
   
   const initialFormState: Partial<Material> = {
     sku: '', name: '', category: '', 
@@ -212,6 +213,14 @@ export default function MaterialsPage() {
   }
   
   const existingCategories = Array.from(new Set(materials.map(m => m.category))).sort();
+
+  const existingPurchaseUnits = Array.from(
+      new Set(materials.map(m => m.purchase_unit).filter(Boolean))
+  ).sort();
+
+  const filteredPurchaseUnits = existingPurchaseUnits.filter(u =>
+      u.toLowerCase().includes((form.purchase_unit || '').toLowerCase())
+  );
 
   const mapMaterialsForExcel = (m: Material) => ({
       "SKU": m.sku,
@@ -420,9 +429,40 @@ export default function MaterialsPage() {
                                 ))}
                             </select>
                         </div>
-                        <div>
+                        <div className="relative">
                             <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Unidad Compra</label>
-                            <input className="input-std bg-slate-50" placeholder="Ej. Hoja" value={form.purchase_unit} onChange={e => setForm({...form, purchase_unit: e.target.value, usage_unit: e.target.value})} />
+                            <div className="relative">
+                                <input
+                                    className="input-std bg-slate-50"
+                                    placeholder="Ej. Hoja"
+                                    value={form.purchase_unit}
+                                    onChange={e => {
+                                        setForm({...form, purchase_unit: e.target.value, usage_unit: e.target.value});
+                                        setShowPurchaseUnitSuggestions(true);
+                                    }}
+                                    onFocus={() => setShowPurchaseUnitSuggestions(true)}
+                                    onBlur={() => setTimeout(() => setShowPurchaseUnitSuggestions(false), 200)}
+                                />
+                                <div className="absolute right-2 top-2.5 text-slate-400 pointer-events-none">
+                                    <ChevronDown size={14} />
+                                </div>
+                            </div>
+                            {showPurchaseUnitSuggestions && filteredPurchaseUnits.length > 0 && (
+                                <ul className="absolute z-10 w-full bg-white border border-slate-200 rounded-md shadow-lg mt-1 max-h-48 overflow-auto text-sm">
+                                    {filteredPurchaseUnits.map((unit) => (
+                                        <li
+                                            key={unit}
+                                            className="px-3 py-2 hover:bg-indigo-50 cursor-pointer text-slate-700"
+                                            onMouseDown={() => {
+                                                setForm({...form, purchase_unit: unit, usage_unit: unit});
+                                                setShowPurchaseUnitSuggestions(false);
+                                            }}
+                                        >
+                                            {unit}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                         </div>
                         <div className="relative">
                             <label className="text-[10px] font-bold text-indigo-500 uppercase w-full text-center block mb-1">Factor Conv.</label>
