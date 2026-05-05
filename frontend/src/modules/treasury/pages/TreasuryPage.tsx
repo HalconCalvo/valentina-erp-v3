@@ -510,7 +510,7 @@ export const TreasuryPage = () => {
           {activeSection === 'TASKS' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* PORTAL COMPRAS */}
-                  <Card onClick={() => navigate('/inventory', { state: { openSection: 'REQUISITIONS' } })} className="p-6 border-l-4 border-l-orange-500 bg-white cursor-pointer hover:shadow-lg transition-all group relative overflow-hidden h-40 flex flex-col justify-between">
+                  <Card onClick={() => navigate('/inventory', { state: { openSection: 'PURCHASE_ORDERS', targetTab: 'CREATION' } })} className="p-6 border-l-4 border-l-orange-500 bg-white cursor-pointer hover:shadow-lg transition-all group relative overflow-hidden h-40 flex flex-col justify-between">
                       <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-orange-50 text-orange-700 border-r border-orange-100 font-black group-hover:bg-orange-100 transition-colors ${getCountSize(alerts.pending_requisitions)}`}>
                           {alerts.pending_requisitions}
                       </div>
