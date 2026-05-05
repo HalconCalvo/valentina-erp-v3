@@ -14,6 +14,17 @@ class PurchaseManager:
         """
         try:
             db.execute(text("UPDATE purchase_requisitions SET status = 'PENDIENTE' WHERE status = 'AUTOMATICA'"))
+            # AUTO-CIERRE: Cerrar alarmas cuyo stock ya supera el mínimo
+            db.execute(text("""
+                UPDATE purchase_requisitions pr
+                SET status = 'PROCESADA'
+                FROM materials m
+                WHERE pr.material_id = m.id
+                AND UPPER(pr.status) = 'PENDIENTE'
+                AND (pr.notes LIKE '%Valentina%' OR pr.notes LIKE '%AUTO%' 
+                     OR pr.custom_description = 'REPOSICIÓN AUTOMÁTICA')
+                AND m.physical_stock >= m.min_stock
+            """))
             
             materials = db.execute(
                 text("SELECT id, name, physical_stock, min_stock, max_stock FROM materials WHERE min_stock > 0")
