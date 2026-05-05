@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/Input';
 import ExportButton from '@/components/ui/ExportButton';
 
 import * as XLSX from 'xlsx';
+import axiosClient from '../../../api/axios-client';
 import { designService } from '../../../api/design-service';
 import { productionService } from '../../../api/production-service';
 import { VersionStatus } from '../../../types/design';
@@ -54,6 +55,7 @@ const DesignCatalogPage: React.FC = () => {
 
     const { masters, loading, error, loadMasters, addMaster, updateMaster, deleteMaster } = useDesign();
     const { clients, fetchClients } = useClients();
+    const [materials, setMaterials] = useState<any[]>([]);
     
     // UI State Catálogo
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -73,7 +75,13 @@ const DesignCatalogPage: React.FC = () => {
 
     const [formState, setFormState] = useState({ name: '', category: 'General', client_id: 0 });
 
-    useEffect(() => { loadMasters(); fetchClients(); }, [loadMasters, fetchClients]);
+    useEffect(() => {
+        loadMasters();
+        fetchClients();
+        axiosClient.get('/foundations/materials/')
+            .then(res => setMaterials(Array.isArray(res.data) ? res.data : res.data?.data || []))
+            .catch(() => console.error('Error cargando materiales'));
+    }, [loadMasters, fetchClients]);
 
 
     const loadDashboardMetrics = async () => {
@@ -252,6 +260,14 @@ const DesignCatalogPage: React.FC = () => {
         URL.revokeObjectURL(url);
     };
 
+    const getMaterialBySku = (materialId: number) => {
+        const mat = materials.find(m => m.id === materialId);
+        return {
+            sku:  mat?.sku  || `MAT-${materialId}`,
+            name: mat?.name || 'Desconocido'
+        };
+    };
+
     const handleBackupExcel = () => {
         const productosData = masters.map(m => ({
             'ID':         m.id,
@@ -286,15 +302,15 @@ const DesignCatalogPage: React.FC = () => {
         masters.forEach(m => {
             (m.versions || []).forEach(v => {
                 (v.components || []).forEach(c => {
+                    const mat = getMaterialBySku(c.material_id);
                     recetasData.push({
-                        'ID Componente':  c.id,
-                        'ID Versión':     v.id,
-                        'ID Producto':    m.id,
-                        'Cliente':        getClientName(m.client_id),
-                        'Producto':       m.name,
-                        'Versión':        v.version_name,
-                        'ID Material':    c.material_id,
-                        'Cantidad':       c.quantity,
+                        'ID Versión':    v.id,
+                        'Cliente':       getClientName(m.client_id),
+                        'Producto':      m.name,
+                        'Versión':       v.version_name,
+                        'SKU':           mat.sku,
+                        'Material':      mat.name,
+                        'Cantidad':      c.quantity,
                     });
                 });
             });
