@@ -8,7 +8,7 @@ import {
     FileText, AlertCircle, CheckCircle2,
     Paperclip, X, FileMinus, Lock,
     Tag, ArrowLeft, Calculator, Printer, ShieldAlert,
-    Package, RefreshCw
+    Package, RefreshCw, Download, Upload
 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
@@ -66,6 +66,9 @@ const DesignCatalogPage: React.FC = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [uploadingVersionId, setUploadingVersionId] = useState<number | null>(null);
     const [viewingBlueprintUrl, setViewingBlueprintUrl] = useState<string | null>(null);
+    const [exportingClientId, setExportingClientId] = useState<number | null>(null);
+    const importInputRef = useRef<HTMLInputElement>(null);
+    const [importingClientId, setImportingClientId] = useState<number | null>(null);
 
     const [formState, setFormState] = useState({ name: '', category: 'General', client_id: 0 });
 
@@ -214,6 +217,94 @@ const DesignCatalogPage: React.FC = () => {
         setExpandedClients(newExpanded);
     };
 
+    const handleExportRecipes = (clientId: number) => {
+        const clientName = getClientName(clientId);
+        const clientMasters = masters.filter(m => m.client_id === clientId);
+
+        const exportData = {
+            exported_at: new Date().toISOString(),
+            client_id: clientId,
+            client_name: clientName,
+            products: clientMasters.map(m => ({
+                name: m.name,
+                category: m.category,
+                versions: (m.versions || []).map(v => ({
+                    version_name: v.version_name,
+                    status: v.status,
+                    installation_days: v.installation_days || 1,
+                    components: (v.components || []).map(c => ({
+                        material_id: c.material_id,
+                        quantity: c.quantity
+                    }))
+                }))
+            }))
+        };
+
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+            type: 'application/json'
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Recetas_${clientName.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const handleImportRecipes = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        try {
+            const text = await file.text();
+            const data = JSON.parse(text);
+
+            if (!data.products || !Array.isArray(data.products)) {
+                return alert('Archivo inválido. No contiene productos.');
+            }
+
+            const confirmMsg =
+                `¿Importar ${data.products.length} productos de "${data.client_name}"?\n\n` +
+                `Se crearán como NUEVOS productos. Los existentes NO se modifican.`;
+            if (!window.confirm(confirmMsg)) return;
+
+            let creados = 0;
+            let errores = 0;
+
+            for (const product of data.products) {
+                try {
+                    const newMaster = await designService.createMaster({
+                        name: product.name,
+                        category: product.category || 'General',
+                        client_id: importingClientId || data.client_id,
+                        is_active: true
+                    });
+
+                    for (const version of (product.versions || [])) {
+                        await designService.createVersion({
+                            master_id: newMaster.id,
+                            version_name: version.version_name || 'V1.0',
+                            status: VersionStatus.DRAFT,
+                            is_active: true,
+                            components: version.components || []
+                        });
+                    }
+                    creados++;
+                } catch {
+                    errores++;
+                }
+            }
+
+            alert(`✅ Importación completada.\n${creados} productos creados.\n${errores} errores.`);
+            await loadMasters();
+        } catch {
+            alert('Error al leer el archivo. Verifica que sea un JSON válido.');
+        } finally {
+            if (importInputRef.current) importInputRef.current.value = '';
+            setImportingClientId(null);
+        }
+    };
+
     const openCreateModal = () => {
         if(isSales) return;
         fetchClients(); setIsEditing(false); setFormState({ name: '', category: '', client_id: 0 });
@@ -314,6 +405,13 @@ const DesignCatalogPage: React.FC = () => {
     return (
         <div className="p-8 max-w-7xl mx-auto space-y-6 pb-24 animate-in fade-in duration-300">
             <input type="file" ref={fileInputRef} className="hidden" accept=".pdf,image/*" onChange={handleFileChange} />
+            <input
+                type="file"
+                ref={importInputRef}
+                className="hidden"
+                accept=".json"
+                onChange={handleImportRecipes}
+            />
 
             {/* =========================================
                 VISTA 1: HOME (SOLO LAS 4 TARJETAS)
@@ -673,7 +771,40 @@ const DesignCatalogPage: React.FC = () => {
                                                 {isExpanded ? <ChevronDown size={20} className="text-slate-500"/> : <ChevronRight size={20} className="text-slate-500"/>}
                                                 {clientName}
                                             </h3>
-                                            <Badge variant="default" className="bg-slate-200 text-slate-700 hover:bg-slate-300">{productCount} Productos</Badge>
+                                            <div className="flex items-center gap-2">
+                                                {!isSales && (
+                                                    <>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleExportRecipes(clientId);
+                                                            }}
+                                                            className="flex items-center gap-1.5 px-3 py-1 text-xs font-bold
+                                                                       text-indigo-600 bg-indigo-50 border border-indigo-100
+                                                                       rounded-lg hover:bg-indigo-100 transition-colors"
+                                                            title="Exportar recetas de este cliente"
+                                                        >
+                                                            <Download size={13} /> Exportar
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setImportingClientId(clientId);
+                                                                setTimeout(() => importInputRef.current?.click(), 50);
+                                                            }}
+                                                            className="flex items-center gap-1.5 px-3 py-1 text-xs font-bold
+                                                                       text-emerald-600 bg-emerald-50 border border-emerald-100
+                                                                       rounded-lg hover:bg-emerald-100 transition-colors"
+                                                            title="Importar recetas para este cliente"
+                                                        >
+                                                            <Upload size={13} /> Importar
+                                                        </button>
+                                                    </>
+                                                )}
+                                                <Badge variant="default" className="bg-slate-200 text-slate-700 hover:bg-slate-300">
+                                                    {productCount} Productos
+                                                </Badge>
+                                            </div>
                                         </div>
 
                                         {isExpanded && (
