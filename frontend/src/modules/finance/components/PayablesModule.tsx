@@ -24,11 +24,17 @@ type SortKey = 'provider_name' | 'invoice_number' | 'due_date' | 'outstanding_ba
 
 function invoiceDueDayDiff(inv: PendingInvoice): number | null {
     if (!inv.due_date) return null;
-    const due = new Date(inv.due_date);
-    due.setMinutes(due.getMinutes() + due.getTimezoneOffset());
+    // Tomamos solo la parte de fecha (YYYY-MM-DD) para evitar
+    // problemas de timezone con timestamps completos
+    const datePart = inv.due_date.includes('T')
+        ? inv.due_date.split('T')[0]
+        : inv.due_date.includes(' ')
+        ? inv.due_date.split(' ')[0]
+        : inv.due_date;
+    const [year, month, day] = datePart.split('-').map(Number);
+    const due = new Date(year, month - 1, day);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    due.setHours(0, 0, 0, 0);
     return Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
@@ -158,11 +164,15 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
 
         return invoices.filter(inv => {
             if (!inv.due_date) return false;
-            const due = new Date(inv.due_date);
-            due.setMinutes(due.getMinutes() + due.getTimezoneOffset());
+            const datePart = inv.due_date.includes('T')
+                ? inv.due_date.split('T')[0]
+                : inv.due_date.includes(' ')
+                ? inv.due_date.split(' ')[0]
+                : inv.due_date;
+            const [year, month, day] = datePart.split('-').map(Number);
+            const due = new Date(year, month - 1, day);
             const today = new Date();
             today.setHours(0,0,0,0);
-            due.setHours(0,0,0,0);
             
             let daysUntilFriday = 5 - today.getDay();
             if (daysUntilFriday < 0) daysUntilFriday += 7; 
