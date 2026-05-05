@@ -20,14 +20,18 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    with op.batch_alter_table('global_config', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('smtp_email', sqlmodel.sql.sqltypes.AutoString(), nullable=True))
-        batch_op.add_column(sa.Column('smtp_password', sqlmodel.sql.sqltypes.AutoString(), nullable=True))
-        batch_op.add_column(sa.Column('smtp_host', sqlmodel.sql.sqltypes.AutoString(), nullable=True))
+    op.execute("""
+        ALTER TABLE global_config 
+        ADD COLUMN IF NOT EXISTS smtp_email VARCHAR,
+        ADD COLUMN IF NOT EXISTS smtp_password VARCHAR,
+        ADD COLUMN IF NOT EXISTS smtp_host VARCHAR DEFAULT 'smtp.gmail.com'
+    """)
 
 
 def downgrade() -> None:
-    with op.batch_alter_table('global_config', schema=None) as batch_op:
-        batch_op.drop_column('smtp_host')
-        batch_op.drop_column('smtp_password')
-        batch_op.drop_column('smtp_email')
+    op.execute("""
+        ALTER TABLE global_config 
+        DROP COLUMN IF EXISTS smtp_email,
+        DROP COLUMN IF EXISTS smtp_password,
+        DROP COLUMN IF EXISTS smtp_host
+    """)
