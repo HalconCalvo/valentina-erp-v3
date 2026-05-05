@@ -229,7 +229,8 @@ const InventoryReceptionPage: React.FC = () => {
     const expectedTotal = subtotalCalc + ivaCalc; 
 
     const diff = Math.abs(expectedTotal - Number(invoiceTotal));
-    const isFinancialBlocked = invoiceTotal !== '' && diff > 1.00;
+    const tolerancia = expectedTotal * 0.005;
+    const isFinancialBlocked = invoiceTotal !== '' && diff > tolerancia;
 
     return (
         <div className="animate-in slide-in-from-right-4 duration-300 pb-10">
