@@ -551,15 +551,27 @@ def get_pending_invoices(session: SessionDep) -> Any:
                     for item in db_items
                 ]
 
+        # Buscar authorized_by desde accounts_payable -> purchase_orders
+        authorized_by = None
+        ap_row = session.exec(
+            text("SELECT purchase_order_id FROM accounts_payable WHERE invoice_folio = :folio")
+            .bindparams(folio=clean_invoice_folio(inv.invoice_number))
+        ).first()
+        if ap_row and ap_row[0]:
+            po_for_auth = session.get(PurchaseOrder, ap_row[0])
+            if po_for_auth:
+                authorized_by = getattr(po_for_auth, 'authorized_by', None)
+
         results.append(PendingInvoiceRead(
-            id=inv.id, 
-            provider_name=prov.business_name if prov else "Prov.", 
-            invoice_number=clean_invoice_folio(inv.invoice_number), 
-            due_date=inv.due_date, 
-            total_amount=inv.total_amount, 
+            id=inv.id,
+            provider_name=prov.business_name if prov else "Prov.",
+            invoice_number=clean_invoice_folio(inv.invoice_number),
+            due_date=inv.due_date,
+            total_amount=inv.total_amount,
             outstanding_balance=inv.outstanding_balance,
             items=items_list,
-            po_folio=final_po_folio
+            po_folio=final_po_folio,
+            authorized_by=authorized_by
         ))
     
     results.sort(key=lambda x: str(x.due_date))

@@ -11,7 +11,6 @@ interface InvoiceDetailModalProps {
 export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice, onClose }) => {
     const [items, setItems] = useState<any[]>(invoice.items || []);
     const [isLoading, setIsLoading] = useState(!invoice.items || invoice.items.length === 0);
-    const [authorizedBy, setAuthorizedBy] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchItems = async () => {
@@ -48,9 +47,6 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                     
                     if (miOrden && miOrden.items) {
                         fetchedItems = miOrden.items;
-                        if (miOrden.authorized_by) {
-                            setAuthorizedBy(miOrden.authorized_by);
-                        }
                     }
                 }
 
@@ -94,9 +90,9 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                             <p className="text-sm font-black uppercase text-slate-500 mt-1.5 tracking-tight leading-none">
                                 VENCIMIENTO: {invoice.due_date ? new Date(invoice.due_date).toLocaleDateString('es-MX') : 'INMEDIATO'}
                             </p>
-                            {authorizedBy && (
+                            {(invoice as any).authorized_by && (
                                 <p className="text-[9px] font-black uppercase text-indigo-600 mt-1 tracking-widest leading-none flex items-center gap-1">
-                                    ✅ AUTORIZÓ: {authorizedBy}
+                                    ✅ AUTORIZÓ: {(invoice as any).authorized_by}
                                 </p>
                             )}
                         </div>

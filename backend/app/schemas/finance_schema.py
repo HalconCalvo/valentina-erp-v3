@@ -72,3 +72,4 @@ class PendingInvoiceRead(SQLModel):
     # Permite que Valentina sepa qué materiales se compraron en esta factura
     items: Optional[List[Dict[str, Any]]] = []
     po_folio: Optional[str] = None
+    authorized_by: Optional[str] = None
