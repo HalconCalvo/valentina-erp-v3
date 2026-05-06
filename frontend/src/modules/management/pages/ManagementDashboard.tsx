@@ -93,9 +93,15 @@ const ManagementDashboard: React.FC = () => {
         instPayableTotal: 0,
     });
     const [selectedOrderForRayosX, setSelectedOrderForRayosX] = useState<SalesOrder | null>(null);
+    const [config, setConfig] = useState<{ company_name?: string; logo_path?: string } | null>(null);
 
     const loadData = useCallback(async () => {
         try {
+            try {
+                const cfgRes = await client.get('/foundations/config');
+                const cfgData = Array.isArray(cfgRes.data) ? cfgRes.data[0] : cfgRes.data;
+                setConfig(cfgData);
+            } catch { /* ignore */ }
             if (canSeeBanks) {
                 const accs = await treasuryService.getAccounts();
                 setAccounts(accs || []);
@@ -528,6 +534,7 @@ const ManagementDashboard: React.FC = () => {
                                 setTransactionType(type);
                                 setIsTransactionModalOpen(true);
                             }}
+                            config={config}
                         />
                     ) : (
                         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden p-6">

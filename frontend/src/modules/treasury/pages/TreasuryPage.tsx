@@ -110,6 +110,7 @@ export const TreasuryPage = () => {
   const [selectedOrderForRayosX, setSelectedOrderForRayosX] = useState<SalesOrder | null>(null);
   const [pettyCashFund, setPettyCashFund] = useState<PettyCashFund | null>(null);
   const [operationalExpensesCount, setOperationalExpensesCount] = useState(0);
+  const [config, setConfig] = useState<{ company_name?: string; logo_path?: string } | null>(null);
   const [payrollLevel1, setPayrollLevel1] = useState<PayrollLevel1>(null);
 
   useEffect(() => {
@@ -138,6 +139,11 @@ export const TreasuryPage = () => {
 
   const fetchData = async () => {
     try {
+      try {
+          const cfgRes = await client.get('/foundations/config');
+          const cfgData = Array.isArray(cfgRes.data) ? cfgRes.data[0] : cfgRes.data;
+          setConfig(cfgData);
+      } catch { /* ignore */ }
       if (isChecker) {
         setIsAccountsLoading(true);
         const accs = await treasuryService.getAccounts();
@@ -557,7 +563,7 @@ export const TreasuryPage = () => {
           {activeSection === 'BANKS' && isChecker && (
              <div>
                {selectedAccountForDetail ? (
-                 <AccountDetail account={selectedAccountForDetail} onBack={() => setSelectedAccountForDetail(null)} onOpenTransaction={(type) => { setTransactionType(type); setIsTransactionModalOpen(true); }} />
+                 <AccountDetail account={selectedAccountForDetail} onBack={() => setSelectedAccountForDetail(null)} onOpenTransaction={(type) => { setTransactionType(type); setIsTransactionModalOpen(true); }} config={config} />
                ) : (
                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden p-6">
                    <div className="flex justify-between items-center mb-6">

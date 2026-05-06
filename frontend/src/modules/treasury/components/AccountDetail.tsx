@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { ArrowLeft, ArrowRight, PlusCircle, MinusCircle, ArrowRightLeft, Search } from 'lucide-react';
+import { ArrowLeft, ArrowRight, PlusCircle, MinusCircle, ArrowRightLeft, Search, Printer } from 'lucide-react';
 import { BankAccount } from '../../../types/treasury';
 import { treasuryService } from '../../../api/treasury-service';
 
@@ -16,13 +16,17 @@ interface Transaction {
 interface Props {
   account: BankAccount;
   onBack: () => void;
-  onOpenTransaction: (type: 'IN' | 'OUT') => void; 
+  onOpenTransaction: (type: 'IN' | 'OUT') => void;
+  config?: {
+      company_name?: string;
+      logo_path?: string;
+  } | null;
 }
 
 // 👇 Ajustado a 10 movimientos por página
 const ITEMS_PER_PAGE = 10;
 
-export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransaction }) => {
+export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransaction, config }) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showTransferModal, setShowTransferModal] = useState(false);
@@ -146,6 +150,108 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
     });
   };
 
+  const handlePrint = () => {
+      const companyName = config?.company_name || 'Valentina ERP';
+      const logoPath = config?.logo_path || '';
+      const apiBase = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1').replace('/api/v1', '');
+      const logoUrl = logoPath
+          ? (logoPath.startsWith('http') ? logoPath : `${apiBase}/${logoPath}`)
+          : '';
+
+      const rows = transactionsWithBalance.map(tx => {
+          const fecha = formatDate(tx.transaction_date);
+          const concepto = tx.description || 'Sin descripción';
+          const ref = tx.reference || '-';
+          const egreso = (tx.transaction_type === 'OUT')
+              ? `$${tx.amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+              : '-';
+          const ingreso = (tx.transaction_type === 'IN')
+              ? `$${tx.amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+              : '-';
+          const saldo = `$${(tx.running_balance || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
+          return `<tr>
+              <td style="padding:6px 8px;border:1px solid #e2e8f0;font-size:11px">${fecha}</td>
+              <td style="padding:6px 8px;border:1px solid #e2e8f0;font-size:11px">${concepto}</td>
+              <td style="padding:6px 8px;border:1px solid #e2e8f0;font-size:11px">${ref}</td>
+              <td style="padding:6px 8px;border:1px solid #e2e8f0;font-size:11px;text-align:right;color:#dc2626">${egreso}</td>
+              <td style="padding:6px 8px;border:1px solid #e2e8f0;font-size:11px;text-align:right;color:#16a34a">${ingreso}</td>
+              <td style="padding:6px 8px;border:1px solid #e2e8f0;font-size:11px;text-align:right;font-weight:bold">${saldo}</td>
+          </tr>`;
+      }).join('');
+
+      const html = `<html><head><title>Estado de Cuenta — ${account.name}</title>
+          <style>
+              body { font-family: Arial, sans-serif; padding: 24px; color: #1e293b; }
+              .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+              .company-block { display: flex; align-items: center; gap: 12px; }
+              .company-logo { height: 48px; max-width: 160px; object-fit: contain; }
+              .company-name { font-size: 15px; font-weight: 900; color: #1e293b; }
+              .branding { font-size: 9px; color: #94a3b8; text-align: right; font-weight: bold; letter-spacing: 0.05em; text-transform: uppercase; }
+              .divider { border: none; border-top: 2px solid #1e293b; margin: 8px 0 16px 0; }
+              .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+              .account-info h1 { font-size: 17px; font-weight: 900; margin: 0 0 2px 0; }
+              .account-info p { font-size: 11px; color: #64748b; margin: 2px 0; }
+              .saldo { text-align: right; }
+              .saldo p { margin: 0; font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: bold; }
+              .saldo h2 { font-size: 24px; font-weight: 900; color: #1d4ed8; margin: 4px 0 0 0; }
+              table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+              thead { background: #f1f5f9; }
+              th { padding: 8px; border: 1px solid #e2e8f0; font-size: 10px; text-transform: uppercase; text-align: left; color: #475569; }
+              .footer { margin-top: 20px; font-size: 10px; color: #94a3b8; text-align: right; border-top: 1px solid #e2e8f0; padding-top: 8px; }
+          </style>
+      </head><body>
+
+          <!-- TOP BAR: Logo + Empresa + Branding -->
+          <div class="top-bar">
+              <div class="company-block">
+                  ${logoUrl ? `<img src="${logoUrl}" class="company-logo" alt="Logo"/>` : ''}
+                  <span class="company-name">${companyName}</span>
+              </div>
+              <div class="branding">
+                  Valentina ERP v3.8.41<br/>
+                  ${new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' })}
+              </div>
+          </div>
+          <hr class="divider"/>
+
+          <!-- DATOS DE LA CUENTA -->
+          <div class="header">
+              <div class="account-info">
+                  <h1>Estado de Cuenta</h1>
+                  <p><strong>Banco / Cuenta:</strong> ${account.name}</p>
+                  <p><strong>No. de Cuenta:</strong> ${account.account_number || 'S/N'}</p>
+                  <p><strong>Moneda:</strong> ${account.currency}</p>
+              </div>
+              <div class="saldo">
+                  <p>Saldo Actual</p>
+                  <h2>$${(account.current_balance || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</h2>
+              </div>
+          </div>
+
+          <!-- TABLA DE MOVIMIENTOS -->
+          <table>
+              <thead>
+                  <tr>
+                      <th>Fecha</th>
+                      <th>Concepto</th>
+                      <th>Referencia</th>
+                      <th style="text-align:right;color:#dc2626">Egreso (-)</th>
+                      <th style="text-align:right;color:#16a34a">Ingreso (+)</th>
+                      <th style="text-align:right">Saldo</th>
+                  </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+          </table>
+
+          <div class="footer">
+              Impreso el ${new Date().toLocaleString('es-MX')} · Documento generado por Valentina ERP v3.8.41
+          </div>
+      </body></html>`;
+
+      const w = window.open('', '_blank');
+      if (w) { w.document.write(html); w.document.close(); w.print(); }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
@@ -187,6 +293,13 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
             className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 font-medium transition-colors"
           >
             <ArrowRightLeft size={20} /> Transferir
+          </button>
+
+          <button 
+            onClick={handlePrint}
+            className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-100 font-medium transition-colors"
+          >
+            <Printer size={20} /> Estado de Cuenta
           </button>
         </div>
       </div>
