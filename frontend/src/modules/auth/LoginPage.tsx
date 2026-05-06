@@ -92,7 +92,7 @@ export default function LoginPage() {
                  <div className="flex items-baseline gap-2">
                     <span className="font-serif italic text-6xl text-white font-medium tracking-wide">Valentina</span>
                  </div>
-                 <p className="text-sm text-slate-400 font-mono mt-1 tracking-tight uppercase pl-1">SISTEMA DE PRODUCCIÓN v3.8.37</p>
+                 <p className="text-sm text-slate-400 font-mono mt-1 tracking-tight uppercase pl-1">SISTEMA DE PRODUCCIÓN v3.8.38</p>
             </div>
         </div>
       </div>

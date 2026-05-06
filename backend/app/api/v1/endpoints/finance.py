@@ -95,7 +95,7 @@ def _sync_pos_to_invoices(session: SessionDep):
             elif due:
                 due_date_parsed = due if hasattr(due, 'year') else today_date
 
-            total_ap_con_iva = amt * 1.16
+            total_ap_con_iva = amt
 
             inv = PurchaseInvoice(
                 provider_id=prov_id,
@@ -171,7 +171,8 @@ def request_supplier_payment(
         account.current_balance -= payment.amount
         invoice.outstanding_balance -= payment.amount
         
-        if invoice.outstanding_balance < 0.01:
+        tolerance = float(invoice.total_amount or 0) * 0.005
+        if invoice.outstanding_balance < max(tolerance, 0.01):
             invoice.outstanding_balance = 0.0
             invoice.status = InvoiceStatus.PAID
         else:
@@ -352,7 +353,8 @@ def execute_supplier_payment(*, session: SessionDep, current_user: CurrentUser, 
     # Descuento en cuenta y actualización de saldo de factura
     account.current_balance -= payment.amount
     invoice.outstanding_balance -= payment.amount
-    if invoice.outstanding_balance < 0.01:
+    tolerance = float(invoice.total_amount or 0) * 0.005
+    if invoice.outstanding_balance < max(tolerance, 0.01):
         invoice.outstanding_balance = 0.0
         invoice.status = InvoiceStatus.PAID
     else:
