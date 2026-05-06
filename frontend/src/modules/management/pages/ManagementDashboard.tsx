@@ -183,7 +183,13 @@ const ManagementDashboard: React.FC = () => {
     }, [loadData]);
 
     useEffect(() => {
-        if (location.state && (location.state as { openSection?: string }).openSection) {
+        if ((location.state as any)?.reset) {
+            setRoot(null);
+            setPayrollSub(null);
+            setRecvSubOpen(false);
+            setPaySubOpen(false);
+            window.history.replaceState({}, document.title);
+        } else if (location.state && (location.state as { openSection?: string }).openSection) {
             const s = (location.state as { openSection?: string }).openSection;
             if (s === 'RECEIVABLES') setRoot('CXC');
             if (s === 'PAYABLES') setRoot('CXP');

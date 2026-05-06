@@ -26,18 +26,20 @@ export const InventoryDashboardPage = () => {
 
     // Escucha si alguien llegó con un pase directo a una sección
     useEffect(() => {
-        if (location.state && location.state.openSection) {
+        if (location.state?.reset) {
+            setActiveSection(null);
+            setPhysicalInventorySubSection(null);
+            setTargetTab(null);
+            setReturnToPath(null);
+            window.history.replaceState({}, document.title);
+        } else if (location.state && location.state.openSection) {
             setActiveSection(location.state.openSection as InventorySection);
             const rt = (location.state as { returnTo?: string }).returnTo;
             if (rt) setReturnToPath(rt);
-            
-            // Si trae un pase directo a una pestaña interna, lo guardamos
             if (location.state.targetTab) {
                 setTargetTab(location.state.targetTab);
             }
-            
-            // Limpiamos el historial para que si recarga la página no se quede pegado
-            window.history.replaceState({}, document.title); 
+            window.history.replaceState({}, document.title);
         }
     }, [location.state]);
     

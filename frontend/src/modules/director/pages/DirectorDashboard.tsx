@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
     TrendingUp, Factory, DollarSign, Scale, Activity,
     ArrowLeft, AlertTriangle, Clock, CheckCircle,
@@ -28,6 +28,7 @@ type SalesDetailView = 'PENDING_AUTH' | 'SENT_CLIENT' | 'RED_LIGHT' | 'BATTING_R
 
 const DirectorDashboard: React.FC = () => {
     const navigate = useNavigate();
+    const location = useLocation();
 
     // --- ESTADOS BASE Y MEMORIA DE SESIÓN ---
     const [isLoading, setIsLoading] = useState(true);
@@ -121,6 +122,16 @@ const DirectorDashboard: React.FC = () => {
         const interval = setInterval(() => { loadData(true); }, 15000);
         return () => clearInterval(interval); 
     }, []);
+
+    useEffect(() => {
+        if (location.state?.reset) {
+            setActiveSection(null);
+            setActiveSalesView(null);
+            sessionStorage.removeItem('dir_activeSection');
+            sessionStorage.removeItem('dir_activeSalesView');
+            window.history.replaceState({}, document.title);
+        }
+    }, [location.state]);
 
     const loadData = async (silent = false) => {
         if (!silent) setIsLoading(true);

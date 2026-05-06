@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
     Target, FileText, Coins, Users, Search,
     ArrowLeft, Plus, TrendingUp, Wallet, Clock, 
@@ -165,6 +165,7 @@ const ClientOcCaptureModal: React.FC<{
 
 const SalesDashboardPage: React.FC = () => {
     const navigate = useNavigate();
+    const location = useLocation();
 
     // Only DIRECTOR / MANAGER can open the Financial Audit modal and see margins/costs
     const userRole  = (localStorage.getItem('user_role') || '').toUpperCase().trim();
@@ -241,6 +242,20 @@ const SalesDashboardPage: React.FC = () => {
     useEffect(() => {
         loadData();
     }, []);
+
+    useEffect(() => {
+        if (location.state?.reset) {
+            setActiveSection(null);
+            setActiveGoalView(null);
+            setActiveQuoteView(null);
+            setActiveCollectionView(null);
+            sessionStorage.removeItem('sales_activeSection');
+            sessionStorage.removeItem('sales_activeGoalView');
+            sessionStorage.removeItem('sales_activeQuoteView');
+            sessionStorage.removeItem('sales_activeCollectionView');
+            window.history.replaceState({}, document.title);
+        }
+    }, [location.state]);
 
     useEffect(() => {
         if (ocModalOpen) return;
