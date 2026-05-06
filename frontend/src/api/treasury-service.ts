@@ -41,7 +41,8 @@ export const treasuryService = {
   // 1. Obtener todas las cuentas
   getAccounts: async (): Promise<BankAccount[]> => {
     const response = await client.get('/treasury/accounts');
-    return response.data;
+    const accounts = Array.isArray(response.data) ? response.data : [];
+    return accounts.sort((a: BankAccount, b: BankAccount) => a.id - b.id);
   },
 
   // 2. Crear una cuenta nueva

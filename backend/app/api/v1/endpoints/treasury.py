@@ -40,7 +40,7 @@ def get_bank_accounts(session: SessionDep, current_user: CurrentUser) -> Any:
     """Listar todas las cuentas bancarias.
     Saldos visibles solo para DIRECTOR y GERENCIA; el resto recibe current_balance = 0.
     """
-    statement = select(BankAccount)
+    statement = select(BankAccount).order_by(BankAccount.id.asc())
     accounts = session.exec(statement).all()
 
     role = (current_user.role or "").upper()
@@ -119,17 +119,17 @@ def transfer_funds(
     from_account.current_balance -= transfer_in.amount
     out_tx = BankTransaction(
         account_id=from_account.id,
-        transaction_type=TransactionType.TRANSFER,
+        transaction_type=TransactionType.OUT,
         amount=transfer_in.amount,
         reference=transfer_in.reference,
         description=f"Transferencia hacia {to_account.name}"
     )
-    
+
     # 2. Sumar a destino
     to_account.current_balance += transfer_in.amount
     in_tx = BankTransaction(
         account_id=to_account.id,
-        transaction_type=TransactionType.TRANSFER,
+        transaction_type=TransactionType.IN,
         amount=transfer_in.amount,
         reference=transfer_in.reference,
         description=f"Transferencia desde {from_account.name}"

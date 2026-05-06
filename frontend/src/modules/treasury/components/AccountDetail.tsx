@@ -149,14 +149,8 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
-      {/* Botón de Regresar y Encabezado */}
+      {/* Encabezado */}
       <div className="flex items-center gap-4">
-        <button 
-          onClick={onBack}
-          className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-500 hover:text-gray-900"
-        >
-          <ArrowLeft size={24} />
-        </button>
         <div>
           <h2 className="text-2xl font-bold text-gray-900">{account.name}</h2>
           <p className="text-gray-500">Cuenta: {account.account_number || 'S/N'} • {account.currency}</p>
