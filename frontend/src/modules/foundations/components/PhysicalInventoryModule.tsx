@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axiosClient from '../../../api/axios-client';
 import { ClipboardList, DollarSign, Printer, ClipboardCheck } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
@@ -39,6 +39,13 @@ export const PhysicalInventoryModule = ({ activeSubSection, onSubSectionChange }
   const [activeTab, setActiveTab] = useState<Tab>('REPORTE');
   const [sortKey, setSortKey] = useState<'sku' | 'name' | 'category'>('sku');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [skuInput, setSkuInput] = useState('');
+  const [quickMaterial, setQuickMaterial] = useState<Material | null>(null);
+  const [quickQty, setQuickQty] = useState('');
+  const [quickSaved, setQuickSaved] = useState(false);
+  const [skuNotFound, setSkuNotFound] = useState(false);
+  const skuInputRef = useRef<HTMLInputElement>(null);
+  const qtyInputRef = useRef<HTMLInputElement>(null);
 
   const loadMaterials = useCallback(async () => {
     setLoading(true);
@@ -137,6 +144,56 @@ export const PhysicalInventoryModule = ({ activeSubSection, onSubSectionChange }
       setCountEntries({});
     } catch { alert('Error al guardar ajustes.'); }
     finally { setSaving(false); }
+  };
+
+  const handleSkuSearch = (sku: string) => {
+      if (!sku.trim()) return;
+      const found = materials.find(
+          m => m.sku.trim().toUpperCase() === sku.trim().toUpperCase()
+      );
+      if (found) {
+          setQuickMaterial(found);
+          setSkuNotFound(false);
+          setQuickQty('');
+          setQuickSaved(false);
+          setTimeout(() => qtyInputRef.current?.focus(), 50);
+      } else {
+          setQuickMaterial(null);
+          setSkuNotFound(true);
+      }
+  };
+
+  const handleQuickSave = async () => {
+      if (!quickMaterial || quickQty === '' || saving) return;
+      setSaving(true);
+      try {
+          await axiosClient.patch(
+              `/foundations/materials/${quickMaterial.id}/adjust-stock`,
+              {
+                  counted_quantity: parseFloat(quickQty),
+                  notes: `Inventario físico ${new Date().toLocaleDateString('es-MX')}`,
+              }
+          );
+          setCountEntries(prev => ({
+              ...prev,
+              [quickMaterial.id]: quickQty
+          }));
+          setSavedIds(prev => [...prev, quickMaterial.id]);
+          setQuickSaved(true);
+          await loadMaterials();
+          setTimeout(() => {
+              setSkuInput('');
+              setQuickMaterial(null);
+              setQuickQty('');
+              setQuickSaved(false);
+              setSkuNotFound(false);
+              skuInputRef.current?.focus();
+          }, 800);
+      } catch {
+          alert('Error al guardar ajuste.');
+      } finally {
+          setSaving(false);
+      }
   };
 
   const FilterBar = () => (
@@ -270,67 +327,221 @@ export const PhysicalInventoryModule = ({ activeSubSection, onSubSectionChange }
 
       {/* TAB CAPTURA */}
       {activeTab === 'CAPTURA' && (
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <p className="text-sm text-slate-500">Captura las cantidades contadas. Valentina calculará y aplicará los ajustes.</p>
-            <button onClick={handleAdjustAll} disabled={saving}
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg transition disabled:opacity-50">
-              <ClipboardCheck size={15}/> Aplicar Todos los Ajustes
-            </button>
+          <div className="space-y-6">
+
+              {/* ── CAPTURA RÁPIDA POR SKU ── */}
+              <div className="bg-orange-50 border-2 border-orange-200 rounded-2xl p-6">
+                  <p className="text-xs font-black text-orange-700 uppercase tracking-widest mb-4">
+                      ⚡ Captura Rápida — SKU → Cantidad → Enter
+                  </p>
+
+                  <div className="flex items-end gap-4 flex-wrap">
+
+                      {/* SKU */}
+                      <div className="flex flex-col gap-1.5">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                              SKU
+                          </label>
+                          <input
+                              ref={skuInputRef}
+                              type="text"
+                              autoFocus
+                              placeholder="Escanea o escribe..."
+                              value={skuInput}
+                              onChange={e => {
+                                  setSkuInput(e.target.value.toUpperCase());
+                                  setQuickMaterial(null);
+                                  setSkuNotFound(false);
+                                  setQuickSaved(false);
+                              }}
+                              onKeyDown={e => {
+                                  if (e.key === 'Enter') handleSkuSearch(skuInput);
+                              }}
+                              className="w-44 border-2 border-orange-300 rounded-xl px-3 py-2.5 text-sm font-mono font-black focus:outline-none focus:border-orange-500 bg-white uppercase tracking-wider"
+                          />
+                      </div>
+
+                      {/* DESCRIPCIÓN */}
+                      <div className="flex flex-col gap-1.5 flex-1 min-w-[240px]">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                              Material
+                          </label>
+                          <div className={`h-11 flex items-center px-4 rounded-xl border-2 text-sm font-bold truncate transition-colors ${
+                              quickSaved
+                                  ? 'bg-emerald-50 border-emerald-400 text-emerald-700'
+                                  : quickMaterial
+                                  ? 'bg-white border-emerald-300 text-slate-800'
+                                  : skuNotFound
+                                  ? 'bg-red-50 border-red-300 text-red-600'
+                                  : 'bg-white border-slate-200 text-slate-400 italic'
+                          }`}>
+                              {quickSaved
+                                  ? `✅ Guardado — ${quickMaterial?.name}`
+                                  : quickMaterial
+                                  ? quickMaterial.name
+                                  : skuNotFound
+                                  ? '⚠️ SKU no encontrado en catálogo'
+                                  : 'Ingresa el SKU y presiona Enter...'}
+                          </div>
+                      </div>
+
+                      {/* CANTIDAD */}
+                      <div className="flex flex-col gap-1.5">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                              Cantidad {quickMaterial ? `(${quickMaterial.usage_unit})` : ''}
+                          </label>
+                          <input
+                              ref={qtyInputRef}
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="0"
+                              value={quickQty}
+                              disabled={!quickMaterial || quickSaved}
+                              onChange={e => setQuickQty(e.target.value)}
+                              onKeyDown={e => {
+                                  if (e.key === 'Enter') handleQuickSave();
+                              }}
+                              className="w-32 border-2 border-orange-300 rounded-xl px-3 py-2.5 text-sm font-black text-center focus:outline-none focus:border-orange-500 bg-white disabled:bg-slate-100 disabled:border-slate-200 disabled:text-slate-400"
+                          />
+                      </div>
+
+                      {/* BOTÓN */}
+                      <button
+                          onClick={handleQuickSave}
+                          disabled={!quickMaterial || quickQty === '' || saving || quickSaved}
+                          className={`h-11 px-6 rounded-xl text-sm font-black uppercase tracking-widest transition-all ${
+                              quickSaved
+                                  ? 'bg-emerald-500 text-white cursor-default'
+                                  : 'bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-30 disabled:cursor-not-allowed'
+                          }`}
+                      >
+                          {quickSaved ? '✅ OK' : saving ? '...' : 'Guardar'}
+                      </button>
+                  </div>
+
+                  {/* Info stock sistema */}
+                  {quickMaterial && !quickSaved && (
+                      <div className="mt-3 flex items-center gap-6 text-xs text-slate-500">
+                          <span>
+                              Stock sistema:
+                              <strong className="text-slate-800 ml-1">
+                                  {quickMaterial.physical_stock} {quickMaterial.usage_unit}
+                              </strong>
+                          </span>
+                          {quickQty !== '' && !isNaN(parseFloat(quickQty)) && (
+                              <span>
+                                  Diferencia:
+                                  <strong className={`ml-1 ${
+                                      parseFloat(quickQty) - quickMaterial.physical_stock >= 0
+                                          ? 'text-emerald-600'
+                                          : 'text-red-600'
+                                  }`}>
+                                      {parseFloat(quickQty) - quickMaterial.physical_stock >= 0 ? '+' : ''}
+                                      {(parseFloat(quickQty) - quickMaterial.physical_stock).toFixed(2)}
+                                  </strong>
+                              </span>
+                          )}
+                      </div>
+                  )}
+              </div>
+
+              {/* ── TABLA DE CAPTURA COMPLETA ── */}
+              <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                      <p className="text-sm text-slate-500">
+                          También puedes capturar directamente en la tabla.
+                          <span className="ml-2 text-xs font-bold text-orange-600">
+                              {savedIds.length > 0 ? `${savedIds.length} ajuste(s) aplicado(s)` : ''}
+                          </span>
+                      </p>
+                      <button
+                          onClick={handleAdjustAll}
+                          disabled={saving}
+                          className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg transition disabled:opacity-50"
+                      >
+                          <ClipboardCheck size={15}/> Aplicar Todos
+                      </button>
+                  </div>
+
+                  {loading ? (
+                      <div className="text-center py-12 text-slate-400">Cargando...</div>
+                  ) : (
+                      <div className="border border-slate-200 rounded-xl overflow-hidden">
+                          <table className="w-full text-sm">
+                              <thead className="bg-slate-100 text-slate-600 text-xs uppercase tracking-wider">
+                                  <tr>
+                                      <SortHeader col="sku" label="SKU" />
+                                      <SortHeader col="name" label="Material" />
+                                      <th className="px-4 py-3 text-center font-bold">Unidad</th>
+                                      <th className="px-4 py-3 text-center font-bold">Stock Sistema</th>
+                                      <th className="px-4 py-3 text-center font-bold">Cantidad Contada</th>
+                                      <th className="px-4 py-3 text-center font-bold">Diferencia</th>
+                                      <th className="px-4 py-3 text-center font-bold">Acción</th>
+                                  </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                  {sorted.map((m, i) => {
+                                      const counted = countEntries[m.id];
+                                      const diff = counted !== undefined && counted !== ''
+                                          ? parseFloat(counted) - m.physical_stock
+                                          : null;
+                                      const isSaved = savedIds.includes(m.id);
+                                      return (
+                                          <tr key={m.id} className={`
+                                              ${i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}
+                                              ${isSaved ? 'opacity-50' : ''}
+                                          `}>
+                                              <td className="px-4 py-2 font-mono text-xs text-slate-500">{m.sku}</td>
+                                              <td className="px-4 py-2 font-medium text-slate-800 text-xs">{m.name}</td>
+                                              <td className="px-4 py-2 text-center text-slate-500 text-xs">{m.usage_unit}</td>
+                                              <td className="px-4 py-2 text-center font-bold text-slate-700">{m.physical_stock}</td>
+                                              <td className="px-4 py-2 text-center">
+                                                  <input
+                                                      type="number" min="0" step="0.01"
+                                                      disabled={isSaved}
+                                                      value={counted ?? ''}
+                                                      onChange={e => setCountEntries(prev => ({
+                                                          ...prev,
+                                                          [m.id]: e.target.value
+                                                      }))}
+                                                      className="w-24 text-center border border-slate-300 rounded-lg px-2 py-1 text-sm font-bold focus:outline-none focus:border-orange-400 disabled:bg-slate-100"
+                                                      placeholder="0"
+                                                  />
+                                              </td>
+                                              <td className="px-4 py-2 text-center">
+                                                  {diff !== null
+                                                      ? <span className={`font-bold text-sm ${
+                                                          diff > 0 ? 'text-emerald-600'
+                                                          : diff < 0 ? 'text-red-600'
+                                                          : 'text-slate-400'
+                                                      }`}>
+                                                          {diff > 0 ? '+' : ''}{diff.toFixed(2)}
+                                                      </span>
+                                                      : <span className="text-slate-300">—</span>
+                                                  }
+                                              </td>
+                                              <td className="px-4 py-2 text-center">
+                                                  {isSaved
+                                                      ? <span className="text-xs font-bold text-emerald-600">✅</span>
+                                                      : <button
+                                                          onClick={() => handleAdjust(m)}
+                                                          disabled={saving || counted === undefined || counted === ''}
+                                                          className="px-3 py-1 text-xs font-bold bg-orange-500 hover:bg-orange-600 text-white rounded-lg disabled:opacity-30 transition"
+                                                      >
+                                                          Ajustar
+                                                      </button>
+                                                  }
+                                              </td>
+                                          </tr>
+                                      );
+                                  })}
+                              </tbody>
+                          </table>
+                      </div>
+                  )}
+              </div>
           </div>
-          {loading ? <div className="text-center py-12 text-slate-400">Cargando...</div> : (
-            <div className="border border-slate-200 rounded-xl overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-100 text-slate-600 text-xs uppercase tracking-wider">
-                  <tr>
-                    <SortHeader col="sku" label="SKU" />
-                    <SortHeader col="name" label="Material" />
-                    <th className="px-4 py-3 text-center font-bold">Unidad de Uso</th>
-                    <th className="px-4 py-3 text-center font-bold">Stock Sistema</th>
-                    <th className="px-4 py-3 text-center font-bold">Cantidad Contada</th>
-                    <th className="px-4 py-3 text-center font-bold">Diferencia</th>
-                    <th className="px-4 py-3 text-center font-bold">Acción</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {sorted.map((m, i) => {
-                    const counted = countEntries[m.id];
-                    const diff = counted !== undefined && counted !== '' ? parseFloat(counted) - m.physical_stock : null;
-                    const isSaved = savedIds.includes(m.id);
-                    return (
-                      <tr key={m.id} className={`${i % 2 === 0 ? 'bg-white' : 'bg-slate-50'} ${isSaved ? 'opacity-50' : ''}`}>
-                        <td className="px-4 py-2 font-mono text-xs text-slate-500">{m.sku}</td>
-                        <td className="px-4 py-2 font-medium text-slate-800">{m.name}</td>
-                        <td className="px-4 py-2 text-center text-slate-500">{m.usage_unit}</td>
-                        <td className="px-4 py-2 text-center font-bold text-slate-700">{m.physical_stock}</td>
-                        <td className="px-4 py-2 text-center">
-                          <input type="number" min="0" step="0.01" disabled={isSaved}
-                            value={counted ?? ''}
-                            onChange={e => setCountEntries(prev => ({ ...prev, [m.id]: e.target.value }))}
-                            className="w-24 text-center border border-slate-300 rounded-lg px-2 py-1 text-sm font-bold focus:outline-none focus:border-orange-400 disabled:bg-slate-100"
-                            placeholder="0"/>
-                        </td>
-                        <td className="px-4 py-2 text-center">
-                          {diff !== null
-                            ? <span className={`font-bold text-sm ${diff > 0 ? 'text-emerald-600' : diff < 0 ? 'text-red-600' : 'text-slate-400'}`}>{diff > 0 ? '+' : ''}{diff.toFixed(2)}</span>
-                            : <span className="text-slate-300">—</span>}
-                        </td>
-                        <td className="px-4 py-2 text-center">
-                          {isSaved
-                            ? <span className="text-xs font-bold text-emerald-600">✅ Guardado</span>
-                            : <button onClick={() => handleAdjust(m)} disabled={saving || counted === undefined || counted === ''}
-                                className="px-3 py-1 text-xs font-bold bg-orange-500 hover:bg-orange-600 text-white rounded-lg disabled:opacity-30 transition">
-                                Ajustar
-                              </button>}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
       )}
     </div>
   );
