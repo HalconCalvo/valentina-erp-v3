@@ -167,7 +167,12 @@ export const VersionRecipeForm = ({
   }, [defaultValues, initialStatus, setValue, getValues]);
 
   const isReadOnly = internalStatus === VersionStatus.READY || internalStatus === VersionStatus.OBSOLETE;
-  const getUsageCost = (mat: Material) => mat ? mat.current_cost : 0;
+  const getUsageCost = (mat: Material) => {
+      if (!mat) return 0;
+      const factor = (mat as any).conversion_factor;
+      if (factor && factor > 1) return mat.current_cost / factor;
+      return mat.current_cost;
+  };
 
   const handleQuantityChange = (index: number, newValueStr: string) => {
       if (isReadOnly) return;
