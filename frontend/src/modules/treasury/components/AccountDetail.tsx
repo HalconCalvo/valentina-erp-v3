@@ -25,7 +25,16 @@ const ITEMS_PER_PAGE = 10;
 export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransaction }) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [accounts, setAccounts] = useState<BankAccount[]>([]);
+  const [transferForm, setTransferForm] = useState({
+      to_account_id: '',
+      amount: '',
+      reference: '',
+      description: ''
+  });
+  const [transferring, setTransferring] = useState(false);
+
   const [currentPage, setCurrentPage] = useState(1);
 
   const fetchTransactions = async () => {
@@ -41,8 +50,50 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
     }
   };
 
+  const fetchAccounts = async () => {
+      try {
+          const data = await treasuryService.getAccounts();
+          setAccounts((data || []).filter((a: BankAccount) => a.id !== account.id));
+      } catch {
+          console.error('Error al cargar cuentas');
+      }
+  };
+
+  const handleTransfer = async () => {
+      if (!transferForm.to_account_id || !transferForm.amount) {
+          return alert('Selecciona la cuenta destino e ingresa el monto.');
+      }
+      const amount = parseFloat(transferForm.amount.replace(/,/g, ''));
+      if (isNaN(amount) || amount <= 0) {
+          return alert('Ingresa un monto válido.');
+      }
+      if (amount > (account.current_balance || 0)) {
+          return alert('Saldo insuficiente.');
+      }
+      if (!confirm(`¿Transferir $${amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })} a la cuenta seleccionada?`)) return;
+      setTransferring(true);
+      try {
+          await treasuryService.transferFunds({
+              from_account_id: account.id,
+              to_account_id: parseInt(transferForm.to_account_id),
+              amount,
+              reference: transferForm.reference || undefined,
+              description: transferForm.description || 'Transferencia entre cuentas'
+          });
+          alert('✅ Transferencia realizada exitosamente.');
+          setShowTransferModal(false);
+          setTransferForm({ to_account_id: '', amount: '', reference: '', description: '' });
+          fetchTransactions();
+      } catch (error: any) {
+          alert(error.response?.data?.detail || 'Error al realizar la transferencia.');
+      } finally {
+          setTransferring(false);
+      }
+  };
+
   useEffect(() => {
     fetchTransactions();
+    fetchAccounts();
   }, [account.id, account.current_balance]); 
 
   const transactionsWithBalance = useMemo(() => {
@@ -138,8 +189,8 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
           </button>
 
           <button 
-            onClick={() => alert("¡Transferencias en construcción!")}
-            className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-100 font-medium transition-colors"
+            onClick={() => setShowTransferModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 font-medium transition-colors"
           >
             <ArrowRightLeft size={20} /> Transferir
           </button>
@@ -229,6 +280,105 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
           </div>
         )}
       </div>
+
+      {showTransferModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border-t-4 border-t-blue-500 animate-in zoom-in-95 duration-200">
+                  <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                      <div>
+                          <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                              <ArrowRightLeft size={20} className="text-blue-600" />
+                              Transferencia entre Cuentas
+                          </h3>
+                          <p className="text-xs text-slate-500 mt-1">
+                              Origen: <strong>{account.name}</strong> — Saldo: ${(account.current_balance || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                          </p>
+                      </div>
+                      <button
+                          onClick={() => setShowTransferModal(false)}
+                          className="text-slate-400 hover:text-slate-600"
+                      >
+                          ✕
+                      </button>
+                  </div>
+                  <div className="p-6 space-y-4">
+                      <div>
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                              Cuenta Destino
+                          </label>
+                          <select
+                              value={transferForm.to_account_id}
+                              onChange={e => setTransferForm(f => ({ ...f, to_account_id: e.target.value }))}
+                              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-blue-400"
+                          >
+                              <option value="">-- Seleccionar cuenta --</option>
+                              {accounts.map(a => (
+                                  <option key={a.id} value={a.id}>
+                                      {a.name} — ${(a.current_balance || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                                  </option>
+                              ))}
+                          </select>
+                      </div>
+                      <div>
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                              Monto
+                          </label>
+                          <div className="flex items-center border border-slate-200 rounded-lg px-3 py-2 focus-within:border-blue-400">
+                              <span className="text-sm font-bold text-slate-400 mr-2">$</span>
+                              <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  placeholder="0.00"
+                                  value={transferForm.amount}
+                                  onChange={e => setTransferForm(f => ({ ...f, amount: e.target.value }))}
+                                  className="w-full text-sm font-bold text-slate-700 outline-none"
+                              />
+                          </div>
+                      </div>
+                      <div>
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                              Referencia (opcional)
+                          </label>
+                          <input
+                              type="text"
+                              placeholder="Ej. TRF-001"
+                              value={transferForm.reference}
+                              onChange={e => setTransferForm(f => ({ ...f, reference: e.target.value }))}
+                              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-blue-400"
+                          />
+                      </div>
+                      <div>
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                              Concepto (opcional)
+                          </label>
+                          <input
+                              type="text"
+                              placeholder="Ej. Traspaso para pago de nómina"
+                              value={transferForm.description}
+                              onChange={e => setTransferForm(f => ({ ...f, description: e.target.value }))}
+                              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-blue-400"
+                          />
+                      </div>
+                  </div>
+                  <div className="p-6 border-t border-slate-100 flex gap-3 justify-end">
+                      <button
+                          onClick={() => setShowTransferModal(false)}
+                          className="px-5 py-2 border border-slate-200 text-slate-500 font-black uppercase text-[10px] rounded-lg hover:bg-slate-50"
+                      >
+                          Cancelar
+                      </button>
+                      <button
+                          onClick={handleTransfer}
+                          disabled={transferring || !transferForm.to_account_id || !transferForm.amount}
+                          className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-black uppercase text-[10px] rounded-lg shadow-md disabled:opacity-30"
+                      >
+                          {transferring ? 'Transfiriendo...' : 'Confirmar Transferencia'}
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 };
