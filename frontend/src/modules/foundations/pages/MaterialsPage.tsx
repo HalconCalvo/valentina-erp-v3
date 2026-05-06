@@ -169,18 +169,30 @@ export default function MaterialsPage() {
     if (showFinancials) {
         cols.push({
             accessorKey: "current_cost",
-            header: () => <div className="text-right">Costo</div>,
+            header: () => <div className="text-right">Costo / Unidad Uso</div>,
             cell: ({ row }) => {
-                const amount = parseFloat(row.getValue("current_cost") || "0");
+                const cost = parseFloat(row.getValue("current_cost") || "0");
+                const factor = (row.original as any).conversion_factor || 1;
+                const unitCost = factor > 1 ? cost / factor : cost;
                 const formatted = new Intl.NumberFormat("es-MX", {
                     style: "currency",
                     currency: "MXN",
+                    minimumFractionDigits: 4
+                }).format(unitCost);
+                const formattedPurchase = new Intl.NumberFormat("es-MX", {
+                    style: "currency",
+                    currency: "MXN",
                     minimumFractionDigits: 2
-                }).format(amount);
+                }).format(cost);
 
                 return (
-                    <div className="text-right font-medium text-slate-900">
-                        {formatted}
+                    <div className="text-right">
+                        <div className="font-medium text-slate-900">{formatted}</div>
+                        {factor > 1 && (
+                            <div className="text-[10px] text-slate-400">
+                                {formattedPurchase} / {(row.original as any).purchase_unit}
+                            </div>
+                        )}
                     </div>
                 )
             }
