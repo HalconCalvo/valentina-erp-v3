@@ -364,6 +364,12 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
     setattr(po, 'invoice_total_reported', data.get("invoice_total"))
     
     # 1. Ingresar stock físico
+    # Construir diccionario de cantidades recibidas por SKU
+    received_map: dict = {}
+    for ri in (data.get("received_items") or []):
+        sku = ri.get("sku", "")
+        received_map[sku] = float(ri.get("received_qty") or ri.get("expected_qty") or 0)
+
     items = db.exec(select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po.id)).all()
     for item in items:
         if item.material_id:
@@ -373,7 +379,11 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
                 if route != 'MATERIAL':
                     continue
                 factor = float(getattr(mat, 'conversion_factor', 1) or 1)
-                qty_in_usage_units = float(item.quantity_ordered or 0) * factor
+                # Usar cantidad recibida real si está disponible, si no usar la de la OC
+                mat_sku = mat.sku or ""
+                qty_ordered = float(item.quantity_ordered or 0)
+                qty_received = received_map.get(mat_sku, qty_ordered)
+                qty_in_usage_units = qty_received * factor
                 mat.physical_stock = (mat.physical_stock or 0) + qty_in_usage_units
                 db.add(mat)
 
