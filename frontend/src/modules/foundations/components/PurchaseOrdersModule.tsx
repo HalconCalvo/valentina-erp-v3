@@ -478,7 +478,8 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         try {
             await axiosClient.post(
                 `/purchases/orders/${emailModal.orderId}/send-email`,
-                { to_email: email }
+                { to_email: email },
+                { timeout: 30000 }
             );
             alert(`✅ OC ${emailModal.folio} enviada por correo a ${email}`);
             setEmailModal({ open: false, orderId: null, folio: '', providerEmail: '' });
