@@ -53,7 +53,7 @@ def send_purchase_order_email(
         with smtplib.SMTP(smtp_host, 587) as server:
             server.ehlo()
             server.starttls(context=context)
-            server.login('gfrias67@gmail.com', smtp_password)
+            server.login('aa9635001@smtp-brevo.com', smtp_password)
             server.sendmail(smtp_email, to_email, msg_bytes)
         return
 
