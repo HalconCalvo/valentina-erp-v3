@@ -4,6 +4,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
+from email.generator import BytesGenerator
 from io import BytesIO
 
 
@@ -23,10 +24,10 @@ def send_purchase_order_email(
     msg["Subject"] = f"Orden de Compra {folio} — {company_name}"
 
     body = (
-        f"Estimado proveedor {provider_name},\n\n"
-        f"Adjuntamos la Orden de Compra {folio} para su atención.\n"
-        f"Por favor confírmenos de recibido.\n\n"
-        f"Saludos,\n{company_name}"
+        f"Estimado proveedor {provider_name},\r\n\r\n"
+        f"Adjuntamos la Orden de Compra {folio} para su atencion.\r\n"
+        f"Por favor confirme de recibido.\r\n\r\n"
+        f"Saludos,\r\n{company_name}"
     )
     msg.attach(MIMEText(body, "plain", "utf-8"))
 
@@ -40,20 +41,26 @@ def send_purchase_order_email(
     )
     msg.attach(part)
 
+    # Serializar con CRLF estricto para GoDaddy
+    buf = BytesIO()
+    gen = BytesGenerator(buf, mangle_from_=False)
+    gen.flatten(msg)
+    msg_bytes = buf.getvalue().replace(b'\r\n', b'\n').replace(b'\n', b'\r\n')
+
     context = ssl.create_default_context()
 
-    # Intentar primero puerto 465 (SSL directo - GoDaddy)
+    # Puerto 465 SSL directo (GoDaddy Workspace)
     try:
         with smtplib.SMTP_SSL(smtp_host, 465, context=context) as server:
             server.login(smtp_email, smtp_password)
-            server.sendmail(smtp_email, to_email, msg.as_string())
+            server.sendmail(smtp_email, to_email, msg_bytes)
         return
     except Exception:
         pass
 
-    # Fallback: puerto 587 con STARTTLS (Gmail, Outlook)
+    # Fallback puerto 587 STARTTLS (Gmail, Outlook)
     with smtplib.SMTP(smtp_host, 587) as server:
         server.ehlo()
         server.starttls(context=context)
         server.login(smtp_email, smtp_password)
-        server.sendmail(smtp_email, to_email, msg.as_string())
+        server.sendmail(smtp_email, to_email, msg_bytes)
