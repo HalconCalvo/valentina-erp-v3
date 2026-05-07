@@ -40,9 +40,19 @@ def send_purchase_order_email(
     )
     msg.attach(part)
 
-    port = 587
     context = ssl.create_default_context()
-    with smtplib.SMTP(smtp_host, port) as server:
+
+    # Intentar primero puerto 465 (SSL directo - GoDaddy)
+    try:
+        with smtplib.SMTP_SSL(smtp_host, 465, context=context) as server:
+            server.login(smtp_email, smtp_password)
+            server.sendmail(smtp_email, to_email, msg.as_string())
+        return
+    except Exception:
+        pass
+
+    # Fallback: puerto 587 con STARTTLS (Gmail, Outlook)
+    with smtplib.SMTP(smtp_host, 587) as server:
         server.ehlo()
         server.starttls(context=context)
         server.login(smtp_email, smtp_password)
