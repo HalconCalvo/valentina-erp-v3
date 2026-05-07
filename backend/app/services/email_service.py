@@ -41,7 +41,6 @@ def send_purchase_order_email(
     )
     msg.attach(part)
 
-    # Serializar con CRLF estricto para GoDaddy
     buf = BytesIO()
     gen = BytesGenerator(buf, mangle_from_=False)
     gen.flatten(msg)
@@ -49,7 +48,25 @@ def send_purchase_order_email(
 
     context = ssl.create_default_context()
 
-    # Puerto 465 SSL directo (GoDaddy Workspace)
+    # Brevo (Sendinblue) — usuario SMTP es el email de registro
+    if 'brevo.com' in smtp_host:
+        with smtplib.SMTP(smtp_host, 587) as server:
+            server.ehlo()
+            server.starttls(context=context)
+            server.login('gfrias67@gmail.com', smtp_password)
+            server.sendmail(smtp_email, to_email, msg_bytes)
+        return
+
+    # SendGrid
+    if 'sendgrid.net' in smtp_host:
+        with smtplib.SMTP(smtp_host, 587) as server:
+            server.ehlo()
+            server.starttls(context=context)
+            server.login('apikey', smtp_password)
+            server.sendmail(smtp_email, to_email, msg_bytes)
+        return
+
+    # GoDaddy / otros: puerto 465 SSL
     try:
         with smtplib.SMTP_SSL(smtp_host, 465, context=context) as server:
             server.login(smtp_email, smtp_password)
@@ -58,7 +75,7 @@ def send_purchase_order_email(
     except Exception:
         pass
 
-    # Fallback puerto 587 STARTTLS (Gmail, Outlook)
+    # Fallback puerto 587 STARTTLS
     with smtplib.SMTP(smtp_host, 587) as server:
         server.ehlo()
         server.starttls(context=context)
