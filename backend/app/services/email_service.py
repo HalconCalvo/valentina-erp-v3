@@ -27,6 +27,7 @@ def send_purchase_order_email(
             "email": smtp_email
         },
         "to": [{"email": to_email}],
+        "cc": [{"email": smtp_email}],
         "subject": f"Orden de Compra {folio} — {company_name}",
         "textContent": body
     }

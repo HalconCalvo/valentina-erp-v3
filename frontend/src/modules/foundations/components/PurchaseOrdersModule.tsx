@@ -797,12 +797,12 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                         {canDispatch && (
                                             <div className="flex flex-col gap-2">
                                                 <Button
-                                                    onClick={() => setEmailModal({
-                                                        open: true,
-                                                        orderId: order.id,
-                                                        folio: order.folio,
-                                                        providerEmail: ''
-                                                    })}
+  onClick={() => setEmailModal({
+      open: true,
+      orderId: order.id,
+      folio: order.folio,
+      providerEmail: order.provider_email || ''
+  })}
                                                     className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-xs h-12 px-10 shadow-lg"
                                                 >
                                                     <Send size={16} className="mr-3" /> Enviar por Correo

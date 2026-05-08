@@ -159,6 +159,7 @@ def read_purchase_orders(*, db: Session = Depends(get_session), status: str | No
             "folio": o.folio,
             "status": o.status,
             "provider_name": prov.business_name if prov else "Proveedor Desconocido",
+            "provider_email": getattr(prov, 'contact_email', None) if prov else None,
             "credit_days": getattr(prov, 'credit_days', 0) if prov else 0,
             "total_estimated_amount": o.total_estimated_amount or 0,
             "items": items_formatted,
