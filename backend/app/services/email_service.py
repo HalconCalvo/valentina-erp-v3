@@ -15,7 +15,7 @@ def send_purchase_order_email(
     to_email: str,
     provider_name: str,
     folio: str,
-    pdf_buffer: BytesIO,
+    pdf_buffer: BytesIO = None,
     company_name: str = "Valentina"
 ) -> None:
     msg = MIMEMultipart()
@@ -30,16 +30,6 @@ def send_purchase_order_email(
         f"Saludos,\r\n{company_name}"
     )
     msg.attach(MIMEText(body, "plain", "utf-8"))
-
-    part = MIMEBase("application", "octet-stream")
-    pdf_buffer.seek(0)
-    part.set_payload(pdf_buffer.read())
-    encoders.encode_base64(part)
-    part.add_header(
-        "Content-Disposition",
-        f'attachment; filename="OC_{folio}.pdf"'
-    )
-    msg.attach(part)
 
     buf = BytesIO()
     gen = BytesGenerator(buf, mangle_from_=False)
