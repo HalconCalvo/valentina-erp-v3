@@ -1,3 +1,4 @@
+import base64
 import requests
 from io import BytesIO
 
@@ -30,15 +31,22 @@ def send_purchase_order_email(
         "textContent": body
     }
 
-    # Usar API Key de Brevo
-    api_key = smtp_password
+    if pdf_buffer is not None:
+        pdf_buffer.seek(0)
+        pdf_b64 = base64.b64encode(pdf_buffer.read()).decode('utf-8')
+        payload["attachment"] = [
+            {
+                "name": f"OC_{folio}.pdf",
+                "content": pdf_b64
+            }
+        ]
 
     response = requests.post(
         "https://api.brevo.com/v3/smtp/email",
         headers={
             "accept": "application/json",
             "content-type": "application/json",
-            "api-key": api_key
+            "api-key": smtp_password
         },
         json=payload,
         timeout=30

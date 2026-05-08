@@ -878,6 +878,11 @@ def send_purchase_order_by_email(
     company_name = getattr(config, "company_name", "Valentina") or "Valentina"
     smtp_host = getattr(config, "smtp_host", None) or "smtp.gmail.com"
 
+    pdf_gen = PDFGenerator()
+    pdf_buffer = pdf_gen.generate_po_pdf(
+        order=mock_po, provider=provider, config=config
+    )
+
     try:
         send_purchase_order_email(
             smtp_host=smtp_host,
@@ -886,7 +891,7 @@ def send_purchase_order_by_email(
             to_email=to_email,
             provider_name=provider.business_name,
             folio=po.folio,
-            pdf_buffer=None,
+            pdf_buffer=pdf_buffer,
             company_name=company_name
         )
     except Exception as e:
