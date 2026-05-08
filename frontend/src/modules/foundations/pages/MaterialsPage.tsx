@@ -548,9 +548,12 @@ export default function MaterialsPage() {
                                     <ChevronDown size={14} />
                                 </div>
                             </div>
-                            {showUsageUnitSuggestions && filteredUsageUnits.length > 0 && (
+                            {showUsageUnitSuggestions && existingUsageUnits.length > 0 && (
                                 <ul className="absolute z-10 w-full bg-white border border-slate-200 rounded-md shadow-lg mt-1 max-h-48 overflow-auto text-sm">
-                                    {filteredUsageUnits.map((unit) => (
+                                    {(form.usage_unit && form.usage_unit.length > 0 
+                                        ? filteredUsageUnits 
+                                        : existingUsageUnits
+                                    ).map((unit) => (
                                         <li
                                             key={unit}
                                             className="px-3 py-2 hover:bg-indigo-50 cursor-pointer text-slate-700"

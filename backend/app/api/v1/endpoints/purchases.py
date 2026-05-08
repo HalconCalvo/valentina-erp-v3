@@ -177,15 +177,15 @@ def emit_bulk_purchase_order(*, db: Session = Depends(get_session), data: POCrea
     if not data.provider_id: raise HTTPException(status_code=400)
     timestamp = datetime.now().strftime('%y%m%d%H%M')
     new_folio = f"OC-{timestamp}"
-    po = PurchaseOrder(
-        provider_id=data.provider_id,
-        folio=new_folio,
-        status="DRAFT",
-        total_estimated_amount=0.0,
-        is_advance=True,
-        created_by_user_id=current_user.id,
-        overhead_category=data.overhead_category
-    )
+  po = PurchaseOrder(
+      provider_id=data.provider_id,
+      folio=new_folio,
+      status="DRAFT",
+      total_estimated_amount=0.0,
+      is_advance=False,
+      created_by_user_id=current_user.id,
+      overhead_category=data.overhead_category
+  )
     db.add(po)
     db.flush() 
 
@@ -605,15 +605,15 @@ def create_manual_order(
     timestamp = datetime.now().strftime("%y%m%d%H%M%S")
     subtotal = sum(item.qty * item.expected_cost for item in order_in.items)
     
-    new_order = PurchaseOrder(
-        provider_id=provider.id,
-        folio=f"OC-M{timestamp}",
-        status="DRAFT",
-        total_estimated_amount=subtotal,
-        created_by_user_id=current_user.id,
-        is_advance=True,
-        overhead_category=order_in.overhead_category
-    )
+  new_order = PurchaseOrder(
+      provider_id=provider.id,
+      folio=f"OC-M{timestamp}",
+      status="DRAFT",
+      total_estimated_amount=subtotal,
+      created_by_user_id=current_user.id,
+      is_advance=False,
+      overhead_category=order_in.overhead_category
+  )
     db.add(new_order)
     db.commit()
     db.refresh(new_order)
