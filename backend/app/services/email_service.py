@@ -1,10 +1,4 @@
-import smtplib
-import ssl
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email import encoders
-from email.generator import BytesGenerator
+import requests
 from io import BytesIO
 
 
@@ -18,56 +12,39 @@ def send_purchase_order_email(
     pdf_buffer: BytesIO = None,
     company_name: str = "Valentina"
 ) -> None:
-    msg = MIMEMultipart()
-    msg["From"] = smtp_email
-    msg["To"] = to_email
-    msg["Subject"] = f"Orden de Compra {folio} — {company_name}"
 
     body = (
-        f"Estimado proveedor {provider_name},\r\n\r\n"
-        f"Adjuntamos la Orden de Compra {folio} para su atencion.\r\n"
-        f"Por favor confirme de recibido.\r\n\r\n"
-        f"Saludos,\r\n{company_name}"
+        f"Estimado proveedor {provider_name},\n\n"
+        f"Adjuntamos la Orden de Compra {folio} para su atencion.\n"
+        f"Por favor confirme de recibido.\n\n"
+        f"Saludos,\n{company_name}"
     )
-    msg.attach(MIMEText(body, "plain", "utf-8"))
 
-    buf = BytesIO()
-    gen = BytesGenerator(buf, mangle_from_=False)
-    gen.flatten(msg)
-    msg_bytes = buf.getvalue().replace(b'\r\n', b'\n').replace(b'\n', b'\r\n')
+    payload = {
+        "sender": {
+            "name": company_name,
+            "email": smtp_email
+        },
+        "to": [{"email": to_email}],
+        "subject": f"Orden de Compra {folio} — {company_name}",
+        "textContent": body
+    }
 
-    context = ssl.create_default_context()
+    # Usar API Key de Brevo
+    api_key = smtp_password
 
-    # Brevo (Sendinblue) — usuario SMTP es el email de registro
-    if 'brevo.com' in smtp_host:
-        with smtplib.SMTP(smtp_host, 587) as server:
-            server.ehlo()
-            server.starttls(context=context)
-            server.login('aa9635001@smtp-brevo.com', smtp_password)
-            server.sendmail(smtp_email, to_email, msg_bytes)
-        return
+    response = requests.post(
+        "https://api.brevo.com/v3/smtp/email",
+        headers={
+            "accept": "application/json",
+            "content-type": "application/json",
+            "api-key": api_key
+        },
+        json=payload,
+        timeout=30
+    )
 
-    # SendGrid
-    if 'sendgrid.net' in smtp_host:
-        with smtplib.SMTP(smtp_host, 587) as server:
-            server.ehlo()
-            server.starttls(context=context)
-            server.login('apikey', smtp_password)
-            server.sendmail(smtp_email, to_email, msg_bytes)
-        return
-
-    # GoDaddy / otros: puerto 465 SSL
-    try:
-        with smtplib.SMTP_SSL(smtp_host, 465, context=context) as server:
-            server.login(smtp_email, smtp_password)
-            server.sendmail(smtp_email, to_email, msg_bytes)
-        return
-    except Exception:
-        pass
-
-    # Fallback puerto 587 STARTTLS
-    with smtplib.SMTP(smtp_host, 587) as server:
-        server.ehlo()
-        server.starttls(context=context)
-        server.login(smtp_email, smtp_password)
-        server.sendmail(smtp_email, to_email, msg_bytes)
+    if response.status_code not in (200, 201, 202):
+        raise Exception(
+            f"Brevo API error {response.status_code}: {response.text}"
+        )
