@@ -177,15 +177,15 @@ def emit_bulk_purchase_order(*, db: Session = Depends(get_session), data: POCrea
     if not data.provider_id: raise HTTPException(status_code=400)
     timestamp = datetime.now().strftime('%y%m%d%H%M')
     new_folio = f"OC-{timestamp}"
-  po = PurchaseOrder(
-      provider_id=data.provider_id,
-      folio=new_folio,
-      status="DRAFT",
-      total_estimated_amount=0.0,
-      is_advance=False,
-      created_by_user_id=current_user.id,
-      overhead_category=data.overhead_category
-  )
+    po = PurchaseOrder(
+        provider_id=data.provider_id,
+        folio=new_folio,
+        status="DRAFT",
+        total_estimated_amount=0.0,
+        is_advance=False,
+        created_by_user_id=current_user.id,
+        overhead_category=data.overhead_category
+    )
     db.add(po)
     db.flush() 
 
@@ -360,9 +360,10 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
     po = db.get(PurchaseOrder, po_id)
     if not po: raise HTTPException(status_code=404, detail="Orden no encontrada")
 
-    po.status = "RECIBIDA_TOTAL"
-    setattr(po, 'invoice_folio_reported', data.get("invoice_folio"))
-    setattr(po, 'invoice_total_reported', data.get("invoice_total"))
+  po.status = "RECIBIDA_TOTAL"
+  setattr(po, 'invoice_folio_reported', data.get("invoice_folio"))
+  setattr(po, 'invoice_total_reported', data.get("invoice_total"))
+  po.is_advance = False  # Se actualizará si estaba prepagada al 100%
     
     # 1. Ingresar stock físico
     # Construir diccionario de cantidades recibidas por SKU
