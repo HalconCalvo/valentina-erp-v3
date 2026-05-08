@@ -26,6 +26,7 @@ export default function MaterialsPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
   const [showPurchaseUnitSuggestions, setShowPurchaseUnitSuggestions] = useState(false);
+  const [showUsageUnitSuggestions, setShowUsageUnitSuggestions] = useState(false);
   const [skuExists, setSkuExists] = useState(false);
   
   const initialFormState: Partial<Material> = {
@@ -233,6 +234,14 @@ export default function MaterialsPage() {
 
   const filteredPurchaseUnits = existingPurchaseUnits.filter(u =>
       u.toLowerCase().includes((form.purchase_unit || '').toLowerCase())
+  );
+
+  const existingUsageUnits = Array.from(
+      new Set(materials.map(m => m.usage_unit).filter(Boolean))
+  ).sort();
+
+  const filteredUsageUnits = existingUsageUnits.filter(u =>
+      u.toLowerCase().includes((form.usage_unit || '').toLowerCase())
   );
 
   const mapMaterialsForExcel = (m: Material) => ({
@@ -521,9 +530,40 @@ export default function MaterialsPage() {
                                 <ArrowRight size={14} className="text-slate-400"/>
                             </div>
                         </div>
-                        <div>
+                        <div className="relative">
                             <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Unidad Uso</label>
-                            <input className="input-std bg-slate-50" placeholder="Ej. m2" value={form.usage_unit} onChange={e => setForm({...form, usage_unit: e.target.value})} />
+                            <div className="relative">
+                                <input
+                                    className="input-std bg-slate-50"
+                                    placeholder="Ej. m2"
+                                    value={form.usage_unit}
+                                    onChange={e => {
+                                        setForm({...form, usage_unit: e.target.value});
+                                        setShowUsageUnitSuggestions(true);
+                                    }}
+                                    onFocus={() => setShowUsageUnitSuggestions(true)}
+                                    onBlur={() => setTimeout(() => setShowUsageUnitSuggestions(false), 200)}
+                                />
+                                <div className="absolute right-2 top-2.5 text-slate-400 pointer-events-none">
+                                    <ChevronDown size={14} />
+                                </div>
+                            </div>
+                            {showUsageUnitSuggestions && filteredUsageUnits.length > 0 && (
+                                <ul className="absolute z-10 w-full bg-white border border-slate-200 rounded-md shadow-lg mt-1 max-h-48 overflow-auto text-sm">
+                                    {filteredUsageUnits.map((unit) => (
+                                        <li
+                                            key={unit}
+                                            className="px-3 py-2 hover:bg-indigo-50 cursor-pointer text-slate-700"
+                                            onMouseDown={() => {
+                                                setForm({...form, usage_unit: unit});
+                                                setShowUsageUnitSuggestions(false);
+                                            }}
+                                        >
+                                            {unit}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                         </div>
                     </div>
 
@@ -558,7 +598,14 @@ export default function MaterialsPage() {
                         <div className="md:col-span-4 bg-slate-100 p-2 rounded flex justify-end">
                             <div className="w-1/4">
                                 <label className="text-xs font-bold text-slate-600 uppercase flex items-center gap-1"><DollarSign size={12}/> Costo Compra</label>
-                                <input type="number" step="0.01" className="input-std font-bold text-slate-800 bg-white" value={form.current_cost} onChange={e => setForm({...form, current_cost: parseFloat(e.target.value)})} />
+                                <input 
+                                    type="number" 
+                                    step="0.01"
+                                    min="0"
+                                    className="input-std font-bold text-slate-800 bg-white" 
+                                    value={form.current_cost} 
+                                    onChange={e => setForm({...form, current_cost: e.target.value === '' ? 0 : parseFloat(e.target.value)})}
+                                />
                             </div>
                         </div>
                     )}
