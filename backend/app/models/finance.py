@@ -65,7 +65,7 @@ class SupplierPayment(SQLModel, table=True):
 
     amount: float
     payment_date: datetime # Fecha en la que se solicita/programa el pago
-    payment_method: PaymentMethod = Field(default=PaymentMethod.TRANSFERENCIA)
+    payment_method: PaymentMethod = Field(default=PaymentMethod.TRANSFER)
     
     # --- NUEVOS CAMPOS: EL PUENTE CON TESORERÍA ---
     # Cuenta que Administración sugiere para el pago
