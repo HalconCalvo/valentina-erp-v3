@@ -1,5 +1,5 @@
 export type PaymentStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
-export type PaymentMethod = 'TRANSFERENCIA' | 'EFECTIVO' | 'CHEQUE' | 'TARJETA' | 'OTRO';
+export type PaymentMethod = 'TRANSFER' | 'CASH' | 'CHECK' | 'CREDIT_CARD' | 'OTHER';
 
 // --- 1. ESTADÍSTICAS DEL DASHBOARD (Las 3 Tarjetas) ---
 // Debe coincidir exactamente con AccountsPayableDashboardStats en Python

@@ -23,11 +23,11 @@ class PaymentStatus(str, Enum):
     PAID = "PAID"           # Ejecutado (Dinero salió de Tesorería)
 
 class PaymentMethod(str, Enum):
-    TRANSFERENCIA = "TRANSFERENCIA"
-    EFECTIVO = "EFECTIVO"
-    CHEQUE = "CHEQUE"
-    TARJETA = "TARJETA"
-    OTRO = "OTRO"
+    TRANSFER = "TRANSFER"
+    CASH = "CASH"
+    CHECK = "CHECK"
+    CREDIT_CARD = "CREDIT_CARD"
+    OTHER = "OTHER"
 
 # --- 1. FACTURA DE COMPRA (La Deuda) ---
 class PurchaseInvoice(SQLModel, table=True):

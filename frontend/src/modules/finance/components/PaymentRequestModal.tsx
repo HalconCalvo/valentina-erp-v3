@@ -23,7 +23,7 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
             ? new Date(existingRequest.payment_date).toISOString().split('T')[0] 
             : new Date().toISOString().split('T')[0]
     );
-    const [method, setMethod] = useState<PaymentMethod>(existingRequest ? existingRequest.payment_method : 'TRANSFERENCIA');
+    const [method, setMethod] = useState<PaymentMethod>(existingRequest ? existingRequest.payment_method : 'TRANSFER');
     
     const [suggestedAccount, setSuggestedAccount] = useState<number | ''>(existingRequest?.suggested_account_id || '');
     const [accounts, setAccounts] = useState<BankAccount[]>([]);
@@ -195,10 +195,11 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
                                     value={method}
                                     onChange={(e) => setMethod(e.target.value as PaymentMethod)}
                                 >
-                                    <option value="TRANSFERENCIA">Transferencia</option>
-                                    <option value="CHEQUE">Cheque</option>
-                                    <option value="EFECTIVO">Efectivo</option>
-                                    <option value="TARJETA">Tarjeta</option>
+    <option value="TRANSFER">Transferencia</option>
+    <option value="CHECK">Cheque</option>
+    <option value="CASH">Efectivo</option>
+    <option value="CREDIT_CARD">Tarjeta</option>
+    <option value="OTHER">Otro</option>
                                 </select>
                             </div>
                         </div>
