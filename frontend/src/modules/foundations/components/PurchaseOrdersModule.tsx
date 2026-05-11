@@ -36,6 +36,10 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
 
     const [activeDropdown, setActiveDropdown] = useState<{type: 'provider' | 'sku' | 'material' | null, index: number | null}>({type: null, index: null});
 
+    const [newMatModal, setNewMatModal] = useState<{open: boolean, rowIndex: number | null}>({open: false, rowIndex: null});
+    const [newMatForm, setNewMatForm] = useState({ sku: '', name: '', unit_of_measure: 'PZA', current_cost: '0.00' });
+    const [newMatLoading, setNewMatLoading] = useState(false);
+
     const [assignModal, setAssignModal] = useState<{
         open: boolean;
         requisitionId: number | null;
@@ -530,6 +534,37 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         
         setManualOrderForm({ ...manualOrderForm, items: newItems });
         setActiveDropdown({ type: null, index: null });
+    };
+
+    const handleSaveNewMaterial = async () => {
+        if (!newMatForm.sku.trim() || !newMatForm.name.trim()) {
+            return alert("SKU y Nombre son obligatorios.");
+        }
+        setNewMatLoading(true);
+        try {
+            const res = await axiosClient.post('/foundations/materials', {
+                sku: newMatForm.sku.trim().toUpperCase(),
+                name: newMatForm.name.trim().toUpperCase(),
+                unit_of_measure: newMatForm.unit_of_measure || 'PZA',
+                current_cost: parseFloat(newMatForm.current_cost) || 0,
+                item_type: 'MATERIAL',
+                is_active: true,
+            });
+            const created = res.data;
+            // Recargar lista de materiales
+            const matRes = await axiosClient.get('/foundations/materials/');
+            setMaterialsList(extractList(matRes, 'materials'));
+            // Autocompletar la fila
+            if (newMatModal.rowIndex !== null) {
+                handleSelectMaterial(newMatModal.rowIndex, created);
+            }
+            setNewMatModal({ open: false, rowIndex: null });
+            setNewMatForm({ sku: '', name: '', unit_of_measure: 'PZA', current_cost: '0.00' });
+        } catch (err: any) {
+            alert(err.response?.data?.detail || "Error al crear el material.");
+        } finally {
+            setNewMatLoading(false);
+        }
     };
 
     const renderPlanningTable = () => (
@@ -1056,7 +1091,16 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                                                 );
                                                             })
                                                         ) : (
-                                                            <li className="px-4 py-3 text-xs font-bold text-slate-400 italic">Libre</li>
+                                                            <li
+                                                                onClick={() => {
+                                                                    setNewMatModal({ open: true, rowIndex: rowIndex });
+                                                                    setNewMatForm(f => ({ ...f, sku: item.sku, name: item.material_name }));
+                                                                    setActiveDropdown({ type: null, index: null });
+                                                                }}
+                                                                className="px-4 py-3 text-xs font-black text-emerald-600 uppercase cursor-pointer hover:bg-emerald-50 flex items-center gap-2"
+                                                            >
+                                                                <Plus size={12} strokeWidth={3} /> Dar de alta este material
+                                                            </li>
                                                         )}
                                                     </ul>
                                                 )}
@@ -1094,7 +1138,16 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                                                 );
                                                             })
                                                         ) : (
-                                                            <li className="px-4 py-3 text-xs font-bold text-slate-400 italic">Libre</li>
+                                                            <li
+                                                                onClick={() => {
+                                                                    setNewMatModal({ open: true, rowIndex: rowIndex });
+                                                                    setNewMatForm(f => ({ ...f, sku: item.sku, name: item.material_name }));
+                                                                    setActiveDropdown({ type: null, index: null });
+                                                                }}
+                                                                className="px-4 py-3 text-xs font-black text-emerald-600 uppercase cursor-pointer hover:bg-emerald-50 flex items-center gap-2"
+                                                            >
+                                                                <Plus size={12} strokeWidth={3} /> Dar de alta este material
+                                                            </li>
                                                         )}
                                                     </ul>
                                                 )}
@@ -1322,6 +1375,93 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                             >
                                 <Plus size={14} className="mr-2" /> Enviar Solicitud
                             </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Mini-modal: Alta rápida de material */}
+            {newMatModal.open && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border-t-4 border-t-emerald-500 animate-in zoom-in-95 duration-200">
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-xl bg-emerald-100 text-emerald-600"><Plus size={20} strokeWidth={2.5} /></div>
+                                <div>
+                                    <p className="text-sm font-black text-slate-800 uppercase tracking-tight">Nuevo Material</p>
+                                    <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Alta Rápida al Catálogo</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setNewMatModal({ open: false, rowIndex: null })} className="text-slate-400 hover:text-slate-600"><XCircle size={20} /></button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">SKU *</label>
+                                <input
+                                    value={newMatForm.sku}
+                                    onChange={e => setNewMatForm(f => ({ ...f, sku: e.target.value.toUpperCase() }))}
+                                    placeholder="Ej: MAT-001"
+                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-black text-indigo-600 uppercase outline-none focus:border-emerald-400"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Nombre / Descripción *</label>
+                                <input
+                                    value={newMatForm.name}
+                                    onChange={e => setNewMatForm(f => ({ ...f, name: e.target.value.toUpperCase() }))}
+                                    placeholder="Ej: TORNILLO HEXAGONAL 1/2"
+                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 uppercase outline-none focus:border-emerald-400"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Unidad</label>
+                                    <select
+                                        value={newMatForm.unit_of_measure}
+                                        onChange={e => setNewMatForm(f => ({ ...f, unit_of_measure: e.target.value }))}
+                                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-emerald-400"
+                                    >
+                                        <option value="PZA">PZA</option>
+                                        <option value="KG">KG</option>
+                                        <option value="LT">LT</option>
+                                        <option value="MT">MT</option>
+                                        <option value="M2">M2</option>
+                                        <option value="TON">TON</option>
+                                        <option value="CAJA">CAJA</option>
+                                        <option value="ROLLO">ROLLO</option>
+                                        <option value="JGO">JGO</option>
+                                        <option value="SERVICIO">SERVICIO</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Costo Unitario</label>
+                                    <div className="flex items-center border border-slate-200 rounded-lg px-3 py-2 focus-within:border-emerald-400">
+                                        <span className="text-xs font-bold text-slate-400 mr-1">$</span>
+                                        <input
+                                            type="number" min="0" step="0.01"
+                                            value={newMatForm.current_cost}
+                                            onChange={e => setNewMatForm(f => ({ ...f, current_cost: e.target.value }))}
+                                            className="w-full text-sm font-bold text-slate-700 outline-none bg-transparent"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-6 border-t border-slate-100 flex justify-end gap-3">
+                            <button
+                                onClick={() => setNewMatModal({ open: false, rowIndex: null })}
+                                className="px-5 py-2 text-xs font-black text-slate-500 uppercase border border-slate-200 rounded-lg hover:bg-slate-50"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleSaveNewMaterial}
+                                disabled={newMatLoading}
+                                className="px-6 py-2 text-xs font-black text-white uppercase bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-md flex items-center gap-2 disabled:opacity-50"
+                            >
+                                {newMatLoading ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} strokeWidth={3} />}
+                                Guardar y Agregar
+                            </button>
                         </div>
                     </div>
                 </div>
