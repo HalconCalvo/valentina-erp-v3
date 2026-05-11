@@ -112,7 +112,7 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
             await onSubmit({
                 invoice_id: targetInvoiceId, 
                 amount,
-                payment_date: new Date(date).toISOString(),
+                payment_date: date,
                 payment_method: method,
                 suggested_account_id: suggestedAccount ? Number(suggestedAccount) : undefined,
                 reference,
