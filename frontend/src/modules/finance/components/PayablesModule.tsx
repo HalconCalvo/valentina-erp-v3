@@ -213,6 +213,18 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
         setEditingRequest(req);
     };
 
+    const handleExecuteApproved = async (req: SupplierPayment) => {
+        if (!window.confirm(`¿Confirmar ejecución del pago de $${req.amount.toLocaleString('es-MX', {minimumFractionDigits:2})} a ${req.provider_name}?\n\nEsta acción descuenta el dinero de la cuenta bancaria asignada.`)) return;
+        try {
+            await financeService.executePayment(req.id);
+            alert("✅ Pago ejecutado y descontado de Tesorería exitosamente.");
+            loadData(true);
+        } catch (err: any) {
+            const detail = err?.response?.data?.detail || "Error al ejecutar el pago.";
+            alert(`❌ ${detail}`);
+        }
+    };
+
     const handleModalSubmit = async (payload: PaymentRequestPayload) => {
         try {
             if (editingRequest) {
@@ -482,9 +494,10 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                         <tr><td colSpan={5} className="text-center py-12 text-slate-400 italic font-medium">No hay facturas pendientes en esta categoría.</td></tr>
                                     ) : sortedFilteredData.map(inv => {
                                         // Ahora solo nos interesa saber si hay alguna solicitud activa para cambiar a Ámbar. Nada de verdes.
-                                        const allActiveReqs = [...sentRequests, ...approvedRequests];
-                                        const activeReqForInv = allActiveReqs.filter(req => req.invoice_folio === inv.invoice_number && req.provider_name === inv.provider_name);
-                                        const hasActive = activeReqForInv.length > 0;
+                                        const pendingReqForInv = sentRequests.filter(req => req.invoice_folio === inv.invoice_number && req.provider_name === inv.provider_name);
+                                        const approvedReqForInv = approvedRequests.filter(req => req.invoice_folio === inv.invoice_number && req.provider_name === inv.provider_name);
+                                        const hasActive = pendingReqForInv.length > 0 || approvedReqForInv.length > 0;
+                                        const hasApproved = approvedReqForInv.length > 0;
                                         
                                         return (
                                             <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
@@ -504,21 +517,29 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                                 </td>
                                                 
                                                 <td className="p-4 text-center">
-                                                    {hasActive ? (
-                                                        isChecker ? (
-                                                            <Button 
-                                                                size="sm" 
-                                                                className="bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-200 w-full max-w-[160px] font-bold shadow-sm transition-colors"
-                                                                onClick={() => handleEditRequest(activeReqForInv[0])}
-                                                            >
-                                                                Se Solicita Pago
-                                                            </Button>
-                                                        ) : (
-                                                            <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-200 font-bold py-1.5 border w-full max-w-[160px] inline-block text-center">
-                                                                Se Solicita Pago
-                                                            </Badge>
-                                                        )
-                                                    ) : (
+                                    {hasActive ? (
+                                        isChecker && hasApproved ? (
+                                            <Button
+                                                size="sm"
+                                                className="bg-emerald-600 hover:bg-emerald-700 text-white w-full max-w-[160px] font-bold shadow-sm transition-colors"
+                                                onClick={() => handleExecuteApproved(approvedReqForInv[0])}
+                                            >
+                                                <CheckCircle2 size={14} className="mr-1"/> Ejecutar Pago
+                                            </Button>
+                                        ) : isChecker ? (
+                                            <Button 
+                                                size="sm" 
+                                                className="bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-200 w-full max-w-[160px] font-bold shadow-sm transition-colors"
+                                                onClick={() => handleEditRequest(pendingReqForInv[0])}
+                                            >
+                                                Aprobar Pago
+                                            </Button>
+                                        ) : (
+                                            <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-200 font-bold py-1.5 border w-full max-w-[160px] inline-block text-center">
+                                                Se Solicita Pago
+                                            </Badge>
+                                        )
+                                    ) : (
                                                         <Button 
                                                             size="sm" 
                                                             className={`${theme.btnAction} w-full max-w-[160px] font-bold shadow-sm transition-colors`} 
