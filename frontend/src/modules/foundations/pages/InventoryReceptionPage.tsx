@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
     Truck, Package, ArrowLeft, CheckCircle2, 
-    Save, PackageCheck, Ban
+    Save, PackageCheck, Ban, AlertTriangle, XCircle, Loader2
 } from 'lucide-react';
 import axiosClient from '../../../api/axios-client';
 import { Button } from "@/components/ui/Button"
@@ -38,6 +38,10 @@ const InventoryReceptionPage: React.FC = () => {
     
     const [receivedItems, setReceivedItems] = useState<Record<number, string>>({});
 
+    const [advanceModal, setAdvanceModal] = useState<{open: boolean, po: any | null}>({open: false, po: null});
+    const [advanceAmount, setAdvanceAmount] = useState('');
+    const [advanceLoading, setAdvanceLoading] = useState(false);
+
     useEffect(() => {
         fetchIncomingPOs();
     }, []); 
@@ -52,6 +56,26 @@ const InventoryReceptionPage: React.FC = () => {
             setIncomingPOs([]);
         } finally {
             setIsLoadingPOs(false);
+        }
+    };
+
+    const handleRequestAdvance = async () => {
+        if (!advanceModal.po) return;
+        const amount = parseFloat(advanceAmount.replace(/,/g, ''));
+        if (!amount || amount <= 0) {
+            return alert("Ingresa un monto válido mayor a $0.");
+        }
+        setAdvanceLoading(true);
+        try {
+            await axiosClient.post(`/purchases/orders/${advanceModal.po.id}/request-advance`, { amount });
+            alert(`✅ Anticipo de ${formatCurrency(amount)} registrado. Tesorería lo procesará.`);
+            setAdvanceModal({ open: false, po: null });
+            setAdvanceAmount('');
+            fetchIncomingPOs();
+        } catch (err: any) {
+            alert(err.response?.data?.detail || "❌ Error al registrar el anticipo.");
+        } finally {
+            setAdvanceLoading(false);
         }
     };
 
@@ -209,10 +233,22 @@ const InventoryReceptionPage: React.FC = () => {
                                             </div>
                                         </div>
                                         
-                                        <div className="flex items-center gap-8 mt-4 md:mt-0 w-full md:w-auto justify-end">
+                                        <div className="flex items-center gap-4 mt-4 md:mt-0 w-full md:w-auto justify-end">
                                             <div className="text-right">
                                                 <p className="font-black text-emerald-600 text-lg">{formatCurrency(po.total_estimated_amount || 0)}</p>
                                             </div>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const subtotal = po.total_estimated_amount || 0;
+                                                    setAdvanceAmount(formatInitialAmount(subtotal * 1.16));
+                                                    setAdvanceModal({ open: true, po });
+                                                }}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase text-orange-600 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors whitespace-nowrap"
+                                                title="Registrar anticipo para esta OC"
+                                            >
+                                                <AlertTriangle size={12} /> Anticipo
+                                            </button>
                                         </div>
                                     </div>
                                 ))}
@@ -221,6 +257,65 @@ const InventoryReceptionPage: React.FC = () => {
                     )}
                 </div>
             </div>
+
+            {/* Mini-modal: Registrar Anticipo */}
+            {advanceModal.open && advanceModal.po && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm border-t-4 border-t-orange-400 animate-in zoom-in-95 duration-200">
+                        <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-xl bg-orange-100 text-orange-600">
+                                    <AlertTriangle size={18} strokeWidth={2.5} />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-black text-slate-800 uppercase tracking-tight">Registrar Anticipo</p>
+                                    <p className="text-[10px] font-black text-orange-600 uppercase tracking-widest">{advanceModal.po.folio} — {advanceModal.po.provider_name}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setAdvanceModal({ open: false, po: null })} className="text-slate-400 hover:text-slate-600">
+                                <XCircle size={20} />
+                            </button>
+                        </div>
+                        <div className="p-5 space-y-4">
+                            <p className="text-xs text-slate-500 font-bold">
+                                Se generará una factura proforma <strong>ANT-{advanceModal.po.folio}</strong> en Cuentas por Pagar para que Tesorería ejecute el pago.
+                            </p>
+                            <div>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Monto del Anticipo (con IVA) *</label>
+                                <div className="flex items-center border border-slate-200 rounded-lg px-3 py-2 focus-within:border-orange-400 transition-colors">
+                                    <span className="text-sm font-bold text-slate-400 mr-1">$</span>
+                                    <input
+                                        type="text"
+                                        value={advanceAmount}
+                                        onChange={e => setAdvanceAmount(e.target.value)}
+                                        placeholder="0.00"
+                                        className="w-full text-sm font-black text-slate-800 outline-none bg-transparent"
+                                    />
+                                </div>
+                                <p className="text-[10px] text-slate-400 font-bold mt-1">
+                                    Total OC c/IVA: {formatCurrency((advanceModal.po.total_estimated_amount || 0) * 1.16)}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="p-5 border-t border-slate-100 flex justify-end gap-3">
+                            <button
+                                onClick={() => { setAdvanceModal({ open: false, po: null }); setAdvanceAmount(''); }}
+                                className="px-4 py-2 text-xs font-black text-slate-500 uppercase border border-slate-200 rounded-lg hover:bg-slate-50"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleRequestAdvance}
+                                disabled={advanceLoading}
+                                className="px-5 py-2 text-xs font-black text-white uppercase bg-orange-500 hover:bg-orange-600 rounded-lg shadow-md flex items-center gap-2 disabled:opacity-50"
+                            >
+                                {advanceLoading ? <Loader2 size={14} className="animate-spin" /> : <AlertTriangle size={14} />}
+                                Solicitar Anticipo
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         );
     }
 
