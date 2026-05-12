@@ -239,6 +239,45 @@ def update_payment_request(
     return payment
 
 # ------------------------------------------------------------------
+@router.put("/invoices/{invoice_id}/cancel")
+def cancel_invoice(
+    invoice_id: int,
+    session: SessionDep,
+    current_user: CurrentUser
+) -> Any:
+    invoice = session.get(PurchaseInvoice, invoice_id)
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+
+    if invoice.status == getattr(InvoiceStatus, "PAID", "PAID"):
+        raise HTTPException(status_code=400, detail="No se puede cancelar una factura ya pagada.")
+
+    # Cancelar pagos pendientes asociados
+    pending_payments = session.exec(select(SupplierPayment).where(
+        SupplierPayment.purchase_invoice_id == invoice_id,
+        SupplierPayment.status == getattr(PaymentStatus, "PENDING", "PENDING")
+    )).all()
+    for p in pending_payments:
+        p.status = getattr(PaymentStatus, "REJECTED", "REJECTED")
+        p.notes = "Cancelado por anulación manual de factura."
+        session.add(p)
+
+    # Cancelar en accounts_payable
+    inv_str = clean_invoice_folio(invoice.invoice_number)
+    if inv_str:
+        session.exec(text(
+            "UPDATE accounts_payable SET status = 'CANCELADO' WHERE invoice_folio = :folio"
+        ).bindparams(folio=inv_str))
+
+    # Marcar factura como CANCELLED
+    invoice.status = getattr(InvoiceStatus, "CANCELLED", "CANCELLED")
+    invoice.outstanding_balance = 0
+    session.add(invoice)
+    session.commit()
+
+    return {"status": "success", "message": f"Factura {invoice.invoice_number} cancelada."}
+
+
 # 1.2 ELIMINAR SOLICITUD DE PAGO
 # ------------------------------------------------------------------
 @router.delete("/payments/request/{payment_id}")

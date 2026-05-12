@@ -12,6 +12,7 @@ import { PaymentRequestModal } from '../../finance/components/PaymentRequestModa
 const AccountsPayablePage: React.FC = () => {
     const [stats, setStats] = useState<AccountsPayableStats | null>(null);
     const [invoices, setInvoices] = useState<PendingInvoice[]>([]);
+    const [cancellingId, setCancellingId] = useState<number | null>(null);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     
@@ -31,6 +32,20 @@ const AccountsPayablePage: React.FC = () => {
             console.error("Error cargando mesa de control:", error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleCancelInvoice = async (inv: PendingInvoice) => {
+        if (!window.confirm(`¿Cancelar la factura ${inv.invoice_number} de ${inv.provider_name}?\n\nEsta acción no se puede deshacer. El saldo quedará en $0.`)) return;
+        setCancellingId(inv.id);
+        try {
+            await financeService.cancelInvoice(inv.id);
+            alert(`✅ Factura ${inv.invoice_number} cancelada correctamente.`);
+            await loadData();
+        } catch (err: any) {
+            alert(err.response?.data?.detail || '❌ Error al cancelar la factura.');
+        } finally {
+            setCancellingId(null);
         }
     };
 
@@ -251,23 +266,34 @@ const AccountsPayablePage: React.FC = () => {
                                         <div className="text-[10px] text-slate-400">Total: {formatCurrency(inv.total_amount)}</div>
                                     </td>
                                     <td className="px-6 py-4 text-center">
-                                        {inv.invoice_number.startsWith('ANT-') ? (
-                                            <Button 
-                                                size="sm" 
-                                                className="bg-orange-500 hover:bg-orange-600 text-white shadow-sm hover:scale-105 transition-transform font-black text-[10px] tracking-widest"
-                                                onClick={() => setSelectedInvoice(inv)}
+                                        <div className="flex items-center justify-center gap-2">
+                                            {inv.invoice_number.startsWith('ANT-') ? (
+                                                <Button 
+                                                    size="sm" 
+                                                    className="bg-orange-500 hover:bg-orange-600 text-white shadow-sm hover:scale-105 transition-transform font-black text-[10px] tracking-widest"
+                                                    onClick={() => setSelectedInvoice(inv)}
+                                                >
+                                                    <AlertTriangle size={14} className="mr-1"/> PAGO ANTICIPADO
+                                                </Button>
+                                            ) : (
+                                                <Button 
+                                                    size="sm" 
+                                                    className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm hover:scale-105 transition-transform font-black text-[10px] tracking-widest"
+                                                    onClick={() => setSelectedInvoice(inv)}
+                                                >
+                                                    <DollarSign size={14} className="mr-1"/> SE SOLICITA PAGO
+                                                </Button>
+                                            )}
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                disabled={cancellingId === inv.id}
+                                                className="border-rose-200 text-rose-500 hover:bg-rose-50 hover:text-rose-700 font-black text-[10px] tracking-widest"
+                                                onClick={() => handleCancelInvoice(inv)}
                                             >
-                                                <AlertTriangle size={14} className="mr-1"/> PAGO ANTICIPADO
+                                                <XCircle size={14} className="mr-1"/> CANCELAR
                                             </Button>
-                                        ) : (
-                                            <Button 
-                                                size="sm" 
-                                                className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm hover:scale-105 transition-transform font-black text-[10px] tracking-widest"
-                                                onClick={() => setSelectedInvoice(inv)}
-                                            >
-                                                <DollarSign size={14} className="mr-1"/> SE SOLICITA PAGO
-                                            </Button>
-                                        )}
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

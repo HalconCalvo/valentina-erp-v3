@@ -84,5 +84,9 @@ export const financeService = {
     getPendingInvoices: async (): Promise<PendingInvoice[]> => {
         const response = await client.get<PendingInvoice[]>('/finance/invoices/pending');
         return response.data;
+    },
+
+    cancelInvoice: async (invoiceId: number): Promise<void> => {
+        await client.put(`/finance/invoices/${invoiceId}/cancel`);
     }
 };
