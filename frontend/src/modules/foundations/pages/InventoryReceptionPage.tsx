@@ -207,7 +207,7 @@ const InventoryReceptionPage: React.FC = () => {
                         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                             <div className="bg-slate-50 border-b border-slate-200 p-3 flex justify-between items-center px-6">
                                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Folio y Proveedor</span>
-                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-12">Total (Sin IVA)</span>
+                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-12">Total (c/IVA)</span>
                             </div>
                             <div className="divide-y divide-slate-100">
                                 {incomingPOs.map((po, index) => (
@@ -236,7 +236,7 @@ const InventoryReceptionPage: React.FC = () => {
                                         
                                         <div className="flex items-center gap-4 mt-4 md:mt-0 w-full md:w-auto justify-end">
                                             <div className="text-right">
-                                                <p className="font-black text-emerald-600 text-lg">{formatCurrency(po.total_estimated_amount || 0)}</p>
+                                                <p className="font-black text-emerald-600 text-lg">{formatCurrency((po.total_estimated_amount || 0) * 1.16)}</p>
                                             </div>
                                             <button
                                                 onClick={(e) => {
