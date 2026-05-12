@@ -213,16 +213,14 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
         setEditingRequest(req);
     };
 
-    const handleExecuteApproved = async (req: SupplierPayment) => {
-        if (!window.confirm(`¿Confirmar ejecución del pago de $${req.amount.toLocaleString('es-MX', {minimumFractionDigits:2})} a ${req.provider_name}?\n\nEsta acción descuenta el dinero de la cuenta bancaria asignada.`)) return;
-        try {
-            await financeService.executePayment(req.id);
-            alert("✅ Pago ejecutado y descontado de Tesorería exitosamente.");
-            loadData(true);
-        } catch (err: any) {
-            const detail = err?.response?.data?.detail || "Error al ejecutar el pago.";
-            alert(`❌ ${detail}`);
-        }
+    const handleUrgentPayment = (req: SupplierPayment) => {
+        // Buscar la factura relacionada para pasarla al modal
+        const relatedInvoice = invoices.find(inv => 
+            inv.invoice_number === req.invoice_folio && 
+            inv.provider_name === req.provider_name
+        );
+        setEditingRequest(req);
+        setSelectedInvoice(relatedInvoice || null);
     };
 
     const handleModalSubmit = async (payload: PaymentRequestPayload) => {
@@ -233,15 +231,18 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                         alert("⚠️ Selecciona una cuenta bancaria de origen para efectuar el pago.");
                         return;
                     }
-                    
-                    try {
+
+                    // Si el pago ya está APPROVED, ejecutar directo
+                    if (editingRequest.status === 'APPROVED') {
                         await financeService.updatePaymentStatus(editingRequest.id, 'APPROVED', payload.suggested_account_id);
-                    } catch (innerError) {
-                        await financeService.cancelPaymentRequest(editingRequest.id);
-                        await financeService.requestPayment(payload);
+                        await financeService.executePayment(editingRequest.id);
+                    } else {
+                        // Si está PENDING, aprobar y ejecutar en secuencia
+                        await financeService.updatePaymentStatus(editingRequest.id, 'APPROVED', payload.suggested_account_id);
+                        await financeService.executePayment(editingRequest.id);
                     }
                     
-                    alert("✅ Pago autorizado y ejecutado exitosamente.");
+                    alert("✅ Pago ejecutado exitosamente.");
                 } else {
                     await financeService.updatePaymentRequest(editingRequest.id, payload);
                     alert("✅ Solicitud actualizada.");
@@ -517,22 +518,14 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                                 </td>
                                                 
                                                 <td className="p-4 text-center">
-                                    {hasActive ? (
-                                        isChecker && hasApproved ? (
+                                        {hasActive ? (
+                                        isChecker ? (
                                             <Button
                                                 size="sm"
-                                                className="bg-emerald-600 hover:bg-emerald-700 text-white w-full max-w-[160px] font-bold shadow-sm transition-colors"
-                                                onClick={() => handleExecuteApproved(approvedReqForInv[0])}
+                                                className="bg-amber-500 hover:bg-amber-600 text-white w-full max-w-[160px] font-bold shadow-sm transition-colors"
+                                                onClick={() => handleUrgentPayment(hasApproved ? approvedReqForInv[0] : pendingReqForInv[0])}
                                             >
-                                                <CheckCircle2 size={14} className="mr-1"/> Ejecutar Pago
-                                            </Button>
-                                        ) : isChecker ? (
-                                            <Button 
-                                                size="sm" 
-                                                className="bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-200 w-full max-w-[160px] font-bold shadow-sm transition-colors"
-                                                onClick={() => handleEditRequest(pendingReqForInv[0])}
-                                            >
-                                                Aprobar Pago
+                                                ⚡ Pago Urgente
                                             </Button>
                                         ) : (
                                             <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-200 font-bold py-1.5 border w-full max-w-[160px] inline-block text-center">
