@@ -55,9 +55,10 @@ export const PaymentExecutionModal: React.FC<PaymentExecutionModalProps> = ({ on
             if (remaining.length === 0) {
                 onSuccess(); // Cerrar si ya no hay más pagos
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            alert("❌ Error al ejecutar el pago.");
+            const detail = error?.response?.data?.detail || "Error desconocido al ejecutar el pago.";
+            alert(`❌ ${detail}`);
         } finally {
             setProcessingId(null);
         }
