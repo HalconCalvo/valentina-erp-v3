@@ -183,6 +183,7 @@ const InventoryReceptionPage: React.FC = () => {
 
     if (!selectedPO) {
         return (
+            <>
             <div className="p-6 max-w-5xl mx-auto space-y-6 animate-fadeIn">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 pb-4">
                     <div>
@@ -316,6 +317,8 @@ const InventoryReceptionPage: React.FC = () => {
                     </div>
                 </div>
             )}
+
+            </>
         );
     }
 
