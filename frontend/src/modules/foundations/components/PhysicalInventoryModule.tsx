@@ -14,6 +14,7 @@ interface Material {
   usage_unit: string;
   physical_stock: number;
   current_cost: number;
+  conversion_factor: number;
   provider_name: string | null;
 }
 
@@ -65,7 +66,10 @@ export const PhysicalInventoryModule = ({ activeSubSection, onSubSectionChange }
     ? materials
     : materials.filter(m => m.category === categoryFilter);
 
-  const totalValuation = filtered.reduce((sum, m) => sum + m.physical_stock * m.current_cost, 0);
+  const totalValuation = filtered.reduce((sum, m) => {
+    const costPerUse = m.current_cost / (m.conversion_factor || 1);
+    return sum + m.physical_stock * costPerUse;
+  }, 0);
 
   const sorted = [...filtered].sort((a, b) => {
     const valA = a[sortKey].toLowerCase();
@@ -569,7 +573,7 @@ export const PhysicalInventoryModule = ({ activeSubSection, onSubSectionChange }
                 <SortHeader col="category" label="Categoría" />
                 <th className="px-4 py-3 text-center font-bold">Unidad de Uso</th>
                 <th className="px-4 py-3 text-right font-bold">Stock</th>
-                <th className="px-4 py-3 text-right font-bold">Último Precio</th>
+                <th className="px-4 py-3 text-right font-bold">Costo x Unidad Uso</th>
                 <th className="px-4 py-3 text-right font-bold">Importe</th>
               </tr>
             </thead>
@@ -581,9 +585,9 @@ export const PhysicalInventoryModule = ({ activeSubSection, onSubSectionChange }
                   <td className="px-4 py-2.5 text-slate-500">{m.category}</td>
                   <td className="px-4 py-2.5 text-center text-slate-600">{m.usage_unit}</td>
                   <td className="px-4 py-2.5 text-right font-bold text-slate-700">{m.physical_stock}</td>
-                  <td className="px-4 py-2.5 text-right text-slate-600">${m.current_cost.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+                  <td className="px-4 py-2.5 text-right text-slate-600">${(m.current_cost / (m.conversion_factor || 1)).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
                   <td className="px-4 py-2.5 text-right font-black text-emerald-700">
-                    ${(m.physical_stock * m.current_cost).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                    ${(m.physical_stock * (m.current_cost / (m.conversion_factor || 1))).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                   </td>
                 </tr>
               ))}
