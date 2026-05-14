@@ -469,6 +469,20 @@ def adjust_material_stock(
     }
 
 
+@router.get("/materials/valuation")
+def get_inventory_valuation(session: Session = Depends(get_session)):
+    """Retorna la valuación total del inventario en unidades de uso."""
+    materials = session.exec(
+        select(Material).where(Material.is_active == True)
+    ).all()
+    
+    total = sum(
+        m.physical_stock * (m.current_cost / (m.conversion_factor or 1.0))
+        for m in materials
+    )
+    return {"total_valuation": round(total, 2)}
+
+
 @router.get("/materials")
 def read_materials(session: Session = Depends(get_session)):
     # Usamos un JOIN para traer el nombre del proveedor

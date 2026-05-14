@@ -43,6 +43,8 @@ export const InventoryDashboardPage = () => {
         }
     }, [location.state]);
     
+    const [inventoryValuation, setInventoryValuation] = useState<number>(0);
+
     // ---> ESTADOS PARA LAS ALERTAS REALES DEL SERVIDOR <---
     const [pendingTasksCount, setPendingTasksCount] = useState<number | string>('...');
     const [purchasingCount, setPurchasingCount] = useState<number | string>('...'); 
@@ -83,6 +85,13 @@ export const InventoryDashboardPage = () => {
                 setPurchasingCount('!');
             }
         };
+
+        try {
+            const valRes = await axiosClient.get('/foundations/materials/valuation');
+            setInventoryValuation(valRes.data.total_valuation || 0);
+        } catch {
+            // silencioso
+        }
 
         fetchDashboardStats();
         const intervalId = setInterval(fetchDashboardStats, 15000);
@@ -187,7 +196,17 @@ export const InventoryDashboardPage = () => {
                             <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-orange-50 text-orange-700 border-r border-orange-100 font-black text-3xl transition-colors group-hover:bg-orange-100">$</div>
                             <div className="ml-16 h-full flex flex-col justify-between">
                                 <div className="flex justify-between items-start"><p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">4. Inventario</p><Package size={16} className="text-orange-500" /></div>
-                                <div className="mt-4 flex justify-end"><div className="text-2xl font-black text-orange-600 tracking-tight flex items-baseline gap-1">1.2M <span className="text-sm font-bold text-orange-400 uppercase">Valuación</span></div></div>
+                                <div className="mt-4 flex justify-end">
+                                    <div className="text-xl font-black text-orange-600 tracking-tight flex items-baseline gap-1">
+                                        {inventoryValuation >= 1000000
+                                            ? `$${(inventoryValuation / 1000000).toFixed(2)}M`
+                                            : inventoryValuation >= 1000
+                                            ? `$${(inventoryValuation / 1000).toFixed(1)}K`
+                                            : `$${inventoryValuation.toLocaleString('es-MX', { minimumFractionDigits: 0 })}`
+                                        }
+                                        <span className="text-sm font-bold text-orange-400 uppercase">Valuación</span>
+                                    </div>
+                                </div>
                                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100"><p className="text-[10px] text-slate-400 font-bold uppercase">El dinero dormido</p><Target size={14} className="text-orange-400"/></div>
                             </div>
                         </Card>
