@@ -84,14 +84,14 @@ export const InventoryDashboardPage = () => {
                 setReceptionsCount('!');
                 setPurchasingCount('!');
             }
-        };
 
-        try {
-            const valRes = await axiosClient.get('/foundations/materials/valuation');
-            setInventoryValuation(valRes.data.total_valuation || 0);
-        } catch {
-            // silencioso
-        }
+            try {
+                const valRes = await axiosClient.get('/foundations/materials/valuation');
+                setInventoryValuation(valRes.data.total_valuation || 0);
+            } catch {
+                // silencioso
+            }
+        };
 
         fetchDashboardStats();
         const intervalId = setInterval(fetchDashboardStats, 15000);
