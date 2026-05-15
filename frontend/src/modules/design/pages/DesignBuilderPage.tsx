@@ -15,7 +15,7 @@ const GENERIC_TEMPLATE = [
     { sku: "CHPCTA1BCO", default_qty: 0, section: "Gabinetes" },
     { sku: "CHPCTA1COL", default_qty: 0, section: "Gabinetes" },
     { sku: "0601-368", default_qty: 0, section: "Gabinetes" },
-    { sku: "0303-086", default_qty: 0, section: "Gabinetes" },
+    { sku: "0303-095", default_qty: 0, section: "Gabinetes" },
     { sku: "0402-540", default_qty: 0, section: "Gabinetes" },
     { sku: "0502-019", default_qty: 0, section: "Gabinetes" },
     { sku: "0508-084", default_qty: 0, section: "Gabinetes" },

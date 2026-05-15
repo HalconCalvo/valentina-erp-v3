@@ -17,7 +17,7 @@ export const MASTER_TEMPLATE: TemplateItem[] = [
     
     // --- GABINETES (HERRAJES Y TORNILLERÍA) ---
     { sku: '0601-368', name: 'Bisagra eco 110º sobrepuesta cuello 00 48 x 6mm', group: 'Gabinetes', category: 'Herrajes', unit: 'Jgo', default_quantity: 0, cost: 5.94 },
-    { sku: '0303-086', name: 'Corredera extension Cerrajes zincada 500mm', group: 'Gabinetes', category: 'Herrajes', unit: 'Jgo', default_quantity: 0, cost: 35.98 },
+    { sku: '0303-095', name: 'Corredera Extensión Cerrajes Negra 500mm', group: 'Gabinetes', category: 'Herrajes', unit: 'Jgo', default_quantity: 0, cost: 0 },
     { sku: '0402-540', name: 'Jaladera barra 256mm cc - 316mm 4045 H14 8-32x22mm', group: 'Gabinetes', category: 'Herrajes', unit: 'Pz', default_quantity: 0, cost: 18.82 },
     { sku: '0502-019', name: 'Tornillo sinker PH plano ngr #12 x 3', group: 'Gabinetes', category: 'Herrajes', unit: 'Pz', default_quantity: 0, cost: 0.04 },
     { sku: '0508-084', name: 'Taquete plastico blanco 5/16 (8mm)', group: 'Gabinetes', category: 'Herrajes', unit: 'Pz', default_quantity: 0, cost: 3.00 },
