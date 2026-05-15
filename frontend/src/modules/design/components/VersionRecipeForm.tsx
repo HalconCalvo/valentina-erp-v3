@@ -247,8 +247,6 @@ export const VersionRecipeForm = ({
   };
 
   const sortSection = (items: any[], sectionName: string): any[] => {
-    if (!isReadOnly) return items; // Solo ordenar en modo lectura
-
     return [...items].sort((a, b) => {
       const matA = materials.find(m => m.id === Number(watchedComponents?.[a.originalIndex]?.material_id || a.material_id));
       const matB = materials.find(m => m.id === Number(watchedComponents?.[b.originalIndex]?.material_id || b.material_id));
