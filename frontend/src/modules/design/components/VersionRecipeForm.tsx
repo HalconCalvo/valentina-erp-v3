@@ -229,6 +229,100 @@ export const VersionRecipeForm = ({
       }
   };
 
+  // SKUs de procesos productivos y de instalación
+  const PROC_PRODUCTIVO = ['PRODUC', 'EMPAQMDF', 'EMPAQPIEDRA', 'MAQGRANITO'];
+  const PROC_INSTALACION = ['INSTALACOCINA', 'INSTALAGRANITO'];
+
+  // Orden de categorías dentro de Gabinetes
+  const CATEGORY_ORDER_GABINETES: Record<string, number> = {
+    'TABLERO': 1,
+    'CHAPACINTA': 2,
+    'HERRAJES': 3,
+    'ACCESORIO': 4,
+    'VIDRIO': 5,
+    'ELECTRICIDAD': 6,
+    'ELECTRODOMÉSTICO': 7,
+    'ESPECIAL': 8,
+    'INSUMOS': 9,
+  };
+
+  const sortSection = (items: any[], sectionName: string): any[] => {
+    if (!isReadOnly) return items; // Solo ordenar en modo lectura
+
+    return [...items].sort((a, b) => {
+      const matA = materials.find(m => m.id === Number(watchedComponents?.[a.originalIndex]?.material_id || a.material_id));
+      const matB = materials.find(m => m.id === Number(watchedComponents?.[b.originalIndex]?.material_id || b.material_id));
+      if (!matA || !matB) return 0;
+
+      const skuA = (matA.sku || '').trim().toUpperCase();
+      const skuB = (matB.sku || '').trim().toUpperCase();
+      const catA = (matA.category || '').trim().toUpperCase();
+      const catB = (matB.category || '').trim().toUpperCase();
+      const nameA = (matA.name || '').trim().toUpperCase();
+      const nameB = (matB.name || '').trim().toUpperCase();
+
+      if (sectionName === 'Gabinetes') {
+        // Procesos al final
+        const isProcInstA = PROC_INSTALACION.includes(skuA);
+        const isProcInstB = PROC_INSTALACION.includes(skuB);
+        const isProcProdA = PROC_PRODUCTIVO.includes(skuA);
+        const isProcProdB = PROC_PRODUCTIVO.includes(skuB);
+
+        if (isProcInstA !== isProcInstB) return isProcInstA ? 1 : -1;
+        if (isProcProdA !== isProcProdB) return isProcProdA ? 1 : -1;
+        if (isProcInstA && isProcInstB) return nameA.localeCompare(nameB);
+        if (isProcProdA && isProcProdB) return nameA.localeCompare(nameB);
+
+        // Tableros: blancos primero, luego alfabético
+        const isTableroA = catA === 'TABLERO';
+        const isTableroB = catB === 'TABLERO';
+        if (isTableroA !== isTableroB) {
+          // Chapacinta va inmediatamente después de su tablero
+          const isChapaA = catA === 'CHAPACINTA';
+          const isChapaB = catB === 'CHAPACINTA';
+          if (isTableroA && isChapaB) {
+            // Verificar si la chapacinta pertenece a este tablero
+            const chapaAssoc = ((matB as any).associated_element_sku || '').trim().toUpperCase();
+            if (chapaAssoc === skuA) return -1;
+          }
+          if (isChapaA && isTableroB) {
+            const chapaAssoc = ((matA as any).associated_element_sku || '').trim().toUpperCase();
+            if (chapaAssoc === skuB) return 1;
+          }
+        }
+
+        // Orden por categoría
+        const orderA = CATEGORY_ORDER_GABINETES[catA] ?? 10;
+        const orderB = CATEGORY_ORDER_GABINETES[catB] ?? 10;
+        if (orderA !== orderB) return orderA - orderB;
+
+        // Dentro de Tableros: blancos primero
+        if (catA === 'TABLERO' && catB === 'TABLERO') {
+          const isBlancaA = nameA.includes('BLANCO') || nameA.includes('BLANCA');
+          const isBlancaB = nameB.includes('BLANCO') || nameB.includes('BLANCA');
+          if (isBlancaA !== isBlancaB) return isBlancaA ? -1 : 1;
+        }
+
+        // Alfabético dentro de la misma categoría
+        return nameA.localeCompare(nameB);
+      }
+
+      if (sectionName === 'Piedra') {
+        const isProcInstA = PROC_INSTALACION.includes(skuA);
+        const isProcInstB = PROC_INSTALACION.includes(skuB);
+        const isProcProdA = PROC_PRODUCTIVO.includes(skuA);
+        const isProcProdB = PROC_PRODUCTIVO.includes(skuB);
+
+        if (isProcInstA !== isProcInstB) return isProcInstA ? 1 : -1;
+        if (isProcProdA !== isProcProdB) return isProcProdA ? 1 : -1;
+        return nameA.localeCompare(nameB);
+      }
+
+      // Otros: alfabético
+      return nameA.localeCompare(nameB);
+    });
+  };
+
   const groupedFields = useMemo(() => {
     const groups: Record<string, any[]> = { "Gabinetes": [], "Piedra": [], "Otros": [] };
     fields.forEach((field: any, index) => {
@@ -237,8 +331,12 @@ export const VersionRecipeForm = ({
         if (!groups[sec]) groups[sec] = [];
         groups[sec].push({ ...field, originalIndex: index });
     });
+    // Aplicar ordenamiento por sección
+    Object.keys(groups).forEach(sectionName => {
+        groups[sectionName] = sortSection(groups[sectionName], sectionName);
+    });
     return groups;
-  }, [fields, watchedComponents]); 
+  }, [fields, watchedComponents, isReadOnly, materials]);
 
   let totalCost = 0;
   if (watchedComponents) {
