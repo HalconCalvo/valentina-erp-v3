@@ -229,94 +229,128 @@ export const VersionRecipeForm = ({
       }
   };
 
-  // SKUs de procesos productivos y de instalación
-  const PROC_PRODUCTIVO = ['PRODUC', 'EMPAQMDF', 'EMPAQPIEDRA', 'MAQGRANITO'];
-  const PROC_INSTALACION = ['INSTALACOCINA', 'INSTALAGRANITO'];
-
-  // Orden de categorías dentro de Gabinetes
-  const CATEGORY_ORDER_GABINETES: Record<string, number> = {
-    'TABLERO': 1,
-    'CHAPACINTA': 2,
-    'HERRAJES': 3,
-    'ACCESORIO': 4,
-    'VIDRIO': 5,
-    'ELECTRICIDAD': 6,
-    'ELECTRODOMÉSTICO': 7,
-    'ESPECIAL': 8,
-    'INSUMOS': 9,
-  };
-
   const sortSection = (items: any[], sectionName: string): any[] => {
+    const getMat = (item: any) => materials.find(m => m.id === Number(
+      watchedComponents?.[item.originalIndex]?.material_id || item.material_id
+    ));
+
+    const PROC_PRODUCTIVO = ['PRODUC', 'EMPAQMDF', 'EMPAQPIEDRA', 'MAQGRANITO'];
+    const PROC_INSTALACION = ['INSTALACOCINA', 'INSTALAGRANITO'];
+
+    const CATEGORY_ORDER: Record<string, number> = {
+      'TABLERO': 1,
+      'CHAPACINTA': 2,
+      'HERRAJES': 3,
+      'ACCESORIO': 4,
+      'VIDRIO': 5,
+      'ELECTRICIDAD': 6,
+      'ELECTRODOMÉSTICO': 7,
+      'ESPECIAL': 8,
+      'INSUMOS': 9,
+    };
+
+    if (sectionName === 'Gabinetes') {
+      const tableros: any[] = [];
+      const chapacintas: any[] = [];
+      const herrajes: any[] = [];
+      const procProd: any[] = [];
+      const procInst: any[] = [];
+      const otros: any[] = [];
+
+      items.forEach(item => {
+        const mat = getMat(item);
+        if (!mat) { otros.push(item); return; }
+        const sku = (mat.sku || '').trim().toUpperCase();
+        const cat = (mat.category || '').trim().toUpperCase();
+
+        if (PROC_INSTALACION.includes(sku)) { procInst.push(item); return; }
+        if (PROC_PRODUCTIVO.includes(sku)) { procProd.push(item); return; }
+        if (cat === 'TABLERO') { tableros.push(item); return; }
+        if (cat === 'CHAPACINTA') { chapacintas.push(item); return; }
+
+        const order = CATEGORY_ORDER[cat];
+        if (order) { herrajes.push(item); return; }
+        otros.push(item);
+      });
+
+      // Ordenar tableros: Blancos primero, luego alfabético
+      tableros.sort((a, b) => {
+        const matA = getMat(a);
+        const matB = getMat(b);
+        const nameA = (matA?.name || '').toUpperCase();
+        const nameB = (matB?.name || '').toUpperCase();
+        const isBlancaA = nameA.includes('BLANCO') || nameA.includes('BLANCA');
+        const isBlancaB = nameB.includes('BLANCO') || nameB.includes('BLANCA');
+        if (isBlancaA !== isBlancaB) return isBlancaA ? -1 : 1;
+        return nameA.localeCompare(nameB);
+      });
+
+      // Ordenar herrajes, procesos alfabéticamente
+      const sortByName = (a: any, b: any) => {
+        const nameA = (getMat(a)?.name || '').toUpperCase();
+        const nameB = (getMat(b)?.name || '').toUpperCase();
+        return nameA.localeCompare(nameB);
+      };
+      herrajes.sort(sortByName);
+      procProd.sort(sortByName);
+      procInst.sort(sortByName);
+
+      // Construir resultado: cada tablero seguido de su chapacinta
+      const result: any[] = [];
+      tableros.forEach(tableroItem => {
+        result.push(tableroItem);
+        const tableroMat = getMat(tableroItem);
+        const assocSku = ((tableroMat as any)?.associated_element_sku || '').trim().toUpperCase();
+        if (assocSku) {
+          const chapaIdx = chapacintas.findIndex(c => {
+            const m = getMat(c);
+            return (m?.sku || '').trim().toUpperCase() === assocSku;
+          });
+          if (chapaIdx !== -1) {
+            result.push(chapacintas[chapaIdx]);
+            // No eliminamos del array porque la misma chapacinta puede aplicar a varios MDF
+            // pero solo la mostramos una vez por tablero si está en la receta
+          }
+        }
+      });
+
+      // Agregar chapacintas huérfanas (sin tablero asociado en esta receta)
+      chapacintas.forEach(chapa => {
+        const already = result.some(r => r.originalIndex === chapa.originalIndex);
+        if (!already) result.push(chapa);
+      });
+
+      return [...result, ...herrajes, ...procProd, ...procInst, ...otros];
+    }
+
+    if (sectionName === 'Piedra') {
+      const PROC_INSTALACION_L = ['INSTALACOCINA', 'INSTALAGRANITO'];
+      const PROC_PRODUCTIVO_L = ['PRODUC', 'EMPAQMDF', 'EMPAQPIEDRA', 'MAQGRANITO'];
+      const procInst: any[] = [];
+      const procProd: any[] = [];
+      const resto: any[] = [];
+
+      items.forEach(item => {
+        const mat = getMat(item);
+        const sku = (mat?.sku || '').trim().toUpperCase();
+        if (PROC_INSTALACION_L.includes(sku)) { procInst.push(item); return; }
+        if (PROC_PRODUCTIVO_L.includes(sku)) { procProd.push(item); return; }
+        resto.push(item);
+      });
+
+      const sortByName = (a: any, b: any) => {
+        const nameA = (getMat(a)?.name || '').toUpperCase();
+        const nameB = (getMat(b)?.name || '').toUpperCase();
+        return nameA.localeCompare(nameB);
+      };
+
+      return [...resto.sort(sortByName), ...procProd.sort(sortByName), ...procInst.sort(sortByName)];
+    }
+
+    // Otros: alfabético
     return [...items].sort((a, b) => {
-      const matA = materials.find(m => m.id === Number(watchedComponents?.[a.originalIndex]?.material_id || a.material_id));
-      const matB = materials.find(m => m.id === Number(watchedComponents?.[b.originalIndex]?.material_id || b.material_id));
-      if (!matA || !matB) return 0;
-
-      const skuA = (matA.sku || '').trim().toUpperCase();
-      const skuB = (matB.sku || '').trim().toUpperCase();
-      const catA = (matA.category || '').trim().toUpperCase();
-      const catB = (matB.category || '').trim().toUpperCase();
-      const nameA = (matA.name || '').trim().toUpperCase();
-      const nameB = (matB.name || '').trim().toUpperCase();
-
-      if (sectionName === 'Gabinetes') {
-        // Procesos al final
-        const isProcInstA = PROC_INSTALACION.includes(skuA);
-        const isProcInstB = PROC_INSTALACION.includes(skuB);
-        const isProcProdA = PROC_PRODUCTIVO.includes(skuA);
-        const isProcProdB = PROC_PRODUCTIVO.includes(skuB);
-
-        if (isProcInstA !== isProcInstB) return isProcInstA ? 1 : -1;
-        if (isProcProdA !== isProcProdB) return isProcProdA ? 1 : -1;
-        if (isProcInstA && isProcInstB) return nameA.localeCompare(nameB);
-        if (isProcProdA && isProcProdB) return nameA.localeCompare(nameB);
-
-        // Tableros: blancos primero, luego alfabético
-        const isTableroA = catA === 'TABLERO';
-        const isTableroB = catB === 'TABLERO';
-        if (isTableroA !== isTableroB) {
-          // Chapacinta va inmediatamente después de su tablero
-          const isChapaA = catA === 'CHAPACINTA';
-          const isChapaB = catB === 'CHAPACINTA';
-          if (isTableroA && isChapaB) {
-            // Verificar si la chapacinta pertenece a este tablero
-            const chapaAssoc = ((matB as any).associated_element_sku || '').trim().toUpperCase();
-            if (chapaAssoc === skuA) return -1;
-          }
-          if (isChapaA && isTableroB) {
-            const chapaAssoc = ((matA as any).associated_element_sku || '').trim().toUpperCase();
-            if (chapaAssoc === skuB) return 1;
-          }
-        }
-
-        // Orden por categoría
-        const orderA = CATEGORY_ORDER_GABINETES[catA] ?? 10;
-        const orderB = CATEGORY_ORDER_GABINETES[catB] ?? 10;
-        if (orderA !== orderB) return orderA - orderB;
-
-        // Dentro de Tableros: blancos primero
-        if (catA === 'TABLERO' && catB === 'TABLERO') {
-          const isBlancaA = nameA.includes('BLANCO') || nameA.includes('BLANCA');
-          const isBlancaB = nameB.includes('BLANCO') || nameB.includes('BLANCA');
-          if (isBlancaA !== isBlancaB) return isBlancaA ? -1 : 1;
-        }
-
-        // Alfabético dentro de la misma categoría
-        return nameA.localeCompare(nameB);
-      }
-
-      if (sectionName === 'Piedra') {
-        const isProcInstA = PROC_INSTALACION.includes(skuA);
-        const isProcInstB = PROC_INSTALACION.includes(skuB);
-        const isProcProdA = PROC_PRODUCTIVO.includes(skuA);
-        const isProcProdB = PROC_PRODUCTIVO.includes(skuB);
-
-        if (isProcInstA !== isProcInstB) return isProcInstA ? 1 : -1;
-        if (isProcProdA !== isProcProdB) return isProcProdA ? 1 : -1;
-        return nameA.localeCompare(nameB);
-      }
-
-      // Otros: alfabético
+      const nameA = (getMat(a)?.name || '').toUpperCase();
+      const nameB = (getMat(b)?.name || '').toUpperCase();
       return nameA.localeCompare(nameB);
     });
   };
