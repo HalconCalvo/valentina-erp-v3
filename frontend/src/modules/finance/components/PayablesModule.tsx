@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { TrendingDown, Clock, CheckCircle2, AlertCircle, Calendar, ArrowLeft, Check, Layers, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { TrendingDown, Clock, CheckCircle2, AlertCircle, Calendar, ArrowLeft, Check, Layers, ArrowUpDown, ArrowUp, ArrowDown, XCircle } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -69,6 +69,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
     const [editingRequest, setEditingRequest] = useState<SupplierPayment | null>(null);
 
     const [viewingInvoice, setViewingInvoice] = useState<PendingInvoice | null>(null);
+    const [cancellingId, setCancellingId] = useState<number | null>(null);
 
     const lastParentBackSig = useRef(0);
     useEffect(() => {
@@ -221,6 +222,20 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
         );
         setEditingRequest(req);
         setSelectedInvoice(relatedInvoice || null);
+    };
+
+    const handleCancelInvoice = async (inv: any) => {
+        if (!window.confirm(`¿Cancelar la factura ${inv.invoice_number} de ${inv.provider_name}?\n\nEsta acción no se puede deshacer.`)) return;
+        setCancellingId(inv.id);
+        try {
+            await financeService.cancelInvoice(inv.id);
+            alert(`✅ Factura ${inv.invoice_number} cancelada correctamente.`);
+            loadData(true);
+        } catch (err: any) {
+            alert(err.response?.data?.detail || '❌ Error al cancelar la factura.');
+        } finally {
+            setCancellingId(null);
+        }
     };
 
     const handleModalSubmit = async (payload: PaymentRequestPayload) => {
@@ -518,29 +533,42 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                                 </td>
                                                 
                                                 <td className="p-4 text-center">
-                                        {hasActive ? (
-                                        isChecker ? (
-                                            <Button
-                                                size="sm"
-                                                className="bg-amber-500 hover:bg-amber-600 text-white w-full max-w-[160px] font-bold shadow-sm transition-colors"
-                                                onClick={() => handleUrgentPayment(hasApproved ? approvedReqForInv[0] : pendingReqForInv[0])}
-                                            >
-                                                ⚡ Pago Urgente
-                                            </Button>
-                                        ) : (
-                                            <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-200 font-bold py-1.5 border w-full max-w-[160px] inline-block text-center">
-                                                Se Solicita Pago
-                                            </Badge>
-                                        )
-                                    ) : (
-                                                        <Button 
-                                                            size="sm" 
-                                                            className={`${theme.btnAction} w-full max-w-[160px] font-bold shadow-sm transition-colors`} 
-                                                            onClick={() => setSelectedInvoice(inv)}
-                                                        >
-                                                            <CheckCircle2 size={16} className="mr-1"/> {isChecker ? 'Ejecutar Directo' : 'Se Solicita Pago'}
-                                                        </Button>
-                                                    )}
+                                                    <div className="flex items-center justify-center gap-2">
+                                                        {hasActive ? (
+                                                            isChecker ? (
+                                                                <Button
+                                                                    size="sm"
+                                                                    className="bg-amber-500 hover:bg-amber-600 text-white font-bold shadow-sm transition-colors"
+                                                                    onClick={() => handleUrgentPayment(hasApproved ? approvedReqForInv[0] : pendingReqForInv[0])}
+                                                                >
+                                                                    ⚡ Pago Urgente
+                                                                </Button>
+                                                            ) : (
+                                                                <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-200 font-bold py-1.5 border inline-block text-center">
+                                                                    Se Solicita Pago
+                                                                </Badge>
+                                                            )
+                                                        ) : (
+                                                            <Button 
+                                                                size="sm" 
+                                                                className={`${theme.btnAction} font-bold shadow-sm transition-colors`} 
+                                                                onClick={() => setSelectedInvoice(inv)}
+                                                            >
+                                                                <CheckCircle2 size={16} className="mr-1"/> {isChecker ? 'Ejecutar Directo' : 'Se Solicita Pago'}
+                                                            </Button>
+                                                        )}
+                                                        {isChecker && (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                disabled={cancellingId === inv.id}
+                                                                className="border-rose-200 text-rose-500 hover:bg-rose-50 hover:text-rose-700 font-black text-[10px] tracking-widest"
+                                                                onClick={() => handleCancelInvoice(inv)}
+                                                            >
+                                                                <XCircle size={14} className="mr-1"/> CANCELAR
+                                                            </Button>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         )
