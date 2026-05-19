@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { TrendingDown, Clock, CheckCircle2, AlertCircle, Calendar, ArrowLeft, Check, Layers, ArrowUpDown, ArrowUp, ArrowDown, XCircle } from 'lucide-react';
+import { TrendingDown, Clock, CheckCircle2, AlertCircle, AlertTriangle, Calendar, ArrowLeft, Check, Layers, ArrowUpDown, ArrowUp, ArrowDown, XCircle } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -548,6 +548,14 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                                                     Se Solicita Pago
                                                                 </Badge>
                                                             )
+                                                        ) : inv.invoice_number?.startsWith('ANT-') ? (
+                                                            <Button
+                                                                size="sm"
+                                                                className="bg-orange-500 hover:bg-orange-600 text-white font-bold shadow-sm transition-colors"
+                                                                onClick={() => setSelectedInvoice(inv)}
+                                                            >
+                                                                <AlertTriangle size={16} className="mr-1"/> Pago Anticipado
+                                                            </Button>
                                                         ) : (
                                                             <Button 
                                                                 size="sm" 
