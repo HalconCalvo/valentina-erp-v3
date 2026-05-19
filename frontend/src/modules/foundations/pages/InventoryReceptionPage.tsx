@@ -322,13 +322,19 @@ const InventoryReceptionPage: React.FC = () => {
         );
     }
 
-    const subtotalCalc = selectedPO?.total_estimated_amount || 0; 
-    const ivaCalc = subtotalCalc * 0.16; 
-    const expectedTotal = subtotalCalc + ivaCalc; 
+    // Calcular el total basado en las cantidades REALMENTE recibidas
+    const subtotalRecibido = (selectedPO?.items || []).reduce((sum: number, item: any, idx: number) => {
+        const price = item.unit_price || item.expected_cost || item.price || 0;
+        const received = Number(receivedItems[idx]) || 0;
+        return sum + (received * price);
+    }, 0);
+    const subtotalCalc = selectedPO?.total_estimated_amount || 0;
+    const ivaCalc = subtotalRecibido * 0.16;
+    const expectedTotal = subtotalRecibido + ivaCalc;
 
     const diff = Math.abs(expectedTotal - Number(invoiceTotal));
-    const tolerancia = expectedTotal * 0.005;
-    const isFinancialBlocked = invoiceTotal !== '' && diff > tolerancia;
+    const tolerancia = Math.max(expectedTotal * 0.005, 1.00);
+    const isFinancialBlocked = invoiceTotal !== '' && Number(invoiceTotal) > 0 && diff > tolerancia;
 
     return (
         <div className="animate-in slide-in-from-right-4 duration-300 pb-10">
