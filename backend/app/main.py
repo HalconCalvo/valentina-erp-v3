@@ -92,7 +92,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version="3.5.0", # <--- ¡Bienvenido a la V3.5!
-    lifespan=lifespan
+    lifespan=lifespan,
+    redirect_slashes=False
 )
 
 # --- STATIC FILES ---
