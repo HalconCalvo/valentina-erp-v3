@@ -426,7 +426,20 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                                     <TrendingUp size={14}/> Margen Empresa Configuración
                                 </label>
                                 <div className="relative">
-                                    <Input type="number" readOnly className="w-20 pr-5 text-right font-black h-[28px] text-sm bg-amber-100 text-amber-950 border-amber-400 opacity-100 cursor-default" value={header.applied_margin_percent > 0 && header.applied_margin_percent <= 1 ? Number((header.applied_margin_percent * 100).toFixed(2)) : header.applied_margin_percent} />
+                                    <Input 
+                                        type="number" 
+                                        min="1" 
+                                        max="99"
+                                        step="1"
+                                        className="w-20 pr-5 text-right font-black h-[28px] text-sm bg-amber-100 text-amber-950 border-amber-400 opacity-100"
+                                        value={header.applied_margin_percent > 0 && header.applied_margin_percent <= 1 ? Number((header.applied_margin_percent * 100).toFixed(2)) : header.applied_margin_percent}
+                                        onChange={(e) => {
+                                            const val = Number(e.target.value);
+                                            if (val >= 1 && val <= 99) {
+                                                setHeader(prev => ({ ...prev, applied_margin_percent: val }));
+                                            }
+                                        }}
+                                    />
                                     <span className="absolute right-1.5 top-1.5 font-black text-amber-800 text-[10px]">%</span>
                                 </div>
                             </div>
