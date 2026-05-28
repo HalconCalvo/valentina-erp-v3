@@ -334,7 +334,12 @@ const InventoryReceptionPage: React.FC = () => {
 
     const diff = Math.abs(expectedTotal - Number(invoiceTotal));
     const tolerancia = Math.max(expectedTotal * 0.005, 1.00);
-    const isFinancialBlocked = invoiceTotal !== '' && Number(invoiceTotal) > 0 && diff > tolerancia;
+    // Permitir recibir más cantidad de la ordenada (ej. rollos de chapacinta)
+    // Solo bloquear si el monto de la factura es MENOR al esperado (falta mercancía)
+    // Si es mayor, solo advertir pero no bloquear
+    const invoiceTotalNum = Number(invoiceTotal);
+    const isFinancialBlocked = invoiceTotal !== '' && invoiceTotalNum > 0 && 
+        invoiceTotalNum < expectedTotal - tolerancia;
 
     return (
         <div className="animate-in slide-in-from-right-4 duration-300 pb-10">
