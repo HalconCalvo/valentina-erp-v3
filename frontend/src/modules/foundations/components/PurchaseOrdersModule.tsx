@@ -125,10 +125,10 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
 
     const fetchCatalogs = async () => {
         try {
-            const [provRes, matRes] = await Promise.all([
-                axiosClient.get('/foundations/providers/'),
-                axiosClient.get('/foundations/materials/')
-            ]);
+    const [provRes, matRes] = await Promise.all([
+        axiosClient.get('/foundations/providers'),
+        axiosClient.get('/foundations/materials')
+    ]);
             setProvidersList(extractList(provRes, 'providers'));
             setMaterialsList(extractList(matRes, 'materials'));
         } catch (error) {
