@@ -133,6 +133,13 @@ const InventoryReceptionPage: React.FC = () => {
             return;
         }
 
+        // Validar discrepancia solo al confirmar
+        if (hasFinancialWarning) {
+            if (!window.confirm(`⚠️ El monto de la factura (${formatCurrency(Number(invoiceTotal))}) no coincide con el calculado (${formatCurrency(expectedTotal)}).\n\n¿Deseas confirmar el ingreso de todas formas? Administración revisará la diferencia.`)) {
+                return;
+            }
+        }
+
         setIsSubmitting(true);
         try {
             const payload = {
@@ -338,8 +345,8 @@ const InventoryReceptionPage: React.FC = () => {
     // Solo bloquear si el monto de la factura es MENOR al esperado (falta mercancía)
     // Si es mayor, solo advertir pero no bloquear
     const invoiceTotalNum = Number(invoiceTotal);
-    const isFinancialBlocked = invoiceTotal !== '' && invoiceTotalNum > 0 && 
-        invoiceTotalNum < expectedTotal - tolerancia;
+    const isFinancialBlocked = false;
+    const hasFinancialWarning = invoiceTotal !== '' && invoiceTotalNum > 0 && diff > tolerancia;
 
     return (
         <div className="animate-in slide-in-from-right-4 duration-300 pb-10">
@@ -446,29 +453,13 @@ const InventoryReceptionPage: React.FC = () => {
                     </tbody>
                 </table>
 
-                {isFinancialBlocked && (
-                    <div className="mx-8 mt-6 bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded-xl flex items-start gap-4">
-                        <div className="bg-white p-2 rounded-lg shadow-sm">
-                            <Ban className="text-rose-600" size={20} />
-                        </div>
-                        <div>
-                            <p className="font-black text-sm uppercase tracking-tight">Recepción Detenida por Discrepancia Financiera</p>
-                            <p className="text-xs font-medium mt-1">El monto de la factura física <strong>({formatCurrency(Number(invoiceTotal))})</strong> no cuadra con la Orden de Compra autorizada <strong>({formatCurrency(expectedTotal)})</strong>.</p>
-                            <p className="text-xs font-bold mt-2 text-rose-600">ACCIÓN REQUERIDA: Solicite a Administración que ajuste el precio unitario del artículo en la Orden de Compra. Una vez corregida, el monto coincidirá y el sistema liberará este botón.</p>
-                        </div>
-                    </div>
-                )}
 
                 <div className="p-8 bg-slate-50/50 flex justify-between items-center border-t border-slate-100 mt-6">
                     <div className="flex gap-4">
                         <Button 
                             onClick={handleSubmit} 
-                            disabled={isSubmitting || isFinancialBlocked || isCancelling} 
-                            className={`font-black uppercase text-xs h-12 px-10 shadow-sm transition-colors ${
-                                isFinancialBlocked 
-                                ? 'bg-slate-300 text-slate-500 cursor-not-allowed' 
-                                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                            }`}
+                            disabled={isSubmitting || isCancelling}
+                            className="font-black uppercase text-xs h-12 px-10 shadow-sm transition-colors bg-emerald-600 hover:bg-emerald-700 text-white"
                         >
                             <Save size={16} className="mr-3" /> {isSubmitting ? 'Guardando...' : 'Confirmar Ingreso'}
                         </Button>
