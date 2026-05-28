@@ -236,7 +236,9 @@ def create_product_version(
         for comp_in in version_in.components:
             material = session.get(Material, comp_in.material_id)
             if material:
-                raw_line_cost = comp_in.quantity * material.current_cost
+                factor = material.conversion_factor if material.conversion_factor and material.conversion_factor > 0 else 1.0
+                unit_cost = material.current_cost / factor
+                raw_line_cost = comp_in.quantity * unit_cost
                 cost_line = math.ceil(raw_line_cost * 100) / 100
                 total_estimated_cost += cost_line
                 
@@ -266,7 +268,9 @@ def create_product_version(
                 material = session.get(Material, orig_comp.material_id)
                 if material:
                     # Siempre re-cotizamos con el costo actual del material
-                    raw_line_cost = orig_comp.quantity * material.current_cost
+                    factor = material.conversion_factor if material.conversion_factor and material.conversion_factor > 0 else 1.0
+                    unit_cost = material.current_cost / factor
+                    raw_line_cost = orig_comp.quantity * unit_cost
                     cost_line = math.ceil(raw_line_cost * 100) / 100
                     total_estimated_cost += cost_line
                     
@@ -318,7 +322,9 @@ def update_product_version(
             if not material:
                 continue 
 
-            raw_line_cost = comp_in.quantity * material.current_cost
+            factor = material.conversion_factor if material.conversion_factor and material.conversion_factor > 0 else 1.0
+            unit_cost = material.current_cost / factor
+            raw_line_cost = comp_in.quantity * unit_cost
             cost_line = math.ceil(raw_line_cost * 100) / 100
             total_estimated_cost += cost_line
 
