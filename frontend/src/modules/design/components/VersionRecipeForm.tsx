@@ -478,7 +478,29 @@ export const VersionRecipeForm = ({
                                 <InlineSearchableSelect 
                                     materials={materials}
                                     value={val?.material_id || 0}
-                                    onChange={(newId: number) => setValue(`components.${idx}.material_id`, newId, { shouldValidate: true })}
+                                    onChange={(newId: number) => {
+                                        setValue(`components.${idx}.material_id`, newId, { shouldValidate: true });
+                                        // Asignar sección correcta según categoría del material
+                                        const selectedMat = materials.find(m => m.id === Number(newId));
+                                        if (selectedMat) {
+                                            const cat = (selectedMat.category || '').toUpperCase();
+                                            let section = 'Otros';
+                                            if (['TABLERO', 'CHAPACINTA', 'HERRAJES', 'ACCESORIO', 'VIDRIO', 'ELECTRICIDAD', 'ELECTRODOMÉSTICO', 'ESPECIAL'].includes(cat)) {
+                                                section = 'Gabinetes';
+                                            } else if (cat === 'PIEDRA') {
+                                                section = 'Piedra';
+                                            } else if (cat === 'PROCESO') {
+                                                // Procesos van a Gabinetes o Piedra según el SKU
+                                                const sku = (selectedMat.sku || '').toUpperCase();
+                                                if (['INSTALAGRANITO', 'MAQGRANITO', 'EMPAQPIEDRA'].includes(sku)) {
+                                                    section = 'Piedra';
+                                                } else {
+                                                    section = 'Gabinetes';
+                                                }
+                                            }
+                                            setValue(`components.${idx}.temp_category`, section);
+                                        }
+                                    }}
                                     disabled={isReadOnly}
                                 />
                             </div>
