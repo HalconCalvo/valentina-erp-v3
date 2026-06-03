@@ -111,8 +111,32 @@ export default function DesignBuilderPage() {
                     // Reglas RTA
                     if (matCat.includes("PIEDRA") || matCat.includes("GRANITO") || matCat.includes("CUARZO") || matCat.includes("MÁRMOL") || matCat.includes("MARMOL")) {
                         sectionName = "Piedra";
-                    } else if (matCat.includes("TABLERO") || matCat.includes("MDF") || matCat.includes("HERRAJE") || matCat.includes("CUBRECANTO") || matCat.includes("MADERA") || matCat.includes("BISAGRA") || matName.includes("BISAGRA") || matName.includes("CORREDERA")) {
+                    } else if (
+                        matCat.includes("TABLERO") || 
+                        matCat.includes("MDF") || 
+                        matCat.includes("HERRAJE") || 
+                        matCat.includes("HERRAJES") || 
+                        matCat.includes("CHAPACINTA") || 
+                        matCat.includes("CUBRECANTO") || 
+                        matCat.includes("MADERA") || 
+                        matCat.includes("BISAGRA") || 
+                        matCat.includes("ACCESORIO") || 
+                        matCat.includes("VIDRIO") || 
+                        matCat.includes("ELECTRICIDAD") || 
+                        matCat.includes("ESPECIAL") || 
+                        matName.includes("BISAGRA") || 
+                        matName.includes("CORREDERA") ||
+                        matName.includes("TAPACANTO") ||
+                        matName.includes("CHAPACINTA")
+                    ) {
                         sectionName = "Gabinetes";
+                    } else if (matCat.includes("PROCESO")) {
+                        const matSku = (mat.sku || "").toUpperCase();
+                        if (['INSTALAGRANITO', 'MAQGRANITO', 'EMPAQPIEDRA'].includes(matSku)) {
+                            sectionName = "Piedra";
+                        } else {
+                            sectionName = "Gabinetes";
+                        }
                     }
                 }
 
