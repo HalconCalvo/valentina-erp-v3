@@ -483,16 +483,25 @@ export const VersionRecipeForm = ({
                                         // Asignar sección correcta según categoría del material
                                         const selectedMat = materials.find(m => m.id === Number(newId));
                                         if (selectedMat) {
-                                            const cat = (selectedMat.category || '').toUpperCase();
+                                            const cat = (selectedMat.category || '').trim().toUpperCase()
+                                                .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                                            const sku = (selectedMat.sku || '').trim().toUpperCase();
                                             let section = 'Otros';
-                                            if (['TABLERO', 'CHAPACINTA', 'HERRAJES', 'ACCESORIO', 'VIDRIO', 'ELECTRICIDAD', 'ELECTRODOMÉSTICO', 'ESPECIAL'].includes(cat)) {
+                                            
+                                            const gabCategories = [
+                                                'TABLERO', 'CHAPACINTA', 'HERRAJES', 'ACCESORIO', 
+                                                'VIDRIO', 'ELECTRICIDAD', 'ELECTRODOMESTICO', 
+                                                'ESPECIAL', 'INSUMOS'
+                                            ];
+                                            const piedraSkus = ['INSTALAGRANITO', 'MAQGRANITO', 'EMPAQPIEDRA'];
+                                            const gabProcesos = ['PRODUC', 'EMPAQMDF', 'INSTALACOCINA'];
+                                            
+                                            if (gabCategories.includes(cat)) {
                                                 section = 'Gabinetes';
                                             } else if (cat === 'PIEDRA') {
                                                 section = 'Piedra';
                                             } else if (cat === 'PROCESO') {
-                                                // Procesos van a Gabinetes o Piedra según el SKU
-                                                const sku = (selectedMat.sku || '').toUpperCase();
-                                                if (['INSTALAGRANITO', 'MAQGRANITO', 'EMPAQPIEDRA'].includes(sku)) {
+                                                if (piedraSkus.includes(sku)) {
                                                     section = 'Piedra';
                                                 } else {
                                                     section = 'Gabinetes';
