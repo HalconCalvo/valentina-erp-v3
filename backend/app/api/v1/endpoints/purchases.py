@@ -360,7 +360,7 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
     po = db.get(PurchaseOrder, po_id)
     if not po: raise HTTPException(status_code=404, detail="Orden no encontrada")
 
-    po.status = "RECIBIDA_TOTAL"
+    po.status = "RECIBIDA_PARCIAL"  # Se ajustará después según items
     setattr(po, 'invoice_folio_reported', data.get("invoice_folio"))
     setattr(po, 'invoice_total_reported', data.get("invoice_total"))
     po.is_advance = False
@@ -373,21 +373,41 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
         received_map[sku] = float(ri.get("received_qty") or ri.get("expected_qty") or 0)
 
     items = db.exec(select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po.id)).all()
+    all_complete = True
     for item in items:
+        mat_sku = ""
         if item.material_id:
             mat = db.get(Material, item.material_id)
             if mat:
-                route = (getattr(mat, 'production_route', 'MATERIAL') or 'MATERIAL').upper()
-                if route != 'MATERIAL':
-                    continue
-                factor = float(getattr(mat, 'conversion_factor', 1) or 1)
-                # Usar cantidad recibida real si está disponible, si no usar la de la OC
                 mat_sku = mat.sku or ""
-                qty_ordered = float(item.quantity_ordered or 0)
-                qty_received = received_map.get(mat_sku, qty_ordered)
-                qty_in_usage_units = qty_received * factor
-                mat.physical_stock = (mat.physical_stock or 0) + qty_in_usage_units
-                db.add(mat)
+                route = (getattr(mat, 'production_route', 'MATERIAL') or 'MATERIAL').upper()
+                if route == 'MATERIAL':
+                    factor = float(getattr(mat, 'conversion_factor', 1) or 1)
+                    qty_ordered = float(item.quantity_ordered or 0)
+                    qty_this_delivery = received_map.get(mat_sku, 0)
+                    # Solo agregar lo de esta entrega (no sobreescribir)
+                    if qty_this_delivery > 0:
+                        qty_in_usage_units = qty_this_delivery * factor
+                        mat.physical_stock = (mat.physical_stock or 0) + qty_in_usage_units
+                        db.add(mat)
+                    # Acumular quantity_received en el item
+                    prev_received = float(item.quantity_received or 0)
+                    item.quantity_received = prev_received + qty_this_delivery
+                    db.add(item)
+                    # Verificar si este item está completo
+                    if item.quantity_received < item.quantity_ordered:
+                        all_complete = False
+        else:
+            # Item sin material — verificar si tiene cantidad recibida
+            qty_this_delivery = received_map.get(item.custom_description or "", 0)
+            prev_received = float(item.quantity_received or 0)
+            item.quantity_received = prev_received + qty_this_delivery
+            db.add(item)
+            if item.quantity_received < item.quantity_ordered:
+                all_complete = False
+
+    # Determinar status final
+    po.status = "RECIBIDA_TOTAL" if all_complete else "RECIBIDA_PARCIAL"
 
     # 2. MATEMÁTICAS DE ANTICIPO VS SALDO
     ant_invoices = db.exec(select(PurchaseInvoice).where(PurchaseInvoice.invoice_number == f"ANT-{po.folio}")).all()
@@ -439,6 +459,24 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
     db.add(po)
     db.commit()
     return {"status": "success", "message": "Inventario ingresado y finanzas conciliadas."}
+
+@router.put("/orders/{po_id}/declare-satisfied")
+def declare_order_satisfied(*, db: Session = Depends(get_session), po_id: int, current_user: CurrentUser):
+    """Declara una OC parcialmente recibida como Satisfecha (cierre manual)."""
+    if current_user.role.upper() not in ["ADMIN", "ADMINISTRACION", "ADMINISTRADOR", "GERENCIA", "DIRECTOR"]:
+        raise HTTPException(status_code=403, detail="Solo Administración, Gerencia o Dirección pueden declarar una OC como satisfecha.")
+    
+    po = db.get(PurchaseOrder, po_id)
+    if not po:
+        raise HTTPException(status_code=404, detail="Orden no encontrada.")
+    if po.status != "RECIBIDA_PARCIAL":
+        raise HTTPException(status_code=400, detail="Solo se pueden declarar como satisfechas las OCs con entregas parciales.")
+    
+    po.status = "RECIBIDA_TOTAL"
+    db.add(po)
+    db.commit()
+    return {"status": "success", "message": f"OC {po.folio} declarada como satisfecha."}
+
 
 @router.put("/orders/{po_id}/report-discrepancy")
 def report_cost_discrepancy(*, db: Session = Depends(get_session), po_id: int, data: dict = Body(...), current_user: CurrentUser):
