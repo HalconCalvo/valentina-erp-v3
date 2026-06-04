@@ -35,6 +35,9 @@ const InventoryReceptionPage: React.FC = () => {
     const [displayTotal, setDisplayTotal] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isCancelling, setIsCancelling] = useState(false); // NUEVO ESTADO
+    const [declaringSatisfied, setDeclaringSatisfied] = useState(false);
+    const userRole = (localStorage.getItem('user_role') || '').toUpperCase().trim();
+    const canDeclare = ['ADMIN', 'ADMINISTRACION', 'ADMINISTRADOR', 'GERENCIA', 'DIRECTOR'].includes(userRole);
     
     const [receivedItems, setReceivedItems] = useState<Record<number, string>>({});
 
@@ -49,8 +52,12 @@ const InventoryReceptionPage: React.FC = () => {
     const fetchIncomingPOs = async () => {
         setIsLoadingPOs(true);
         try {
-            const res = await axiosClient.get('/purchases/orders/?status=ENVIADA');
-            setIncomingPOs(res.data || []);
+            const [resEnviada, resParcial] = await Promise.all([
+                axiosClient.get('/purchases/orders/?status=ENVIADA'),
+                axiosClient.get('/purchases/orders/?status=RECIBIDA_PARCIAL')
+            ]);
+            const allPOs = [...(resEnviada.data || []), ...(resParcial.data || [])];
+            setIncomingPOs(allPOs);
         } catch (error) {
             console.error("Error al cargar OCs en tránsito", error);
             setIncomingPOs([]);
@@ -92,7 +99,9 @@ const InventoryReceptionPage: React.FC = () => {
 
         const initialReceived: Record<number, string> = {};
         (po.items || []).forEach((item: any, idx: number) => {
-            initialReceived[idx] = String(item.qty || 0);
+            const alreadyReceived = Number(item.quantity_received || 0);
+            const pending = Math.max((item.qty || 0) - alreadyReceived, 0);
+            initialReceived[idx] = String(pending);
         });
         setReceivedItems(initialReceived);
     };
@@ -188,6 +197,22 @@ const InventoryReceptionPage: React.FC = () => {
         }
     };
 
+    const handleDeclareSatisfied = async () => {
+        if (!selectedPO) return;
+        if (!window.confirm(`¿Declarar la OC ${selectedPO.folio} como Satisfecha?\n\nEsto cerrará la orden aunque falten productos. Los faltantes deberán pedirse en una nueva OC.`)) return;
+        setDeclaringSatisfied(true);
+        try {
+            await axiosClient.put(`/purchases/orders/${selectedPO.id}/declare-satisfied`);
+            alert("✅ OC declarada como Satisfecha.");
+            setSelectedPO(null);
+            fetchIncomingPOs();
+        } catch (err: any) {
+            alert(err.response?.data?.detail || "❌ Error al declarar la OC como satisfecha.");
+        } finally {
+            setDeclaringSatisfied(false);
+        }
+    };
+
     if (!selectedPO) {
         return (
             <>
@@ -236,6 +261,9 @@ const InventoryReceptionPage: React.FC = () => {
                                                     </p>
                                                     {po.is_advance && (
                                                         <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 uppercase tracking-widest">Prepagada</span>
+                                                    )}
+                                                    {po.status === 'RECIBIDA_PARCIAL' && (
+                                                        <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 uppercase tracking-widest">Entrega Parcial</span>
                                                     )}
                                                 </div>
                                             </div>
@@ -407,8 +435,10 @@ const InventoryReceptionPage: React.FC = () => {
                         <tr className="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                             <th className="px-8 py-4 text-left w-32">SKU</th>
                             <th className="px-4 py-4 text-left">Descripción</th>
-                            <th className="px-4 py-4 text-center">Esperadas</th>
-                            <th className="px-4 py-4 text-center w-32">Recibidas</th>
+                            <th className="px-4 py-4 text-center">Ordenadas</th>
+                            <th className="px-4 py-4 text-center">Ya Recibidas</th>
+                            <th className="px-4 py-4 text-center">Pendientes</th>
+                            <th className="px-4 py-4 text-center w-32">Esta Entrega</th>
                             <th className="px-4 py-4 text-center w-32">P. Unit</th>
                             <th className="px-8 py-4 text-right">Proyecto</th>
                             <th className="px-8 py-4 text-right w-40">Importe</th>
@@ -416,29 +446,42 @@ const InventoryReceptionPage: React.FC = () => {
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                         {(selectedPO.items || []).map((item: any, idx: number) => {
-                            const price = item.unit_price || item.expected_cost || item.price || 0;
-                            const expected = item.qty || 0;
-                            const received = Number(receivedItems[idx]) || 0;
-                            const total = expected * price;
-                            const hasDiscrepancy = received !== expected;
+                                    const price = item.unit_price || item.expected_cost || item.price || 0;
+                                    const ordered = item.qty || 0;
+                                    const alreadyReceived = Number(item.quantity_received || 0);
+                                    const pending = Math.max(ordered - alreadyReceived, 0);
+                                    const thisDelivery = Number(receivedItems[idx]) || 0;
+                                    const total = ordered * price;
+                                    const isComplete = alreadyReceived >= ordered;
+                                    const hasDiscrepancy = thisDelivery > pending;
 
                             return (
                                 <tr key={idx} className={`hover:bg-slate-50/30 transition-colors ${hasDiscrepancy ? 'bg-amber-50/20' : ''}`}>
                                     <td className="px-8 py-3 font-black text-indigo-600 text-[11px] uppercase">{item.sku || 'S/SKU'}</td>
                                     <td className="px-4 py-3 font-bold text-slate-700 text-xs uppercase">{item.name || 'Articulo sin nombre'}</td>
-                                    <td className="px-4 py-3 text-center text-xs font-black text-slate-600">{expected}</td>
+                                    <td className="px-4 py-3 text-center text-xs font-black text-slate-600">{ordered}</td>
+                                    <td className="px-4 py-3 text-center text-xs font-bold text-emerald-600">{alreadyReceived > 0 ? alreadyReceived : '—'}</td>
+                                    <td className="px-4 py-3 text-center text-xs font-black text-slate-600">
+                                        {isComplete 
+                                            ? <span className="text-emerald-600 font-black">✓ Completo</span>
+                                            : <span className="text-amber-600 font-black">{pending}</span>
+                                        }
+                                    </td>
                                     <td className="px-4 py-3 text-center align-middle">
                                         <div className="flex justify-center">
                                             <input 
                                                 type="number"
                                                 min="0"
+                                                disabled={isComplete}
                                                 className={`h-6 w-14 text-center font-black text-xs border rounded outline-none transition-colors ${
-                                                    hasDiscrepancy 
+                                                    isComplete
+                                                    ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed'
+                                                    : hasDiscrepancy 
                                                     ? 'bg-amber-100 border-amber-300 text-amber-800' 
                                                     : 'border-slate-200 text-emerald-600 bg-white focus:border-emerald-500'
                                                 }`}
                                                 value={receivedItems[idx]}
-                                                onChange={(e) => handleReceivedQtyChange(idx, e.target.value)}
+                                                onChange={(e) => !isComplete && handleReceivedQtyChange(idx, e.target.value)}
                                             />
                                         </div>
                                     </td>
@@ -473,6 +516,16 @@ const InventoryReceptionPage: React.FC = () => {
                         >
                             <Ban size={14} className="mr-2" /> Rechazar y Cancelar OC
                         </Button>
+                        {canDeclare && selectedPO?.status === 'RECIBIDA_PARCIAL' && (
+                            <Button
+                                onClick={handleDeclareSatisfied}
+                                disabled={isSubmitting || declaringSatisfied}
+                                variant="outline"
+                                className="border-amber-300 text-amber-700 hover:bg-amber-50 font-black uppercase text-[10px] h-12 px-6 shadow-sm transition-all"
+                            >
+                                <CheckCircle2 size={14} className="mr-2" /> OC Satisfecha
+                            </Button>
+                        )}
                     </div>
                     <div className="w-80 space-y-1 pr-14">
                         <div className="flex justify-between items-center text-slate-500">
