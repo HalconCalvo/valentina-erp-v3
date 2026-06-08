@@ -375,36 +375,34 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
     items = db.exec(select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po.id)).all()
     all_complete = True
     for item in items:
-        mat_sku = ""
+        qty_ordered = float(item.quantity_ordered or 0)
+        qty_this_delivery = 0.0
+
         if item.material_id:
             mat = db.get(Material, item.material_id)
             if mat:
                 mat_sku = mat.sku or ""
                 route = (getattr(mat, 'production_route', 'MATERIAL') or 'MATERIAL').upper()
-                if route == 'MATERIAL':
+                qty_this_delivery = received_map.get(mat_sku, 0)
+
+                # Solo ingresar stock para materiales físicos
+                if route == 'MATERIAL' and qty_this_delivery > 0:
                     factor = float(getattr(mat, 'conversion_factor', 1) or 1)
-                    qty_ordered = float(item.quantity_ordered or 0)
-                    qty_this_delivery = received_map.get(mat_sku, 0)
-                    # Solo agregar lo de esta entrega (no sobreescribir)
-                    if qty_this_delivery > 0:
-                        qty_in_usage_units = qty_this_delivery * factor
-                        mat.physical_stock = (mat.physical_stock or 0) + qty_in_usage_units
-                        db.add(mat)
-                    # Acumular quantity_received en el item
-                    prev_received = float(item.quantity_received or 0)
-                    item.quantity_received = prev_received + qty_this_delivery
-                    db.add(item)
-                    # Verificar si este item está completo
-                    if item.quantity_received < item.quantity_ordered:
-                        all_complete = False
+                    qty_in_usage_units = qty_this_delivery * factor
+                    mat.physical_stock = (mat.physical_stock or 0) + qty_in_usage_units
+                    db.add(mat)
         else:
-            # Item sin material — verificar si tiene cantidad recibida
+            # Item sin material (descripción libre)
             qty_this_delivery = received_map.get(item.custom_description or "", 0)
-            prev_received = float(item.quantity_received or 0)
-            item.quantity_received = prev_received + qty_this_delivery
-            db.add(item)
-            if item.quantity_received < item.quantity_ordered:
-                all_complete = False
+
+        # Acumular quantity_received para TODOS los items
+        prev_received = float(item.quantity_received or 0)
+        item.quantity_received = prev_received + qty_this_delivery
+        db.add(item)
+
+        # Verificar completitud para TODOS los items
+        if qty_ordered > 0 and item.quantity_received < qty_ordered:
+            all_complete = False
 
     # Determinar status final
     po.status = "RECIBIDA_TOTAL" if all_complete else "RECIBIDA_PARCIAL"
