@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { ArrowLeft, ArrowRight, PlusCircle, MinusCircle, ArrowRightLeft, Search, Printer } from 'lucide-react';
 import { BankAccount } from '../../../types/treasury';
 import { treasuryService } from '../../../api/treasury-service';
+import axiosClient from '../../../api/axios-client';
 
 interface Transaction {
   id: number;
@@ -38,6 +39,10 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
       description: ''
   });
   const [transferring, setTransferring] = useState(false);
+  const [editingTxId, setEditingTxId] = useState<number | null>(null);
+  const [editingDesc, setEditingDesc] = useState('');
+  const [editingRef, setEditingRef] = useState('');
+  const [savingTx, setSavingTx] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -99,6 +104,24 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
     fetchTransactions();
     fetchAccounts();
   }, [account.id, account.current_balance]); 
+
+  const handleSaveTransactionEdit = async (txId: number) => {
+      setSavingTx(true);
+      try {
+          await axiosClient.put(`/treasury/transactions/${txId}/description`, {
+              description: editingDesc,
+              reference: editingRef
+          });
+          setEditingTxId(null);
+          // Refrescar transacciones
+          const res = await axiosClient.get(`/treasury/accounts/${account.id}/transactions`);
+          setTransactions(res.data || []);
+      } catch (err: any) {
+          alert(err.response?.data?.detail || '❌ Error al actualizar el movimiento.');
+      } finally {
+          setSavingTx(false);
+      }
+  };
 
   const transactionsWithBalance = useMemo(() => {
     let currentTempBalance = account.current_balance || 0;
@@ -335,10 +358,67 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
                 </tr>
               ) : (
                 currentTransactions.map((tx) => (
-                  <tr key={tx.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={tx.id} className="hover:bg-gray-50 transition-colors group">
                     <td className="px-6 py-4 whitespace-nowrap">{formatDate(tx.transaction_date)}</td>
-                    <td className="px-6 py-4 font-medium text-gray-900">{tx.description || 'Sin descripción'}</td>
-                    <td className="px-6 py-4 text-gray-500">{tx.reference || '-'}</td>
+                    <td className="px-6 py-4 font-medium text-gray-900">
+                      {editingTxId === tx.id ? (
+                        <input
+                          autoFocus
+                          value={editingDesc}
+                          onChange={e => setEditingDesc(e.target.value)}
+                          className="w-full border border-indigo-300 rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-indigo-200"
+                        />
+                      ) : (
+                        <span
+                          className="cursor-pointer hover:text-indigo-600 transition-colors"
+                          title="Clic para editar"
+                          onClick={() => {
+                            setEditingTxId(tx.id);
+                            setEditingDesc(tx.description || '');
+                            setEditingRef(tx.reference || '');
+                          }}
+                        >
+                          {tx.description || 'Sin descripción'}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-gray-500">
+                      {editingTxId === tx.id ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            value={editingRef}
+                            onChange={e => setEditingRef(e.target.value)}
+                            className="w-full border border-indigo-300 rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-indigo-200"
+                            placeholder="Referencia"
+                          />
+                          <button
+                            onClick={() => handleSaveTransactionEdit(tx.id)}
+                            disabled={savingTx}
+                            className="px-3 py-1 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 rounded whitespace-nowrap disabled:opacity-50"
+                          >
+                            {savingTx ? '...' : '✓ Guardar'}
+                          </button>
+                          <button
+                            onClick={() => setEditingTxId(null)}
+                            className="px-2 py-1 text-xs font-black text-slate-500 hover:text-slate-700 border border-slate-200 rounded"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <span
+                          className="cursor-pointer hover:text-indigo-600 transition-colors"
+                          title="Clic para editar"
+                          onClick={() => {
+                            setEditingTxId(tx.id);
+                            setEditingDesc(tx.description || '');
+                            setEditingRef(tx.reference || '');
+                          }}
+                        >
+                          {tx.reference || '-'}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-right text-red-600 font-medium whitespace-nowrap">
                       {tx.transaction_type === 'OUT' ? `$${tx.amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : '-'}
                     </td>

@@ -1,7 +1,7 @@
 from typing import Any, List, Optional
 from datetime import date, datetime
 from pydantic import BaseModel
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Body, HTTPException, status
 from sqlmodel import select, func, text
 
 # --- TUS DEPENDENCIAS EXACTAS ---
@@ -365,3 +365,27 @@ def get_cost_kpi(
         "maquila_total": round(maquila_total, 2),
         "maquila_by_instance": maquila_by_instance,
     }
+
+
+@router.put("/transactions/{transaction_id}/description")
+def update_transaction_description(
+    *,
+    db: Session = Depends(get_session),
+    current_user: CurrentUser,
+    transaction_id: int,
+    data: dict = Body(...)
+):
+    """Permite editar la descripción y referencia de un movimiento bancario."""
+    tx = db.get(BankTransaction, transaction_id)
+    if not tx:
+        raise HTTPException(status_code=404, detail="Movimiento no encontrado.")
+    
+    if "description" in data:
+        tx.description = data["description"]
+    if "reference" in data:
+        tx.reference = data["reference"]
+    
+    db.add(tx)
+    db.commit()
+    db.refresh(tx)
+    return {"status": "success", "message": "Movimiento actualizado correctamente."}
