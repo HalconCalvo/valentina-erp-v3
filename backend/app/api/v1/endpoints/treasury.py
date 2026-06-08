@@ -370,13 +370,13 @@ def get_cost_kpi(
 @router.put("/transactions/{transaction_id}/description")
 def update_transaction_description(
     *,
-    db: Session = Depends(get_session),
+    session: SessionDep,
     current_user: CurrentUser,
     transaction_id: int,
     data: dict = Body(...)
 ):
     """Permite editar la descripción y referencia de un movimiento bancario."""
-    tx = db.get(BankTransaction, transaction_id)
+    tx = session.get(BankTransaction, transaction_id)
     if not tx:
         raise HTTPException(status_code=404, detail="Movimiento no encontrado.")
     
@@ -385,7 +385,7 @@ def update_transaction_description(
     if "reference" in data:
         tx.reference = data["reference"]
     
-    db.add(tx)
-    db.commit()
-    db.refresh(tx)
+    session.add(tx)
+    session.commit()
+    session.refresh(tx)
     return {"status": "success", "message": "Movimiento actualizado correctamente."}
