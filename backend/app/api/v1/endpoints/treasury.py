@@ -1,7 +1,7 @@
 from typing import Any, List, Optional
 from datetime import date, datetime
 from pydantic import BaseModel
-from fastapi import APIRouter, Body, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, status
 from sqlmodel import select, func, text
 
 # --- TUS DEPENDENCIAS EXACTAS ---
