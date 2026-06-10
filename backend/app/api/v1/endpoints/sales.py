@@ -146,7 +146,8 @@ def create_sales_order(
                     for component in version.components:
                         mat = session.get(Material, component.material_id)
                         if mat:
-                            current_cost = mat.current_cost
+                            factor = float(mat.conversion_factor) if mat.conversion_factor and mat.conversion_factor > 0 else 1.0
+                            current_cost = mat.current_cost / factor
                             line_cost = component.quantity * current_cost
                             calculated_frozen_cost += line_cost
                             snapshot_data["ingredients"].append({
@@ -365,7 +366,8 @@ def update_sales_order(
                     for component in version.components:
                         mat = session.get(Material, component.material_id)
                         if mat:
-                            current_cost = mat.current_cost
+                            factor = float(mat.conversion_factor) if mat.conversion_factor and mat.conversion_factor > 0 else 1.0
+                            current_cost = mat.current_cost / factor
                             line_cost = component.quantity * current_cost
                             calculated_frozen_cost += line_cost
                             snapshot_data["ingredients"].append({
