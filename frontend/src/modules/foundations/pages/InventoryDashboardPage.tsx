@@ -56,7 +56,10 @@ export const InventoryDashboardPage = () => {
             try {
                 const [resReqs, resOrdersTransit, resPlanning, resAllOrders] = await Promise.all([
                     axiosClient.get('/purchases/requisitions/'),                
-                    axiosClient.get('/purchases/orders/?status=ENVIADA'),       
+                    Promise.all([
+                        axiosClient.get('/purchases/orders/?status=ENVIADA'),
+                        axiosClient.get('/purchases/orders/?status=RECIBIDA_PARCIAL')
+                    ]).then(([r1, r2]) => ({ data: [...(r1.data || []), ...(r2.data || [])] })),
                     axiosClient.get('/purchases/planning/consolidated'),        
                     axiosClient.get('/purchases/orders/')                       
                 ]);
@@ -66,7 +69,7 @@ export const InventoryDashboardPage = () => {
                 setPendingTasksCount(frozenReqs.length);
                 
                 // 3. Tarjeta Recepción (Órdenes en tránsito real)
-                setReceptionsCount(resOrdersTransit.data.length || 0); 
+                setReceptionsCount((resOrdersTransit.data || []).length || 0);
                 
                 // 2. Tarjeta Compras (Planeación + Mesa de Control)
                 const planningCount = resPlanning.data.length || 0;
