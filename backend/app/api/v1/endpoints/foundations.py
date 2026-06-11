@@ -1,6 +1,7 @@
 import csv
 import io
 import math
+from datetime import datetime
 from uuid import uuid4  # <--- AGREGADO PARA NOMBRES ÚNICOS
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
@@ -10,7 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from app.core.database import get_session
 from app.core.deps import CurrentUser, SessionDep
 from app.services.cloud_storage import upload_to_gcs  # <--- LA TUBERÍA BLINDADA
-from app.services.inventory_manager import registrar_movimiento_inventario
+from app.services.inventory_manager import registrar_movimiento_inventario, calcular_saldo_a_fecha
 
 # --- MODELOS ---
 from app.models.foundations import GlobalConfig, Provider, Client, TaxRate
@@ -468,6 +469,88 @@ def adjust_material_stock(
         "movement_type": movement_type,
         "difference": difference,
         "new_stock": material.physical_stock,
+    }
+
+
+@router.post("/materials/{material_id}/physical-count")
+def physical_count_with_date(
+    material_id: int,
+    body: dict,
+    current_user: CurrentUser,
+    session: Session = Depends(get_session),
+):
+    """
+    CAPTURA DE INVENTARIO FÍSICO CON FECHA ANCLADA (Fase 3B-1).
+
+    body: { "counted_quantity": float, "fecha_conteo": "YYYY-MM-DD", "notes": str (opcional) }
+
+    El conteo se ancla a su fecha real: se compara contra el saldo del Kárdex A ESA FECHA
+    y la diferencia se registra como movimiento fechado en fecha_conteo, ajustando
+    physical_stock por SUMA de la diferencia (NO sobrescribe), para preservar los
+    movimientos posteriores a la fecha del conteo.
+    """
+    role = current_user.role.value if hasattr(current_user.role, "value") \
+        else str(current_user.role)
+    if role.upper() not in ["DIRECTOR", "ADMIN", "GERENCIA"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Solo Dirección, Administración o Gerencia pueden capturar inventario físico."
+        )
+
+    material = session.get(Material, material_id)
+    if not material:
+        raise HTTPException(status_code=404, detail="Material no encontrado")
+
+    counted = float(body.get("counted_quantity", 0))
+
+    fecha_str = body.get("fecha_conteo")
+    if not fecha_str:
+        raise HTTPException(status_code=400, detail="Debe indicar fecha_conteo (YYYY-MM-DD).")
+    try:
+        fecha_base = datetime.strptime(str(fecha_str)[:10], "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Formato de fecha inválido. Use YYYY-MM-DD.")
+
+    # Sin hora => hasta el final de ese día, para incluir movimientos del mismo día.
+    fecha_fin_dia = fecha_base.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+    saldo_a_fecha = calcular_saldo_a_fecha(session, material_id, fecha_fin_dia)
+    diferencia = counted - saldo_a_fecha
+
+    if diferencia == 0:
+        return {
+            "ok": True,
+            "message": "Sin diferencia, no se registró movimiento.",
+            "material_id": material_id,
+            "saldo_a_fecha": saldo_a_fecha,
+            "counted_quantity": counted,
+            "diferencia": 0.0,
+            "nuevo_physical_stock": material.physical_stock,
+        }
+
+    registrar_movimiento_inventario(
+        session,
+        material_id=material_id,
+        cantidad=diferencia,
+        tipo="AJUSTE_CONTEO_FISICO",
+        costo_unitario=float(getattr(material, 'current_cost', 0.0) or 0.0),
+        reason_code="CONTEO_FISICO",
+        created_at=fecha_fin_dia,
+    )
+
+    # Ajuste por SUMA de la diferencia (preserva movimientos posteriores al conteo).
+    material.physical_stock = (material.physical_stock or 0.0) + diferencia
+    session.add(material)
+    session.commit()
+    session.refresh(material)
+
+    return {
+        "ok": True,
+        "material_id": material_id,
+        "saldo_a_fecha": saldo_a_fecha,
+        "counted_quantity": counted,
+        "diferencia": diferencia,
+        "nuevo_physical_stock": material.physical_stock,
     }
 
 

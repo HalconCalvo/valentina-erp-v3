@@ -100,6 +100,7 @@ def registrar_movimiento_inventario(
     reception_id: int | None = None,
     project_id: int | None = None,
     reason_code: str | None = None,
+    created_at=None,
 ):
     """
     LIBRO DE MOVIMIENTOS (KÁRDEX) — FASE 1
@@ -110,7 +111,13 @@ def registrar_movimiento_inventario(
     transacción de base de datos existente.
 
     cantidad: positiva para entradas, negativa para salidas.
+    created_at: fecha del movimiento. Si es None se usa datetime.now() (igual que el
+    comportamiento por defecto previo), por lo que las llamadas existentes que no lo
+    pasan no cambian. Permite anclar conteos físicos a su fecha real (Fase 3B).
     """
+    if created_at is None:
+        created_at = datetime.now()
+
     movimiento = InventoryTransaction(
         material_id=material_id,
         quantity=cantidad,
@@ -120,6 +127,24 @@ def registrar_movimiento_inventario(
         reception_id=reception_id,
         project_id=project_id,
         reason_code=reason_code,
+        created_at=created_at,
     )
     db.add(movimiento)
     return movimiento
+
+
+def calcular_saldo_a_fecha(db, material_id: int, fecha) -> float:
+    """
+    Devuelve el saldo del Kárdex de un material A UNA FECHA dada: la suma de
+    quantity de todos los renglones de InventoryTransaction con created_at <= fecha.
+
+    Usa una suma agregada (func.sum) en la base de datos; no trae renglones a memoria.
+    Si no hay movimientos, devuelve 0.0.
+    """
+    total = db.exec(
+        select(func.sum(InventoryTransaction.quantity)).where(
+            InventoryTransaction.material_id == material_id,
+            InventoryTransaction.created_at <= fecha,
+        )
+    ).one() or 0.0
+    return float(total)
