@@ -8,12 +8,14 @@ from sqlmodel import Session, select
 from sqlalchemy.exc import IntegrityError
 
 from app.core.database import get_session
-from app.core.deps import CurrentUser
+from app.core.deps import CurrentUser, SessionDep
 from app.services.cloud_storage import upload_to_gcs  # <--- LA TUBERÍA BLINDADA
+from app.services.inventory_manager import registrar_movimiento_inventario
 
 # --- MODELOS ---
 from app.models.foundations import GlobalConfig, Provider, Client, TaxRate
 from app.models.material import Material
+from app.models.inventory import InventoryTransaction
 
 router = APIRouter()
 
@@ -481,6 +483,69 @@ def get_inventory_valuation(session: Session = Depends(get_session)):
         for m in materials
     )
     return {"total_valuation": round(total, 2)}
+
+
+@router.post("/materials/seed-kardex-opening")
+def seed_kardex_opening(current_user: CurrentUser, session: SessionDep):
+    """
+    SIEMBRA DE SALDO DE APERTURA DEL KÁRDEX (Fase 3A) — uso administrativo, una sola vez.
+
+    Por cada material con stock, registra un movimiento AJUSTE_INICIAL fechado en
+    inventory_transactions que representa "lo que había al encender el Kárdex".
+
+    IDEMPOTENTE: si un material ya tiene un AJUSTE_INICIAL, se salta (no duplica).
+    NO modifica physical_stock de ningún material: solo deja el rastro histórico.
+    """
+    role = current_user.role.value if hasattr(current_user.role, "value") \
+        else str(current_user.role)
+    if role.upper() not in ["DIRECTOR", "ADMIN", "GERENCIA"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Solo Dirección, Administración o Gerencia pueden sembrar el saldo de apertura."
+        )
+
+    materials = session.exec(select(Material)).all()
+
+    sembrados = 0
+    saltados_existente = 0
+    saltados_stock_cero = 0
+
+    for material in materials:
+        ya_existe = session.exec(
+            select(InventoryTransaction).where(
+                InventoryTransaction.material_id == material.id,
+                InventoryTransaction.transaction_type == "AJUSTE_INICIAL",
+            )
+        ).first()
+
+        if ya_existe:
+            saltados_existente += 1
+            continue
+
+        stock_actual = float(material.physical_stock or 0.0)
+        if stock_actual <= 0:
+            saltados_stock_cero += 1
+            continue
+
+        registrar_movimiento_inventario(
+            session,
+            material_id=material.id,
+            cantidad=stock_actual,
+            tipo="AJUSTE_INICIAL",
+            costo_unitario=float(getattr(material, 'current_cost', 0.0) or 0.0),
+            reason_code="SALDO_APERTURA",
+        )
+        sembrados += 1
+
+    session.commit()
+
+    return {
+        "ok": True,
+        "sembrados": sembrados,
+        "saltados_por_existir": saltados_existente,
+        "saltados_por_stock_cero": saltados_stock_cero,
+        "total_materiales": len(materials),
+    }
 
 
 @router.get("/materials")
