@@ -222,10 +222,13 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
         const version = master?.versions?.find((v: any) => v.id === selectedVersionId);
         const cost = version ? Number(version.total_cost || version.cost || version.estimated_cost || 0) : 0;
         const margin = Number(header.applied_margin_percent) || 0;
-        let multiplier = 1;
-        if (margin > 0 && margin <= 1) multiplier = 1 + margin; 
-        else multiplier = 1 + (margin / 100);
-        const salesPrice = cost * multiplier;
+        const commission = Number(commissionRate) || 0;
+        let marginMultiplier = 1;
+        if (margin > 0 && margin <= 1) marginMultiplier = 1 + margin;
+        else marginMultiplier = 1 + (margin / 100);
+        // Comisión siempre viene como decimal (0.05 = 5%)
+        const commissionMultiplier = 1 + commission;
+        const salesPrice = cost * marginMultiplier * commissionMultiplier;
         setLineItem({...lineItem, version_id: selectedVersionId, unit_price: Number(salesPrice.toFixed(2)), frozen_cost: cost});
     };
 
@@ -272,10 +275,14 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
     };
 
     const handleRecalculatePrices = () => {
-        if(!confirm(`¿Estás seguro de recalcular TODOS los precios usando un margen del ${header.applied_margin_percent}%? Esto sobrescribirá precios manuales.`)) return;
+        if(!confirm(`¿Estás seguro de recalcular TODOS los precios usando un margen del ${header.applied_margin_percent}% y comisión del ${(commissionRate * 100).toFixed(1)}%? Esto sobrescribirá precios manuales.`)) return;
         const rawMargin = Number(header.applied_margin_percent) || 0;
-        let multiplier = 1;
-        if (rawMargin > 0 && rawMargin <= 1) multiplier = 1 + rawMargin; else multiplier = 1 + (rawMargin / 100);
+        const commission = Number(commissionRate) || 0;
+        let marginMultiplier = 1;
+        if (rawMargin > 0 && rawMargin <= 1) marginMultiplier = 1 + rawMargin;
+        else marginMultiplier = 1 + (rawMargin / 100);
+        const commissionMultiplier = 1 + commission;
+        const multiplier = marginMultiplier * commissionMultiplier;
         const newItems = items.map(item => {
             if (item.frozen_unit_cost && item.frozen_unit_cost > 0) return { ...item, unit_price: Math.ceil(item.frozen_unit_cost * multiplier) };
             return item;
