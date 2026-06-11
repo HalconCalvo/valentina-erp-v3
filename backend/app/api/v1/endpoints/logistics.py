@@ -24,6 +24,7 @@ from app.models.inventory import InventoryReservation
 from app.models.material import Material
 from app.services.planning_service import trigger_double_green
 from app.services.cloud_storage import upload_to_gcs
+from app.services.inventory_manager import registrar_movimiento_inventario
 
 router = APIRouter()
 
@@ -578,6 +579,19 @@ def scan_bundle_qr(
                 (material.committed_stock or 0.0) - res.quantity_reserved
             )
             session.add(material)
+
+            # Rastro fechado en el Kárdex (Fase 2): SALIDA por carga al camión.
+            # No altera physical_stock/committed_stock (ya ajustados arriba); el commit
+            # lo sigue haciendo el endpoint. cantidad negativa porque es una salida.
+            registrar_movimiento_inventario(
+                session,
+                material_id=material.id,
+                cantidad=-res.quantity_reserved,
+                tipo="SALIDA_INSTALACION",
+                costo_unitario=float(getattr(material, 'current_cost', 0.0) or 0.0),
+                project_id=getattr(instance, 'sales_order_id', None),
+                reason_code="CARGA_CAMION",
+            )
 
         # Marcar reserva como consumida
         res.status = "CONSUMIDA"
