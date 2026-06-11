@@ -183,8 +183,10 @@ def create_sales_order(
                     production_status=InstanceStatus.PENDING
                 ))
 
-        commission_amount = items_sum * applied_commission
-        final_subtotal = items_sum + commission_amount
+        # items_sum YA incluye la comisión en cada precio. NO se vuelve a sumar.
+        # La comisión se extrae de forma informativa.
+        commission_amount = items_sum - (items_sum / (1 + applied_commission)) if applied_commission > 0 else 0.0
+        final_subtotal = items_sum
         tax_amount = final_subtotal * tax_rate.rate
         total_price = final_subtotal + tax_amount
 
@@ -416,16 +418,15 @@ def update_sales_order(
         
         # 5. RECALCULAR TOTALES FINANCIEROS (CON COMISIÓN E IVA)
         
-        # El subtotal base es la suma de todos los productos
+        # El subtotal es la suma de las partidas, cuyos precios YA incluyen la comisión
         base_products_sum = items_sum 
         
-        # Calculamos cuánto dinero es de comisión (ej. 0.05 * 630,451.60)
-        # Usamos el porcentaje que ya está guardado en la db_order
+        # Extraemos la comisión de forma informativa (ya está contenida en los precios)
         comm_percent = db_order.applied_commission_percent or 0.0
-        commission_amount = base_products_sum * comm_percent
+        commission_amount = base_products_sum - (base_products_sum / (1 + comm_percent)) if comm_percent > 0 else 0.0
         
-        # El subtotal real para el cliente es Productos + Comisión
-        real_subtotal = base_products_sum + commission_amount
+        # El subtotal NO suma comisión otra vez (ya está en los precios)
+        real_subtotal = base_products_sum
         
         # Obtenemos la tasa de IVA (por defecto 16%)
         tax_rate_obj = session.get(TaxRate, db_order.tax_rate_id)
