@@ -191,8 +191,10 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
     }, [id, isEditMode, navigate]);
 
     const itemsSum = useMemo(() => items.reduce((sum, i) => sum + (i.quantity * i.unit_price), 0), [items]);
-    const commissionAmount = itemsSum * commissionRate;
-    const finalSubtotal = itemsSum + commissionAmount;
+    // El unit_price YA incluye la comisión (Costo × margen × comisión).
+    // La comisión se extrae de forma informativa, NO se vuelve a sumar.
+    const commissionAmount = itemsSum > 0 ? itemsSum - (itemsSum / (1 + commissionRate)) : 0;
+    const finalSubtotal = itemsSum;
     const selectedTaxRate = taxRates.find(t => t.id === header.tax_rate_id);
     const taxAmount = selectedTaxRate ? finalSubtotal * selectedTaxRate.rate : 0;
     const total = finalSubtotal + taxAmount;
@@ -200,7 +202,8 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
     const advanceAmount = total * (header.advance_percent / 100);
 
     const totalCost = useMemo(() => items.reduce((sum, i) => sum + ((i.frozen_unit_cost || 0) * i.quantity), 0), [items]);
-    const totalRealCost = totalCost + commissionAmount; 
+    // La utilidad real = precio de venta - costo material - comisión (que ya está incluida en el precio)
+    const totalRealCost = totalCost + commissionAmount;
     const grossProfit = finalSubtotal - totalRealCost;
     const marginPercent = finalSubtotal > 0 ? (grossProfit / finalSubtotal) * 100 : 0;
 
