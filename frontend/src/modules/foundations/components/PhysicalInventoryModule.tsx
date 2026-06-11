@@ -45,6 +45,9 @@ export const PhysicalInventoryModule = ({ activeSubSection, onSubSectionChange }
   const [quickQty, setQuickQty] = useState('');
   const [quickSaved, setQuickSaved] = useState(false);
   const [skuNotFound, setSkuNotFound] = useState(false);
+  const [fechaConteo, setFechaConteo] = useState<string>(
+    new Date().toISOString().split('T')[0]   // hoy en formato YYYY-MM-DD
+  );
   const skuInputRef = useRef<HTMLInputElement>(null);
   const qtyInputRef = useRef<HTMLInputElement>(null);
 
@@ -121,9 +124,10 @@ export const PhysicalInventoryModule = ({ activeSubSection, onSubSectionChange }
     if (val === undefined || val === '') return;
     setSaving(true);
     try {
-      await axiosClient.patch(`/foundations/materials/${material.id}/adjust-stock`, {
+      await axiosClient.post(`/foundations/materials/${material.id}/physical-count`, {
         counted_quantity: parseFloat(val),
-        notes: `Inventario físico ${new Date().toLocaleDateString('es-MX')}`,
+        fecha_conteo: fechaConteo,
+        notes: `Inventario físico ${fechaConteo}`,
       });
       setSavedIds(prev => [...prev, material.id]);
       await loadMaterials();
@@ -138,9 +142,10 @@ export const PhysicalInventoryModule = ({ activeSubSection, onSubSectionChange }
     setSaving(true);
     try {
       for (const [id, val] of entries) {
-        await axiosClient.patch(`/foundations/materials/${id}/adjust-stock`, {
+        await axiosClient.post(`/foundations/materials/${id}/physical-count`, {
           counted_quantity: parseFloat(val),
-          notes: `Inventario físico ${new Date().toLocaleDateString('es-MX')}`,
+          fecha_conteo: fechaConteo,
+          notes: `Inventario físico ${fechaConteo}`,
         });
         setSavedIds(prev => [...prev, parseInt(id)]);
       }
@@ -171,11 +176,12 @@ export const PhysicalInventoryModule = ({ activeSubSection, onSubSectionChange }
       if (!quickMaterial || quickQty === '' || saving) return;
       setSaving(true);
       try {
-          await axiosClient.patch(
-              `/foundations/materials/${quickMaterial.id}/adjust-stock`,
+          await axiosClient.post(
+              `/foundations/materials/${quickMaterial.id}/physical-count`,
               {
                   counted_quantity: parseFloat(quickQty),
-                  notes: `Inventario físico ${new Date().toLocaleDateString('es-MX')}`,
+                  fecha_conteo: fechaConteo,
+                  notes: `Inventario físico ${fechaConteo}`,
               }
           );
           setCountEntries(prev => ({
@@ -332,6 +338,26 @@ export const PhysicalInventoryModule = ({ activeSubSection, onSubSectionChange }
       {/* TAB CAPTURA */}
       {activeTab === 'CAPTURA' && (
           <div className="space-y-6">
+
+              {/* ── FECHA DEL CONTEO FÍSICO ── */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+                  <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                          Fecha del conteo físico
+                      </label>
+                      <input
+                          type="date"
+                          value={fechaConteo}
+                          max={new Date().toISOString().split('T')[0]}
+                          onChange={e => setFechaConteo(e.target.value)}
+                          className="w-48 border-2 border-slate-300 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-800 focus:outline-none focus:border-orange-500 bg-white"
+                      />
+                  </div>
+                  <p className="text-xs text-slate-500 sm:flex-1 leading-snug">
+                      Todo lo que captures se registrará con esta fecha. Cámbiala si el conteo
+                      se hizo otro día.
+                  </p>
+              </div>
 
               {/* ── CAPTURA RÁPIDA POR SKU ── */}
               <div className="bg-orange-50 border-2 border-orange-200 rounded-2xl p-6">
