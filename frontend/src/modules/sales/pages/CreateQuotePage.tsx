@@ -590,15 +590,27 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                             </div>
                         )}
 
-                        <div className="flex justify-end gap-12 text-sm text-slate-500"><span>Suma Partidas:</span> <span className="font-mono">{formatCurrency(itemsSum)}</span></div>
-                        <div className={`flex justify-end items-center gap-12 text-sm border-b border-dashed border-slate-200 pb-2 mb-2 p-2 rounded ${commissionRate === 0 ? 'bg-red-50 text-red-700 animate-pulse' : 'bg-green-50 text-emerald-700'}`}>
-                            <span className="flex items-center gap-2 font-bold"><Wallet size={16}/> {commissionRate === 0 ? "⚠️ 0% (SIN COMISIÓN)" : `Comisión Vendedor (${(commissionRate * 100).toFixed(1)}%):`}</span> 
-                            <span className="font-mono font-bold">{formatCurrency(commissionAmount)}</span>
+                        <div className="flex justify-between items-end gap-8 mt-2">
+                            {/* IZQUIERDA: Comisión informativa (ya incluida en los precios) */}
+                            <div className="flex-1">
+                                {commissionRate === 0 ? (
+                                    <div className="inline-flex items-center gap-2 text-sm p-2 rounded bg-red-50 text-red-700 animate-pulse">
+                                        <span className="flex items-center gap-2 font-bold"><Wallet size={16}/> ⚠️ 0% (SIN COMISIÓN)</span>
+                                    </div>
+                                ) : (
+                                    <div className="inline-flex items-center gap-2 text-sm p-2 rounded bg-green-50 text-emerald-700">
+                                        <span className="flex items-center gap-2 font-bold"><Wallet size={16}/> Comisión Vendedor incluida ({(commissionRate * 100).toFixed(1)}%):</span>
+                                        <span className="font-mono font-bold">{formatCurrency(commissionAmount)}</span>
+                                    </div>
+                                )}
+                            </div>
+                            {/* DERECHA: Subtotal → IVA → Total (esta es la única suma que cuenta) */}
+                            <div className="min-w-[280px] space-y-1">
+                                <div className="flex justify-end gap-12 text-sm text-slate-700 font-bold"><span>Subtotal:</span> <span className="font-mono">{formatCurrency(finalSubtotal)}</span></div>
+                                <div className="flex justify-end gap-12 text-sm text-slate-500"><span>IVA:</span> <span className="font-mono">{formatCurrency(taxAmount)}</span></div>
+                                <div className="flex justify-end gap-12 text-xl font-black text-slate-800 border-t pt-2"><span>Total:</span> <span className="font-mono">{formatCurrency(total)}</span></div>
+                            </div>
                         </div>
-
-                        <div className="flex justify-end gap-12 text-sm text-slate-700 font-bold"><span>Subtotal:</span> <span className="font-mono">{formatCurrency(finalSubtotal)}</span></div>
-                        <div className="flex justify-end gap-12 text-sm text-slate-500"><span>IVA:</span> <span className="font-mono">{formatCurrency(taxAmount)}</span></div>
-                        <div className="flex justify-end gap-12 text-xl font-black text-slate-800 border-t pt-2"><span>Total:</span> <span className="font-mono">{formatCurrency(total)}</span></div>
                         
                         <div className="flex justify-end gap-4 mt-4">
                             {isDirector && !readOnly && (
