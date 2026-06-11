@@ -89,3 +89,37 @@ class InventoryManager:
         )
         
         return session.exec(statement).all()
+
+
+def registrar_movimiento_inventario(
+    db,
+    material_id: int,
+    cantidad: float,
+    tipo: str,
+    costo_unitario: float = 0.0,
+    reception_id: int | None = None,
+    project_id: int | None = None,
+    reason_code: str | None = None,
+):
+    """
+    LIBRO DE MOVIMIENTOS (KÁRDEX) — FASE 1
+
+    Registra un renglón fechado en inventory_transactions SIN tocar physical_stock.
+    El ajuste de existencias y el commit siguen siendo responsabilidad de quien
+    llama a esta función, para no alterar el comportamiento actual ni la
+    transacción de base de datos existente.
+
+    cantidad: positiva para entradas, negativa para salidas.
+    """
+    movimiento = InventoryTransaction(
+        material_id=material_id,
+        quantity=cantidad,
+        unit_cost=costo_unitario,
+        subtotal=abs(cantidad) * costo_unitario,
+        transaction_type=tipo,
+        reception_id=reception_id,
+        project_id=project_id,
+        reason_code=reason_code,
+    )
+    db.add(movimiento)
+    return movimiento

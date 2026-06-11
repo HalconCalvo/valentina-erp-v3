@@ -15,6 +15,7 @@ from app.core.deps import get_session, CurrentUser
 from app.services.purchase_manager import PurchaseManager
 from app.services.pdf_generator import PDFGenerator
 from app.services.email_service import send_purchase_order_email
+from app.services.inventory_manager import registrar_movimiento_inventario
 
 router = APIRouter()
 
@@ -391,6 +392,17 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
                     qty_in_usage_units = qty_this_delivery * factor
                     mat.physical_stock = (mat.physical_stock or 0) + qty_in_usage_units
                     db.add(mat)
+
+                    # Rastro fechado en el Kárdex (Fase 1): ENTRADA por recepción de OC.
+                    # No altera physical_stock (ya sumado arriba); el commit lo hace el endpoint.
+                    registrar_movimiento_inventario(
+                        db,
+                        material_id=mat.id,
+                        cantidad=qty_in_usage_units,
+                        tipo="ENTRADA_COMPRA",
+                        costo_unitario=float(getattr(item, 'expected_unit_cost', 0.0) or 0.0),
+                        reason_code="RECEPCION_OC",
+                    )
         else:
             # Item sin material (descripción libre)
             qty_this_delivery = received_map.get(item.custom_description or "", 0)
