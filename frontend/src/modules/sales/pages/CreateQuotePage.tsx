@@ -598,6 +598,16 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                         <div className="flex justify-end gap-12 text-xl font-black text-slate-800 border-t pt-2"><span>Total:</span> <span className="font-mono">{formatCurrency(total)}</span></div>
                         
                         <div className="flex justify-end gap-4 mt-4">
+                            {isDirector && !readOnly && (
+                                <Button 
+                                    variant="outline"
+                                    className="border-amber-300 text-amber-700 hover:bg-amber-50 font-black text-xs"
+                                    onClick={handleRecalculatePrices}
+                                    disabled={saving || savingSales || items.length === 0}
+                                >
+                                    <TrendingUp size={16} className="mr-2"/> Recalcular Precios
+                                </Button>
+                            )}
                             {isDirector && (currentStatus === SalesOrderStatus.SENT || currentStatus === SalesOrderStatus.DRAFT) && (
                                 <Button className="bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-200" onClick={() => handleSubmit(SalesOrderStatus.ACCEPTED)} disabled={saving || savingSales || readOnly}><CheckCircle2 size={18} className="mr-2"/> Aprobar Cotización</Button>
                             )}
