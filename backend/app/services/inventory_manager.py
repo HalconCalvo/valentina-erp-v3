@@ -141,10 +141,17 @@ def calcular_saldo_a_fecha(db, material_id: int, fecha) -> float:
     Usa una suma agregada (func.sum) en la base de datos; no trae renglones a memoria.
     Si no hay movimientos, devuelve 0.0.
     """
-    total = db.exec(
+    resultado = db.exec(
         select(func.sum(InventoryTransaction.quantity)).where(
             InventoryTransaction.material_id == material_id,
             InventoryTransaction.created_at <= fecha,
         )
-    ).one() or 0.0
-    return float(total)
+    ).first()
+
+    # db.exec sobre un select(func.sum(...)) de SQLAlchemy devuelve un Row tipo (valor,)
+    # o None si no hay filas. El valor interno además puede ser None cuando no hay
+    # movimientos, así que extraemos el escalar con cuidado antes de convertir a float.
+    if resultado is None:
+        return 0.0
+    valor = resultado[0] if hasattr(resultado, "__getitem__") else resultado
+    return float(valor) if valor is not None else 0.0
