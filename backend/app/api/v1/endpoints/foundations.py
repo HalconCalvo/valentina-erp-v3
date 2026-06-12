@@ -514,10 +514,36 @@ def physical_count_with_date(
     # Sin hora => hasta el final de ese día, para incluir movimientos del mismo día.
     fecha_fin_dia = fecha_base.replace(hour=23, minute=59, second=59, microsecond=999999)
 
+    # IDEMPOTENCIA POR (material, fecha): un material solo puede tener UN conteo físico
+    # por fecha. Si ya existe(n) conteo(s) para este material en esta misma fecha anclada,
+    # se REVIERTE su efecto en el stock y se borran ANTES de recalcular el saldo, para que
+    # el nuevo conteo reemplace al anterior en vez de acumularse.
+    # Solo afecta AJUSTE_CONTEO_FISICO; otros tipos de movimiento no se tocan.
+    conteos_previos = session.exec(
+        select(InventoryTransaction).where(
+            InventoryTransaction.material_id == material_id,
+            InventoryTransaction.transaction_type == "AJUSTE_CONTEO_FISICO",
+            InventoryTransaction.created_at == fecha_fin_dia,
+        )
+    ).all()
+
+    for viejo in conteos_previos:
+        material.physical_stock = (material.physical_stock or 0.0) - (viejo.quantity or 0.0)
+        session.delete(viejo)
+
+    # Asegura que los borrados se materialicen antes de recalcular el saldo agregado,
+    # para que calcular_saldo_a_fecha ya NO incluya los conteos que estamos reemplazando.
+    session.flush()
+
     saldo_a_fecha = calcular_saldo_a_fecha(session, material_id, fecha_fin_dia)
     diferencia = counted - saldo_a_fecha
 
     if diferencia == 0:
+        # No se registra movimiento nuevo, pero sí persistimos la posible reversión/borrado
+        # de conteos previos de esta misma fecha (idempotencia), si los hubo.
+        session.add(material)
+        session.commit()
+        session.refresh(material)
         return {
             "ok": True,
             "message": "Sin diferencia, no se registró movimiento.",
