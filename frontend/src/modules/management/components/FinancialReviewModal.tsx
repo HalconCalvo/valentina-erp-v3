@@ -72,7 +72,12 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                 const price = Number(item.unit_price) || 0;
 
                 if (cost === 0 || price === 0) return 40; 
-                const impliedMargin = ((price / cost) - 1) * 100;
+                // El unit_price guardado YA incluye la comisión. Para obtener el margen REAL
+                // primero le quitamos la comisión, luego derivamos el margen sobre el costo.
+                // Así el slider de margen arranca en el margen puro (ej. 40%), no mezclado (54%).
+                const commFraction = loadedCommission / 100; // loadedCommission ya está en %
+                const priceSinComision = price / (1 + commFraction);
+                const impliedMargin = cost > 0 ? ((priceSinComision / cost) - 1) * 100 : 40;
                 return Number(impliedMargin.toFixed(2)) || 0;
             });
 
@@ -157,15 +162,19 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
             totalBaseCost += (cost * qty);
             
             const specificMargin = Number(itemMargins[index]) || 0;
+            const commPercent = Number(commissionPercent) || 0;
 
             const marginMultiplier = 1 + (specificMargin / 100);
-            const baseUnitPrice = cost * marginMultiplier;
-            sumOfItems += (baseUnitPrice * qty);
-
-            const commPercent = Number(commissionPercent) || 0;
             const commissionMultiplier = 1 + (commPercent / 100);
-            const finalUnitPrice = baseUnitPrice * commissionMultiplier;
-            
+
+            // Precio base (sin comisión) solo como referencia visual.
+            const baseUnitPrice = cost * marginMultiplier;
+            // Precio final CON comisión incluida. Math.ceil para ser idéntico a CreateQuotePage.
+            const finalUnitPrice = Math.ceil(cost * marginMultiplier * commissionMultiplier);
+
+            // El subtotal suma el precio CON comisión incluida (no se vuelve a sumar aparte).
+            sumOfItems += (finalUnitPrice * qty);
+
             return {
                 ...item,
                 usedMargin: specificMargin,
@@ -174,11 +183,9 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
             };
         });
 
-        // Opción B (regla de negocio): la comisión YA está incluida dentro del precio de
-        // cada partida (el margen implícito de cada ítem se deriva de unit_price/costo, y
-        // unit_price ya viene con comisión). Por eso sumOfItems ya es el subtotal con
-        // comisión incluida. La comisión se EXTRAE de forma informativa, NO se vuelve a
-        // sumar (consistente con CreateQuotePage).
+        // Regla de negocio: precio = costo × (1+margen) × (1+comisión). La comisión va
+        // DENTRO del precio (ya sumada en finalUnitPrice/sumOfItems). Aquí solo se EXTRAE
+        // de forma informativa; NO se vuelve a sumar (consistente con CreateQuotePage).
         const commPercent = Number(commissionPercent) || 0;
         const commissionAmount = sumOfItems > 0
             ? sumOfItems - (sumOfItems / (1 + commPercent / 100))
@@ -227,7 +234,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                 product_name: i.product_name,
                 origin_version_id: i.origin_version_id,
                 quantity: Number(i.quantity) || 1,
-                unit_price: Number(i.baseUnitPrice.toFixed(2)), 
+                unit_price: Number(i.newUnitPrice.toFixed(2)), // precio CON comisión incluida
                 frozen_unit_cost: Number(i.frozen_unit_cost) || 0,
                 cost_snapshot: i.cost_snapshot
             }));
