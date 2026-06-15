@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { 
     FileDown, Calendar, User, FileText, Hash, 
-    ClipboardList, Info, Plus, Percent, ShieldAlert, Lock, Unlock, Save, Tag
+    ClipboardList, Info, Percent, ShieldAlert, Lock, Unlock, Save, Tag
 } from 'lucide-react';
 
 // IMPORTACIONES CORREGIDAS (LA CAUSA DEL CORTO CIRCUITO)
@@ -84,8 +84,10 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
         let rate = order.applied_commission_percent || 0;
         if (rate > 1) rate = rate / 100; // Normalizar porcentaje
         
-        const commission = itemsSum * rate;
-        const subtotal = itemsSum + commission; // Base Gravable
+        // Opción B: la comisión YA está incluida dentro de los precios de venta.
+        // Se EXTRAE de forma informativa, NO se vuelve a sumar (consistente con CreateQuotePage).
+        const commission = itemsSum > 0 ? itemsSum - (itemsSum / (1 + rate)) : 0;
+        const subtotal = itemsSum; // la comisión NO se vuelve a sumar
         const total = order.total_price || 0;
         const iva = total - subtotal;
 
@@ -371,12 +373,14 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
 
                                 {totals && (
                                     <div className="bg-slate-50 p-3 border-t border-slate-200 shrink-0 text-xs space-y-1">
-                                        <div className="flex justify-between text-slate-500">
-                                            <span>Suma Partidas:</span>
-                                            <span className="font-mono">${fmt(totals.itemsSum)}</span>
-                                        </div>
-                                        <div className="flex justify-between text-amber-600 font-medium">
-                                            <span className="flex items-center gap-1"><Plus size={8}/> Comisión ({(totals.rate * 100).toFixed(1)}%):</span>
+                                        {/* Comisión INFORMATIVA: ya incluida en los precios, NO se suma */}
+                                        <div className="flex justify-between items-start text-emerald-700 bg-emerald-50/60 rounded px-2 py-1">
+                                            <span className="flex flex-col">
+                                                <span className="flex items-center gap-1 font-medium">
+                                                    <Percent size={8}/> Comisión Vendedor incluida ({(totals.rate * 100).toFixed(1)}%):
+                                                </span>
+                                                <span className="text-[10px] text-emerald-600/80 italic">Ya está dentro de los precios; no se suma al subtotal.</span>
+                                            </span>
                                             <span className="font-mono">${fmt(totals.commission)}</span>
                                         </div>
                                         <div className="flex justify-between text-slate-600 font-bold border-t border-slate-200 pt-1 mt-1">
