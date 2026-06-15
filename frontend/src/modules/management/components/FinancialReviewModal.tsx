@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { 
     X, CheckCircle, XCircle, Calculator, 
-    AlertTriangle, ChevronDown, ChevronRight, Layers, DollarSign, Plus, RefreshCcw, FileCheck, Lock, Percent, User 
+    AlertTriangle, ChevronDown, ChevronRight, Layers, DollarSign, RefreshCcw, FileCheck, Lock, Percent, User 
 } from 'lucide-react';
 
 import { salesService } from '../../../api/sales-service'; 
@@ -174,9 +174,16 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
             };
         });
 
+        // Opción B (regla de negocio): la comisión YA está incluida dentro del precio de
+        // cada partida (el margen implícito de cada ítem se deriva de unit_price/costo, y
+        // unit_price ya viene con comisión). Por eso sumOfItems ya es el subtotal con
+        // comisión incluida. La comisión se EXTRAE de forma informativa, NO se vuelve a
+        // sumar (consistente con CreateQuotePage).
         const commPercent = Number(commissionPercent) || 0;
-        const commissionAmount = sumOfItems * (commPercent / 100);
-        const subtotal = sumOfItems + commissionAmount;
+        const commissionAmount = sumOfItems > 0
+            ? sumOfItems - (sumOfItems / (1 + commPercent / 100))
+            : 0;
+        const subtotal = sumOfItems; // la comisión NO se vuelve a sumar
         
         const safeTaxAmountFromDB = Number(order.tax_amount) || 0;
         const safeSubtotalFromDB = Number(order.subtotal) || 1; 
@@ -440,7 +447,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
 
                                 <div className={isReadOnly ? 'opacity-60' : ''}>
                                     <div className="flex justify-between items-center mb-1">
-                                        <label className="text-xs font-bold text-slate-600">Comisión Vendedor (Add-on)</label>
+                                        <label className="text-xs font-bold text-slate-600">Comisión Vendedor (incluida en precio)</label>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <input 
@@ -492,14 +499,15 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
 
                         {/* RESULTADOS GLOBALES */}
                         <div className="flex-1 space-y-3 bg-white p-4 rounded-xl border border-slate-200">
-                            <div className="flex justify-between text-sm">
-                                <span className="text-slate-500">Suma Importes:</span>
-                                <span className="font-mono text-slate-700">{formatCurrency(simulation.sumOfItems)}</span>
-                            </div>
-                            
-                            <div className="flex justify-between text-sm">
-                                <span className="text-amber-600 font-medium flex items-center gap-1"><Plus size={10}/> Comisión ({(commissionPercent).toFixed(1)}%):</span>
-                                <span className="font-mono text-amber-600 font-bold">{formatCurrency(simulation.commissionAmount)}</span>
+                            {/* Comisión INFORMATIVA: ya incluida en los precios, NO se suma aparte */}
+                            <div className="flex justify-between items-start text-emerald-700 bg-emerald-50/60 rounded px-2 py-1.5">
+                                <span className="flex flex-col">
+                                    <span className="flex items-center gap-1 text-sm font-medium">
+                                        <Percent size={10}/> Comisión Vendedor incluida ({(commissionPercent).toFixed(1)}%):
+                                    </span>
+                                    <span className="text-[10px] text-emerald-600/80 italic">Ya está dentro de los precios; no se suma al subtotal.</span>
+                                </span>
+                                <span className="font-mono font-bold">{formatCurrency(simulation.commissionAmount)}</span>
                             </div>
 
                             <div className="flex justify-between text-sm border-t border-dashed border-slate-200 pt-2">
