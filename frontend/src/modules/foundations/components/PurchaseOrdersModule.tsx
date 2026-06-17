@@ -37,7 +37,13 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     const [activeDropdown, setActiveDropdown] = useState<{type: 'provider' | 'sku' | 'material' | null, index: number | null}>({type: null, index: null});
 
     const [newMatModal, setNewMatModal] = useState<{open: boolean, rowIndex: number | null}>({open: false, rowIndex: null});
-    const [newMatForm, setNewMatForm] = useState({ sku: '', name: '', unit_of_measure: 'PZA', current_cost: '0.00' });
+    const [newMatForm, setNewMatForm] = useState({
+        sku: '', name: '', category: '',
+        purchase_unit: '', usage_unit: '',
+        conversion_factor: 1,
+        current_cost: '0.00',
+        min_stock: 0, max_stock: 0,
+    });
     const [newMatLoading, setNewMatLoading] = useState(false);
 
     const [assignModal, setAssignModal] = useState<{
@@ -545,8 +551,14 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
             const res = await axiosClient.post('/foundations/materials', {
                 sku: newMatForm.sku.trim().toUpperCase(),
                 name: newMatForm.name.trim().toUpperCase(),
-                unit_of_measure: newMatForm.unit_of_measure || 'PZA',
+                category: newMatForm.category || '',
+                purchase_unit: newMatForm.purchase_unit || '',
+                usage_unit: newMatForm.usage_unit || '',
+                conversion_factor: Number(newMatForm.conversion_factor) || 1,
                 current_cost: parseFloat(newMatForm.current_cost) || 0,
+                min_stock: Number(newMatForm.min_stock) || 0,
+                max_stock: Number(newMatForm.max_stock) || 0,
+                production_route: 'MATERIAL',
                 item_type: 'MATERIAL',
                 is_active: true,
             });
@@ -559,7 +571,13 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                 handleSelectMaterial(newMatModal.rowIndex, created);
             }
             setNewMatModal({ open: false, rowIndex: null });
-            setNewMatForm({ sku: '', name: '', unit_of_measure: 'PZA', current_cost: '0.00' });
+            setNewMatForm({
+                sku: '', name: '', category: '',
+                purchase_unit: '', usage_unit: '',
+                conversion_factor: 1,
+                current_cost: '0.00',
+                min_stock: 0, max_stock: 0,
+            });
         } catch (err: any) {
             alert(err.response?.data?.detail || "Error al crear el material.");
         } finally {
@@ -1413,25 +1431,46 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                     className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 uppercase outline-none focus:border-emerald-400"
                                 />
                             </div>
+                            <div>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Categoría</label>
+                                <input
+                                    value={newMatForm.category}
+                                    onChange={e => setNewMatForm(f => ({ ...f, category: e.target.value }))}
+                                    placeholder="Ej: TORNILLERÍA"
+                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-emerald-400"
+                                />
+                            </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Unidad</label>
-                                    <select
-                                        value={newMatForm.unit_of_measure}
-                                        onChange={e => setNewMatForm(f => ({ ...f, unit_of_measure: e.target.value }))}
-                                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-emerald-400"
-                                    >
-                                        <option value="PZA">PZA</option>
-                                        <option value="KG">KG</option>
-                                        <option value="LT">LT</option>
-                                        <option value="MT">MT</option>
-                                        <option value="M2">M2</option>
-                                        <option value="TON">TON</option>
-                                        <option value="CAJA">CAJA</option>
-                                        <option value="ROLLO">ROLLO</option>
-                                        <option value="JGO">JGO</option>
-                                        <option value="SERVICIO">SERVICIO</option>
-                                    </select>
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Unidad de Compra</label>
+                                    <input
+                                        value={newMatForm.purchase_unit}
+                                        onChange={e => setNewMatForm(f => ({ ...f, purchase_unit: e.target.value.toUpperCase() }))}
+                                        placeholder="Ej: CAJA, ROLLO, BULTO"
+                                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 uppercase outline-none focus:border-emerald-400"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Unidad de Uso</label>
+                                    <input
+                                        value={newMatForm.usage_unit}
+                                        onChange={e => setNewMatForm(f => ({ ...f, usage_unit: e.target.value.toUpperCase() }))}
+                                        placeholder="Ej: PZA, MT, KG"
+                                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 uppercase outline-none focus:border-emerald-400"
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Factor de Conversión</label>
+                                    <input
+                                        type="number" min="0" step="0.01"
+                                        value={newMatForm.conversion_factor}
+                                        onChange={e => setNewMatForm(f => ({ ...f, conversion_factor: parseFloat(e.target.value) }))}
+                                        placeholder="1"
+                                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-indigo-700 outline-none focus:border-emerald-400"
+                                    />
+                                    <p className="text-[9px] text-slate-400 mt-1 leading-tight">Cuántas unidades de uso contiene una unidad de compra (ej. 1 caja = 100 piezas → 100).</p>
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Costo Unitario</label>
