@@ -45,6 +45,29 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         min_stock: 0, max_stock: 0,
     });
     const [newMatLoading, setNewMatLoading] = useState(false);
+    const [skuYaExiste, setSkuYaExiste] = useState(false);
+    const [skuMatchMaterial, setSkuMatchMaterial] = useState<any | null>(null);
+
+    // Verificación de SKU duplicado SOLO contra materialsList en memoria (sin llamar al backend).
+    // Reacciona al escribir el SKU, al precargarlo al abrir, y se limpia al cerrar el modal.
+    useEffect(() => {
+        if (!newMatModal.open) {
+            setSkuYaExiste(false);
+            setSkuMatchMaterial(null);
+            return;
+        }
+        const target = (newMatForm.sku || '').trim().toUpperCase();
+        if (!target) {
+            setSkuYaExiste(false);
+            setSkuMatchMaterial(null);
+            return;
+        }
+        const match = materialsList.find(
+            m => (m.sku || '').trim().toUpperCase() === target
+        );
+        setSkuYaExiste(!!match);
+        setSkuMatchMaterial(match || null);
+    }, [newMatForm.sku, materialsList, newMatModal.open]);
 
     const [assignModal, setAssignModal] = useState<{
         open: boolean;
@@ -525,6 +548,11 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     const filteredMaterialsBySku = materialsList.filter(m => getMatSku(m).toLowerCase().includes(searchSku));
     const searchDesc = activeRow ? (activeRow.material_name || '').toLowerCase() : '';
     const filteredMaterialsByDesc = materialsList.filter(m => getMatDesc(m).toLowerCase().includes(searchDesc));
+
+    // Valores existentes (únicos, ordenados) para autocompletar el alta rápida de material.
+    const existingCategories = [...new Set(materialsList.map(m => m.category).filter(Boolean))].sort();
+    const existingPurchaseUnits = [...new Set(materialsList.map(m => m.purchase_unit).filter(Boolean))].sort();
+    const existingUsageUnits = [...new Set(materialsList.map(m => m.usage_unit).filter(Boolean))].sort();
 
     const handleSelectMaterial = (index: number, mat: any) => {
         const newItems = [...manualOrderForm.items];
@@ -1419,8 +1447,35 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                     value={newMatForm.sku}
                                     onChange={e => setNewMatForm(f => ({ ...f, sku: e.target.value.toUpperCase() }))}
                                     placeholder="Ej: MAT-001"
-                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-black text-indigo-600 uppercase outline-none focus:border-emerald-400"
+                                    className={`w-full border rounded-lg px-3 py-2 text-sm font-black text-indigo-600 uppercase outline-none ${skuYaExiste ? 'border-amber-400 bg-amber-50' : 'border-slate-200 focus:border-emerald-400'}`}
                                 />
+                                {skuYaExiste && skuMatchMaterial && (
+                                    <div className="mt-2 bg-amber-50 border border-amber-200 rounded-lg p-3 flex flex-col gap-2">
+                                        <p className="text-[11px] font-bold text-amber-700 flex items-start gap-1 leading-snug">
+                                            <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                                            <span>Este SKU ya existe: <span className="font-black">{skuMatchMaterial.name}</span>. No es necesario crearlo de nuevo.</span>
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (newMatModal.rowIndex !== null) {
+                                                    handleSelectMaterial(newMatModal.rowIndex, skuMatchMaterial);
+                                                }
+                                                setNewMatModal({ open: false, rowIndex: null });
+                                                setNewMatForm({
+                                                    sku: '', name: '', category: '',
+                                                    purchase_unit: '', usage_unit: '',
+                                                    conversion_factor: 1,
+                                                    current_cost: '0.00',
+                                                    min_stock: 0, max_stock: 0,
+                                                });
+                                            }}
+                                            className="self-start px-4 py-1.5 text-[11px] font-black text-white uppercase bg-amber-500 hover:bg-amber-600 rounded-lg shadow-sm flex items-center gap-1.5"
+                                        >
+                                            <CheckCircle2 size={13} strokeWidth={3} /> Usar este material
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                             <div>
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Nombre / Descripción *</label>
@@ -1434,30 +1489,42 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                             <div>
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Categoría</label>
                                 <input
+                                    list="oc-categorias"
                                     value={newMatForm.category}
                                     onChange={e => setNewMatForm(f => ({ ...f, category: e.target.value }))}
                                     placeholder="Ej: TORNILLERÍA"
                                     className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-emerald-400"
                                 />
+                                <datalist id="oc-categorias">
+                                    {existingCategories.map(c => <option key={c} value={c} />)}
+                                </datalist>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Unidad de Compra</label>
                                     <input
+                                        list="oc-unidades-compra"
                                         value={newMatForm.purchase_unit}
                                         onChange={e => setNewMatForm(f => ({ ...f, purchase_unit: e.target.value.toUpperCase() }))}
                                         placeholder="Ej: CAJA, ROLLO, BULTO"
                                         className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 uppercase outline-none focus:border-emerald-400"
                                     />
+                                    <datalist id="oc-unidades-compra">
+                                        {existingPurchaseUnits.map(u => <option key={u} value={u} />)}
+                                    </datalist>
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Unidad de Uso</label>
                                     <input
+                                        list="oc-unidades-uso"
                                         value={newMatForm.usage_unit}
                                         onChange={e => setNewMatForm(f => ({ ...f, usage_unit: e.target.value.toUpperCase() }))}
                                         placeholder="Ej: PZA, MT, KG"
                                         className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 uppercase outline-none focus:border-emerald-400"
                                     />
+                                    <datalist id="oc-unidades-uso">
+                                        {existingUsageUnits.map(u => <option key={u} value={u} />)}
+                                    </datalist>
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
@@ -1495,8 +1562,9 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                             </button>
                             <button
                                 onClick={handleSaveNewMaterial}
-                                disabled={newMatLoading}
-                                className="px-6 py-2 text-xs font-black text-white uppercase bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-md flex items-center gap-2 disabled:opacity-50"
+                                disabled={newMatLoading || skuYaExiste}
+                                title={skuYaExiste ? 'Este SKU ya existe. Usa "Usar este material" para evitar duplicados.' : undefined}
+                                className="px-6 py-2 text-xs font-black text-white uppercase bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-md flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {newMatLoading ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} strokeWidth={3} />}
                                 Guardar y Agregar
