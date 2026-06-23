@@ -372,9 +372,9 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                         </div>
 
                                         <div className="w-28 text-right pl-2">
-                                            <div className="text-[9px] text-slate-400 uppercase">Precio Base</div>
-                                            <div className="font-mono font-bold text-slate-600 text-sm">
-                                                {formatCurrency(item.baseUnitPrice)}
+                                            <div className="text-[9px] text-slate-400 uppercase">Precio Venta</div>
+                                            <div className="font-mono font-bold text-slate-800 text-sm">
+                                                {formatCurrency(item.newUnitPrice)}
                                             </div>
                                         </div>
                                     </div>
