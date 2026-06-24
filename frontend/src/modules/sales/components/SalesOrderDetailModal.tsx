@@ -169,7 +169,7 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                     Cargando información...
                 </div>
             ) : (
-                <div className="flex flex-col h-full gap-4">
+                <div className="flex flex-col h-full min-h-0 gap-4 overflow-hidden">
                     
                     {/* AVISO INFORMATIVO */}
                     <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-2 rounded-lg text-xs flex items-center gap-2">
