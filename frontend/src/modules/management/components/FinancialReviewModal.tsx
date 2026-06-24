@@ -29,6 +29,10 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
 
     // --- UI STATE ---
     const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
+    // Edición temporal SOLO del campo de precio enfocado, para que el input no "pelee" con
+    // el value recalculado (Math.ceil) mientras se escribe. itemMargins sigue siendo la
+    // fuente de verdad; al hacer blur el precio vuelve al valor canónico del useMemo.
+    const [editingPrice, setEditingPrice] = useState<{ index: number; value: string } | null>(null);
 
     // --- MODO SOLO LECTURA ---
     // Será true si se forzó desde afuera (readOnly === true) O si el estatus de la orden ya no es borrador/pendiente.
@@ -140,6 +144,40 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
             const price = cost * (1 + (margin / 100));
 
             totalCost += (cost * qty);
+            totalBasePrice += (price * qty);
+        });
+
+        const weightedAvg = totalCost > 0 ? ((totalBasePrice - totalCost) / totalCost) * 100 : 0;
+        setGlobalMargin(Number(weightedAvg.toFixed(2)) || 0);
+    };
+
+    // Editar el PRECIO DE VENTA (con comisión incluida) de una instancia: se traduce a
+    // MARGEN y se guarda en itemMargins[] (única fuente de verdad). Se le quita la comisión
+    // antes de derivar el margen, para no duplicarla (la simulación la vuelve a aplicar).
+    const handleItemPriceChange = (index: number, val: number) => {
+        if (isReadOnly || !order || !order.items) return;
+        const precio = isNaN(val) ? 0 : val;
+        const item = order.items[index];
+        const cost = Number(item.frozen_unit_cost) || 0;
+        const commPercent = Number(commissionPercent) || 0;
+        const precioSinComision = precio / (1 + commPercent / 100);
+        const nuevoMargen = cost > 0 ? ((precioSinComision / cost) - 1) * 100 : 0;
+
+        const newMargins = [...itemMargins];
+        newMargins[index] = Number(nuevoMargen.toFixed(2));
+        setItemMargins(newMargins);
+
+        // Recalcular el margen global ponderado (igual que en handleItemMarginChange).
+        let totalCost = 0;
+        let totalBasePrice = 0;
+
+        order.items.forEach((it, i) => {
+            const qty = Number(it.quantity) || 1;
+            const c = Number(it.frozen_unit_cost) || 0;
+            const margin = Number(newMargins[i]) || 0;
+            const price = c * (1 + (margin / 100));
+
+            totalCost += (c * qty);
             totalBasePrice += (price * qty);
         });
 
@@ -371,10 +409,22 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                             </div>
                                         </div>
 
-                                        <div className="w-28 text-right pl-2">
-                                            <div className="text-[9px] text-slate-400 uppercase">Precio Venta</div>
-                                            <div className="font-mono font-bold text-slate-800 text-sm">
-                                                {formatCurrency(item.newUnitPrice)}
+                                        <div className="flex flex-col items-center px-2 border-l border-slate-100 w-28">
+                                            <label className="text-[9px] font-bold text-slate-400 mb-1 uppercase">P. Venta</label>
+                                            <div className="relative w-24">
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    disabled={isReadOnly || processing}
+                                                    value={editingPrice?.index === index ? editingPrice.value : item.newUnitPrice}
+                                                    onFocus={() => setEditingPrice({ index, value: String(item.newUnitPrice) })}
+                                                    onChange={(e) => {
+                                                        setEditingPrice({ index, value: e.target.value });
+                                                        handleItemPriceChange(index, parseFloat(e.target.value));
+                                                    }}
+                                                    onBlur={() => setEditingPrice(null)}
+                                                    className="w-full text-center font-mono font-bold text-sm border rounded py-1 outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100 disabled:text-slate-500 text-emerald-700 border-emerald-200"
+                                                />
                                             </div>
                                         </div>
                                     </div>
