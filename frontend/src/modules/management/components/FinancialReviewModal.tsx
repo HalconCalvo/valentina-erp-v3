@@ -335,7 +335,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
 
     return (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="bg-slate-50 rounded-xl shadow-2xl w-full max-w-7xl h-[95vh] flex flex-col overflow-hidden relative border border-slate-700">
+            <div className="bg-slate-50 rounded-xl shadow-2xl w-full max-w-7xl h-[88vh] max-h-[88vh] flex flex-col overflow-hidden relative border border-slate-700">
                 
                 {/* HEADER */}
                 <div className="bg-slate-900 text-white p-4 flex justify-between items-center shrink-0">
@@ -413,14 +413,15 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                             <label className="text-[9px] font-bold text-slate-400 mb-1 uppercase">P. Venta</label>
                                             <div className="relative w-24">
                                                 <input
-                                                    type="number"
-                                                    step="0.01"
+                                                    type="text"
                                                     disabled={isReadOnly || processing}
-                                                    value={editingPrice?.index === index ? editingPrice.value : item.newUnitPrice}
+                                                    value={editingPrice?.index === index ? editingPrice.value : formatCurrency(item.newUnitPrice)}
                                                     onFocus={() => setEditingPrice({ index, value: String(item.newUnitPrice) })}
                                                     onChange={(e) => {
-                                                        setEditingPrice({ index, value: e.target.value });
-                                                        handleItemPriceChange(index, parseFloat(e.target.value));
+                                                        const raw = e.target.value;
+                                                        setEditingPrice({ index, value: raw });
+                                                        const numeric = parseFloat(raw.replace(/[^0-9.]/g, '')) || 0;
+                                                        handleItemPriceChange(index, numeric);
                                                     }}
                                                     onBlur={() => setEditingPrice(null)}
                                                     className="w-full text-center font-mono font-bold text-sm border rounded py-1 outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100 disabled:text-slate-500 text-emerald-700 border-emerald-200"
@@ -467,8 +468,11 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                     </div>
 
                     {/* COLUMNA DERECHA: VARIABLES GLOBALES Y TOTALES */}
-                    <div className="w-full lg:w-[380px] bg-slate-50 p-6 flex flex-col border-l border-slate-200 shadow-xl relative z-10">
-                        
+                    <div className="w-full lg:w-[380px] bg-slate-50 p-6 flex flex-col border-l border-slate-200 shadow-xl relative z-10 min-h-0">
+
+                        {/* ZONA SCROLLEABLE: controles y totales (los botones quedan fijos abajo) */}
+                        <div className="flex-1 overflow-y-auto min-h-0 -mr-3 pr-3">
+
                         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mb-6">
                             <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4 pb-2 border-b border-slate-100">
                                 <DollarSign size={16} className="text-indigo-600"/> Control Maestro
@@ -592,8 +596,11 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                             </div>
                         </div>
 
-                        {/* BOTONES E INDICADOR DE ESTADO */}
-                        <div className="mt-6 space-y-3">
+                        </div>
+                        {/* fin ZONA SCROLLEABLE */}
+
+                        {/* BOTONES E INDICADOR DE ESTADO (barra fija, fuera del scroll) */}
+                        <div className="shrink-0 mt-4 pt-4 border-t border-slate-200 space-y-3">
                             {!isReadOnly ? (
                                 <>
                                     <Button 
