@@ -171,37 +171,35 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
             ) : (
                 <div className="flex flex-col h-full min-h-0 gap-4 overflow-hidden">
                     
-                    {/* AVISO INFORMATIVO */}
-                    <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-2 rounded-lg text-xs flex items-center gap-2">
-                        <Info size={16} />
-                        <span>
-                            Estás en modo <b>Revisión de Formato</b>. Verifica las condiciones, el porcentaje de anticipo y los textos antes de descargar el PDF.
+                    {/* AVISO INFORMATIVO (tira compacta, una sola línea) */}
+                    <div className="bg-blue-50 border border-blue-200 text-blue-800 px-3 py-1 rounded-lg text-[11px] flex items-center gap-2 shrink-0">
+                        <Info size={13} className="shrink-0" />
+                        <span className="truncate">
+                            Modo <b>Revisión de Formato</b>: verifica condiciones, % de anticipo y textos antes de descargar el PDF.
                         </span>
                     </div>
 
                     {canEditOcMeta && (
-                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
-                            <h4 className="text-xs font-black text-amber-900 uppercase tracking-wider flex items-center gap-1">
-                                <FileText size={14} /> OC del cliente (retrocompatibilidad / KPI mes)
-                            </h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <div>
-                                    <label className="text-[10px] font-bold text-amber-800 uppercase">Folio OC</label>
-                                    <input
-                                        className="w-full mt-1 px-2 py-1.5 text-sm border border-amber-200 rounded-lg bg-white"
-                                        value={clientPoFolio}
-                                        onChange={(e) => setClientPoFolio(e.target.value)}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-bold text-amber-800 uppercase">Fecha OC</label>
-                                    <input
-                                        type="date"
-                                        className="w-full mt-1 px-2 py-1.5 text-sm border border-amber-200 rounded-lg bg-white"
-                                        value={clientPoDate}
-                                        onChange={(e) => setClientPoDate(e.target.value)}
-                                    />
-                                </div>
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-2 flex items-end gap-2 flex-wrap shrink-0">
+                            <span className="text-[10px] font-black text-amber-900 uppercase tracking-wider flex items-center gap-1 pb-1.5">
+                                <FileText size={13} /> OC cliente
+                            </span>
+                            <div className="flex flex-col">
+                                <label className="text-[10px] font-bold text-amber-800 uppercase">Folio OC</label>
+                                <input
+                                    className="w-40 mt-0.5 px-2 py-1 text-sm border border-amber-200 rounded-lg bg-white"
+                                    value={clientPoFolio}
+                                    onChange={(e) => setClientPoFolio(e.target.value)}
+                                />
+                            </div>
+                            <div className="flex flex-col">
+                                <label className="text-[10px] font-bold text-amber-800 uppercase">Fecha OC</label>
+                                <input
+                                    type="date"
+                                    className="w-40 mt-0.5 px-2 py-1 text-sm border border-amber-200 rounded-lg bg-white"
+                                    value={clientPoDate}
+                                    onChange={(e) => setClientPoDate(e.target.value)}
+                                />
                             </div>
                             <Button size="sm" variant="secondary" onClick={() => void handleSaveClientOc()} disabled={isSaving}>
                                 Guardar datos de OC
@@ -357,7 +355,7 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                                     <span>Importe</span>
                                 </div>
                                 
-                                <div className="overflow-auto flex-1 p-2 space-y-2">
+                                <div className="overflow-auto flex-1 min-h-[180px] p-2 space-y-2">
                                     {order.items?.map((item: any, idx: number) => (
                                         <div key={idx} className="flex justify-between items-center p-2 hover:bg-slate-50 border-b border-slate-50 last:border-0 text-xs">
                                             <div>
