@@ -24,7 +24,6 @@ from app.services.pdf_generator import PDFGenerator
 
 # --- IMPORTAMOS LOS MOTORES (V3.5) ---
 from app.services.cost_engine import CostEngine
-from app.services.traceability import TraceabilityManager
 
 from app.schemas.sales_schema import (
     SalesOrderCreate, SalesOrderRead, SalesOrderUpdate,
@@ -462,10 +461,6 @@ def request_order_authorization(order_id: int, session: Session = Depends(get_se
 def authorize_order(order_id: int, session: Session = Depends(get_session)):
     order = session.get(SalesOrder, order_id)
     order.status = SalesOrderStatus.ACCEPTED
-    
-    # ---> V3.5: BLOQUEO DE ALMACÉN AL AUTORIZAR <---
-    TraceabilityManager.create_inventory_reservations(session, order)
-    
     session.add(order)
     session.commit()
     return order
