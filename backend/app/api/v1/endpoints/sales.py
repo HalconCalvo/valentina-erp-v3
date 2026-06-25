@@ -89,6 +89,34 @@ def normalize_commission(rate: float | None) -> float:
     if rate > 1.0: return rate / 100.0
     return rate
 
+
+def _create_instances_for_order(session: Session, order: SalesOrder) -> int:
+    """
+    Crea las instancias (Productos Vendidos) de una orden al generar la OV.
+    Una instancia por cada unidad de cada item. Idempotente: si el item ya tiene
+    instancias, no las duplica.
+    Devuelve el número de instancias creadas.
+    """
+    created = 0
+    for item in order.items:
+        # Idempotencia: si este item ya tiene instancias, saltarlo
+        existing = session.exec(
+            select(SalesOrderItemInstance).where(
+                SalesOrderItemInstance.sales_order_item_id == item.id
+            )
+        ).first()
+        if existing:
+            continue
+        qty_int = int(item.quantity) if item.quantity and item.quantity > 0 else 1
+        for i in range(1, qty_int + 1):
+            session.add(SalesOrderItemInstance(
+                sales_order_item_id=item.id,
+                custom_name=f"{item.product_name} - Instancia {i}",
+                production_status=InstanceStatus.PENDING
+            ))
+            created += 1
+    return created
+
 # ==========================================
 # 1. CREAR ORDEN
 # ==========================================
@@ -173,14 +201,6 @@ def create_sales_order(
             )
             session.add(db_item)
             session.flush()
-
-            qty_int = int(item_in.quantity) if item_in.quantity > 0 else 1
-            for i in range(1, qty_int + 1):
-                session.add(SalesOrderItemInstance(
-                    sales_order_item_id=db_item.id,
-                    custom_name=f"{item_in.product_name} - Instancia {i}",
-                    production_status=InstanceStatus.PENDING
-                ))
 
         # items_sum YA incluye la comisión en cada precio. NO se vuelve a sumar.
         # La comisión se extrae de forma informativa.
@@ -350,8 +370,7 @@ def update_sales_order(
         session.flush() 
         
         items_sum = 0.0
-        product_counters = {} # <-- El nuevo contador inteligente global
-        
+
         for item_in in order_update.items:
             snapshot_data = {}
             calculated_frozen_cost = 0.0
@@ -398,23 +417,9 @@ def update_sales_order(
             )
             session.add(db_item)
             session.flush()
+            # Las INSTANCIAS ya NO se crean al editar la cotización: nacen al generar la OV
+            # (mark_waiting_advance). El delete de instancias de arriba se conserva.
 
-            # 4. GUARDAMOS LAS INSTANCIAS CON LA NUEVA LÓGICA CONTINUA
-            qty_int = int(qty) if qty > 0 else 1
-            base_name = item_in.product_name
-            
-            if base_name not in product_counters:
-                product_counters[base_name] = 1
-                
-            for i in range(qty_int):
-                current_num = product_counters[base_name]
-                session.add(SalesOrderItemInstance(
-                    sales_order_item_id=db_item.id,
-                    custom_name=f"{base_name} - Instancia {current_num}",
-                    production_status=InstanceStatus.PENDING
-                ))
-                product_counters[base_name] += 1
-        
         # 5. RECALCULAR TOTALES FINANCIEROS (CON COMISIÓN E IVA)
         
         # El subtotal es la suma de las partidas, cuyos precios YA incluyen la comisión
@@ -502,6 +507,10 @@ def mark_as_waiting_advance(
 
     order.client_po_folio = folio
     order.client_po_date = payload.client_po_date
+
+    # GENERAR OV: las instancias (Productos Vendidos) nacen aquí, no al cotizar.
+    _create_instances_for_order(session, order)
+
     order.status = SalesOrderStatus.WAITING_ADVANCE
     session.add(order)
     session.commit()
