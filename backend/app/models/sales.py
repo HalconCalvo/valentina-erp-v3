@@ -19,6 +19,7 @@ class SalesOrderStatus(str, enum.Enum):
     WAITING_ADVANCE = "WAITING_ADVANCE"           
     SOLD = "SOLD"                   
     CLIENT_REJECTED = "CLIENT_REJECTED" 
+    CANCELLED_OV = "CANCELLED_OV"   # OV cancelada sin anticipo (terminal, no se reactiva)
     CHANGE_REQUESTED = "CHANGE_REQUESTED" 
     IN_PRODUCTION = "IN_PRODUCTION"
     FINISHED = "FINISHED"

@@ -517,6 +517,54 @@ def mark_as_waiting_advance(
     session.refresh(order)
     return order
 
+@router.post("/orders/{order_id}/cancel_ov", response_model=SalesOrderRead)
+def cancel_ov(order_id: int, session: Session = Depends(get_session),
+              current_user: User = Depends(get_current_active_user)):
+    order = session.get(SalesOrder, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+
+    # Solo se cancela una OV que esté en WAITING_ADVANCE
+    if order.status != SalesOrderStatus.WAITING_ADVANCE:
+        raise HTTPException(status_code=400,
+            detail="Solo se puede cancelar una OV en espera de anticipo (WAITING_ADVANCE).")
+
+    # No debe tener anticipo pagado
+    advance = session.exec(
+        select(CustomerPayment).where(
+            CustomerPayment.sales_order_id == order.id,
+            CustomerPayment.payment_type == PaymentType.ADVANCE
+        )
+    ).first()
+    if advance:
+        raise HTTPException(status_code=400,
+            detail="Esta OV ya tiene anticipo registrado; no puede cancelarse. "
+                   "Use Modificar OV para ajustar la cantidad.")
+
+    # Cancelar todas las instancias de la orden (histórico, no se borran)
+    items = session.exec(
+        select(SalesOrderItem).where(SalesOrderItem.sales_order_id == order.id)
+    ).all()
+    canceladas = 0
+    for item in items:
+        instances = session.exec(
+            select(SalesOrderItemInstance).where(
+                SalesOrderItemInstance.sales_order_item_id == item.id,
+                SalesOrderItemInstance.is_cancelled == False  # noqa: E712
+            )
+        ).all()
+        for inst in instances:
+            inst.is_cancelled = True
+            session.add(inst)
+            canceladas += 1
+
+    # Cambiar estado de la orden. Los SalesOrderItem se CONSERVAN.
+    order.status = SalesOrderStatus.CANCELLED_OV
+    session.add(order)
+    session.commit()
+    session.refresh(order)
+    return order
+
 # ==========================================
 # 6. PAGOS Y COMISIONES (CÓDIGO HÍBRIDO)
 # ==========================================
