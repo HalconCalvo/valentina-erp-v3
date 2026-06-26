@@ -22,7 +22,7 @@ interface OrderStatementModalProps {
     isOpen: boolean;
     onClose: () => void;
     order: SalesOrder;
-    onSuccess: () => void;
+    onSuccess: () => void | Promise<void>;
     onOpenInvoiceModal?: (order: SalesOrder) => void;
     /** Si existe, al guardar OC solo se fusiona en el padre (sin refrescar tablas de tesorería/listados). */
     onOrderPatch?: (patch: Partial<SalesOrder>) => void;
@@ -226,8 +226,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         setCancelling(true);
         try {
             await salesService.cancelOv(order.id!);
-            onSuccess();   // refresca y/o cierra desde el padre
-            onClose();     // cierra el Rayos X
+            await onSuccess();   // espera el refresco antes de continuar
         } catch (err: any) {
             alert(err?.response?.data?.detail || "No se pudo cancelar la OV.");
         } finally {
