@@ -69,7 +69,9 @@ export const salesService = {
         if (status) params.status = status;
         if (clientId) params.client_id = clientId;
 
-        const response = await axiosClient.get(API_ROUTES.SALES.ORDERS, { params });
+        const response = await axiosClient.get(API_ROUTES.SALES.ORDERS, {
+            params: { ...params, t: Date.now() }
+        });
         return response.data;
     },
 
