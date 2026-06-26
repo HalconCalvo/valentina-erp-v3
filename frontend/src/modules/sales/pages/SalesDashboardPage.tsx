@@ -180,6 +180,7 @@ const SalesDashboardPage: React.FC = () => {
 
     const [viewingOrderIdForFormat, setViewingOrderIdForFormat] = useState<number | null>(null);
     const [rayosXOrder, setRayosXOrder] = useState<SalesOrder | null>(null);
+    const [cancelledOvIds, setCancelledOvIds] = useState<Set<number>>(new Set());
     const [viewingOrderIdForAudit, setViewingOrderIdForAudit] = useState<number | null>(null);
     const [baptismOrderId, setBaptismOrderId] = useState<number | null>(null);
 
@@ -1007,7 +1008,9 @@ const SalesDashboardPage: React.FC = () => {
     const renderMonitorSection = () => {
         // Ampliado: cualquier OV confirmada o en proceso
         const ACTIVE_STATUSES = ['WAITING_ADVANCE', 'SOLD', 'IN_PRODUCTION', 'FINISHED', 'COMPLETED'];
-        const activeOrders = orders.filter(o => ACTIVE_STATUSES.includes(o.status));
+        const activeOrders = orders.filter(o =>
+            ACTIVE_STATUSES.includes(o.status) && !cancelledOvIds.has(o.id as number)
+        );
 
         const STATUS_COLORS: Record<string, string> = {
             'WAITING_ADVANCE': 'bg-amber-50 text-amber-700 border-amber-200',
@@ -1621,10 +1624,14 @@ const SalesDashboardPage: React.FC = () => {
                         const cancelledId = rayosXOrder?.id;
                         const wasWaiting = rayosXOrder?.status === 'WAITING_ADVANCE';
                         if (cancelledId != null && wasWaiting) {
-                            setOrders(prev => prev.filter(o => o.id !== cancelledId));
+                            setCancelledOvIds(prev => {
+                                const next = new Set(prev);
+                                next.add(cancelledId);
+                                return next;
+                            });
                         }
                         setRayosXOrder(null);
-                        await loadData();   // confirma con el backend
+                        await loadData();
                     }}
                     onOrderPatch={(patch) =>
                         setRayosXOrder((prev) => (prev ? { ...prev, ...patch } : null))
