@@ -226,7 +226,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         setCancelling(true);
         try {
             await salesService.cancelOv(order.id!);
-            await onSuccess();   // espera el refresco antes de continuar
+            onSuccess();   // el padre refresca (await loadData) y luego cierra el modal
         } catch (err: any) {
             alert(err?.response?.data?.detail || "No se pudo cancelar la OV.");
         } finally {

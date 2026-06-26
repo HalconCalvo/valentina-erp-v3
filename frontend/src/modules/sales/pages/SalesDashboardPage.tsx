@@ -1617,7 +1617,7 @@ const SalesDashboardPage: React.FC = () => {
                     isOpen={!!rayosXOrder}
                     onClose={() => setRayosXOrder(null)}
                     order={rayosXOrder}
-                    onSuccess={async () => { setRayosXOrder(null); await loadData(); }}
+                    onSuccess={async () => { await loadData(); setRayosXOrder(null); }}
                     onOrderPatch={(patch) =>
                         setRayosXOrder((prev) => (prev ? { ...prev, ...patch } : null))
                     }
