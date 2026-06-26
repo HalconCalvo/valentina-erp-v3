@@ -162,6 +162,15 @@ export const salesService = {
     },
 
     /**
+     * Cancela una OV en espera de anticipo (WAITING_ADVANCE -> CANCELLED_OV).
+     * Solo si no tiene anticipo pagado. Es terminal.
+     */
+    cancelOv: async (orderId: number): Promise<void> => {
+        const url = `${API_ROUTES.SALES.ORDER_DETAIL(orderId)}/cancel_ov`;
+        await axiosClient.post(url);
+    },
+
+    /**
      * DIRECTOR: Rechaza la cotización (Cambia SENT -> REJECTED)
      */
     rejectOrder: async (orderId: number): Promise<void> => {

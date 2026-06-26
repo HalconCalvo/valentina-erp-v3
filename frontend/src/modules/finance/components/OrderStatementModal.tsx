@@ -111,6 +111,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const [isLoading, setIsLoading] = useState(false);
     const [isUpdatingCommission, setIsUpdatingCommission] = useState(false);
     const [ocSaving, setOcSaving] = useState(false);
+    const [cancelling, setCancelling] = useState(false);
     /** Remount de inputs OC (defaultValue) tras guardado puntual sin refrescar listados. */
     const [ocEditorEpoch, setOcEditorEpoch] = useState(0);
     /** customer_payment_id → comisión (tabla sales_commissions) */
@@ -214,6 +215,26 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         }
     };
 
+    const handleCancelOv = async () => {
+        const ok = window.confirm(
+            "¿Cancelar esta OV?\n\n" +
+            "Las instancias (Productos Vendidos) se cancelarán y la OV NO podrá " +
+            "reactivarse. Si el cliente reaparece, deberás generar una OV nueva.\n\n" +
+            "Los productos cotizados se conservan."
+        );
+        if (!ok) return;
+        setCancelling(true);
+        try {
+            await salesService.cancelOv(order.id!);
+            onSuccess();   // refresca y/o cierra desde el padre
+            onClose();     // cierra el Rayos X
+        } catch (err: any) {
+            alert(err?.response?.data?.detail || "No se pudo cancelar la OV.");
+        } finally {
+            setCancelling(false);
+        }
+    };
+
     const handlePayCommission = async (customerPaymentId: number) => {
         if (readOnly) return;
         const comm = commissionByPaymentId[customerPaymentId];
@@ -254,9 +275,22 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                             <Users size={12} className="text-slate-500" /> Cliente: <span className="text-slate-300">{clientName}</span>
                         </p>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors">
-                        <X size={20} />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {isWaitingAdvance && (
+                            <button
+                                type="button"
+                                onClick={handleCancelOv}
+                                disabled={cancelling}
+                                className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 text-xs font-black rounded-lg shadow-md transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <AlertCircle size={14} />
+                                {cancelling ? "Cancelando..." : "Cancelar OV"}
+                            </button>
+                        )}
+                        <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors">
+                            <X size={20} />
+                        </button>
+                    </div>
                 </div>
 
                 <div className="p-6 overflow-y-auto flex-1 space-y-6 bg-slate-50/50">
