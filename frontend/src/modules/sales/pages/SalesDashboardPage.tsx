@@ -1617,7 +1617,15 @@ const SalesDashboardPage: React.FC = () => {
                     isOpen={!!rayosXOrder}
                     onClose={() => setRayosXOrder(null)}
                     order={rayosXOrder}
-                    onSuccess={async () => { await loadData(); setRayosXOrder(null); }}
+                    onSuccess={async () => {
+                        const cancelledId = rayosXOrder?.id;
+                        const wasWaiting = rayosXOrder?.status === 'WAITING_ADVANCE';
+                        if (cancelledId != null && wasWaiting) {
+                            setOrders(prev => prev.filter(o => o.id !== cancelledId));
+                        }
+                        setRayosXOrder(null);
+                        await loadData();   // confirma con el backend
+                    }}
                     onOrderPatch={(patch) =>
                         setRayosXOrder((prev) => (prev ? { ...prev, ...patch } : null))
                     }
