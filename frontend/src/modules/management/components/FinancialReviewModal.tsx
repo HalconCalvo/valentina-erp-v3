@@ -25,6 +25,9 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
     const [globalMargin, setGlobalMargin] = useState<number>(0); 
     const [commissionPercent, setCommissionPercent] = useState<number>(0);
     const [itemMargins, setItemMargins] = useState<number[]>([]);
+    // Precio exacto fijado por el usuario (override). Si no es null para un índice, ese precio
+    // manda sobre el margen y NO se recalcula con Math.ceil.
+    const [itemPriceOverrides, setItemPriceOverrides] = useState<(number | null)[]>([]);
     const [advancePercent, setAdvancePercent] = useState<number>(60);
 
     // --- UI STATE ---
@@ -86,6 +89,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
             });
 
             setItemMargins(calculatedMargins);
+            setItemPriceOverrides(new Array(itemsSeguros.length).fill(null));
 
             let totalCost = 0;
             let totalBasePrice = 0;
@@ -133,6 +137,12 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
         const newMargins = [...itemMargins];
         newMargins[index] = safeVal;
         setItemMargins(newMargins);
+
+        // Al editar el margen, el margen vuelve a dominar: limpiamos el override de precio
+        // de ese índice para que el precio se recalcule desde el margen.
+        const clearedOverrides = [...itemPriceOverrides];
+        clearedOverrides[index] = null;
+        setItemPriceOverrides(clearedOverrides);
 
         let totalCost = 0;
         let totalBasePrice = 0;
@@ -183,6 +193,12 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
 
         const weightedAvg = totalCost > 0 ? ((totalBasePrice - totalCost) / totalCost) * 100 : 0;
         setGlobalMargin(Number(weightedAvg.toFixed(2)) || 0);
+
+        // El precio domina: guardamos el precio exacto fijado por el usuario para que la
+        // simulación lo respete al centavo (sin recalcular desde el margen con Math.ceil).
+        const newOverrides = [...itemPriceOverrides];
+        newOverrides[index] = precio;
+        setItemPriceOverrides(newOverrides);
     };
 
     // --- MOTOR DE SIMULACIÓN (Protegido contra cálculos corruptos) ---
@@ -207,8 +223,12 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
 
             // Precio base (sin comisión) solo como referencia visual.
             const baseUnitPrice = cost * marginMultiplier;
-            // Precio final CON comisión incluida. Math.ceil para ser idéntico a CreateQuotePage.
-            const finalUnitPrice = Math.ceil(cost * marginMultiplier * commissionMultiplier);
+            // Si el usuario fijó un precio exacto (override), ese precio manda al centavo.
+            // Si no, se calcula desde el margen con Math.ceil (idéntico a CreateQuotePage).
+            const override = itemPriceOverrides[index];
+            const finalUnitPrice = (override != null && !isNaN(override))
+                ? override
+                : Math.ceil(cost * marginMultiplier * commissionMultiplier);
 
             // El subtotal suma el precio CON comisión incluida (no se vuelve a sumar aparte).
             sumOfItems += (finalUnitPrice * qty);
@@ -250,7 +270,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
             totalBaseCost, sumOfItems, commissionAmount, subtotal,
             taxAmount, total, netUtility, realWeightedMargin, advanceAmount, simulatedItems
         };
-    }, [order, itemMargins, commissionPercent, advancePercent]);
+    }, [order, itemMargins, itemPriceOverrides, commissionPercent, advancePercent]);
 
 
     // --- ACCIONES PRINCIPALES ---
