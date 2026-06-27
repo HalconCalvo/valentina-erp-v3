@@ -382,7 +382,11 @@ const SalesDashboardPage: React.FC = () => {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (!response.ok) throw new Error('Error al solicitar autorización');
-            await loadData();
+            // Optimista: la cotización pasa a SENT y sale de Borradores de inmediato
+            setOrders(prev => prev.map(o =>
+                o.id === orderId ? { ...o, status: 'SENT' as any } : o
+            ));
+            await loadData();   // confirma con el backend
         } catch (error) {
             alert("Hubo un problema al enviar la cotización a revisión.");
             setIsLoading(false);
