@@ -216,7 +216,7 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                         </div>
                         <div className="border-l border-slate-200 pl-4">
                             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1"><User size={12}/> Cliente</h3>
-                            <div className="text-base font-bold text-slate-700">{order.client_id ? `Cliente ID: ${order.client_id}` : "General"}</div>
+                            <div className="text-base font-bold text-slate-700">{(order as any).client?.full_name || (order.client_id ? `Cliente ID: ${order.client_id}` : "General")}</div>
                             <div className="text-xs text-slate-500"><Calendar size={12} className="inline mr-1"/>Vence: {new Date(order.valid_until).toLocaleDateString()}</div>
                         </div>
                         
