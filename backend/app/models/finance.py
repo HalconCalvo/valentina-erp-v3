@@ -99,3 +99,22 @@ class SupplierPayment(SQLModel, table=True):
         due_date: Optional[datetime] = None
         status: str = Field(default="PENDIENTE")
         created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class PurchaseInvoiceItem(SQLModel, table=True):
+    __tablename__ = "purchase_invoice_items"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    # A qué factura/CxP pertenece (la tabla que alimenta la pantalla de CxP)
+    accounts_payable_id: int = Field(foreign_key="accounts_payable.id", index=True)
+    # Qué partida de la OC se recibió (opcional, para trazabilidad)
+    purchase_order_item_id: Optional[int] = Field(default=None, foreign_key="purchase_order_items.id")
+    material_id: Optional[int] = Field(default=None, foreign_key="materials.id")
+    # Snapshot del material al momento de recibir (las facturas no cambian retroactivamente)
+    description: Optional[str] = None
+    sku: Optional[str] = None
+    # Cuánto de este material llegó en ESTA factura/entrega
+    quantity_received: float
+    # Precio unitario de esta entrega (para validar el precio acordado)
+    unit_cost: float
+    created_at: datetime = Field(default_factory=datetime.now)
