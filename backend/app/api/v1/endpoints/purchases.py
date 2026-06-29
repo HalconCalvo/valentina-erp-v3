@@ -377,9 +377,11 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
 
     items = db.exec(select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po.id)).all()
     all_complete = True
+    invoice_detail_rows = []
     for item in items:
         qty_ordered = float(item.quantity_ordered or 0)
         qty_this_delivery = 0.0
+        mat = db.get(Material, item.material_id) if item.material_id else None
 
         if item.material_id:
             mat = db.get(Material, item.material_id)
@@ -413,6 +415,23 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
         prev_received = float(item.quantity_received or 0)
         item.quantity_received = prev_received + qty_this_delivery
         db.add(item)
+
+        # Camino B: juntar snapshot de este renglón para guardarlo si se genera CxP
+        if qty_this_delivery > 0:
+            if item.material_id and mat:
+                _desc = mat.name
+                _sku = mat.sku
+            else:
+                _desc = item.custom_description
+                _sku = None
+            invoice_detail_rows.append({
+                "purchase_order_item_id": item.id,
+                "material_id": item.material_id,
+                "description": _desc,
+                "sku": _sku,
+                "quantity_received": qty_this_delivery,
+                "unit_cost": float(getattr(item, 'expected_unit_cost', 0.0) or 0.0),
+            })
 
         # Verificar completitud para TODOS los items
         if qty_ordered > 0 and item.quantity_received < qty_ordered:
@@ -457,8 +476,9 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
                 :prov_id, :po_id, :folio, :total, :due, 'PENDIENTE', :now,
                 :category
             )
+            RETURNING id
         """)
-        db.exec(new_payable.bindparams(
+        result_ap = db.exec(new_payable.bindparams(
             prov_id=po.provider_id,
             po_id=po.id,
             folio=data.get("invoice_folio"),
@@ -467,6 +487,20 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
             now=datetime.now(),
             category=getattr(po, 'overhead_category', None)
         ))
+        new_ap_id = result_ap.scalar() if hasattr(result_ap, "scalar") else result_ap.first()[0]
+
+        # Camino B: guardar el detalle de materiales que ampara esta CxP/entrega
+        from app.models.finance import PurchaseInvoiceItem
+        for row in invoice_detail_rows:
+            db.add(PurchaseInvoiceItem(
+                accounts_payable_id=new_ap_id,
+                purchase_order_item_id=row["purchase_order_item_id"],
+                material_id=row["material_id"],
+                description=row["description"],
+                sku=row["sku"],
+                quantity_received=row["quantity_received"],
+                unit_cost=row["unit_cost"],
+            ))
 
     db.add(po)
     db.commit()
