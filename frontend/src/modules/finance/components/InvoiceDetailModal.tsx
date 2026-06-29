@@ -14,11 +14,33 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
 
     useEffect(() => {
         const fetchItems = async () => {
-            if (invoice.items && invoice.items.length > 0) {
-                setIsLoading(false);
-                return;
-            }
             try {
+                // 0. CAMINO B (prioridad): detalle RECEPCIONADO real de la factura.
+                //    Si trae renglones, mapeamos a los nombres que el render ya espera
+                //    (quantity / unit_price / description / sku) y usamos esos.
+                try {
+                    const recRes = await client.get(`/finance/invoices/${invoice.id}/received-items`);
+                    const received = Array.isArray(recRes.data) ? recRes.data : [];
+                    if (received.length > 0) {
+                        const mapped = received.map((row: any) => ({
+                            quantity: row.quantity_received,
+                            unit_price: row.unit_cost,
+                            description: row.description,
+                            sku: row.sku,
+                        }));
+                        setItems(mapped);
+                        setIsLoading(false);
+                        return;
+                    }
+                } catch (e) {
+                    // Silencioso: si falla, caemos al comportamiento ACTUAL (fallback OC).
+                }
+
+                // FALLBACK (factura vieja sin desglose Camino B): comportamiento original.
+                if (invoice.items && invoice.items.length > 0) {
+                    setIsLoading(false);
+                    return;
+                }
                 let fetchedItems: any[] = [];
                 
                 // 1. Intentamos la ruta normal de Finanzas
