@@ -151,6 +151,8 @@ def read_purchase_orders(*, db: Session = Depends(get_session), status: str | No
                 "sku": sku_val,
                 "name": it.custom_description or "Material",
                 "qty": it.quantity_ordered,
+                "quantity_ordered": it.quantity_ordered,
+                "quantity_received": it.quantity_received or 0,
                 "expected_cost": it.expected_unit_cost,
                 "subtotal": (it.quantity_ordered or 0) * (it.expected_unit_cost or 0)
             })
