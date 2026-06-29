@@ -617,3 +617,54 @@ def get_pending_invoices(session: SessionDep) -> Any:
     
     results.sort(key=lambda x: str(x.due_date))
     return results
+
+
+@router.get("/invoices/{purchase_invoice_id}/received-items")
+def get_invoice_received_items(purchase_invoice_id: int, session: SessionDep) -> Any:
+    """
+    Devuelve el detalle RECEPCIONADO de una factura (Camino B): qué materiales,
+    cantidades y precios amparó cada entrega, leyendo de purchase_invoice_items.
+    Aditivo: si no hay renglones (factura vieja pre-Camino B), devuelve lista vacía
+    y el frontend cae a su comportamiento actual.
+    """
+    # 1. Buscar la factura para obtener su folio
+    inv = session.get(PurchaseInvoice, purchase_invoice_id)
+    if not inv:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+
+    # 2. Limpiar el folio (mismo patrón que /invoices/pending)
+    folio_limpio = clean_invoice_folio(inv.invoice_number) if inv.invoice_number else ""
+    if not folio_limpio:
+        return []
+
+    # 3. Encontrar la(s) CxP por folio y traer sus renglones.
+    #    Ligar por folio (NO asumir que purchase_invoice_id == accounts_payable.id).
+    #    Si hubiera varias CxP con el mismo folio (entregas parciales), unir todas.
+    rows = session.exec(text("""
+        SELECT
+            pii.sku,
+            pii.description,
+            pii.quantity_received,
+            pii.unit_cost,
+            pii.material_id,
+            pii.purchase_order_item_id,
+            pii.accounts_payable_id
+        FROM purchase_invoice_items pii
+        JOIN accounts_payable ap ON ap.id = pii.accounts_payable_id
+        WHERE ap.invoice_folio = :folio
+        ORDER BY pii.id
+    """).bindparams(folio=folio_limpio)).all()
+
+    result = []
+    for r in rows:
+        result.append({
+            "sku": r[0],
+            "description": r[1],
+            "quantity_received": r[2],
+            "unit_cost": r[3],
+            "material_id": r[4],
+            "purchase_order_item_id": r[5],
+            "accounts_payable_id": r[6],
+            "line_total": float(r[2] or 0) * float(r[3] or 0),
+        })
+    return result
