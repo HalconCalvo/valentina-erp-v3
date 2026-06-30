@@ -131,20 +131,51 @@ def read_purchase_orders(*, db: Session = Depends(get_session), status: str | No
         statement = statement.where(PurchaseOrder.status.ilike(search_status))
     
     orders = db.exec(statement.offset(skip).limit(limit)).all()
+    if not orders:
+        return []
+
+    # --- PRECARGA EN LOTE (elimina N+1) ---
+    provider_ids = {o.provider_id for o in orders if o.provider_id is not None}
+    order_ids = [o.id for o in orders]
+
+    # 1. Proveedores en una sola consulta
+    if provider_ids:
+        providers = db.exec(select(Provider).where(Provider.id.in_(provider_ids))).all()
+    else:
+        providers = []
+    prov_map = {p.id: p for p in providers}
+
+    # 2. Todos los items de esas órdenes en una sola consulta
+    if order_ids:
+        all_items = db.exec(
+            select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id.in_(order_ids))
+        ).all()
+    else:
+        all_items = []
+    items_by_po: dict = {}
+    for it in all_items:
+        items_by_po.setdefault(it.purchase_order_id, []).append(it)
+
+    # 3. Todos los materiales referenciados en una sola consulta
+    material_ids = {it.material_id for it in all_items if it.material_id is not None}
+    if material_ids:
+        materials = db.exec(select(Material).where(Material.id.in_(material_ids))).all()
+    else:
+        materials = []
+    mat_map = {m.id: m for m in materials}
+
+    # --- CONSTRUCCIÓN EN MEMORIA (sin db.get/db.exec dentro de los loops) ---
     results = []
-    
     for o in orders:
-        prov = db.get(Provider, o.provider_id)
-        item_statement = select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == o.id)
-        db_items = db.exec(item_statement).all()
-        
+        prov = prov_map.get(o.provider_id)
+
         items_formatted = []
-        for it in db_items:
+        for it in items_by_po.get(o.id, []):
             sku_val = "S/SKU"
             if it.material_id:
-                mat = db.get(Material, it.material_id)
+                mat = mat_map.get(it.material_id)
                 if mat: sku_val = mat.sku
-            
+
             items_formatted.append({
                 "id": it.id,
                 "material_id": it.material_id, 
