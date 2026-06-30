@@ -84,12 +84,9 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
         fetchItems();
     }, [invoice]);
 
-    // --- EL BLINDAJE MATEMÁTICO ---
-    // Si tenemos items, sumamos. Si no tenemos items (aún), usamos el total de la factura para no dejarte en ceros.
-    const calculatedSubtotal = items.reduce((acc, it) => acc + ((it.qty || it.quantity || 1) * (it.price || it.unit_price || it.expected_cost || 0)), 0);
-    
-    const displayTotal = calculatedSubtotal > 0 ? calculatedSubtotal * 1.16 : (invoice.outstanding_balance || 0);
-    const displaySubtotal = calculatedSubtotal > 0 ? calculatedSubtotal : (displayTotal / 1.16);
+    // Cierre A: el pie refleja el SALDO VIVO de la factura (= cascada de CxP), no la suma del desglose.
+    const displayTotal = invoice.outstanding_balance || 0;
+    const displaySubtotal = displayTotal / 1.16;
     const displayIva = displaySubtotal * 0.16;
 
     return (
@@ -187,7 +184,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                             <span className="text-sm font-bold">${displayIva.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
                         <div className="flex justify-between items-center pt-2">
-                            <span className="text-[11px] font-black text-emerald-600 uppercase">Total Autorizado</span>
+                            <span className="text-[11px] font-black text-emerald-600 uppercase">Saldo por Pagar</span>
                             <span className="text-3xl font-black text-slate-900">${displayTotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
                     </div>
