@@ -86,16 +86,20 @@ const InventoryReceptionPage: React.FC = () => {
         }
     };
 
+    // Total RECIBIDO con IVA a partir de un mapa de cantidades (misma fórmula de price del archivo).
+    const calcTotalRecibidoConIva = (po: any, received: Record<number, string>) => {
+        const subtotal = (po?.items || []).reduce((sum: number, item: any, idx: number) => {
+            const price = item.unit_price || item.expected_cost || item.price || 0;
+            const qty = Number(received[idx]) || 0;
+            return sum + (qty * price);
+        }, 0);
+        return subtotal * 1.16;
+    };
+
     const handleSelectPO = (po: any) => {
         if (!po) return;
         setSelectedPO(po);
         setInvoiceFolio('');
-        
-        const subtotal = po.total_estimated_amount || 0;
-        const expectedTotalConIva = subtotal * 1.16;
-        
-        setInvoiceTotal(expectedTotalConIva);
-        setDisplayTotal(formatInitialAmount(expectedTotalConIva));
 
         const initialReceived: Record<number, string> = {};
         (po.items || []).forEach((item: any, idx: number) => {
@@ -104,6 +108,11 @@ const InventoryReceptionPage: React.FC = () => {
             initialReceived[idx] = String(pending);
         });
         setReceivedItems(initialReceived);
+
+        // El total inicial refleja lo que se va a RECIBIR, no el total de la OC completa.
+        const totalRecibido = calcTotalRecibidoConIva(po, initialReceived);
+        setInvoiceTotal(totalRecibido);
+        setDisplayTotal(formatInitialAmount(totalRecibido));
     };
 
     const handleAmountInput = (val: string) => {
@@ -131,7 +140,13 @@ const InventoryReceptionPage: React.FC = () => {
     };
 
     const handleReceivedQtyChange = (idx: number, val: string) => {
-        setReceivedItems(prev => ({ ...prev, [idx]: val }));
+        setReceivedItems(prev => {
+            const next = { ...prev, [idx]: val };
+            const nuevoTotal = calcTotalRecibidoConIva(selectedPO, next);
+            setInvoiceTotal(nuevoTotal);
+            setDisplayTotal(formatInitialAmount(nuevoTotal));
+            return next;
+        });
     };
 
     const handleSubmit = async () => {
