@@ -31,7 +31,10 @@ class CostEngine:
                     for comp in version.components:
                         mat = session.get(Material, comp.material_id)
                         if mat:
-                            current_item_cost += (comp.quantity * mat.current_cost)
+                            factor = float(getattr(mat, 'conversion_factor', 1) or 1)
+                            if factor <= 0:
+                                factor = 1
+                            current_item_cost += (comp.quantity * (mat.current_cost / factor))
             else:
                 # Partida manual: no fluctúa (asumimos costo fijo capturado)
                 current_item_cost = item.frozen_unit_cost
