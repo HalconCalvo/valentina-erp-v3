@@ -177,6 +177,7 @@ const SalesDashboardPage: React.FC = () => {
 
     // ESTADOS PARA ORDENAMIENTO DE COLUMNAS (AÑADIDOS DATE Y FOLIO)
     const [quoteSortConfig, setQuoteSortConfig] = useState<{ key: 'DATE' | 'FOLIO' | 'CLIENT' | 'SELLER' | 'STATUS' | null, direction: 'asc' | 'desc' }>({ key: null, direction: 'desc' });
+    const [monitorSort, setMonitorSort] = useState<{ key: 'FOLIO' | 'CLIENT' | 'AGE', direction: 'asc' | 'desc' }>({ key: 'AGE', direction: 'desc' });
 
     const [viewingOrderIdForFormat, setViewingOrderIdForFormat] = useState<number | null>(null);
     const [rayosXOrder, setRayosXOrder] = useState<SalesOrder | null>(null);
@@ -527,6 +528,14 @@ const SalesDashboardPage: React.FC = () => {
             direction = 'desc';
         }
         setQuoteSortConfig({ key, direction });
+    };
+
+    const handleMonitorSort = (key: 'FOLIO' | 'CLIENT' | 'AGE') => {
+        setMonitorSort(prev =>
+            prev.key === key
+                ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
+                : { key, direction: 'asc' }
+        );
     };
 
     const renderSortIcon = (key: string) => {
@@ -1016,6 +1025,24 @@ const SalesDashboardPage: React.FC = () => {
             ACTIVE_STATUSES.includes(o.status) && !cancelledOvIds.has(o.id as number)
         );
 
+        const sortedOrders = [...activeOrders].sort((a, b) => {
+            const dir = monitorSort.direction === 'asc' ? 1 : -1;
+            if (monitorSort.key === 'FOLIO') {
+                return ((a.id || 0) - (b.id || 0)) * dir;
+            }
+            if (monitorSort.key === 'CLIENT') {
+                const av = getClientName(a).toLowerCase();
+                const bv = getClientName(b).toLowerCase();
+                if (av < bv) return -1 * dir;
+                if (av > bv) return 1 * dir;
+                return 0;
+            }
+            // AGE = antigüedad por created_at ('desc' = más recientes primero)
+            const da = new Date((a as any).created_at || 0).getTime();
+            const db = new Date((b as any).created_at || 0).getTime();
+            return (da - db) * dir;
+        });
+
         const STATUS_COLORS: Record<string, string> = {
             'WAITING_ADVANCE': 'bg-amber-50 text-amber-700 border-amber-200',
             'SOLD':            'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -1044,12 +1071,25 @@ const SalesDashboardPage: React.FC = () => {
                             {activeOrders.length}
                         </span>
                     </p>
-                    <p className="text-[10px] text-slate-400">
-                        Haz clic en una OV para expandir sus instancias y asignarles un alias.
-                    </p>
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mr-1">Ordenar:</span>
+                        {(['FOLIO','CLIENT','AGE'] as const).map(k => {
+                            const label = k === 'FOLIO' ? 'Folio' : k === 'CLIENT' ? 'Cliente' : 'Antigüedad';
+                            const active = monitorSort.key === k;
+                            return (
+                                <button
+                                    key={k}
+                                    onClick={() => handleMonitorSort(k)}
+                                    className={`px-3 py-1 text-xs font-bold rounded-lg border transition-colors ${active ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                                >
+                                    {label}{active ? (monitorSort.direction === 'asc' ? ' ↑' : ' ↓') : ''}
+                                </button>
+                            );
+                        })}
+                    </div>
                 </div>
 
-                {activeOrders.map(order => {
+                {sortedOrders.map(order => {
                     const instances: any[] = (order.items ?? []).flatMap((it: any) => it.instances ?? []);
                     const isExpanded = expandedOrderId === order.id;
                     const colorClass = STATUS_COLORS[order.status] ?? 'bg-slate-50 text-slate-600 border-slate-200';
