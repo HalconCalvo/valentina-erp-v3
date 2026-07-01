@@ -239,6 +239,7 @@ class SalesOrder(SQLModel, table=True):
 
     advance_percent: float = Field(default=60.0) 
     has_advance_invoice: bool = Field(default=False)
+    advance_invoice_amount: Optional[float] = Field(default=None)
     currency: str = Field(default="MXN")
     
     # ========================================================
