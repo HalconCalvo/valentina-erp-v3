@@ -573,16 +573,22 @@ def cancel_ov(order_id: int, session: Session = Depends(get_session),
 # 6. PAGOS Y COMISIONES (CÓDIGO HÍBRIDO)
 # ==========================================
 @router.post("/orders/{order_id}/mark_sold", response_model=SalesOrderRead)
-def register_advance(order_id: int, payload: PaymentPayload, session: Session = Depends(get_session), current_user: User = Depends(get_current_active_user)):
+def register_advance(order_id: int, payload: PaymentPayload,
+                     session: Session = Depends(get_session),
+                     current_user: User = Depends(get_current_active_user)):
     order = session.get(SalesOrder, order_id)
+    if not order:
+        raise HTTPException(404, "Orden no encontrada")
+
     order.status = SalesOrderStatus.SOLD
-    new_cxc = CustomerPayment(
-        sales_order_id=order.id, payment_type=PaymentType.ADVANCE,
-        invoice_folio=payload.invoice_folio, amount=payload.amount,
-        status=CXCStatus.PENDING, created_by_user_id=current_user.id
-    )
-    session.add(new_cxc)
+    # Guardar el importe de la factura de anticipo (objetivo). El frontend manda el importe
+    # capturado por Admin (sugerido = total_price * advance_percent/100, editable).
+    # Ya NO se crea el pago aquí: los abonos van por /advance_payments (nacen PAID).
+    if payload.amount and payload.amount > 0:
+        order.advance_invoice_amount = float(payload.amount)
+    session.add(order)
     session.commit()
+    session.refresh(order)
     return order
 
 @router.post("/orders/{order_id}/confirm_payment/{cxc_id}", response_model=SalesOrderRead)
