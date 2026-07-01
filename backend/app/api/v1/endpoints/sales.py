@@ -4,6 +4,7 @@ from datetime import datetime
 import math
 from fastapi import APIRouter, Depends, HTTPException, status, Body, Query
 from sqlmodel import Session, select, delete
+from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from fastapi.responses import StreamingResponse
 
@@ -36,6 +37,9 @@ class PaymentPayload(BaseModel):
     amount: float = 0.0                 
     amortized_advance: float = 0.0      
     instance_ids: List[int] = []
+    payment_date: Optional[datetime] = None   # fecha real del abono
+    notes: Optional[str] = None               # concepto del abono
+    reference: Optional[str] = None           # referencia opcional
 
 
 class ClientPurchaseOrderPayload(BaseModel):
@@ -636,6 +640,115 @@ def confirm_cxc_payment(order_id: int, cxc_id: int, session: Session = Depends(g
     session.add(cxc)
     session.add(order)
     session.commit()
+    return order
+
+def _liberar_comision_anticipo(session, order, payment, base_con_iva):
+    """
+    Libera la comisión del anticipo UNA sola vez, al completarse. Se calcula sobre el
+    TOTAL del anticipo (base_con_iva = importe de la factura de anticipo), replicando la
+    misma lógica de comisión vendedor + directores globales de confirm_cxc_payment.
+    """
+    tax_rate_obj = session.get(TaxRate, order.tax_rate_id)
+    tax_multiplier = tax_rate_obj.rate if tax_rate_obj else 0.16
+    base_before_tax = base_con_iva / (1.0 + tax_multiplier)
+
+    seller_commission_rate = normalize_commission(order.applied_commission_percent or 0.0)
+    if order.user_id and seller_commission_rate > 0:
+        session.add(SalesCommission(
+            customer_payment_id=payment.id,
+            user_id=order.user_id,
+            commission_type=CommissionType.SELLER,
+            base_amount=base_before_tax,
+            rate=seller_commission_rate,
+            commission_amount=base_before_tax * seller_commission_rate,
+        ))
+    directors = session.exec(
+        select(User).where(User.role == UserRole.DIRECTOR, User.is_active == True)
+    ).all()
+    for director in directors:
+        dir_rate = normalize_commission(director.global_commission_rate or 0.0)
+        if dir_rate > 0:
+            session.add(SalesCommission(
+                customer_payment_id=payment.id,
+                user_id=director.id,
+                commission_type=CommissionType.DIRECTOR_GLOBAL,
+                base_amount=base_before_tax,
+                rate=dir_rate,
+                commission_amount=base_before_tax * dir_rate,
+            ))
+
+@router.post("/orders/{order_id}/advance_payments", response_model=SalesOrderRead)
+def register_advance_payment(order_id: int, payload: PaymentPayload,
+                             session: Session = Depends(get_session),
+                             current_user: User = Depends(get_current_active_user)):
+    order = session.get(SalesOrder, order_id)
+    if not order:
+        raise HTTPException(404, "Orden no encontrada")
+
+    objetivo = float(order.advance_invoice_amount or 0.0)
+    if objetivo <= 0:
+        raise HTTPException(400, "Esta OV no tiene importe de anticipo definido. Captúralo primero en Rayos X.")
+
+    # Suma de abonos de anticipo YA cobrados (PAID) para esta OV
+    pagados_antes = session.exec(
+        select(func.coalesce(func.sum(CustomerPayment.amount), 0.0)).where(
+            CustomerPayment.sales_order_id == order.id,
+            CustomerPayment.payment_type == PaymentType.ADVANCE,
+            CustomerPayment.status == CXCStatus.PAID
+        )
+    ).one()
+    pagados_antes = float(pagados_antes or 0.0)
+
+    monto = float(payload.amount or 0.0)
+    if monto <= 0:
+        raise HTTPException(400, "El monto del abono debe ser mayor a cero.")
+
+    faltante = max(objetivo - pagados_antes, 0.0)
+    aplica_anticipo = min(monto, faltante)   # lo que abona al anticipo
+    excedente = max(monto - faltante, 0.0)   # sobrepago → al saldo de la OV
+
+    # Registrar el abono como PAID (ya recibido)
+    nuevo = CustomerPayment(
+        sales_order_id=order.id,
+        payment_type=PaymentType.ADVANCE,
+        invoice_folio=payload.invoice_folio or order.client_po_folio,
+        amount=monto,
+        status=CXCStatus.PAID,
+        payment_date=payload.payment_date or datetime.utcnow(),
+        notes=payload.notes,
+        reference=payload.reference,
+        created_by_user_id=current_user.id,
+        commission_paid=False,
+    )
+    session.add(nuevo)
+
+    # Aplicar el abono al saldo de la OV (todo el monto reduce la deuda total)
+    order.outstanding_balance = float(order.outstanding_balance or 0.0) - monto
+
+    pagados_despues = pagados_antes + aplica_anticipo
+    anticipo_completo = pagados_despues >= objetivo - 0.01
+
+    # LIBERAR COMISIÓN SOLO AL COMPLETAR EL ANTICIPO, una sola vez.
+    # Verificar que no se haya liberado ya (ningún ADVANCE de esta OV con commission_paid=True).
+    ya_liberada = session.exec(
+        select(func.count(CustomerPayment.id)).where(
+            CustomerPayment.sales_order_id == order.id,
+            CustomerPayment.payment_type == PaymentType.ADVANCE,
+            CustomerPayment.commission_paid == True
+        )
+    ).one()
+
+    if anticipo_completo and int(ya_liberada or 0) == 0:
+        session.flush()  # asegurar id del nuevo pago
+        _liberar_comision_anticipo(session, order, nuevo, objetivo)
+        nuevo.commission_paid = True
+
+    if order.outstanding_balance <= 0.1:
+        order.status = SalesOrderStatus.FINISHED
+
+    session.add(order)
+    session.commit()
+    session.refresh(order)
     return order
 
 @router.get("/orders/{order_id}/pdf")
