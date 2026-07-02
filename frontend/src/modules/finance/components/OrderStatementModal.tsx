@@ -108,10 +108,17 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase();
     const canEditOcInRayos = !readOnly && ['ADMIN', 'ADMINISTRADOR', 'GERENCIA', 'DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
 
-    const [isLoading, setIsLoading] = useState(false);
     const [isUpdatingCommission, setIsUpdatingCommission] = useState(false);
     const [ocSaving, setOcSaving] = useState(false);
     const [cancelling, setCancelling] = useState(false);
+
+    // --- Opción X: panel de abonos parciales por factura ---
+    const [expandedInvoiceId, setExpandedInvoiceId] = useState<number | null>(null);
+    const [abonoAmount, setAbonoAmount] = useState<number>(0);
+    const [abonoDate, setAbonoDate] = useState<string>('');
+    const [abonoNotes, setAbonoNotes] = useState<string>('');
+    const [abonoError, setAbonoError] = useState<string | null>(null);
+    const [abonoSaving, setAbonoSaving] = useState(false);
     /** Remount de inputs OC (defaultValue) tras guardado puntual sin refrescar listados. */
     const [ocEditorEpoch, setOcEditorEpoch] = useState(0);
     /** customer_payment_id → comisión (tabla sales_commissions) */
@@ -173,20 +180,36 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const expectedAdvance = totalOrder * (pct / 100);
     const isWaitingAdvance = order.status === 'WAITING_ADVANCE';
 
-    const handleConfirmPayment = async (cxcId: number) => {
-        if (!window.confirm('¿Confirmas que este dinero ya se reflejó en la cuenta bancaria? Esta acción liquidará la factura.')) return;
-        
-        setIsLoading(true);
+    const resetAbonoForm = () => {
+        setAbonoAmount(0);
+        setAbonoDate('');
+        setAbonoNotes('');
+        setAbonoError(null);
+    };
+
+    const toggleInvoicePanel = (cxcId: number) => {
+        setExpandedInvoiceId((prev) => (prev === cxcId ? null : cxcId));
+        resetAbonoForm();
+    };
+
+    const handleRegisterAbono = async (cxcId: number) => {
+        if (abonoAmount <= 0) return;
+        setAbonoSaving(true);
+        setAbonoError(null);
         try {
-            await salesService.confirmCXCPayment(order.id!, cxcId);
-            onSuccess(); 
-            // Cerramos el modal para forzar la recarga visual limpia si se liquida una factura
-            onClose();
-        } catch (error) {
-            console.error("Error al confirmar el pago:", error);
-            alert("Hubo un error al conciliar el pago. Revisa la consola.");
+            await salesService.registerInstallment(cxcId, {
+                amount: abonoAmount,
+                payment_date: abonoDate ? `${abonoDate}T12:00:00` : null,
+                notes: abonoNotes || null,
+            });
+            resetAbonoForm();
+            setExpandedInvoiceId(null);
+            await onSuccess();
+        } catch (err: any) {
+            const detail = err?.response?.data?.detail;
+            setAbonoError(typeof detail === 'string' ? detail : 'No se pudo registrar el abono.');
         } finally {
-            setIsLoading(false);
+            setAbonoSaving(false);
         }
     };
 
@@ -419,10 +442,14 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                 ? commRow.is_paid
                                                 : cxc.commission_paid === true;
                                             const isFacturaPagada = cxc.status === 'PAID';
+                                            const isFacturaCancelada = cxc.status === 'CANCELLED';
+                                            const canAbonar = !isFacturaPagada && !isFacturaCancelada;
+                                            const isExpanded = expandedInvoiceId === cxc.id;
                                             const daysOpen = daysOpenForCxc(cxc);
 
                                             return (
-                                                <tr key={cxc.id} className="hover:bg-slate-50">
+                                                <React.Fragment key={cxc.id}>
+                                                <tr className="hover:bg-slate-50">
                                                     <td className="p-3">
                                                         <span
                                                             className={`px-2 py-0.5 text-[10px] font-black rounded uppercase tracking-wider ${
@@ -461,14 +488,21 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                             <span className="inline-flex items-center gap-1 text-emerald-600 text-xs font-bold bg-emerald-50 px-2 py-1 rounded border border-emerald-100">
                                                                 <CheckCircle size={14} /> PAGADA
                                                             </span>
+                                                        ) : isFacturaCancelada ? (
+                                                            <span className="inline-flex items-center gap-1 text-slate-500 text-xs font-bold bg-slate-50 px-2 py-1 rounded border border-slate-200">
+                                                                CANCELADA
+                                                            </span>
                                                         ) : !readOnly ? (
                                                             <button
                                                                 type="button"
-                                                                onClick={() => handleConfirmPayment(cxc.id)}
-                                                                disabled={isLoading}
-                                                                className="inline-flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                                                                onClick={() => toggleInvoicePanel(cxc.id)}
+                                                                className={`inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors shadow-sm ${
+                                                                    isExpanded
+                                                                        ? 'bg-slate-600 hover:bg-slate-700 text-white'
+                                                                        : 'bg-amber-500 hover:bg-amber-600 text-white'
+                                                                }`}
                                                             >
-                                                                <DollarSign size={14} /> Registrar
+                                                                <DollarSign size={14} /> {isExpanded ? 'Cerrar' : 'Registrar Abono'}
                                                             </button>
                                                         ) : (
                                                             <span className="inline-flex items-center gap-1 text-amber-600 text-xs font-bold bg-amber-50 px-2 py-1 rounded border border-amber-100">
@@ -508,6 +542,87 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                         )}
                                                     </td>
                                                 </tr>
+
+                                                {canAbonar && !readOnly && isExpanded && (
+                                                    <tr className="bg-amber-50/60">
+                                                        <td colSpan={7} className="p-4">
+                                                            <div className="rounded-xl border border-amber-200 bg-white p-4 space-y-3 shadow-sm">
+                                                                <div className="flex items-center justify-between gap-2">
+                                                                    <p className="text-xs font-black text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
+                                                                        <DollarSign size={14} /> Abonos de la factura {cxc.invoice_folio || 'S/F'}
+                                                                    </p>
+                                                                    <span className="text-[11px] font-bold text-slate-500">
+                                                                        Importe factura: <strong className="text-slate-800">{formatCurrency(Number(cxc.amount))}</strong>
+                                                                    </span>
+                                                                </div>
+
+                                                                <p className="text-[11px] text-slate-500 italic">
+                                                                    El backend acumula los abonos y marca la factura como PAGADA al saldarla.
+                                                                </p>
+
+                                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                                    <div>
+                                                                        <label className="text-[10px] font-bold text-slate-500 uppercase">Monto</label>
+                                                                        <input
+                                                                            type="number"
+                                                                            min={0}
+                                                                            step="0.01"
+                                                                            value={abonoAmount || ''}
+                                                                            onChange={(e) => setAbonoAmount(Number(e.target.value))}
+                                                                            className="w-full mt-1 border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white"
+                                                                            placeholder="0.00"
+                                                                        />
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="text-[10px] font-bold text-slate-500 uppercase">Fecha</label>
+                                                                        <input
+                                                                            type="date"
+                                                                            value={abonoDate}
+                                                                            onChange={(e) => setAbonoDate(e.target.value)}
+                                                                            className="w-full mt-1 border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white"
+                                                                        />
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="text-[10px] font-bold text-slate-500 uppercase">Concepto</label>
+                                                                        <input
+                                                                            type="text"
+                                                                            value={abonoNotes}
+                                                                            onChange={(e) => setAbonoNotes(e.target.value)}
+                                                                            className="w-full mt-1 border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white"
+                                                                            placeholder="Referencia / nota"
+                                                                        />
+                                                                    </div>
+                                                                </div>
+
+                                                                {abonoError && (
+                                                                    <div className="flex items-center gap-2 text-xs font-bold text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                                                                        <AlertCircle size={14} /> {abonoError}
+                                                                    </div>
+                                                                )}
+
+                                                                <div className="flex justify-end gap-2">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => toggleInvoicePanel(cxc.id)}
+                                                                        disabled={abonoSaving}
+                                                                        className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                                                                    >
+                                                                        Cancelar
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleRegisterAbono(cxc.id)}
+                                                                        disabled={abonoSaving || abonoAmount <= 0}
+                                                                        className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-1.5 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                                                                    >
+                                                                        <DollarSign size={14} /> {abonoSaving ? 'Registrando…' : 'Registrar Abono'}
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                                </React.Fragment>
                                             );
                                         })}
                                     </tbody>

@@ -247,6 +247,27 @@ export const salesService = {
     },
 
     /**
+     * Opción X: registra un ABONO parcial contra una factura (CustomerPayment).
+     * El backend acumula los abonos y marca la factura PAID al saldarla.
+     */
+    registerInstallment: async (
+        cxcId: number,
+        payload: { amount: number; payment_date?: string | null; notes?: string | null; reference?: string | null }
+    ) => {
+        const response = await axiosClient.post(`/sales/invoices/${cxcId}/installments`, payload);
+        return response.data;
+    },
+
+    /**
+     * Lista los abonos de una factura. NOTA: el endpoint GET puede no existir aún en backend;
+     * queda listo para cuando se agregue.
+     */
+    getInstallments: async (cxcId: number) => {
+        const response = await axiosClient.get(`/sales/invoices/${cxcId}/installments`);
+        return response.data;
+    },
+
+    /**
      * ADMINISTRACIÓN: Obtiene todas las instancias 🟢🟢 CERRADAS sin factura de avance.
      * Alimenta la bandeja "Avances por Facturar" en PendingToInvoicePage.
      */
