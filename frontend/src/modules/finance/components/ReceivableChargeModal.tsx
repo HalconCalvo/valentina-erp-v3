@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, FileText, CheckSquare, DollarSign, Calculator, AlertTriangle, CheckCircle, Plus } from 'lucide-react';
+import { X, FileText, CheckSquare, DollarSign, Calculator, AlertTriangle } from 'lucide-react';
 import { SalesOrder, PaymentPayload } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
 
@@ -24,42 +24,28 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
     const [selectedInstances, setSelectedInstances] = useState<number[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
-    // --- Estado modo anticipo (Opción 1: abonos parciales) ---
+    // --- Estado modo anticipo (Camino A: emitir factura de anticipo) ---
     const [importeFactura, setImporteFactura] = useState<number>(0);
     const [displayImporte, setDisplayImporte] = useState<string>('');
-    const [montoAbono, setMontoAbono] = useState<number>(0);
-    const [displayAbono, setDisplayAbono] = useState<string>('');
-    const [fechaAbono, setFechaAbono] = useState<string>('');
-    const [conceptoAbono, setConceptoAbono] = useState<string>('');
 
     const totalOrder = order.total_price || 0;
     const pct = order.advance_percent || 60;
 
-    // Objetivo del anticipo y estado de abonos ya cobrados
+    // Importe sugerido / objetivo de la factura de anticipo (para prellenar)
     const sugerido = useMemo(() => totalOrder * (pct / 100), [totalOrder, pct]);
     const objetivo = useMemo(
         () => (order.advance_invoice_amount ?? sugerido),
         [order.advance_invoice_amount, sugerido]
     );
-    const abonos = useMemo(
-        () => (order.payments ?? []).filter(p => p.payment_type === 'ADVANCE' && p.status === 'PAID'),
-        [order.payments]
-    );
-    const pagado = useMemo(() => abonos.reduce((s, p) => s + (Number(p.amount) || 0), 0), [abonos]);
-    const faltante = useMemo(() => Math.max(objetivo - pagado, 0), [objetivo, pagado]);
 
     // ---> ESCOBA INVISIBLE: Limpiar la memoria al abrir <---
     useEffect(() => {
         if (isOpen) {
             setInvoiceFolio('');
             setSelectedInstances([]);
-            // Modo anticipo: prellenar el importe objetivo (guardado o sugerido) y limpiar el abono.
+            // Modo anticipo: prellenar el importe objetivo (guardado o sugerido).
             setImporteFactura(Number(objetivo.toFixed(2)));
             setDisplayImporte(new Intl.NumberFormat('en-US').format(Number(objetivo.toFixed(2))));
-            setMontoAbono(0);
-            setDisplayAbono('');
-            setFechaAbono('');
-            setConceptoAbono('');
         }
     }, [isOpen, objetivo]);
 
@@ -196,7 +182,7 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
         }
     };
 
-    // Modo anticipo: guardar el importe OBJETIVO de la factura de anticipo (mark_sold).
+    // Modo anticipo (Camino A): emitir la factura de anticipo (crea CxC ADVANCE PENDING).
     const handleSaveAdvanceTarget = async () => {
         if (!importeFactura || importeFactura <= 0) {
             alert("Captura un importe de anticipo mayor a cero.");
@@ -204,45 +190,15 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
         }
         setIsLoading(true);
         try {
-            await salesService.registerAdvancePayment(order.id!, {
+            await salesService.emitAdvanceInvoice(order.id!, {
                 invoice_folio: invoiceFolio.trim() === '' ? null : invoiceFolio.trim(),
                 amount: Number(importeFactura),
-                amortized_advance: 0,
-                instance_ids: [],
             });
             onSuccess();
+            onClose();
         } catch (error: any) {
-            console.error("Error al guardar el importe del anticipo:", error);
-            alert(error.response?.data?.detail || "No se pudo guardar el importe del anticipo.");
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    // Modo anticipo: registrar un abono parcial (nace PAID).
-    const handleRegisterInstallment = async () => {
-        if (!montoAbono || montoAbono <= 0) {
-            alert("El monto del abono debe ser mayor a cero.");
-            return;
-        }
-        setIsLoading(true);
-        try {
-            await salesService.registerAdvanceInstallment(order.id!, {
-                invoice_folio: invoiceFolio.trim() === '' ? null : invoiceFolio.trim(),
-                amount: Number(montoAbono),
-                amortized_advance: 0,
-                instance_ids: [],
-                payment_date: fechaAbono || null,
-                notes: conceptoAbono.trim() === '' ? null : conceptoAbono.trim(),
-            });
-            onSuccess();
-            setMontoAbono(0);
-            setDisplayAbono('');
-            setFechaAbono('');
-            setConceptoAbono('');
-        } catch (error: any) {
-            console.error("Error al registrar el abono:", error);
-            alert(error.response?.data?.detail || "No se pudo registrar el abono.");
+            console.error("Error al emitir la factura de anticipo:", error);
+            alert(error.response?.data?.detail || "No se pudo emitir la factura de anticipo.");
         } finally {
             setIsLoading(false);
         }
@@ -257,7 +213,7 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
                 <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                     <div>
                         <h2 className="text-lg font-black text-slate-800">
-                            {isAdvance ? 'Registrar Cobro de Anticipo' : 'Registrar Factura por Avance'}
+                            {isAdvance ? 'Emitir Factura de Anticipo' : 'Registrar Factura por Avance'}
                         </h2>
                         <p className="text-xs text-slate-500 font-medium">Proyecto: {order.project_name}</p>
                     </div>
@@ -302,10 +258,10 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
 
                     {isAdvance && (
                         <div className="space-y-5">
-                            {/* 1. Importe objetivo de la factura de anticipo */}
+                            {/* Importe y folio de la factura de anticipo → Emitir */}
                             <div className="space-y-3">
                                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                    <DollarSign size={14}/> 1. Importe de la Factura de Anticipo
+                                    <DollarSign size={14}/> Importe de la Factura de Anticipo
                                 </h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-1">
@@ -340,97 +296,15 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
                                         </p>
                                     </div>
                                 </div>
+                                <p className="text-[11px] text-slate-500 italic">
+                                    Al emitir se crea la factura de anticipo (pendiente). Los abonos se registran después desde Tesorería al conciliar el ingreso.
+                                </p>
                                 <button
                                     onClick={handleSaveAdvanceTarget}
                                     disabled={isLoading || importeFactura <= 0}
                                     className="px-4 py-2 text-sm font-black text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm disabled:opacity-50"
                                 >
-                                    {isLoading ? 'Guardando...' : 'Guardar importe del anticipo'}
-                                </button>
-                            </div>
-
-                            {/* 2. Resumen del avance del anticipo */}
-                            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 flex items-center justify-between">
-                                <div className="text-sm">
-                                    <p className="font-bold text-slate-700">
-                                        Pagado: <span className="text-emerald-600">{formatCurrency(pagado)}</span> de {formatCurrency(objetivo)}
-                                    </p>
-                                    <p className="text-xs text-slate-500 mt-0.5">Falta: <span className="font-bold text-amber-600">{formatCurrency(faltante)}</span></p>
-                                </div>
-                                {faltante <= 0 && (
-                                    <span className="inline-flex items-center gap-1 text-emerald-700 text-xs font-black bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg">
-                                        <CheckCircle size={14}/> ANTICIPO COMPLETO
-                                    </span>
-                                )}
-                            </div>
-
-                            {/* 3. Lista de abonos ya registrados */}
-                            <div className="space-y-2">
-                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Abonos registrados</h3>
-                                <div className="bg-white border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-40 overflow-y-auto">
-                                    {abonos.length === 0 ? (
-                                        <p className="p-3 text-sm text-slate-500 text-center italic">Sin abonos registrados</p>
-                                    ) : (
-                                        abonos.map((p) => (
-                                            <div key={p.id} className="flex items-center justify-between p-3 text-sm">
-                                                <div>
-                                                    <p className="font-bold text-slate-700">{formatCurrency(Number(p.amount) || 0)}</p>
-                                                    <p className="text-[11px] text-slate-500">
-                                                        {p.payment_date ? new Date(p.payment_date).toLocaleDateString('es-MX') : 'Sin fecha'}
-                                                        {p.notes ? ` — ${p.notes}` : ''}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* 4. Formulario para agregar un abono */}
-                            <div className="space-y-3">
-                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                    <Plus size={14}/> Agregar abono
-                                </h3>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                    <div className="space-y-1">
-                                        <label className="text-[11px] font-bold text-emerald-600 uppercase">Monto MXN</label>
-                                        <div className="relative">
-                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none font-black text-emerald-600">$</div>
-                                            <input
-                                                type="text"
-                                                className="w-full pl-7 pr-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-black text-emerald-700"
-                                                value={displayAbono}
-                                                onChange={(e) => handleCurrencyTyping(e, setMontoAbono, setDisplayAbono)}
-                                                placeholder="0.00"
-                                            />
-                                        </div>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[11px] font-bold text-slate-500 uppercase">Fecha del abono</label>
-                                        <input
-                                            type="date"
-                                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-bold"
-                                            value={fechaAbono}
-                                            onChange={(e) => setFechaAbono(e.target.value)}
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[11px] font-bold text-slate-500 uppercase">Concepto</label>
-                                        <input
-                                            type="text"
-                                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-bold"
-                                            placeholder="Ej. Transferencia BBVA"
-                                            value={conceptoAbono}
-                                            onChange={(e) => setConceptoAbono(e.target.value)}
-                                        />
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={handleRegisterInstallment}
-                                    disabled={isLoading || montoAbono <= 0 || faltante <= 0}
-                                    className="px-4 py-2 text-sm font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors shadow-sm disabled:opacity-50"
-                                >
-                                    {isLoading ? 'Registrando...' : 'Registrar abono'}
+                                    {isLoading ? 'Emitiendo...' : 'Emitir factura de anticipo'}
                                 </button>
                             </div>
                         </div>
