@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, FileText, CheckSquare, DollarSign, Calculator, AlertTriangle } from 'lucide-react';
-import { SalesOrder, PaymentPayload, SalesOrderStatus } from '../../../types/sales';
+import { X, FileText, CheckSquare, DollarSign, Calculator, AlertTriangle, CheckCircle, Plus } from 'lucide-react';
+import { SalesOrder, PaymentPayload } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
 
 interface ReceivableChargeModalProps {
@@ -24,16 +24,44 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
     const [selectedInstances, setSelectedInstances] = useState<number[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
+    // --- Estado modo anticipo (Opción 1: abonos parciales) ---
+    const [importeFactura, setImporteFactura] = useState<number>(0);
+    const [displayImporte, setDisplayImporte] = useState<string>('');
+    const [montoAbono, setMontoAbono] = useState<number>(0);
+    const [displayAbono, setDisplayAbono] = useState<string>('');
+    const [fechaAbono, setFechaAbono] = useState<string>('');
+    const [conceptoAbono, setConceptoAbono] = useState<string>('');
+
     const totalOrder = order.total_price || 0;
     const pct = order.advance_percent || 60;
+
+    // Objetivo del anticipo y estado de abonos ya cobrados
+    const sugerido = useMemo(() => totalOrder * (pct / 100), [totalOrder, pct]);
+    const objetivo = useMemo(
+        () => (order.advance_invoice_amount ?? sugerido),
+        [order.advance_invoice_amount, sugerido]
+    );
+    const abonos = useMemo(
+        () => (order.payments ?? []).filter(p => p.payment_type === 'ADVANCE' && p.status === 'PAID'),
+        [order.payments]
+    );
+    const pagado = useMemo(() => abonos.reduce((s, p) => s + (Number(p.amount) || 0), 0), [abonos]);
+    const faltante = useMemo(() => Math.max(objetivo - pagado, 0), [objetivo, pagado]);
 
     // ---> ESCOBA INVISIBLE: Limpiar la memoria al abrir <---
     useEffect(() => {
         if (isOpen) {
             setInvoiceFolio('');
             setSelectedInstances([]);
+            // Modo anticipo: prellenar el importe objetivo (guardado o sugerido) y limpiar el abono.
+            setImporteFactura(Number(objetivo.toFixed(2)));
+            setDisplayImporte(new Intl.NumberFormat('en-US').format(Number(objetivo.toFixed(2))));
+            setMontoAbono(0);
+            setDisplayAbono('');
+            setFechaAbono('');
+            setConceptoAbono('');
         }
-    }, [isOpen]);
+    }, [isOpen, objetivo]);
 
     const formatCurrency = (value: number) => {
         return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value);
@@ -140,7 +168,9 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
     };
 
     const handleSubmit = async () => {
-        if (!isAdvance && selectedInstances.length === 0) {
+        // handleSubmit ahora es SOLO para modo avance/instancias. El modo anticipo usa sus
+        // propias acciones (guardar importe objetivo / registrar abono).
+        if (selectedInstances.length === 0) {
             alert("Debes seleccionar al menos un producto para facturar el avance.");
             return;
         }
@@ -154,23 +184,65 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
                 instance_ids: selectedInstances
             };
 
-            if (isAdvance) {
-                // 1. Guardamos el dinero
-                await salesService.registerAdvancePayment(order.id!, payload);
-                
-                // 2. CANDADO: Empujamos la OV al siguiente estatus para que ya no pida anticipo
-                await salesService.updateOrder(order.id!, { 
-                    status: SalesOrderStatus.IN_PRODUCTION 
-                });
-            } else {
-                await salesService.registerProgressPayment(order.id!, payload);
-            }
-            
+            await salesService.registerProgressPayment(order.id!, payload);
+
             onSuccess();
             onClose();
         } catch (error: any) {
             console.error("Error al registrar el cobro:", error);
             alert(error.response?.data?.detail || "Hubo un error al registrar el cobro. Revisa la consola.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Modo anticipo: guardar el importe OBJETIVO de la factura de anticipo (mark_sold).
+    const handleSaveAdvanceTarget = async () => {
+        if (!importeFactura || importeFactura <= 0) {
+            alert("Captura un importe de anticipo mayor a cero.");
+            return;
+        }
+        setIsLoading(true);
+        try {
+            await salesService.registerAdvancePayment(order.id!, {
+                invoice_folio: invoiceFolio.trim() === '' ? null : invoiceFolio.trim(),
+                amount: Number(importeFactura),
+                amortized_advance: 0,
+                instance_ids: [],
+            });
+            onSuccess();
+        } catch (error: any) {
+            console.error("Error al guardar el importe del anticipo:", error);
+            alert(error.response?.data?.detail || "No se pudo guardar el importe del anticipo.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Modo anticipo: registrar un abono parcial (nace PAID).
+    const handleRegisterInstallment = async () => {
+        if (!montoAbono || montoAbono <= 0) {
+            alert("El monto del abono debe ser mayor a cero.");
+            return;
+        }
+        setIsLoading(true);
+        try {
+            await salesService.registerAdvanceInstallment(order.id!, {
+                invoice_folio: invoiceFolio.trim() === '' ? null : invoiceFolio.trim(),
+                amount: Number(montoAbono),
+                amortized_advance: 0,
+                instance_ids: [],
+                payment_date: fechaAbono || null,
+                notes: conceptoAbono.trim() === '' ? null : conceptoAbono.trim(),
+            });
+            onSuccess();
+            setMontoAbono(0);
+            setDisplayAbono('');
+            setFechaAbono('');
+            setConceptoAbono('');
+        } catch (error: any) {
+            console.error("Error al registrar el abono:", error);
+            alert(error.response?.data?.detail || "No se pudo registrar el abono.");
         } finally {
             setIsLoading(false);
         }
@@ -228,9 +300,146 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
                         </div>
                     )}
 
+                    {isAdvance && (
+                        <div className="space-y-5">
+                            {/* 1. Importe objetivo de la factura de anticipo */}
+                            <div className="space-y-3">
+                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                    <DollarSign size={14}/> 1. Importe de la Factura de Anticipo
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-[11px] font-bold text-slate-500 uppercase">Folio de Factura (Opcional)</label>
+                                        <div className="relative">
+                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <FileText size={16} className="text-slate-400" />
+                                            </div>
+                                            <input
+                                                type="text"
+                                                className="w-full pl-10 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-bold"
+                                                placeholder="Ej. F-023"
+                                                value={invoiceFolio}
+                                                onChange={(e) => setInvoiceFolio(e.target.value.toUpperCase())}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[11px] font-bold text-indigo-600 uppercase">Importe del Anticipo MXN</label>
+                                        <div className="relative">
+                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none font-black text-indigo-600">$</div>
+                                            <input
+                                                type="text"
+                                                className="w-full pl-7 pr-3 py-2 bg-indigo-50 border border-indigo-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-black text-indigo-700"
+                                                value={displayImporte}
+                                                onChange={(e) => handleCurrencyTyping(e, setImporteFactura, setDisplayImporte)}
+                                                placeholder="0.00"
+                                            />
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                                            <Calculator size={10}/> Sugerido por cotización: {formatCurrency(sugerido)} ({pct}%)
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={handleSaveAdvanceTarget}
+                                    disabled={isLoading || importeFactura <= 0}
+                                    className="px-4 py-2 text-sm font-black text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                                >
+                                    {isLoading ? 'Guardando...' : 'Guardar importe del anticipo'}
+                                </button>
+                            </div>
+
+                            {/* 2. Resumen del avance del anticipo */}
+                            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 flex items-center justify-between">
+                                <div className="text-sm">
+                                    <p className="font-bold text-slate-700">
+                                        Pagado: <span className="text-emerald-600">{formatCurrency(pagado)}</span> de {formatCurrency(objetivo)}
+                                    </p>
+                                    <p className="text-xs text-slate-500 mt-0.5">Falta: <span className="font-bold text-amber-600">{formatCurrency(faltante)}</span></p>
+                                </div>
+                                {faltante <= 0 && (
+                                    <span className="inline-flex items-center gap-1 text-emerald-700 text-xs font-black bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg">
+                                        <CheckCircle size={14}/> ANTICIPO COMPLETO
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* 3. Lista de abonos ya registrados */}
+                            <div className="space-y-2">
+                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Abonos registrados</h3>
+                                <div className="bg-white border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-40 overflow-y-auto">
+                                    {abonos.length === 0 ? (
+                                        <p className="p-3 text-sm text-slate-500 text-center italic">Sin abonos registrados</p>
+                                    ) : (
+                                        abonos.map((p) => (
+                                            <div key={p.id} className="flex items-center justify-between p-3 text-sm">
+                                                <div>
+                                                    <p className="font-bold text-slate-700">{formatCurrency(Number(p.amount) || 0)}</p>
+                                                    <p className="text-[11px] text-slate-500">
+                                                        {p.payment_date ? new Date(p.payment_date).toLocaleDateString('es-MX') : 'Sin fecha'}
+                                                        {p.notes ? ` — ${p.notes}` : ''}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* 4. Formulario para agregar un abono */}
+                            <div className="space-y-3">
+                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                    <Plus size={14}/> Agregar abono
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <div className="space-y-1">
+                                        <label className="text-[11px] font-bold text-emerald-600 uppercase">Monto MXN</label>
+                                        <div className="relative">
+                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none font-black text-emerald-600">$</div>
+                                            <input
+                                                type="text"
+                                                className="w-full pl-7 pr-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-black text-emerald-700"
+                                                value={displayAbono}
+                                                onChange={(e) => handleCurrencyTyping(e, setMontoAbono, setDisplayAbono)}
+                                                placeholder="0.00"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[11px] font-bold text-slate-500 uppercase">Fecha del abono</label>
+                                        <input
+                                            type="date"
+                                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-bold"
+                                            value={fechaAbono}
+                                            onChange={(e) => setFechaAbono(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[11px] font-bold text-slate-500 uppercase">Concepto</label>
+                                        <input
+                                            type="text"
+                                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-bold"
+                                            placeholder="Ej. Transferencia BBVA"
+                                            value={conceptoAbono}
+                                            onChange={(e) => setConceptoAbono(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={handleRegisterInstallment}
+                                    disabled={isLoading || montoAbono <= 0 || faltante <= 0}
+                                    className="px-4 py-2 text-sm font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                                >
+                                    {isLoading ? 'Registrando...' : 'Registrar abono'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {!isAdvance && (
                     <div className="space-y-4">
                         <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <DollarSign size={14}/> {isAdvance ? '1. Datos del Cobro' : '2. Configuración Financiera'}
+                            <DollarSign size={14}/> 2. Configuración Financiera
                         </h3>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -287,13 +496,18 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
                             )}
                         </div>
                     </div>
+                    )}
                 </div>
 
                 <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
-                    <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-lg transition-colors">Cancelar</button>
+                    <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-lg transition-colors">
+                        {isAdvance ? 'Cerrar' : 'Cancelar'}
+                    </button>
+                    {!isAdvance && (
                     <button onClick={handleSubmit} disabled={isLoading} className="px-6 py-2 text-sm font-black text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm disabled:opacity-50">
                         {isLoading ? 'Procesando...' : 'Registrar en Sistema'}
                     </button>
+                    )}
                 </div>
             </div>
         </div>

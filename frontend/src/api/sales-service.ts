@@ -221,8 +221,14 @@ export const salesService = {
      * (WAITING_ADVANCE -> SOLD)
      */
     registerAdvancePayment: async (orderId: number, payload: PaymentPayload) => {
-        // Usamos el mismo endpoint pero ahora le enviamos el payload con la factura y el importe
+        // mark_sold: define el importe OBJETIVO del anticipo (advance_invoice_amount). Ya no crea pagos.
         const response = await axiosClient.post(`/sales/orders/${orderId}/mark_sold`, payload);
+        return response.data;
+    },
+
+    registerAdvanceInstallment: async (orderId: number, payload: PaymentPayload) => {
+        // Registra un abono parcial del anticipo (nace PAID). Acumula contra advance_invoice_amount.
+        const response = await axiosClient.post(`/sales/orders/${orderId}/advance_payments`, payload);
         return response.data;
     },
 

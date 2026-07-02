@@ -67,6 +67,10 @@ export interface SalesOrder {
     // --- NUEVOS CAMPOS V3.5: REGLAS DE ANTICIPO ---
     advance_percent?: number;
     has_advance_invoice?: boolean;
+    /** Importe objetivo de la factura de anticipo (contra el que se acumulan los abonos) */
+    advance_invoice_amount?: number | null;
+    /** Historial de pagos/CxC de la OV (poblado por el detalle) */
+    payments?: CustomerPayment[];
     
     // Totales (Calculados por Backend)
     subtotal?: number;
@@ -113,6 +117,8 @@ export interface CustomerPayment {
     created_at: string;
     /** Legacy UI; verdad de nómina en SalesCommission.is_paid */
     commission_paid?: boolean;
+    notes?: string | null;
+    reference?: string | null;
 }
 
 // El paquete (payload) que React le enviará a FastAPI
@@ -121,6 +127,9 @@ export interface PaymentPayload {
     amount: number;
     amortized_advance: number;
     instance_ids: number[];
+    payment_date?: string | null;
+    notes?: string | null;
+    reference?: string | null;
 }
 
 export interface PayrollCommissionRow {
