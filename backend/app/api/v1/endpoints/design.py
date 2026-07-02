@@ -971,3 +971,37 @@ def generate_stone_manifest(
             "Content-Disposition": f"attachment; filename={filename}"
         },
     )
+
+
+# TEMPORAL: recalcula material_cost para TODAS las versiones (mismo criterio que design.py).
+# Dispararlo una vez en producción tras el deploy; remover en un deploy posterior.
+@router.post("/recalc-material-cost")
+def recalc_material_cost_endpoint(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user)
+):
+    import math
+    from app.models.material import Material, ProductionRoute
+    versions = session.exec(select(ProductVersion)).all()
+    updated = 0
+    for v in versions:
+        comps = session.exec(
+            select(VersionComponent).where(VersionComponent.version_id == v.id)
+        ).all()
+        total_material = 0.0
+        for c in comps:
+            mat = session.get(Material, c.material_id)
+            if not mat:
+                continue
+            factor = mat.conversion_factor if mat.conversion_factor and mat.conversion_factor > 0 else 1.0
+            unit_cost = mat.current_cost / factor
+            line = math.ceil((c.quantity * unit_cost) * 100) / 100
+            if mat.production_route == ProductionRoute.MATERIAL:
+                total_material += line
+        nuevo = round(total_material, 2)
+        if abs((v.material_cost or 0) - nuevo) > 0.001:
+            v.material_cost = nuevo
+            session.add(v)
+            updated += 1
+    session.commit()
+    return {"message": "Recálculo completado.", "updated": updated, "total_versions": len(versions)}
