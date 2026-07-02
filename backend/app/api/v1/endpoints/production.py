@@ -4,7 +4,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from typing import List, Optional
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from sqlmodel import Session, select
 
 # Asumiendo que tu dependencia de base de datos está en app.api.deps o app.db.session
@@ -271,17 +271,28 @@ def read_batches(current_user: CurrentUser, db: Session = Depends(get_session)):
             # de tipo ADVANCE con status PAID. Si alguna OV no tiene anticipo pagado,
             # el lote completo queda bloqueado.
             for order_id in order_ids_in_batch:
-                advance_paid = db.exec(
-                    select(CustomerPayment)
-                    .where(
+                ov = db.get(SalesOrder, order_id)
+                objetivo = float(getattr(ov, 'advance_invoice_amount', None) or 0.0) if ov else 0.0
+
+                pagado = db.exec(
+                    select(func.coalesce(func.sum(CustomerPayment.amount), 0.0)).where(
                         CustomerPayment.sales_order_id == order_id,
                         CustomerPayment.payment_type == "ADVANCE",
                         CustomerPayment.status == "PAID",
                     )
-                ).first()
-                if not advance_paid:
-                    is_payment_cleared = False
-                    break
+                ).one()
+                pagado = float(pagado or 0.0)
+
+                # Compatibilidad hacia atrás: OVs viejas sin advance_invoice_amount (NULL/0) usan la
+                # regla anterior (basta un ADVANCE PAID), para no romper lotes ya en curso.
+                if objetivo <= 0:
+                    if pagado <= 0:
+                        is_payment_cleared = False
+                        break
+                else:
+                    if pagado + 0.01 < objetivo:
+                        is_payment_cleared = False
+                        break
         
         # 3. Construir el objeto de respuesta
         batch_data = batch.model_dump()
