@@ -1093,6 +1093,53 @@ def register_progress_invoice(
         "instances_linked": linked,
     }
 
+@router.post("/orders/{order_id}/emit_advance_invoice", response_model=dict)
+def emit_advance_invoice(order_id: int, payload: PaymentPayload,
+                         session: Session = Depends(get_session),
+                         current_user: User = Depends(get_current_active_user)):
+    order = session.get(SalesOrder, order_id)
+    if not order:
+        raise HTTPException(404, "Orden de venta no encontrada.")
+
+    monto = float(payload.amount or 0.0)
+    if monto <= 0:
+        raise HTTPException(422, "El monto de la factura de anticipo debe ser mayor a cero.")
+
+    if not payload.invoice_folio:
+        raise HTTPException(422, "El folio de la factura de anticipo es obligatorio.")
+
+    # Evitar duplicar la factura de anticipo: si ya existe una ADVANCE no cancelada para esta OV, error.
+    existente = session.exec(
+        select(CustomerPayment).where(
+            CustomerPayment.sales_order_id == order.id,
+            CustomerPayment.payment_type == PaymentType.ADVANCE,
+            CustomerPayment.status != CXCStatus.CANCELLED
+        )
+    ).first()
+    if existente:
+        raise HTTPException(409, "Ya existe una factura de anticipo para esta orden.")
+
+    new_cxc = CustomerPayment(
+        sales_order_id=order.id,
+        payment_type=PaymentType.ADVANCE,
+        invoice_folio=payload.invoice_folio,
+        amount=monto,
+        status=CXCStatus.PENDING,
+        created_by_user_id=current_user.id,
+    )
+    session.add(new_cxc)
+    session.commit()
+    session.refresh(new_cxc)
+
+    return {
+        "message": "Factura de anticipo emitida.",
+        "cxc_id": new_cxc.id,
+        "payment_type": new_cxc.payment_type,
+        "invoice_folio": new_cxc.invoice_folio,
+        "amount": new_cxc.amount,
+        "status": new_cxc.status,
+    }
+
 
 @router.get("/orders/pending-progress")
 def get_pending_progress_instances(
