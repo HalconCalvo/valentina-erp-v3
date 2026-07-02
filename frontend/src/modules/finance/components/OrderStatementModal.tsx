@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { X, Receipt, CheckCircle, Clock, FileText, DollarSign, Package, AlertCircle, PieChart, Users, Coins } from 'lucide-react';
+import { X, Receipt, CheckCircle, Clock, FileText, Package, AlertCircle, PieChart, Users, Coins } from 'lucide-react';
 import { SalesOrder } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
 
@@ -112,13 +112,10 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const [ocSaving, setOcSaving] = useState(false);
     const [cancelling, setCancelling] = useState(false);
 
-    // --- Opción X: panel de abonos parciales por factura ---
+    // --- Camino A: panel de solo-lectura de abonos por factura (los abonos nacen en Tesorería) ---
     const [expandedInvoiceId, setExpandedInvoiceId] = useState<number | null>(null);
-    const [abonoAmount, setAbonoAmount] = useState<number>(0);
-    const [abonoDate, setAbonoDate] = useState<string>('');
-    const [abonoNotes, setAbonoNotes] = useState<string>('');
-    const [abonoError, setAbonoError] = useState<string | null>(null);
-    const [abonoSaving, setAbonoSaving] = useState(false);
+    const [installmentsByInvoice, setInstallmentsByInvoice] = useState<Record<number, any>>({});
+    const [loadingInstallments, setLoadingInstallments] = useState<number | null>(null);
     /** Remount de inputs OC (defaultValue) tras guardado puntual sin refrescar listados. */
     const [ocEditorEpoch, setOcEditorEpoch] = useState(0);
     /** customer_payment_id → comisión (tabla sales_commissions) */
@@ -180,36 +177,20 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const expectedAdvance = totalOrder * (pct / 100);
     const isWaitingAdvance = order.status === 'WAITING_ADVANCE';
 
-    const resetAbonoForm = () => {
-        setAbonoAmount(0);
-        setAbonoDate('');
-        setAbonoNotes('');
-        setAbonoError(null);
-    };
-
-    const toggleInvoicePanel = (cxcId: number) => {
-        setExpandedInvoiceId((prev) => (prev === cxcId ? null : cxcId));
-        resetAbonoForm();
-    };
-
-    const handleRegisterAbono = async (cxcId: number) => {
-        if (abonoAmount <= 0) return;
-        setAbonoSaving(true);
-        setAbonoError(null);
-        try {
-            await salesService.registerInstallment(cxcId, {
-                amount: abonoAmount,
-                payment_date: abonoDate ? `${abonoDate}T12:00:00` : null,
-                notes: abonoNotes || null,
-            });
-            resetAbonoForm();
-            setExpandedInvoiceId(null);
-            await onSuccess();
-        } catch (err: any) {
-            const detail = err?.response?.data?.detail;
-            setAbonoError(typeof detail === 'string' ? detail : 'No se pudo registrar el abono.');
-        } finally {
-            setAbonoSaving(false);
+    const toggleInvoicePanel = async (cxcId: number) => {
+        const willExpand = expandedInvoiceId !== cxcId;
+        setExpandedInvoiceId(willExpand ? cxcId : null);
+        if (willExpand && installmentsByInvoice[cxcId] === undefined) {
+            setLoadingInstallments(cxcId);
+            try {
+                const data = await salesService.getInstallments(cxcId);
+                setInstallmentsByInvoice((prev) => ({ ...prev, [cxcId]: data }));
+            } catch (e) {
+                console.error(e);
+                setInstallmentsByInvoice((prev) => ({ ...prev, [cxcId]: null }));
+            } finally {
+                setLoadingInstallments(null);
+            }
         }
     };
 
@@ -443,7 +424,6 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                 : cxc.commission_paid === true;
                                             const isFacturaPagada = cxc.status === 'PAID';
                                             const isFacturaCancelada = cxc.status === 'CANCELLED';
-                                            const canAbonar = !isFacturaPagada && !isFacturaCancelada;
                                             const isExpanded = expandedInvoiceId === cxc.id;
                                             const daysOpen = daysOpenForCxc(cxc);
 
@@ -492,22 +472,18 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                             <span className="inline-flex items-center gap-1 text-slate-500 text-xs font-bold bg-slate-50 px-2 py-1 rounded border border-slate-200">
                                                                 CANCELADA
                                                             </span>
-                                                        ) : !readOnly ? (
+                                                        ) : (
                                                             <button
                                                                 type="button"
                                                                 onClick={() => toggleInvoicePanel(cxc.id)}
                                                                 className={`inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors shadow-sm ${
                                                                     isExpanded
                                                                         ? 'bg-slate-600 hover:bg-slate-700 text-white'
-                                                                        : 'bg-amber-500 hover:bg-amber-600 text-white'
+                                                                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
                                                                 }`}
                                                             >
-                                                                <DollarSign size={14} /> {isExpanded ? 'Cerrar' : 'Registrar Abono'}
+                                                                <Receipt size={14} /> {isExpanded ? 'Cerrar' : 'Ver abonos'}
                                                             </button>
-                                                        ) : (
-                                                            <span className="inline-flex items-center gap-1 text-amber-600 text-xs font-bold bg-amber-50 px-2 py-1 rounded border border-amber-100">
-                                                                <Clock size={14} /> PENDIENTE
-                                                            </span>
                                                         )}
                                                     </td>
                                                     <td className="p-3 text-right">
@@ -543,81 +519,71 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                     </td>
                                                 </tr>
 
-                                                {canAbonar && !readOnly && isExpanded && (
-                                                    <tr className="bg-amber-50/60">
+                                                {isExpanded && (
+                                                    <tr className="bg-slate-50/70">
                                                         <td colSpan={7} className="p-4">
-                                                            <div className="rounded-xl border border-amber-200 bg-white p-4 space-y-3 shadow-sm">
-                                                                <div className="flex items-center justify-between gap-2">
-                                                                    <p className="text-xs font-black text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
-                                                                        <DollarSign size={14} /> Abonos de la factura {cxc.invoice_folio || 'S/F'}
+                                                            <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 shadow-sm">
+                                                                {loadingInstallments === cxc.id ? (
+                                                                    <p className="text-xs text-slate-500 italic flex items-center gap-2">
+                                                                        <Clock size={14} className="text-slate-400" /> Cargando abonos…
                                                                     </p>
-                                                                    <span className="text-[11px] font-bold text-slate-500">
-                                                                        Importe factura: <strong className="text-slate-800">{formatCurrency(Number(cxc.amount))}</strong>
-                                                                    </span>
-                                                                </div>
+                                                                ) : (() => {
+                                                                    const data = installmentsByInvoice[cxc.id];
+                                                                    if (!data) {
+                                                                        return (
+                                                                            <p className="text-xs text-slate-500 italic flex items-center gap-2">
+                                                                                <AlertCircle size={14} className="text-slate-400" /> No se pudieron cargar los abonos.
+                                                                            </p>
+                                                                        );
+                                                                    }
+                                                                    const abonos: any[] = Array.isArray(data.abonos) ? data.abonos : [];
+                                                                    const montoFactura = Number(data.monto_factura ?? cxc.amount ?? 0);
+                                                                    const totalAbonado = Number(data.total_abonado ?? 0);
+                                                                    const saldo = Number(data.saldo ?? Math.max(montoFactura - totalAbonado, 0));
+                                                                    return (
+                                                                        <>
+                                                                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                                                                <p className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                                                                    <Receipt size={14} className="text-slate-400" /> Abonos de la factura {data.invoice_folio || cxc.invoice_folio || 'S/F'}
+                                                                                </p>
+                                                                                <span className="text-[11px] font-bold text-slate-600">
+                                                                                    Abonado <strong className="text-emerald-700">{formatCurrency(totalAbonado)}</strong> de <strong className="text-slate-800">{formatCurrency(montoFactura)}</strong> — Saldo <strong className="text-amber-700">{formatCurrency(saldo)}</strong>
+                                                                                </span>
+                                                                            </div>
 
-                                                                <p className="text-[11px] text-slate-500 italic">
-                                                                    El backend acumula los abonos y marca la factura como PAGADA al saldarla.
-                                                                </p>
-
-                                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                                                    <div>
-                                                                        <label className="text-[10px] font-bold text-slate-500 uppercase">Monto</label>
-                                                                        <input
-                                                                            type="number"
-                                                                            min={0}
-                                                                            step="0.01"
-                                                                            value={abonoAmount || ''}
-                                                                            onChange={(e) => setAbonoAmount(Number(e.target.value))}
-                                                                            className="w-full mt-1 border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white"
-                                                                            placeholder="0.00"
-                                                                        />
-                                                                    </div>
-                                                                    <div>
-                                                                        <label className="text-[10px] font-bold text-slate-500 uppercase">Fecha</label>
-                                                                        <input
-                                                                            type="date"
-                                                                            value={abonoDate}
-                                                                            onChange={(e) => setAbonoDate(e.target.value)}
-                                                                            className="w-full mt-1 border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white"
-                                                                        />
-                                                                    </div>
-                                                                    <div>
-                                                                        <label className="text-[10px] font-bold text-slate-500 uppercase">Concepto</label>
-                                                                        <input
-                                                                            type="text"
-                                                                            value={abonoNotes}
-                                                                            onChange={(e) => setAbonoNotes(e.target.value)}
-                                                                            className="w-full mt-1 border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white"
-                                                                            placeholder="Referencia / nota"
-                                                                        />
-                                                                    </div>
-                                                                </div>
-
-                                                                {abonoError && (
-                                                                    <div className="flex items-center gap-2 text-xs font-bold text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                                                                        <AlertCircle size={14} /> {abonoError}
-                                                                    </div>
-                                                                )}
-
-                                                                <div className="flex justify-end gap-2">
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => toggleInvoicePanel(cxc.id)}
-                                                                        disabled={abonoSaving}
-                                                                        className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-                                                                    >
-                                                                        Cancelar
-                                                                    </button>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => handleRegisterAbono(cxc.id)}
-                                                                        disabled={abonoSaving || abonoAmount <= 0}
-                                                                        className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-1.5 rounded-lg transition-colors shadow-sm disabled:opacity-50"
-                                                                    >
-                                                                        <DollarSign size={14} /> {abonoSaving ? 'Registrando…' : 'Registrar Abono'}
-                                                                    </button>
-                                                                </div>
+                                                                            {abonos.length === 0 ? (
+                                                                                <p className="text-[11px] text-slate-500 italic">
+                                                                                    Sin abonos registrados. Los abonos se registran desde Tesorería al conciliar el ingreso.
+                                                                                </p>
+                                                                            ) : (
+                                                                                <div className="overflow-x-auto">
+                                                                                    <table className="w-full text-xs border-collapse">
+                                                                                        <thead>
+                                                                                            <tr className="text-[10px] uppercase tracking-wider text-slate-400 font-bold border-b border-slate-100">
+                                                                                                <th className="py-2 pr-3 text-left">Fecha</th>
+                                                                                                <th className="py-2 px-3 text-right">Monto</th>
+                                                                                                <th className="py-2 px-3 text-left">Concepto</th>
+                                                                                                <th className="py-2 pl-3 text-left">Referencia</th>
+                                                                                            </tr>
+                                                                                        </thead>
+                                                                                        <tbody className="divide-y divide-slate-50">
+                                                                                            {abonos.map((ab: any) => (
+                                                                                                <tr key={ab.id}>
+                                                                                                    <td className="py-2 pr-3 text-slate-600 whitespace-nowrap">
+                                                                                                        {ab.payment_date ? formatDate(ab.payment_date) : '—'}
+                                                                                                    </td>
+                                                                                                    <td className="py-2 px-3 text-right font-bold text-slate-800">{formatCurrency(Number(ab.amount || 0))}</td>
+                                                                                                    <td className="py-2 px-3 text-slate-600">{ab.notes || '—'}</td>
+                                                                                                    <td className="py-2 pl-3 text-slate-500 font-mono">{ab.reference || '—'}</td>
+                                                                                                </tr>
+                                                                                            ))}
+                                                                                        </tbody>
+                                                                                    </table>
+                                                                                </div>
+                                                                            )}
+                                                                        </>
+                                                                    );
+                                                                })()}
                                                             </div>
                                                         </td>
                                                     </tr>
