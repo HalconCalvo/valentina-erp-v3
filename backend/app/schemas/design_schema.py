@@ -43,6 +43,7 @@ class ProductVersionBase(SQLModel):
     version_name: str
     status: VersionStatus = VersionStatus.DRAFT
     estimated_cost: float = 0.0
+    material_cost: float = 0.0
     is_active: bool = True
 
 class ProductVersionCreate(ProductVersionBase):
