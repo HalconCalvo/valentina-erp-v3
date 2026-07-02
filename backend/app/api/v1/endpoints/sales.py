@@ -1250,6 +1250,35 @@ def list_installments(cxc_id: int, session: Session = Depends(get_session),
     }
 
 
+@router.get("/invoices/pending-cxc", response_model=list)
+def list_pending_cxc(session: Session = Depends(get_session),
+                     current_user: User = Depends(get_current_active_user)):
+    rows = session.exec(
+        select(CustomerPayment).where(
+            CustomerPayment.status == CXCStatus.PENDING
+        ).order_by(CustomerPayment.id.desc())
+    ).all()
+    result = []
+    for cxc in rows:
+        order = session.get(SalesOrder, cxc.sales_order_id)
+        abonado = session.exec(
+            select(func.coalesce(func.sum(CustomerPaymentInstallment.amount), 0.0)).where(
+                CustomerPaymentInstallment.customer_payment_id == cxc.id
+            )
+        ).one()
+        abonado = float(abonado or 0.0)
+        result.append({
+            "cxc_id": cxc.id,
+            "invoice_folio": cxc.invoice_folio,
+            "payment_type": cxc.payment_type,
+            "monto_factura": cxc.amount,
+            "saldo": max(float(cxc.amount or 0.0) - abonado, 0.0),
+            "project_name": order.project_name if order else None,
+            "sales_order_id": cxc.sales_order_id,
+        })
+    return result
+
+
 @router.get("/orders/pending-progress")
 def get_pending_progress_instances(
     session: Session = Depends(get_session),

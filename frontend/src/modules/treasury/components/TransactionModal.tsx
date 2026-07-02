@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { X } from 'lucide-react';
 import { BankAccount, BankTransactionCreate } from '../../../types/treasury';
 import { treasuryService } from '../../../api/treasury-service';
+import { salesService } from '../../../api/sales-service';
 
 interface Props {
   isOpen: boolean;
@@ -20,6 +21,10 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
   // 👇 Estado local para mostrar el texto bonito con comas
   const [displayAmount, setDisplayAmount] = useState('');
 
+  // Camino A: facturas de CxC pendientes que un ingreso puede afectar (opcional)
+  const [pendingInvoices, setPendingInvoices] = useState<any[]>([]);
+  const [selectedCxcId, setSelectedCxcId] = useState<number | ''>('');
+
   // Reseteamos el formulario al abrir
   useEffect(() => {
     if (isOpen) {
@@ -31,6 +36,8 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
         reference: ''
       });
       setDisplayAmount(''); // Limpiamos la pantalla visual del importe
+      setSelectedCxcId('');
+      salesService.getPendingInvoices().then(setPendingInvoices).catch(() => setPendingInvoices([]));
     }
   }, [isOpen, selectedAccountId, initialType, reset]);
 
@@ -49,7 +56,12 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
 
   const onSubmit = async (data: BankTransactionCreate) => {
     try {
-      await treasuryService.createTransaction(data);
+      const finalData = { ...data };
+      if (data.transaction_type === 'IN' && selectedCxcId) {
+        finalData.related_entity_type = 'CUSTOMER_PAYMENT';
+        finalData.related_entity_id = Number(selectedCxcId);
+      }
+      await treasuryService.createTransaction(finalData);
       onSuccess(); 
       onClose(); 
     } catch (error) {
@@ -111,6 +123,24 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
                 <option value="">Selecciona una cuenta...</option>
                 {accounts?.map(acc => (
                   <option key={acc.id} value={acc.id}>{acc.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {watchType === 'IN' && (
+            <div className="mb-6 w-full md:w-2/3">
+              <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">¿Afecta una factura de cliente? (opcional)</label>
+              <select
+                value={selectedCxcId}
+                onChange={e => setSelectedCxcId(e.target.value ? Number(e.target.value) : '')}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              >
+                <option value="">— Ninguna (ingreso general) —</option>
+                {pendingInvoices.map(inv => (
+                  <option key={inv.cxc_id} value={inv.cxc_id}>
+                    {inv.project_name} — {inv.invoice_folio} — Saldo ${Number(inv.saldo || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })} ({inv.payment_type})
+                  </option>
                 ))}
               </select>
             </div>

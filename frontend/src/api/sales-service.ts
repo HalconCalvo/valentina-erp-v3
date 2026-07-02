@@ -268,6 +268,14 @@ export const salesService = {
     },
 
     /**
+     * Camino A: facturas de CxC pendientes (para el selector de Tesorería al registrar un ingreso).
+     */
+    getPendingInvoices: async () => {
+        const response = await axiosClient.get('/sales/invoices/pending-cxc');
+        return response.data;
+    },
+
+    /**
      * ADMINISTRACIÓN: Obtiene todas las instancias 🟢🟢 CERRADAS sin factura de avance.
      * Alimenta la bandeja "Avances por Facturar" en PendingToInvoicePage.
      */
