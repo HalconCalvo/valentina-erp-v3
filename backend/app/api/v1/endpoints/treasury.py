@@ -90,8 +90,85 @@ def create_transaction(
     session.add(account)
     session.commit()
     session.refresh(db_transaction)
+
+    # Camino A: si el ingreso afecta una factura de CxC, generar el abono correspondiente
+    if (transaction_in.transaction_type == TransactionType.IN
+            and transaction_in.related_entity_type == 'CUSTOMER_PAYMENT'
+            and transaction_in.related_entity_id):
+        _aplicar_abono_a_factura(
+            session=session,
+            cxc_id=transaction_in.related_entity_id,
+            monto=transaction_in.amount,
+            bank_tx=db_transaction,
+            current_user=current_user,
+        )
+        session.commit()
+        session.refresh(db_transaction)
+
     return db_transaction
-    
+
+
+def _aplicar_abono_a_factura(session, cxc_id, monto, bank_tx, current_user):
+    """Camino A: genera el abono (installment) contra la factura de CxC a partir de un
+    ingreso bancario real; acumula, salda la factura (PAID + comisión ADVANCE) y reduce
+    el saldo de la OV cuando corresponde. La fuente de verdad es el banco."""
+    from app.models.sales import (CustomerPayment, CustomerPaymentInstallment,
+                                   SalesOrder, PaymentType, CXCStatus, SalesOrderStatus)
+    from sqlalchemy import func
+    from datetime import datetime
+
+    cxc = session.get(CustomerPayment, cxc_id)
+    if not cxc:
+        raise HTTPException(404, "Factura de CxC no encontrada para el abono.")
+    if cxc.status == CXCStatus.CANCELLED:
+        raise HTTPException(409, "La factura está cancelada.")
+    if cxc.status == CXCStatus.PAID:
+        raise HTTPException(409, "La factura ya está saldada.")
+
+    order = session.get(SalesOrder, cxc.sales_order_id)
+
+    abonado_antes = session.exec(
+        select(func.coalesce(func.sum(CustomerPaymentInstallment.amount), 0.0)).where(
+            CustomerPaymentInstallment.customer_payment_id == cxc.id
+        )
+    ).one()
+    abonado_antes = float(abonado_antes or 0.0)
+
+    inst = CustomerPaymentInstallment(
+        customer_payment_id=cxc.id,
+        amount=float(monto),
+        payment_date=bank_tx.transaction_date or datetime.utcnow(),
+        reference=bank_tx.reference,
+        notes=bank_tx.description,
+        created_by_user_id=current_user.id if hasattr(current_user, 'id') else 0,
+    )
+    session.add(inst)
+
+    # Ligar la factura al movimiento bancario si aún no tiene uno (rastreabilidad)
+    if getattr(cxc, 'treasury_transaction_id', None) is None:
+        cxc.treasury_transaction_id = bank_tx.id
+
+    if order:
+        order.outstanding_balance = float(order.outstanding_balance or 0.0) - float(monto)
+
+    abonado_despues = abonado_antes + float(monto)
+    if abonado_despues + 0.01 >= float(cxc.amount or 0.0):
+        cxc.status = CXCStatus.PAID
+        cxc.payment_date = bank_tx.transaction_date or datetime.utcnow()
+        if cxc.payment_type == PaymentType.ADVANCE and not cxc.commission_paid and order:
+            session.flush()
+            from app.api.v1.endpoints.sales import _liberar_comision_anticipo
+            _liberar_comision_anticipo(session, order, cxc, float(cxc.amount or 0.0))
+            cxc.commission_paid = True
+            if order.status == SalesOrderStatus.WAITING_ADVANCE:
+                order.status = SalesOrderStatus.SOLD
+        session.add(cxc)
+
+    if order:
+        if order.outstanding_balance <= 0.1:
+            order.status = SalesOrderStatus.FINISHED
+        session.add(order)
+
 # ------------------------------------------------------------------
 # 3. TRANSFERENCIAS ENTRE CUENTAS
 # ------------------------------------------------------------------
