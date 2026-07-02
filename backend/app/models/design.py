@@ -44,6 +44,7 @@ class ProductVersion(SQLModel, table=True):
     # Control de Estado (Vital para el flujo)
     status: str = Field(default=VersionStatus.DRAFT) 
     estimated_cost: float = Field(default=0.0) # Suma caché de materiales
+    material_cost: float = Field(default=0.0)  # Costo solo de componentes MATERIAL (para IVA tasa cero)
 
     # Días de instalación presupuestados (base para nómina a destajo)
     installation_days: float = Field(default=1.0)
