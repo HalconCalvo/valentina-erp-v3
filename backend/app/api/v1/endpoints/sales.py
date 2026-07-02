@@ -749,6 +749,12 @@ def register_advance_payment(order_id: int, payload: PaymentPayload,
         _liberar_comision_anticipo(session, order, nuevo, objetivo)
         nuevo.commission_paid = True
 
+    # Opción 1: al completar el anticipo la OV pasa a SOLD (los abonos parciales la dejan en
+    # WAITING_ADVANCE). Se coloca ANTES del check de FINISHED para que, si además se salda todo
+    # el proyecto, FINISHED prevalezca.
+    if anticipo_completo:
+        order.status = SalesOrderStatus.SOLD
+
     if order.outstanding_balance <= 0.1:
         order.status = SalesOrderStatus.FINISHED
 
