@@ -267,32 +267,20 @@ def read_batches(current_user: CurrentUser, db: Session = Depends(get_session)):
                 if item:
                     order_ids_in_batch.add(item.sales_order_id)
 
-            # Para cada OV, verificar que exista al menos un CustomerPayment
-            # de tipo ADVANCE con status PAID. Si alguna OV no tiene anticipo pagado,
-            # el lote completo queda bloqueado.
+            # Opción X: el anticipo es UNA factura (CustomerPayment ADVANCE) que pasa a PAID
+            # cuando sus abonos la saldan (register_installment). El lote se libera solo si esa
+            # factura de anticipo está PAID. Si alguna OV no la tiene, el lote queda bloqueado.
             for order_id in order_ids_in_batch:
-                ov = db.get(SalesOrder, order_id)
-                objetivo = float(getattr(ov, 'advance_invoice_amount', None) or 0.0) if ov else 0.0
-
-                pagado = db.exec(
-                    select(func.coalesce(func.sum(CustomerPayment.amount), 0.0)).where(
+                advance_invoice_paid = db.exec(
+                    select(CustomerPayment).where(
                         CustomerPayment.sales_order_id == order_id,
                         CustomerPayment.payment_type == "ADVANCE",
                         CustomerPayment.status == "PAID",
                     )
-                ).one()
-                pagado = float(pagado or 0.0)
-
-                # Compatibilidad hacia atrás: OVs viejas sin advance_invoice_amount (NULL/0) usan la
-                # regla anterior (basta un ADVANCE PAID), para no romper lotes ya en curso.
-                if objetivo <= 0:
-                    if pagado <= 0:
-                        is_payment_cleared = False
-                        break
-                else:
-                    if pagado + 0.01 < objetivo:
-                        is_payment_cleared = False
-                        break
+                ).first()
+                if not advance_invoice_paid:
+                    is_payment_cleared = False
+                    break
         
         # 3. Construir el objeto de respuesta
         batch_data = batch.model_dump()
