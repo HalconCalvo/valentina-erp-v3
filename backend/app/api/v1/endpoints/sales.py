@@ -15,7 +15,7 @@ from app.core.deps import get_current_active_user
 from app.models.sales import (
     SalesOrder, SalesOrderItem, SalesOrderItemInstance, 
     SalesOrderStatus, InstanceStatus, CustomerPayment, PaymentType, PaymentMethod, CXCStatus,
-    SalesCommission, CommissionType
+    SalesCommission, CommissionType, CustomerPaymentInstallment
 )
 from app.models.design import ProductVersion
 from app.models.material import Material
@@ -1138,6 +1138,80 @@ def emit_advance_invoice(order_id: int, payload: PaymentPayload,
         "invoice_folio": new_cxc.invoice_folio,
         "amount": new_cxc.amount,
         "status": new_cxc.status,
+    }
+
+@router.post("/invoices/{cxc_id}/installments", response_model=dict)
+def register_installment(cxc_id: int, payload: PaymentPayload,
+                         session: Session = Depends(get_session),
+                         current_user: User = Depends(get_current_active_user)):
+    cxc = session.get(CustomerPayment, cxc_id)
+    if not cxc:
+        raise HTTPException(404, "Factura no encontrada.")
+    if cxc.status == CXCStatus.CANCELLED:
+        raise HTTPException(409, "La factura está cancelada.")
+    if cxc.status == CXCStatus.PAID:
+        raise HTTPException(409, "La factura ya está saldada.")
+
+    monto = float(payload.amount or 0.0)
+    if monto <= 0:
+        raise HTTPException(422, "El monto del abono debe ser mayor a cero.")
+
+    order = session.get(SalesOrder, cxc.sales_order_id)
+
+    # Suma de abonos previos de esta factura
+    abonado_antes = session.exec(
+        select(func.coalesce(func.sum(CustomerPaymentInstallment.amount), 0.0)).where(
+            CustomerPaymentInstallment.customer_payment_id == cxc.id
+        )
+    ).one()
+    abonado_antes = float(abonado_antes or 0.0)
+
+    # Registrar el abono
+    inst = CustomerPaymentInstallment(
+        customer_payment_id=cxc.id,
+        amount=monto,
+        payment_date=payload.payment_date or datetime.utcnow(),
+        reference=payload.reference,
+        notes=payload.notes,
+        created_by_user_id=current_user.id,
+    )
+    session.add(inst)
+
+    # Reducir saldo de la OV por el monto abonado
+    if order:
+        order.outstanding_balance = float(order.outstanding_balance or 0.0) - monto
+
+    abonado_despues = abonado_antes + monto
+    factura_saldada = abonado_despues + 0.01 >= float(cxc.amount or 0.0)
+
+    if factura_saldada and cxc.status != CXCStatus.PAID:
+        cxc.status = CXCStatus.PAID
+        cxc.payment_date = payload.payment_date or datetime.utcnow()
+        # Liberar comisión solo si es factura de ANTICIPO y no se ha liberado
+        if cxc.payment_type == PaymentType.ADVANCE and not cxc.commission_paid and order:
+            session.flush()
+            _liberar_comision_anticipo(session, order, cxc, float(cxc.amount or 0.0))
+            cxc.commission_paid = True
+            # Al completar el anticipo, la OV pasa a SOLD (si no está ya en un estado posterior)
+            if order.status == SalesOrderStatus.WAITING_ADVANCE:
+                order.status = SalesOrderStatus.SOLD
+        session.add(cxc)
+
+    if order:
+        if order.outstanding_balance <= 0.1:
+            order.status = SalesOrderStatus.FINISHED
+        session.add(order)
+
+    session.commit()
+    session.refresh(cxc)
+
+    return {
+        "message": "Abono registrado.",
+        "cxc_id": cxc.id,
+        "abonado_total": abonado_despues,
+        "factura_amount": cxc.amount,
+        "factura_status": cxc.status,
+        "saldada": factura_saldada,
     }
 
 
