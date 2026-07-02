@@ -219,11 +219,26 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
     const isHistorical = readOnly || isSalesStatusLocked;
     const isAdvanceLocked = hasAdvanceInvoice || isFormLocked;
 
+    // IVA tasa cero: absorbe el IVA de los materiales subiendo SOLO su costo para el precio.
+    // El frozen_cost SIEMPRE queda sin IVA (= estimated_cost) para el semáforo.
+    const calcCostoParaPrecio = (estimatedCost: number, materialCost: number, taxRate: number) => {
+        if (taxRate === 0) {
+            const mat = Number(materialCost) || 0;
+            const est = Number(estimatedCost) || 0;
+            const noMat = Math.max(est - mat, 0);
+            return (mat * (1 + 0.16)) + noMat;
+        }
+        return Number(estimatedCost) || 0;
+    };
+
     const handleVersionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const selectedVersionId = Number(e.target.value);
         const master = masters.find(m => m.id === lineItem.master_id);
         const version = master?.versions?.find((v: any) => v.id === selectedVersionId);
-        const cost = version ? Number(version.total_cost || version.cost || version.estimated_cost || 0) : 0;
+        const estimatedCost = version ? Number(version.estimated_cost ?? version.total_cost ?? version.cost ?? 0) : 0;
+        const materialCost = version ? Number(version.material_cost ?? 0) : 0;
+        const taxRate = selectedTaxRate ? Number(selectedTaxRate.rate) : 0;
+        const costoParaPrecio = calcCostoParaPrecio(estimatedCost, materialCost, taxRate);
         const margin = Number(header.applied_margin_percent) || 0;
         const commission = Number(commissionRate) || 0;
         let marginMultiplier = 1;
@@ -231,8 +246,9 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
         else marginMultiplier = 1 + (margin / 100);
         // Comisión siempre viene como decimal (0.05 = 5%)
         const commissionMultiplier = 1 + commission;
-        const salesPrice = cost * marginMultiplier * commissionMultiplier;
-        setLineItem({...lineItem, version_id: selectedVersionId, unit_price: Number(salesPrice.toFixed(2)), frozen_cost: cost});
+        const salesPrice = costoParaPrecio * marginMultiplier * commissionMultiplier;
+        // frozen_cost SIEMPRE el costo real sin IVA (para el semáforo)
+        setLineItem({...lineItem, version_id: selectedVersionId, unit_price: Number(salesPrice.toFixed(2)), frozen_cost: estimatedCost});
     };
 
     const handleClientChange = (e: React.ChangeEvent<HTMLSelectElement>) => { setHeader({...header, client_id: Number(e.target.value)}); setSelectedCategory(''); setLineItem({...lineItem, master_id: 0, version_id: 0, unit_price: 0, frozen_cost: 0}); setEditingIndex(null); };
@@ -278,6 +294,13 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
     };
 
     const handleRecalculatePrices = () => {
+        // En tasa cero el precio incorpora el IVA de materiales, dato que las partidas ya
+        // guardadas no tienen desglosado (solo frozen_unit_cost sin IVA). Recalcular desde ahí
+        // borraría ese ajuste, así que no aplicamos el recálculo masivo.
+        if (selectedTaxRate && Number(selectedTaxRate.rate) === 0) {
+            alert("En cotizaciones con IVA tasa cero, vuelve a seleccionar la versión del producto para recalcular su precio con el IVA de materiales. El recálculo masivo no aplica aquí.");
+            return;
+        }
         if(!confirm(`¿Estás seguro de recalcular TODOS los precios usando un margen del ${header.applied_margin_percent}% y comisión del ${(commissionRate * 100).toFixed(1)}%? Esto sobrescribirá precios manuales.`)) return;
         const rawMargin = Number(header.applied_margin_percent) || 0;
         const commission = Number(commissionRate) || 0;
