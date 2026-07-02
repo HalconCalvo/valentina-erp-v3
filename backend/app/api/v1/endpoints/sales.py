@@ -1215,6 +1215,41 @@ def register_installment(cxc_id: int, payload: PaymentPayload,
     }
 
 
+@router.get("/invoices/{cxc_id}/installments", response_model=dict)
+def list_installments(cxc_id: int, session: Session = Depends(get_session),
+                      current_user: User = Depends(get_current_active_user)):
+    cxc = session.get(CustomerPayment, cxc_id)
+    if not cxc:
+        raise HTTPException(404, "Factura no encontrada.")
+
+    rows = session.exec(
+        select(CustomerPaymentInstallment)
+        .where(CustomerPaymentInstallment.customer_payment_id == cxc_id)
+        .order_by(CustomerPaymentInstallment.payment_date)
+    ).all()
+
+    abonos = [{
+        "id": r.id,
+        "amount": r.amount,
+        "payment_date": r.payment_date.isoformat() if r.payment_date else None,
+        "reference": r.reference,
+        "notes": r.notes,
+    } for r in rows]
+
+    total_abonado = sum(float(r.amount or 0.0) for r in rows)
+    monto_factura = float(cxc.amount or 0.0)
+
+    return {
+        "cxc_id": cxc.id,
+        "invoice_folio": cxc.invoice_folio,
+        "monto_factura": monto_factura,
+        "total_abonado": total_abonado,
+        "saldo": max(monto_factura - total_abonado, 0.0),
+        "status": cxc.status,
+        "abonos": abonos,
+    }
+
+
 @router.get("/orders/pending-progress")
 def get_pending_progress_instances(
     session: Session = Depends(get_session),
