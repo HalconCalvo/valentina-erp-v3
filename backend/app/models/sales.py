@@ -116,7 +116,21 @@ class CustomerPayment(SQLModel, table=True):
     
     order: Optional["SalesOrder"] = Relationship(back_populates="payments")
     instances_paid: List["SalesOrderItemInstance"] = Relationship(back_populates="payment")
-    
+
+
+class CustomerPaymentInstallment(SQLModel, table=True):
+    __tablename__ = "customer_payment_installments"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    customer_payment_id: int = Field(foreign_key="customer_payments.id", index=True)
+    amount: float
+    payment_date: datetime = Field(default_factory=datetime.utcnow)
+    payment_method: PaymentMethod = Field(default=PaymentMethod.TRANSFER)
+    reference: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_by_user_id: int
+
 # ==========================================
 # 3. MODELO DE INSTANCIAS (NIVEL 3 - EL ÁTOMO)
 # ==========================================
