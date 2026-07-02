@@ -132,11 +132,13 @@ def _aplicar_abono_a_factura(session, cxc_id, monto, bank_tx, current_user):
             CustomerPaymentInstallment.customer_payment_id == cxc.id
         )
     ).one()
-    abonado_antes = float(abonado_antes or 0.0)
+    abonado_antes = round(float(abonado_antes or 0.0), 2)
+
+    monto_r = round(float(monto), 2)
 
     inst = CustomerPaymentInstallment(
         customer_payment_id=cxc.id,
-        amount=float(monto),
+        amount=monto_r,
         payment_date=bank_tx.transaction_date or datetime.utcnow(),
         reference=bank_tx.reference,
         notes=bank_tx.description,
@@ -149,10 +151,10 @@ def _aplicar_abono_a_factura(session, cxc_id, monto, bank_tx, current_user):
         cxc.treasury_transaction_id = bank_tx.id
 
     if order:
-        order.outstanding_balance = float(order.outstanding_balance or 0.0) - float(monto)
+        order.outstanding_balance = round(float(order.outstanding_balance or 0.0) - monto_r, 2)
 
-    abonado_despues = abonado_antes + float(monto)
-    if abonado_despues + 0.01 >= float(cxc.amount or 0.0):
+    abonado_despues = round(abonado_antes + monto_r, 2)
+    if abonado_despues + 0.01 >= round(float(cxc.amount or 0.0), 2):
         cxc.status = CXCStatus.PAID
         cxc.payment_date = bank_tx.transaction_date or datetime.utcnow()
         if cxc.payment_type == PaymentType.ADVANCE and not cxc.commission_paid and order:
@@ -165,7 +167,7 @@ def _aplicar_abono_a_factura(session, cxc_id, monto, bank_tx, current_user):
         session.add(cxc)
 
     if order:
-        if order.outstanding_balance <= 0.1:
+        if round(float(order.outstanding_balance or 0.0), 2) <= 0.1:
             order.status = SalesOrderStatus.FINISHED
         session.add(order)
 
