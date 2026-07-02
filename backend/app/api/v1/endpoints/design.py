@@ -20,7 +20,7 @@ from app.models.users import User, UserRole
 from app.models.design import (
     ProductMaster, ProductVersion, VersionComponent, VersionStatus
 )
-from app.models.material import Material 
+from app.models.material import Material, ProductionRoute
 from app.models.foundations import Client
 from app.models.production import ProductionBatch, ProductionBatchStatus
 from app.models.sales import (
@@ -229,6 +229,7 @@ def create_product_version(
     session.refresh(db_version)
 
     total_estimated_cost = 0.0
+    total_material_cost = 0.0
     
     # 2. Lógica Condicional de Ingredientes
     if version_in.components:
@@ -241,6 +242,8 @@ def create_product_version(
                 raw_line_cost = comp_in.quantity * unit_cost
                 cost_line = math.ceil(raw_line_cost * 100) / 100
                 total_estimated_cost += cost_line
+                if material.production_route == ProductionRoute.MATERIAL:
+                    total_material_cost += cost_line
                 
                 db_comp = VersionComponent(
                     version_id=db_version.id,
@@ -273,6 +276,8 @@ def create_product_version(
                     raw_line_cost = orig_comp.quantity * unit_cost
                     cost_line = math.ceil(raw_line_cost * 100) / 100
                     total_estimated_cost += cost_line
+                    if material.production_route == ProductionRoute.MATERIAL:
+                        total_material_cost += cost_line
                     
                     new_comp = VersionComponent(
                         version_id=db_version.id,
@@ -283,6 +288,7 @@ def create_product_version(
 
     # 3. Consolidar el costo y cerrar la transacción
     db_version.estimated_cost = round(total_estimated_cost, 2)
+    db_version.material_cost = round(total_material_cost, 2)
     all_comps = session.exec(
         select(VersionComponent)
         .where(VersionComponent.version_id == db_version.id)
@@ -315,6 +321,7 @@ def update_product_version(
         session.delete(comp)
     
     total_estimated_cost = 0.0
+    total_material_cost = 0.0
     
     for comp_in in version_in.components:
         if comp_in.quantity > 0:
@@ -327,6 +334,8 @@ def update_product_version(
             raw_line_cost = comp_in.quantity * unit_cost
             cost_line = math.ceil(raw_line_cost * 100) / 100
             total_estimated_cost += cost_line
+            if material.production_route == ProductionRoute.MATERIAL:
+                total_material_cost += cost_line
 
             new_comp = VersionComponent(
                 version_id=db_version.id,
@@ -336,6 +345,7 @@ def update_product_version(
             session.add(new_comp)
 
     db_version.estimated_cost = round(total_estimated_cost, 2)
+    db_version.material_cost = round(total_material_cost, 2)
     all_comps = session.exec(
         select(VersionComponent)
         .where(VersionComponent.version_id == db_version.id)
