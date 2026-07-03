@@ -991,7 +991,13 @@ const DesignCatalogPage: React.FC = () => {
                                                             </thead>
                                                             <tbody className="divide-y divide-slate-100">
                                                                 {productosOrdenados.flatMap((product: any) => {
-                                                                    const versions = product.versions && product.versions.length > 0 ? product.versions : [null];
+                                                                    const versions = product.versions && product.versions.length > 0
+                                                                        ? [...product.versions].sort((a: any, b: any) => {
+                                                                            const fa = a?.created_at ? new Date(a.created_at).getTime() : 0;
+                                                                            const fb = b?.created_at ? new Date(b.created_at).getTime() : 0;
+                                                                            return fa - fb;  // ascendente: más antigua primero
+                                                                          })
+                                                                        : [null];
                                                                     return versions.map((v: any, idx: number) => {
                                                                         const isReady = v?.status === VersionStatus.READY;
                                                                         const rowKey = `${product.id}-${v ? v.id : 'empty'}`;
