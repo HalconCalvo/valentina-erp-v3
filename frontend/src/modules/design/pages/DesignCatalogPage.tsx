@@ -65,6 +65,8 @@ const DesignCatalogPage: React.FC = () => {
     const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
   const [showProductSuggestions, setShowProductSuggestions] = useState(false);
     const [expandedClients, setExpandedClients] = useState<Set<number>>(new Set());
+    // Orden alfabético por nombre de producto en el listado por cliente (toggle A→Z / Z→A)
+    const [sortDir, setSortDir] = useState<'asc' | 'desc' | null>(null);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [uploadingVersionId, setUploadingVersionId] = useState<number | null>(null);
@@ -224,6 +226,10 @@ const DesignCatalogPage: React.FC = () => {
         const newExpanded = new Set(expandedClients);
         if (newExpanded.has(clientId)) newExpanded.delete(clientId); else newExpanded.add(clientId);
         setExpandedClients(newExpanded);
+    };
+
+    const handleSort = () => {
+        setSortDir(prev => (prev === 'asc' ? 'desc' : 'asc'));
     };
 
     const handleExportRecipes = (clientId: number) => {
@@ -907,19 +913,35 @@ const DesignCatalogPage: React.FC = () => {
 
                                         {isExpanded && (
                                             <div className="overflow-x-auto">
-                                                {Object.entries(categories).map(([categoryName, categoryProducts]) => (
+                                                {Object.entries(categories).map(([categoryName, categoryProducts]) => {
+                                                    const productosOrdenados = sortDir
+                                                        ? [...categoryProducts].sort((a, b) => {
+                                                            const cmp = a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
+                                                            return sortDir === 'asc' ? cmp : -cmp;
+                                                        })
+                                                        : categoryProducts;
+                                                    return (
                                                     <div key={categoryName} className="mb-0">
                                                         <table className="w-full text-sm text-left">
                                                             <thead className="text-xs text-slate-500 uppercase bg-white border-b border-slate-200">
                                                                 <tr>
-                                                                    <th className="px-6 py-3 w-[40%] flex items-center gap-2"><Tag size={14}/> {categoryName}</th>
+                                                                    <th
+                                                                        className="px-6 py-3 w-[40%] cursor-pointer select-none hover:text-indigo-600 transition-colors"
+                                                                        onClick={handleSort}
+                                                                        title="Ordenar productos por nombre"
+                                                                    >
+                                                                        <span className="flex items-center gap-2">
+                                                                            <Tag size={14}/> {categoryName}
+                                                                            <span className="text-slate-400">{sortDir === 'asc' ? '▲' : sortDir === 'desc' ? '▼' : ''}</span>
+                                                                        </span>
+                                                                    </th>
                                                                     <th className="px-6 py-3 text-center w-[15%]">Estado</th>
                                                                     <th className="px-6 py-3 w-[20%]">Versión Activa</th>
                                                                     <th className="px-6 py-3 text-center w-[25%]">Acciones</th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody className="divide-y divide-slate-100">
-                                                                {categoryProducts.flatMap((product: any) => {
+                                                                {productosOrdenados.flatMap((product: any) => {
                                                                     const versions = product.versions && product.versions.length > 0 ? product.versions : [null];
                                                                     return versions.map((v: any) => {
                                                                         const isReady = v?.status === VersionStatus.READY;
@@ -970,7 +992,8 @@ const DesignCatalogPage: React.FC = () => {
                                                             </tbody>
                                                         </table>
                                                     </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                         )}
                                     </div>
