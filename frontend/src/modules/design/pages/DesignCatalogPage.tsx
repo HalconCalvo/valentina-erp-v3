@@ -417,6 +417,55 @@ const DesignCatalogPage: React.FC = () => {
         }
     };
 
+    const handleDeleteVersion = async (
+        e: React.MouseEvent,
+        product: any,   // el ProductMaster
+        v: any          // la versión de esa fila
+    ) => {
+        e.stopPropagation();
+        if (isSales || !v?.id) return;
+
+        // Detectar si es la ÚLTIMA versión del producto
+        const esUltimaVersion = (product.versions?.length ?? 0) <= 1;
+
+        if (esUltimaVersion) {
+            // Última versión → borrar la versión ELIMINA EL PRODUCTO COMPLETO
+            // → alerta fuerte (escribir ELIMINAR), y se borra el MASTER.
+            const confirmacion = window.prompt(
+                `⚠ Esta es la ÚNICA versión de "${product.name}".\n\n` +
+                `Al eliminarla se borrará el PRODUCTO COMPLETO y no se puede deshacer.\n\n` +
+                `Para confirmar, escribe: ELIMINAR`
+            );
+            if (confirmacion === "ELIMINAR") {
+                try {
+                    await deleteMaster(product.id);
+                    alert("✅ Producto eliminado.");
+                } catch (err) {
+                    alert("Error al eliminar el producto.");
+                }
+            }
+            return;
+        }
+
+        // Caso normal: hay más de una versión → borrar SOLO esta versión, confirmación simple.
+        if (window.confirm(
+            `¿Eliminar la versión "${v.version_name}" de "${product.name}"?\n\n` +
+            `Esta acción no se puede deshacer.`
+        )) {
+            try {
+                await designService.deleteVersion(v.id);
+                alert("✅ Versión eliminada.");
+                await loadMasters(); // refrescar para que la fila borrada desaparezca
+            } catch (err: any) {
+                if (err?.response?.status === 409) {
+                    alert(err.response.data.detail);  // "Esta versión ya fue utilizada..."
+                } else {
+                    alert("Error al eliminar la versión.");
+                }
+            }
+        }
+    };
+
     const handleOpenProduct = async (masterId: number, versions: any[]) => {
         if (isSales) { alert("🔒 Acceso Restringido."); return; }
         if (versions && versions.length > 0) navigate(`/design/versions/${versions[0].id}`);
@@ -943,15 +992,26 @@ const DesignCatalogPage: React.FC = () => {
                                                             <tbody className="divide-y divide-slate-100">
                                                                 {productosOrdenados.flatMap((product: any) => {
                                                                     const versions = product.versions && product.versions.length > 0 ? product.versions : [null];
-                                                                    return versions.map((v: any) => {
+                                                                    return versions.map((v: any, idx: number) => {
                                                                         const isReady = v?.status === VersionStatus.READY;
                                                                         const rowKey = `${product.id}-${v ? v.id : 'empty'}`;
 
                                                                         return (
                                                                             <tr key={rowKey} className="bg-white hover:bg-slate-50 transition-colors">
                                                                                 <td className="px-6 py-4">
-                                                                                    <div className={`font-bold text-slate-800 flex items-center gap-2 ${isSales ? 'cursor-default' : 'hover:text-indigo-600 cursor-pointer'}`} onClick={() => handleOpenProduct(product.id, v ? [v] : [])}>
-                                                                                        {product.name}
+                                                                                    <div className="flex items-center gap-2">
+                                                                                        <div className={`font-bold text-slate-800 flex items-center gap-2 ${isSales ? 'cursor-default' : 'hover:text-indigo-600 cursor-pointer'}`} onClick={() => handleOpenProduct(product.id, v ? [v] : [])}>
+                                                                                            {product.name}
+                                                                                        </div>
+                                                                                        {!isSales && idx === 0 && (
+                                                                                            <button
+                                                                                                onClick={(e) => handleDelete(e, product.id, product.name)}
+                                                                                                className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-red-600 bg-red-50 border border-red-100 rounded hover:bg-red-100 transition-colors"
+                                                                                                title="Eliminar producto completo (todas sus versiones)"
+                                                                                            >
+                                                                                                <Package size={12}/> Eliminar producto
+                                                                                            </button>
+                                                                                        )}
                                                                                     </div>
                                                                                     <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-500 text-xs mt-1 inline-block">
                                                                                         SKU: PRD-{product.id.toString().padStart(4, '0')} {v ? `- ${v.version_name}` : ''}
@@ -980,7 +1040,7 @@ const DesignCatalogPage: React.FC = () => {
                                                                                             <>
                                                                                                 <div className="w-px h-4 bg-slate-200 mx-1"></div>
                                                                                                 <button onClick={(e) => openEditModal(e, product)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="Editar Nombre"><Edit size={16}/></button>
-                                                                                                <button onClick={(e) => handleDelete(e, product.id, product.name)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded" title="Eliminar"><Trash2 size={16}/></button>
+                                                                                                {v && <button onClick={(e) => handleDeleteVersion(e, product, v)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded" title="Eliminar esta versión"><Trash2 size={16}/></button>}
                                                                                             </>
                                                                                         )}
                                                                                     </div>

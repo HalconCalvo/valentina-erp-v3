@@ -413,11 +413,25 @@ def delete_product_version(
     Elimina una versión específica y sus ingredientes en cascada.
     NO afecta al Producto Maestro ni a otras versiones existentes.
     """
+    # 0. Validación de rol: solo Dirección y Diseño pueden eliminar versiones.
+    if current_user.role not in [UserRole.DIRECTOR, UserRole.DESIGN]:
+        raise HTTPException(status_code=403, detail="No tienes permisos para eliminar versiones")
+
     # 1. Buscar la versión específica
     version = session.get(ProductVersion, version_id)
     if not version:
         raise HTTPException(status_code=404, detail="Versión no encontrada")
-    
+
+    # 1b. Protección: no borrar versiones ya usadas en órdenes de venta (trazabilidad).
+    en_uso = session.exec(
+        select(SalesOrderItem).where(SalesOrderItem.origin_version_id == version_id)
+    ).first()
+    if en_uso:
+        raise HTTPException(
+            status_code=409,
+            detail="Esta versión ya fue utilizada en una o más órdenes de venta y no se puede eliminar para preservar la trazabilidad."
+        )
+
     # 2. Borrar la versión.
     # Nota: SQLAlchemy automáticamente borrará los VersionComponent asociados 
     # gracias a sa_relationship_kwargs={"cascade": "all, delete-orphan"}
