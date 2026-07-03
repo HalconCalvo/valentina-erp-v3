@@ -995,23 +995,13 @@ const DesignCatalogPage: React.FC = () => {
                                                                     return versions.map((v: any, idx: number) => {
                                                                         const isReady = v?.status === VersionStatus.READY;
                                                                         const rowKey = `${product.id}-${v ? v.id : 'empty'}`;
+                                                                        const esUnicaVersion = (product.versions?.length ?? 0) <= 1;
 
                                                                         return (
                                                                             <tr key={rowKey} className="bg-white hover:bg-slate-50 transition-colors">
                                                                                 <td className="px-6 py-4">
-                                                                                    <div className="flex items-center gap-2">
-                                                                                        <div className={`font-bold text-slate-800 flex items-center gap-2 ${isSales ? 'cursor-default' : 'hover:text-indigo-600 cursor-pointer'}`} onClick={() => handleOpenProduct(product.id, v ? [v] : [])}>
-                                                                                            {product.name}
-                                                                                        </div>
-                                                                                        {!isSales && idx === 0 && (
-                                                                                            <button
-                                                                                                onClick={(e) => handleDelete(e, product.id, product.name)}
-                                                                                                className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-red-600 bg-red-50 border border-red-100 rounded hover:bg-red-100 transition-colors"
-                                                                                                title="Eliminar producto completo (todas sus versiones)"
-                                                                                            >
-                                                                                                <Package size={12}/> Eliminar producto
-                                                                                            </button>
-                                                                                        )}
+                                                                                    <div className={`font-bold text-slate-800 flex items-center gap-2 ${isSales ? 'cursor-default' : 'hover:text-indigo-600 cursor-pointer'}`} onClick={() => handleOpenProduct(product.id, v ? [v] : [])}>
+                                                                                        {product.name}
                                                                                     </div>
                                                                                     <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-500 text-xs mt-1 inline-block">
                                                                                         SKU: PRD-{product.id.toString().padStart(4, '0')} {v ? `- ${v.version_name}` : ''}
@@ -1040,7 +1030,10 @@ const DesignCatalogPage: React.FC = () => {
                                                                                             <>
                                                                                                 <div className="w-px h-4 bg-slate-200 mx-1"></div>
                                                                                                 <button onClick={(e) => openEditModal(e, product)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="Editar Nombre"><Edit size={16}/></button>
-                                                                                                {v && <button onClick={(e) => handleDeleteVersion(e, product, v)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded" title="Eliminar esta versión"><Trash2 size={16}/></button>}
+                                                                                                {/* BASURERO NARANJA: borra SOLO esta versión (solo si el producto tiene 2+ versiones) */}
+                                                                                                {v && !esUnicaVersion && <button onClick={(e) => handleDeleteVersion(e, product, v)} className="p-1.5 text-orange-500 hover:text-orange-600 hover:bg-orange-50 rounded" title="Eliminar esta versión"><Trash2 size={16}/></button>}
+                                                                                                {/* BASURERO ROJO: borra el PRODUCTO COMPLETO y todas sus versiones (una vez por producto) */}
+                                                                                                {!isSales && idx === 0 && <button onClick={(e) => handleDelete(e, product.id, product.name)} className="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded" title="ELIMINAR PRODUCTO Y TODAS SUS VERSIONES"><Trash2 size={16}/></button>}
                                                                                             </>
                                                                                         )}
                                                                                     </div>
