@@ -7,6 +7,7 @@ import {
 import { salesService } from '../../../api/sales-service'; 
 import axiosClient from '../../../api/axios-client'; 
 import { SalesOrder, SalesOrderStatus } from '../../../types/sales';
+import { useFoundations } from '../../foundations/hooks/useFoundations';
 import { Button } from '@/components/ui/Button';
 
 interface FinancialReviewModalProps {
@@ -20,6 +21,11 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
     const [loading, setLoading] = useState(false);
     const [processing, setProcessing] = useState(false);
     const [order, setOrder] = useState<SalesOrder | null>(null);
+
+    // Catálogo de tasas de impuesto (misma fuente que CreateQuotePage) para leer la tasa REAL
+    // de la cotización y respetar tasa cero (sin fallback hardcodeado a 0.16).
+    const foundationHook = useFoundations();
+    const taxRates = foundationHook?.taxRates || [];
 
     // --- VARIABLES DE NEGOCIO ---
     const [globalMargin, setGlobalMargin] = useState<number>(0); 
@@ -250,13 +256,11 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
             : 0;
         const subtotal = sumOfItems; // la comisión NO se vuelve a sumar
         
-        const safeTaxAmountFromDB = Number(order.tax_amount) || 0;
-        const safeSubtotalFromDB = Number(order.subtotal) || 1; 
-        
-        const taxRate = (safeSubtotalFromDB > 0 && safeTaxAmountFromDB > 0) 
-            ? (safeTaxAmountFromDB / safeSubtotalFromDB) 
-            : 0.16; 
-            
+        // Tasa REAL de la cotización desde el catálogo (rate es fracción: 0.16, 0, etc.).
+        // Sin fallback a 0.16: si no se resuelve la tasa, es 0 (tasa cero → IVA $0).
+        const selectedTaxRate = taxRates.find(t => t.id === order.tax_rate_id);
+        const taxRate = selectedTaxRate ? Number(selectedTaxRate.rate) : 0;
+
         const taxAmount = subtotal * taxRate;
         const total = subtotal + taxAmount;
 
@@ -270,7 +274,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
             totalBaseCost, sumOfItems, commissionAmount, subtotal,
             taxAmount, total, netUtility, realWeightedMargin, advanceAmount, simulatedItems
         };
-    }, [order, itemMargins, itemPriceOverrides, commissionPercent, advancePercent]);
+    }, [order, itemMargins, itemPriceOverrides, commissionPercent, advancePercent, taxRates]);
 
 
     // --- ACCIONES PRINCIPALES ---
@@ -284,6 +288,11 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
 
     const handleAuthorize = async () => {
         if (!order || !simulation || isReadOnly) return;
+        // No autorizar con la tasa de IVA sin resolver (catálogo aún no cargado).
+        if (taxRates.length === 0) {
+            alert("Aún se está cargando la configuración de impuestos. Intenta de nuevo en un momento.");
+            return;
+        }
         if (!window.confirm("¿Confirmar Autorización de Precios y Condiciones?")) return;
 
         setProcessing(true);
@@ -342,7 +351,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
 
     if (!orderId) return null;
 
-    if (loading || !order || !simulation) {
+    if (loading || !order || !simulation || taxRates.length === 0) {
         return (
             <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm transition-opacity">
                 <div className="bg-white p-6 rounded-xl shadow-2xl flex flex-col items-center gap-4">
