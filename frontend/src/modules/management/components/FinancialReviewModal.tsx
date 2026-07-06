@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { 
     X, CheckCircle, XCircle, Calculator, 
     AlertTriangle, ChevronDown, ChevronRight, Layers, DollarSign, RefreshCcw, FileCheck, Lock, Percent, User 
@@ -34,10 +34,14 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
     // Precio exacto fijado por el usuario (override). Si no es null para un índice, ese precio
     // manda sobre el margen y NO se recalcula con Math.ceil.
     const [itemPriceOverrides, setItemPriceOverrides] = useState<(number | null)[]>([]);
-    const [advancePercent, setAdvancePercent] = useState<number>(60);
-    // Texto "en edición" del importe del anticipo. Permite teclear libremente sin que el
-    // valor derivado del % (simulation.advanceAmount) rebote el cursor en cada render.
-    const [advanceAmountInput, setAdvanceAmountInput] = useState<string>('');
+    // Fuente de verdad del anticipo: el IMPORTE real. El % se DERIVA de él y del total.
+    const [advanceAmount, setAdvanceAmount] = useState<number>(0);
+    // Recuerda cómo ajustó el Director el anticipo por última vez:
+    // 'amount' = fijó el importe (se respeta el importe si cambia el total)
+    // 'percent' = fijó el %   (se respeta el % si cambia el total)
+    const [advanceMode, setAdvanceMode] = useState<'amount' | 'percent'>('percent');
+    // Guarda el % objetivo cuando el modo es 'percent', para reaplicarlo si cambia el total.
+    const advanceTargetPercent = useRef<number>(60);
 
     // --- UI STATE ---
     const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
@@ -79,7 +83,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
             }
             
             setCommissionPercent(Number(loadedCommission.toFixed(2)));
-            setAdvancePercent(Number(data.advance_percent) || 60);
+            // El importe del anticipo se inicializa vía useEffect cuando simulation esté listo.
 
             const itemsSeguros = data.items || [];
             
@@ -210,19 +214,6 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
         setItemPriceOverrides(newOverrides);
     };
 
-    // El Director puede fijar el anticipo por IMPORTE: al escribir, dejamos ver el texto
-    // crudo (advanceAmountInput) y recalculamos el % base a partir del importe y el total.
-    const handleAdvanceAmountChange = (valorTexto: string) => {
-        if (isReadOnly || !simulation) return;
-        setAdvanceAmountInput(valorTexto); // deja ver lo que teclea
-        const nuevoImporte = Number(valorTexto);
-        if (!isNaN(nuevoImporte) && simulation.total > 0) {
-            const nuevoPercent = (nuevoImporte / simulation.total) * 100;
-            const clamped = Math.max(0, Math.min(100, nuevoPercent));
-            setAdvancePercent(Number(clamped.toFixed(2)));
-        }
-    };
-
     // --- MOTOR DE SIMULACIÓN (Protegido contra cálculos corruptos) ---
     const simulation = useMemo(() => {
         if (!order) return null;
@@ -282,27 +273,79 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
 
         const netUtility = subtotal - commissionAmount - totalBaseCost;
         const realWeightedMargin = totalBaseCost > 0 ? ((sumOfItems - totalBaseCost) / totalBaseCost) * 100 : 0;
-        
-        const advPercent = Number(advancePercent) || 0;
-        const advanceAmount = total * (advPercent / 100);
 
         return {
             totalBaseCost, sumOfItems, commissionAmount, subtotal,
-            taxAmount, total, netUtility, realWeightedMargin, advanceAmount, simulatedItems
+            taxAmount, total, netUtility, realWeightedMargin, simulatedItems
         };
-    }, [order, itemMargins, itemPriceOverrides, commissionPercent, advancePercent, taxRates]);
+    }, [order, itemMargins, itemPriceOverrides, commissionPercent, taxRates]);
 
-    // Sincroniza el texto del importe con el valor derivado del % (slider/input de %, o cambios
-    // de precios/márgenes que alteran el total). No pisa lo tecleado si ya equivale al derivado,
-    // para no rebotar el cursor mientras el Director escribe el importe.
+    // --- ANTICIPO: el IMPORTE es la fuente de verdad; el % se DERIVA de él y del total ---
+    const advanceTotal = simulation?.total ?? 0;
+    const advancePercentDerived = advanceTotal > 0
+        ? (advanceAmount / advanceTotal) * 100
+        : 0;
+
+    // El Director escribe el IMPORTE → modo 'amount' (el importe manda).
+    const handleAdvanceAmountChange = (valorTexto: string) => {
+        if (isReadOnly) return;
+        setAdvanceMode('amount');
+        const nuevo = Number(valorTexto);
+        if (isNaN(nuevo)) { setAdvanceAmount(0); return; }
+        const max = advanceTotal > 0 ? advanceTotal : nuevo;
+        const clamped = Math.max(0, Math.min(nuevo, max));
+        setAdvanceAmount(clamped);
+        // mantener el target % coherente por si luego el usuario cambia a modo percent
+        advanceTargetPercent.current = advanceTotal > 0 ? (clamped / advanceTotal) * 100 : 0;
+    };
+
+    // El Director mueve el % (slider o input) → modo 'percent' (el % manda).
+    const handleAdvancePercentChange = (nuevoPercent: number) => {
+        if (isReadOnly) return;
+        setAdvanceMode('percent');
+        const p = Math.max(0, Math.min(100, Number(nuevoPercent) || 0));
+        advanceTargetPercent.current = p;
+        setAdvanceAmount(Number(((advanceTotal * p) / 100).toFixed(2)));
+    };
+
+    // Hidratación del importe inicial una sola vez, cuando simulation ya tenga total.
+    const advanceInitialized = useRef(false);
+    useEffect(() => {
+        if (!order || !simulation) return;
+        if (advanceInitialized.current) return;
+        const savedAmount = Number(order.advance_invoice_amount);
+        if (!isNaN(savedAmount) && savedAmount > 0) {
+            setAdvanceAmount(Number(savedAmount.toFixed(2)));
+            advanceTargetPercent.current = simulation.total > 0
+                ? (savedAmount / simulation.total) * 100 : 0;
+            setAdvanceMode('amount'); // había un importe guardado explícito
+        } else {
+            const savedPercent = Number(order.advance_percent) || 60;
+            advanceTargetPercent.current = savedPercent;
+            setAdvanceAmount(Number(((simulation.total * savedPercent) / 100).toFixed(2)));
+            setAdvanceMode('percent'); // por defecto, anclado al %
+        }
+        advanceInitialized.current = true;
+    }, [order, simulation]);
+
+    // Cuando cambia el total (por precios/márgenes/comisión), reajusta el anticipo
+    // según la última intención del Director:
+    //  - modo 'percent': recalcula el importe para mantener el % objetivo.
+    //  - modo 'amount' : deja el importe fijo, pero lo limita al nuevo total (clamp).
     useEffect(() => {
         if (!simulation) return;
-        const derivado = simulation.advanceAmount.toFixed(2);
-        setAdvanceAmountInput(prev => {
-            if (Number(prev) === Number(derivado)) return prev;
-            return derivado;
-        });
-    }, [simulation?.advanceAmount]);
+        if (!advanceInitialized.current) return; // no interferir con la hidratación inicial
+        if (advanceMode === 'percent') {
+            const p = advanceTargetPercent.current;
+            setAdvanceAmount(Number(((advanceTotal * p) / 100).toFixed(2)));
+        } else {
+            // modo amount: mantener importe, pero no exceder el nuevo total
+            setAdvanceAmount(prev => Math.min(prev, advanceTotal > 0 ? advanceTotal : prev));
+        }
+        // Depende SOLO del total; no incluir advanceMode ni el target para no
+        // disparar en cambios de modo (esos ya los maneja cada handler).
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [advanceTotal]);
 
 
     // --- ACCIONES PRINCIPALES ---
@@ -337,8 +380,8 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
             await salesService.updateOrder(order.id, {
                 applied_margin_percent: Number(simulation.realWeightedMargin.toFixed(2)), 
                 applied_commission_percent: Number(commissionPercent) || 0,
-                advance_percent: Number(advancePercent) || 0,
-                advance_invoice_amount: Number(simulation.advanceAmount.toFixed(2)),
+                advance_percent: Number(advancePercentDerived.toFixed(2)),
+                advance_invoice_amount: Number(advanceAmount.toFixed(2)),
                 items: updatedItems,
                 subtotal: simulation.subtotal,
                 tax_amount: simulation.taxAmount,
@@ -598,7 +641,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                                 type="number"
                                                 step="0.01"
                                                 disabled={isReadOnly || processing}
-                                                value={advanceAmountInput}
+                                                value={advanceAmount}
                                                 onChange={(e) => handleAdvanceAmountChange(e.target.value)}
                                                 className="w-24 text-right text-sm font-mono text-blue-600 font-bold bg-transparent outline-none disabled:text-slate-400"
                                             />
@@ -608,15 +651,15 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                         <input 
                                             type="range" min="0" max="100" step="5"
                                             disabled={isReadOnly || processing}
-                                            value={advancePercent}
-                                            onChange={(e) => setAdvancePercent(Number(e.target.value))}
+                                            value={advancePercentDerived}
+                                            onChange={(e) => handleAdvancePercentChange(Number(e.target.value))}
                                             className="flex-1 h-2 bg-blue-100 rounded-lg appearance-none cursor-pointer accent-blue-600"
                                         />
                                         <input 
                                             type="number" step="0.01"
                                             disabled={isReadOnly || processing}
-                                            value={advancePercent}
-                                            onChange={(e) => setAdvancePercent(Number(e.target.value))}
+                                            value={Number(advancePercentDerived.toFixed(2))}
+                                            onChange={(e) => handleAdvancePercentChange(Number(e.target.value))}
                                             className="w-16 p-1 text-right text-sm font-bold border rounded border-blue-200 text-blue-700 outline-none"
                                         />
                                     </div>
