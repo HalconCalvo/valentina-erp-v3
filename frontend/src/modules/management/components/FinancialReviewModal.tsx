@@ -207,6 +207,19 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
         setItemPriceOverrides(newOverrides);
     };
 
+    // El Director puede fijar el anticipo por IMPORTE: recalculamos el % base a partir
+    // del importe escrito y el total. El importe mostrado siempre se deriva de advancePercent
+    // (vía simulation), así ambos controles quedan sincronizados.
+    const handleAdvanceAmountChange = (nuevoImporte: number) => {
+        if (!simulation || isReadOnly) return;
+        const total = simulation.total;
+        if (total > 0) {
+            const nuevoPercent = (nuevoImporte / total) * 100;
+            const clamped = Math.max(0, Math.min(100, nuevoPercent));
+            setAdvancePercent(Number(clamped.toFixed(2)));
+        }
+    };
+
     // --- MOTOR DE SIMULACIÓN (Protegido contra cálculos corruptos) ---
     const simulation = useMemo(() => {
         if (!order) return null;
@@ -310,6 +323,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                 applied_margin_percent: Number(simulation.realWeightedMargin.toFixed(2)), 
                 applied_commission_percent: Number(commissionPercent) || 0,
                 advance_percent: Number(advancePercent) || 0,
+                advance_invoice_amount: Number(simulation.advanceAmount.toFixed(2)),
                 items: updatedItems,
                 subtotal: simulation.subtotal,
                 tax_amount: simulation.taxAmount,
@@ -563,9 +577,17 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                             <Percent size={12} className="text-blue-500"/>
                                             Anticipo a Solicitar
                                         </label>
-                                        <span className="text-sm font-mono text-blue-600 font-bold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
-                                            {formatCurrency(simulation.advanceAmount)}
-                                        </span>
+                                        <div className="flex items-center gap-1 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
+                                            <span className="text-xs font-mono text-blue-600 font-bold">$</span>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                disabled={isReadOnly || processing}
+                                                value={Number(simulation.advanceAmount.toFixed(2))}
+                                                onChange={(e) => handleAdvanceAmountChange(Number(e.target.value))}
+                                                className="w-24 text-right text-sm font-mono text-blue-600 font-bold bg-transparent outline-none disabled:text-slate-400"
+                                            />
+                                        </div>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <input 

@@ -150,6 +150,7 @@ class SalesOrderRead(SalesOrderBase):
     commission_amount: float
     outstanding_balance: float
     payment_status: PaymentStatus
+    advance_invoice_amount: Optional[float] = None
     
     user_id: Optional[int] = None 
     
@@ -187,6 +188,7 @@ class SalesOrderUpdate(SQLModel):
     # --- NUEVOS CAMPOS DE ACTUALIZACIÓN ---
     advance_percent: Optional[float] = None
     has_advance_invoice: Optional[bool] = None
+    advance_invoice_amount: Optional[float] = None
 
     # Si Ventas re-cotiza o se ajustan manuales
     subtotal: Optional[float] = None
