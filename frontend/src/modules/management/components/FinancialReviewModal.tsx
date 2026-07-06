@@ -35,6 +35,9 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
     // manda sobre el margen y NO se recalcula con Math.ceil.
     const [itemPriceOverrides, setItemPriceOverrides] = useState<(number | null)[]>([]);
     const [advancePercent, setAdvancePercent] = useState<number>(60);
+    // Texto "en edición" del importe del anticipo. Permite teclear libremente sin que el
+    // valor derivado del % (simulation.advanceAmount) rebote el cursor en cada render.
+    const [advanceAmountInput, setAdvanceAmountInput] = useState<string>('');
 
     // --- UI STATE ---
     const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
@@ -207,14 +210,14 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
         setItemPriceOverrides(newOverrides);
     };
 
-    // El Director puede fijar el anticipo por IMPORTE: recalculamos el % base a partir
-    // del importe escrito y el total. El importe mostrado siempre se deriva de advancePercent
-    // (vía simulation), así ambos controles quedan sincronizados.
-    const handleAdvanceAmountChange = (nuevoImporte: number) => {
-        if (!simulation || isReadOnly) return;
-        const total = simulation.total;
-        if (total > 0) {
-            const nuevoPercent = (nuevoImporte / total) * 100;
+    // El Director puede fijar el anticipo por IMPORTE: al escribir, dejamos ver el texto
+    // crudo (advanceAmountInput) y recalculamos el % base a partir del importe y el total.
+    const handleAdvanceAmountChange = (valorTexto: string) => {
+        if (isReadOnly || !simulation) return;
+        setAdvanceAmountInput(valorTexto); // deja ver lo que teclea
+        const nuevoImporte = Number(valorTexto);
+        if (!isNaN(nuevoImporte) && simulation.total > 0) {
+            const nuevoPercent = (nuevoImporte / simulation.total) * 100;
             const clamped = Math.max(0, Math.min(100, nuevoPercent));
             setAdvancePercent(Number(clamped.toFixed(2)));
         }
@@ -288,6 +291,18 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
             taxAmount, total, netUtility, realWeightedMargin, advanceAmount, simulatedItems
         };
     }, [order, itemMargins, itemPriceOverrides, commissionPercent, advancePercent, taxRates]);
+
+    // Sincroniza el texto del importe con el valor derivado del % (slider/input de %, o cambios
+    // de precios/márgenes que alteran el total). No pisa lo tecleado si ya equivale al derivado,
+    // para no rebotar el cursor mientras el Director escribe el importe.
+    useEffect(() => {
+        if (!simulation) return;
+        const derivado = simulation.advanceAmount.toFixed(2);
+        setAdvanceAmountInput(prev => {
+            if (Number(prev) === Number(derivado)) return prev;
+            return derivado;
+        });
+    }, [simulation?.advanceAmount]);
 
 
     // --- ACCIONES PRINCIPALES ---
@@ -583,8 +598,8 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                                 type="number"
                                                 step="0.01"
                                                 disabled={isReadOnly || processing}
-                                                value={Number(simulation.advanceAmount.toFixed(2))}
-                                                onChange={(e) => handleAdvanceAmountChange(Number(e.target.value))}
+                                                value={advanceAmountInput}
+                                                onChange={(e) => handleAdvanceAmountChange(e.target.value)}
                                                 className="w-24 text-right text-sm font-mono text-blue-600 font-bold bg-transparent outline-none disabled:text-slate-400"
                                             />
                                         </div>
@@ -598,7 +613,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                             className="flex-1 h-2 bg-blue-100 rounded-lg appearance-none cursor-pointer accent-blue-600"
                                         />
                                         <input 
-                                            type="number" step="1"
+                                            type="number" step="0.01"
                                             disabled={isReadOnly || processing}
                                             value={advancePercent}
                                             onChange={(e) => setAdvancePercent(Number(e.target.value))}
