@@ -59,7 +59,7 @@ def create_db_and_tables():
                 )
                 session.add(admin_user)
                 session.commit()
-                print("--> ✅ Usuario DIRECTOR creado exitosamente (Pass: admin).")
+                print("--> ✅ Usuario DIRECTOR creado exitosamente.")
             except Exception as e:
                 print(f"--> Error creando usuario: {e}")
                 pass

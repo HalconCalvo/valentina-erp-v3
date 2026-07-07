@@ -26,18 +26,6 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # --- INICIO MODO DETECTIVE ---
-    try:
-        db_url = settings.DATABASE_URL.replace("sqlite:///", "")
-        if db_url.startswith("."):
-            real_path = os.path.abspath(db_url)
-        else:
-            real_path = db_url
-        print(f"\n🚨🚨🚨 UBICACIÓN REAL DE LA BASE DE DATOS: {real_path} 🚨🚨🚨\n")
-    except Exception as e:
-        print(f"No se pudo determinar la ruta de la BD: {e}")
-    # --- FIN MODO DETECTIVE ---
-
     print("--> Inicializando Base de Datos...")
     try:
         # 1. Esto crea las tablas y quizás al usuario fantasma
