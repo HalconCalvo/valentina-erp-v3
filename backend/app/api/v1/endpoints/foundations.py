@@ -675,13 +675,14 @@ def seed_kardex_opening(current_user: CurrentUser, session: SessionDep):
 
 
 @router.get("/materials")
-def read_materials(session: Session = Depends(get_session)):
+def read_materials(include_inactive: bool = False, session: Session = Depends(get_session)):
     # Usamos un JOIN para traer el nombre del proveedor
     query = (
         select(Material, Provider.business_name)
         .outerjoin(Provider, Material.provider_id == Provider.id)
-        .where(Material.is_active == True)
     )
+    if not include_inactive:
+        query = query.where(Material.is_active == True)
     results = session.exec(query).all()
     
     # Armamos la respuesta a mano para incluir el 'provider_name'
@@ -705,18 +706,13 @@ def create_material(material: Material, session: Session = Depends(get_session))
         session.rollback()
         existing = session.exec(select(Material).where(Material.sku == material.sku)).first()
         if existing:
-            if existing.name == material.name and existing.is_active:
-                return existing 
+            if existing.is_active and existing.name == material.name:
+                return existing  # idempotente: mismo SKU activo, mismo nombre
             if not existing.is_active:
-                material_data = material.model_dump(exclude_unset=True)
-                for key, value in material_data.items():
-                    if key != "id":
-                        setattr(existing, key, value)
-                existing.is_active = True
-                session.add(existing)
-                session.commit()
-                session.refresh(existing)
-                return existing
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"El SKU '{material.sku}' pertenece a un material inactivo ('{existing.name}'). Reactívalo desde la lista de materiales si deseas usarlo."
+                )
         raise HTTPException(status_code=400, detail=f"El SKU '{material.sku}' ya está ocupado.")
 
 @router.put("/materials/{material_id}", response_model=Material)
