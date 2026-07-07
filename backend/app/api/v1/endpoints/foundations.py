@@ -6,6 +6,7 @@ from uuid import uuid4  # <--- AGREGADO PARA NOMBRES ÚNICOS
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
 from sqlmodel import Session, select
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
 from app.core.database import get_session
@@ -258,6 +259,22 @@ def read_clients(session: Session = Depends(get_session)):
 
 @router.post("/clients", response_model=Client)
 def create_client(client: Client, session: Session = Depends(get_session)):
+    # Normalización del RFC: TRIM + UPPER. Vacío o solo espacios -> None (varios
+    # clientes sin RFC son válidos y no se validan por duplicado).
+    rfc_norm = (client.rfc_tax_id or "").strip().upper() or None
+    client.rfc_tax_id = rfc_norm
+
+    # Si hay RFC, bloquear duplicados comparando de forma normalizada (case-insensitive).
+    if rfc_norm:
+        existing = session.exec(
+            select(Client).where(func.upper(func.trim(Client.rfc_tax_id)) == rfc_norm)
+        ).first()
+        if existing:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Ya existe un cliente con el RFC {rfc_norm}: {existing.full_name}"
+            )
+
     client.is_active = True
     session.add(client)
     session.commit()
