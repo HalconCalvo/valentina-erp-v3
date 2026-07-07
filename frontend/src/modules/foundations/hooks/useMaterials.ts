@@ -8,10 +8,11 @@ export const useMaterials = () => {
 
   const BASE_URL = '/foundations/materials';
 
-  const fetchMaterials = useCallback(async () => {
+  const fetchMaterials = useCallback(async (includeInactive = false) => {
     setLoading(true);
     try {
-      const { data } = await client.get(BASE_URL);
+      const url = includeInactive ? `${BASE_URL}?include_inactive=true` : BASE_URL;
+      const { data } = await client.get(url);
       // VALIDACIÓN DE SEGURIDAD (Evita pantalla blanca)
       if (Array.isArray(data)) {
         setMaterials(data);
@@ -63,12 +64,24 @@ export const useMaterials = () => {
     }
   };
 
+  const reactivateMaterial = async (id: number, includeInactive = false) => {
+    try {
+      await client.put(`${BASE_URL}/${id}`, { is_active: true });
+      await fetchMaterials(includeInactive); // recargar respetando el filtro actual
+      return { success: true };
+    } catch (error: any) {
+      const msg = error.response?.data?.detail || 'Error desconocido';
+      return { success: false, error: msg };
+    }
+  };
+
   return { 
     materials, 
     loading, 
     fetchMaterials,
     createMaterial, 
     updateMaterial, 
-    deleteMaterial 
+    deleteMaterial,
+    reactivateMaterial
   };
 };

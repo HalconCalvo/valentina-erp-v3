@@ -5,7 +5,7 @@ import { useProviders } from '../hooks/useProviders';
 import { Material } from '@/types/foundations';
 import { 
   Plus, Link2, Upload, DollarSign, ArrowRight, 
-  ChevronDown, Pencil, Trash2, X, Lock, ArrowUpDown, EyeOff, Building2, AlertTriangle, ShieldCheck
+  ChevronDown, Pencil, Trash2, X, Lock, ArrowUpDown, EyeOff, Building2, AlertTriangle, ShieldCheck, RotateCcw
 } from 'lucide-react';
 import client from '@/api/axios-client'; 
 
@@ -16,7 +16,7 @@ import { DataTable } from "@/components/ui/DataTable"
 import { MaterialsTableToolbar } from "../components/MaterialsTableToolbar"
 
 export default function MaterialsPage() {
-  const { materials, loading, createMaterial, updateMaterial, deleteMaterial } = useMaterials();
+  const { materials, loading, fetchMaterials, createMaterial, updateMaterial, deleteMaterial, reactivateMaterial } = useMaterials();
   const { providers, fetchProviders } = useProviders(); 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -28,6 +28,8 @@ export default function MaterialsPage() {
   const [showPurchaseUnitSuggestions, setShowPurchaseUnitSuggestions] = useState(false);
   const [showUsageUnitSuggestions, setShowUsageUnitSuggestions] = useState(false);
   const [skuExists, setSkuExists] = useState(false);
+  const [showNameSuggestions, setShowNameSuggestions] = useState(true);
+  const [showInactive, setShowInactive] = useState(false);
   
   const initialFormState: Partial<Material> = {
     sku: '', name: '', category: '', 
@@ -48,6 +50,12 @@ export default function MaterialsPage() {
     fetchProviders(); 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Recargar la lista con o sin inactivos según el toggle.
+  useEffect(() => {
+    fetchMaterials(showInactive);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showInactive]);
 
   const isSales = userRole === 'SALES' || userRole === 'VENTAS';
   const isDesign = ['DESIGN', 'DISEÑO', 'DISENO'].includes(userRole);
@@ -207,6 +215,15 @@ export default function MaterialsPage() {
                 const mat = row.original;
                 return (
                     <div className="flex justify-end gap-2">
+                        {mat.is_active === false && (
+                            <button
+                                onClick={() => mat.id && handleReactivate(mat.id)}
+                                className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
+                                title="Reactivar material"
+                            >
+                                <RotateCcw size={16} />
+                            </button>
+                        )}
                         <button onClick={() => handleEdit(mat)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors">
                             <Pencil size={16} />
                         </button>
@@ -220,7 +237,8 @@ export default function MaterialsPage() {
     }
 
     return cols;
-  }, [isReadOnly, showFinancials]); 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isReadOnly, showFinancials, showInactive]); 
 
   if (isSales) {
       return <Navigate to="/" replace />;
@@ -327,6 +345,17 @@ export default function MaterialsPage() {
     await deleteMaterial(id);
   };
 
+  const handleReactivate = async (id: number) => {
+    if (isReadOnly) return;
+    if (!window.confirm("¿Reactivar este material? Volverá a estar disponible para uso.")) return;
+    const res = await reactivateMaterial(id, showInactive);
+    if (res.success) {
+      alert("✅ Material reactivado.");
+    } else {
+      alert(`❌ Error: ${res.error}`);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if(isReadOnly) return;
@@ -369,6 +398,15 @@ export default function MaterialsPage() {
     c.toLowerCase().includes((form.category || '').toLowerCase())
   );
 
+  // Sugerencias EN VIVO de materiales con nombre similar (informativo, no bloquea).
+  // Se activa a partir de 3 caracteres y no aplica en modo edición.
+  const nameQuery = (form.name || '').trim().toLowerCase();
+  const nameMatches = (!isEditing && nameQuery.length >= 3)
+    ? materials.filter(m =>
+        (m.name || '').trim().toLowerCase().includes(nameQuery)
+      ).slice(0, 8)
+    : [];
+
   return (
     <div className="space-y-6 p-6">
       <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".csv" className="hidden" />
@@ -385,6 +423,16 @@ export default function MaterialsPage() {
         </div>
         
         <div className="flex items-center gap-2">
+            <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer select-none px-2 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition-colors">
+                <input
+                    type="checkbox"
+                    checked={showInactive}
+                    onChange={e => setShowInactive(e.target.checked)}
+                    className="accent-indigo-600"
+                />
+                Ver inactivos
+            </label>
+
             <ExportButton 
                 data={materials} 
                 fileName="Inventario_Materiales" 
@@ -447,9 +495,34 @@ export default function MaterialsPage() {
                             </div>
                         )}
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="md:col-span-2 relative">
                         <label className="text-xs font-bold text-slate-500 uppercase">Nombre / Descripción</label>
-                        <input className="input-std" placeholder="Ej. MDF Blanco 15mm" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
+                        <input
+                            className="input-std"
+                            placeholder="Ej. MDF Blanco 15mm"
+                            value={form.name}
+                            onChange={e => { setForm({...form, name: e.target.value}); setShowNameSuggestions(true); }}
+                        />
+                        {nameMatches.length > 0 && showNameSuggestions && (
+                            <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
+                                <div className="px-3 py-1.5 text-[10px] font-bold text-amber-600 bg-amber-50 border-b border-amber-100 uppercase">
+                                    Materiales similares ya registrados ({nameMatches.length})
+                                </div>
+                                {nameMatches.map(m => (
+                                    <div key={m.id}
+                                        onClick={() => setShowNameSuggestions(false)}
+                                        className="px-3 py-2 text-sm border-b border-slate-50 last:border-0 flex items-center justify-between gap-2 hover:bg-slate-50 cursor-pointer">
+                                        <div className="flex flex-col">
+                                            <span className="font-semibold text-slate-700">{m.name}</span>
+                                            <span className="font-mono text-[11px] text-slate-400">SKU: {m.sku}</span>
+                                        </div>
+                                        {m.is_active === false
+                                            ? <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 whitespace-nowrap">Inactivo</span>
+                                            : <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 whitespace-nowrap">Activo</span>}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                     <div className="md:col-span-1 relative">
                         <label className="text-xs font-bold text-slate-500 uppercase">Categoría</label>
