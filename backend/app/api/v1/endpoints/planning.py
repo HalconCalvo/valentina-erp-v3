@@ -345,6 +345,37 @@ def update_instance_schedule(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ) -> Any:
+    # Detectar qué intenta hacer el payload
+    intenta_bautizar = payload.custom_name is not None
+    intenta_fechas = any([
+        payload.scheduled_prod_mdf is not None,
+        payload.scheduled_prod_stone is not None,
+        payload.scheduled_inst_mdf is not None,
+        payload.scheduled_inst_stone is not None,
+        payload.clear_prod_mdf,
+        payload.clear_prod_stone,
+        payload.clear_inst_mdf,
+        payload.clear_inst_stone,
+    ])
+
+    # Guardia de BAUTIZO: custom_name → DIRECTOR, GERENCIA, SALES, DESIGN
+    if intenta_bautizar:
+        allowed_baptism = {UserRole.DIRECTOR, UserRole.GERENCIA, UserRole.SALES, UserRole.DESIGN}
+        if current_user.role not in allowed_baptism:
+            raise HTTPException(
+                status_code=403,
+                detail="No tienes permisos para bautizar instancias.",
+            )
+
+    # Guardia de FECHAS: programación → DIRECTOR, GERENCIA, DESIGN (SIN SALES)
+    if intenta_fechas:
+        allowed_dates = {UserRole.DIRECTOR, UserRole.GERENCIA, UserRole.DESIGN}
+        if current_user.role not in allowed_dates:
+            raise HTTPException(
+                status_code=403,
+                detail="No tienes permisos para programar fechas de producción/instalación.",
+            )
+
     inst = _get_instance_or_404(instance_id, session)
 
     if payload.custom_name is not None:
@@ -506,6 +537,13 @@ def baptize_instances(
     en un único request. Usado en la pantalla de 'Configuración de Instancias'
     que aparece al confirmar una Orden de Venta.
     """
+    allowed = {UserRole.DIRECTOR, UserRole.GERENCIA, UserRole.SALES, UserRole.DESIGN}
+    if current_user.role not in allowed:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes permisos para bautizar instancias.",
+        )
+
     order = session.get(SalesOrder, order_id)
     if not order:
         raise HTTPException(status_code=404, detail=f"Orden de Venta {order_id} no encontrada.")
