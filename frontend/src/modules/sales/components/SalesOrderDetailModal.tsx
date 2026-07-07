@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { 
     FileDown, Calendar, User, FileText, Hash, 
-    ClipboardList, Info, Percent, ShieldAlert, Lock, Unlock, Save, Tag
+    ClipboardList, Info, Percent, ShieldAlert, Lock, Unlock, Save, Tag, Pencil
 } from 'lucide-react';
 
 // IMPORTACIONES CORREGIDAS (LA CAUSA DEL CORTO CIRCUITO)
@@ -32,6 +32,7 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
     
     // Seguridad para la Puerta Trasera
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase();
+    const canEditName = ['DIRECTOR', 'GERENCIA', 'SALES'].includes(userRole || '');
     const isDirector = ['ADMIN', 'ADMINISTRADOR', 'DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
     const canEditOcMeta = ['ADMIN', 'ADMINISTRADOR', 'GERENCIA', 'DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
 
@@ -52,6 +53,10 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
 
     const [clientPoFolio, setClientPoFolio] = useState('');
     const [clientPoDate, setClientPoDate] = useState('');
+
+    const [editingName, setEditingName] = useState(false);
+    const [nameDraft, setNameDraft] = useState('');
+    const [savingName, setSavingName] = useState(false);
 
     useEffect(() => {
         if (orderId) {
@@ -109,6 +114,24 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
             alert("Error al guardar cambios.");
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    const handleSaveName = async () => {
+        if (!order || !nameDraft.trim()) return;
+        setSavingName(true);
+        try {
+            await salesService.updateOrder(order.id, { project_name: nameDraft.trim() });
+            setOrder({ ...order, project_name: nameDraft.trim() });
+            setEditingName(false);
+        } catch (err: any) {
+            if (err?.response?.status === 403) {
+                alert('No tienes permisos para editar el nombre del proyecto.');
+            } else {
+                alert('Error al guardar el nombre del proyecto.');
+            }
+        } finally {
+            setSavingName(false);
         }
     };
 
@@ -210,8 +233,48 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                     {/* 1. HEADER DATOS */}
                     <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 grid grid-cols-1 md:grid-cols-3 gap-6 shadow-sm shrink-0">
                         <div>
-                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1"><Hash size={12}/> Proyecto</h3>
-                            <div className="text-lg font-black text-slate-800 truncate">{order.project_name}</div>
+                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                                <Hash size={12}/> Proyecto
+                            </h3>
+                            {editingName ? (
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        className="text-lg font-black text-slate-800 border-b-2 border-indigo-400 outline-none bg-transparent flex-1"
+                                        value={nameDraft}
+                                        onChange={e => setNameDraft(e.target.value)}
+                                        autoFocus
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleSaveName()}
+                                        disabled={savingName}
+                                        className="text-xs font-bold text-emerald-600 hover:text-emerald-700 disabled:opacity-50"
+                                    >
+                                        {savingName ? 'Guardando…' : 'Guardar'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditingName(false)}
+                                        className="text-xs font-bold text-slate-400 hover:text-slate-600"
+                                    >
+                                        Cancelar
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    <div className="text-lg font-black text-slate-800 truncate">{order.project_name}</div>
+                                    {canEditName && (
+                                        <button
+                                            type="button"
+                                            onClick={() => { setNameDraft(order.project_name || ''); setEditingName(true); }}
+                                            className="text-slate-400 hover:text-indigo-600 shrink-0"
+                                            title="Editar nombre del proyecto"
+                                        >
+                                            <Pencil size={14} />
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                             <div className="text-xs text-slate-500 font-mono">Folio: #{order.id}</div>
                         </div>
                         <div className="border-l border-slate-200 pl-4">
