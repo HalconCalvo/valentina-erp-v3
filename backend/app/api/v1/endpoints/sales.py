@@ -348,6 +348,13 @@ def update_sales_order(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user)
 ):
+    allowed = {UserRole.DIRECTOR, UserRole.GERENCIA, UserRole.SALES}
+    if current_user.role not in allowed:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes permisos para editar órdenes de venta.",
+        )
+
     db_order = session.get(SalesOrder, order_id)
     if not db_order: raise HTTPException(404, "No encontrada")
     if _is_seller_scoped_role(current_user) and db_order.user_id != current_user.id:
