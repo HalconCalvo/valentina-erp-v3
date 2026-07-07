@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { X, Receipt, CheckCircle, Clock, FileText, Package, AlertCircle, PieChart, Users, Coins } from 'lucide-react';
+import { X, Receipt, CheckCircle, Clock, FileText, Package, AlertCircle, PieChart, Users, Coins, Pencil } from 'lucide-react';
 import { SalesOrder } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
 
@@ -107,10 +107,16 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
 }) => {
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase();
     const canEditOcInRayos = !readOnly && ['ADMIN', 'ADMINISTRADOR', 'GERENCIA', 'DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
+    const canEditProjectName = !readOnly && ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'GERENCIA', 'SALES', 'VENTAS'].includes(userRole);
 
     const [isUpdatingCommission, setIsUpdatingCommission] = useState(false);
     const [ocSaving, setOcSaving] = useState(false);
     const [cancelling, setCancelling] = useState(false);
+
+    const [editingName, setEditingName] = useState(false);
+    const [nameDraft, setNameDraft] = useState('');
+    const [savingName, setSavingName] = useState(false);
+    const [displayName, setDisplayName] = useState(order.project_name);
 
     // --- Camino A: panel de solo-lectura de abonos por factura (los abonos nacen en Tesorería) ---
     const [expandedInvoiceId, setExpandedInvoiceId] = useState<number | null>(null);
@@ -132,6 +138,11 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     useEffect(() => {
         setOcEditorEpoch(0);
     }, [order?.id]);
+
+    useEffect(() => {
+        setDisplayName(order.project_name);
+        setEditingName(false);
+    }, [order?.id, order.project_name]);
 
     useEffect(() => {
         if (!isOpen || !order?.id) return;
@@ -219,6 +230,28 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         }
     };
 
+    const handleSaveName = async () => {
+        if (!nameDraft.trim()) return;
+        setSavingName(true);
+        try {
+            await salesService.updateOrder(order.id, { project_name: nameDraft.trim() } as any);
+            const trimmed = nameDraft.trim();
+            setDisplayName(trimmed);
+            setEditingName(false);
+            if (onOrderPatch) {
+                onOrderPatch({ project_name: trimmed });
+            }
+        } catch (err: any) {
+            if (err?.response?.status === 403) {
+                alert('No tienes permisos para editar el nombre del proyecto.');
+            } else {
+                alert('Error al guardar el nombre del proyecto.');
+            }
+        } finally {
+            setSavingName(false);
+        }
+    };
+
     const handleCancelOv = async () => {
         const ok = window.confirm(
             "¿Cancelar esta OV?\n\n" +
@@ -272,7 +305,47 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                 <div className="px-6 py-4 border-b border-slate-700 flex justify-between items-center bg-slate-900 text-white">
                     <div>
                         <h2 className="text-lg font-black tracking-tight flex items-center gap-2">
-                            <span className="text-indigo-400">OV-{order.id?.toString().padStart(4, '0')}</span> | {order.project_name}
+                            <span className="text-indigo-400">OV-{order.id?.toString().padStart(4, '0')}</span>
+                            <span>|</span>
+                            {editingName ? (
+                                <span className="flex items-center gap-2 flex-1 min-w-0">
+                                    <input
+                                        className="bg-transparent border-b-2 border-indigo-400 outline-none text-white flex-1 min-w-0"
+                                        value={nameDraft}
+                                        onChange={e => setNameDraft(e.target.value)}
+                                        autoFocus
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleSaveName()}
+                                        disabled={savingName}
+                                        className="text-xs font-bold text-emerald-400 hover:text-emerald-300 disabled:opacity-50 shrink-0"
+                                    >
+                                        {savingName ? '...' : 'Guardar'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditingName(false)}
+                                        className="text-xs font-bold text-slate-400 hover:text-slate-200 shrink-0"
+                                    >
+                                        Cancelar
+                                    </button>
+                                </span>
+                            ) : (
+                                <span className="flex items-center gap-2 min-w-0">
+                                    <span className="truncate">{displayName}</span>
+                                    {canEditProjectName && (
+                                        <button
+                                            type="button"
+                                            onClick={() => { setNameDraft(displayName || ''); setEditingName(true); }}
+                                            className="text-slate-400 hover:text-indigo-300 shrink-0"
+                                            title="Editar nombre del proyecto"
+                                        >
+                                            <Pencil size={14} />
+                                        </button>
+                                    )}
+                                </span>
+                            )}
                         </h2>
                         <p className="text-xs text-slate-400 font-medium mt-0.5 flex items-center gap-1">
                             <Users size={12} className="text-slate-500" /> Cliente: <span className="text-slate-300">{clientName}</span>
