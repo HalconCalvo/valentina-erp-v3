@@ -286,14 +286,32 @@ def update_client(client_id: int, client_in: Client, session: Session = Depends(
     db_client = session.get(Client, client_id)
     if not db_client:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
-    
+
     client_data = client_in.model_dump(exclude_unset=True)
+
+    # Normalizar y validar RFC si viene en la actualización
+    if "rfc_tax_id" in client_data:
+        rfc_norm = (client_data.get("rfc_tax_id") or "").strip().upper() or None
+        client_data["rfc_tax_id"] = rfc_norm
+        if rfc_norm:
+            existing = session.exec(
+                select(Client).where(
+                    func.upper(func.trim(Client.rfc_tax_id)) == rfc_norm,
+                    Client.id != client_id
+                )
+            ).first()
+            if existing:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Ya existe otro cliente con el RFC {rfc_norm}: {existing.full_name}"
+                )
+
     client_data.pop("id", None)
     client_data.pop("registration_date", None)
-    
+
     for key, value in client_data.items():
         setattr(db_client, key, value)
-    
+
     session.add(db_client)
     session.commit()
     session.refresh(db_client)
