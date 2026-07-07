@@ -124,6 +124,8 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
 
     const formatCurrency = (amount: number) => amount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 
+    const ACTIVE_STATUSES = ['WAITING_ADVANCE', 'SOLD', 'IN_PRODUCTION', 'FINISHED', 'COMPLETED'];
+
     // --- Anticipos por facturar (solo derecho a primer pago: alineado con /sales/invoicing-rights) ---
     const advances = orders.filter((o) => normalizeOrderStatus(o) === STATUS_WAITING_ADVANCE);
     const advancesVal = advances.reduce(
@@ -147,9 +149,19 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
     );
     const agingVal = pendingInvoices.reduce((sum, inv) => sum + Number(inv.amount), 0);
 
-    // ---> 2. TOTALES PARA LA TARJETA "TODAS" (Deuda viva total) <---
-    const allCount = orders.length;
-    const allVal = orders.reduce((sum, o) => sum + (Number(o.outstanding_balance) || 0), 0);
+    const activeOrders = useMemo(
+        () => orders.filter(o => ACTIVE_STATUSES.includes(o.status)),
+        [orders],
+    );
+
+    // ---> 2. TOTALES PARA LA TARJETA "VISOR DE OV" (pendiente de facturar, OV activas) <---
+    const allCount = activeOrders.length;
+    const allVal = activeOrders.reduce((sum, o) => {
+        const total = Number(o.total_price) || 0;
+        const facturado = (o.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+        const pendienteFacturar = total - facturado;
+        return sum + (pendienteFacturar > 0 ? pendienteFacturar : 0);
+    }, 0);
 
     const handleSort = (field: SortField) => {
         if (sortField === field) {
@@ -163,7 +175,7 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
     // ---> 3. LÓGICA DE FILTRADO Y ORDENAMIENTO DINÁMICO <---
     const filteredData = useMemo(() => {
         let baseData =
-            activeFilter === 'ADVANCES' ? advancesForFirstInvoice : activeFilter === 'ALL' ? orders : [];
+            activeFilter === 'ADVANCES' ? advancesForFirstInvoice : activeFilter === 'ALL' ? activeOrders : [];
         let sortableItems = [...baseData];
         
         sortableItems.sort((a, b) => {
@@ -188,7 +200,7 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
         });
         
         return sortableItems;
-    }, [activeFilter, advancesForFirstInvoice, orders, sortField, sortDirection]);
+    }, [activeFilter, advancesForFirstInvoice, activeOrders, sortField, sortDirection, getClientName]);
 
     const SortableHeader = ({ field, label }: { field: SortField, label: string }) => {
         const isActive = sortField === field;
@@ -275,7 +287,7 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
                                 {allCount}
                             </div>
                             <div className="ml-16 h-full flex flex-col justify-between">
-                                <div><h4 className="font-bold text-indigo-800 flex items-center gap-2"><Layers size={18} className="text-indigo-500"/> D. Visor de OV</h4><p className="text-sm text-slate-500 mt-2 mb-4">Consulta todas las órdenes de venta (CXC).</p></div>
+                                <div><h4 className="font-bold text-indigo-800 flex items-center gap-2"><Layers size={18} className="text-indigo-500"/> D. Visor de OV</h4><p className="text-sm text-slate-500 mt-2 mb-4">OV activas — pendiente de facturar.</p></div>
                                 <div className="text-lg font-black text-indigo-600 text-right tracking-tight">{formatCurrency(allVal)}</div>
                             </div>
                         </Card>
