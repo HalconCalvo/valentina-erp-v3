@@ -402,6 +402,24 @@ const SalesDashboardPage: React.FC = () => {
     };
 
     const submitClientOcModal = async (orderId: number, folio: string, dateStrYmd: string) => {
+        const ACTIVE_STATUSES = ['WAITING_ADVANCE', 'SOLD', 'IN_PRODUCTION', 'FINISHED', 'COMPLETED'];
+        const current = orders.find(o => o.id === orderId);
+        const posibleDuplicado = current && orders.find(o =>
+            o.id !== current.id &&
+            o.client_id === current.client_id &&
+            (o.project_name || '').trim().toLowerCase() === (current.project_name || '').trim().toLowerCase() &&
+            ACTIVE_STATUSES.includes(o.status)
+        );
+        if (posibleDuplicado) {
+            const seguir = window.confirm(
+                `⚠ Posible duplicado.\n\n` +
+                `Ya existe una OV activa para este cliente y proyecto "${current!.project_name}" ` +
+                `(OV #${posibleDuplicado.id}, estado ${posibleDuplicado.status}).\n\n` +
+                `¿Seguro que deseas generar otra OV? Si no es un duplicado, continúa.`
+            );
+            if (!seguir) return;
+        }
+
         setIsLoading(true);
         try {
             const client_po_date = `${dateStrYmd}T12:00:00`;
