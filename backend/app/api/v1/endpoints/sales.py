@@ -1115,17 +1115,6 @@ def emit_advance_invoice(order_id: int, payload: PaymentPayload,
     if not payload.invoice_folio:
         raise HTTPException(422, "El folio de la factura de anticipo es obligatorio.")
 
-    # Evitar duplicar la factura de anticipo: si ya existe una ADVANCE no cancelada para esta OV, error.
-    existente = session.exec(
-        select(CustomerPayment).where(
-            CustomerPayment.sales_order_id == order.id,
-            CustomerPayment.payment_type == PaymentType.ADVANCE,
-            CustomerPayment.status != CXCStatus.CANCELLED
-        )
-    ).first()
-    if existente:
-        raise HTTPException(409, "Ya existe una factura de anticipo para esta orden.")
-
     new_cxc = CustomerPayment(
         sales_order_id=order.id,
         payment_type=PaymentType.ADVANCE,
