@@ -108,6 +108,11 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase();
     const canEditOcInRayos = !readOnly && ['ADMIN', 'ADMINISTRADOR', 'GERENCIA', 'DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
     const canEditProjectName = ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'GERENCIA', 'SALES', 'VENTAS'].includes(userRole);
+    const canEditAdvance = ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'GERENCIA'].includes(userRole);
+    const [editingAdvance, setEditingAdvance] = useState(false);
+    const [advanceDraft, setAdvanceDraft] = useState<string>('');
+    const [savingAdvance, setSavingAdvance] = useState(false);
+    const [displayAdvance, setDisplayAdvance] = useState<number>(Number(order.advance_invoice_amount) || 0);
 
     const [isUpdatingCommission, setIsUpdatingCommission] = useState(false);
     const [ocSaving, setOcSaving] = useState(false);
@@ -143,6 +148,10 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         setDisplayName(order.project_name);
         setEditingName(false);
     }, [order?.id, order.project_name]);
+
+    useEffect(() => {
+        setDisplayAdvance(Number(order.advance_invoice_amount) || 0);
+    }, [order.advance_invoice_amount, order.id]);
 
     useEffect(() => {
         if (!isOpen || !order?.id) return;
@@ -184,6 +193,10 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const totalPaidInBank = order.payments?.filter(p => p.status === 'PAID').reduce((sum, p) => sum + Number(p.amount), 0) || 0;
     const pendingToCollect = order.payments?.filter(p => p.status === 'PENDING').reduce((sum, p) => sum + Number(p.amount), 0) || 0;
     const pendingToInvoice = totalOrder - totalInvoiced;
+    const advanceInvoiced = order.payments
+        ?.filter(p => p.payment_type === 'ADVANCE')
+        .reduce((sum, p) => sum + Number(p.amount), 0) || 0;
+    const advancePending = displayAdvance - advanceInvoiced;
     const pct = order.advance_percent || 60;
     const expectedAdvance = totalOrder * (pct / 100);
     const isWaitingAdvance = order.status === 'WAITING_ADVANCE';
@@ -249,6 +262,22 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
             }
         } finally {
             setSavingName(false);
+        }
+    };
+
+    const handleSaveAdvance = async () => {
+        const val = Number(advanceDraft);
+        if (isNaN(val) || val < 0) { alert('Importe inválido.'); return; }
+        setSavingAdvance(true);
+        try {
+            await salesService.updateOrder(order.id, { advance_invoice_amount: Number(val.toFixed(2)) } as any);
+            setDisplayAdvance(Number(val.toFixed(2)));
+            setEditingAdvance(false);
+            if (onOrderPatch) onOrderPatch({ advance_invoice_amount: Number(val.toFixed(2)) } as any);
+        } catch (err: any) {
+            alert(err?.response?.status === 403 ? 'No tienes permisos.' : 'Error al guardar el anticipo.');
+        } finally {
+            setSavingAdvance(false);
         }
     };
 
@@ -434,6 +463,42 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                         )}
                     </div>
 
+                    <div className="bg-white border border-indigo-100 rounded-xl p-4 flex items-center justify-between shadow-sm">
+                        <div>
+                            <p className="text-xs font-bold text-indigo-500 uppercase tracking-wider">Importe objetivo del anticipo</p>
+                            {editingAdvance ? (
+                                <div className="flex items-center gap-2 mt-1">
+                                    <input
+                                        type="number"
+                                        className="border-b-2 border-indigo-400 outline-none text-lg font-black text-slate-800 w-40"
+                                        value={advanceDraft}
+                                        onChange={e => setAdvanceDraft(e.target.value)}
+                                        autoFocus
+                                    />
+                                    <button type="button" onClick={() => void handleSaveAdvance()} disabled={savingAdvance}
+                                        className="text-xs font-bold text-emerald-600 hover:text-emerald-700 disabled:opacity-50">
+                                        {savingAdvance ? 'Guardando…' : 'Guardar'}
+                                    </button>
+                                    <button type="button" onClick={() => setEditingAdvance(false)}
+                                        className="text-xs font-bold text-slate-400 hover:text-slate-600">Cancelar</button>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2 mt-1">
+                                    <p className="text-lg font-black text-slate-800">{formatCurrency(displayAdvance)}</p>
+                                    {canEditAdvance && (
+                                        <button type="button"
+                                            onClick={() => { setAdvanceDraft(String(displayAdvance)); setEditingAdvance(true); }}
+                                            className="text-slate-400 hover:text-indigo-600"
+                                            title="Editar importe del anticipo">
+                                            <Pencil size={14} />
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                            <p className="text-[10px] text-slate-400 mt-1">Facturado de anticipo: {formatCurrency(advanceInvoiced)} · Falta: {formatCurrency(Math.max(displayAdvance - advanceInvoiced, 0))}</p>
+                        </div>
+                    </div>
+
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Valor del Proyecto c/IVA</p>
@@ -460,8 +525,8 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                 <Receipt size={16} className="text-slate-400"/>
                                 Facturas Emitidas (Cuentas por Cobrar)
                             </h3>
-                            {pendingToInvoice > 0.1 && !readOnly && onOpenInvoiceModal && 
-                             !(isWaitingAdvance && order.payments?.some(p => p.payment_type === 'ADVANCE')) && (
+                            {pendingToInvoice > 0.1 && !readOnly && onOpenInvoiceModal &&
+                             !(isWaitingAdvance && displayAdvance > 0 && advancePending <= 0.1) && (
                                 <button 
                                     onClick={() => onOpenInvoiceModal(order)}
                                     className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shadow-sm"
