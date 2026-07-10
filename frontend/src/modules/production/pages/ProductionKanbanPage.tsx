@@ -860,10 +860,12 @@ export default function ProductionKanbanPage() {
                   e.dataTransfer.setData('packingInstanceId', String(instance.id));
                   e.dataTransfer.effectAllowed = 'move';
                 }}
-                className={`p-3 rounded-lg shadow-sm border border-l-4 border-l-violet-400 cursor-grab active:cursor-grabbing transition ${
+                className={`p-3 rounded-lg shadow-sm border border-l-4 cursor-grab active:cursor-grabbing transition ${
                   isSelected
-                    ? 'bg-emerald-50 border-emerald-200'
-                    : 'bg-white border-violet-100'
+                    ? 'bg-emerald-50 border-emerald-200 border-l-emerald-400'
+                    : isStone
+                      ? 'bg-violet-50 border-violet-100 border-l-violet-500'
+                      : 'bg-amber-50 border-amber-100 border-l-amber-500'
                 }`}
               >
                 {/* Checkbox + Info */}
