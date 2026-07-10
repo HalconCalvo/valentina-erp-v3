@@ -1,6 +1,6 @@
 """
 Generador de etiquetas ZPL para impresora Datamax O'Neil E-Class Mark IIIA
-Tamaño de etiqueta: 10cm x 6.7cm = 800 x 536 dots a 203 dpi
+Tamaño de etiqueta: 10cm x 6.5cm = 800 x 520 dots a 203 dpi
 """
 from typing import List
 
@@ -17,34 +17,35 @@ def generate_zpl_label(
     """
     Genera el código ZPL para UNA etiqueta de bulto.
 
-    Layout (800 x 536 dots):
+    Layout (800 x 520 dots):
     - Línea 1: Cliente (grande, negrita)
-    - Línea 2: Proyecto
-    - Línea 3: Instancia
-    - Línea 4: [N/Total] — TIPO (muy grande, destacado)
-    - QR Code centrado a la derecha
+    - Línea 2: Proyecto: {nombre}
+    - Líneas 3-4: Instancia (hasta 2 líneas con ^FB)
+    - Línea 5: TIPO N/Total (muy grande, una línea)
+    - QR grande único por bulto (uuid-N)
     """
-    # Truncar textos largos para que no se salgan de la etiqueta
-    client_truncated   = client_name[:35]   if client_name   else ""
-    project_truncated  = project_name[:35]  if project_name  else ""
-    instance_truncated = instance_name[:35] if instance_name else ""
-    bundle_label = f"[{bundle_number}/{total_bundles}] {bundle_type}"
+    client_truncated = client_name[:35] if client_name else ""
+    project_truncated = project_name[:30] if project_name else ""
+    instance_truncated = instance_name[:70] if instance_name else ""
+    project_line = f"Proyecto: {project_truncated}"
+    bundle_line = f"{bundle_type} {bundle_number}/{total_bundles}"
+    qr_content = f"{qr_uuid}-{bundle_number}"
 
     zpl = f"""^XA
 ^CI28
 ^LH0,0
 ^PW800
-^LL536
+^LL520
 
-^FO30,30^A0N,40,40^FD{client_truncated}^FS
-^FO30,90^A0N,32,32^FD{project_truncated}^FS
-^FO30,140^A0N,32,32^FD{instance_truncated}^FS
+^FO30,30^A0N,44,44^FD{client_truncated}^FS
+^FO30,85^A0N,30,30^FD{project_line}^FS
+^FO30,120^A0N,30,30^FB450,2,0,L,0^FD{instance_truncated}^FS
 
-^FO30,210^A0N,90,90^FD{bundle_label}^FS
+^FO30,290^A0N,80,80^FD{bundle_line}^FS
 
-^FO550,30^BQN,2,6^FDQA,{qr_uuid}^FS
+^FO530,30^BQN,2,10^FDQA,{qr_content}^FS
 
-^FO30,490^A0N,24,24^FDValentina ERP^FS
+^FO30,478^A0N,32,32^FDGrupo Incamex Koloka^FS
 ^FO600,490^A0N,24,24^FD{qr_uuid[:8]}^FS
 
 ^XZ"""
