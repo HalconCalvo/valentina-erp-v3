@@ -551,13 +551,6 @@ def simulate_batch(
     if not request.instance_ids:
         raise HTTPException(status_code=400, detail="Debe seleccionar al menos una instancia.")
 
-    if request.batch_type.upper() == "PIEDRA":
-        raise HTTPException(
-            status_code=400,
-            detail="El Simulador solo aplica para lotes MDF. "
-                   "Los lotes de Piedra se crean directamente."
-        )
-
     # 1. Diccionario para acumular las cantidades requeridas
     # Formato: { material_id: required_qty }
     aggregated_bom: Dict[int, float] = {}
@@ -580,9 +573,18 @@ def simulate_batch(
             material = session.exec(
                 select(Material).where(Material.id == comp.material_id)
             ).first()
-            # Saltar PROCESO (no inventariable) y PIEDRA en simulador MDF
-            if material and (material.category or "").upper() in ("PROCESO", "PIEDRA"):
+            cat_material = (material.category or "").upper() if material else ""
+            # PROCESO nunca es inventariable
+            if cat_material == "PROCESO":
                 continue
+            if request.batch_type.upper() == "MDF":
+                # En lote MDF, saltar materiales de piedra
+                if cat_material == "PIEDRA":
+                    continue
+            elif request.batch_type.upper() == "PIEDRA":
+                # En lote PIEDRA, incluir SOLO materiales de piedra
+                if cat_material != "PIEDRA":
+                    continue
             if comp.material_id in aggregated_bom:
                 aggregated_bom[comp.material_id] += comp.quantity
             else:
