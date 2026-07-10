@@ -522,10 +522,12 @@ export default function ProductionKanbanPage() {
                 draggable={true}
                 onDragStart={(e) => handleDragStart(e, batch.id, isLocked)}
                 onClick={() => setSelectedBatch(batch)}
-                className={`p-4 rounded-lg shadow-sm border transition ${
-                  isLocked 
-                    ? 'bg-red-50 border-red-300 cursor-pointer hover:shadow-md'
-                    : 'bg-white border-gray-200 hover:shadow-md hover:border-blue-300 cursor-pointer'
+                className={`p-4 rounded-lg shadow-sm border transition cursor-pointer hover:shadow-md ${
+                  isLocked
+                    ? 'bg-red-50 border-red-300'
+                    : (batch.batch_type || '').toUpperCase() === 'PIEDRA'
+                      ? 'bg-violet-50 border-gray-200 border-l-4 border-l-violet-500 hover:border-violet-300'
+                      : 'bg-amber-50 border-gray-200 border-l-4 border-l-amber-500 hover:border-amber-300'
                 }`}
               >
                 <div className="flex justify-between items-start mb-2">
@@ -577,7 +579,13 @@ export default function ProductionKanbanPage() {
                 })()}
 
                 <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-100/50">
-                  <span className={`text-xs font-semibold px-2 py-1 rounded ${isLocked ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
+                  <span className={`text-xs font-semibold px-2 py-1 rounded ${
+                    isLocked
+                      ? 'bg-red-100 text-red-700'
+                      : (batch.batch_type || '').toUpperCase() === 'PIEDRA'
+                        ? 'bg-violet-100 text-violet-700'
+                        : 'bg-amber-100 text-amber-700'
+                  }`}>
                     {batch.batch_type}
                   </span>
                   <span className="text-xs font-medium text-gray-500 flex items-center gap-1">
