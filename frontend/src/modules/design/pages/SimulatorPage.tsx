@@ -509,27 +509,15 @@ export default function SimulatorPage() {
               </div>
               
               <div className="flex items-end pt-6">
-                {batchType === 'MDF' ? (
-                  <button
-                    onClick={handleSimulate}
-                    disabled={selectedIds.length === 0 || simulating}
-                    className="bg-blue-600 text-white px-8 py-3 rounded-lg font-bold shadow hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
-                  >
-                    {simulating
-                      ? <><RefreshCw className="animate-spin" size={18}/> Calculando...</>
-                      : 'Ejecutar Simulación'}
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleCreateStoneBatch}
-                    disabled={selectedIds.length === 0 || creating}
-                    className="bg-stone-700 text-white px-8 py-3 rounded-lg font-bold shadow hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
-                  >
-                    {creating
-                      ? <><RefreshCw className="animate-spin" size={18}/> Creando...</>
-                      : <><Factory size={18}/> Crear Lote Piedra</>}
-                  </button>
-                )}
+                <button
+                  onClick={handleSimulate}
+                  disabled={selectedIds.length === 0 || simulating}
+                  className="bg-blue-600 text-white px-8 py-3 rounded-lg font-bold shadow hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
+                >
+                  {simulating
+                    ? <><RefreshCw className="animate-spin" size={18}/> Calculando...</>
+                    : 'Ejecutar Simulación'}
+                </button>
               </div>
             </div>
           </div>
@@ -538,25 +526,9 @@ export default function SimulatorPage() {
           <div className="flex-1 p-6 bg-slate-50 overflow-y-auto">
             {!simulationResult ? (
               <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm gap-2">
-                {batchType === 'MDF' ? (
-                  <>
-                    <Beaker size={40} className="opacity-20 mb-2" />
-                    <p>Selecciona órdenes en el radar y ejecuta el simulador</p>
-                    <p>para ver el cruce de inventario.</p>
-                  </>
-                ) : (
-                  <>
-                    <Factory size={40} className="opacity-20 mb-2" />
-                    <p className="font-semibold text-slate-500">
-                      Lote de Piedra
-                    </p>
-                    <p>Selecciona las instancias y haz clic en</p>
-                    <p><b>Crear Lote Piedra</b> para enviarlo directamente a Producción.</p>
-                    <p className="text-xs mt-2 text-slate-300">
-                      No se requiere simulación de inventario.
-                    </p>
-                  </>
-                )}
+                <Beaker size={40} className="opacity-20 mb-2" />
+                <p>Selecciona órdenes en el radar y ejecuta el simulador</p>
+                <p>para ver el cruce de inventario.</p>
               </div>
             ) : (
               <div className="animate-in slide-in-from-bottom-2">
@@ -580,16 +552,18 @@ export default function SimulatorPage() {
                   </div>
                   
                   <button 
-                    onClick={handleCreateBatch}
+                    onClick={batchType === 'MDF' ? handleCreateBatch : handleCreateStoneBatch}
                     disabled={creating}
                     className={`px-6 py-3 rounded-lg font-bold shadow text-white transition flex items-center gap-2 ${
-                      simulationResult.suggested_status === 'ON_HOLD' 
-                        ? 'bg-orange-600 hover:bg-orange-700' 
-                        : 'bg-emerald-600 hover:bg-emerald-700'
+                      batchType === 'PIEDRA'
+                        ? 'bg-stone-700 hover:bg-stone-800'
+                        : simulationResult.suggested_status === 'ON_HOLD' 
+                          ? 'bg-orange-600 hover:bg-orange-700' 
+                          : 'bg-emerald-600 hover:bg-emerald-700'
                     }`}
                   >
                     {creating ? <RefreshCw className="animate-spin" size={18}/> : <Factory size={18}/>}
-                    {creating ? 'Inyectando...' : `Confirmar Lote ${simulationResult.suggested_status}`}
+                    {creating ? 'Inyectando...' : batchType === 'MDF' ? 'Crear Lote MDF' : 'Crear Lote Piedra'}
                   </button>
                 </div>
 
