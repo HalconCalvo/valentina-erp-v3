@@ -343,9 +343,12 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
                                                     <div className="flex items-center gap-4">
                                                         <ChevronDown size={20} className={`text-slate-400 transform transition-transform duration-300 ${isExpanded ? 'rotate-180 text-indigo-500' : 'group-hover:text-indigo-400'}`} />
                                                         <div>
-                                                            <div className="flex items-baseline gap-2">
+                                                            <div className="flex items-baseline gap-2 flex-wrap">
                                                                 <h3 className="font-black text-slate-800 text-lg">OV-{order.id?.toString().padStart(4, '0')}</h3>
                                                                 <span className="text-slate-500 font-medium">| {getClientName(order)}</span>
+                                                                {order.project_name && (
+                                                                    <span className="text-slate-600 font-semibold">| {order.project_name}</span>
+                                                                )}
                                                             </div>
                                                             <div className="flex items-center gap-3 mt-1">
                                                                 {getStatusBadge(order.status)}
