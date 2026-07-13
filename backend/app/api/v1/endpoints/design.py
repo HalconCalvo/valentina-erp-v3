@@ -905,6 +905,78 @@ def generate_labels(
     )
 
 
+@router.get("/instances/{instance_id}/labels_pdf")
+def generate_labels_pdf(
+    instance_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Genera un PDF con una etiqueta por bulto (10x6.5cm) para impresión directa.
+    Requiere mdf_bundles y/o hardware_bundles declarados.
+    """
+    from fastapi.responses import StreamingResponse
+    from app.services.pdf_generator import PDFGenerator
+
+    instance = session.get(SalesOrderItemInstance, instance_id)
+    if not instance:
+        raise HTTPException(status_code=404, detail="Instancia no encontrada.")
+
+    if not instance.mdf_bundles and not instance.hardware_bundles:
+        raise HTTPException(
+            status_code=400,
+            detail="Esta instancia no tiene bultos declarados. "
+                   "Declara los bultos desde Producción primero.",
+        )
+
+    item = session.exec(
+        select(SalesOrderItem)
+        .where(SalesOrderItem.id == instance.sales_order_item_id)
+    ).first()
+    order = session.exec(
+        select(SalesOrder)
+        .where(SalesOrder.id == item.sales_order_id)
+    ).first() if item else None
+    client = session.get(Client, order.client_id) if order and order.client_id else None
+
+    qr_uuid = instance.qr_code or str(uuid_lib.uuid4())
+    if not instance.qr_code:
+        instance.qr_code = qr_uuid
+        session.add(instance)
+        session.commit()
+
+    mdf = instance.mdf_bundles or 0
+    hardware = instance.hardware_bundles or 0
+
+    labels = generate_all_labels(
+        client_name=client.full_name if client else "Sin cliente",
+        project_name=order.project_name if order else "Sin proyecto",
+        instance_name=instance.custom_name or f"Instancia #{instance_id}",
+        mdf_bundles=mdf,
+        hardware_bundles=hardware,
+        qr_uuid=qr_uuid,
+    )
+
+    generator = PDFGenerator()
+    pdf_buffer = generator.generate_bundle_labels_pdf(
+        labels=labels,
+        client_name=client.full_name if client else "Sin cliente",
+        project_name=order.project_name if order else "Sin proyecto",
+        instance_name=instance.custom_name or f"Instancia #{instance_id}",
+        qr_uuid=qr_uuid,
+    )
+
+    filename = f"etiquetas_{instance_id}.pdf"
+    pdf_buffer.seek(0)
+    return StreamingResponse(
+        iter([pdf_buffer.read()]),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        },
+    )
+
+
 @router.get("/instances/{instance_id}/stone_manifest")
 def generate_stone_manifest(
     instance_id: int,

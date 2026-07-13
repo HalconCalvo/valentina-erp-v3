@@ -6,7 +6,7 @@ from reportlab.lib.pagesizes import LETTER
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image, KeepTogether
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
+from reportlab.lib.units import inch, cm
 from reportlab.lib.enums import TA_RIGHT, TA_LEFT
 from reportlab.lib.utils import ImageReader
 
@@ -719,5 +719,79 @@ class PDFGenerator:
             onFirstPage=lambda c, d: self._draw_footer(c, d, config),
             onLaterPages=lambda c, d: self._draw_footer(c, d, config),
         )
+        buffer.seek(0)
+        return buffer
+
+    def generate_bundle_labels_pdf(
+        self,
+        labels: list,
+        client_name: str,
+        project_name: str,
+        instance_name: str,
+        qr_uuid: str,
+    ) -> BytesIO:
+        """
+        Genera un PDF con una etiqueta por bulto. Cada etiqueta en su propia página
+        tamaño 10x6.5cm. 'labels' es la lista de LabelBundle (bundle_number,
+        total_bundles, bundle_type) de generate_all_labels.
+        """
+        import qrcode
+        import textwrap
+        from reportlab.pdfgen import canvas as pdf_canvas
+
+        page_w, page_h = 10 * cm, 6.5 * cm
+        margin = 0.4 * cm
+        qr_size = 2.7 * cm
+        text_max_x = page_w - margin - qr_size - 0.2 * cm
+        buffer = BytesIO()
+        c = pdf_canvas.Canvas(buffer, pagesize=(page_w, page_h))
+
+        client_txt = (client_name or "")[:35]
+        project_txt = f"Proyecto: {(project_name or '')[:30]}"
+        inst_txt = (instance_name or "")[:70]
+        inst_lines = textwrap.wrap(inst_txt, width=32) if inst_txt else [""]
+        inst_lines = inst_lines[:2]
+
+        qr_x = page_w - margin - qr_size
+        qr_y = page_h - margin - qr_size
+
+        for i, bundle in enumerate(labels):
+            # Cliente (arriba)
+            c.setFont("Helvetica-Bold", 15)
+            c.drawString(margin, page_h - margin - 0.15 * cm, client_txt)
+
+            # Proyecto
+            c.setFont("Helvetica", 10)
+            c.drawString(margin, page_h - margin - 0.62 * cm, project_txt)
+
+            # Instancia (hasta 2 líneas, por palabras)
+            c.setFont("Helvetica", 10)
+            inst_y = page_h - margin - 1.05 * cm
+            for line in inst_lines:
+                c.drawString(margin, inst_y, line)
+                inst_y -= 0.42 * cm
+
+            # Tipo y bulto (grande, desde abajo)
+            bundle_line = f"{bundle.bundle_type} {bundle.bundle_number}/{bundle.total_bundles}"
+            c.setFont("Helvetica-Bold", 26)
+            c.drawString(margin, margin + 1.0 * cm, bundle_line)
+
+            # QR (esquina superior derecha)
+            qr_img = qrcode.make(f"{qr_uuid}-{bundle.bundle_number}")
+            qr_buffer = BytesIO()
+            qr_img.save(qr_buffer, format="PNG")
+            qr_buffer.seek(0)
+            c.drawImage(ImageReader(qr_buffer), qr_x, qr_y, width=qr_size, height=qr_size)
+
+            # Pie
+            c.setFont("Helvetica", 9)
+            c.drawString(margin, margin, "Grupo Incamex Koloka")
+            uuid_short = (qr_uuid or "")[:8]
+            c.drawRightString(page_w - margin, margin, uuid_short)
+
+            if i < len(labels) - 1:
+                c.showPage()
+
+        c.save()
         buffer.seek(0)
         return buffer
