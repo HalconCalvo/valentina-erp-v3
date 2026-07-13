@@ -11,7 +11,7 @@ from sqlmodel import Session, select
 # Ajusta esta importación si tu get_db está en otro lado
 from app.core.deps import get_session, CurrentUser
 
-from app.models.production import ProductionBatch, ProductionBatchStatus
+from app.models.production import ProductionBatch, ProductionBatchStatus, PrintJob
 from app.models.foundations import Client
 from app.models.sales import SalesOrderItemInstance, SalesOrderItem, SalesOrder, PaymentStatus, InstanceStatus, CustomerPayment
 from app.models.inventory import InventoryReservation
@@ -956,3 +956,93 @@ def mark_instance_ready(
         "custom_name": instance.custom_name,
         "production_status": instance.production_status,
     }
+
+
+# ==========================================
+# COLA DE IMPRESIÓN DE ETIQUETAS
+# ==========================================
+class PendingPrintJobRead(BaseModel):
+    id: int
+    instance_id: int
+    bundle_number: int
+    total_bundles: int
+    bundle_type: str
+    zpl_content: str
+
+
+class PrintJobCreatedRead(PendingPrintJobRead):
+    status: str
+    is_reprint: bool
+
+
+@router.get("/print_jobs/pending", response_model=List[PendingPrintJobRead])
+def list_pending_print_jobs(
+    current_user: CurrentUser,
+    db: Session = Depends(get_session),
+):
+    jobs = db.exec(
+        select(PrintJob)
+        .where(PrintJob.status == "PENDING")
+        .order_by(PrintJob.created_at.asc())
+    ).all()
+    return [
+        PendingPrintJobRead(
+            id=job.id,
+            instance_id=job.instance_id,
+            bundle_number=job.bundle_number,
+            total_bundles=job.total_bundles,
+            bundle_type=job.bundle_type,
+            zpl_content=job.zpl_content,
+        )
+        for job in jobs
+    ]
+
+
+@router.post("/print_jobs/{job_id}/mark_printed")
+def mark_print_job_printed(
+    job_id: int,
+    current_user: CurrentUser,
+    db: Session = Depends(get_session),
+):
+    job = db.get(PrintJob, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Trabajo de impresión no encontrado.")
+    job.status = "PRINTED"
+    job.printed_at = datetime.utcnow()
+    db.add(job)
+    db.commit()
+    return {"ok": True, "job_id": job_id, "status": job.status}
+
+
+@router.post("/print_jobs/{job_id}/reprint", response_model=PrintJobCreatedRead)
+def reprint_print_job(
+    job_id: int,
+    current_user: CurrentUser,
+    db: Session = Depends(get_session),
+):
+    original = db.get(PrintJob, job_id)
+    if not original:
+        raise HTTPException(status_code=404, detail="Trabajo de impresión no encontrado.")
+    new_job = PrintJob(
+        instance_id=original.instance_id,
+        bundle_number=original.bundle_number,
+        total_bundles=original.total_bundles,
+        bundle_type=original.bundle_type,
+        zpl_content=original.zpl_content,
+        status="PENDING",
+        is_reprint=True,
+        created_by_user_id=current_user.id,
+    )
+    db.add(new_job)
+    db.commit()
+    db.refresh(new_job)
+    return PrintJobCreatedRead(
+        id=new_job.id,
+        instance_id=new_job.instance_id,
+        bundle_number=new_job.bundle_number,
+        total_bundles=new_job.total_bundles,
+        bundle_type=new_job.bundle_type,
+        zpl_content=new_job.zpl_content,
+        status=new_job.status,
+        is_reprint=new_job.is_reprint,
+    )

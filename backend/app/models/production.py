@@ -124,3 +124,22 @@ class PayrollPayment(SQLModel, table=True):
 
     admin_notes: Optional[str] = Field(default=None)
     bank_account_id: Optional[int] = Field(default=None, foreign_key="bank_accounts.id")
+
+
+# ==========================================
+# 4. COLA DE IMPRESIÓN DE ETIQUETAS
+# ==========================================
+class PrintJob(SQLModel, table=True):
+    __tablename__ = "print_jobs"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    instance_id: int = Field(foreign_key="sales_order_item_instances.id", index=True)
+    bundle_number: int
+    total_bundles: int
+    bundle_type: str  # "MDF" o "HERRAJES"
+    zpl_content: str
+    status: str = Field(default="PENDING", index=True)  # PENDING / PRINTED / ERROR
+    is_reprint: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    printed_at: Optional[datetime] = Field(default=None)
+    created_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")

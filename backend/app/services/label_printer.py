@@ -2,7 +2,16 @@
 Generador de etiquetas ZPL para impresora Datamax O'Neil E-Class Mark IIIA
 Tamaño de etiqueta: 10cm x 6.5cm = 800 x 520 dots a 203 dpi
 """
+from dataclasses import dataclass
 from typing import List
+
+
+@dataclass
+class LabelBundle:
+    bundle_number: int
+    total_bundles: int
+    bundle_type: str  # "MDF" o "HERRAJES"
+    zpl_content: str
 
 
 def generate_zpl_label(
@@ -59,37 +68,47 @@ def generate_all_labels(
     mdf_bundles: int,
     hardware_bundles: int,
     qr_uuid: str,
-) -> List[str]:
+) -> List[LabelBundle]:
     """
     Genera todas las etiquetas ZPL para una instancia.
     Orden: primero MDF, luego HERRAJES.
-    Retorna una lista de strings ZPL, uno por etiqueta.
+    Retorna una lista de LabelBundle (metadatos + ZPL por bulto).
     """
     total = mdf_bundles + hardware_bundles
-    labels = []
+    labels: List[LabelBundle] = []
     counter = 1
 
     for _ in range(mdf_bundles):
-        labels.append(generate_zpl_label(
+        labels.append(LabelBundle(
             bundle_number=counter,
             total_bundles=total,
             bundle_type="MDF",
-            client_name=client_name,
-            project_name=project_name,
-            instance_name=instance_name,
-            qr_uuid=qr_uuid,
+            zpl_content=generate_zpl_label(
+                bundle_number=counter,
+                total_bundles=total,
+                bundle_type="MDF",
+                client_name=client_name,
+                project_name=project_name,
+                instance_name=instance_name,
+                qr_uuid=qr_uuid,
+            ),
         ))
         counter += 1
 
     for _ in range(hardware_bundles):
-        labels.append(generate_zpl_label(
+        labels.append(LabelBundle(
             bundle_number=counter,
             total_bundles=total,
             bundle_type="HERRAJES",
-            client_name=client_name,
-            project_name=project_name,
-            instance_name=instance_name,
-            qr_uuid=qr_uuid,
+            zpl_content=generate_zpl_label(
+                bundle_number=counter,
+                total_bundles=total,
+                bundle_type="HERRAJES",
+                client_name=client_name,
+                project_name=project_name,
+                instance_name=instance_name,
+                qr_uuid=qr_uuid,
+            ),
         ))
         counter += 1
 

@@ -26,6 +26,7 @@ from .production import (
     PayrollPayment,
     PayrollPaymentType,
     PayrollStatus,
+    PrintJob,
 )
 
 # --- Módulo de Caja Chica ---
@@ -84,6 +85,7 @@ __all__ = [
     "PayrollPayment",
     "PayrollPaymentType",
     "PayrollStatus",
+    "PrintJob",
 
     # Caja Chica
     "PettyCashFund",

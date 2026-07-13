@@ -22,7 +22,7 @@ from app.models.design import (
 )
 from app.models.material import Material, ProductionRoute
 from app.models.foundations import Client
-from app.models.production import ProductionBatch, ProductionBatchStatus
+from app.models.production import ProductionBatch, ProductionBatchStatus, PrintJob
 from app.models.sales import (
     InstanceStatus,
     SalesOrder,
@@ -880,6 +880,18 @@ def generate_labels(
         qr_uuid=qr_uuid,
     )
 
+    for bundle in labels:
+        session.add(PrintJob(
+            instance_id=instance_id,
+            bundle_number=bundle.bundle_number,
+            total_bundles=bundle.total_bundles,
+            bundle_type=bundle.bundle_type,
+            zpl_content=bundle.zpl_content,
+            status="PENDING",
+            created_by_user_id=current_user.id,
+        ))
+    session.commit()
+
     return GenerateLabelsResponse(
         instance_id=instance_id,
         instance_name=instance.custom_name or "",
@@ -888,7 +900,7 @@ def generate_labels(
         total_labels=len(labels),
         mdf_bundles=mdf,
         hardware_bundles=hardware,
-        zpl_content=concatenate_zpl(labels),
+        zpl_content=concatenate_zpl([b.zpl_content for b in labels]),
         qr_uuid=qr_uuid,
     )
 
