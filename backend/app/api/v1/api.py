@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 # 1. IMPORTAMOS ANALYTICS, EL NUEVO MÓDULO 'USERS' Y 'PRODUCTION' (V3.5)
-from app.api.v1.endpoints import foundations, auth, users, design, sales, inventory, login, treasury, analytics, production, purchases, logistics
+from app.api.v1.endpoints import foundations, auth, users, design, sales, inventory, login, treasury, analytics, production, purchases, logistics, reports
 from app.api.v1.endpoints import finance
 from app.api.v1.endpoints import planning
 from app.api.v1.endpoints import petty_cash
@@ -29,6 +29,7 @@ api_router.include_router(logistics.router, prefix="/logistics", tags=["logistic
 # 2. ANALYTICS & FINANZAS
 api_router.include_router(analytics.router, prefix="/analytics", tags=["analytics"])
 api_router.include_router(finance.router, prefix="/finance", tags=["finance"])
+api_router.include_router(reports.router, prefix="/reports", tags=["reports"])
 api_router.include_router(treasury.router, prefix="/treasury", tags=["Treasury"])
 
 # --- PLANEACIÓN ESTRATÉGICA: MATRIZ DE 4 CARRILES ---
