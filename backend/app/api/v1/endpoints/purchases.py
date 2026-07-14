@@ -209,6 +209,8 @@ def read_purchase_orders(*, db: Session = Depends(get_session), status: str | No
 @router.post("/orders/bulk-emit")
 def emit_bulk_purchase_order(*, db: Session = Depends(get_session), data: POCreateFromPlanning, current_user: CurrentUser):
     if not data.provider_id: raise HTTPException(status_code=400)
+    if not data.items or len(data.items) == 0:
+        raise HTTPException(status_code=400, detail="No se puede crear una orden de compra sin partidas.")
     timestamp = datetime.now().strftime('%y%m%d%H%M')
     new_folio = f"OC-{timestamp}"
     po = PurchaseOrder(
@@ -258,6 +260,12 @@ def authorize_purchase_order(*, db: Session = Depends(get_session), po_id: int, 
 
     po = db.get(PurchaseOrder, po_id)
     if not po: raise HTTPException(status_code=404)
+
+    items_count = db.exec(
+        select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po.id)
+    ).all()
+    if not items_count:
+        raise HTTPException(status_code=400, detail="No se puede autorizar una orden de compra sin partidas.")
 
     user_id = getattr(current_user, 'email', None) or getattr(current_user, 'username', 'USUARIO')
     po.status = "AUTORIZADA"
@@ -349,6 +357,12 @@ def dispatch_purchase_order(*, db: Session = Depends(get_session), po_id: int, c
     po = db.get(PurchaseOrder, po_id)
     if not po: raise HTTPException(status_code=404, detail="Orden no encontrada")
     if po.status != "AUTORIZADA": raise HTTPException(status_code=400, detail="Solo se pueden enviar órdenes Autorizadas")
+
+    items_count = db.exec(
+        select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po.id)
+    ).all()
+    if not items_count:
+        raise HTTPException(status_code=400, detail="No se puede enviar una orden de compra sin partidas.")
     
     po.status = "ENVIADA"
     db.add(po)
