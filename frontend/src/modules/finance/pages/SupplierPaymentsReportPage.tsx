@@ -109,6 +109,40 @@ const SupplierPaymentsReportPage: React.FC = () => {
         }
     };
 
+    const handleDownloadPdf = async () => {
+        if (!canGenerate) return;
+        try {
+            const token = localStorage.getItem('token');
+            const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+            const params = new URLSearchParams({
+                provider_id: providerId,
+                date_from: dateFrom,
+                date_to: dateTo,
+                status_filter: statusFilter,
+            });
+            const response = await fetch(`${baseUrl}/reports/supplier_payments/pdf?${params}`, {
+                method: 'GET',
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!response.ok) {
+                const err = await response.json();
+                alert(`Error: ${err.detail}`);
+                return;
+            }
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `reporte_pagos_${providerId}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch {
+            alert('Error al descargar el PDF.');
+        }
+    };
+
     return (
         <div className="p-8 max-w-7xl mx-auto pb-24 space-y-6 animate-fadeIn">
             <div className="border-b border-slate-200 pb-4">
@@ -215,7 +249,7 @@ const SupplierPaymentsReportPage: React.FC = () => {
                         </div>
                         <button
                             type="button"
-                            onClick={() => alert('PDF en construcción')}
+                            onClick={() => void handleDownloadPdf()}
                             className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-indigo-200 text-indigo-700 font-bold rounded-lg text-sm hover:bg-indigo-50 transition-all shadow-sm"
                         >
                             <Download size={16} />

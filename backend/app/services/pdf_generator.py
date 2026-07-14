@@ -722,6 +722,197 @@ class PDFGenerator:
         buffer.seek(0)
         return buffer
 
+    def generate_supplier_payments_report(
+        self,
+        provider_name: str,
+        date_from,
+        date_to,
+        status_label: str,
+        payments: list,
+        total_amount: float,
+        config,
+    ) -> BytesIO:
+        """
+        PDF del reporte de pagos a proveedor por periodo y filtro de estatus.
+        """
+        from datetime import datetime, date as date_type
+        from reportlab.platypus import HRFlowable
+
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(
+            buffer, pagesize=LETTER,
+            rightMargin=60, leftMargin=60,
+            topMargin=50, bottomMargin=70,
+        )
+        elements = []
+        now = datetime.now()
+        months = {
+            1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
+            5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
+            9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre",
+        }
+        date_str = f"Mérida, Yucatán a {now.day} de {months[now.month]} de {now.year}"
+
+        def fmt_report_date(value) -> str:
+            if isinstance(value, datetime):
+                value = value.date()
+            if isinstance(value, date_type):
+                return value.strftime("%d/%m/%Y")
+            return str(value)
+
+        # ── ENCABEZADO CON LOGO ──────────────────────────────────
+        logo_image_obj = None
+        if hasattr(config, "logo_path") and config.logo_path:
+            logo_url = config.logo_path
+            if logo_url.startswith("http"):
+                try:
+                    ctx = ssl.create_default_context()
+                    ctx.check_hostname = False
+                    ctx.verify_mode = ssl.CERT_NONE
+                    with urlopen(logo_url, context=ctx) as response:
+                        img_data = response.read()
+                    logo_image_obj = BytesIO(img_data)
+                except Exception as e:
+                    print(f"Advertencia logo: {e}")
+            elif os.path.exists(logo_url):
+                logo_image_obj = logo_url
+
+        company_title = getattr(config, "company_name", "Valentina ERP")
+
+        right_block = [
+            Paragraph(
+                "<font size=16><b>REPORTE DE PAGOS A PROVEEDOR</b></font>",
+                self.styles["DateStyle"],
+            ),
+            Paragraph(date_str, self.styles["DateStyle"]),
+        ]
+
+        if logo_image_obj:
+            try:
+                img_reader = ImageReader(logo_image_obj)
+                orig_w, orig_h = img_reader.getSize()
+                aspect = orig_h / float(orig_w)
+                max_w, max_h = 2.5 * inch, 1.2 * inch
+                new_w, new_h = max_w, max_w * aspect
+                if new_h > max_h:
+                    new_h, new_w = max_h, max_h / aspect
+                if isinstance(logo_image_obj, BytesIO):
+                    logo_image_obj.seek(0)
+                img = Image(logo_image_obj, width=new_w, height=new_h)
+                img.hAlign = "LEFT"
+                header_data = [[img, right_block]]
+            except Exception:
+                header_data = [[
+                    Paragraph(f"<b>{company_title}</b>", self.styles["Heading3"]),
+                    right_block,
+                ]]
+        else:
+            header_data = [[
+                Paragraph(f"<b>{company_title}</b>", self.styles["Heading3"]),
+                right_block,
+            ]]
+
+        header_table = Table(header_data, colWidths=[3.5 * inch, 3.5 * inch])
+        header_table.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ]))
+        elements.append(header_table)
+        elements.append(Spacer(1, 20))
+        elements.append(HRFlowable(
+            width="100%", thickness=2,
+            color=colors.HexColor("#1e40af"),
+        ))
+        elements.append(Spacer(1, 16))
+
+        info_style = ParagraphStyle(
+            "ReportInfoLine",
+            parent=self.styles["Normal"],
+            fontSize=11,
+            leading=16,
+            spaceAfter=4,
+        )
+        elements.append(Paragraph(
+            f"<font color='#6b7280'>Proveedor:</font>  <b>{provider_name}</b>",
+            info_style,
+        ))
+        elements.append(Paragraph(
+            f"<font color='#6b7280'>Periodo:</font>  "
+            f"<b>{fmt_report_date(date_from)} al {fmt_report_date(date_to)}</b>",
+            info_style,
+        ))
+        elements.append(Paragraph(
+            f"<font color='#6b7280'>Filtro:</font>  <b>{status_label}</b>",
+            info_style,
+        ))
+        elements.append(Spacer(1, 18))
+
+        # ── TABLA DE PAGOS ───────────────────────────────────────
+        table_data = [[
+            "Fecha", "Folio", "Monto", "Método", "Referencia", "Estatus",
+        ]]
+
+        for payment in payments:
+            reference = payment.get("reference")
+            table_data.append([
+                fmt_report_date(payment.get("payment_date")),
+                Paragraph(payment.get("invoice_number") or "", self.styles["NormalSmall"]),
+                f"$ {float(payment.get('amount', 0) or 0):,.2f}",
+                Paragraph(payment.get("payment_method") or "", self.styles["NormalSmall"]),
+                Paragraph(reference or "—", self.styles["NormalSmall"]),
+                Paragraph(payment.get("status") or "", self.styles["NormalSmall"]),
+            ])
+
+        payments_table = Table(
+            table_data,
+            colWidths=[0.85 * inch, 1.05 * inch, 1.0 * inch, 1.0 * inch, 1.35 * inch, 0.95 * inch],
+            repeatRows=1,
+        )
+        payments_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e2e8f0")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, 0), 9),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#1e293b")),
+            ("LINEBELOW", (0, 0), (-1, 0), 1, colors.HexColor("#94a3b8")),
+            ("LINEBELOW", (0, 1), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
+            ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+            ("ALIGN", (0, 1), (0, -1), "CENTER"),
+            ("ALIGN", (2, 1), (2, -1), "RIGHT"),
+            ("ALIGN", (1, 1), (1, -1), "LEFT"),
+            ("ALIGN", (3, 1), (-1, -1), "LEFT"),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("FONTSIZE", (0, 1), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        elements.append(payments_table)
+        elements.append(Spacer(1, 14))
+
+        total_style = ParagraphStyle(
+            "ReportTotal",
+            parent=self.styles["Normal"],
+            fontSize=11,
+            leading=14,
+            alignment=TA_RIGHT,
+        )
+        count = len(payments)
+        elements.append(Paragraph(
+            f"<b>Total ({count} pagos): $ {float(total_amount or 0):,.2f}</b>",
+            total_style,
+        ))
+
+        doc.build(
+            elements,
+            onFirstPage=lambda c, d: self._draw_footer(c, d, config),
+            onLaterPages=lambda c, d: self._draw_footer(c, d, config),
+        )
+        buffer.seek(0)
+        return buffer
+
     def generate_bundle_labels_pdf(
         self,
         labels: list,
