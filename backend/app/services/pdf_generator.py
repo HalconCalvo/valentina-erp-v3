@@ -771,7 +771,27 @@ class PDFGenerator:
                     ctx.verify_mode = ssl.CERT_NONE
                     with urlopen(logo_url, context=ctx) as response:
                         img_data = response.read()
-                    logo_image_obj = BytesIO(img_data)
+                    # Optimizar: reducir a máx 1000px de ancho y recomprimir
+                    try:
+                        from PIL import Image as PILImage
+                        raw = BytesIO(img_data)
+                        pil_img = PILImage.open(raw)
+                        max_width = 1000
+                        if pil_img.width > max_width:
+                            ratio = max_width / float(pil_img.width)
+                            new_size = (max_width, int(pil_img.height * ratio))
+                            pil_img = pil_img.resize(new_size, PILImage.LANCZOS)
+                        out = BytesIO()
+                        # Conservar transparencia si es PNG (modo RGBA/P), si no, RGB
+                        if pil_img.mode in ("RGBA", "P", "LA"):
+                            pil_img.save(out, format="PNG", optimize=True)
+                        else:
+                            pil_img.save(out, format="PNG", optimize=True)
+                        out.seek(0)
+                        logo_image_obj = out
+                    except Exception as opt_e:
+                        print(f"Advertencia optimización logo: {opt_e}")
+                        logo_image_obj = BytesIO(img_data)
                 except Exception as e:
                     print(f"Advertencia logo: {e}")
             elif os.path.exists(logo_url):
@@ -892,18 +912,27 @@ class PDFGenerator:
         elements.append(payments_table)
         elements.append(Spacer(1, 14))
 
-        total_style = ParagraphStyle(
-            "ReportTotal",
-            parent=self.styles["Normal"],
-            fontSize=11,
-            leading=14,
-            alignment=TA_RIGHT,
-        )
         count = len(payments)
-        elements.append(Paragraph(
-            f"<b>Total ({count} pagos): $ {float(total_amount or 0):,.2f}</b>",
-            total_style,
-        ))
+        total_label = f"Total ({count} pagos):"
+        total_value = f"$ {float(total_amount or 0):,.2f}"
+
+        total_row = [["", total_label, total_value, "", "", ""]]
+        total_table = Table(
+            total_row,
+            colWidths=[0.85 * inch, 1.05 * inch, 1.0 * inch, 1.0 * inch, 1.35 * inch, 0.95 * inch],
+        )
+        total_table.setStyle(TableStyle([
+            ("FONTNAME", (0, 0), (-1, -1), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 10),
+            ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+            ("ALIGN", (2, 0), (2, 0), "RIGHT"),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ("LINEABOVE", (1, 0), (2, 0), 1, colors.HexColor("#333333")),
+        ]))
+        elements.append(total_table)
 
         doc.build(
             elements,
