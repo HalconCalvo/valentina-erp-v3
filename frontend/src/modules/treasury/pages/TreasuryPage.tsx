@@ -4,7 +4,7 @@ import {
   Plus, Landmark, ArrowDownRight, ArrowUpRight, Users, 
   CheckCircle2, Wallet, ArrowLeft, CheckCircle, 
   Bell, Search, TrendingUp, AlertTriangle,
-  ShoppingCart, Tag, ArrowRight, Banknote, Receipt
+  ShoppingCart, Tag, ArrowRight, Banknote, Receipt, FileText
 } from 'lucide-react';
 
 // --- SERVICIOS Y TIPOS ---
@@ -503,6 +503,28 @@ export const TreasuryPage = () => {
                   </p>
                   <Receipt size={14} className="text-slate-300" />
                 </div>
+              </div>
+            </Card>
+          </div>
+
+          <div className="w-full relative h-40">
+            <Card
+              onClick={() => navigate('/finance/supplier-payments')}
+              className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-indigo-500 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white group"
+            >
+              <div className="flex justify-between items-start">
+                <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">
+                  Reporte
+                </p>
+                <FileText size={16} className="text-indigo-500" />
+              </div>
+              <div className="text-base font-black text-indigo-600 tracking-tight leading-tight mt-2">
+                Pagos a Proveedor
+              </div>
+              <div className="mt-2 pt-2 border-t border-slate-100">
+                <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
+                  Por proveedor y rango de fechas
+                </p>
               </div>
             </Card>
           </div>
