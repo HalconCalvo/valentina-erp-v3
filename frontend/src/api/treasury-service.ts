@@ -107,4 +107,16 @@ export const treasuryService = {
     const response = await client.get('/treasury/weekly-fixed-costs/latest');
     return response.data ?? null;
   },
+
+  listWeeklyFixedCosts: async (dateFrom: string, dateTo: string): Promise<WeeklyFixedCostRecord[]> => {
+    const response = await client.get('/treasury/weekly-fixed-costs', {
+      params: { date_from: dateFrom, date_to: dateTo },
+    });
+    return response.data ?? [];
+  },
+
+  updateWeeklyFixedCost: async (id: number, payload: WeeklyFixedCostPayload): Promise<WeeklyFixedCostRecord> => {
+    const response = await client.put(`/treasury/weekly-fixed-costs/${id}`, payload);
+    return response.data;
+  },
 };

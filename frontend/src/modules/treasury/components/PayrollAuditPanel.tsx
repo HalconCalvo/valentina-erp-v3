@@ -19,7 +19,7 @@ import {
   CommissionsPayrollOverview,
   PayrollCommissionRow,
 } from '../../../types/sales';
-import { BankAccount, WeeklyFixedCostPayload } from '../../../types/treasury';
+import { BankAccount, WeeklyFixedCostPayload, WeeklyFixedCostRecord } from '../../../types/treasury';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 
@@ -90,6 +90,14 @@ export const PayrollAuditPanel: React.FC<Props> = ({
   const [weeklyLast, setWeeklyLast] = useState<Awaited<
     ReturnType<typeof treasuryService.getLatestWeeklyFixedCosts>
   >>(null);
+
+  const [histFrom, setHistFrom] = useState<string>('');
+  const [histTo, setHistTo] = useState<string>('');
+  const [history, setHistory] = useState<WeeklyFixedCostRecord[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editVals, setEditVals] = useState<{ admin_payroll: number; design_sales_payroll: number; production_plant_payroll: number; notes: string }>({ admin_payroll: 0, design_sales_payroll: 0, production_plant_payroll: 0, notes: '' });
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const loadOverviews = useCallback(async () => {
     try {
@@ -234,6 +242,54 @@ export const PayrollAuditPanel: React.FC<Props> = ({
       setWeeklySaving(false);
     }
   };
+
+  const loadHistory = async () => {
+    if (!histFrom || !histTo) return;
+    setLoadingHistory(true);
+    try {
+      const data = await treasuryService.listWeeklyFixedCosts(histFrom, histTo);
+      setHistory(data);
+    } catch (e) {
+      console.error('Error cargando histórico:', e);
+      alert('Error al cargar el histórico.');
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const startEdit = (row: WeeklyFixedCostRecord) => {
+    setEditingId(row.id);
+    setEditVals({
+      admin_payroll: row.admin_payroll,
+      design_sales_payroll: row.design_sales_payroll,
+      production_plant_payroll: row.production_plant_payroll,
+      notes: row.notes || '',
+    });
+  };
+
+  const cancelEdit = () => { setEditingId(null); };
+
+  const saveEdit = async (row: WeeklyFixedCostRecord) => {
+    setSavingEdit(true);
+    try {
+      await treasuryService.updateWeeklyFixedCost(row.id, {
+        week_reference_date: row.week_reference_date.slice(0, 10),
+        admin_payroll: editVals.admin_payroll,
+        design_sales_payroll: editVals.design_sales_payroll,
+        production_plant_payroll: editVals.production_plant_payroll,
+        notes: editVals.notes || null,
+      });
+      setEditingId(null);
+      await loadHistory();
+    } catch (e) {
+      console.error('Error guardando corrección:', e);
+      alert('Error al guardar la corrección.');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const fmtMoney = (n: number) => (n || 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 
   const renderCommissionTable = (view: SubView) => {
     const rows = commissionRows[view];
@@ -800,6 +856,97 @@ export const PayrollAuditPanel: React.FC<Props> = ({
           <Button className="mt-6 bg-violet-700 hover:bg-violet-800" onClick={saveWeekly} disabled={weeklySaving}>
             {weeklySaving ? 'Guardando…' : 'Guardar cierre semanal'}
           </Button>
+        </Card>
+      )}
+
+      {level1 === 'WEEKLY' && canCaptureWeeklyFixed && (
+        <Card className="p-6 mt-4">
+          <h3 className="text-lg font-black text-slate-800 mb-4">Histórico de nóminas semanales</h3>
+          <div className="flex flex-wrap items-end gap-3 mb-4">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-bold text-slate-600 uppercase">Desde</label>
+              <input type="date" value={histFrom} onChange={(e) => setHistFrom(e.target.value)}
+                className="border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-bold text-slate-600 uppercase">Hasta</label>
+              <input type="date" value={histTo} onChange={(e) => setHistTo(e.target.value)}
+                className="border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <Button onClick={loadHistory} disabled={!histFrom || !histTo || loadingHistory}
+              className="bg-indigo-600 hover:bg-indigo-700">
+              {loadingHistory ? 'Consultando…' : 'Consultar'}
+            </Button>
+          </div>
+
+          {history.length === 0 ? (
+            <p className="text-sm text-slate-400">Selecciona un rango y consulta el histórico.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-100 text-slate-600">
+                  <tr>
+                    <th className="p-2 text-left font-bold">Semana (jueves)</th>
+                    <th className="p-2 text-right font-bold">Administración</th>
+                    <th className="p-2 text-right font-bold">Diseño/Ventas</th>
+                    <th className="p-2 text-right font-bold">Producción</th>
+                    <th className="p-2 text-right font-bold">Total</th>
+                    <th className="p-2 text-center font-bold">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {history.map((row) => {
+                    const isEd = editingId === row.id;
+                    const total = isEd
+                      ? editVals.admin_payroll + editVals.design_sales_payroll + editVals.production_plant_payroll
+                      : row.admin_payroll + row.design_sales_payroll + row.production_plant_payroll;
+                    return (
+                      <tr key={row.id} className={isEd ? 'bg-indigo-50/40' : ''}>
+                        <td className="p-2 font-medium text-slate-700">{row.week_reference_date.slice(0, 10)}</td>
+                        <td className="p-2 text-right">
+                          {isEd ? (
+                            <input type="number" step="0.01" value={editVals.admin_payroll || ''}
+                              onChange={(e) => setEditVals(v => ({ ...v, admin_payroll: parseFloat(e.target.value) || 0 }))}
+                              className="w-28 border border-slate-300 rounded px-2 py-1 text-right" />
+                          ) : fmtMoney(row.admin_payroll)}
+                        </td>
+                        <td className="p-2 text-right">
+                          {isEd ? (
+                            <input type="number" step="0.01" value={editVals.design_sales_payroll || ''}
+                              onChange={(e) => setEditVals(v => ({ ...v, design_sales_payroll: parseFloat(e.target.value) || 0 }))}
+                              className="w-28 border border-slate-300 rounded px-2 py-1 text-right" />
+                          ) : fmtMoney(row.design_sales_payroll)}
+                        </td>
+                        <td className="p-2 text-right">
+                          {isEd ? (
+                            <input type="number" step="0.01" value={editVals.production_plant_payroll || ''}
+                              onChange={(e) => setEditVals(v => ({ ...v, production_plant_payroll: parseFloat(e.target.value) || 0 }))}
+                              className="w-28 border border-slate-300 rounded px-2 py-1 text-right" />
+                          ) : fmtMoney(row.production_plant_payroll)}
+                        </td>
+                        <td className="p-2 text-right font-bold text-slate-800">{fmtMoney(total)}</td>
+                        <td className="p-2 text-center whitespace-nowrap">
+                          {isEd ? (
+                            <>
+                              <button type="button" onClick={() => saveEdit(row)} disabled={savingEdit}
+                                className="text-emerald-700 font-bold text-xs px-2 py-1 hover:bg-emerald-50 rounded">
+                                {savingEdit ? 'Guardando…' : 'Guardar'}
+                              </button>
+                              <button type="button" onClick={cancelEdit}
+                                className="text-slate-500 font-bold text-xs px-2 py-1 hover:bg-slate-100 rounded">Cancelar</button>
+                            </>
+                          ) : (
+                            <button type="button" onClick={() => startEdit(row)}
+                              className="text-indigo-600 font-bold text-xs px-2 py-1 hover:bg-indigo-50 rounded">Editar</button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </Card>
       )}
 
