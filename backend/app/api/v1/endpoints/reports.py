@@ -4,6 +4,7 @@ from typing import List, Literal, Tuple
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from sqlalchemy import text
 from sqlmodel import select
 
 from app.core.deps import SessionDep, CurrentUser
@@ -95,6 +96,30 @@ class SupplierPaymentsReportResponse(BaseModel):
     payments: List[SupplierPaymentReportRow]
     total_amount: float
     count: int
+
+
+class InvoiceItemRow(BaseModel):
+    sku: str | None
+    description: str | None
+    quantity: float
+    unit_cost: float
+    amount: float
+
+
+class InvoiceItemsResponse(BaseModel):
+    folio: str
+    items: List[InvoiceItemRow]
+    total: float
+    count: int
+
+
+def _clean_invoice_folio(folio: str) -> str:
+    if not folio:
+        return ""
+    safe_folio = str(folio).strip()
+    if safe_folio.startswith("OC-OC-"):
+        return safe_folio.replace("OC-OC-", "OC-")
+    return safe_folio
 
 
 def _build_supplier_payments_data(
@@ -226,4 +251,55 @@ def supplier_payments_report_pdf(
         headers={
             "Content-Disposition": f"attachment; filename={filename}",
         },
+    )
+
+
+@router.get("/invoice_items", response_model=InvoiceItemsResponse)
+def get_invoice_items(
+    current_user: CurrentUser,
+    session: SessionDep,
+    folio: str = Query(...),
+) -> InvoiceItemsResponse:
+    """
+    Detalle de artículos de una factura (purchase_invoice_items vía accounts_payable).
+    Enlaza por folio: PurchaseInvoice.invoice_number == AccountsPayable.invoice_folio.
+    """
+    _check_report_role(current_user)
+
+    folio_clean = _clean_invoice_folio(folio)
+    if not folio_clean:
+        return InvoiceItemsResponse(folio=folio, items=[], total=0.0, count=0)
+
+    rows = session.exec(text("""
+        SELECT
+            pii.sku,
+            pii.description,
+            pii.quantity_received,
+            pii.unit_cost
+        FROM purchase_invoice_items pii
+        JOIN accounts_payable ap ON ap.id = pii.accounts_payable_id
+        WHERE ap.invoice_folio = :folio
+        ORDER BY pii.id
+    """).bindparams(folio=folio_clean)).all()
+
+    items: List[InvoiceItemRow] = []
+    total = 0.0
+    for sku, description, quantity_received, unit_cost in rows:
+        qty = float(quantity_received or 0)
+        cost = float(unit_cost or 0)
+        amount = round(qty * cost, 2)
+        items.append(InvoiceItemRow(
+            sku=sku,
+            description=description,
+            quantity=qty,
+            unit_cost=cost,
+            amount=amount,
+        ))
+        total += amount
+
+    return InvoiceItemsResponse(
+        folio=folio_clean,
+        items=items,
+        total=round(total, 2),
+        count=len(items),
     )
