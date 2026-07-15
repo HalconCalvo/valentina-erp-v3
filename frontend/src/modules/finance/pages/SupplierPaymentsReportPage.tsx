@@ -59,6 +59,11 @@ const SupplierPaymentsReportPage: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [report, setReport] = useState<SupplierPaymentsReportData | null>(null);
 
+    const [expandedFolio, setExpandedFolio] = useState<string | null>(null);
+    const [detailItems, setDetailItems] = useState<any[]>([]);
+    const [detailTotal, setDetailTotal] = useState<number>(0);
+    const [loadingDetail, setLoadingDetail] = useState(false);
+
     useEffect(() => {
         let cancelled = false;
         (async () => {
@@ -140,6 +145,33 @@ const SupplierPaymentsReportPage: React.FC = () => {
             window.URL.revokeObjectURL(url);
         } catch {
             alert('Error al descargar el PDF.');
+        }
+    };
+
+    const toggleRow = async (folio: string) => {
+        if (expandedFolio === folio) {
+            setExpandedFolio(null);
+            return;
+        }
+        setExpandedFolio(folio);
+        setDetailItems([]);
+        setDetailTotal(0);
+        setLoadingDetail(true);
+        try {
+            const token = localStorage.getItem('token');
+            const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+            const response = await fetch(`${baseUrl}/reports/invoice_items?folio=${encodeURIComponent(folio)}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (response.ok) {
+                const data = await response.json();
+                setDetailItems(data.items || []);
+                setDetailTotal(data.total || 0);
+            }
+        } catch {
+            // silencioso; se mostrará "sin detalle"
+        } finally {
+            setLoadingDetail(false);
         }
     };
 
@@ -276,16 +308,59 @@ const SupplierPaymentsReportPage: React.FC = () => {
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
                                     {report.payments.map((row, idx) => (
-                                        <tr key={`${row.invoice_number}-${row.payment_date}-${idx}`} className="hover:bg-slate-50">
-                                            <td className="p-4 text-sm text-slate-700">{formatDate(row.payment_date)}</td>
-                                            <td className="p-4 text-sm font-medium text-slate-800">{row.invoice_number}</td>
-                                            <td className="p-4 text-right font-black text-indigo-700 tabular-nums">
-                                                {formatCurrency(row.amount)}
-                                            </td>
-                                            <td className="p-4 text-sm text-slate-600">{row.payment_method}</td>
-                                            <td className="p-4 text-sm text-slate-500">{row.reference || '—'}</td>
-                                            <td className="p-4 text-sm font-semibold text-slate-700">{row.status}</td>
-                                        </tr>
+                                        <React.Fragment key={`${row.invoice_number}-${row.payment_date}-${idx}`}>
+                                            <tr className="hover:bg-indigo-50/40 cursor-pointer" onClick={() => void toggleRow(row.invoice_number)}>
+                                                <td className="p-4 text-sm text-slate-700">
+                                                    <span className="inline-block mr-2 text-indigo-400">{expandedFolio === row.invoice_number ? '▾' : '▸'}</span>
+                                                    {formatDate(row.payment_date)}
+                                                </td>
+                                                <td className="p-4 text-sm font-medium text-slate-800">{row.invoice_number}</td>
+                                                <td className="p-4 text-right font-black text-indigo-700 tabular-nums">{formatCurrency(row.amount)}</td>
+                                                <td className="p-4 text-sm text-slate-600">{row.payment_method}</td>
+                                                <td className="p-4 text-sm text-slate-500">{row.reference || '—'}</td>
+                                                <td className="p-4 text-sm font-semibold text-slate-700">{row.status}</td>
+                                            </tr>
+                                            {expandedFolio === row.invoice_number && (
+                                                <tr className="bg-slate-50/70">
+                                                    <td colSpan={6} className="p-4">
+                                                        {loadingDetail ? (
+                                                            <p className="text-sm text-slate-400">Cargando detalle…</p>
+                                                        ) : detailItems.length === 0 ? (
+                                                            <p className="text-sm text-slate-400 italic">Sin detalle de artículos capturado para esta factura.</p>
+                                                        ) : (
+                                                            <div className="overflow-x-auto">
+                                                                <table className="w-full text-xs">
+                                                                    <thead>
+                                                                        <tr className="text-slate-500 uppercase tracking-wide border-b border-slate-200">
+                                                                            <th className="p-2 text-left font-bold">SKU</th>
+                                                                            <th className="p-2 text-left font-bold">Descripción</th>
+                                                                            <th className="p-2 text-right font-bold">Cantidad</th>
+                                                                            <th className="p-2 text-right font-bold">Precio Unit.</th>
+                                                                            <th className="p-2 text-right font-bold">Importe</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody className="divide-y divide-slate-100">
+                                                                        {detailItems.map((it, i) => (
+                                                                            <tr key={i}>
+                                                                                <td className="p-2 text-slate-700 font-medium">{it.sku || '—'}</td>
+                                                                                <td className="p-2 text-slate-600">{it.description || '—'}</td>
+                                                                                <td className="p-2 text-right tabular-nums">{it.quantity}</td>
+                                                                                <td className="p-2 text-right tabular-nums">{formatCurrency(it.unit_cost)}</td>
+                                                                                <td className="p-2 text-right font-semibold tabular-nums">{formatCurrency(it.amount)}</td>
+                                                                            </tr>
+                                                                        ))}
+                                                                        <tr className="border-t border-slate-200 font-bold">
+                                                                            <td colSpan={4} className="p-2 text-right">Total detalle:</td>
+                                                                            <td className="p-2 text-right tabular-nums text-indigo-800">{formatCurrency(detailTotal)}</td>
+                                                                        </tr>
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </React.Fragment>
                                     ))}
                                     <tr className="bg-slate-50 border-t-2 border-slate-200">
                                         <td colSpan={2} className="p-4 font-black text-slate-800">
