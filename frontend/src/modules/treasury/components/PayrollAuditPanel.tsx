@@ -583,7 +583,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
             </div>
             <div className="ml-16 h-full flex flex-col justify-between pl-2">
               <div className="flex justify-between items-start">
-                <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">KPI</p>
+                <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Nómina Semanal</p>
                 <BarChart3 size={16} className="text-violet-500" />
               </div>
               <div className="flex justify-end">
