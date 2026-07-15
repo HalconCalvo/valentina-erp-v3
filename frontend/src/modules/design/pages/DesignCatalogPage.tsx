@@ -31,7 +31,9 @@ const DesignCatalogPage: React.FC = () => {
     const location = useLocation(); 
     
     // --- ESTADO DE VISTA MAESTRA ---
-    const [currentView, setCurrentView] = useState<ModuleView>('HOME');
+    const [currentView, setCurrentView] = useState<ModuleView>(
+      () => (sessionStorage.getItem('designCatalog_view') as ModuleView) || 'HOME'
+    );
     const [viewHistory, setViewHistory] = useState<string[]>([]);
     const [liveBatches, setLiveBatches] = useState<any[]>([]);
     const [loadingLiveBatches, setLoadingLiveBatches] = useState(false);
@@ -64,7 +66,14 @@ const DesignCatalogPage: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState("");
     const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
   const [showProductSuggestions, setShowProductSuggestions] = useState(false);
-    const [expandedClients, setExpandedClients] = useState<Set<number>>(new Set());
+    const [expandedClients, setExpandedClients] = useState<Set<number>>(() => {
+      try {
+        const saved = sessionStorage.getItem('designCatalog_expandedClients');
+        return saved ? new Set<number>(JSON.parse(saved)) : new Set<number>();
+      } catch {
+        return new Set<number>();
+      }
+    });
     // Orden alfabético por nombre de producto en el listado por cliente (toggle A→Z / Z→A)
     const [sortDir, setSortDir] = useState<'asc' | 'desc' | null>(null);
 
@@ -84,6 +93,17 @@ const DesignCatalogPage: React.FC = () => {
             .then(res => setMaterials(Array.isArray(res.data) ? res.data : res.data?.data || []))
             .catch(() => console.error('Error cargando materiales'));
     }, [loadMasters, fetchClients]);
+
+    useEffect(() => {
+      sessionStorage.setItem('designCatalog_view', currentView);
+    }, [currentView]);
+
+    useEffect(() => {
+      sessionStorage.setItem(
+        'designCatalog_expandedClients',
+        JSON.stringify(Array.from(expandedClients))
+      );
+    }, [expandedClients]);
 
 
     const loadDashboardMetrics = async () => {
