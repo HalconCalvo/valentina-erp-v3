@@ -1,7 +1,7 @@
 from typing import Any, List, Optional
 from datetime import date, datetime
 from pydantic import BaseModel
-from fastapi import APIRouter, Body, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from sqlmodel import select, func, text
 
 # --- TUS DEPENDENCIAS EXACTAS ---
@@ -307,6 +307,46 @@ def create_weekly_fixed_cost(
 def get_latest_weekly_fixed_cost(session: SessionDep, current_user: CurrentUser) -> Any:
     stmt = select(WeeklyFixedCost).order_by(WeeklyFixedCost.week_reference_date.desc())
     row = session.exec(stmt).first()
+    return row
+
+
+@router.get("/weekly-fixed-costs", response_model=List[WeeklyFixedCostRead])
+def list_weekly_fixed_costs(
+    session: SessionDep,
+    current_user: CurrentUser,
+    date_from: date = Query(...),
+    date_to: date = Query(...),
+) -> Any:
+    if _role_upper(current_user) not in _WEEKLY_FIXED_COST_ROLES:
+        raise HTTPException(status_code=403, detail="Sin permiso para consultar el histórico.")
+    stmt = (
+        select(WeeklyFixedCost)
+        .where(WeeklyFixedCost.week_reference_date >= date_from)
+        .where(WeeklyFixedCost.week_reference_date <= date_to)
+        .order_by(WeeklyFixedCost.week_reference_date.desc())
+    )
+    return session.exec(stmt).all()
+
+
+@router.put("/weekly-fixed-costs/{cost_id}", response_model=WeeklyFixedCostRead)
+def update_weekly_fixed_cost(
+    cost_id: int,
+    payload: WeeklyFixedCostCreate,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> Any:
+    if _role_upper(current_user) not in _WEEKLY_FIXED_COST_ROLES:
+        raise HTTPException(status_code=403, detail="Sin permiso para corregir el cierre semanal.")
+    row = session.get(WeeklyFixedCost, cost_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Registro no encontrado.")
+    row.admin_payroll = payload.admin_payroll
+    row.design_sales_payroll = payload.design_sales_payroll
+    row.production_plant_payroll = payload.production_plant_payroll
+    row.notes = payload.notes
+    session.add(row)
+    session.commit()
+    session.refresh(row)
     return row
 
 
