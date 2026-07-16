@@ -472,6 +472,28 @@ const ManagementDashboard: React.FC = () => {
                         </Card>
                     </div>
 
+                    <div className="w-full relative h-40">
+                        <Card
+                            onClick={() => navigate('/finance/provider-statement')}
+                            className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-teal-500 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white group"
+                        >
+                            <div className="flex justify-between items-start">
+                                <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">
+                                    Reporte
+                                </p>
+                                <FileText size={16} className="text-teal-500" />
+                            </div>
+                            <div className="text-base font-black text-teal-600 tracking-tight leading-tight mt-2">
+                                Estado de Cuenta Proveedor
+                            </div>
+                            <div className="mt-2 pt-2 border-t border-slate-100">
+                                <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
+                                    Facturas, abonos y saldos
+                                </p>
+                            </div>
+                        </Card>
+                    </div>
+
                 </div>
             )}
 
