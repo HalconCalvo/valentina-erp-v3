@@ -8,7 +8,7 @@ from sqlalchemy import text
 from sqlmodel import select
 
 from app.core.deps import SessionDep, CurrentUser
-from app.models.finance import SupplierPayment, PaymentStatus, PaymentMethod, PurchaseInvoice
+from app.models.finance import SupplierPayment, PaymentStatus, PaymentMethod, PurchaseInvoice, InvoiceStatus
 from app.models.foundations import Provider, GlobalConfig
 from app.models.users import User
 from app.services.pdf_generator import PDFGenerator
@@ -115,6 +115,28 @@ class InvoiceItemsResponse(BaseModel):
     count: int
 
 
+class ProviderInvoiceRow(BaseModel):
+    invoice_number: str
+    issue_date: date | None
+    due_date: date | None
+    total_amount: float
+    paid_amount: float
+    outstanding: float
+    raw_status: str
+
+
+class ProviderInvoicesResponse(BaseModel):
+    provider: dict
+    date_from: date
+    date_to: date
+    status_filter: str
+    invoices: List[ProviderInvoiceRow]
+    total_facturado: float
+    total_abonado: float
+    total_por_pagar: float
+    count: int
+
+
 def _clean_invoice_folio(folio: str) -> str:
     if not folio:
         return ""
@@ -170,6 +192,72 @@ def _build_supplier_payments_data(
         total_amount += payment.amount
 
     return provider, payments, round(total_amount, 2)
+
+
+def _build_provider_invoices_data(
+    session: SessionDep,
+    provider_id: int,
+    date_from: date,
+    date_to: date,
+    status_filter: str,
+) -> Tuple[Provider, List[ProviderInvoiceRow], float, float, float]:
+    if date_from > date_to:
+        raise HTTPException(status_code=400, detail="date_from no puede ser posterior a date_to.")
+
+    if status_filter not in {"paid", "pending", "all"}:
+        raise HTTPException(
+            status_code=400,
+            detail="status_filter inválido. Use: paid, pending o all.",
+        )
+
+    provider = session.get(Provider, provider_id)
+    if not provider:
+        raise HTTPException(status_code=404, detail="Proveedor no encontrado.")
+
+    invoices_db = session.exec(
+        select(PurchaseInvoice)
+        .where(PurchaseInvoice.provider_id == provider_id)
+        .where(PurchaseInvoice.issue_date >= date_from)
+        .where(PurchaseInvoice.issue_date <= date_to)
+        .where(PurchaseInvoice.status != InvoiceStatus.CANCELLED)
+        .order_by(PurchaseInvoice.issue_date.desc())
+    ).all()
+
+    invoices: List[ProviderInvoiceRow] = []
+    total_facturado = 0.0
+    total_abonado = 0.0
+    total_por_pagar = 0.0
+
+    for inv in invoices_db:
+        outstanding = float(inv.outstanding_balance or 0)
+        if status_filter == "pending" and outstanding <= 0:
+            continue
+        if status_filter == "paid" and outstanding > 0:
+            continue
+
+        total_amount = float(inv.total_amount or 0)
+        paid_amount = total_amount - outstanding
+
+        invoices.append(ProviderInvoiceRow(
+            invoice_number=inv.invoice_number or "",
+            issue_date=inv.issue_date,
+            due_date=inv.due_date,
+            total_amount=round(total_amount, 2),
+            paid_amount=round(paid_amount, 2),
+            outstanding=round(outstanding, 2),
+            raw_status=str(getattr(inv.status, "value", inv.status)),
+        ))
+        total_facturado += total_amount
+        total_abonado += paid_amount
+        total_por_pagar += outstanding
+
+    return (
+        provider,
+        invoices,
+        round(total_facturado, 2),
+        round(total_abonado, 2),
+        round(total_por_pagar, 2),
+    )
 
 
 @router.get("/supplier_payments", response_model=SupplierPaymentsReportResponse)
@@ -306,4 +394,36 @@ def get_invoice_items(
         items=items,
         total=round(total, 2),
         count=len(items),
+    )
+
+
+@router.get("/provider_invoices", response_model=ProviderInvoicesResponse)
+def provider_invoices_report(
+    current_user: CurrentUser,
+    session: SessionDep,
+    provider_id: int = Query(...),
+    date_from: date = Query(...),
+    date_to: date = Query(...),
+    status_filter: Literal["paid", "pending", "all"] = Query("all"),
+):
+    """
+    Estado de cuenta por proveedor: facturas con total, abonado y saldo pendiente.
+    Roles: DIRECTOR, GERENCIA, ADMIN (y alias).
+    """
+    _check_report_role(current_user)
+
+    provider, invoices, total_facturado, total_abonado, total_por_pagar = _build_provider_invoices_data(
+        session, provider_id, date_from, date_to, status_filter,
+    )
+
+    return ProviderInvoicesResponse(
+        provider={"id": provider.id, "name": provider.business_name},
+        date_from=date_from,
+        date_to=date_to,
+        status_filter=status_filter,
+        invoices=invoices,
+        total_facturado=total_facturado,
+        total_abonado=total_abonado,
+        total_por_pagar=total_por_pagar,
+        count=len(invoices),
     )
