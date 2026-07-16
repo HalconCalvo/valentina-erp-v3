@@ -14,6 +14,8 @@ interface ReportPayment {
     payment_method: string;
     reference: string | null;
     status: string;
+    due_date: string | null;
+    raw_status: string;
 }
 
 interface SupplierPaymentsReportData {
@@ -175,6 +177,25 @@ const SupplierPaymentsReportPage: React.FC = () => {
         }
     };
 
+    const getStatusDisplay = (row: ReportPayment): { text: string; className: string } => {
+        if (row.raw_status === 'PAID') {
+            return { text: 'Pagado', className: 'text-emerald-700 bg-emerald-50' };
+        }
+        if (row.due_date) {
+            const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+            const venc = new Date(row.due_date + 'T00:00:00');
+            const diffDias = Math.round((venc.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+            if (diffDias > 0) {
+                return { text: `Vence en ${diffDias} día${diffDias === 1 ? '' : 's'}`, className: 'text-amber-700 bg-amber-50' };
+            } else if (diffDias < 0) {
+                return { text: `Vencida hace ${Math.abs(diffDias)} día${Math.abs(diffDias) === 1 ? '' : 's'}`, className: 'text-red-700 bg-red-50' };
+            } else {
+                return { text: 'Vence hoy', className: 'text-red-700 bg-red-50' };
+            }
+        }
+        return { text: row.status, className: 'text-slate-600 bg-slate-50' };
+    };
+
     return (
         <div className="p-8 max-w-7xl mx-auto pb-24 space-y-6 animate-fadeIn">
             <div className="border-b border-slate-200 pb-4">
@@ -298,27 +319,31 @@ const SupplierPaymentsReportPage: React.FC = () => {
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500 font-bold">
-                                        <th className="p-4">Fecha de pago</th>
                                         <th className="p-4">Folio</th>
-                                        <th className="p-4 text-right">Monto</th>
+                                        <th className="p-4 text-right">Importe</th>
+                                        <th className="p-4">Fecha de pago</th>
                                         <th className="p-4">Método</th>
                                         <th className="p-4">Referencia</th>
                                         <th className="p-4">Estatus</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
-                                    {report.payments.map((row, idx) => (
+                                    {report.payments.map((row, idx) => {
+                                        const statusDisplay = getStatusDisplay(row);
+                                        return (
                                         <React.Fragment key={`${row.invoice_number}-${row.payment_date}-${idx}`}>
                                             <tr className="hover:bg-indigo-50/40 cursor-pointer" onClick={() => void toggleRow(row.invoice_number)}>
-                                                <td className="p-4 text-sm text-slate-700">
+                                                <td className="p-4 text-sm font-medium text-slate-800">
                                                     <span className="inline-block mr-2 text-indigo-400">{expandedFolio === row.invoice_number ? '▾' : '▸'}</span>
-                                                    {formatDate(row.payment_date)}
+                                                    {row.invoice_number}
                                                 </td>
-                                                <td className="p-4 text-sm font-medium text-slate-800">{row.invoice_number}</td>
                                                 <td className="p-4 text-right font-black text-indigo-700 tabular-nums">{formatCurrency(row.amount)}</td>
+                                                <td className="p-4 text-sm text-slate-700">{formatDate(row.payment_date)}</td>
                                                 <td className="p-4 text-sm text-slate-600">{row.payment_method}</td>
                                                 <td className="p-4 text-sm text-slate-500">{row.reference || '—'}</td>
-                                                <td className="p-4 text-sm font-semibold text-slate-700">{row.status}</td>
+                                                <td className="p-4">
+                                                    <span className={`text-xs font-bold px-2 py-1 rounded ${statusDisplay.className}`}>{statusDisplay.text}</span>
+                                                </td>
                                             </tr>
                                             {expandedFolio === row.invoice_number && (
                                                 <tr className="bg-slate-50/70">
@@ -361,15 +386,16 @@ const SupplierPaymentsReportPage: React.FC = () => {
                                                 </tr>
                                             )}
                                         </React.Fragment>
-                                    ))}
+                                        );
+                                    })}
                                     <tr className="bg-slate-50 border-t-2 border-slate-200">
-                                        <td colSpan={2} className="p-4 font-black text-slate-800">
+                                        <td className="p-4 font-black text-slate-800">
                                             Total ({report.count} pagos):
                                         </td>
                                         <td className="p-4 text-right font-black text-indigo-900 text-lg tabular-nums">
                                             {formatCurrency(report.total_amount)}
                                         </td>
-                                        <td colSpan={3} />
+                                        <td colSpan={4} />
                                     </tr>
                                 </tbody>
                             </table>

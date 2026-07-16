@@ -86,6 +86,8 @@ class SupplierPaymentReportRow(BaseModel):
     payment_method: str
     reference: str | None
     status: str
+    due_date: date | None = None
+    raw_status: str
 
 
 class SupplierPaymentsReportResponse(BaseModel):
@@ -141,7 +143,7 @@ def _build_supplier_payments_data(
     end_dt = datetime.combine(date_to, time.max)
 
     rows = session.exec(
-        select(SupplierPayment, PurchaseInvoice.invoice_number)
+        select(SupplierPayment, PurchaseInvoice.invoice_number, PurchaseInvoice.due_date)
         .join(PurchaseInvoice, SupplierPayment.purchase_invoice_id == PurchaseInvoice.id)
         .where(SupplierPayment.provider_id == provider_id)
         .where(SupplierPayment.payment_date >= start_dt)
@@ -153,7 +155,7 @@ def _build_supplier_payments_data(
     payments: List[SupplierPaymentReportRow] = []
     total_amount = 0.0
 
-    for payment, invoice_number in rows:
+    for payment, invoice_number, due_date in rows:
         pay_date = payment.payment_date.date() if isinstance(payment.payment_date, datetime) else payment.payment_date
         payments.append(SupplierPaymentReportRow(
             payment_date=pay_date,
@@ -162,6 +164,8 @@ def _build_supplier_payments_data(
             payment_method=_translate_method(payment.payment_method),
             reference=payment.reference,
             status=_translate_status(payment.status),
+            due_date=due_date,
+            raw_status=str(getattr(payment.status, 'value', payment.status)),
         ))
         total_amount += payment.amount
 
