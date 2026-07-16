@@ -96,8 +96,13 @@ class SupplierPayment(SQLModel, table=True):
         purchase_order_id: Optional[int] = None
         invoice_folio: Optional[str] = None
         total_amount: float
+        subtotal: float = Field(default=0.0)
+        tax_rate: float = Field(default=0.16)      # 0.16, 0.08, 0.00 (exento)
+        tax_amount: float = Field(default=0.0)
         due_date: Optional[datetime] = None
         status: str = Field(default="PENDIENTE")
+        overhead_category: Optional[str] = None
+        instance_id: Optional[int] = None
         created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
