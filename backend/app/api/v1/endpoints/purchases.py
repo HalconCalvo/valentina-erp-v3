@@ -725,6 +725,9 @@ def create_manual_order(
     db: Session = Depends(get_session),
     current_user: CurrentUser
 ):
+    if not order_in.items or len(order_in.items) == 0:
+        raise HTTPException(status_code=400, detail="No se puede crear una orden de compra sin partidas.")
+
     provider = db.exec(select(Provider).where(Provider.business_name.ilike(order_in.provider_name))).first()
     if not provider:
         provider = Provider(business_name=order_in.provider_name, credit_days=0, is_active=True)
@@ -745,8 +748,7 @@ def create_manual_order(
         overhead_category=order_in.overhead_category
     )
     db.add(new_order)
-    db.commit()
-    db.refresh(new_order)
+    db.flush()
 
     for item_in in order_in.items:
         material = None
@@ -763,8 +765,7 @@ def create_manual_order(
                 standard_cost=item_in.expected_cost
             )
             db.add(material)
-            db.commit()
-            db.refresh(material)
+            db.flush()
 
         po_item = PurchaseOrderItem(
             purchase_order_id=new_order.id,
