@@ -715,6 +715,10 @@ def read_materials(include_inactive: bool = False, session: Session = Depends(ge
 @router.post("/materials", response_model=Material)
 def create_material(material: Material, session: Session = Depends(get_session)):
     try:
+        if material.sku:
+            material.sku = material.sku.strip()
+        if material.name:
+            material.name = material.name.strip()
         material.is_active = True
         session.add(material)
         session.commit()
@@ -741,6 +745,10 @@ def update_material(material_id: int, material_in: Material, session: Session = 
     
     material_data = material_in.model_dump(exclude_unset=True)
     material_data.pop("id", None)
+    if "sku" in material_data and material_data["sku"]:
+        material_data["sku"] = material_data["sku"].strip()
+    if "name" in material_data and material_data["name"]:
+        material_data["name"] = material_data["name"].strip()
     for key, value in material_data.items():
         setattr(db_material, key, value)
         
