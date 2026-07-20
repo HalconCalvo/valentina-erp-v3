@@ -313,6 +313,7 @@ def reject_purchase_order(*, db: Session = Depends(get_session), po_id: int, act
                         else:
                             db.delete(req)
             db.delete(item)
+        db.flush()
         db.delete(po)
         db.commit()
     except Exception as e:
