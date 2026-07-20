@@ -41,6 +41,10 @@ class PurchaseInvoice(SQLModel, table=True):
     uuid_sat: Optional[str] = None          
     
     total_amount: float
+    subtotal: float = Field(default=0.0)
+    tax_rate: float = Field(default=0.16)
+    tax_amount: float = Field(default=0.0)
+    accounts_payable_id: Optional[int] = Field(default=None)
     outstanding_balance: float # Saldo pendiente vivo
     
     issue_date: date
