@@ -78,9 +78,9 @@ def _sync_pos_to_invoices(session: SessionDep):
     # -------------------------------------------------------------------------
     # (Hemos eliminado el bloque ansioso que cobraba órdenes "AUTORIZADAS")
     
-    query_ap = text("SELECT id, provider_id, invoice_folio, total_amount, due_date FROM accounts_payable WHERE status = 'PENDIENTE'")
+    query_ap = text("SELECT id, provider_id, invoice_folio, total_amount, due_date, subtotal, tax_rate, tax_amount FROM accounts_payable WHERE status = 'PENDIENTE'")
     aps = session.exec(query_ap).all()
-    for ap_id, prov_id, folio, amt, due in aps:
+    for ap_id, prov_id, folio, amt, due, ap_subtotal, ap_tax_rate, ap_tax_amount in aps:
         if amt is None or amt <= 0: continue
         
         safe_folio = folio if folio else f"AP-{ap_id}"
@@ -104,7 +104,11 @@ def _sync_pos_to_invoices(session: SessionDep):
                 due_date=due_date_parsed,
                 total_amount=total_ap_con_iva,
                 outstanding_balance=total_ap_con_iva,
-                status=getattr(InvoiceStatus, "PENDING", "PENDING")
+                status=getattr(InvoiceStatus, "PENDING", "PENDING"),
+                subtotal=(ap_subtotal or 0.0),
+                tax_rate=(ap_tax_rate if ap_tax_rate is not None else 0.16),
+                tax_amount=(ap_tax_amount or 0.0),
+                accounts_payable_id=ap_id,
             )
             session.add(inv)
 
