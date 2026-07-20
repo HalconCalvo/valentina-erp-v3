@@ -296,28 +296,29 @@ def reject_purchase_order(*, db: Session = Depends(get_session), po_id: int, act
     if not po: raise HTTPException(status_code=404, detail="Orden no encontrada")
     if po.status != "DRAFT": raise HTTPException(status_code=400, detail="Solo se pueden rechazar órdenes en Borrador")
 
-    items = db.exec(select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po.id)).all()
-    
-    for item in items:
-        req_id = getattr(item, 'requisition_id', getattr(item, 'purchase_requisition_id', None))
-        if req_id:
-            req = db.get(PurchaseRequisition, req_id)
-            if req:
-                if action == "RE-COTIZAR":
-                    req.status = "PENDIENTE"
-                    db.add(req)
-                elif action == "CANCELAR":
-                    notes = req.notes or ''
-                    desc = req.custom_description or ''
-                    if 'Valentina' in notes or '[AUTO]' in notes or desc == 'REPOSICIÓN AUTOMÁTICA':
-                        req.status = "APLAZADA"
-                        db.add(req)
-                    else:
-                        db.delete(req)
-        db.delete(item)
-        
-    db.delete(po)
-    db.commit()
+    try:
+        items = db.exec(select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po.id)).all()
+        for item in items:
+            req_id = getattr(item, 'requisition_id', getattr(item, 'purchase_requisition_id', None))
+            if req_id:
+                req = db.get(PurchaseRequisition, req_id)
+                if req:
+                    if action == "RE-COTIZAR":
+                        req.status = "PENDIENTE"; db.add(req)
+                    elif action == "CANCELAR":
+                        notes = req.notes or ''
+                        desc = req.custom_description or ''
+                        if 'Valentina' in notes or '[AUTO]' in notes or desc == 'REPOSICIÓN AUTOMÁTICA':
+                            req.status = "APLAZADA"; db.add(req)
+                        else:
+                            db.delete(req)
+            db.delete(item)
+        db.delete(po)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al rechazar la orden: {str(e)}")
+
     return {"status": "success", "message": f"Orden rechazada. Acción: {action}"}
 
 @router.delete("/orders/{po_id}/items/{item_id}")
