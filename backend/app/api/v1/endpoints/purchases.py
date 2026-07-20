@@ -739,46 +739,55 @@ def create_manual_order(
 
     timestamp = datetime.now().strftime("%y%m%d%H%M%S")
     subtotal = sum(item.qty * item.expected_cost for item in order_in.items)
-    
-    new_order = PurchaseOrder(
-        provider_id=provider.id,
-        folio=f"OC-M{timestamp}",
-        status="DRAFT",
-        total_estimated_amount=subtotal,
-        created_by_user_id=current_user.id,
-        is_advance=False,
-        overhead_category=order_in.overhead_category
-    )
-    db.add(new_order)
-    db.flush()
 
-    for item_in in order_in.items:
-        material = None
-        if item_in.sku:
-            material = db.exec(select(Material).where(Material.sku.ilike(item_in.sku))).first()
-        if not material:
-            material = db.exec(select(Material).where(Material.name.ilike(item_in.name))).first()
-        
-        if not material:
-            generated_sku = item_in.sku if item_in.sku else f"SKU-M{datetime.now().strftime('%M%S%f')[:6]}"
-            material = Material(
-                sku=generated_sku,
-                name=item_in.name,
-                standard_cost=item_in.expected_cost
-            )
-            db.add(material)
-            db.flush()
-
-        po_item = PurchaseOrderItem(
-            purchase_order_id=new_order.id,
-            material_id=material.id,
-            custom_description=item_in.name,
-            quantity_ordered=item_in.qty,
-            expected_unit_cost=item_in.expected_cost
+    try:
+        new_order = PurchaseOrder(
+            provider_id=provider.id,
+            folio=f"OC-M{timestamp}",
+            status="DRAFT",
+            total_estimated_amount=subtotal,
+            created_by_user_id=current_user.id,
+            is_advance=False,
+            overhead_category=order_in.overhead_category
         )
-        db.add(po_item)
-        
-    db.commit()
+        db.add(new_order)
+        db.flush()
+
+        for item_in in order_in.items:
+            material = None
+            # Búsqueda robusta: por SKU con TRIM (ignora espacios), case-insensitive
+            if item_in.sku:
+                sku_limpio = item_in.sku.strip()
+                material = db.exec(
+                    select(Material).where(func.trim(Material.sku).ilike(sku_limpio))
+                ).first()
+            # Respaldo: por nombre con TRIM
+            if not material and item_in.name:
+                name_limpio = item_in.name.strip()
+                material = db.exec(
+                    select(Material).where(func.trim(Material.name).ilike(name_limpio))
+                ).first()
+            # Si no existe, NO crear material a medias: rechazar con mensaje claro
+            if not material:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"El material '{item_in.sku or item_in.name}' no existe en el catálogo. Debe darse de alta antes de crear la orden."
+                )
+
+            po_item = PurchaseOrderItem(
+                purchase_order_id=new_order.id,
+                material_id=material.id,
+                custom_description=item_in.name,
+                quantity_ordered=item_in.qty,
+                expected_unit_cost=item_in.expected_cost
+            )
+            db.add(po_item)
+
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
     return {"message": "Orden manual creada con éxito", "order_id": new_order.id}
 
 @router.post("/orders/{po_id}/request-advance")
