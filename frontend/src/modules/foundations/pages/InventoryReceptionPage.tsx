@@ -41,6 +41,7 @@ const InventoryReceptionPage: React.FC = () => {
     
     const [receivedItems, setReceivedItems] = useState<Record<number, string>>({});
     const [editedPrices, setEditedPrices] = useState<Record<number, string>>({});
+    const [editedDescriptions, setEditedDescriptions] = useState<Record<number, string>>({});
     const [taxRate, setTaxRate] = useState<number>(0.16);
 
     const [advanceModal, setAdvanceModal] = useState<{open: boolean, po: any | null}>({open: false, po: null});
@@ -155,6 +156,10 @@ const InventoryReceptionPage: React.FC = () => {
         setEditedPrices(prev => ({ ...prev, [idx]: value }));
     };
 
+    const handleDescriptionChange = (idx: number, value: string) => {
+        setEditedDescriptions(prev => ({ ...prev, [idx]: value }));
+    };
+
     const handleSubmit = async () => {
         if (!selectedPO) return;
         
@@ -181,6 +186,7 @@ const InventoryReceptionPage: React.FC = () => {
                     expected_qty: item.qty,
                     received_qty: Number(receivedItems[idx]) || 0,
                     unit_cost: editedPrices[idx] !== undefined ? Number(editedPrices[idx]) : (item.unit_price || item.expected_cost || item.price || 0),
+                    description: editedDescriptions[idx] !== undefined ? editedDescriptions[idx] : (item.name || ''),
                 }))
             };
 
@@ -483,7 +489,15 @@ const InventoryReceptionPage: React.FC = () => {
                             return (
                                 <tr key={idx} className={`hover:bg-slate-50/30 transition-colors ${hasDiscrepancy ? 'bg-amber-50/20' : ''}`}>
                                     <td className="px-8 py-3 font-black text-indigo-600 text-[11px] uppercase">{item.sku || 'S/SKU'}</td>
-                                    <td className="px-4 py-3 font-bold text-slate-700 text-xs uppercase">{item.name || 'Articulo sin nombre'}</td>
+                                    <td className="px-4 py-3">
+                                        <input
+                                            type="text"
+                                            disabled={isComplete}
+                                            className="w-full font-bold text-slate-700 text-xs uppercase bg-transparent border-b border-transparent hover:border-slate-200 focus:border-indigo-500 outline-none disabled:text-slate-400 disabled:cursor-not-allowed px-1 py-0.5"
+                                            value={editedDescriptions[idx] !== undefined ? editedDescriptions[idx] : (item.name || '')}
+                                            onChange={(e) => !isComplete && handleDescriptionChange(idx, e.target.value)}
+                                        />
+                                    </td>
                                     <td className="px-4 py-3 text-center text-xs font-black text-slate-600">{ordered}</td>
                                     <td className="px-4 py-3 text-center text-xs font-bold text-emerald-600">{alreadyReceived > 0 ? alreadyReceived : '—'}</td>
                                     <td className="px-4 py-3 text-center text-xs font-black text-slate-600">
