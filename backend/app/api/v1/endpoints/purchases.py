@@ -417,10 +417,16 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
     
     # 1. Ingresar stock físico
     # Construir diccionario de cantidades recibidas por SKU
-    received_map: dict = {}
+    received_map = {}       # sku -> qty (se mantiene para la lógica de stock existente)
+    edited_by_sku = {}      # sku -> dict con los campos editados del renglón
     for ri in (data.get("received_items") or []):
-        sku = ri.get("sku", "")
-        received_map[sku] = float(ri.get("received_qty") or ri.get("expected_qty") or 0)
+        _sku = ri.get("sku", "")
+        received_map[_sku] = float(ri.get("received_qty") or ri.get("expected_qty") or 0)
+        edited_by_sku[_sku] = {
+            "sku": ri.get("sku"),
+            "description": ri.get("description"),
+            "unit_cost": ri.get("unit_cost"),
+        }
 
     items = db.exec(select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po.id)).all()
     all_complete = True
@@ -446,12 +452,14 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
 
                     # Rastro fechado en el Kárdex (Fase 1): ENTRADA por recepción de OC.
                     # No altera physical_stock (ya sumado arriba); el commit lo hace el endpoint.
+                    _edited_cost = edited_by_sku.get(mat_sku, {}).get("unit_cost")
+                    _costo_kardex = float(_edited_cost) if _edited_cost is not None else float(getattr(item, 'expected_unit_cost', 0.0) or 0.0)
                     registrar_movimiento_inventario(
                         db,
                         material_id=mat.id,
                         cantidad=qty_in_usage_units,
                         tipo="ENTRADA_COMPRA",
-                        costo_unitario=float(getattr(item, 'expected_unit_cost', 0.0) or 0.0),
+                        costo_unitario=_costo_kardex,
                         reason_code="RECEPCION_OC",
                     )
         else:
@@ -465,19 +473,30 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
 
         # Camino B: juntar snapshot de este renglón para guardarlo si se genera CxP
         if qty_this_delivery > 0:
+            # Resolver el sku base para buscar lo editado
+            _base_sku = (mat.sku if (item.material_id and mat) else None)
+            _edited = edited_by_sku.get(_base_sku or "", {})
+            # sku/description/unit_cost EDITADOS con respaldo al comportamiento actual
             if item.material_id and mat:
-                _desc = mat.name
-                _sku = mat.sku
+                _desc_default = mat.name
+                _sku_default = mat.sku
             else:
-                _desc = item.custom_description
-                _sku = None
+                _desc_default = item.custom_description
+                _sku_default = None
+            _final_sku = _edited.get("sku") or _sku_default
+            _final_desc = _edited.get("description") or _desc_default
+            _final_cost = _edited.get("unit_cost")
+            if _final_cost is None:
+                _final_cost = float(getattr(item, 'expected_unit_cost', 0.0) or 0.0)
+            else:
+                _final_cost = float(_final_cost)
             invoice_detail_rows.append({
                 "purchase_order_item_id": item.id,
                 "material_id": item.material_id,
-                "description": _desc,
-                "sku": _sku,
+                "description": _final_desc,
+                "sku": _final_sku,
                 "quantity_received": qty_this_delivery,
-                "unit_cost": float(getattr(item, 'expected_unit_cost', 0.0) or 0.0),
+                "unit_cost": _final_cost,
             })
 
         # Verificar completitud para TODOS los items
@@ -505,7 +524,15 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
         db.add(ant)
 
     # 3. La Resta: Total Real - Lo que ya pagó Finanzas
-    total_recibido_con_iva = float(data.get("invoice_total", 0))
+    tax_rate = float(data.get("tax_rate", 0.16) or 0.16)
+    # Subtotal calculado del detalle real (suma de qty*unit_cost editado)
+    _subtotal_detalle = sum(r["quantity_received"] * r["unit_cost"] for r in invoice_detail_rows)
+    if _subtotal_detalle > 0:
+        # Hay detalle: el total se calcula del detalle + IVA
+        total_recibido_con_iva = round(_subtotal_detalle * (1 + tax_rate), 2)
+    else:
+        # Respaldo: usar el invoice_total tecleado (comportamiento viejo)
+        total_recibido_con_iva = float(data.get("invoice_total", 0))
     saldo_restante = total_recibido_con_iva - total_pagado_anticipos
 
     # Si hay saldo vivo, se genera la deuda en CxP
