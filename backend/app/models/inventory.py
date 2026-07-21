@@ -131,6 +131,7 @@ class PurchaseOrderItem(SQLModel, table=True):
     quantity_received: float = Field(default=0.0) # Para gestión de entradas parciales
     is_cancelled: bool = Field(default=False)
     cancel_reason: Optional[str] = Field(default=None)
+    is_fulfilled: bool = Field(default=False)
 
 
 # ==========================================
