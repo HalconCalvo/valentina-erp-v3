@@ -129,6 +129,8 @@ class PurchaseOrderItem(SQLModel, table=True):
     quantity_ordered: float
     expected_unit_cost: float
     quantity_received: float = Field(default=0.0) # Para gestión de entradas parciales
+    is_cancelled: bool = Field(default=False)
+    cancel_reason: Optional[str] = Field(default=None)
 
 
 # ==========================================
