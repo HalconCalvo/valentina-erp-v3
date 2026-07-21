@@ -421,7 +421,10 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
     edited_by_sku = {}      # sku -> dict con los campos editados del renglón
     for ri in (data.get("received_items") or []):
         _sku = ri.get("sku", "")
-        received_map[_sku] = float(ri.get("received_qty") or ri.get("expected_qty") or 0)
+        _rq = ri.get("received_qty")
+        if _rq is None:
+            _rq = ri.get("expected_qty") or 0
+        received_map[_sku] = float(_rq)
         edited_by_sku[_sku] = {
             "sku": ri.get("sku"),
             "description": ri.get("description"),
