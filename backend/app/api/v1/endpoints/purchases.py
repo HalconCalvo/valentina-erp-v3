@@ -586,6 +586,46 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
                 unit_cost=row["unit_cost"],
             ))
 
+    # --- Cierre diferido de renglones marcados en la recepción ---
+    # El frontend manda items_to_close: lista de purchase_order_item.id a cerrar.
+    # Regla (misma que /no-more): recibido > 0 -> satisfecho; recibido 0 -> cancelado.
+    # Se evalúa con quantity_received YA actualizado por esta recepción.
+    items_to_close = data.get("items_to_close") or []
+    for _item_id in items_to_close:
+        _it = db.get(PurchaseOrderItem, _item_id)
+        if not _it or _it.purchase_order_id != po_id:
+            continue
+        _recibido = float(_it.quantity_received or 0)
+        if _recibido <= 0:
+            _it.is_cancelled = True
+            _it.is_fulfilled = False
+        else:
+            _it.is_fulfilled = True
+            _it.is_cancelled = False
+        _it.cancel_reason = "Cerrado durante recepción"
+        db.add(_it)
+    db.flush()
+
+    # --- Recalcular estado real de la OC (mismo criterio que /no-more) ---
+    _all_items = db.exec(select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po_id)).all()
+    _hay_pendiente = False
+    _hay_recibido = False
+    for _it in _all_items:
+        _rec = float(_it.quantity_received or 0)
+        if _it.is_cancelled or _it.is_fulfilled:
+            if _rec > 0:
+                _hay_recibido = True
+            continue
+        _ord = float(_it.quantity_ordered or 0)
+        if _rec > 0:
+            _hay_recibido = True
+        if _ord > 0 and _rec < _ord:
+            _hay_pendiente = True
+    if not _hay_pendiente:
+        po.status = "RECIBIDA_TOTAL" if _hay_recibido else "CANCELADA"
+    else:
+        po.status = "RECIBIDA_PARCIAL"
+
     db.add(po)
     db.commit()
     return {"status": "success", "message": "Inventario ingresado y finanzas conciliadas."}
