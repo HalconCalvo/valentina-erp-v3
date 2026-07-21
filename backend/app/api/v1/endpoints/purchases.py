@@ -514,14 +514,18 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
         credit_days = getattr(prov, 'credit_days', 0) or 0
         due_date = datetime.now() + timedelta(days=credit_days)
 
+        tax_rate = float(data.get("tax_rate", 0.16) or 0.16)
+        _subtotal = round(saldo_restante / (1 + tax_rate), 2) if (1 + tax_rate) != 0 else saldo_restante
+        _tax_amount = round(saldo_restante - _subtotal, 2)
+
         new_payable = text("""
             INSERT INTO accounts_payable (
                 provider_id, purchase_order_id, invoice_folio,
-                total_amount, due_date, status, created_at,
-                overhead_category
+                total_amount, subtotal, tax_rate, tax_amount,
+                due_date, status, created_at, overhead_category
             ) VALUES (
-                :prov_id, :po_id, :folio, :total, :due, 'PENDIENTE', :now,
-                :category
+                :prov_id, :po_id, :folio, :total, :subtotal, :tax_rate, :tax_amount,
+                :due, 'PENDIENTE', :now, :category
             )
             RETURNING id
         """)
@@ -530,6 +534,9 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
             po_id=po.id,
             folio=data.get("invoice_folio"),
             total=saldo_restante,
+            subtotal=_subtotal,
+            tax_rate=tax_rate,
+            tax_amount=_tax_amount,
             due=due_date,
             now=datetime.now(),
             category=getattr(po, 'overhead_category', None)
