@@ -47,6 +47,9 @@ const InventoryReceptionPage: React.FC = () => {
     const [advanceModal, setAdvanceModal] = useState<{open: boolean, po: any | null}>({open: false, po: null});
     const [advanceAmount, setAdvanceAmount] = useState('');
     const [advanceLoading, setAdvanceLoading] = useState(false);
+    const [noMoreModal, setNoMoreModal] = useState<{ item: any; idx: number } | null>(null);
+    const [noMoreReason, setNoMoreReason] = useState('');
+    const [isClosingItem, setIsClosingItem] = useState(false);
 
     useEffect(() => {
         fetchIncomingPOs();
@@ -201,6 +204,38 @@ const InventoryReceptionPage: React.FC = () => {
             alert("❌ Error al procesar la recepción.");
         } finally {
             setIsSubmitting(false);
+        }
+    };
+
+    const handleMarkNoMore = async () => {
+        if (!noMoreModal || !selectedPO) return;
+        const reason = noMoreReason.trim();
+        if (!reason) return;
+        setIsClosingItem(true);
+        try {
+            await axiosClient.put(
+                `/purchases/orders/${selectedPO.id}/items/${noMoreModal.item.id}/no-more`,
+                { reason }
+            );
+            // Actualización optimista: refleja el cierre en el renglón en pantalla al instante
+            const recibido = Number(noMoreModal.item.quantity_received || 0);
+            setSelectedPO((prev: any) => {
+                if (!prev) return prev;
+                const items = (prev.items || []).map((it: any, i: number) =>
+                    i === noMoreModal.idx
+                        ? { ...it, is_cancelled: recibido <= 0, is_fulfilled: recibido > 0, cancel_reason: noMoreReason.trim() }
+                        : it
+                );
+                return { ...prev, items };
+            });
+            setNoMoreModal(null);
+            setNoMoreReason('');
+            fetchIncomingPOs();
+        } catch (err) {
+            console.error('Error al cerrar renglón:', err);
+            alert('No se pudo cerrar el renglón. Intenta de nuevo.');
+        } finally {
+            setIsClosingItem(false);
         }
     };
 
@@ -407,6 +442,7 @@ const InventoryReceptionPage: React.FC = () => {
     const hasFinancialWarning = invoiceTotal !== '' && invoiceTotalNum > 0 && diff > tolerancia;
 
     return (
+        <>
         <div className="animate-in slide-in-from-right-4 duration-300 pb-10">
             <div className="bg-white rounded-3xl border border-emerald-200 shadow-md overflow-hidden border-t-8 border-t-emerald-500">
                 <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center bg-emerald-50/30 gap-6">
@@ -471,6 +507,7 @@ const InventoryReceptionPage: React.FC = () => {
                             <th className="px-4 py-4 text-center w-32">Esta Entrega</th>
                             <th className="px-4 py-4 text-center w-32">P. Unit</th>
                             <th className="px-8 py-4 text-right">Proyecto</th>
+                            <th className="px-4 py-4 text-center w-24">Cerrar</th>
                             <th className="px-8 py-4 text-right w-40">Importe</th>
                         </tr>
                     </thead>
@@ -540,6 +577,22 @@ const InventoryReceptionPage: React.FC = () => {
                                     <td className="px-8 py-3 text-right">
                                         <span className="text-[10px] font-black text-rose-600 uppercase">{item.project_name || "GENERAL"}</span>
                                     </td>
+                                    <td className="px-4 py-3 text-center align-middle">
+                                        {!isComplete && !item.is_cancelled && !item.is_fulfilled && (
+                                            <button
+                                                type="button"
+                                                onClick={() => { setNoMoreModal({ item, idx }); setNoMoreReason(''); }}
+                                                className="text-[9px] font-black text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded px-2 py-1 uppercase tracking-wide transition-colors"
+                                            >
+                                                No llegará más
+                                            </button>
+                                        )}
+                                        {(item.is_cancelled || item.is_fulfilled) && (
+                                            <span className="text-[9px] font-black uppercase tracking-wide text-slate-400">
+                                                {item.is_cancelled ? 'Cancelado' : 'Cerrado'}
+                                            </span>
+                                        )}
+                                    </td>
                                     <td className="px-8 py-3 text-right text-xs font-black text-slate-800">${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
                                 </tr>
                             );
@@ -607,6 +660,39 @@ const InventoryReceptionPage: React.FC = () => {
                 </div>
             </div>
         </div>
+
+        {noMoreModal && (
+            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+                <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
+                    <h3 className="font-black text-slate-800 text-sm uppercase mb-2">Cerrar renglón</h3>
+                    <p className="text-xs text-slate-500 mb-4">
+                        {Number(noMoreModal.item.quantity_received || 0) > 0
+                            ? 'Este renglón recibió parte. Se cerrará el saldo pendiente (satisfecho).'
+                            : 'Este renglón no recibió nada. Se marcará como cancelado.'}
+                    </p>
+                    <label className="text-[10px] font-black text-slate-400 uppercase">Motivo (obligatorio)</label>
+                    <textarea
+                        value={noMoreReason}
+                        onChange={(e) => setNoMoreReason(e.target.value)}
+                        className="w-full border border-slate-200 rounded p-2 text-xs mt-1 mb-4 outline-none focus:border-indigo-500"
+                        rows={3}
+                        placeholder="Ej. Proveedor no surtió el resto"
+                    />
+                    <div className="flex justify-end gap-3">
+                        <button
+                            onClick={() => { setNoMoreModal(null); setNoMoreReason(''); }}
+                            className="text-xs font-black uppercase px-4 py-2 text-slate-500 hover:text-slate-700"
+                        >Cancelar</button>
+                        <button
+                            onClick={handleMarkNoMore}
+                            disabled={isClosingItem || !noMoreReason.trim()}
+                            className="text-xs font-black uppercase px-4 py-2 rounded bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-50"
+                        >{isClosingItem ? 'Cerrando...' : 'Confirmar cierre'}</button>
+                    </div>
+                </div>
+            </div>
+        )}
+        </>
     );
 };
 
