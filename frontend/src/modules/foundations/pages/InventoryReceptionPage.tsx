@@ -40,6 +40,7 @@ const InventoryReceptionPage: React.FC = () => {
     const canDeclare = ['ADMIN', 'ADMINISTRACION', 'ADMINISTRADOR', 'GERENCIA', 'DIRECTOR'].includes(userRole);
     
     const [receivedItems, setReceivedItems] = useState<Record<number, string>>({});
+    const [editedPrices, setEditedPrices] = useState<Record<number, string>>({});
 
     const [advanceModal, setAdvanceModal] = useState<{open: boolean, po: any | null}>({open: false, po: null});
     const [advanceAmount, setAdvanceAmount] = useState('');
@@ -149,6 +150,10 @@ const InventoryReceptionPage: React.FC = () => {
         });
     };
 
+    const handlePriceChange = (idx: number, value: string) => {
+        setEditedPrices(prev => ({ ...prev, [idx]: value }));
+    };
+
     const handleSubmit = async () => {
         if (!selectedPO) return;
         
@@ -172,7 +177,8 @@ const InventoryReceptionPage: React.FC = () => {
                 received_items: (selectedPO.items || []).map((item: any, idx: number) => ({
                     sku: item.sku,
                     expected_qty: item.qty,
-                    received_qty: Number(receivedItems[idx]) || 0
+                    received_qty: Number(receivedItems[idx]) || 0,
+                    unit_cost: editedPrices[idx] !== undefined ? Number(editedPrices[idx]) : (item.unit_price || item.expected_cost || item.price || 0),
                 }))
             };
 
@@ -466,7 +472,8 @@ const InventoryReceptionPage: React.FC = () => {
                                     const alreadyReceived = Number(item.quantity_received || 0);
                                     const pending = Math.max(ordered - alreadyReceived, 0);
                                     const thisDelivery = Number(receivedItems[idx]) || 0;
-                                    const total = ordered * price;
+                                    const effectivePrice = editedPrices[idx] !== undefined ? Number(editedPrices[idx]) : price;
+                                    const total = (thisDelivery > 0 ? thisDelivery : ordered) * effectivePrice;
                                     const isComplete = alreadyReceived >= ordered;
                                     const hasDiscrepancy = thisDelivery > pending;
 
@@ -500,7 +507,19 @@ const InventoryReceptionPage: React.FC = () => {
                                             />
                                         </div>
                                     </td>
-                                    <td className="px-4 py-3 text-center text-xs font-bold text-slate-400">${price.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+                                    <td className="px-4 py-3 text-center align-middle">
+                                        <div className="flex justify-center">
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                disabled={isComplete}
+                                                className="h-6 w-20 text-center font-black text-xs border rounded outline-none border-slate-200 text-slate-700 bg-white focus:border-indigo-500 disabled:bg-slate-100 disabled:text-slate-400"
+                                                value={editedPrices[idx] !== undefined ? editedPrices[idx] : String(price)}
+                                                onChange={(e) => !isComplete && handlePriceChange(idx, e.target.value)}
+                                            />
+                                        </div>
+                                    </td>
                                     <td className="px-8 py-3 text-right">
                                         <span className="text-[10px] font-black text-rose-600 uppercase">{item.project_name || "GENERAL"}</span>
                                     </td>
