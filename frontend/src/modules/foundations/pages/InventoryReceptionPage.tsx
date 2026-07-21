@@ -4,6 +4,7 @@ import {
     Save, PackageCheck, Ban, AlertTriangle, XCircle, Loader2
 } from 'lucide-react';
 import axiosClient from '../../../api/axios-client';
+import { MaterialForm } from '../components/MaterialForm';
 import { Button } from "@/components/ui/Button"
 
 // Utilidades seguras
@@ -50,13 +51,14 @@ const InventoryReceptionPage: React.FC = () => {
     const [advanceLoading, setAdvanceLoading] = useState(false);
     const [materialsList, setMaterialsList] = useState<any[]>([]);
     const [addedRows, setAddedRows] = useState<Array<{ material_id: number | null; sku: string; name: string; received_qty: string; unit_cost: string; search: string }>>([]);
+    const [showMaterialForm, setShowMaterialForm] = useState<{ rowIndex: number; sku: string } | null>(null);
 
     useEffect(() => {
         fetchIncomingPOs();
         axiosClient.get('/foundations/materials')
             .then(res => setMaterialsList(Array.isArray(res.data) ? res.data : (res.data?.materials || res.data?.items || [])))
             .catch(() => setMaterialsList([]));
-    }, []); 
+    }, []);
 
     const fetchIncomingPOs = async () => {
         setIsLoadingPOs(true);
@@ -429,7 +431,8 @@ const InventoryReceptionPage: React.FC = () => {
         const price = editedPrices[idx] !== undefined ? Number(editedPrices[idx]) : basePrice;
         const received = Number(receivedItems[idx]) || 0;
         return sum + (received * price);
-    }, 0);
+    }, 0)
+    + addedRows.reduce((sum, r) => sum + ((Number(r.received_qty) || 0) * (Number(r.unit_cost) || 0)), 0);
     const subtotalCalc = subtotalRecibido;
     const ivaCalc = subtotalRecibido * taxRate;
     const expectedTotal = subtotalRecibido + ivaCalc;
@@ -634,6 +637,13 @@ const InventoryReceptionPage: React.FC = () => {
                                                     <span className="font-black text-indigo-600 uppercase">{m.sku}</span> — {m.name}
                                                 </button>
                                             ))}
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowMaterialForm({ rowIndex: i, sku: row.search })}
+                                            className="block w-full text-left text-xs px-3 py-2 bg-indigo-50 hover:bg-indigo-100 font-black text-indigo-700 border-t border-indigo-100"
+                                        >
+                                            ＋ Dar de alta material nuevo…
+                                        </button>
                                     </div>
                                 )}
                             </div>
@@ -723,6 +733,18 @@ const InventoryReceptionPage: React.FC = () => {
                 </div>
             </div>
         </div>
+
+        {showMaterialForm && (
+            <MaterialForm
+                initialSku={showMaterialForm.sku}
+                onCancel={() => setShowMaterialForm(null)}
+                onCreated={(mat) => {
+                    setMaterialsList(prev => [mat, ...prev]);
+                    selectMaterialForRow(showMaterialForm.rowIndex, mat);
+                    setShowMaterialForm(null);
+                }}
+            />
+        )}
         </>
     );
 };
