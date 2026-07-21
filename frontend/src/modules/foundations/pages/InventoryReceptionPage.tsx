@@ -41,6 +41,7 @@ const InventoryReceptionPage: React.FC = () => {
     
     const [receivedItems, setReceivedItems] = useState<Record<number, string>>({});
     const [editedPrices, setEditedPrices] = useState<Record<number, string>>({});
+    const [taxRate, setTaxRate] = useState<number>(0.16);
 
     const [advanceModal, setAdvanceModal] = useState<{open: boolean, po: any | null}>({open: false, po: null});
     const [advanceAmount, setAdvanceAmount] = useState('');
@@ -94,7 +95,7 @@ const InventoryReceptionPage: React.FC = () => {
             const qty = Number(received[idx]) || 0;
             return sum + (qty * price);
         }, 0);
-        return subtotal * 1.16;
+        return subtotal * (1 + 0.16);
     };
 
     const handleSelectPO = (po: any) => {
@@ -174,6 +175,7 @@ const InventoryReceptionPage: React.FC = () => {
             const payload = {
                 invoice_folio: invoiceFolio,
                 invoice_total: Number(invoiceTotal),
+                tax_rate: taxRate,
                 received_items: (selectedPO.items || []).map((item: any, idx: number) => ({
                     sku: item.sku,
                     expected_qty: item.qty,
@@ -380,12 +382,13 @@ const InventoryReceptionPage: React.FC = () => {
 
     // Calcular el total basado en las cantidades REALMENTE recibidas
     const subtotalRecibido = (selectedPO?.items || []).reduce((sum: number, item: any, idx: number) => {
-        const price = item.unit_price || item.expected_cost || item.price || 0;
+        const basePrice = item.unit_price || item.expected_cost || item.price || 0;
+        const price = editedPrices[idx] !== undefined ? Number(editedPrices[idx]) : basePrice;
         const received = Number(receivedItems[idx]) || 0;
         return sum + (received * price);
     }, 0);
-    const subtotalCalc = selectedPO?.total_estimated_amount || 0;
-    const ivaCalc = subtotalRecibido * 0.16;
+    const subtotalCalc = subtotalRecibido;
+    const ivaCalc = subtotalRecibido * taxRate;
     const expectedTotal = subtotalRecibido + ivaCalc;
 
     const diff = Math.abs(expectedTotal - Number(invoiceTotal));
@@ -563,11 +566,23 @@ const InventoryReceptionPage: React.FC = () => {
                     </div>
                     <div className="w-80 space-y-1 pr-14">
                         <div className="flex justify-between items-center text-slate-500">
-                            <span className="text-[10px] font-black uppercase">Subtotal OC</span>
+                            <span className="text-[10px] font-black uppercase">Subtotal</span>
                             <span className="text-sm font-bold">${subtotalCalc.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
+                        <div className="flex justify-between items-center text-slate-500">
+                            <span className="text-[10px] font-black uppercase">Tasa IVA</span>
+                            <select
+                                value={taxRate}
+                                onChange={(e) => setTaxRate(Number(e.target.value))}
+                                className="text-xs font-bold border border-slate-200 rounded px-2 py-1 outline-none focus:border-indigo-500"
+                            >
+                                <option value={0.16}>16%</option>
+                                <option value={0.08}>8%</option>
+                                <option value={0}>Exento (0%)</option>
+                            </select>
+                        </div>
                         <div className="flex justify-between items-center text-slate-500 border-b border-slate-200 pb-2">
-                            <span className="text-[10px] font-black uppercase">IVA (16%)</span>
+                            <span className="text-[10px] font-black uppercase">IVA ({(taxRate * 100).toFixed(0)}%)</span>
                             <span className="text-sm font-bold">${ivaCalc.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
                         <div className="flex justify-between items-center pt-2">
