@@ -48,9 +48,14 @@ const InventoryReceptionPage: React.FC = () => {
     const [advanceModal, setAdvanceModal] = useState<{open: boolean, po: any | null}>({open: false, po: null});
     const [advanceAmount, setAdvanceAmount] = useState('');
     const [advanceLoading, setAdvanceLoading] = useState(false);
+    const [materialsList, setMaterialsList] = useState<any[]>([]);
+    const [addedRows, setAddedRows] = useState<Array<{ material_id: number | null; sku: string; name: string; received_qty: string; unit_cost: string; search: string }>>([]);
 
     useEffect(() => {
         fetchIncomingPOs();
+        axiosClient.get('/foundations/materials')
+            .then(res => setMaterialsList(Array.isArray(res.data) ? res.data : (res.data?.materials || res.data?.items || [])))
+            .catch(() => setMaterialsList([]));
     }, []); 
 
     const fetchIncomingPOs = async () => {
@@ -113,6 +118,7 @@ const InventoryReceptionPage: React.FC = () => {
         });
         setReceivedItems(initialReceived);
         setItemsToClose({});
+        setAddedRows([]);
 
         // El total inicial refleja lo que se va a RECIBIR, no el total de la OC completa.
         const totalRecibido = calcTotalRecibidoConIva(po, initialReceived);
@@ -162,6 +168,19 @@ const InventoryReceptionPage: React.FC = () => {
         setEditedDescriptions(prev => ({ ...prev, [idx]: value }));
     };
 
+    const addNewRow = () => {
+        setAddedRows(prev => [...prev, { material_id: null, sku: '', name: '', received_qty: '', unit_cost: '', search: '' }]);
+    };
+    const removeAddedRow = (i: number) => {
+        setAddedRows(prev => prev.filter((_, idx) => idx !== i));
+    };
+    const updateAddedRow = (i: number, patch: Partial<{ material_id: number | null; sku: string; name: string; received_qty: string; unit_cost: string; search: string }>) => {
+        setAddedRows(prev => prev.map((r, idx) => idx === i ? { ...r, ...patch } : r));
+    };
+    const selectMaterialForRow = (i: number, mat: any) => {
+        updateAddedRow(i, { material_id: mat.id, sku: mat.sku, name: mat.name, search: `${mat.sku} — ${mat.name}` });
+    };
+
     const handleSubmit = async () => {
         if (!selectedPO) return;
         
@@ -183,13 +202,26 @@ const InventoryReceptionPage: React.FC = () => {
                 invoice_folio: invoiceFolio,
                 invoice_total: Number(invoiceTotal),
                 tax_rate: taxRate,
-                received_items: (selectedPO.items || []).map((item: any, idx: number) => ({
-                    sku: item.sku,
-                    expected_qty: item.qty,
-                    received_qty: Number(receivedItems[idx]) || 0,
-                    unit_cost: editedPrices[idx] !== undefined ? Number(editedPrices[idx]) : (item.unit_price || item.expected_cost || item.price || 0),
-                    description: editedDescriptions[idx] !== undefined ? editedDescriptions[idx] : (item.name || ''),
-                })),
+                received_items: [
+                    ...(selectedPO.items || []).map((item: any, idx: number) => ({
+                        sku: item.sku,
+                        expected_qty: item.qty,
+                        received_qty: Number(receivedItems[idx]) || 0,
+                        unit_cost: editedPrices[idx] !== undefined ? Number(editedPrices[idx]) : (item.unit_price || item.expected_cost || item.price || 0),
+                        description: editedDescriptions[idx] !== undefined ? editedDescriptions[idx] : (item.name || ''),
+                    })),
+                    ...addedRows
+                        .filter(r => r.material_id && Number(r.received_qty) > 0)
+                        .map(r => ({
+                            sku: r.sku,
+                            expected_qty: 0,
+                            received_qty: Number(r.received_qty) || 0,
+                            unit_cost: Number(r.unit_cost) || 0,
+                            description: r.name,
+                            is_new: true,
+                            material_id: r.material_id,
+                        })),
+                ],
                 items_to_close: (selectedPO.items || [])
                     .map((it: any, idx: number) => (itemsToClose[idx] ? it.id : null))
                     .filter((id: any) => id !== null),
@@ -572,6 +604,62 @@ const InventoryReceptionPage: React.FC = () => {
                         })}
                     </tbody>
                 </table>
+
+                <div className="px-8 py-4 border-t border-slate-100">
+                    {addedRows.map((row, i) => (
+                        <div key={i} className="flex items-center gap-3 mb-2">
+                            <div className="relative flex-1">
+                                <input
+                                    type="text"
+                                    value={row.search}
+                                    onChange={(e) => updateAddedRow(i, { search: e.target.value, material_id: null })}
+                                    placeholder="Buscar material por SKU o nombre..."
+                                    className="w-full text-xs border border-slate-200 rounded px-3 py-2 outline-none focus:border-indigo-500"
+                                />
+                                {row.search && !row.material_id && (
+                                    <div className="absolute z-20 bg-white border border-slate-200 rounded shadow-lg w-full max-h-48 overflow-auto mt-1">
+                                        {materialsList
+                                            .filter((m: any) => {
+                                                const q = row.search.toLowerCase();
+                                                return (m.sku || '').toLowerCase().includes(q) || (m.name || '').toLowerCase().includes(q);
+                                            })
+                                            .slice(0, 8)
+                                            .map((m: any) => (
+                                                <button
+                                                    key={m.id}
+                                                    type="button"
+                                                    onClick={() => selectMaterialForRow(i, m)}
+                                                    className="block w-full text-left text-xs px-3 py-2 hover:bg-indigo-50"
+                                                >
+                                                    <span className="font-black text-indigo-600 uppercase">{m.sku}</span> — {m.name}
+                                                </button>
+                                            ))}
+                                    </div>
+                                )}
+                            </div>
+                            <input
+                                type="number" min="0" placeholder="Cant."
+                                value={row.received_qty}
+                                onChange={(e) => updateAddedRow(i, { received_qty: e.target.value })}
+                                className="h-8 w-20 text-center text-xs border border-slate-200 rounded outline-none focus:border-emerald-500"
+                            />
+                            <input
+                                type="number" min="0" step="0.01" placeholder="P. Unit"
+                                value={row.unit_cost}
+                                onChange={(e) => updateAddedRow(i, { unit_cost: e.target.value })}
+                                className="h-8 w-24 text-center text-xs border border-slate-200 rounded outline-none focus:border-indigo-500"
+                            />
+                            <button type="button" onClick={() => removeAddedRow(i)} className="text-rose-500 hover:text-rose-700 text-xs font-black px-2">✕</button>
+                        </div>
+                    ))}
+                    <button
+                        type="button"
+                        onClick={addNewRow}
+                        className="text-xs font-black text-indigo-600 hover:text-indigo-800 uppercase tracking-wide"
+                    >
+                        ＋ Agregar renglón
+                    </button>
+                </div>
 
 
                 <div className="p-8 bg-slate-50/50 flex justify-between items-center border-t border-slate-100 mt-6">

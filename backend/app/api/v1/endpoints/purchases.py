@@ -431,6 +431,36 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
             "unit_cost": ri.get("unit_cost"),
         }
 
+    # --- 5c parte A: sembrar renglones NUEVOS agregados en la recepción ---
+    # El frontend marca cada renglón agregado con is_new=True y su material_id.
+    # Se crea su PurchaseOrderItem en la OC (quantity_ordered=0) ANTES del loop,
+    # para que el flujo normal (stock, kárdex, factura) lo procese como a cualquier renglón.
+    for ri in (data.get("received_items") or []):
+        if not ri.get("is_new"):
+            continue
+        _new_mat_id = ri.get("material_id")
+        if not _new_mat_id:
+            continue
+        # Evitar duplicar si ya existe un renglón de ese material en la OC
+        _exists = db.exec(
+            select(PurchaseOrderItem).where(
+                PurchaseOrderItem.purchase_order_id == po.id,
+                PurchaseOrderItem.material_id == _new_mat_id,
+            )
+        ).first()
+        if _exists:
+            continue
+        _new_cost = ri.get("unit_cost")
+        _new_item = PurchaseOrderItem(
+            purchase_order_id=po.id,
+            material_id=_new_mat_id,
+            quantity_ordered=0,
+            quantity_received=0,
+            expected_unit_cost=float(_new_cost) if _new_cost is not None else 0.0,
+        )
+        db.add(_new_item)
+    db.flush()  # Asigna id y deja los nuevos items visibles al select siguiente
+
     items = db.exec(select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po.id)).all()
     all_complete = True
     invoice_detail_rows = []
