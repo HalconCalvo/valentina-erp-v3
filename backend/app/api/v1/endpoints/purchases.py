@@ -1221,3 +1221,166 @@ def send_purchase_order_by_email(
         "status": "success",
         "message": f"OC {po.folio} enviada por correo a {to_email}"
     }
+
+
+@router.put("/orders/{po_id}/items/{item_id}/correct-reception")
+def correct_reception_item(*, db: Session = Depends(get_session), po_id: int, item_id: int, current_user: CurrentUser, data: dict = Body(...)):
+    """
+    5e — Corrige una recepción mal capturada, por renglón.
+    Revierte inventario (kárdex + stock), ajusta la CxP y reabre el saldo de la OC.
+    Roles: sin pagos aplicados -> ADMIN/ADMINISTRACION/ADMINISTRADOR/GERENCIA/DIRECTOR.
+           con pagos aplicados -> SOLO GERENCIA.
+    """
+    from app.models.finance import PurchaseInvoice, SupplierPayment, PurchaseInvoiceItem
+    from app.services.inventory_manager import registrar_movimiento_inventario
+    try:
+        po = db.get(PurchaseOrder, po_id)
+        if not po:
+            raise HTTPException(status_code=404, detail="Orden no encontrada")
+        item = db.get(PurchaseOrderItem, item_id)
+        if not item or item.purchase_order_id != po_id:
+            raise HTTPException(status_code=404, detail="Renglón no encontrado en esta orden")
+
+        reason = (data.get("reason") or "").strip()
+        if not reason:
+            raise HTTPException(status_code=400, detail="Debe indicar un motivo de la corrección")
+        if data.get("real_qty") is None:
+            raise HTTPException(status_code=400, detail="Debe indicar la cantidad realmente recibida")
+        real_qty = float(data.get("real_qty"))
+        actual = float(item.quantity_received or 0)
+        if real_qty < 0:
+            raise HTTPException(status_code=400, detail="La cantidad real no puede ser negativa")
+        if real_qty >= actual:
+            raise HTTPException(status_code=400, detail=f"La cantidad real ({real_qty}) debe ser menor a la registrada ({actual}). Para recibir más, usa la recepción normal.")
+        delta = actual - real_qty  # cantidad a revertir
+
+        # --- Ubicar las líneas de factura de este renglón (de la más reciente hacia atrás) ---
+        pii_rows = db.exec(
+            select(PurchaseInvoiceItem)
+            .where(PurchaseInvoiceItem.purchase_order_item_id == item_id)
+            .order_by(PurchaseInvoiceItem.id.desc())
+        ).all()
+
+        # --- Validar pagos aplicados sobre las facturas involucradas ---
+        ap_ids = list({r.accounts_payable_id for r in pii_rows if r.accounts_payable_id})
+        hay_pagos = False
+        for _ap_id in ap_ids:
+            _folio_row = db.exec(text("SELECT invoice_folio FROM accounts_payable WHERE id = :i").bindparams(i=_ap_id)).first()
+            _folio = _folio_row[0] if _folio_row else None
+            if not _folio:
+                continue
+            _inv = db.exec(select(PurchaseInvoice).where(PurchaseInvoice.invoice_number == _folio)).first()
+            if _inv:
+                _pay = db.exec(select(SupplierPayment).where(SupplierPayment.purchase_invoice_id == _inv.id)).first()
+                if _pay:
+                    hay_pagos = True
+                    break
+
+        role = (current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)).upper()
+        if hay_pagos:
+            if role != "GERENCIA":
+                raise HTTPException(status_code=403, detail="Esta factura ya tiene pagos aplicados. Solo Gerencia puede corregirla.")
+        else:
+            if role not in ["ADMIN", "ADMINISTRACION", "ADMINISTRADOR", "GERENCIA", "DIRECTOR"]:
+                raise HTTPException(status_code=403, detail="No tienes permiso para corregir recepciones.")
+
+        # --- 1) Revertir inventario (kárdex + stock) ---
+        mat = db.get(Material, item.material_id) if item.material_id else None
+        costo = float(getattr(item, "expected_unit_cost", 0.0) or 0.0)
+        if pii_rows:
+            costo = float(pii_rows[0].unit_cost or costo)
+        if mat and (getattr(mat, 'production_route', 'MATERIAL') or 'MATERIAL').upper() == 'MATERIAL':
+            factor = float(getattr(mat, 'conversion_factor', 1) or 1)
+            qty_units = delta * factor
+            mat.physical_stock = (mat.physical_stock or 0) - qty_units
+            db.add(mat)
+            registrar_movimiento_inventario(
+                db,
+                material_id=mat.id,
+                cantidad=-qty_units,
+                tipo="AJUSTE_CORRECCION",
+                costo_unitario=costo,
+                reason_code="CORRECCION_RECEPCION",
+            )
+
+        # --- 2) Ajustar la CxP (y su gemela) por el monto revertido ---
+        monto_revertido = delta * costo
+        restante = delta
+        for r in pii_rows:
+            if restante <= 0:
+                break
+            quitar = min(float(r.quantity_received or 0), restante)
+            if quitar <= 0:
+                continue
+            r.quantity_received = float(r.quantity_received or 0) - quitar
+            restante -= quitar
+            if r.quantity_received <= 0:
+                db.delete(r)
+            else:
+                db.add(r)
+        for _ap_id in ap_ids:
+            _row = db.exec(text("SELECT subtotal, tax_rate, total_amount, invoice_folio FROM accounts_payable WHERE id = :i").bindparams(i=_ap_id)).first()
+            if not _row:
+                continue
+            _sub_actual = float(_row[0] or 0)
+            _rate = float(_row[1] or 0.16)
+            _folio = _row[3]
+            _nuevo_sub = max(_sub_actual - monto_revertido, 0.0)
+            _nuevo_tax = round(_nuevo_sub * _rate, 2)
+            _nuevo_total = round(_nuevo_sub + _nuevo_tax, 2)
+            _nuevo_status = "CANCELADO" if _nuevo_total <= 0.01 else "PENDIENTE"
+            db.exec(text("""
+                UPDATE accounts_payable
+                SET subtotal = :s, tax_amount = :t, total_amount = :tot, status = :st
+                WHERE id = :i
+            """).bindparams(s=round(_nuevo_sub, 2), t=_nuevo_tax, tot=_nuevo_total, st=_nuevo_status, i=_ap_id))
+            if _folio:
+                db.exec(text("""
+                    UPDATE purchase_invoices
+                    SET subtotal = :s, tax_amount = :t, total_amount = :tot
+                    WHERE invoice_number = :f
+                """).bindparams(s=round(_nuevo_sub, 2), t=_nuevo_tax, tot=_nuevo_total, f=_folio))
+            break  # solo la factura más reciente involucrada
+
+        # --- 3) Reabrir el renglón en la OC ---
+        item.quantity_received = real_qty
+        item.is_cancelled = False
+        item.is_fulfilled = False
+        item.cancel_reason = f"Corrección de recepción: {reason}"
+        db.add(item)
+        db.flush()
+
+        # --- 4) Recalcular estado de la OC (mismo criterio que /no-more) ---
+        all_items = db.exec(select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po_id)).all()
+        hay_pendiente = False
+        hay_recibido = False
+        for it in all_items:
+            rec = float(it.quantity_received or 0)
+            if it.is_cancelled or it.is_fulfilled:
+                if rec > 0:
+                    hay_recibido = True
+                continue
+            ordn = float(it.quantity_ordered or 0)
+            if rec > 0:
+                hay_recibido = True
+            if ordn > 0 and rec < ordn:
+                hay_pendiente = True
+        if not hay_pendiente:
+            po.status = "RECIBIDA_TOTAL" if hay_recibido else "CANCELADA"
+        else:
+            po.status = "RECIBIDA_PARCIAL"
+        db.add(po)
+        db.commit()
+        return {
+            "status": "success",
+            "revertido": delta,
+            "nueva_cantidad": real_qty,
+            "monto_revertido": round(monto_revertido, 2),
+            "po_status": po.status,
+        }
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al corregir recepción: {str(e)}")
