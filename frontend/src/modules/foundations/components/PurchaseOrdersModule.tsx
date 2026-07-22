@@ -8,8 +8,9 @@ import {
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import axiosClient from '../../../api/axios-client';
+import { AllPurchaseOrdersModule } from './AllPurchaseOrdersModule';
 
-type SubSection = 'CREATION' | 'BRAKE' | 'SENDING' | null;
+type SubSection = 'CREATION' | 'BRAKE' | 'SENDING' | 'ALL_ORDERS' | null;
 
 interface PurchaseOrdersModuleProps {
     onSubSectionChange?: (active: boolean) => void;
@@ -921,12 +922,13 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         { id: 'CREATION', title: 'A. SOLICITUDES', icon: <Search />, color: 'indigo', bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-100', activeBorder: 'border-l-indigo-600', count: suggestedOrders.length, desc: 'Revisar' },
         { id: 'BRAKE', title: 'B. FRENO', icon: <Ban />, color: 'rose', bg: 'bg-rose-50', text: 'text-rose-600', border: 'border-rose-100', activeBorder: 'border-l-rose-600', count: brakeOrders.filter(o => safeStatus(o.status) === 'DRAFT').length, desc: 'Pausadas' },
         { id: 'SENDING', title: 'C. POR ENVIAR', icon: <Send />, color: 'emerald', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100', activeBorder: 'border-l-emerald-600', count: brakeOrders.filter(o => safeStatus(o.status) === 'AUTORIZADA').length, desc: 'Envío' },
+        { id: 'ALL_ORDERS', title: 'D. TODAS LAS OC', icon: <Search />, color: 'slate', bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-100', activeBorder: 'border-l-slate-600', count: 0, desc: 'Rayos X' },
     ];
 
     return (
         <div className="space-y-10 min-h-[600px] relative">
             {activeSubSection === null && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in duration-300">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-in fade-in duration-300">
                     {subMenuItems.map(item => (
                         <div key={item.id} className="w-full relative h-40">
                             <Card onClick={() => setActiveSubSection(item.id as SubSection)} className={`p-6 cursor-pointer transition-all border-l-4 transform hover:-translate-y-1 h-full bg-white shadow-sm hover:shadow-xl ${item.activeBorder}`}>
@@ -968,6 +970,11 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 </>
                             ) : activeSubSection === 'BRAKE' ? (
                                 <><Ban size={28} className="text-rose-600"/> Mesa de Control / Freno</>
+                            ) : activeSubSection === 'ALL_ORDERS' ? (
+                                <div className="flex flex-col">
+                                    <span className="flex items-center gap-3"><Search size={28} className="text-slate-600"/> Todas las Órdenes de Compra</span>
+                                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Consulta y corrección</span>
+                                </div>
                             ) : (
                                 <><Send size={28} className="text-emerald-600"/> Centro de Despacho</>
                             )}
@@ -988,7 +995,10 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                     {loading ? (
                         <div className="flex flex-col items-center justify-center py-20 h-full text-slate-300"><Loader2 className="animate-spin mb-4" size={40} /><p className="font-black uppercase tracking-widest text-[10px] text-slate-400">Sincronizando Sistema...</p></div>
                     ) : (
-                        activeSubSection === 'CREATION' ? renderPlanningTable() : activeSubSection === 'BRAKE' ? renderBrakeTable() : renderSendingTable()
+                        activeSubSection === 'CREATION' ? renderPlanningTable()
+                        : activeSubSection === 'BRAKE' ? renderBrakeTable()
+                        : activeSubSection === 'ALL_ORDERS' ? <AllPurchaseOrdersModule />
+                        : renderSendingTable()
                     )}
                 </div>
             )}

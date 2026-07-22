@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { PackageCheck, FileText } from 'lucide-react';
 import axiosClient from '../../../api/axios-client';
+import { Button } from "@/components/ui/Button";
 
 export const AllPurchaseOrdersModule: React.FC = () => {
     const [orders, setOrders] = useState<any[]>([]);
@@ -55,52 +57,87 @@ export const AllPurchaseOrdersModule: React.FC = () => {
     const statuses = ['TODOS', 'DRAFT', 'ENVIADA', 'RECIBIDA_PARCIAL', 'RECIBIDA_TOTAL', 'CANCELADA'];
 
     if (selected) {
+        const items = selected.items || [];
+        const subtotal = items.reduce((s: number, it: any) => s + Number(it.subtotal || 0), 0);
+        const iva = subtotal * 0.16;
+        const total = subtotal + iva;
         return (
-            <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
-                <div className="flex justify-between items-center mb-4">
-                    <div>
-                        <h3 className="font-black text-slate-800 text-lg">{selected.provider_name}</h3>
-                        <p className="text-[11px] font-black text-slate-400 uppercase">Folio: {selected.folio} · {selected.status}</p>
+            <div className="space-y-4">
+                <button onClick={() => setSelected(null)} className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 underline underline-offset-2">← Volver al listado</button>
+                <div className="bg-white rounded-3xl border border-emerald-200 shadow-md overflow-hidden border-t-8 border-t-emerald-500 animate-in slide-in-from-bottom-4 duration-500">
+                    <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-emerald-50/30">
+                        <div className="flex items-center gap-5">
+                            <div className="p-3 rounded-2xl shadow-inner bg-emerald-100 text-emerald-600"><PackageCheck size={24} /></div>
+                            <div>
+                                <h3 className="text-xl font-black text-slate-800 uppercase leading-none">{selected.provider_name}</h3>
+                                <p className="text-[9px] font-black uppercase text-emerald-600 mt-1 tracking-widest leading-none">FOLIO: {selected.folio}</p>
+                                <p className="text-[8px] font-black uppercase text-slate-400 mt-1 tracking-tighter leading-none">ESTADO: {selected.status}</p>
+                            </div>
+                        </div>
+                        <Button
+                            variant="outline"
+                            className="text-[9px] font-black uppercase border-slate-200 h-8 hover:bg-slate-100"
+                            onClick={() => {
+                                const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+                                const baseUrl = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:8000';
+                                window.open(`${baseUrl}/api/v1/purchases/orders/${selected.id}/pdf?token=${token}`, '_blank');
+                            }}
+                        >
+                            <FileText size={14} className="mr-1" />
+                            Ver PDF Oficial
+                        </Button>
                     </div>
-                    <button onClick={() => setSelected(null)} className="text-xs font-black uppercase px-4 py-2 border border-slate-300 rounded hover:bg-slate-50">← Volver</button>
+                    <table className="w-full">
+                        <thead>
+                            <tr className="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                <th className="px-8 py-4 text-left w-32">SKU</th>
+                                <th className="px-4 py-4 text-left">Descripción</th>
+                                <th className="px-4 py-4 text-center">Cant.</th>
+                                <th className="px-4 py-4 text-center">Recibidas</th>
+                                <th className="px-4 py-4 text-center w-32">P. Unit</th>
+                                <th className="px-8 py-4 text-right">Proyecto</th>
+                                <th className="px-8 py-4 text-right w-40">Importe</th>
+                                <th className="px-6 py-4 text-center w-28">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                            {items.map((item: any, i: number) => {
+                                const rec = Number(item.quantity_received || 0);
+                                return (
+                                    <tr key={i} className="hover:bg-slate-50/30 transition-colors">
+                                        <td className="px-8 py-3 font-black text-indigo-600 text-[11px] uppercase">{item.sku}</td>
+                                        <td className="px-4 py-3 font-bold text-slate-700 text-xs uppercase">{item.name}</td>
+                                        <td className="px-4 py-3 text-center text-xs font-black text-slate-600">{item.qty ?? item.quantity_ordered ?? 0}</td>
+                                        <td className="px-4 py-3 text-center text-xs font-black text-emerald-600">{rec > 0 ? rec : '—'}</td>
+                                        <td className="px-4 py-3 text-center text-xs font-bold text-slate-400">${Number(item.expected_cost || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+                                        <td className="px-8 py-3 text-right"><span className="text-[10px] font-black text-rose-600 uppercase">{item.project_name || "GENERAL"}</span></td>
+                                        <td className="px-8 py-3 text-right text-xs font-black text-slate-800">${Number(item.subtotal || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+                                        <td className="px-6 py-3 text-center">
+                                            {rec > 0 ? (
+                                                <button type="button"
+                                                    onClick={() => { setCorrectModal({ item }); setRealQty(''); setReason(''); setError(''); }}
+                                                    className="text-[9px] font-black text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded px-2 py-1 uppercase tracking-wide transition-colors">
+                                                    Corregir
+                                                </button>
+                                            ) : (
+                                                <span className="text-[9px] font-black uppercase tracking-wide text-slate-300">
+                                                    {item.is_cancelled ? 'Cancelado' : item.is_fulfilled ? 'Cerrado' : '—'}
+                                                </span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                    <div className="p-8 bg-slate-50/50 flex justify-end items-center border-t border-slate-100">
+                        <div className="w-80 space-y-1 pr-14">
+                            <div className="flex justify-between items-center text-slate-500"><span className="text-[10px] font-black uppercase">Subtotal</span><span className="text-sm font-bold">${subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                            <div className="flex justify-between items-center text-slate-500 border-b border-slate-200 pb-2"><span className="text-[10px] font-black uppercase">IVA (16%)</span><span className="text-sm font-bold">${iva.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                            <div className="flex justify-between items-center pt-2"><span className="text-[11px] font-black text-emerald-600 uppercase">Total</span><span className="text-3xl font-black text-slate-900">${total.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                        </div>
+                    </div>
                 </div>
-                <table className="w-full">
-                    <thead>
-                        <tr className="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                            <th className="px-3 py-3 text-left">SKU</th>
-                            <th className="px-3 py-3 text-left">Descripción</th>
-                            <th className="px-3 py-3 text-center">Ordenadas</th>
-                            <th className="px-3 py-3 text-center">Recibidas</th>
-                            <th className="px-3 py-3 text-center">Estado</th>
-                            <th className="px-3 py-3 text-center">Acción</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                        {(selected.items || []).map((it: any, i: number) => {
-                            const rec = Number(it.quantity_received || 0);
-                            return (
-                                <tr key={i} className="hover:bg-slate-50/40">
-                                    <td className="px-3 py-3 font-black text-indigo-600 text-[11px] uppercase">{it.sku || 'S/SKU'}</td>
-                                    <td className="px-3 py-3 text-xs font-bold text-slate-700">{it.name}</td>
-                                    <td className="px-3 py-3 text-center text-xs font-black text-slate-600">{it.quantity_ordered ?? it.qty ?? 0}</td>
-                                    <td className="px-3 py-3 text-center text-xs font-black text-emerald-600">{rec}</td>
-                                    <td className="px-3 py-3 text-center text-[9px] font-black uppercase text-slate-400">
-                                        {it.is_cancelled ? 'Cancelado' : it.is_fulfilled ? 'Cerrado' : '—'}
-                                    </td>
-                                    <td className="px-3 py-3 text-center">
-                                        {rec > 0 && (
-                                            <button type="button"
-                                                onClick={() => { setCorrectModal({ item: it }); setRealQty(''); setReason(''); setError(''); }}
-                                                className="text-[9px] font-black text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded px-2 py-1 uppercase tracking-wide">
-                                                Corregir
-                                            </button>
-                                        )}
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
 
                 {correctModal && (
                     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">

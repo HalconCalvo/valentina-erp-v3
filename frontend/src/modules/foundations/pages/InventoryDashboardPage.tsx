@@ -9,9 +9,8 @@ import { RequisitionsModule } from '../components/RequisitionsModule';
 import { PurchaseOrdersModule } from '../components/PurchaseOrdersModule';
 import InventoryReceptionPage from './InventoryReceptionPage';
 import { PhysicalInventoryModule } from '../components/PhysicalInventoryModule';
-import { AllPurchaseOrdersModule } from '../components/AllPurchaseOrdersModule';
 
-type InventorySection = 'REQUISITIONS' | 'PURCHASE_ORDERS' | 'RECEPTIONS' | 'PHYSICAL_INVENTORY' | 'ALL_ORDERS' | null;
+type InventorySection = 'REQUISITIONS' | 'PURCHASE_ORDERS' | 'RECEPTIONS' | 'PHYSICAL_INVENTORY' | null;
 
 export const InventoryDashboardPage = () => {
     const navigate = useNavigate();
@@ -159,7 +158,7 @@ export const InventoryDashboardPage = () => {
             {!activeSection ? (
                 <div className="flex flex-wrap justify-center gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 mt-4">
                     {/* TARJETA 1 */}
-                    <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(20%-15px)] relative h-40">
+                    <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(25%-18px)] relative h-40">
                         <Card onClick={() => setActiveSection('REQUISITIONS')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-indigo-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group">
                             <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50 text-indigo-700 border-r border-indigo-100 font-black text-3xl transition-colors group-hover:bg-indigo-100">{pendingTasksCount}</div>
                             <div className="ml-16 h-full flex flex-col justify-between">
@@ -171,7 +170,7 @@ export const InventoryDashboardPage = () => {
                     </div>
 
                     {/* TARJETA 2 */}
-                    <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(20%-15px)] relative h-40">
+                    <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(25%-18px)] relative h-40">
                         <Card onClick={() => setActiveSection('PURCHASE_ORDERS')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-emerald-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group">
                             <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-emerald-50 text-emerald-700 border-r border-emerald-100 font-black text-3xl transition-colors group-hover:bg-emerald-100">{purchasingCount}</div>
                             <div className="ml-16 h-full flex flex-col justify-between">
@@ -183,7 +182,7 @@ export const InventoryDashboardPage = () => {
                     </div>
 
                     {/* TARJETA 3 */}
-                    <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(20%-15px)] relative h-40">
+                    <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(25%-18px)] relative h-40">
                         <Card onClick={() => setActiveSection('RECEPTIONS')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-blue-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group">
                             <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-blue-50 text-blue-700 border-r border-blue-100 font-black text-3xl transition-colors group-hover:bg-blue-100">{receptionsCount}</div>
                             <div className="ml-16 h-full flex flex-col justify-between">
@@ -195,7 +194,7 @@ export const InventoryDashboardPage = () => {
                     </div>
 
                     {/* TARJETA 4 */}
-                    <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(20%-15px)] relative h-40">
+                    <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(25%-18px)] relative h-40">
                         <Card onClick={() => setActiveSection('PHYSICAL_INVENTORY')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-orange-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group">
                             <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-orange-50 text-orange-700 border-r border-orange-100 font-black text-3xl transition-colors group-hover:bg-orange-100">$</div>
                             <div className="ml-16 h-full flex flex-col justify-between">
@@ -212,20 +211,6 @@ export const InventoryDashboardPage = () => {
                                     </div>
                                 </div>
                                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100"><p className="text-[10px] text-slate-400 font-bold uppercase">El dinero dormido</p><Target size={14} className="text-orange-400"/></div>
-                            </div>
-                        </Card>
-                    </div>
-
-                    {/* TARJETA 5 */}
-                    <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(20%-15px)] relative h-40">
-                        <Card onClick={() => setActiveSection('ALL_ORDERS')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-slate-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group">
-                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-slate-50 text-slate-700 border-r border-slate-100 font-black text-3xl transition-colors group-hover:bg-slate-100">
-                                <Search size={24} className="text-slate-500" />
-                            </div>
-                            <div className="ml-16 h-full flex flex-col justify-between">
-                                <div className="flex justify-between items-start"><p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">5. Todas las OC</p><Search size={16} className="text-slate-500" /></div>
-                                <div className="mt-4 flex justify-end"><div className="text-2xl font-black text-slate-700 tracking-tight">Rayos X</div></div>
-                                <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100"><p className="text-[10px] text-slate-400 font-bold uppercase">Consulta y corrección</p><ArrowUpRight size={14} className="text-slate-400"/></div>
                             </div>
                         </Card>
                     </div>
@@ -261,10 +246,6 @@ export const InventoryDashboardPage = () => {
                             activeSubSection={physicalInventorySubSection}
                             onSubSectionChange={setPhysicalInventorySubSection}
                         />
-                    )}
-
-                    {activeSection === 'ALL_ORDERS' && renderActiveSection('Todas las Órdenes de Compra',
-                        <AllPurchaseOrdersModule />
                     )}
                 </div>
             )}
