@@ -237,6 +237,39 @@ def read_purchase_orders(*, db: Session = Depends(get_session), status: str | No
         
     return results
 
+@router.get("/orders/{po_id}/check-invoice-folio")
+def check_invoice_folio(*, db: Session = Depends(get_session), po_id: int, folio: str, current_user: CurrentUser):
+    """
+    Avisa si el proveedor de esta OC ya tiene una factura registrada con ese folio.
+    NO bloquea: solo informa, porque un proveedor puede reusar folios legítimamente.
+    """
+    po = db.get(PurchaseOrder, po_id)
+    if not po:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    _folio = (folio or "").strip()
+    if not _folio:
+        return {"duplicado": False}
+    rows = db.exec(text("""
+        SELECT id, total_amount, status, created_at, purchase_order_id
+        FROM accounts_payable
+        WHERE provider_id = :prov AND invoice_folio = :folio AND status != 'CANCELADO'
+        ORDER BY id DESC
+    """).bindparams(prov=po.provider_id, folio=_folio)).all()
+    if not rows:
+        return {"duplicado": False}
+    return {
+        "duplicado": True,
+        "coincidencias": [
+            {
+                "ap_id": r[0],
+                "total": float(r[1] or 0),
+                "status": r[2],
+                "fecha": r[3].isoformat() if r[3] else None,
+                "purchase_order_id": r[4],
+            } for r in rows
+        ],
+    }
+
 @router.post("/orders/bulk-emit")
 def emit_bulk_purchase_order(*, db: Session = Depends(get_session), data: POCreateFromPlanning, current_user: CurrentUser):
     if not data.provider_id: raise HTTPException(status_code=400)

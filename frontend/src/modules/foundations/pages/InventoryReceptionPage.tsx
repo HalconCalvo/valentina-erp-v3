@@ -32,6 +32,7 @@ const InventoryReceptionPage: React.FC = () => {
     
     const [selectedPO, setSelectedPO] = useState<any | null>(null);
     const [invoiceFolio, setInvoiceFolio] = useState('');
+    const [folioWarning, setFolioWarning] = useState<any[] | null>(null);
     const [invoiceTotal, setInvoiceTotal] = useState<number | ''>('');
     const [displayTotal, setDisplayTotal] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -121,6 +122,7 @@ const InventoryReceptionPage: React.FC = () => {
         setReceivedItems(initialReceived);
         setItemsToClose({});
         setAddedRows([]);
+        setFolioWarning(null);
 
         // El total inicial refleja lo que se va a RECIBIR, no el total de la OC completa.
         const totalRecibido = calcTotalRecibidoConIva(po, initialReceived);
@@ -181,6 +183,18 @@ const InventoryReceptionPage: React.FC = () => {
     };
     const selectMaterialForRow = (i: number, mat: any) => {
         updateAddedRow(i, { material_id: mat.id, sku: mat.sku, name: mat.name, search: `${mat.sku} — ${mat.name}` });
+    };
+
+    const checkFolioDuplicado = async () => {
+        if (!selectedPO || !invoiceFolio || !invoiceFolio.trim()) { setFolioWarning(null); return; }
+        try {
+            const res = await axiosClient.get(
+                `/purchases/orders/${selectedPO.id}/check-invoice-folio?folio=${encodeURIComponent(invoiceFolio.trim())}`
+            );
+            setFolioWarning(res.data?.duplicado ? (res.data.coincidencias || []) : null);
+        } catch {
+            setFolioWarning(null);   // si falla la consulta, no estorbamos la captura
+        }
     };
 
     const handleSubmit = async () => {
@@ -478,8 +492,21 @@ const InventoryReceptionPage: React.FC = () => {
                                 className="font-black text-[11px] px-3 py-1.5 w-32 bg-white border border-emerald-200 rounded-lg text-slate-800 focus:ring-2 focus:ring-emerald-500 uppercase outline-none shadow-sm h-8" 
                                 placeholder="Folio" 
                                 value={invoiceFolio} 
-                                onChange={(e) => setInvoiceFolio(e.target.value)}
+                                onChange={(e) => { setInvoiceFolio(e.target.value); setFolioWarning(null); }}
+                                onBlur={checkFolioDuplicado}
                             />
+                            {folioWarning && folioWarning.length > 0 && (
+                                <div className="mt-2 text-[10px] font-black uppercase tracking-wide text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 max-w-md">
+                                    ⚠ Este proveedor ya tiene {folioWarning.length === 1 ? 'una factura' : `${folioWarning.length} facturas`} con ese folio
+                                    {folioWarning.map((c: any, i: number) => (
+                                        <span key={i} className="block font-bold normal-case text-amber-800 mt-1">
+                                            ${Number(c.total || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })} · {c.status}
+                                            {c.fecha ? ` · ${new Date(c.fecha).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}
+                                        </span>
+                                    ))}
+                                    <span className="block normal-case font-bold text-amber-600 mt-1">Verifica que no sea un duplicado. Puedes continuar si es correcto.</span>
+                                </div>
+                            )}
                         </div>
                         <div className="text-right">
                             <label className="block text-[8px] font-black text-emerald-700 uppercase tracking-widest mb-1 text-left">Monto (c/IVA) *</label>
