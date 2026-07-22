@@ -35,7 +35,7 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
     const load = async () => {
         setLoading(true);
         try {
-            const res = await axiosClient.get('/purchases/orders/');
+            const res = await axiosClient.get('/purchases/orders/?limit=1000');
             setOrders(Array.isArray(res.data) ? res.data : []);
         } catch { setOrders([]); }
         finally { setLoading(false); }
@@ -53,7 +53,7 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
                 { real_qty: q, reason: reason.trim() }
             );
             setCorrectModal(null); setRealQty(''); setReason('');
-            const res = await axiosClient.get('/purchases/orders/');
+            const res = await axiosClient.get('/purchases/orders/?limit=1000');
             const list = Array.isArray(res.data) ? res.data : [];
             setOrders(list);
             setSelected(list.find((o: any) => o.id === selected.id) || null);

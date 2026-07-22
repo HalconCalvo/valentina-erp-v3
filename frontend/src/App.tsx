@@ -30,7 +30,6 @@ import CreateQuotePage from './modules/sales/pages/CreateQuotePage';
 
 // 6. INVENTARIO 
 import InventoryReceptionPage from './modules/foundations/pages/InventoryReceptionPage';
-import ReceptionHistoryPage from './modules/foundations/pages/ReceptionHistoryPage';
 // ---> NUEVO TABLERO MAESTRO DE COMPRAS Y ALMACÉN <---
 import InventoryDashboardPage from './modules/foundations/pages/InventoryDashboardPage';
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ClipboardList, ShoppingCart, Truck, Package, ArrowLeft, ArrowUpRight, Wrench, Search, Target } from 'lucide-react';
+import { ClipboardList, ShoppingCart, Truck, Package, ArrowLeft, ArrowUpRight, Wrench, Target } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import axiosClient from '../../../api/axios-client';
 import { useLocation, useNavigate } from 'react-router-dom';
