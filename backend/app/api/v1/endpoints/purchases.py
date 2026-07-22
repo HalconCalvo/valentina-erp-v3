@@ -4,7 +4,7 @@ from sqlmodel import Session, select, text, Field, SQLModel
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime, timedelta, date
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from types import SimpleNamespace
 
 from app.models.inventory import PurchaseRequisition, PurchaseOrder, PurchaseOrderItem
@@ -123,12 +123,42 @@ def assign_requisition_provider(
     return {"ok": True, "req_id": req_id}
 
 @router.get("/orders/", response_model=List[dict])
-def read_purchase_orders(*, db: Session = Depends(get_session), status: str | None = None, skip: int = 0, limit: int = 200):
+def read_purchase_orders(*, db: Session = Depends(get_session), status: str | None = None,
+                         search: str | None = None, date_from: str | None = None,
+                         date_to: str | None = None, skip: int = 0, limit: int = 200):
     statement = select(PurchaseOrder).order_by(PurchaseOrder.id.desc())
     
     if status:
         search_status = f"%{status.strip()}%"
         statement = statement.where(PurchaseOrder.status.ilike(search_status))
+
+    # Búsqueda por folio o nombre de proveedor
+    if search and search.strip():
+        _term = f"%{search.strip()}%"
+        _prov_ids = db.exec(
+            select(Provider.id).where(Provider.business_name.ilike(_term))
+        ).all()
+        if _prov_ids:
+            statement = statement.where(
+                or_(PurchaseOrder.folio.ilike(_term), PurchaseOrder.provider_id.in_(_prov_ids))
+            )
+        else:
+            statement = statement.where(PurchaseOrder.folio.ilike(_term))
+
+    # Rango de fechas sobre created_at (formato esperado YYYY-MM-DD)
+    if date_from:
+        try:
+            _df = datetime.fromisoformat(date_from)
+            statement = statement.where(PurchaseOrder.created_at >= _df)
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            _dt = datetime.fromisoformat(date_to)
+            _dt = _dt.replace(hour=23, minute=59, second=59)
+            statement = statement.where(PurchaseOrder.created_at <= _dt)
+        except ValueError:
+            pass
     
     orders = db.exec(statement.offset(skip).limit(limit)).all()
     if not orders:

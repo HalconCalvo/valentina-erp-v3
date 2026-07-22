@@ -22,7 +22,10 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
 
-    useEffect(() => { load(); }, []);
+    useEffect(() => {
+        const id = setTimeout(() => { load(); }, 400);
+        return () => clearTimeout(id);
+    }, [search, dateFrom, dateTo, statusFilter]);
 
     useEffect(() => {
         if (onDetailChange) onDetailChange(selected !== null);
@@ -32,10 +35,20 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
         if (closeSignal !== undefined && closeSignal > 0) setSelected(null);
     }, [closeSignal]);
 
-    const load = async () => {
+    const load = async (params?: { search?: string; from?: string; to?: string; status?: string }) => {
         setLoading(true);
         try {
-            const res = await axiosClient.get('/purchases/orders/?limit=1000');
+            const qs = new URLSearchParams();
+            qs.set('limit', '200');
+            const s = params?.search ?? search;
+            const f = params?.from ?? dateFrom;
+            const t = params?.to ?? dateTo;
+            const st = params?.status ?? statusFilter;
+            if (s && s.trim()) qs.set('search', s.trim());
+            if (f) qs.set('date_from', f);
+            if (t) qs.set('date_to', t);
+            if (st && st !== 'TODOS') qs.set('status', st);
+            const res = await axiosClient.get(`/purchases/orders/?${qs.toString()}`);
             setOrders(Array.isArray(res.data) ? res.data : []);
         } catch { setOrders([]); }
         finally { setLoading(false); }
@@ -53,7 +66,13 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
                 { real_qty: q, reason: reason.trim() }
             );
             setCorrectModal(null); setRealQty(''); setReason('');
-            const res = await axiosClient.get('/purchases/orders/?limit=1000');
+            const qs = new URLSearchParams();
+            qs.set('limit', '200');
+            if (search && search.trim()) qs.set('search', search.trim());
+            if (dateFrom) qs.set('date_from', dateFrom);
+            if (dateTo) qs.set('date_to', dateTo);
+            if (statusFilter && statusFilter !== 'TODOS') qs.set('status', statusFilter);
+            const res = await axiosClient.get(`/purchases/orders/?${qs.toString()}`);
             const list = Array.isArray(res.data) ? res.data : [];
             setOrders(list);
             setSelected(list.find((o: any) => o.id === selected.id) || null);
@@ -62,15 +81,7 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
         } finally { setSaving(false); }
     };
 
-    const filtered = orders.filter(o => {
-        const q = search.toLowerCase();
-        const matchText = !q || (o.folio || '').toLowerCase().includes(q) || (o.provider_name || '').toLowerCase().includes(q);
-        const matchStatus = statusFilter === 'TODOS' || (o.status || '') === statusFilter;
-        const fecha = o.created_at ? String(o.created_at).slice(0, 10) : '';
-        const matchFrom = !dateFrom || (fecha && fecha >= dateFrom);
-        const matchTo = !dateTo || (fecha && fecha <= dateTo);
-        return matchText && matchStatus && matchFrom && matchTo;
-    });
+    const filtered = orders;
 
     const statuses = ['TODOS', 'DRAFT', 'ENVIADA', 'RECIBIDA_PARCIAL', 'RECIBIDA_TOTAL', 'CANCELADA'];
 
@@ -214,6 +225,9 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
                     )}
                 </div>
             </div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
+                {loading ? 'Buscando...' : `${filtered.length} órdenes${filtered.length === 200 ? ' (mostrando las 200 más recientes — usa búsqueda o fechas para ver más)' : ''}`}
+            </p>
             {loading ? <p className="text-xs text-slate-400 py-8 text-center">Cargando órdenes...</p> : (
                 <table className="w-full">
                     <thead>
