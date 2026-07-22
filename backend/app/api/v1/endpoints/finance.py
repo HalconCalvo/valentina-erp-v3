@@ -71,7 +71,7 @@ def _sync_pos_to_invoices(session: SessionDep):
                 session.add(pp)
                 
             # C) Limpiamos la tabla de cuentas por pagar cruda por seguridad
-            session.exec(text("UPDATE accounts_payable SET status = 'CANCELADO' WHERE invoice_folio = :folio").bindparams(folio=inv_str))
+            session.exec(text("UPDATE accounts_payable SET status = 'CANCELADO' WHERE invoice_folio = :folio AND provider_id = :prov").bindparams(folio=inv_str, prov=inv.provider_id))
 
     # -------------------------------------------------------------------------
     # 2. CREACIÓN REAL: Registrar facturas SOLO cuando Almacén recibe el material
@@ -84,7 +84,12 @@ def _sync_pos_to_invoices(session: SessionDep):
         if amt is None or amt <= 0: continue
         
         safe_folio = folio if folio else f"AP-{ap_id}"
-        existing = session.exec(select(PurchaseInvoice).where(PurchaseInvoice.invoice_number == safe_folio)).first()
+        existing = session.exec(
+            select(PurchaseInvoice).where(
+                PurchaseInvoice.invoice_number == safe_folio,
+                PurchaseInvoice.provider_id == prov_id,
+            )
+        ).first()
         
         # Solo crea la factura si Almacén ya validó el ticket en el andén
         if not existing:
