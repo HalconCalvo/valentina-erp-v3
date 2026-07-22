@@ -8,6 +8,8 @@ export const AllPurchaseOrdersModule: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('TODOS');
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
     const [selected, setSelected] = useState<any | null>(null);
     const [correctModal, setCorrectModal] = useState<{ item: any } | null>(null);
     const [realQty, setRealQty] = useState('');
@@ -51,7 +53,10 @@ export const AllPurchaseOrdersModule: React.FC = () => {
         const q = search.toLowerCase();
         const matchText = !q || (o.folio || '').toLowerCase().includes(q) || (o.provider_name || '').toLowerCase().includes(q);
         const matchStatus = statusFilter === 'TODOS' || (o.status || '') === statusFilter;
-        return matchText && matchStatus;
+        const fecha = o.created_at ? String(o.created_at).slice(0, 10) : '';
+        const matchFrom = !dateFrom || (fecha && fecha >= dateFrom);
+        const matchTo = !dateTo || (fecha && fecha <= dateTo);
+        return matchText && matchStatus && matchFrom && matchTo;
     });
 
     const statuses = ['TODOS', 'DRAFT', 'ENVIADA', 'RECIBIDA_PARCIAL', 'RECIBIDA_TOTAL', 'CANCELADA'];
@@ -72,6 +77,9 @@ export const AllPurchaseOrdersModule: React.FC = () => {
                                 <h3 className="text-xl font-black text-slate-800 uppercase leading-none">{selected.provider_name}</h3>
                                 <p className="text-[9px] font-black uppercase text-emerald-600 mt-1 tracking-widest leading-none">FOLIO: {selected.folio}</p>
                                 <p className="text-[8px] font-black uppercase text-slate-400 mt-1 tracking-tighter leading-none">ESTADO: {selected.status}</p>
+                                <p className="text-[8px] font-black uppercase text-slate-400 mt-1 tracking-tighter leading-none">
+                                    FECHA: {selected.created_at ? new Date(selected.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'}
+                                </p>
                             </div>
                         </div>
                         <Button
@@ -171,19 +179,34 @@ export const AllPurchaseOrdersModule: React.FC = () => {
 
     return (
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
-            <div className="flex gap-3 mb-4">
+            <div className="flex flex-wrap gap-3 mb-4">
                 <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por folio o proveedor..."
-                    className="flex-1 text-xs border border-slate-200 rounded px-3 py-2 outline-none focus:border-indigo-500" />
+                    className="flex-1 min-w-[200px] text-xs border border-slate-200 rounded px-3 py-2 outline-none focus:border-indigo-500" />
                 <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
                     className="text-xs font-bold border border-slate-200 rounded px-3 py-2 outline-none focus:border-indigo-500">
                     {statuses.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
+                <div className="flex items-center gap-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase">Desde</label>
+                    <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+                        className="text-xs font-bold border border-slate-200 rounded px-2 py-2 outline-none focus:border-indigo-500" />
+                    <label className="text-[10px] font-black text-slate-400 uppercase">Hasta</label>
+                    <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+                        className="text-xs font-bold border border-slate-200 rounded px-2 py-2 outline-none focus:border-indigo-500" />
+                    {(dateFrom || dateTo) && (
+                        <button type="button" onClick={() => { setDateFrom(''); setDateTo(''); }}
+                            className="text-[10px] font-black text-slate-400 hover:text-slate-600 uppercase underline underline-offset-2">
+                            Limpiar
+                        </button>
+                    )}
+                </div>
             </div>
             {loading ? <p className="text-xs text-slate-400 py-8 text-center">Cargando órdenes...</p> : (
                 <table className="w-full">
                     <thead>
                         <tr className="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                             <th className="px-3 py-3 text-left">Folio</th>
+                            <th className="px-3 py-3 text-left">Fecha</th>
                             <th className="px-3 py-3 text-left">Proveedor</th>
                             <th className="px-3 py-3 text-center">Partidas</th>
                             <th className="px-3 py-3 text-center">Estado</th>
@@ -194,13 +217,16 @@ export const AllPurchaseOrdersModule: React.FC = () => {
                         {filtered.map(o => (
                             <tr key={o.id} onClick={() => setSelected(o)} className="hover:bg-indigo-50/40 cursor-pointer">
                                 <td className="px-3 py-3 font-black text-indigo-600 text-[11px]">{o.folio}</td>
+                                <td className="px-3 py-3 text-xs font-bold text-slate-500">
+                                    {o.created_at ? new Date(o.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                                </td>
                                 <td className="px-3 py-3 text-xs font-bold text-slate-700">{o.provider_name}</td>
                                 <td className="px-3 py-3 text-center text-xs font-black text-slate-600">{(o.items || []).length}</td>
                                 <td className="px-3 py-3 text-center text-[9px] font-black uppercase text-slate-500">{o.status}</td>
                                 <td className="px-3 py-3 text-right text-xs font-black text-slate-800">${Number(o.total_estimated_amount || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
                             </tr>
                         ))}
-                        {filtered.length === 0 && <tr><td colSpan={5} className="text-center text-xs text-slate-400 py-8">Sin órdenes que coincidan.</td></tr>}
+                        {filtered.length === 0 && <tr><td colSpan={6} className="text-center text-xs text-slate-400 py-8">Sin órdenes que coincidan.</td></tr>}
                     </tbody>
                 </table>
             )}

@@ -192,6 +192,7 @@ def read_purchase_orders(*, db: Session = Depends(get_session), status: str | No
             "id": o.id,
             "folio": o.folio,
             "status": o.status,
+            "created_at": o.created_at.isoformat() if getattr(o, 'created_at', None) else None,
             "provider_name": prov.business_name if prov else "Proveedor Desconocido",
             "provider_email": getattr(prov, 'contact_email', None) if prov else None,
             "credit_days": getattr(prov, 'credit_days', 0) if prov else 0,
