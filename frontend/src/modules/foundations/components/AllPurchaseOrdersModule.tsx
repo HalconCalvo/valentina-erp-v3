@@ -3,7 +3,12 @@ import { PackageCheck, FileText } from 'lucide-react';
 import axiosClient from '../../../api/axios-client';
 import { Button } from "@/components/ui/Button";
 
-export const AllPurchaseOrdersModule: React.FC = () => {
+interface AllPurchaseOrdersModuleProps {
+    onDetailChange?: (open: boolean) => void;
+    closeSignal?: number;
+}
+
+export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = ({ onDetailChange, closeSignal }) => {
     const [orders, setOrders] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState('');
@@ -18,6 +23,14 @@ export const AllPurchaseOrdersModule: React.FC = () => {
     const [error, setError] = useState('');
 
     useEffect(() => { load(); }, []);
+
+    useEffect(() => {
+        if (onDetailChange) onDetailChange(selected !== null);
+    }, [selected]);
+
+    useEffect(() => {
+        if (closeSignal !== undefined && closeSignal > 0) setSelected(null);
+    }, [closeSignal]);
 
     const load = async () => {
         setLoading(true);

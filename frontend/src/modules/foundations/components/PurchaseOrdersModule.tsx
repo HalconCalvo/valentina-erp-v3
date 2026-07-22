@@ -20,6 +20,8 @@ interface PurchaseOrdersModuleProps {
 
 export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSubSectionChange, targetTab, onExternalBack }) => {
     const [activeSubSection, setActiveSubSection] = useState<SubSection>(targetTab as SubSection || null);
+    const [allOrdersDetailOpen, setAllOrdersDetailOpen] = useState(false);
+    const [allOrdersCloseSignal, setAllOrdersCloseSignal] = useState(0);
     const [loading, setLoading] = useState(true);
     const [suggestedOrders, setSuggestedOrders] = useState<any[]>([]);
     const [brakeOrders, setBrakeOrders] = useState<any[]>([]);
@@ -984,9 +986,14 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 <RefreshCw size={16} className="text-slate-500" />
                             </Button>
                             <Button onClick={() => {
+                                if (activeSubSection === 'ALL_ORDERS' && allOrdersDetailOpen) {
+                                    setAllOrdersCloseSignal(s => s + 1);
+                                    return;
+                                }
                                 if (onExternalBack) {
                                     onExternalBack();
                                 } else {
+                                    setAllOrdersDetailOpen(false);
                                     setActiveSubSection(null);
                                 }
                             }} variant="outline" className="font-black uppercase text-[10px] tracking-widest border-slate-300 rounded-full px-6 py-2"><ArrowLeft size={16} className="mr-2"/> Regresar</Button>
@@ -997,7 +1004,12 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                     ) : (
                         activeSubSection === 'CREATION' ? renderPlanningTable()
                         : activeSubSection === 'BRAKE' ? renderBrakeTable()
-                        : activeSubSection === 'ALL_ORDERS' ? <AllPurchaseOrdersModule />
+                        : activeSubSection === 'ALL_ORDERS' ? (
+                            <AllPurchaseOrdersModule
+                                onDetailChange={setAllOrdersDetailOpen}
+                                closeSignal={allOrdersCloseSignal}
+                            />
+                        )
                         : renderSendingTable()
                     )}
                 </div>
