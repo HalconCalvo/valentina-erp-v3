@@ -3,7 +3,7 @@ from io import BytesIO
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel
-from sqlmodel import Session, select
+from sqlmodel import Session, select, text
 from typing import List, Optional
 from datetime import datetime, date
 
@@ -109,6 +109,13 @@ class PayrollDeferPayload(BaseModel):
 
 class QRScanPayload(BaseModel):
     bundle_qr_uuid: str  # UUID del bulto escaneado
+
+
+class ReasignarEquipoPayload(BaseModel):
+    leader_user_id: int
+    helper_1_user_id: Optional[int] = None
+    helper_2_user_id: Optional[int] = None
+    motivo: str
 
 
 class InstallerPayrollOverview(BaseModel):
@@ -493,6 +500,175 @@ def mark_payroll_paid(
 # ==========================================
 # 4. ESCANEO QR — Confirmar carga al camión (iPad)
 # ==========================================
+@router.post("/assignments/{assignment_id}/preview-scan")
+def preview_bundle_scan(
+    assignment_id: int,
+    payload: QRScanPayload,
+    session: SessionDep,
+    current_user: CurrentUser,
+):
+    """
+    PASO 1 (iPad): el líder escanea un bulto y Valentina responde QUÉ debe cargar.
+    Solo lectura: NO cambia estados, NO toca inventario, NO genera nómina.
+    La confirmación real ocurre después en scan_bundle_qr.
+    """
+    allowed = {UserRole.LOGISTICS, UserRole.DIRECTOR, UserRole.GERENCIA, UserRole.PRODUCTION}
+    if current_user.role not in allowed:
+        raise HTTPException(status_code=403, detail="No tienes permiso para escanear cargas.")
+
+    assignment = session.get(InstallationAssignment, assignment_id)
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Asignación no encontrada.")
+
+    instance = session.get(SalesOrderItemInstance, assignment.instance_id)
+    if not instance:
+        raise HTTPException(status_code=404, detail="Instancia no encontrada.")
+
+    # Cliente y proyecto (instancia -> item -> orden -> cliente)
+    cliente_nombre = None
+    proyecto = None
+    item = session.get(SalesOrderItem, instance.sales_order_item_id)
+    if item:
+        orden = session.get(SalesOrder, item.sales_order_id)
+        if orden:
+            proyecto = orden.project_name
+            cli = session.get(Client, orden.client_id)
+            if cli:
+                cliente_nombre = getattr(cli, 'full_name', None) or getattr(cli, 'business_name', None)
+
+    # Conteo de bultos: DISTINCT bundle_number por tipo para no inflar con reimpresiones
+    filas = session.exec(text("""
+        SELECT bundle_type, COUNT(DISTINCT bundle_number) AS bultos, MAX(total_bundles) AS total
+        FROM print_jobs
+        WHERE instance_id = :inst
+        GROUP BY bundle_type
+    """).bindparams(inst=instance.id)).all()
+    bultos_mdf = 0
+    bultos_herrajes = 0
+    for tipo, cantidad, _total in filas:
+        t = (tipo or "").upper()
+        if t == "MDF":
+            bultos_mdf = int(cantidad or 0)
+        elif t == "HERRAJES":
+            bultos_herrajes = int(cantidad or 0)
+
+    # Equipo asignado
+    leader = session.get(User, assignment.leader_user_id)
+    h1 = session.get(User, assignment.helper_1_user_id) if assignment.helper_1_user_id else None
+    h2 = session.get(User, assignment.helper_2_user_id) if assignment.helper_2_user_id else None
+    equipo_nombres = [u.full_name for u in [leader, h1, h2] if u and u.full_name]
+
+    # ¿Quien escanea es el líder asignado?
+    es_lider = current_user.id == assignment.leader_user_id
+    puede_autorizar = current_user.role in {UserRole.PRODUCTION, UserRole.DIRECTOR, UserRole.GERENCIA}
+
+    # Bloqueos que impedirían confirmar después
+    bloqueo = None
+    if assignment.status != InstallationAssignmentStatus.SCHEDULED:
+        bloqueo = f"Esta asignación ya fue procesada (status: {assignment.status})."
+    elif instance.production_status != InstanceStatus.READY:
+        bloqueo = f"La instancia debe estar READY para cargarse. Status actual: {instance.production_status}."
+
+    return {
+        "assignment_id": assignment.id,
+        "instance_id": instance.id,
+        "instance_name": instance.custom_name,
+        "cliente": cliente_nombre,
+        "proyecto": proyecto,
+        "bultos_mdf": bultos_mdf,
+        "bultos_herrajes": bultos_herrajes,
+        "bultos_total": bultos_mdf + bultos_herrajes,
+        "equipo_asignado": equipo_nombres,
+        "es_lider_asignado": es_lider,
+        "requiere_autorizacion": (not es_lider),
+        "puede_autorizar": puede_autorizar,
+        "bloqueo": bloqueo,
+        "puede_confirmar": (bloqueo is None) and (es_lider or puede_autorizar),
+    }
+
+@router.patch("/equipos/{assignment_id}/reasignar")
+def reasignar_equipo(
+    assignment_id: int,
+    payload: ReasignarEquipoPayload,
+    session: SessionDep,
+    current_user: CurrentUser,
+):
+    """
+    Reasigna el equipo de una instalación ANTES de cargar (caso: el equipo asignado no asistió).
+    Solo Jefe de Producción, Gerencia o Dirección.
+    Bloqueado si la asignación ya fue procesada (la nómina ya se generó al escanear).
+    """
+    allowed = {UserRole.PRODUCTION, UserRole.GERENCIA, UserRole.DIRECTOR}
+    if current_user.role not in allowed:
+        raise HTTPException(
+            status_code=403,
+            detail="Solo el Jefe de Producción, Gerencia o Dirección pueden reasignar el equipo.",
+        )
+
+    if not (payload.motivo or "").strip():
+        raise HTTPException(status_code=400, detail="Debe indicar el motivo de la reasignación.")
+
+    assignment = session.get(InstallationAssignment, assignment_id)
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Asignación no encontrada.")
+
+    # Solo antes de la carga: después ya hay nómina generada y equipo confirmado
+    if assignment.status != InstallationAssignmentStatus.SCHEDULED:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No se puede reasignar: la carga ya fue procesada (status: {assignment.status}).",
+        )
+
+    # Validar usuarios
+    nuevo_lider = session.get(User, payload.leader_user_id)
+    if not nuevo_lider:
+        raise HTTPException(status_code=404, detail="Usuario Líder no encontrado.")
+    if payload.helper_1_user_id and not session.get(User, payload.helper_1_user_id):
+        raise HTTPException(status_code=404, detail="Ayudante 1 no encontrado.")
+    if payload.helper_2_user_id and not session.get(User, payload.helper_2_user_id):
+        raise HTTPException(status_code=404, detail="Ayudante 2 no encontrado.")
+
+    anterior = {
+        "leader": assignment.leader_user_id,
+        "helper_1": assignment.helper_1_user_id,
+        "helper_2": assignment.helper_2_user_id,
+    }
+
+    assignment.leader_user_id = payload.leader_user_id
+    assignment.helper_1_user_id = payload.helper_1_user_id
+    assignment.helper_2_user_id = payload.helper_2_user_id
+    session.add(assignment)
+
+    # Si existieran registros de nómina previos en PENDING_SIGNATURE para esta asignación,
+    # se anulan: la nómina correcta se generará al confirmar la carga con el equipo real.
+    previos = session.exec(
+        select(PayrollPayment).where(
+            PayrollPayment.installation_assignment_id == assignment.id,
+            PayrollPayment.status == PayrollStatus.PENDING_SIGNATURE,
+        )
+    ).all()
+    anulados = 0
+    for p in previos:
+        session.delete(p)
+        anulados += 1
+
+    session.commit()
+    session.refresh(assignment)
+
+    return {
+        "status": "success",
+        "assignment_id": assignment.id,
+        "equipo_anterior": anterior,
+        "equipo_nuevo": {
+            "leader": assignment.leader_user_id,
+            "helper_1": assignment.helper_1_user_id,
+            "helper_2": assignment.helper_2_user_id,
+        },
+        "nomina_previa_anulada": anulados,
+        "motivo": payload.motivo.strip(),
+        "reasignado_por": current_user.full_name or current_user.email,
+    }
+
 @router.post("/equipos/{assignment_id}/scan-qr")
 def scan_bundle_qr(
     assignment_id: int,

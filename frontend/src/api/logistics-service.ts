@@ -47,6 +47,17 @@ export const scanBundleQR = async (
   return data;
 };
 
+export const previewBundleScan = async (
+  assignmentId: number,
+  bundleQrUuid: string
+): Promise<any> => {
+  const { data } = await apiClient.post(
+    `/logistics/assignments/${assignmentId}/preview-scan`,
+    { bundle_qr_uuid: bundleQrUuid }
+  );
+  return data;
+};
+
 // Subida de fotos de evidencia
 export const uploadEvidencePhotos = async (
   instanceId: number,

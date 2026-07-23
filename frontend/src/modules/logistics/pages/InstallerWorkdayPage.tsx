@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   getMyWorkday,
   scanBundleQR,
+  previewBundleScan,
   uploadEvidencePhotos,
   submitClientSignature,
   markAssignmentInstalled,
@@ -10,7 +11,7 @@ import {
 import QRScanner from '../components/QRScanner';
 import SignaturePad from '../components/SignaturePad';
 
-type View = 'list' | 'detail' | 'qr' | 'photos' | 'signature';
+type View = 'list' | 'detail' | 'qr' | 'confirm' | 'photos' | 'signature';
 
 /** Fila del feed; incluye leader_name devuelto por el backend para DIRECTOR/GERENCIA. */
 type WorkdayAssignment = WorkdayAssignmentRow & {
@@ -24,6 +25,8 @@ export default function InstallerWorkdayPage() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<WorkdayAssignment | null>(null);
   const [view, setView] = useState<View>('list');
+  const [preview, setPreview] = useState<any | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -80,8 +83,24 @@ export default function InstallerWorkdayPage() {
     if (!selected) return;
     const assignmentId = selected.assignment_id;
     try {
-      await scanBundleQR(assignmentId, uuid);
-      showMessage('🔵🔵 Bulto confirmado. Instancia en tránsito.');
+      const data = await previewBundleScan(assignmentId, uuid);
+      setPreview({ ...data, bundle_qr_uuid: uuid });
+      setView('confirm');
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } } };
+      showError(err?.response?.data?.detail || 'Error al escanear el QR.');
+      setView('detail');
+    }
+  };
+
+  const handleConfirmarCarga = async () => {
+    if (!selected || !preview) return;
+    const assignmentId = selected.assignment_id;
+    setConfirming(true);
+    try {
+      await scanBundleQR(assignmentId, preview.bundle_qr_uuid);
+      showMessage('🔵🔵 Carga confirmada. Instancia en tránsito.');
+      setPreview(null);
       setView('detail');
       const list = await load({ silent: true });
       setSelected((prev) => {
@@ -90,8 +109,9 @@ export default function InstallerWorkdayPage() {
       });
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: string } } };
-      showError(err?.response?.data?.detail || 'Error al escanear el QR.');
-      setView('detail');
+      showError(err?.response?.data?.detail || 'Error al confirmar la carga.');
+    } finally {
+      setConfirming(false);
     }
   };
 
@@ -408,6 +428,63 @@ export default function InstallerWorkdayPage() {
             onScan={(text) => void handleQRScan(text)}
             onError={() => {}}
           />
+        </>
+      )}
+
+      {view === 'confirm' && selected && preview && (
+        <>
+          <Header
+            title="Confirmar carga"
+            onBack={() => { setPreview(null); setView('detail'); }}
+          />
+          <div className="p-4 flex flex-col gap-4">
+            <div className="rounded-2xl border border-slate-200 p-4 bg-white">
+              <p className="text-lg font-bold text-slate-800 leading-tight">{preview.instance_name}</p>
+              {preview.cliente && <p className="text-sm text-slate-500 mt-1">{preview.cliente}</p>}
+              {preview.proyecto && <p className="text-sm text-slate-500">{preview.proyecto}</p>}
+            </div>
+
+            <div className="rounded-2xl bg-blue-50 border border-blue-200 p-5 text-center">
+              <p className="text-xs font-bold uppercase tracking-widest text-blue-500">Debes cargar</p>
+              <p className="text-4xl font-black text-blue-700 mt-2">{preview.bultos_total} bultos</p>
+              <p className="text-sm font-semibold text-blue-600 mt-1">
+                {preview.bultos_mdf} MDF + {preview.bultos_herrajes} Herrajes
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 p-4 bg-white">
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Equipo asignado</p>
+              <p className="text-sm font-semibold text-slate-700 mt-1">
+                {(preview.equipo_asignado || []).join(' · ') || '—'}
+              </p>
+            </div>
+
+            {preview.bloqueo && (
+              <div className="rounded-2xl bg-red-50 border border-red-200 p-4 text-red-700 text-sm font-semibold">
+                ⛔ {preview.bloqueo}
+              </div>
+            )}
+
+            {preview.requiere_autorizacion && !preview.bloqueo && (
+              <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 text-amber-800 text-sm font-semibold">
+                ⚠ Esta instancia está asignada a {(preview.equipo_asignado || []).join(' y ')}.
+                <span className="block font-normal mt-1">
+                  El Jefe de Producción debe reasignar el equipo para que puedas cargarla.
+                </span>
+              </div>
+            )}
+
+            {preview.puede_confirmar && !preview.requiere_autorizacion && (
+              <button
+                type="button"
+                disabled={confirming}
+                onClick={() => void handleConfirmarCarga()}
+                className="w-full py-5 rounded-2xl bg-green-600 text-white text-lg font-bold active:bg-green-700 disabled:opacity-50"
+              >
+                {confirming ? 'Confirmando...' : '✅ Confirmar carga'}
+              </button>
+            )}
+          </div>
         </>
       )}
 
