@@ -65,14 +65,6 @@ def _upload_file_to_gcs(file_bytes: bytes, blob_name: str, content_type: str) ->
 # ==========================================
 # SCHEMAS
 # ==========================================
-class CrewAssignmentPayload(BaseModel):
-    instance_id: int
-    leader_user_id: int
-    helper_1_user_id: Optional[int] = None
-    helper_2_user_id: Optional[int] = None
-    assignment_date: Optional[date] = None
-
-
 class SignaturePayload(BaseModel):
     signature_url: str
 
@@ -171,108 +163,6 @@ def _get_installation_days(session: SessionDep, instance: SalesOrderItemInstance
         return 1.0
     version = session.get(ProductVersion, item.origin_version_id)
     return float(version.installation_days) if version and version.installation_days else 1.0
-
-
-# ==========================================
-# 1. PASE DE LISTA — Asignación de Cuadrilla
-# ==========================================
-@router.post("/equipos/", response_model=InstallationAssignment, status_code=status.HTTP_201_CREATED)
-def asignar_cuadrilla(
-    payload: CrewAssignmentPayload,
-    session: SessionDep,
-    current_user: CurrentUser,
-):
-    """
-    (ADMIN / DISEÑO / GERENCIA / DIRECTOR)
-    Pase de Lista oficial. Asigna Líder + Ayudante a una instancia,
-    genera los registros de nómina en PENDING_SIGNATURE y marca CARGADO.
-    """
-    allowed = {"ADMIN", "DESIGN", "GERENCIA", "DIRECTOR"}
-    if current_user.role.upper() not in allowed:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Solo ADMIN, DISEÑO, GERENCIA o DIRECTOR pueden asignar cuadrillas.",
-        )
-
-    instance = session.get(SalesOrderItemInstance, payload.instance_id)
-    if not instance:
-        raise HTTPException(status_code=404, detail="Instancia no encontrada.")
-    if instance.production_status not in [InstanceStatus.READY, InstanceStatus.CARGADO]:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Bloqueo Logístico: el material no está listo. Estatus actual: {instance.production_status}",
-        )
-
-    if not session.get(User, payload.leader_user_id):
-        raise HTTPException(status_code=404, detail="Usuario Líder no encontrado.")
-    if payload.helper_1_user_id and not session.get(User, payload.helper_1_user_id):
-        raise HTTPException(status_code=404, detail="Ayudante 1 no encontrado.")
-    if payload.helper_2_user_id and not session.get(User, payload.helper_2_user_id):
-        raise HTTPException(status_code=404, detail="Ayudante 2 no encontrado.")
-
-    # Leer tabulador global
-    config = session.exec(select(GlobalConfig)).first()
-    leader_rate = config.default_leader_daily_rate if config else 800.0
-    helper_rate = config.default_helper_daily_rate if config else 700.0
-
-    # Días de instalación de la receta
-    installation_days = _get_installation_days(session, instance)
-
-    # Crear la asignación
-    assignment = InstallationAssignment(
-        instance_id=payload.instance_id,
-        leader_user_id=payload.leader_user_id,
-        helper_1_user_id=payload.helper_1_user_id,
-        helper_2_user_id=payload.helper_2_user_id,
-        assignment_date=datetime.combine(
-            payload.assignment_date or date.today(), datetime.min.time()
-        ),
-        status=InstallationAssignmentStatus.SCHEDULED,
-    )
-    session.add(assignment)
-    session.flush()  # necesitamos el ID para los registros de nómina
-
-    # Registro de nómina — Líder
-    session.add(PayrollPayment(
-        installation_assignment_id=assignment.id,
-        user_id=payload.leader_user_id,
-        payment_type=PayrollPaymentType.LEADER,
-        days_worked=installation_days,
-        daily_rate=leader_rate,
-        total_amount=round(installation_days * leader_rate, 2),
-        status=PayrollStatus.PENDING_SIGNATURE,
-    ))
-
-    # Registro de nómina — Ayudantes (si aplica)
-    if payload.helper_1_user_id:
-        session.add(PayrollPayment(
-            installation_assignment_id=assignment.id,
-            user_id=payload.helper_1_user_id,
-            payment_type=PayrollPaymentType.HELPER,
-            days_worked=installation_days,
-            daily_rate=helper_rate,
-            total_amount=round(installation_days * helper_rate, 2),
-            status=PayrollStatus.PENDING_SIGNATURE,
-        ))
-    if payload.helper_2_user_id:
-        session.add(PayrollPayment(
-            installation_assignment_id=assignment.id,
-            user_id=payload.helper_2_user_id,
-            payment_type=PayrollPaymentType.HELPER,
-            days_worked=installation_days,
-            daily_rate=helper_rate,
-            total_amount=round(installation_days * helper_rate, 2),
-            status=PayrollStatus.PENDING_SIGNATURE,
-        ))
-
-    # Marcar instancia como CARGADO
-    instance.production_status = InstanceStatus.CARGADO
-    instance.current_location = "En Tránsito (Camión)"
-    session.add(instance)
-
-    session.commit()
-    session.refresh(assignment)
-    return assignment
 
 
 # ==========================================
