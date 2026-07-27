@@ -128,6 +128,7 @@ export interface PaymentPayload {
     amortized_advance: number;
     instance_ids: number[];
     payment_date?: string | null;
+    invoice_date?: string | null;
     notes?: string | null;
     reference?: string | null;
 }

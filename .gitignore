@@ -33,3 +33,4 @@ google-cloud-sdk/
 
 backend/service_account.json
 
+*.dump

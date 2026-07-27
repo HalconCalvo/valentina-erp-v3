@@ -38,6 +38,7 @@ class PaymentPayload(BaseModel):
     amortized_advance: float = 0.0      
     instance_ids: List[int] = []
     payment_date: Optional[datetime] = None   # fecha real del abono
+    invoice_date: Optional[datetime] = None
     notes: Optional[str] = None               # concepto del abono
     reference: Optional[str] = None           # referencia opcional
 
@@ -867,7 +868,8 @@ def reject_order(order_id: int, session: Session = Depends(get_session)):
 class RegisterProgressPayload(BaseModel):
     invoice_folio: Optional[str] = None
     amount: float = 0.0
-    instance_ids: List[int] = []      # Si está vacío, toma todas las instancias CLOSED sin pago
+    instance_ids: List[int] = []      # Si está vacío, toma todas las instancias sin pago
+    invoice_date: Optional[datetime] = None
 
 
 class InvoicingRightAdvanceRow(BaseModel):
@@ -1032,22 +1034,20 @@ def register_progress_invoice(
         candidates = [
             i for i in all_instances
             if i.id in payload.instance_ids
-            and i.production_status == InstanceStatus.CLOSED
             and i.customer_payment_id is None
             and i.administration_invoice_folio is None
         ]
     else:
         candidates = [
             i for i in all_instances
-            if i.production_status == InstanceStatus.CLOSED
-            and i.customer_payment_id is None
+            if i.customer_payment_id is None
             and i.administration_invoice_folio is None
         ]
 
     if not candidates:
         raise HTTPException(
             status_code=422,
-            detail="No hay instancias en estado 🟢🟢 CERRADO pendientes de facturación para esta orden."
+            detail="No hay instancias pendientes de facturación para esta orden."
         )
 
     # Crear el CXC de avance
@@ -1058,6 +1058,7 @@ def register_progress_invoice(
         amount=payload.amount,
         status=CXCStatus.PENDING,
         created_by_user_id=current_user.id,
+        invoice_date=payload.invoice_date or datetime.utcnow(),
     )
     session.add(new_cxc)
     session.flush()  # Obtener el ID del CXC
@@ -1122,6 +1123,7 @@ def emit_advance_invoice(order_id: int, payload: PaymentPayload,
         amount=monto,
         status=CXCStatus.PENDING,
         created_by_user_id=current_user.id,
+        invoice_date=payload.invoice_date or datetime.utcnow(),
     )
     session.add(new_cxc)
     session.commit()

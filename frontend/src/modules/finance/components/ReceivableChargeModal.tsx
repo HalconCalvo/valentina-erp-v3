@@ -11,9 +11,13 @@ interface ReceivableChargeModalProps {
 }
 
 export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ isOpen, onClose, order, onSuccess }) => {
-    const isAdvance = order.status === 'WAITING_ADVANCE';
-    
+    const [tipoFactura, setTipoFactura] = useState<'ADVANCE' | 'PROGRESS'>(
+        order.status === 'WAITING_ADVANCE' ? 'ADVANCE' : 'PROGRESS'
+    );
+    const isAdvance = tipoFactura === 'ADVANCE';
+
     const [invoiceFolio, setInvoiceFolio] = useState('');
+    const [invoiceDate, setInvoiceDate] = useState<string>('');
     
     const [amount, setAmount] = useState<number>(0);
     const [amortizedAdvance, setAmortizedAdvance] = useState<number>(0);
@@ -43,11 +47,13 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
         if (isOpen) {
             setInvoiceFolio('');
             setSelectedInstances([]);
+            setTipoFactura(order.status === 'WAITING_ADVANCE' ? 'ADVANCE' : 'PROGRESS');
+            setInvoiceDate(new Date().toISOString().slice(0, 10));
             // Modo anticipo: prellenar el importe objetivo (guardado o sugerido).
             setImporteFactura(Number(objetivo.toFixed(2)));
             setDisplayImporte(new Intl.NumberFormat('en-US').format(Number(objetivo.toFixed(2))));
         }
-    }, [isOpen, objetivo]);
+    }, [isOpen, objetivo, order.status]);
 
     const formatCurrency = (value: number) => {
         return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value);
@@ -116,7 +122,11 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
             const commercialValueOfSelected = totalOrder * ratio;
 
             // 4. Calcular Anticipo y Efectivo a cobrar
-            const suggestedAmortization = commercialValueOfSelected * (pct / 100);
+            const tieneAnticipo = Boolean(order.has_advance_invoice) ||
+                Number(order.advance_invoice_amount || 0) > 0;
+            const suggestedAmortization = tieneAnticipo
+                ? commercialValueOfSelected * (pct / 100)
+                : 0;
             const suggestedCash = commercialValueOfSelected - suggestedAmortization;
 
             setAmortizedAdvance(Number(suggestedAmortization.toFixed(2)));
@@ -125,7 +135,7 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
             setAmount(Number(suggestedCash.toFixed(2)));
             setDisplayAmount(new Intl.NumberFormat('en-US').format(Number(suggestedCash.toFixed(2))));
         }
-    }, [selectedInstances, isAdvance, pendingInstances, totalOrder, pct, uniqueItems, isOpen]);
+    }, [selectedInstances, isAdvance, pendingInstances, totalOrder, pct, uniqueItems, isOpen, order.has_advance_invoice, order.advance_invoice_amount]);
 
     const handleCurrencyTyping = (
         e: React.ChangeEvent<HTMLInputElement>, 
@@ -167,7 +177,8 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
                 invoice_folio: invoiceFolio.trim() === '' ? null : invoiceFolio.trim(),
                 amount: Number(amount),
                 amortized_advance: Number(amortizedAdvance),
-                instance_ids: selectedInstances
+                instance_ids: selectedInstances,
+                invoice_date: invoiceDate || null,
             };
 
             await salesService.registerProgressPayment(order.id!, payload);
@@ -193,6 +204,7 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
             await salesService.emitAdvanceInvoice(order.id!, {
                 invoice_folio: invoiceFolio.trim() === '' ? null : invoiceFolio.trim(),
                 amount: Number(importeFactura),
+                invoice_date: invoiceDate || null,
             });
             onSuccess();
             onClose();
@@ -223,6 +235,45 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
                 </div>
 
                 <div className="p-6 overflow-y-auto flex-1 space-y-6">
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <label className="text-[11px] font-bold text-slate-500 uppercase">Tipo de Factura</label>
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setTipoFactura('ADVANCE')}
+                                    className={`flex-1 px-3 py-2 text-sm font-bold rounded-lg border transition-colors ${
+                                        tipoFactura === 'ADVANCE'
+                                            ? 'bg-indigo-600 text-white border-indigo-600'
+                                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                    }`}
+                                >
+                                    Anticipo
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setTipoFactura('PROGRESS')}
+                                    className={`flex-1 px-3 py-2 text-sm font-bold rounded-lg border transition-colors ${
+                                        tipoFactura === 'PROGRESS'
+                                            ? 'bg-blue-600 text-white border-blue-600'
+                                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                    }`}
+                                >
+                                    Avance de obra
+                                </button>
+                            </div>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[11px] font-bold text-slate-500 uppercase">Fecha de emisión</label>
+                            <input
+                                type="date"
+                                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-bold"
+                                value={invoiceDate}
+                                onChange={(e) => setInvoiceDate(e.target.value)}
+                            />
+                        </div>
+                    </div>
                     
                     {!isAdvance && (
                         <div className="space-y-3">

@@ -236,7 +236,7 @@ export const salesService = {
      * Camino A: emite la factura de anticipo (crea un CustomerPayment ADVANCE PENDING).
      * Los abonos posteriores nacen en Tesorería al conciliar el ingreso.
      */
-    emitAdvanceInvoice: async (orderId: number, payload: { invoice_folio: string | null; amount: number }) => {
+    emitAdvanceInvoice: async (orderId: number, payload: { invoice_folio: string | null; amount: number; invoice_date?: string | null }) => {
         const response = await axiosClient.post(`/sales/orders/${orderId}/emit_advance_invoice`, payload);
         return response.data;
     },
