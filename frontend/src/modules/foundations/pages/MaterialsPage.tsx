@@ -36,6 +36,8 @@ export default function MaterialsPage() {
     production_route: 'MATERIAL', 
     purchase_unit: '', usage_unit: '',
     conversion_factor: 1, current_cost: 0,
+    is_resale: false,
+    sale_price: 0,
     associated_element_sku: '',
     provider_id: 0,
     min_stock: 0, // <--- INYECCIÓN: Inicializamos en 0
@@ -368,7 +370,9 @@ export default function MaterialsPage() {
         ...form,
         current_cost: showFinancials ? form.current_cost : (form.current_cost || 0),
         associated_element_sku: form.associated_element_sku?.trim() === '' ? null : form.associated_element_sku,
-        provider_id: form.provider_id === 0 ? null : form.provider_id
+        provider_id: form.provider_id === 0 ? null : form.provider_id,
+        is_resale: form.is_resale || false,
+        sale_price: form.is_resale ? (Number(form.sale_price) || 0) : 0,
     };
 
     let res;
@@ -683,6 +687,32 @@ export default function MaterialsPage() {
                                     onChange={e => setForm({...form, current_cost: e.target.value === '' ? 0 : parseFloat(e.target.value)})}
                                 />
                             </div>
+                        </div>
+                    )}
+
+                    <div className="md:col-span-2">
+                        <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={!!form.is_resale}
+                                onChange={e => setForm({ ...form, is_resale: e.target.checked })}
+                            />
+                            Es producto de reventa (se vende directo, sin receta)
+                        </label>
+                    </div>
+                    {form.is_resale && (
+                        <div className="md:col-span-1">
+                            <label className="block text-sm font-medium text-slate-700 mb-1">
+                                Precio de venta
+                            </label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                className="input-std"
+                                value={form.sale_price ?? 0}
+                                onChange={e => setForm({ ...form, sale_price: parseFloat(e.target.value) || 0 })}
+                                placeholder="Ej. 850.00"
+                            />
                         </div>
                     )}
                     

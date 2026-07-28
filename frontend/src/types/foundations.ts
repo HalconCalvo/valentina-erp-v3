@@ -22,6 +22,8 @@ export interface Material {
 
     // Control
     is_active: boolean;
+    is_resale?: boolean;
+    sale_price?: number;
 }
 
 export interface Provider {

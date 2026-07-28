@@ -26,6 +26,8 @@ export const MaterialForm: React.FC<MaterialFormProps> = ({ initialSku = '', onC
         current_cost: 0,
         min_stock: 0,
         max_stock: 0,
+        is_resale: false,
+        sale_price: 0,
         associated_element_sku: '',
         provider_id: 0,
     });
@@ -52,6 +54,8 @@ export const MaterialForm: React.FC<MaterialFormProps> = ({ initialSku = '', onC
                 name: form.name.trim(),
                 associated_element_sku: form.associated_element_sku?.trim() === '' ? null : form.associated_element_sku,
                 provider_id: form.provider_id === 0 ? null : form.provider_id,
+                is_resale: form.is_resale,
+                sale_price: form.is_resale ? Number(form.sale_price) : 0,
             };
             const res = await axiosClient.post('/foundations/materials', payload);
             onCreated(res.data);  // el material creado, con id
@@ -105,6 +109,30 @@ export const MaterialForm: React.FC<MaterialFormProps> = ({ initialSku = '', onC
                         <label className={labelCls}>Costo Unitario</label>
                         <input type="number" step="0.01" className={inputCls} value={form.current_cost} onChange={e => upd({ current_cost: parseFloat(e.target.value) || 0 })} />
                     </div>
+                    <div className="col-span-2">
+                        <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={Boolean(form.is_resale)}
+                                onChange={e => upd({ is_resale: e.target.checked })}
+                                className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                            />
+                            Es producto de reventa (se vende directo, sin receta)
+                        </label>
+                    </div>
+                    {form.is_resale && (
+                        <div>
+                            <label className={labelCls}>Precio de venta</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                className={inputCls}
+                                value={form.sale_price}
+                                onChange={e => upd({ sale_price: parseFloat(e.target.value) || 0 })}
+                                placeholder="Ej. 850.00"
+                            />
+                        </div>
+                    )}
                 </div>
                 <div className="flex justify-end gap-3 mt-5">
                     <button type="button" onClick={onCancel} className="text-xs font-black uppercase px-4 py-2 text-slate-500 hover:text-slate-700">Cancelar</button>

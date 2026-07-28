@@ -93,6 +93,9 @@ class MaterialBase(SQLModel):
     
     provider_id: Optional[int] = None
 
+    is_resale: bool = False
+    sale_price: float = 0.0
+
 class MaterialCreate(MaterialBase):
     pass
 
