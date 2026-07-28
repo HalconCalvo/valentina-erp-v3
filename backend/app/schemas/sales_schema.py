@@ -88,6 +88,9 @@ class SalesOrderItemBase(SQLModel):
 class SalesOrderItemCreate(SalesOrderItemBase):
     pass
 
+class AddItemsPayload(SQLModel):
+    items: List[SalesOrderItemCreate]
+
 class SalesOrderItemRead(SalesOrderItemBase):
     id: int
     sales_order_id: int

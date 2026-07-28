@@ -29,6 +29,7 @@ from app.services.cost_engine import CostEngine
 from app.schemas.sales_schema import (
     SalesOrderCreate, SalesOrderRead, SalesOrderUpdate,
     SalesOrderItemCreate,
+    AddItemsPayload,
     CustomerPaymentRead,
 )
 
@@ -462,6 +463,127 @@ def update_sales_order(
     session.commit()
     session.refresh(db_order)
     return db_order
+
+
+@router.post("/orders/{order_id}/add-items", response_model=SalesOrderRead)
+def add_items_to_order(
+    order_id: int,
+    payload: AddItemsPayload,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Amplía una OV en curso agregando partidas nuevas. NO borra nada existente.
+    Acumula en subtotal/tax/total. Las instancias de los items nuevos nacen aquí.
+    No toca anticipos: el segundo anticipo se emite aparte con el modal de CxC.
+    """
+    allowed = {UserRole.DIRECTOR, UserRole.GERENCIA, UserRole.SALES}
+    if current_user.role not in allowed:
+        raise HTTPException(403, "No tienes permisos para ampliar órdenes de venta.")
+
+    order = session.get(SalesOrder, order_id)
+    if not order:
+        raise HTTPException(404, "Orden no encontrada.")
+    if _is_seller_scoped_role(current_user) and order.user_id != current_user.id:
+        raise HTTPException(403, "Acceso denegado.")
+
+    # Solo órdenes vivas (ya generadas, no muertas)
+    ampliables = {
+        SalesOrderStatus.ACCEPTED,
+        SalesOrderStatus.WAITING_ADVANCE,
+        SalesOrderStatus.SOLD,
+        SalesOrderStatus.IN_PRODUCTION,
+    }
+    if order.status not in ampliables:
+        raise HTTPException(
+            409,
+            f"No se puede ampliar una orden en estado {order.status}. "
+            f"Solo órdenes en curso (ACEPTADA, ESPERANDO ANTICIPO, VENDIDA, EN PRODUCCIÓN)."
+        )
+
+    if not payload.items:
+        raise HTTPException(422, "Debes enviar al menos una partida nueva.")
+
+    # Crear SOLO los items nuevos (mismo patrón de snapshot que update_sales_order)
+    added_sum = 0.0
+    for item_in in payload.items:
+        snapshot_data = {}
+        calculated_frozen_cost = 0.0
+        if item_in.origin_version_id:
+            version = session.get(ProductVersion, item_in.origin_version_id)
+            if version:
+                snapshot_data = {
+                    "source_version": version.version_name,
+                    "captured_at": datetime.now().isoformat(),
+                    "ingredients": [],
+                }
+                for component in version.components:
+                    mat = session.get(Material, component.material_id)
+                    if mat:
+                        factor = float(mat.conversion_factor) if mat.conversion_factor and mat.conversion_factor > 0 else 1.0
+                        current_cost = mat.current_cost / factor
+                        line_cost = component.quantity * current_cost
+                        calculated_frozen_cost += line_cost
+                        snapshot_data["ingredients"].append({
+                            "material_id": mat.id, "sku": mat.sku, "name": mat.name,
+                            "qty_recipe": component.quantity,
+                            "frozen_unit_cost": current_cost, "line_total": line_cost,
+                        })
+        else:
+            snapshot_data = item_in.cost_snapshot or {"type": "MANUAL_ENTRY"}
+            calculated_frozen_cost = item_in.frozen_unit_cost or 0.0
+
+        qty = item_in.quantity or 0
+        price = item_in.unit_price or 0
+        line_amount = qty * price
+        added_sum += line_amount
+
+        db_item = SalesOrderItem(
+            sales_order_id=order.id,
+            product_name=item_in.product_name,
+            origin_version_id=item_in.origin_version_id,
+            quantity=qty,
+            unit_price=price,
+            subtotal_price=line_amount,
+            cost_snapshot=snapshot_data,
+            frozen_unit_cost=calculated_frozen_cost,
+        )
+        session.add(db_item)
+
+    session.flush()  # IDs de los items nuevos para crear instancias
+
+    # Instancias SOLO de los items nuevos (la función es idempotente:
+    # salta los items que ya tienen instancias)
+    session.refresh(order)
+    _create_instances_for_order(session, order)
+
+    tax_rate_obj = session.get(TaxRate, order.tax_rate_id)
+    tax_multiplier = tax_rate_obj.rate if tax_rate_obj else 0.16
+
+    nuevo_subtotal = (order.subtotal or 0.0) + added_sum
+
+    # Comisión informativa: ya está contenida en unit_price, se re-extrae
+    # sobre el subtotal acumulado (misma fórmula que update_sales_order)
+    comm_percent = order.applied_commission_percent or 0.0
+    nueva_comision = (
+        nuevo_subtotal - (nuevo_subtotal / (1 + comm_percent))
+        if comm_percent > 0 else 0.0
+    )
+
+    nuevo_tax = nuevo_subtotal * tax_multiplier
+    nuevo_total = nuevo_subtotal + nuevo_tax
+    incremento_total = nuevo_total - (order.total_price or 0.0)
+
+    order.subtotal = nuevo_subtotal
+    order.commission_amount = nueva_comision
+    order.tax_amount = nuevo_tax
+    order.total_price = nuevo_total
+    order.outstanding_balance = (order.outstanding_balance or 0.0) + incremento_total
+
+    session.add(order)
+    session.commit()
+    session.refresh(order)
+    return order
 
 # ==========================================
 # 5. WORKFLOW: AUTORIZACIÓN Y SEMÁFORO
