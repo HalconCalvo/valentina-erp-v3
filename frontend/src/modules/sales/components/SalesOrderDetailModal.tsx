@@ -185,6 +185,12 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
     // Helper formato moneda
     const fmt = (amount: number) => amount.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+    console.log('[AMPLIAR-DEBUG]', {
+        userRole,
+        status: (order as any)?.status,
+        orderKeys: order ? Object.keys(order) : null,
+    });
+
     const canExpand =
         ['DIRECTOR', 'GERENCIA', 'SALES', 'ADMIN', 'ADMINISTRADOR', 'DIRECCION'].includes(userRole)
         && order
