@@ -105,6 +105,8 @@ def _create_instances_for_order(session: Session, order: SalesOrder) -> int:
     """
     created = 0
     for item in order.items:
+        if getattr(item, 'is_resale', False):
+            continue
         # Idempotencia: si este item ya tiene instancias, saltarlo
         existing = session.exec(
             select(SalesOrderItemInstance).where(
@@ -203,7 +205,9 @@ def create_sales_order(
                 unit_price=item_in.unit_price,
                 subtotal_price=line_amount,
                 cost_snapshot=snapshot_data,
-                frozen_unit_cost=calculated_frozen_cost
+                frozen_unit_cost=calculated_frozen_cost,
+                is_resale=getattr(item_in, 'is_resale', False),
+                resale_sku=getattr(item_in, 'resale_sku', None),
             )
             session.add(db_item)
             session.flush()
@@ -426,7 +430,9 @@ def update_sales_order(
                 unit_price=price,
                 subtotal_price=line_amount,
                 cost_snapshot=snapshot_data,
-                frozen_unit_cost=calculated_frozen_cost
+                frozen_unit_cost=calculated_frozen_cost,
+                is_resale=getattr(item_in, 'is_resale', False),
+                resale_sku=getattr(item_in, 'resale_sku', None),
             )
             session.add(db_item)
             session.flush()
@@ -547,6 +553,8 @@ def add_items_to_order(
             subtotal_price=line_amount,
             cost_snapshot=snapshot_data,
             frozen_unit_cost=calculated_frozen_cost,
+            is_resale=getattr(item_in, 'is_resale', False),
+            resale_sku=getattr(item_in, 'resale_sku', None),
         )
         session.add(db_item)
 

@@ -84,6 +84,8 @@ class SalesOrderItemBase(SQLModel):
     unit_price: float
     cost_snapshot: Dict[str, Any] = {} 
     frozen_unit_cost: float = 0.0
+    is_resale: bool = False
+    resale_sku: Optional[str] = None
 
 class SalesOrderItemCreate(SalesOrderItemBase):
     pass

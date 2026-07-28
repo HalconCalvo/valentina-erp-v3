@@ -214,6 +214,9 @@ class SalesOrderItem(SQLModel, table=True):
     cost_snapshot: Dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON)) 
     frozen_unit_cost: float = Field(default=0.0)
 
+    is_resale: bool = Field(default=False)
+    resale_sku: Optional[str] = Field(default=None)
+
     # ---> NUEVO SENSOR: FOTOGRAFÍA DE MATERIALES (JSON) <---
     # Ejemplo: {"MDF": 5000, "Granito": 12000, "Mano_Obra": 4000}
     category_breakdown_snapshot: Optional[str] = Field(default=None)
