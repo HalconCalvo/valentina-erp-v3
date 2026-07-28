@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { X, Receipt, CheckCircle, Clock, FileText, Package, AlertCircle, PieChart, Users, Coins, Pencil } from 'lucide-react';
+import { X, Receipt, CheckCircle, Clock, FileText, Package, AlertCircle, PieChart, Users, Coins, Pencil, Plus } from 'lucide-react';
 import { SalesOrder } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
+import { AddItemsModal } from '../../sales/components/AddItemsModal';
 
 /** Días desde emisión hasta hoy; solo documentos sin pago registrado / no pagados. */
 function daysOpenForCxc(cxc: {
@@ -109,6 +110,10 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const canEditOcInRayos = !readOnly && ['ADMIN', 'ADMINISTRADOR', 'GERENCIA', 'DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
     const canEditProjectName = ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'GERENCIA', 'SALES', 'VENTAS'].includes(userRole);
     const canEditAdvance = ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'GERENCIA'].includes(userRole);
+    const canExpandOrder =
+        ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'GERENCIA', 'SALES', 'VENTAS', 'ADMIN', 'ADMINISTRADOR'].includes(userRole)
+        && ['ACCEPTED', 'WAITING_ADVANCE', 'SOLD', 'IN_PRODUCTION'].includes((order as any).status);
+    const [showAddItems, setShowAddItems] = useState(false);
     const [editingAdvance, setEditingAdvance] = useState(false);
     const [advanceDraft, setAdvanceDraft] = useState<string>('');
     const [savingAdvance, setSavingAdvance] = useState(false);
@@ -328,6 +333,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     };
 
     return (
+        <>
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
                 
@@ -390,6 +396,15 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                             >
                                 <AlertCircle size={14} />
                                 {cancelling ? "Cancelando..." : "Cancelar OV"}
+                            </button>
+                        )}
+                        {canExpandOrder && (
+                            <button
+                                type="button"
+                                onClick={() => setShowAddItems(true)}
+                                className="flex items-center gap-1 px-3 py-1.5 mr-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+                            >
+                                <Plus size={14} /> Ampliar Orden
                             </button>
                         )}
                         <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors">
@@ -770,5 +785,20 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                 </div>
             </div>
         </div>
+        {showAddItems && (
+            <AddItemsModal
+                isOpen={showAddItems}
+                onClose={() => setShowAddItems(false)}
+                order={order}
+                onSuccess={() => {
+                    setShowAddItems(false);
+                    if (onOrderPatch) {
+                        // refresco optimista mínimo; el padre recarga con onSuccess
+                    }
+                    onSuccess();
+                }}
+            />
+        )}
+        </>
     );
 };
