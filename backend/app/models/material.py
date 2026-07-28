@@ -46,6 +46,8 @@ class Material(SQLModel, table=True):
     # --- CAMPOS NUEVOS V3 ---
     committed_stock: float = Field(default=0.0) # Stock Comprometido
     is_active: bool = Field(default=True)       # Borrado suave
+    is_resale: bool = Field(default=False)      # Producto de reventa (no receta)
+    sale_price: float = Field(default=0.0)      # Precio de venta (solo reventa)
     
     # Lógica de Tapacanto
     associated_element_sku: Optional[str] = Field(default=None)
