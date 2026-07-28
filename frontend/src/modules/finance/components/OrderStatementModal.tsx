@@ -145,6 +145,11 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         return Array.from(new Map(order.items.map(item => [item.id, item])).values());
     }, [order]);
 
+    const resaleItems = useMemo(() => {
+        if (!order || !order.items) return [];
+        return order.items.filter((it: any) => it.is_resale);
+    }, [order]);
+
     useEffect(() => {
         setOcEditorEpoch(0);
     }, [order?.id]);
@@ -779,6 +784,28 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                     </div>
                                 ))
                             })}
+                            {resaleItems.length > 0 && (
+                                <div className="mt-4 px-5 pb-3">
+                                    <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider mb-2 flex items-center gap-1">
+                                        Accesorios de reventa
+                                    </p>
+                                    <div className="space-y-2">
+                                        {resaleItems.map((item: any) => (
+                                            <div key={item.id} className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-lg px-4 py-2">
+                                                <div className="min-w-0">
+                                                    <p className="text-sm font-bold text-slate-800 truncate">{item.product_name}</p>
+                                                    <p className="text-xs text-slate-500">
+                                                        SKU {item.resale_sku ?? '—'} · Cant. {item.quantity}
+                                                    </p>
+                                                </div>
+                                                <p className="text-sm font-black text-emerald-700 shrink-0">
+                                                    {formatCurrency((item.unit_price || 0) * (item.quantity || 1))}
+                                                </p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
