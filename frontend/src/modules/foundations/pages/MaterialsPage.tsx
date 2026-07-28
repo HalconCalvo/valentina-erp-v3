@@ -30,6 +30,8 @@ export default function MaterialsPage() {
   const [skuExists, setSkuExists] = useState(false);
   const [showNameSuggestions, setShowNameSuggestions] = useState(true);
   const [showInactive, setShowInactive] = useState(false);
+  const [targetMargin, setTargetMargin] = useState<number>(0);
+  const [salePriceTouched, setSalePriceTouched] = useState(false);
   
   const initialFormState: Partial<Material> = {
     sku: '', name: '', category: '', 
@@ -49,9 +51,16 @@ export default function MaterialsPage() {
   useEffect(() => {
     const role = (localStorage.getItem('user_role') || '').toUpperCase().trim();
     setUserRole(role);
-    fetchProviders(); 
+    fetchProviders();
+    client.get('/foundations/config')
+      .then(res => setTargetMargin(Number(res.data?.target_profit_margin) || 0))
+      .catch(console.error);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (isEditing) setSalePriceTouched(true);
+  }, [isEditing]);
 
   // Recargar la lista con o sin inactivos según el toggle.
   useEffect(() => {
@@ -64,6 +73,12 @@ export default function MaterialsPage() {
   const isProduction = ['PRODUCTION', 'PRODUCCION', 'PRODUCCIÓN'].includes(userRole);
   const isReadOnly = isDesign || isProduction; 
   const showFinancials = ['ADMIN', 'ADMINISTRADOR', 'DIRECTOR', 'DIRECCION', 'DIRECTION', 'PRODUCTION', 'PRODUCCION', 'GERENCIA'].includes(userRole);
+
+  const precioSugeridoReventa = (costo: number): number => {
+    const m = targetMargin;
+    const mult = m > 0 && m <= 1 ? 1 + m : 1 + (m / 100);
+    return Number((costo * mult).toFixed(2));
+  };
 
   const columns = useMemo<ColumnDef<Material>[]>(() => {
     const cols: ColumnDef<Material>[] = [
@@ -396,6 +411,7 @@ export default function MaterialsPage() {
       setEditingId(null);
       setShowForm(false);
       setSkuExists(false);
+      setSalePriceTouched(false);
   };
 
   const filteredCategories = existingCategories.filter(c => 
@@ -684,20 +700,52 @@ export default function MaterialsPage() {
                                     min="0"
                                     className="input-std font-bold text-slate-800 bg-white" 
                                     value={form.current_cost} 
-                                    onChange={e => setForm({...form, current_cost: e.target.value === '' ? 0 : parseFloat(e.target.value)})}
+                                    onChange={e => {
+                                        const newCost = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                        setForm(f => ({
+                                            ...f,
+                                            current_cost: newCost,
+                                            sale_price: f.is_resale && !salePriceTouched
+                                                ? precioSugeridoReventa(Number(newCost) || 0)
+                                                : f.sale_price,
+                                        }));
+                                    }}
                                 />
                             </div>
                         </div>
                     )}
 
                     <div className="md:col-span-2">
-                        <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+                        <label
+                            className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                                form.is_resale
+                                    ? 'border-indigo-500 bg-indigo-50'
+                                    : 'border-slate-200 bg-white hover:border-slate-300'
+                            }`}
+                        >
                             <input
                                 type="checkbox"
+                                className="w-5 h-5 accent-indigo-600"
                                 checked={!!form.is_resale}
-                                onChange={e => setForm({ ...form, is_resale: e.target.checked })}
+                                onChange={e => {
+                                    const checked = e.target.checked;
+                                    setForm(f => ({
+                                        ...f,
+                                        is_resale: checked,
+                                        sale_price: checked && !salePriceTouched
+                                            ? precioSugeridoReventa(Number(f.current_cost) || 0)
+                                            : f.sale_price,
+                                    }));
+                                }}
                             />
-                            Es producto de reventa (se vende directo, sin receta)
+                            <div>
+                                <span className={`text-sm font-bold ${form.is_resale ? 'text-indigo-700' : 'text-slate-700'}`}>
+                                    Producto de reventa
+                                </span>
+                                <span className="block text-xs text-slate-500 font-normal">
+                                    Se vende directo al cliente, sin receta ni fabricación
+                                </span>
+                            </div>
                         </label>
                     </div>
                     {form.is_resale && (
@@ -710,7 +758,10 @@ export default function MaterialsPage() {
                                 step="0.01"
                                 className="input-std"
                                 value={form.sale_price ?? 0}
-                                onChange={e => setForm({ ...form, sale_price: parseFloat(e.target.value) || 0 })}
+                                onChange={e => {
+                                    setSalePriceTouched(true);
+                                    setForm({ ...form, sale_price: parseFloat(e.target.value) || 0 });
+                                }}
                                 placeholder="Ej. 850.00"
                             />
                         </div>
