@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { 
     FileDown, Calendar, User, FileText, Hash, 
-    ClipboardList, Info, Percent, ShieldAlert, Lock, Unlock, Save, Tag, Pencil
+    ClipboardList, Info, Percent, ShieldAlert, Lock, Unlock, Save, Tag, Pencil, Plus
 } from 'lucide-react';
 
 // IMPORTACIONES CORREGIDAS (LA CAUSA DEL CORTO CIRCUITO)
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { CustomerPayment, SalesOrder } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
 import BaptismModal from './BaptismModal';
+import AddItemsModal from './AddItemsModal';
 
 interface Props {
     orderId: number | null;
@@ -50,6 +51,7 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
     const [isSaving, setIsSaving] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
     const [showBaptism, setShowBaptism] = useState(false);
+    const [showAddItems, setShowAddItems] = useState(false);
 
     const [clientPoFolio, setClientPoFolio] = useState('');
     const [clientPoDate, setClientPoDate] = useState('');
@@ -58,25 +60,32 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
     const [nameDraft, setNameDraft] = useState('');
     const [savingName, setSavingName] = useState(false);
 
+    const reloadOrderDetail = async () => {
+        if (!orderId) return;
+        setLoading(true);
+        try {
+            const data = await salesService.getOrderDetail(orderId);
+            setOrder(data);
+            setNotes(data.notes || "");
+            // @ts-ignore
+            setConditions(data.conditions || "");
+            // @ts-ignore
+            setAdvancePercent(Number(data.advance_percent) || 60);
+            // @ts-ignore - Candado fiscal
+            setHasAdvanceInvoice(Boolean(data.has_advance_invoice));
+            setClientPoFolio((data as any).client_po_folio || '');
+            const raw = (data as any).client_po_date;
+            setClientPoDate(raw ? String(raw).slice(0, 10) : '');
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
         if (orderId) {
-            setLoading(true);
-            salesService.getOrderDetail(orderId)
-                .then(data => {
-                    setOrder(data);
-                    setNotes(data.notes || "");
-                    // @ts-ignore
-                    setConditions(data.conditions || ""); 
-                    // @ts-ignore
-                    setAdvancePercent(Number(data.advance_percent) || 60);
-                    // @ts-ignore - Candado fiscal
-                    setHasAdvanceInvoice(Boolean(data.has_advance_invoice));
-                    setClientPoFolio((data as any).client_po_folio || '');
-                    const raw = (data as any).client_po_date;
-                    setClientPoDate(raw ? String(raw).slice(0, 10) : '');
-                })
-                .catch(console.error)
-                .finally(() => setLoading(false));
+            void reloadOrderDetail();
         }
     }, [orderId]);
 
@@ -175,6 +184,11 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
 
     // Helper formato moneda
     const fmt = (amount: number) => amount.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    const canExpand =
+        ['DIRECTOR', 'GERENCIA', 'SALES', 'ADMIN', 'ADMINISTRADOR', 'DIRECCION'].includes(userRole)
+        && order
+        && ['ACCEPTED', 'WAITING_ADVANCE', 'SOLD', 'IN_PRODUCTION'].includes((order as any).status);
 
     if (!orderId) return null;
 
@@ -502,6 +516,16 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                                     <Tag size={13} /> Gestionar Identidad / Bautizar
                                 </button>
                             )}
+                            {canExpand && (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAddItems(true)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors"
+                                    title="Agregar partidas nuevas sin borrar las existentes"
+                                >
+                                    <Plus size={13} /> Ampliar Orden
+                                </button>
+                            )}
                         </div>
                         
                         <div className="flex gap-3">
@@ -519,6 +543,17 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                             order={order}
                             onClose={() => setShowBaptism(false)}
                             onComplete={() => { setShowBaptism(false); }}
+                        />
+                    )}
+                    {order && (
+                        <AddItemsModal
+                            isOpen={showAddItems}
+                            onClose={() => setShowAddItems(false)}
+                            order={order}
+                            onSuccess={() => {
+                                setShowAddItems(false);
+                                void reloadOrderDetail();
+                            }}
                         />
                     )}
                 </div>

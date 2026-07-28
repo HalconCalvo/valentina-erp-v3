@@ -249,6 +249,20 @@ export const salesService = {
         return response.data;
     },
 
+    /**
+     * Amplía una OV en curso agregando partidas nuevas (aditivo, sin borrar existentes).
+     */
+    addItemsToOrder: async (orderId: number, items: Array<{
+        product_name: string;
+        origin_version_id: number | null;
+        quantity: number;
+        unit_price: number;
+        frozen_unit_cost: number;
+    }>): Promise<SalesOrder> => {
+        const response = await axiosClient.post(`/sales/orders/${orderId}/add-items`, { items });
+        return response.data;
+    },
+
     // ---> NUEVA FUNCIÓN: LA CONCILIACIÓN BANCARIA <---
     confirmCXCPayment: async (orderId: number, cxcId: number) => {
         const response = await axiosClient.post(`/sales/orders/${orderId}/confirm_payment/${cxcId}`);
