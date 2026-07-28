@@ -3,7 +3,7 @@ import io
 import math
 from datetime import datetime
 from uuid import uuid4  # <--- AGREGADO PARA NOMBRES ÚNICOS
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
 from sqlmodel import Session, select
 from sqlalchemy import func
@@ -693,7 +693,11 @@ def seed_kardex_opening(current_user: CurrentUser, session: SessionDep):
 
 
 @router.get("/materials")
-def read_materials(include_inactive: bool = False, session: Session = Depends(get_session)):
+def read_materials(
+    include_inactive: bool = False,
+    is_resale: Optional[bool] = None,
+    session: Session = Depends(get_session),
+):
     # Usamos un JOIN para traer el nombre del proveedor
     query = (
         select(Material, Provider.business_name)
@@ -701,6 +705,8 @@ def read_materials(include_inactive: bool = False, session: Session = Depends(ge
     )
     if not include_inactive:
         query = query.where(Material.is_active == True)
+    if is_resale is not None:
+        query = query.where(Material.is_resale == is_resale)
     results = session.exec(query).all()
     
     # Armamos la respuesta a mano para incluir el 'provider_name'

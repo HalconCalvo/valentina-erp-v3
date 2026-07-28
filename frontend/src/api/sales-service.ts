@@ -258,6 +258,8 @@ export const salesService = {
         quantity: number;
         unit_price: number;
         frozen_unit_cost: number;
+        is_resale?: boolean;
+        resale_sku?: string | null;
     }>): Promise<SalesOrder> => {
         const response = await axiosClient.post(`/sales/orders/${orderId}/add-items`, { items });
         return response.data;

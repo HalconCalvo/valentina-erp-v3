@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Plus, Trash2, Package, PenLine } from 'lucide-react';
+import { X, Plus, Trash2, Package, PenLine, ShoppingCart } from 'lucide-react';
 import { SalesOrder } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
 import { designService } from '../../../api/design-service';
+import axiosClient from '../../../api/axios-client';
 import { useFoundations } from '../../foundations/hooks/useFoundations';
 
 interface AddItemsModalProps {
@@ -19,6 +20,8 @@ interface StagedItem {
     quantity: number;
     unit_price: number;
     frozen_unit_cost: number;
+    is_resale?: boolean;
+    resale_sku?: string | null;
 }
 
 const calcCostoParaPrecio = (estimatedCost: number, materialCost: number, taxRate: number) => {
@@ -37,8 +40,10 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
 
     const [masters, setMasters] = useState<any[]>([]);
     const [loadingCatalog, setLoadingCatalog] = useState(false);
-    const [addMode, setAddMode] = useState<'CATALOG' | 'MANUAL'>('CATALOG');
+    const [addMode, setAddMode] = useState<'CATALOG' | 'MANUAL' | 'RESALE'>('CATALOG');
     const [selectedCategory, setSelectedCategory] = useState('');
+    const [resaleList, setResaleList] = useState<any[]>([]);
+    const [selectedResaleSku, setSelectedResaleSku] = useState('');
     const [staging, setStaging] = useState<StagedItem[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [priceManual, setPriceManual] = useState(false);
@@ -70,14 +75,19 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
         setStaging([]);
         setAddMode('CATALOG');
         setSelectedCategory('');
+        setSelectedResaleSku('');
         setLineItem({ master_id: 0, version_id: 0, quantity: 1, unit_price: 0, manual_name: '', frozen_cost: 0 });
         setPriceManual(false);
 
         const loadCatalog = async () => {
             setLoadingCatalog(true);
             try {
-                const filteredMasters = await designService.getMasters(undefined, true);
+                const [filteredMasters, resaleRes] = await Promise.all([
+                    designService.getMasters(undefined, true),
+                    axiosClient.get('/foundations/materials', { params: { is_resale: true } }),
+                ]);
                 setMasters(filteredMasters || []);
+                setResaleList(Array.isArray(resaleRes.data) ? resaleRes.data : []);
             } catch (error) {
                 console.error('Error cargando catálogo', error);
             } finally {
@@ -167,6 +177,13 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
             const v = foundMaster?.versions?.find((x: any) => x.id === Number(lineItem.version_id));
             if (v) productName = `${foundMaster?.name} - ${v.version_name}`;
             else productName = 'Producto de Catálogo';
+        } else if (addMode === 'RESALE') {
+            if (!selectedResaleSku) {
+                alert('Selecciona un accesorio de reventa.');
+                return;
+            }
+            const mat = resaleList.find((m) => m.sku === selectedResaleSku);
+            productName = mat?.name || lineItem.manual_name.trim();
         }
 
         if (!productName) {
@@ -180,12 +197,15 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
             origin_version_id: addMode === 'CATALOG' ? Number(lineItem.version_id) || null : null,
             quantity: Number(lineItem.quantity),
             unit_price: Number(lineItem.unit_price),
-            frozen_unit_cost: addMode === 'CATALOG' ? lineItem.frozen_cost : 0,
+            frozen_unit_cost: addMode === 'CATALOG' ? lineItem.frozen_cost : (addMode === 'RESALE' ? lineItem.frozen_cost : 0),
+            is_resale: addMode === 'RESALE',
+            resale_sku: addMode === 'RESALE' ? selectedResaleSku : null,
         };
 
         setStaging((prev) => [...prev, newItem]);
         setLineItem({ master_id: 0, version_id: 0, quantity: 1, unit_price: 0, manual_name: '', frozen_cost: 0 });
         setSelectedCategory('');
+        setSelectedResaleSku('');
         setAddMode('CATALOG');
         setPriceManual(false);
     };
@@ -255,6 +275,17 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
                         >
                             <PenLine size={16} /> Manual
                         </button>
+                        <button
+                            type="button"
+                            onClick={() => { setAddMode('RESALE'); setPriceManual(false); setSelectedResaleSku(''); }}
+                            className={`flex-1 px-3 py-2 text-sm font-bold rounded-lg border transition-colors flex items-center justify-center gap-2 ${
+                                addMode === 'RESALE'
+                                    ? 'bg-emerald-600 text-white border-emerald-600'
+                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                            }`}
+                        >
+                            <ShoppingCart size={16} /> Reventa
+                        </button>
                     </div>
 
                     <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
@@ -262,7 +293,7 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
                             <p className="text-xs text-slate-500 italic">Cargando catálogo…</p>
                         )}
 
-                        {addMode === 'CATALOG' ? (
+                        {addMode === 'CATALOG' && (
                             <>
                                 <div className="space-y-1">
                                     <label className="text-[11px] font-bold text-slate-500 uppercase">Categoría</label>
@@ -313,7 +344,9 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
                                     </select>
                                 </div>
                             </>
-                        ) : (
+                        )}
+
+                        {addMode === 'MANUAL' && (
                             <div className="space-y-1">
                                 <label className="text-[11px] font-bold text-slate-500 uppercase">Nombre del producto</label>
                                 <input
@@ -323,6 +356,42 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
                                     value={lineItem.manual_name}
                                     onChange={(e) => setLineItem({ ...lineItem, manual_name: e.target.value })}
                                 />
+                            </div>
+                        )}
+
+                        {addMode === 'RESALE' && (
+                            <div className="space-y-1">
+                                <label className="text-[11px] font-bold text-slate-500 uppercase">Accesorio de reventa</label>
+                                <select
+                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500"
+                                    value={selectedResaleSku}
+                                    onChange={(e) => {
+                                        const sku = e.target.value;
+                                        setSelectedResaleSku(sku);
+                                        const mat = resaleList.find((m) => m.sku === sku);
+                                        if (mat) {
+                                            const costo = Number(mat.current_cost) || 0;
+                                            const override = Number(mat.sale_price) || 0;
+                                            let precio = override;
+                                            if (precio <= 0) {
+                                                const m = Number(order.applied_margin_percent) || 0;
+                                                const mult = m > 0 && m <= 1 ? 1 + m : 1 + (m / 100);
+                                                precio = Number((costo * mult).toFixed(2));
+                                            }
+                                            setLineItem({
+                                                ...lineItem,
+                                                manual_name: mat.name,
+                                                unit_price: precio,
+                                                frozen_cost: costo,
+                                            });
+                                        }
+                                    }}
+                                >
+                                    <option value="">-- Seleccionar accesorio --</option>
+                                    {resaleList.map((m) => (
+                                        <option key={m.sku} value={m.sku}>{m.name} — {m.sku}</option>
+                                    ))}
+                                </select>
                             </div>
                         )}
 
