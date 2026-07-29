@@ -183,7 +183,7 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
                 return;
             }
             const mat = resaleList.find((m) => m.sku === selectedResaleSku);
-            productName = mat?.name || lineItem.manual_name.trim();
+            productName = lineItem.manual_name?.trim() || mat?.name || '';
         }
 
         if (!productName) {
@@ -392,6 +392,18 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
                                         <option key={m.sku} value={m.sku}>{m.name} — {m.sku}</option>
                                     ))}
                                 </select>
+                                {selectedResaleSku && (
+                                    <div className="space-y-1 mt-3">
+                                        <label className="text-[11px] font-bold text-slate-500 uppercase">Nombre en la partida</label>
+                                        <input
+                                            type="text"
+                                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 font-bold"
+                                            placeholder="Nombre del accesorio..."
+                                            value={lineItem.manual_name}
+                                            onChange={(e) => setLineItem({ ...lineItem, manual_name: e.target.value })}
+                                        />
+                                    </div>
+                                )}
                             </div>
                         )}
 

@@ -274,7 +274,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                 return;
             }
             const mat = resaleList.find((m) => m.sku === selectedResaleSku);
-            productName = mat?.name || lineItem.manual_name.trim();
+            productName = lineItem.manual_name?.trim() || mat?.name;
         }
         const newItem: SalesOrderItem = {
             id: editingIndex !== null ? items[editingIndex].id : -Date.now(), 
@@ -593,6 +593,16 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                                             <option key={m.sku} value={m.sku}>{m.name} — {m.sku}</option>
                                         ))}
                                     </select>
+                                    {selectedResaleSku && (
+                                        <div className="mt-3">
+                                            <label className="text-xs font-bold text-slate-500">NOMBRE EN LA COTIZACIÓN</label>
+                                            <Input
+                                                placeholder="Nombre del accesorio..."
+                                                value={lineItem.manual_name}
+                                                onChange={(e) => setLineItem({ ...lineItem, manual_name: e.target.value })}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             )}
                             <div className="grid grid-cols-2 gap-3">
