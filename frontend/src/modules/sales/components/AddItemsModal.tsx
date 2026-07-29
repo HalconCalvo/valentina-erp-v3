@@ -44,6 +44,7 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
     const [selectedCategory, setSelectedCategory] = useState('');
     const [resaleList, setResaleList] = useState<any[]>([]);
     const [selectedResaleSku, setSelectedResaleSku] = useState('');
+    const [resaleSearch, setResaleSearch] = useState('');
     const [staging, setStaging] = useState<StagedItem[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [priceManual, setPriceManual] = useState(false);
@@ -76,6 +77,7 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
         setAddMode('CATALOG');
         setSelectedCategory('');
         setSelectedResaleSku('');
+        setResaleSearch('');
         setLineItem({ master_id: 0, version_id: 0, quantity: 1, unit_price: 0, manual_name: '', frozen_cost: 0 });
         setPriceManual(false);
 
@@ -183,7 +185,7 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
                 return;
             }
             const mat = resaleList.find((m) => m.sku === selectedResaleSku);
-            productName = lineItem.manual_name?.trim() || mat?.name || '';
+            productName = mat?.name || '';
         }
 
         if (!productName) {
@@ -206,6 +208,7 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
         setLineItem({ master_id: 0, version_id: 0, quantity: 1, unit_price: 0, manual_name: '', frozen_cost: 0 });
         setSelectedCategory('');
         setSelectedResaleSku('');
+        setResaleSearch('');
         setAddMode('CATALOG');
         setPriceManual(false);
     };
@@ -277,7 +280,7 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
                         </button>
                         <button
                             type="button"
-                            onClick={() => { setAddMode('RESALE'); setPriceManual(false); setSelectedResaleSku(''); }}
+                            onClick={() => { setAddMode('RESALE'); setPriceManual(false); setSelectedResaleSku(''); setResaleSearch(''); }}
                             className={`flex-1 px-3 py-2 text-sm font-bold rounded-lg border transition-colors flex items-center justify-center gap-2 ${
                                 addMode === 'RESALE'
                                     ? 'bg-emerald-600 text-white border-emerald-600'
@@ -361,9 +364,17 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
 
                         {addMode === 'RESALE' && (
                             <div className="space-y-1">
-                                <label className="text-[11px] font-bold text-slate-500 uppercase">Accesorio de reventa</label>
+                                <label className="text-[11px] font-bold text-slate-500 uppercase">Buscar accesorio</label>
+                                <input
+                                    type="text"
+                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 mb-2"
+                                    placeholder="Escribe para filtrar (ej. Tarja)..."
+                                    value={resaleSearch}
+                                    onChange={(e) => setResaleSearch(e.target.value)}
+                                />
                                 <select
                                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500"
+                                    size={8}
                                     value={selectedResaleSku}
                                     onChange={(e) => {
                                         const sku = e.target.value;
@@ -387,23 +398,17 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
                                         }
                                     }}
                                 >
-                                    <option value="">-- Seleccionar accesorio --</option>
-                                    {resaleList.map((m) => (
-                                        <option key={m.sku} value={m.sku}>{m.name} — {m.sku}</option>
-                                    ))}
+                                    {resaleList
+                                        .filter((m) => {
+                                            const q = resaleSearch.trim().toLowerCase();
+                                            if (!q) return true;
+                                            return (m.name || '').toLowerCase().includes(q)
+                                                || (m.sku || '').toLowerCase().includes(q);
+                                        })
+                                        .map((m) => (
+                                            <option key={m.sku} value={m.sku}>{m.name} — {m.sku}</option>
+                                        ))}
                                 </select>
-                                {selectedResaleSku && (
-                                    <div className="space-y-1 mt-3">
-                                        <label className="text-[11px] font-bold text-slate-500 uppercase">Nombre en la partida</label>
-                                        <input
-                                            type="text"
-                                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 font-bold"
-                                            placeholder="Nombre del accesorio..."
-                                            value={lineItem.manual_name}
-                                            onChange={(e) => setLineItem({ ...lineItem, manual_name: e.target.value })}
-                                        />
-                                    </div>
-                                )}
                             </div>
                         )}
 

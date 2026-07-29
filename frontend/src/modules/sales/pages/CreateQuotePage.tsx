@@ -100,6 +100,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
     const [addMode, setAddMode] = useState<'CATALOG' | 'MANUAL' | 'RESALE'>('CATALOG');
     const [resaleList, setResaleList] = useState<any[]>([]);
     const [selectedResaleSku, setSelectedResaleSku] = useState('');
+    const [resaleSearch, setResaleSearch] = useState('');
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
     useEffect(() => {
@@ -274,7 +275,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                 return;
             }
             const mat = resaleList.find((m) => m.sku === selectedResaleSku);
-            productName = lineItem.manual_name?.trim() || mat?.name;
+            productName = mat?.name || '';
         }
         const newItem: SalesOrderItem = {
             id: editingIndex !== null ? items[editingIndex].id : -Date.now(), 
@@ -294,6 +295,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
         setItems(updatedItems);
         setLineItem({master_id: 0, version_id: 0, quantity: 1, unit_price: 0, manual_name: '', frozen_cost: 0});
         setSelectedResaleSku('');
+        setResaleSearch('');
         setAddMode('CATALOG');
     };
 
@@ -542,7 +544,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                                     className={`flex-1 px-3 py-2 text-xs font-bold rounded border ${addMode === 'MANUAL' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200'}`}>
                                     Manual
                                 </button>
-                                <button type="button" onClick={() => { setAddMode('RESALE'); setSelectedResaleSku(''); }}
+                                <button type="button" onClick={() => { setAddMode('RESALE'); setSelectedResaleSku(''); setResaleSearch(''); }}
                                     className={`flex-1 px-3 py-2 text-xs font-bold rounded border ${addMode === 'RESALE' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200'}`}>
                                     Reventa
                                 </button>
@@ -567,9 +569,17 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
 
                             {addMode === 'RESALE' && (
                                 <div>
-                                    <label className="text-xs font-bold text-slate-500">ACCESORIO DE REVENTA</label>
+                                    <label className="text-xs font-bold text-slate-500">BUSCAR ACCESORIO</label>
+                                    <input
+                                        type="text"
+                                        className="w-full p-2 border rounded text-sm mb-2"
+                                        placeholder="Escribe para filtrar (ej. Tarja, Monomando)..."
+                                        value={resaleSearch}
+                                        onChange={(e) => setResaleSearch(e.target.value)}
+                                    />
                                     <select
                                         className="w-full p-2 border rounded text-sm"
+                                        size={8}
                                         value={selectedResaleSku}
                                         onChange={(e) => {
                                             const sku = e.target.value;
@@ -588,21 +598,17 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                                             }
                                         }}
                                     >
-                                        <option value="">-- Seleccionar accesorio --</option>
-                                        {resaleList.map((m) => (
-                                            <option key={m.sku} value={m.sku}>{m.name} — {m.sku}</option>
-                                        ))}
+                                        {resaleList
+                                            .filter((m) => {
+                                                const q = resaleSearch.trim().toLowerCase();
+                                                if (!q) return true;
+                                                return (m.name || '').toLowerCase().includes(q)
+                                                    || (m.sku || '').toLowerCase().includes(q);
+                                            })
+                                            .map((m) => (
+                                                <option key={m.sku} value={m.sku}>{m.name} — {m.sku}</option>
+                                            ))}
                                     </select>
-                                    {selectedResaleSku && (
-                                        <div className="mt-3">
-                                            <label className="text-xs font-bold text-slate-500">NOMBRE EN LA COTIZACIÓN</label>
-                                            <Input
-                                                placeholder="Nombre del accesorio..."
-                                                value={lineItem.manual_name}
-                                                onChange={(e) => setLineItem({ ...lineItem, manual_name: e.target.value })}
-                                            />
-                                        </div>
-                                    )}
                                 </div>
                             )}
                             <div className="grid grid-cols-2 gap-3">
