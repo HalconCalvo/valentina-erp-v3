@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { X, Receipt, CheckCircle, Clock, FileText, Package, AlertCircle, PieChart, Users, Coins, Pencil, Plus } from 'lucide-react';
+import { X, Receipt, CheckCircle, Clock, FileText, Package, AlertCircle, PieChart, Users, Coins, Pencil, Plus, Trash2 } from 'lucide-react';
 import { SalesOrder } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
 import { AddItemsModal } from '../../sales/components/AddItemsModal';
@@ -114,6 +114,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'GERENCIA', 'SALES', 'VENTAS', 'ADMIN', 'ADMINISTRADOR'].includes(userRole)
         && ['ACCEPTED', 'WAITING_ADVANCE', 'SOLD', 'IN_PRODUCTION'].includes((order as any).status);
     const [showAddItems, setShowAddItems] = useState(false);
+    const [deletingId, setDeletingId] = useState<number | null>(null);
     const [editingAdvance, setEditingAdvance] = useState(false);
     const [advanceDraft, setAdvanceDraft] = useState<string>('');
     const [savingAdvance, setSavingAdvance] = useState(false);
@@ -307,6 +308,35 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
             alert(err?.response?.data?.detail || "No se pudo cancelar la OV.");
         } finally {
             setCancelling(false);
+        }
+    };
+
+    const handleDeleteInstance = async (itemId: number, inst: any) => {
+        if (inst.production_status !== 'PENDING' || inst.customer_payment_id) {
+            return;
+        }
+        if (!window.confirm(`¿Eliminar esta unidad (${inst.custom_name || 'instancia'})? Esta acción no se puede deshacer.`)) return;
+        try {
+            setDeletingId(inst.id);
+            await salesService.deleteInstance((order as any).id, itemId, inst.id);
+            if (onSuccess) onSuccess();
+        } catch (e: any) {
+            alert(e?.response?.data?.detail || 'No se pudo eliminar la unidad.');
+        } finally {
+            setDeletingId(null);
+        }
+    };
+
+    const handleDeleteResale = async (item: any) => {
+        if (!window.confirm(`¿Eliminar el accesorio "${item.product_name}"? Esta acción no se puede deshacer.`)) return;
+        try {
+            setDeletingId(item.id);
+            await salesService.deleteResaleItem((order as any).id, item.id);
+            if (onSuccess) onSuccess();
+        } catch (e: any) {
+            alert(e?.response?.data?.detail || 'No se pudo eliminar el accesorio.');
+        } finally {
+            setDeletingId(null);
         }
     };
 
@@ -772,7 +802,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                             <div className={`w-2 h-2 rounded-full ${inst.customer_payment_id ? 'bg-blue-500' : 'bg-slate-300'}`}></div>
                                             <span className="font-bold text-slate-700">{inst.custom_name || inst.item_name}</span>
                                         </div>
-                                        <div className="text-right">
+                                        <div className="text-right flex items-center justify-end">
                                             <span className={`text-xs font-bold px-2 py-1 rounded ${
                                                 inst.customer_payment_id 
                                                 ? 'bg-blue-50 text-blue-600 border border-blue-100' 
@@ -780,6 +810,17 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                             }`}>
                                                 {inst.customer_payment_id ? 'FACTURADO' : 'PENDIENTE'}
                                             </span>
+                                            {inst.production_status === 'PENDING' && !inst.customer_payment_id && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDeleteInstance(item.id, inst)}
+                                                    disabled={deletingId === inst.id}
+                                                    className="ml-2 p-1 text-slate-400 hover:text-red-600 transition-colors disabled:opacity-50"
+                                                    title="Eliminar esta unidad"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                 ))
@@ -798,9 +839,20 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                         SKU {item.resale_sku ?? '—'} · Cant. {item.quantity}
                                                     </p>
                                                 </div>
-                                                <p className="text-sm font-black text-emerald-700 shrink-0">
-                                                    {formatCurrency((item.unit_price || 0) * (item.quantity || 1))}
-                                                </p>
+                                                <div className="flex items-center shrink-0">
+                                                    <p className="text-sm font-black text-emerald-700">
+                                                        {formatCurrency((item.unit_price || 0) * (item.quantity || 1))}
+                                                    </p>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleDeleteResale(item)}
+                                                        disabled={deletingId === item.id}
+                                                        className="ml-3 p-1 text-slate-400 hover:text-red-600 transition-colors disabled:opacity-50"
+                                                        title="Eliminar accesorio"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>

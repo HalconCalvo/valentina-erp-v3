@@ -103,6 +103,14 @@ export const salesService = {
         await axiosClient.delete(url);
     },
 
+    deleteInstance: async (orderId: number, itemId: number, instanceId: number): Promise<void> => {
+        await axiosClient.delete(`${API_ROUTES.SALES.ORDER_DETAIL(orderId)}/items/${itemId}/instances/${instanceId}`);
+    },
+
+    deleteResaleItem: async (orderId: number, itemId: number): Promise<void> => {
+        await axiosClient.delete(`${API_ROUTES.SALES.ORDER_DETAIL(orderId)}/items/${itemId}/resale`);
+    },
+
     /**
      * Descarga el PDF de la Cotización desde el Backend (Fuerza la descarga del archivo).
      */
