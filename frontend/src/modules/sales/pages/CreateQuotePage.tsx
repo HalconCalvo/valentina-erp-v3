@@ -577,27 +577,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                                         value={resaleSearch}
                                         onChange={(e) => setResaleSearch(e.target.value)}
                                     />
-                                    <select
-                                        className="w-full p-2 border rounded text-sm"
-                                        size={8}
-                                        value={selectedResaleSku}
-                                        onChange={(e) => {
-                                            const sku = e.target.value;
-                                            setSelectedResaleSku(sku);
-                                            const mat = resaleList.find((m) => m.sku === sku);
-                                            if (mat) {
-                                                const costo = Number(mat.current_cost) || 0;
-                                                const override = Number(mat.sale_price) || 0;
-                                                let precio = override;
-                                                if (precio <= 0) {
-                                                    const m = Number(header.applied_margin_percent) || 0;
-                                                    const mult = m > 0 && m <= 1 ? 1 + m : 1 + (m / 100);
-                                                    precio = Number((costo * mult).toFixed(2));
-                                                }
-                                                setLineItem({ ...lineItem, manual_name: mat.name, unit_price: precio, frozen_cost: costo });
-                                            }
-                                        }}
-                                    >
+                                    <div className="w-full max-h-64 overflow-y-auto border rounded divide-y">
                                         {resaleList
                                             .filter((m) => {
                                                 const q = resaleSearch.trim().toLowerCase();
@@ -606,9 +586,38 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                                                     || (m.sku || '').toLowerCase().includes(q);
                                             })
                                             .map((m) => (
-                                                <option key={m.sku} value={m.sku}>{m.name} — {m.sku}</option>
+                                                <button
+                                                    key={m.sku}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setSelectedResaleSku(m.sku);
+                                                        const costo = Number(m.current_cost) || 0;
+                                                        const override = Number(m.sale_price) || 0;
+                                                        let precio = override;
+                                                        if (precio <= 0) {
+                                                            const mg = Number(header.applied_margin_percent) || 0;
+                                                            const mult = mg > 0 && mg <= 1 ? 1 + mg : 1 + (mg / 100);
+                                                            precio = Number((costo * mult).toFixed(2));
+                                                        }
+                                                        setLineItem({ ...lineItem, manual_name: m.name, unit_price: precio, frozen_cost: costo });
+                                                    }}
+                                                    className={`w-full text-left p-2 text-sm transition-colors ${
+                                                        selectedResaleSku === m.sku
+                                                            ? 'bg-emerald-100 text-emerald-800 font-bold'
+                                                            : 'bg-white text-slate-700 hover:bg-slate-50'
+                                                    }`}
+                                                >
+                                                    {m.name} — {m.sku}
+                                                </button>
                                             ))}
-                                    </select>
+                                        {resaleList.filter((m) => {
+                                            const q = resaleSearch.trim().toLowerCase();
+                                            if (!q) return true;
+                                            return (m.name || '').toLowerCase().includes(q) || (m.sku || '').toLowerCase().includes(q);
+                                        }).length === 0 && (
+                                            <p className="p-4 text-xs text-slate-400 italic text-center">Sin coincidencias</p>
+                                        )}
+                                    </div>
                                     {selectedResaleSku && (() => {
                                         const sel = resaleList.find((m) => m.sku === selectedResaleSku);
                                         if (!sel) return null;
