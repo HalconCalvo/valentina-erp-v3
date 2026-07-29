@@ -409,6 +409,16 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
                                             <option key={m.sku} value={m.sku}>{m.name} — {m.sku}</option>
                                         ))}
                                 </select>
+                                {selectedResaleSku && (() => {
+                                    const sel = resaleList.find((m) => m.sku === selectedResaleSku);
+                                    if (!sel) return null;
+                                    return (
+                                        <div className="mt-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs">
+                                            <span className="font-bold text-emerald-700">Seleccionado: </span>
+                                            <span className="text-slate-700">{sel.name} — {sel.sku}</span>
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         )}
 
