@@ -115,6 +115,8 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         && ['ACCEPTED', 'WAITING_ADVANCE', 'SOLD', 'IN_PRODUCTION'].includes((order as any).status);
     const [showAddItems, setShowAddItems] = useState(false);
     const [deletingId, setDeletingId] = useState<number | null>(null);
+    const [localOrder, setLocalOrder] = useState<SalesOrder>(order);
+    useEffect(() => { setLocalOrder(order); }, [order]);
     const [editingAdvance, setEditingAdvance] = useState(false);
     const [advanceDraft, setAdvanceDraft] = useState<string>('');
     const [savingAdvance, setSavingAdvance] = useState(false);
@@ -142,14 +144,14 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
 
     // ESCUDO: Aniquilar clones en la lista visual de Rayos X
     const uniqueItems = useMemo(() => {
-        if (!order || !order.items) return [];
-        return Array.from(new Map(order.items.map(item => [item.id, item])).values());
-    }, [order]);
+        if (!localOrder || !localOrder.items) return [];
+        return Array.from(new Map(localOrder.items.map(item => [item.id, item])).values());
+    }, [localOrder]);
 
     const resaleItems = useMemo(() => {
-        if (!order || !order.items) return [];
-        return order.items.filter((it: any) => it.is_resale);
-    }, [order]);
+        if (!localOrder || !localOrder.items) return [];
+        return localOrder.items.filter((it: any) => it.is_resale);
+    }, [localOrder]);
 
     useEffect(() => {
         setOcEditorEpoch(0);
@@ -311,6 +313,16 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         }
     };
 
+    const refreshOrderInPlace = async () => {
+        try {
+            const fresh = await salesService.getOrderDetail((order as any).id);
+            setLocalOrder(fresh as SalesOrder);
+            if (onOrderPatch) onOrderPatch(fresh as Partial<SalesOrder>);
+        } catch (e) {
+            if (onOrderPatch) onOrderPatch({} as Partial<SalesOrder>);
+        }
+    };
+
     const handleDeleteInstance = async (itemId: number, inst: any) => {
         if (inst.production_status !== 'PENDING' || inst.customer_payment_id) {
             return;
@@ -319,7 +331,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         try {
             setDeletingId(inst.id);
             await salesService.deleteInstance((order as any).id, itemId, inst.id);
-            if (onSuccess) onSuccess();
+            await refreshOrderInPlace();
         } catch (e: any) {
             alert(e?.response?.data?.detail || 'No se pudo eliminar la unidad.');
         } finally {
@@ -332,7 +344,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         try {
             setDeletingId(item.id);
             await salesService.deleteResaleItem((order as any).id, item.id);
-            if (onSuccess) onSuccess();
+            await refreshOrderInPlace();
         } catch (e: any) {
             alert(e?.response?.data?.detail || 'No se pudo eliminar el accesorio.');
         } finally {
