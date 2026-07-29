@@ -39,6 +39,10 @@ export interface SalesOrderItem {
     cost_snapshot?: Record<string, any>; 
     frozen_unit_cost?: number; 
 
+    // Reventa (accesorios sin instancia de producción)
+    is_resale?: boolean;
+    resale_sku?: string | null;
+
     // ---> NUEVO: Para el Monitor Post-Venta <---
     instances?: any[]; 
 }

@@ -97,7 +97,9 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
     });
     
     const [loadingCost, setLoadingCost] = useState<boolean>(false);
-    const [addMode, setAddMode] = useState<'CATALOG' | 'MANUAL'>('CATALOG');
+    const [addMode, setAddMode] = useState<'CATALOG' | 'MANUAL' | 'RESALE'>('CATALOG');
+    const [resaleList, setResaleList] = useState<any[]>([]);
+    const [selectedResaleSku, setSelectedResaleSku] = useState('');
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
     useEffect(() => {
@@ -107,8 +109,12 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                 if (foundationHook?.fetchTaxRates) foundationHook.fetchTaxRates();
                 if (foundationHook?.fetchConfig) foundationHook.fetchConfig();
                 
-                const filteredMasters = await designService.getMasters(undefined, true);
+                const [filteredMasters, resaleRes] = await Promise.all([
+                    designService.getMasters(undefined, true),
+                    client.get('/foundations/materials', { params: { is_resale: true } }),
+                ]);
                 setMasters(filteredMasters || []);
+                setResaleList(Array.isArray(resaleRes.data) ? resaleRes.data : []);
 
                 if (!isEditMode) fetchUserCommission();
             } catch (error) { console.error("Error cargando catálogos", error); }
@@ -262,17 +268,33 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
             const v = (foundMaster && foundMaster.versions) ? foundMaster.versions.find((x:any) => x.id === Number(lineItem.version_id)) : null;
             if (v) productName = `${foundMaster?.name} - ${v.version_name}`;
             else productName = "Producto de Catálogo";
+        } else if (addMode === 'RESALE') {
+            if (!selectedResaleSku) {
+                alert('Selecciona un accesorio de reventa.');
+                return;
+            }
+            const mat = resaleList.find((m) => m.sku === selectedResaleSku);
+            productName = mat?.name || lineItem.manual_name.trim();
         }
         const newItem: SalesOrderItem = {
             id: editingIndex !== null ? items[editingIndex].id : -Date.now(), 
-            product_name: productName, origin_version_id: addMode === 'CATALOG' ? Number(lineItem.version_id) : null,
+            product_name: productName,
+            origin_version_id: addMode === 'CATALOG' ? Number(lineItem.version_id) : null,
             quantity: Number(lineItem.quantity), unit_price: Number(lineItem.unit_price),
-            frozen_unit_cost: addMode === 'CATALOG' ? lineItem.frozen_cost : (editingIndex !== null ? items[editingIndex].frozen_unit_cost : 0)
+            frozen_unit_cost: addMode === 'CATALOG'
+                ? lineItem.frozen_cost
+                : (addMode === 'RESALE'
+                    ? lineItem.frozen_cost
+                    : (editingIndex !== null ? items[editingIndex].frozen_unit_cost : 0)),
+            is_resale: addMode === 'RESALE',
+            resale_sku: addMode === 'RESALE' ? selectedResaleSku : null,
         };
         const updatedItems = [...items];
         if (editingIndex !== null) { updatedItems[editingIndex] = newItem; setEditingIndex(null); } else { updatedItems.push(newItem); }
         setItems(updatedItems);
-        setLineItem({master_id: 0, version_id: 0, quantity: 1, unit_price: 0, manual_name: '', frozen_cost: 0}); setAddMode('CATALOG');
+        setLineItem({master_id: 0, version_id: 0, quantity: 1, unit_price: 0, manual_name: '', frozen_cost: 0});
+        setSelectedResaleSku('');
+        setAddMode('CATALOG');
     };
 
     const handleRemoveItem = (id?: number) => { setItems(items.filter(i => i.id !== id)); if (editingIndex !== null) handleCancelEdit(); };
@@ -331,7 +353,9 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
             const cleanItems = items.map((item) => ({
                 product_name: item.product_name, origin_version_id: item.origin_version_id || null, 
                 quantity: Number(item.quantity), unit_price: Number(item.unit_price),
-                frozen_unit_cost: Number(item.frozen_unit_cost || 0), cost_snapshot: item.cost_snapshot || {}
+                frozen_unit_cost: Number(item.frozen_unit_cost || 0), cost_snapshot: item.cost_snapshot || {},
+                is_resale: item.is_resale || false,
+                resale_sku: item.resale_sku || null,
             }));
             const payload: any = {
                 client_id: Number(header.client_id), project_name: header.project_name,
@@ -509,7 +533,22 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                 {!isFormLocked && (
                     <div className={`w-full lg:w-1/3 p-6 rounded-xl border ${editingIndex !== null ? 'bg-amber-50 border-amber-300' : 'bg-white border-slate-200'}`}>
                         <div className="space-y-4">
-                            {addMode === 'CATALOG' ? (
+                            <div className="flex gap-2 mb-4">
+                                <button type="button" onClick={() => { setAddMode('CATALOG'); }}
+                                    className={`flex-1 px-3 py-2 text-xs font-bold rounded border ${addMode === 'CATALOG' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200'}`}>
+                                    Catálogo
+                                </button>
+                                <button type="button" onClick={() => { setAddMode('MANUAL'); }}
+                                    className={`flex-1 px-3 py-2 text-xs font-bold rounded border ${addMode === 'MANUAL' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200'}`}>
+                                    Manual
+                                </button>
+                                <button type="button" onClick={() => { setAddMode('RESALE'); setSelectedResaleSku(''); }}
+                                    className={`flex-1 px-3 py-2 text-xs font-bold rounded border ${addMode === 'RESALE' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200'}`}>
+                                    Reventa
+                                </button>
+                            </div>
+
+                            {addMode === 'CATALOG' && (
                                 <>
                                     <div><label className="text-xs font-bold text-slate-500">CATEGORÍA</label><select className="w-full p-2 border rounded text-sm" value={selectedCategory} disabled={!header.client_id} onChange={(e) => { setSelectedCategory(e.target.value); setLineItem({...lineItem, master_id: 0, version_id: 0}); }}><option value="">-- Seleccionar --</option>{availableCategories?.map(cat => <option key={cat} value={cat}>{cat}</option>)}</select></div>
                                     <div><label className="text-xs font-bold text-slate-500">PRODUCTO</label><select className="w-full p-2 border rounded text-sm" value={lineItem.master_id} disabled={!selectedCategory} onChange={(e) => setLineItem({...lineItem, master_id: Number(e.target.value), version_id: 0})}><option value={0}>-- Seleccionar --</option>{filteredMasters?.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></div>
@@ -520,7 +559,42 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                                         </select>
                                     </div>
                                 </>
-                            ) : (<Input placeholder="Producto manual..." value={lineItem.manual_name} onChange={(e) => setLineItem({...lineItem, manual_name: e.target.value})}/>)}
+                            )}
+
+                            {addMode === 'MANUAL' && (
+                                <Input placeholder="Producto manual..." value={lineItem.manual_name} onChange={(e) => setLineItem({...lineItem, manual_name: e.target.value})}/>
+                            )}
+
+                            {addMode === 'RESALE' && (
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500">ACCESORIO DE REVENTA</label>
+                                    <select
+                                        className="w-full p-2 border rounded text-sm"
+                                        value={selectedResaleSku}
+                                        onChange={(e) => {
+                                            const sku = e.target.value;
+                                            setSelectedResaleSku(sku);
+                                            const mat = resaleList.find((m) => m.sku === sku);
+                                            if (mat) {
+                                                const costo = Number(mat.current_cost) || 0;
+                                                const override = Number(mat.sale_price) || 0;
+                                                let precio = override;
+                                                if (precio <= 0) {
+                                                    const m = Number(header.applied_margin_percent) || 0;
+                                                    const mult = m > 0 && m <= 1 ? 1 + m : 1 + (m / 100);
+                                                    precio = Number((costo * mult).toFixed(2));
+                                                }
+                                                setLineItem({ ...lineItem, manual_name: mat.name, unit_price: precio, frozen_cost: costo });
+                                            }
+                                        }}
+                                    >
+                                        <option value="">-- Seleccionar accesorio --</option>
+                                        {resaleList.map((m) => (
+                                            <option key={m.sku} value={m.sku}>{m.name} — {m.sku}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
                             <div className="grid grid-cols-2 gap-3">
                                 <Input type="number" placeholder="Cant" value={lineItem.quantity} onChange={(e) => setLineItem({...lineItem, quantity: Number(e.target.value)})}/>
                                 <div className="relative">
