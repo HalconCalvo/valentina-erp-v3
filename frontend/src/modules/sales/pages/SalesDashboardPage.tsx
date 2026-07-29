@@ -1683,6 +1683,7 @@ const SalesDashboardPage: React.FC = () => {
                     onClose={() => setRayosXOrder(null)}
                     order={rayosXOrder}
                     onSuccess={async () => {
+                        const affectedId = rayosXOrder?.id;
                         const cancelledId = rayosXOrder?.id;
                         const wasWaiting = rayosXOrder?.status === 'WAITING_ADVANCE';
                         if (cancelledId != null && wasWaiting) {
@@ -1694,6 +1695,22 @@ const SalesDashboardPage: React.FC = () => {
                         }
                         setRayosXOrder(null);
                         await loadData();
+                        // Refresco puntual de la OV afectada y mantenerla expandida
+                        if (affectedId != null) {
+                            try {
+                                const fresh = await salesService.getOrderDetail(affectedId);
+                                setOrders((prev) => {
+                                    const i = prev.findIndex((o) => o.id === affectedId);
+                                    if (i === -1) return prev;
+                                    const next = [...prev];
+                                    next[i] = fresh as SalesOrder;
+                                    return next;
+                                });
+                                setExpandedOrderId(affectedId);
+                            } catch {
+                                /* el listado ya se actualizó con loadData */
+                            }
+                        }
                     }}
                     onOrderPatch={(patch) =>
                         setRayosXOrder((prev) => (prev ? { ...prev, ...patch } : null))
