@@ -125,6 +125,38 @@ def _create_instances_for_order(session: Session, order: SalesOrder) -> int:
             created += 1
     return created
 
+
+def _recalculate_order_totals(session: Session, order: SalesOrder) -> None:
+    """
+    Recalcula subtotal, comision, IVA y total de una orden desde sus items
+    actuales. Ajusta outstanding_balance por el DELTA del total (preserva el
+    saldo vivo que se decrementa con pagos). Misma formula que add_items.
+    """
+    session.refresh(order)
+    items_sum = sum(float(it.subtotal_price or 0.0) for it in order.items)
+
+    tax_rate_obj = session.get(TaxRate, order.tax_rate_id)
+    tax_multiplier = tax_rate_obj.rate if tax_rate_obj else 0.16
+
+    comm_percent = order.applied_commission_percent or 0.0
+    nueva_comision = (
+        items_sum - (items_sum / (1 + comm_percent))
+        if comm_percent > 0 else 0.0
+    )
+    nuevo_tax = items_sum * tax_multiplier
+    nuevo_total = items_sum + nuevo_tax
+
+    total_anterior = order.total_price or 0.0
+    delta_total = nuevo_total - total_anterior
+
+    order.subtotal = items_sum
+    order.commission_amount = nueva_comision
+    order.tax_amount = nuevo_tax
+    order.total_price = nuevo_total
+    order.outstanding_balance = (order.outstanding_balance or 0.0) + delta_total
+    session.add(order)
+
+
 # ==========================================
 # 1. CREAR ORDEN
 # ==========================================
@@ -592,6 +624,100 @@ def add_items_to_order(
     session.commit()
     session.refresh(order)
     return order
+
+
+@router.delete("/orders/{order_id}/items/{item_id}/instances/{instance_id}")
+def delete_order_instance(
+    order_id: int, item_id: int, instance_id: int,
+    session: Session = Depends(get_session),
+):
+    """
+    Elimina UNA instancia de una partida de produccion.
+    Candado: solo si PENDING y sin facturar (customer_payment_id null).
+    Recalcula totales de la orden.
+    """
+    order = session.get(SalesOrder, order_id)
+    if not order:
+        raise HTTPException(404, "Orden no encontrada")
+    item = session.get(SalesOrderItem, item_id)
+    if not item or item.sales_order_id != order_id:
+        raise HTTPException(404, "Partida no encontrada en esta orden")
+    inst = session.get(SalesOrderItemInstance, instance_id)
+    if not inst or inst.sales_order_item_id != item_id:
+        raise HTTPException(404, "Instancia no encontrada en esta partida")
+
+    # CANDADO por-instancia
+    if inst.production_status != InstanceStatus.PENDING:
+        raise HTTPException(400, "La instancia ya entro a produccion, no se puede eliminar")
+    if inst.customer_payment_id is not None:
+        raise HTTPException(400, "La instancia ya fue facturada, no se puede eliminar")
+
+    try:
+        # bajar la cantidad de la partida en 1 (la linea suma quantity*price)
+        nueva_qty = int(item.quantity or 1) - 1
+        session.delete(inst)
+        session.flush()
+        if nueva_qty <= 0:
+            # era la ultima unidad: se elimina la partida completa
+            session.delete(item)
+        else:
+            item.quantity = nueva_qty
+            item.subtotal_price = float(nueva_qty) * float(item.unit_price or 0.0)
+            session.add(item)
+        session.flush()
+        _recalculate_order_totals(session, order)
+        session.commit()
+        session.refresh(order)
+        return {"ok": True, "deleted_instance": instance_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(500, f"Error al eliminar instancia: {e}")
+
+
+@router.delete("/orders/{order_id}/items/{item_id}/resale")
+def delete_resale_item(
+    order_id: int, item_id: int,
+    session: Session = Depends(get_session),
+):
+    """
+    Elimina una partida de reventa completa.
+    Candado: la orden no debe estar cerrada/instalada.
+    (El equivalente 'facturada' para reventa se afinará luego.)
+    """
+    order = session.get(SalesOrder, order_id)
+    if not order:
+        raise HTTPException(404, "Orden no encontrada")
+    item = session.get(SalesOrderItem, item_id)
+    if not item or item.sales_order_id != order_id:
+        raise HTTPException(404, "Partida no encontrada en esta orden")
+    if not item.is_resale:
+        raise HTTPException(400, "Esta partida no es de reventa; usa el borrado por instancia")
+
+    # Candado de estado de orden (FINISHED/COMPLETED = cerrada; no existe CLOSED en SalesOrderStatus)
+    estados_bloqueados = {
+        SalesOrderStatus.FINISHED,
+        SalesOrderStatus.COMPLETED,
+        SalesOrderStatus.CANCELLED,
+        SalesOrderStatus.CANCELLED_OV,
+    }
+    if order.status in estados_bloqueados:
+        raise HTTPException(400, "La orden ya esta cerrada, no se puede modificar")
+
+    try:
+        session.delete(item)
+        session.flush()
+        _recalculate_order_totals(session, order)
+        session.commit()
+        session.refresh(order)
+        return {"ok": True, "deleted_item": item_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(500, f"Error al eliminar partida de reventa: {e}")
+
 
 # ==========================================
 # 5. WORKFLOW: AUTORIZACIÓN Y SEMÁFORO
