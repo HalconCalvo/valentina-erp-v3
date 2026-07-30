@@ -49,6 +49,13 @@ class ClientPurchaseOrderPayload(BaseModel):
     client_po_folio: str
     client_po_date: datetime
 
+
+class ResaleItemPatch(BaseModel):
+    quantity: Optional[int] = None
+    unit_price: Optional[float] = None
+    resale_sku: Optional[str] = None
+    product_name: Optional[str] = None
+
 router = APIRouter()
 
 
@@ -717,6 +724,69 @@ def delete_resale_item(
     except Exception as e:
         session.rollback()
         raise HTTPException(500, f"Error al eliminar partida de reventa: {e}")
+
+
+@router.patch("/orders/{order_id}/items/{item_id}/resale")
+def patch_resale_item(
+    order_id: int, item_id: int, payload: ResaleItemPatch,
+    session: Session = Depends(get_session),
+):
+    """
+    Edita una partida de reventa. Candado: is_resale y orden no terminal.
+    Si cambia resale_sku, actualiza frozen_unit_cost desde el material.
+    Recalcula subtotal_price del item y totales de la orden.
+    """
+    order = session.get(SalesOrder, order_id)
+    if not order:
+        raise HTTPException(404, "Orden no encontrada")
+    item = session.get(SalesOrderItem, item_id)
+    if not item or item.sales_order_id != order_id:
+        raise HTTPException(404, "Partida no encontrada en esta orden")
+    if not item.is_resale:
+        raise HTTPException(400, "Esta partida no es de reventa")
+
+    estados_terminales = {
+        SalesOrderStatus.FINISHED, SalesOrderStatus.COMPLETED,
+        SalesOrderStatus.CANCELLED, SalesOrderStatus.CANCELLED_OV,
+    }
+    if order.status in estados_terminales:
+        raise HTTPException(400, "La orden ya esta cerrada, no se puede modificar")
+
+    try:
+        if payload.resale_sku is not None and payload.resale_sku != item.resale_sku:
+            mat = session.exec(
+                select(Material).where(Material.sku == payload.resale_sku)
+            ).first()
+            if not mat:
+                raise HTTPException(404, f"Material {payload.resale_sku} no encontrado")
+            item.resale_sku = mat.sku
+            item.frozen_unit_cost = float(mat.current_cost or 0.0)
+            if payload.product_name is None:
+                item.product_name = mat.name
+
+        if payload.product_name is not None:
+            item.product_name = payload.product_name
+        if payload.quantity is not None:
+            if payload.quantity <= 0:
+                raise HTTPException(400, "La cantidad debe ser mayor a 0")
+            item.quantity = payload.quantity
+        if payload.unit_price is not None:
+            if payload.unit_price < 0:
+                raise HTTPException(400, "El precio no puede ser negativo")
+            item.unit_price = payload.unit_price
+
+        item.subtotal_price = float(item.quantity or 1) * float(item.unit_price or 0.0)
+        session.add(item)
+        session.flush()
+        _recalculate_order_totals(session, order)
+        session.commit()
+        session.refresh(order)
+        return {"ok": True, "item_id": item_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(500, f"Error al editar partida de reventa: {e}")
 
 
 # ==========================================
