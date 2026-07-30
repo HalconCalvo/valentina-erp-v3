@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { X, Receipt, CheckCircle, Clock, FileText, Package, AlertCircle, PieChart, Users, Coins, Pencil, Plus, Trash2 } from 'lucide-react';
+import { X, Receipt, CheckCircle, Clock, FileText, Package, AlertCircle, PieChart, Users, Coins, Pencil, Plus, Trash2, Check } from 'lucide-react';
 import { SalesOrder } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
 import { AddItemsModal } from '../../sales/components/AddItemsModal';
@@ -115,6 +115,10 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         && ['ACCEPTED', 'WAITING_ADVANCE', 'SOLD', 'IN_PRODUCTION'].includes((order as any).status);
     const [showAddItems, setShowAddItems] = useState(false);
     const [deletingId, setDeletingId] = useState<number | null>(null);
+    const [editingResaleId, setEditingResaleId] = useState<number | null>(null);
+    const [editQty, setEditQty] = useState<number>(1);
+    const [editPrice, setEditPrice] = useState<number>(0);
+    const [savingResale, setSavingResale] = useState(false);
     const [localOrder, setLocalOrder] = useState<SalesOrder>(order);
     useEffect(() => { setLocalOrder(order); }, [order]);
     const [editingAdvance, setEditingAdvance] = useState(false);
@@ -349,6 +353,34 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
             alert(e?.response?.data?.detail || 'No se pudo eliminar el accesorio.');
         } finally {
             setDeletingId(null);
+        }
+    };
+
+    const startEditResale = (item: any) => {
+        setEditingResaleId(item.id);
+        setEditQty(Number(item.quantity) || 1);
+        setEditPrice(Number(item.unit_price) || 0);
+    };
+    const cancelEditResale = () => {
+        setEditingResaleId(null);
+    };
+    const saveEditResale = async (item: any) => {
+        if (editQty <= 0 || editPrice < 0) {
+            alert('Cantidad y precio deben ser válidos.');
+            return;
+        }
+        try {
+            setSavingResale(true);
+            await salesService.patchResaleItem((order as any).id, item.id, {
+                quantity: editQty,
+                unit_price: editPrice,
+            });
+            setEditingResaleId(null);
+            await refreshOrderInPlace();
+        } catch (e: any) {
+            alert(e?.response?.data?.detail || 'No se pudo editar el accesorio.');
+        } finally {
+            setSavingResale(false);
         }
     };
 
@@ -844,27 +876,82 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                     </p>
                                     <div className="space-y-2">
                                         {resaleItems.map((item: any) => (
-                                            <div key={item.id} className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-lg px-4 py-2">
-                                                <div className="min-w-0">
-                                                    <p className="text-sm font-bold text-slate-800 truncate">{item.product_name}</p>
-                                                    <p className="text-xs text-slate-500">
-                                                        SKU {item.resale_sku ?? '—'} · Cant. {item.quantity}
-                                                    </p>
-                                                </div>
-                                                <div className="flex items-center shrink-0">
-                                                    <p className="text-sm font-black text-emerald-700">
-                                                        {formatCurrency((item.unit_price || 0) * (item.quantity || 1))}
-                                                    </p>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleDeleteResale(item)}
-                                                        disabled={deletingId === item.id}
-                                                        className="ml-3 p-1 text-slate-400 hover:text-red-600 transition-colors disabled:opacity-50"
-                                                        title="Eliminar accesorio"
-                                                    >
-                                                        <Trash2 size={14} />
-                                                    </button>
-                                                </div>
+                                            <div key={item.id} className="bg-emerald-50 border border-emerald-100 rounded-lg px-4 py-2">
+                                                {editingResaleId === item.id ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="text-sm font-bold text-slate-800 truncate">{item.product_name}</p>
+                                                            <div className="flex items-center gap-2 mt-1">
+                                                                <label className="text-[10px] text-slate-500 uppercase">Cant.</label>
+                                                                <input
+                                                                    type="number"
+                                                                    min={1}
+                                                                    className="w-16 px-2 py-1 border border-slate-300 rounded text-sm"
+                                                                    value={editQty}
+                                                                    onChange={(e) => setEditQty(Number(e.target.value))}
+                                                                />
+                                                                <label className="text-[10px] text-slate-500 uppercase">Precio</label>
+                                                                <input
+                                                                    type="number"
+                                                                    step="0.01"
+                                                                    min={0}
+                                                                    className="w-24 px-2 py-1 border border-slate-300 rounded text-sm text-right"
+                                                                    value={editPrice}
+                                                                    onChange={(e) => setEditPrice(Number(e.target.value))}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => saveEditResale(item)}
+                                                            disabled={savingResale}
+                                                            className="p-1 text-emerald-600 hover:text-emerald-800 disabled:opacity-50"
+                                                            title="Guardar"
+                                                        >
+                                                            <Check size={16} />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={cancelEditResale}
+                                                            disabled={savingResale}
+                                                            className="p-1 text-slate-400 hover:text-slate-600"
+                                                            title="Cancelar"
+                                                        >
+                                                            <X size={16} />
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="min-w-0">
+                                                            <p className="text-sm font-bold text-slate-800 truncate">{item.product_name}</p>
+                                                            <p className="text-xs text-slate-500">
+                                                                SKU {item.resale_sku ?? '—'} · Cant. {item.quantity}
+                                                            </p>
+                                                        </div>
+                                                        <div className="flex items-center shrink-0">
+                                                            <p className="text-sm font-black text-emerald-700">
+                                                                {formatCurrency((item.unit_price || 0) * (item.quantity || 1))}
+                                                            </p>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => startEditResale(item)}
+                                                                className="ml-3 p-1 text-slate-400 hover:text-indigo-600 transition-colors"
+                                                                title="Editar accesorio"
+                                                            >
+                                                                <Pencil size={14} />
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleDeleteResale(item)}
+                                                                disabled={deletingId === item.id}
+                                                                className="ml-1 p-1 text-slate-400 hover:text-red-600 transition-colors disabled:opacity-50"
+                                                                title="Eliminar accesorio"
+                                                            >
+                                                                <Trash2 size={14} />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         ))}
                                     </div>

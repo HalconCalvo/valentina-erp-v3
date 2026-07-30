@@ -111,6 +111,17 @@ export const salesService = {
         await axiosClient.delete(`${API_ROUTES.SALES.ORDER_DETAIL(orderId)}/items/${itemId}/resale`);
     },
 
+    patchResaleItem: async (
+        orderId: number,
+        itemId: number,
+        payload: { quantity?: number; unit_price?: number; resale_sku?: string; product_name?: string }
+    ): Promise<void> => {
+        await axiosClient.patch(
+            `${API_ROUTES.SALES.ORDER_DETAIL(orderId)}/items/${itemId}/resale`,
+            payload
+        );
+    },
+
     /**
      * Descarga el PDF de la Cotización desde el Backend (Fuerza la descarga del archivo).
      */
