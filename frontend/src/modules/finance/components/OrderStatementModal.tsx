@@ -968,12 +968,9 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                 isOpen={showAddItems}
                 onClose={() => setShowAddItems(false)}
                 order={order}
-                onSuccess={() => {
+                onSuccess={async () => {
                     setShowAddItems(false);
-                    if (onOrderPatch) {
-                        // refresco optimista mínimo; el padre recarga con onSuccess
-                    }
-                    onSuccess();
+                    await refreshOrderInPlace();
                 }}
             />
         )}
