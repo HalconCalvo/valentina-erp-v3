@@ -56,6 +56,10 @@ class ResaleItemPatch(BaseModel):
     resale_sku: Optional[str] = None
     product_name: Optional[str] = None
 
+
+class ProductionItemPatch(BaseModel):
+    unit_price: float
+
 router = APIRouter()
 
 
@@ -787,6 +791,115 @@ def patch_resale_item(
     except Exception as e:
         session.rollback()
         raise HTTPException(500, f"Error al editar partida de reventa: {e}")
+
+
+@router.patch("/orders/{order_id}/items/{item_id}/production")
+def patch_production_item_price(
+    order_id: int, item_id: int, payload: ProductionItemPatch,
+    session: Session = Depends(get_session),
+):
+    """
+    Edita el precio de una partida de produccion.
+    Candado Opcion A: solo si TODAS sus instancias estan PENDING y sin facturar.
+    """
+    order = session.get(SalesOrder, order_id)
+    if not order:
+        raise HTTPException(404, "Orden no encontrada")
+    item = session.get(SalesOrderItem, item_id)
+    if not item or item.sales_order_id != order_id:
+        raise HTTPException(404, "Partida no encontrada en esta orden")
+    if item.is_resale:
+        raise HTTPException(400, "Esta partida es de reventa; usa el endpoint /resale")
+
+    estados_terminales = {
+        SalesOrderStatus.FINISHED, SalesOrderStatus.COMPLETED,
+        SalesOrderStatus.CANCELLED, SalesOrderStatus.CANCELLED_OV,
+    }
+    if order.status in estados_terminales:
+        raise HTTPException(400, "La orden ya esta cerrada, no se puede modificar")
+
+    if payload.unit_price < 0:
+        raise HTTPException(400, "El precio no puede ser negativo")
+
+    instances = session.exec(
+        select(SalesOrderItemInstance).where(
+            SalesOrderItemInstance.sales_order_item_id == item.id
+        )
+    ).all()
+    for inst in instances:
+        if inst.production_status != InstanceStatus.PENDING or inst.customer_payment_id is not None:
+            raise HTTPException(
+                400,
+                "No se puede cambiar el precio: la partida tiene unidades en produccion o facturadas."
+            )
+
+    try:
+        item.unit_price = payload.unit_price
+        item.subtotal_price = float(item.quantity or 1) * float(payload.unit_price)
+        session.add(item)
+        session.flush()
+        _recalculate_order_totals(session, order)
+        session.commit()
+        session.refresh(order)
+        return {"ok": True, "item_id": item_id, "unit_price": payload.unit_price}
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(500, f"Error al editar precio: {e}")
+
+
+@router.post("/orders/{order_id}/items/{item_id}/add-instance")
+def add_instance_to_item(
+    order_id: int, item_id: int,
+    session: Session = Depends(get_session),
+):
+    """
+    Agrega UNA instancia a una partida de produccion (sube la cantidad en 1).
+    La instancia nace PENDING con nombre generico; luego se bautiza.
+    """
+    order = session.get(SalesOrder, order_id)
+    if not order:
+        raise HTTPException(404, "Orden no encontrada")
+    item = session.get(SalesOrderItem, item_id)
+    if not item or item.sales_order_id != order_id:
+        raise HTTPException(404, "Partida no encontrada en esta orden")
+    if item.is_resale:
+        raise HTTPException(400, "Las partidas de reventa no tienen instancias")
+
+    estados_terminales = {
+        SalesOrderStatus.FINISHED, SalesOrderStatus.COMPLETED,
+        SalesOrderStatus.CANCELLED, SalesOrderStatus.CANCELLED_OV,
+    }
+    if order.status in estados_terminales:
+        raise HTTPException(400, "La orden ya esta cerrada, no se puede modificar")
+
+    try:
+        existing = session.exec(
+            select(SalesOrderItemInstance).where(
+                SalesOrderItemInstance.sales_order_item_id == item.id
+            )
+        ).all()
+        siguiente_n = len(existing) + 1
+
+        session.add(SalesOrderItemInstance(
+            sales_order_item_id=item.id,
+            custom_name=f"{item.product_name} - Instancia {siguiente_n}",
+            production_status=InstanceStatus.PENDING,
+        ))
+        item.quantity = int(item.quantity or 0) + 1
+        item.subtotal_price = float(item.quantity) * float(item.unit_price or 0.0)
+        session.add(item)
+        session.flush()
+        _recalculate_order_totals(session, order)
+        session.commit()
+        session.refresh(order)
+        return {"ok": True, "item_id": item_id, "nueva_cantidad": item.quantity}
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(500, f"Error al agregar instancia: {e}")
 
 
 # ==========================================
