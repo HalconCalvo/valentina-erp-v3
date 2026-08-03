@@ -1154,6 +1154,17 @@ const SalesDashboardPage: React.FC = () => {
                                         type="button"
                                         onClick={(e) => {
                                             e.stopPropagation();
+                                            handleViewPDF(order.id!);
+                                        }}
+                                        className="text-indigo-600 border border-indigo-200 hover:bg-indigo-50 px-2 py-1.5 rounded-lg transition-colors"
+                                        title="Descargar PDF"
+                                    >
+                                        <FileDown size={14} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
                                             setRayosXOrder(order);
                                         }}
                                         className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 text-xs font-black rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 transform hover:-translate-y-0.5"
