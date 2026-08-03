@@ -122,6 +122,20 @@ export const salesService = {
         );
     },
 
+    patchProductionPrice: async (orderId: number, itemId: number, unitPrice: number): Promise<void> => {
+        await axiosClient.patch(
+            `${API_ROUTES.SALES.ORDER_DETAIL(orderId)}/items/${itemId}/production`,
+            { unit_price: unitPrice }
+        );
+    },
+
+    addInstance: async (orderId: number, itemId: number): Promise<void> => {
+        await axiosClient.post(
+            `${API_ROUTES.SALES.ORDER_DETAIL(orderId)}/items/${itemId}/add-instance`,
+            {}
+        );
+    },
+
     /**
      * Descarga el PDF de la Cotización desde el Backend (Fuerza la descarga del archivo).
      */

@@ -119,6 +119,10 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const [editQty, setEditQty] = useState<number>(1);
     const [editPrice, setEditPrice] = useState<number>(0);
     const [savingResale, setSavingResale] = useState(false);
+    const [editingPriceItemId, setEditingPriceItemId] = useState<number | null>(null);
+    const [editItemPrice, setEditItemPrice] = useState<number>(0);
+    const [savingItemPrice, setSavingItemPrice] = useState(false);
+    const [addingInstanceId, setAddingInstanceId] = useState<number | null>(null);
     const [localOrder, setLocalOrder] = useState<SalesOrder>(order);
     useEffect(() => { setLocalOrder(order); }, [order]);
     const [editingAdvance, setEditingAdvance] = useState(false);
@@ -381,6 +385,37 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
             alert(e?.response?.data?.detail || 'No se pudo editar el accesorio.');
         } finally {
             setSavingResale(false);
+        }
+    };
+
+    const startEditItemPrice = (item: any) => {
+        setEditingPriceItemId(item.id);
+        setEditItemPrice(Number(item.unit_price) || 0);
+    };
+    const cancelEditItemPrice = () => setEditingPriceItemId(null);
+    const saveEditItemPrice = async (item: any) => {
+        if (editItemPrice < 0) { alert('El precio no puede ser negativo.'); return; }
+        try {
+            setSavingItemPrice(true);
+            await salesService.patchProductionPrice((order as any).id, item.id, editItemPrice);
+            setEditingPriceItemId(null);
+            await refreshOrderInPlace();
+        } catch (e: any) {
+            alert(e?.response?.data?.detail || 'No se pudo cambiar el precio.');
+        } finally {
+            setSavingItemPrice(false);
+        }
+    };
+    const handleAddInstance = async (item: any) => {
+        if (!window.confirm(`¿Agregar una unidad a "${item.product_name}"?`)) return;
+        try {
+            setAddingInstanceId(item.id);
+            await salesService.addInstance((order as any).id, item.id);
+            await refreshOrderInPlace();
+        } catch (e: any) {
+            alert(e?.response?.data?.detail || 'No se pudo agregar la unidad.');
+        } finally {
+            setAddingInstanceId(null);
         }
     };
 
@@ -854,10 +889,62 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                 </p>
                                             </div>
                                             <div className="flex items-center gap-2 shrink-0">
-                                                <span className="text-sm font-black text-slate-700">
-                                                    {formatCurrency((item.unit_price || 0) * (item.quantity || 1))}
-                                                </span>
-                                                {/* lápiz (editar precio, solo si allEditable) y + agregar unidad — paso siguiente */}
+                                                {editingPriceItemId === item.id ? (
+                                                    <div className="flex items-center gap-1">
+                                                        <input
+                                                            type="number"
+                                                            step="0.01"
+                                                            min={0}
+                                                            className="w-28 px-2 py-1 border border-slate-300 rounded text-sm text-right"
+                                                            value={editItemPrice}
+                                                            onChange={(e) => setEditItemPrice(Number(e.target.value))}
+                                                            autoFocus
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => saveEditItemPrice(item)}
+                                                            disabled={savingItemPrice}
+                                                            className="p-1 text-emerald-600 hover:text-emerald-800 disabled:opacity-50"
+                                                            title="Guardar precio"
+                                                        >
+                                                            <Check size={16} />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={cancelEditItemPrice}
+                                                            disabled={savingItemPrice}
+                                                            className="p-1 text-slate-400 hover:text-slate-600"
+                                                            title="Cancelar"
+                                                        >
+                                                            <X size={16} />
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <span className="text-sm font-black text-slate-700">
+                                                            {formatCurrency((item.unit_price || 0) * (item.quantity || 1))}
+                                                        </span>
+                                                        {allEditable && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => startEditItemPrice(item)}
+                                                                className="p-1 text-slate-400 hover:text-indigo-600 transition-colors"
+                                                                title="Editar precio de la partida"
+                                                            >
+                                                                <Pencil size={14} />
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleAddInstance(item)}
+                                                            disabled={addingInstanceId === item.id}
+                                                            className="p-1 text-slate-400 hover:text-emerald-600 transition-colors disabled:opacity-50"
+                                                            title="Agregar una unidad"
+                                                        >
+                                                            <Plus size={16} />
+                                                        </button>
+                                                    </>
+                                                )}
                                             </div>
                                         </div>
                                         <div className="divide-y divide-slate-100 bg-white">
