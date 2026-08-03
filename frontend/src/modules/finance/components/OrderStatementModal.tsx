@@ -840,34 +840,58 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                             {/* ESCUDO: Cortamos las instancias a la cantidad real que marca la OV */}
                             {uniqueItems.map((item: any) => {
                                 const realInstances = item.instances ? item.instances.slice(0, item.quantity || 1) : [];
-                                return realInstances.map((inst: any) => (
-                                    <div key={inst.id} className="p-3 px-5 flex justify-between items-center hover:bg-slate-50 text-sm">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-2 h-2 rounded-full ${inst.customer_payment_id ? 'bg-blue-500' : 'bg-slate-300'}`}></div>
-                                            <span className="font-bold text-slate-700">{inst.custom_name || inst.item_name}</span>
+                                if (realInstances.length === 0) return null;
+                                const allEditable = realInstances.every(
+                                    (inst: any) => inst.production_status === 'PENDING' && !inst.customer_payment_id
+                                );
+                                return (
+                                    <div key={item.id} className="border-b border-slate-100 last:border-b-0">
+                                        <div className="px-5 py-2.5 bg-slate-50/70 flex items-center justify-between" data-all-editable={allEditable}>
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-black text-slate-700 truncate">{item.product_name}</p>
+                                                <p className="text-[11px] text-slate-500">
+                                                    {item.quantity} {item.quantity === 1 ? 'unidad' : 'unidades'} × {formatCurrency(item.unit_price || 0)}
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                <span className="text-sm font-black text-slate-700">
+                                                    {formatCurrency((item.unit_price || 0) * (item.quantity || 1))}
+                                                </span>
+                                                {/* lápiz (editar precio, solo si allEditable) y + agregar unidad — paso siguiente */}
+                                            </div>
                                         </div>
-                                        <div className="text-right flex items-center justify-end">
-                                            <span className={`text-xs font-bold px-2 py-1 rounded ${
-                                                inst.customer_payment_id 
-                                                ? 'bg-blue-50 text-blue-600 border border-blue-100' 
-                                                : 'bg-slate-100 text-slate-500'
-                                            }`}>
-                                                {inst.customer_payment_id ? 'FACTURADO' : 'PENDIENTE'}
-                                            </span>
-                                            {inst.production_status === 'PENDING' && !inst.customer_payment_id && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleDeleteInstance(item.id, inst)}
-                                                    disabled={deletingId === inst.id}
-                                                    className="ml-2 p-1 text-slate-400 hover:text-red-600 transition-colors disabled:opacity-50"
-                                                    title="Eliminar esta unidad"
-                                                >
-                                                    <Trash2 size={14} />
-                                                </button>
-                                            )}
+                                        <div className="divide-y divide-slate-50">
+                                            {realInstances.map((inst: any) => (
+                                                <div key={inst.id} className="p-2.5 px-6 flex justify-between items-center hover:bg-slate-50 text-sm">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-2 h-2 rounded-full ${inst.customer_payment_id ? 'bg-blue-500' : 'bg-slate-300'}`}></div>
+                                                        <span className="font-bold text-slate-700">{inst.custom_name || inst.item_name}</span>
+                                                    </div>
+                                                    <div className="text-right flex items-center justify-end">
+                                                        <span className={`text-xs font-bold px-2 py-1 rounded ${
+                                                            inst.customer_payment_id
+                                                            ? 'bg-blue-50 text-blue-600 border border-blue-100'
+                                                            : 'bg-slate-100 text-slate-500'
+                                                        }`}>
+                                                            {inst.customer_payment_id ? 'FACTURADO' : 'PENDIENTE'}
+                                                        </span>
+                                                        {inst.production_status === 'PENDING' && !inst.customer_payment_id && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleDeleteInstance(item.id, inst)}
+                                                                disabled={deletingId === inst.id}
+                                                                className="ml-2 p-1 text-slate-400 hover:text-red-600 transition-colors disabled:opacity-50"
+                                                                title="Eliminar esta unidad"
+                                                            >
+                                                                <Trash2 size={14} />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
-                                ))
+                                );
                             })}
                             {resaleItems.length > 0 && (
                                 <div className="mt-4 px-5 pb-3">
