@@ -880,7 +880,17 @@ def add_instance_to_item(
                 SalesOrderItemInstance.sales_order_item_id == item.id
             )
         ).all()
-        siguiente_n = len(existing) + 1
+        # Numerar por el mayor sufijo numerico existente + 1 (no por conteo,
+        # que duplica cuando hay huecos por instancias borradas).
+        import re
+        max_n = 0
+        for inst in existing:
+            m = re.search(r'Instancia\s+(\d+)\s*$', inst.custom_name or '')
+            if m:
+                n = int(m.group(1))
+                if n > max_n:
+                    max_n = n
+        siguiente_n = max_n + 1
 
         session.add(SalesOrderItemInstance(
             sales_order_item_id=item.id,
