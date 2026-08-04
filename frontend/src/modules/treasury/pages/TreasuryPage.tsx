@@ -63,6 +63,7 @@ export const TreasuryPage = () => {
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
   const [selectedAccountForDetail, setSelectedAccountForDetail] = useState<BankAccount | null>(null);
   const [transactionType, setTransactionType] = useState<'IN' | 'OUT'>('IN');
+  const [preselectedCxcId, setPreselectedCxcId] = useState<number | null>(null);
 
   const [totalBankBalance, setTotalBankBalance] = useState(0);
   const [totalReceivables, setTotalReceivables] = useState(0);
@@ -97,6 +98,11 @@ export const TreasuryPage = () => {
           window.history.replaceState({}, document.title);
       } else if (location.state?.openSection) {
           setActiveSection(location.state.openSection as AdminSection);
+          window.history.replaceState({}, document.title);
+      } else if (location.state?.cobrarCxcId) {
+          setPreselectedCxcId(Number(location.state.cobrarCxcId));
+          setTransactionType('IN');
+          setIsTransactionModalOpen(true);
           window.history.replaceState({}, document.title);
       }
   }, [location.state]);
@@ -688,9 +694,9 @@ export const TreasuryPage = () => {
         <>
           <CreateAccountModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} onSuccess={fetchData} />
           <TransactionModal 
-            isOpen={isTransactionModalOpen} onClose={() => setIsTransactionModalOpen(false)}
+            isOpen={isTransactionModalOpen} onClose={() => { setIsTransactionModalOpen(false); setPreselectedCxcId(null); }}
             onSuccess={() => { fetchData(); if (selectedAccountForDetail) { treasuryService.getAccounts().then(accs => { const updated = accs.find(a => a.id === selectedAccountForDetail.id); if (updated) setSelectedAccountForDetail(updated); }); } }}
-            accounts={accounts} selectedAccountId={selectedAccountForDetail?.id} initialType={transactionType} 
+            accounts={accounts} selectedAccountId={selectedAccountForDetail?.id} initialType={transactionType} initialCxcId={preselectedCxcId}
           />
         </>
       )}

@@ -11,10 +11,11 @@ interface Props {
   onSuccess: () => void;
   accounts: BankAccount[];
   selectedAccountId?: number | null;
-  initialType?: 'IN' | 'OUT'; 
+  initialType?: 'IN' | 'OUT';
+  initialCxcId?: number | null;
 }
 
-export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, accounts, selectedAccountId, initialType }) => {
+export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, accounts, selectedAccountId, initialType, initialCxcId }) => {
   // 👇 Agregamos 'setValue' para inyectarle el número limpio al formulario
   const { register, handleSubmit, reset, watch, setValue, formState: { isSubmitting } } = useForm<BankTransactionCreate>();
   
@@ -36,10 +37,10 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
         reference: ''
       });
       setDisplayAmount(''); // Limpiamos la pantalla visual del importe
-      setSelectedCxcId('');
+      setSelectedCxcId(initialCxcId ?? '');
       salesService.getPendingInvoices().then(setPendingInvoices).catch(() => setPendingInvoices([]));
     }
-  }, [isOpen, selectedAccountId, initialType, reset]);
+  }, [isOpen, selectedAccountId, initialType, initialCxcId, reset]);
 
   // Observamos los valores
   const watchAmount = watch('amount') || 0;
