@@ -333,6 +333,24 @@ export const salesService = {
         return response.data;
     },
 
+    getCxcReport: async (params: {
+        client_id?: number;
+        date_from?: string;
+        date_to?: string;
+        include_paid?: boolean;
+        only_cancelled?: boolean;
+    } = {}) => {
+        const qs = new URLSearchParams();
+        if (params.client_id != null) qs.set('client_id', String(params.client_id));
+        if (params.date_from) qs.set('date_from', params.date_from);
+        if (params.date_to) qs.set('date_to', params.date_to);
+        if (params.include_paid) qs.set('include_paid', 'true');
+        if (params.only_cancelled) qs.set('only_cancelled', 'true');
+        const q = qs.toString();
+        const response = await axiosClient.get(`/sales/invoices/cxc-report${q ? '?' + q : ''}`);
+        return response.data;
+    },
+
     /**
      * ADMINISTRACIÓN: Obtiene todas las instancias 🟢🟢 CERRADAS sin factura de avance.
      * Alimenta la bandeja "Avances por Facturar" en PendingToInvoicePage.
