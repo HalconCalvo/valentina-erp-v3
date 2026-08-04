@@ -47,11 +47,17 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
   const watchType = watch('transaction_type');
   const currentAccount = accounts?.find(a => a.id === selectedAccountId);
 
-  let nuevoSaldo = currentAccount?.current_balance || 0;
+  let nuevoSaldoCuenta = currentAccount?.current_balance || 0;
   if (currentAccount && watchAmount > 0 && !isNaN(watchAmount)) {
-    if (watchType === 'IN') nuevoSaldo += Number(watchAmount);
-    else if (watchType === 'OUT') nuevoSaldo -= Number(watchAmount);
+    if (watchType === 'IN') nuevoSaldoCuenta += Number(watchAmount);
+    else if (watchType === 'OUT') nuevoSaldoCuenta -= Number(watchAmount);
   }
+
+  const selectedInvoice = pendingInvoices.find(inv => inv.cxc_id === Number(selectedCxcId)) || null;
+  const saldoActual = selectedInvoice ? Number(selectedInvoice.saldo || 0) : 0;
+  const importeCobro = Number(watchAmount || 0);
+  const nuevoSaldo = Math.max(saldoActual - importeCobro, 0);
+  const quedaSaldada = selectedInvoice && importeCobro > 0 && (saldoActual - importeCobro) <= 0.01;
 
   if (!isOpen) return null;
 
@@ -99,7 +105,7 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
                       ? (watchType === 'IN' ? 'text-green-600' : 'text-red-600')
                       : 'text-slate-400'
                   }`}>
-                    ${nuevoSaldo.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                    ${nuevoSaldoCuenta.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
               </div>
@@ -144,6 +150,24 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
                   </option>
                 ))}
               </select>
+            </div>
+          )}
+
+          {watchType === 'IN' && selectedInvoice && (
+            <div className="mb-6 w-full md:w-2/3 bg-slate-50 rounded-xl p-4 border border-slate-200">
+              <div className="text-xs font-semibold text-slate-500 uppercase mb-3">Factura que se cobra</div>
+              <div className="space-y-1.5 text-sm">
+                <div className="flex justify-between"><span className="text-slate-500">Proyecto</span><span className="font-semibold text-slate-800">{selectedInvoice.project_name}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Factura</span><span className="font-mono text-slate-800">{selectedInvoice.invoice_folio}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Tipo</span><span className="text-slate-800">{selectedInvoice.payment_type}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Saldo factura</span><span className="font-semibold text-slate-800">${saldoActual.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span></div>
+              </div>
+              <div className={`flex justify-between items-center mt-3 pt-3 border-t border-slate-200 ${quedaSaldada ? 'text-emerald-600' : 'text-amber-600'}`}>
+                <span className="text-sm font-medium">Nuevo saldo factura</span>
+                <span className="text-base font-bold">
+                  ${nuevoSaldo.toLocaleString('es-MX', { minimumFractionDigits: 2 })}{quedaSaldada ? ' — Saldada' : ''}
+                </span>
+              </div>
             </div>
           )}
 
