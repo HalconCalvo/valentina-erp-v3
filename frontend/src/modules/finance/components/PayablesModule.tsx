@@ -61,6 +61,9 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
     const [accounts, setAccounts] = useState<BankAccount[]>([]);
     
     const [activeFilter, setActiveFilter] = useState<PayableFilter>(null);
+    const [filterProvider, setFilterProvider] = useState<string>('');
+    const [filterDateFrom, setFilterDateFrom] = useState<string>('');
+    const [filterDateTo, setFilterDateTo] = useState<string>('');
     const [isFinanceLoading, setIsFinanceLoading] = useState(false);
 
     const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' } | null>(null);
@@ -155,7 +158,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
         return { n07, a07, n815, a815, n16, a16 };
     }, [invoices]);
 
-    const getFilteredInvoices = () => {
+    const cardFilteredInvoices = useMemo(() => {
         if (!activeFilter) return [];
         if (activeFilter === 'ALL') return invoices;
 
@@ -198,7 +201,35 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
             if (activeFilter === 'FUTURE') return dueTime > nextPeriodTime; 
             return false;
         });
-    };
+    }, [invoices, activeFilter, dueBucketMode]);
+
+    const providerOptions = useMemo(() => {
+        const set = new Set<string>();
+        cardFilteredInvoices.forEach((inv) => {
+            if (inv.provider_name) set.add(inv.provider_name);
+        });
+        return Array.from(set).sort();
+    }, [cardFilteredInvoices]);
+
+    const doublyFiltered = useMemo(() => {
+        let list = cardFilteredInvoices;
+        if (filterProvider) {
+            list = list.filter((inv) => inv.provider_name === filterProvider);
+        }
+        if (filterDateFrom) {
+            list = list.filter((inv) => {
+                const d = (inv.due_date || '').slice(0, 10);
+                return d && d >= filterDateFrom;
+            });
+        }
+        if (filterDateTo) {
+            list = list.filter((inv) => {
+                const d = (inv.due_date || '').slice(0, 10);
+                return d && d <= filterDateTo;
+            });
+        }
+        return list;
+    }, [cardFilteredInvoices, filterProvider, filterDateFrom, filterDateTo]);
 
     const formatCurrency = (amount: number) => amount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
     const formatDate = (dateStr: string) => {
@@ -275,9 +306,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
         }
     };
 
-    const filteredData = getFilteredInvoices();
-    
-    const sortedFilteredData = [...filteredData].sort((a, b) => {
+    const sortedFilteredData = useMemo(() => [...doublyFiltered].sort((a, b) => {
         if (sortConfig) {
             let aVal: any = a[sortConfig.key];
             let bVal: any = b[sortConfig.key];
@@ -300,7 +329,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
             if (!aIsAdvance && bIsAdvance) return 1;  
             return 0; 
         }
-    });
+    }), [doublyFiltered, sortConfig]);
 
     const groupedByProvider = useMemo(() => {
         const groups: { providerName: string; invoices: PendingInvoice[]; subtotal: number }[] = [];
@@ -509,6 +538,41 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                 <ArrowLeft size={16} /> Regresar
                             </button>
                         </div>
+                        <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1">Proveedor</label>
+                                    <select
+                                        value={filterProvider}
+                                        onChange={(e) => setFilterProvider(e.target.value)}
+                                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
+                                    >
+                                        <option value="">Todos los proveedores</option>
+                                        {providerOptions.map((name) => (
+                                            <option key={name} value={name}>{name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1">Vence desde</label>
+                                    <input
+                                        type="date"
+                                        value={filterDateFrom}
+                                        onChange={(e) => setFilterDateFrom(e.target.value)}
+                                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1">Vence hasta</label>
+                                    <input
+                                        type="date"
+                                        value={filterDateTo}
+                                        onChange={(e) => setFilterDateTo(e.target.value)}
+                                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
+                                    />
+                                </div>
+                            </div>
+                        </div>
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm text-left border-collapse">
                                 <thead className={`text-xs text-slate-600 uppercase tracking-wider ${theme.bgLight} border-b ${theme.border} font-black`}>
@@ -525,7 +589,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                 <tbody className="divide-y divide-slate-100">
                                     {isFinanceLoading ? (
                                         <tr><td colSpan={7} className="text-center py-12 text-slate-400 font-bold">Cargando desglose...</td></tr>
-                                    ) : filteredData.length === 0 ? (
+                                    ) : doublyFiltered.length === 0 ? (
                                         <tr><td colSpan={7} className="text-center py-12 text-slate-400 italic font-medium">No hay facturas pendientes en esta categoría.</td></tr>
                                     ) : groupedByProvider.map((group) => (
                                         <React.Fragment key={group.providerName}>
