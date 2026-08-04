@@ -67,6 +67,12 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
       if (data.transaction_type === 'IN' && selectedCxcId) {
         finalData.related_entity_type = 'CUSTOMER_PAYMENT';
         finalData.related_entity_id = Number(selectedCxcId);
+        if (selectedInvoice) {
+          finalData.description = `Cobro ${selectedInvoice.payment_type} — ${selectedInvoice.project_name} — Fact. ${selectedInvoice.invoice_folio}`;
+        }
+      }
+      if (!selectedInvoice) {
+        finalData.description = finalData.description || 'Ingreso general';
       }
       await treasuryService.createTransaction(finalData);
       onSuccess(); 
@@ -173,15 +179,17 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
 
           <div className="flex flex-col md:flex-row gap-4 items-end">
             
+            {!selectedInvoice && (
             <div className="w-full md:flex-[2]">
               <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Concepto *</label>
               <input 
-                {...register('description', { required: true })}
+                {...register('description')}
                 placeholder="Ej. Pago de cliente..."
                 autoFocus
                 className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 placeholder:text-slate-400"
               />
             </div>
+            )}
 
             <div className="w-full md:flex-[1]">
               <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Ref / Folio</label>
