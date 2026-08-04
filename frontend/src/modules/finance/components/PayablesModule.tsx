@@ -515,19 +515,22 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                     <tr>
                                         {renderSortableHeader('Factura', 'invoice_number')}
                                         {renderSortableHeader('Vencimiento', 'due_date')}
-                                        {renderSortableHeader('Saldo Deuda', 'outstanding_balance', 'right')}
+                                        <th className="p-4">Antigüedad</th>
+                                        <th className="p-4 text-right">Importe</th>
+                                        <th className="p-4 text-right">Abonado</th>
+                                        {renderSortableHeader('Saldo', 'outstanding_balance', 'right')}
                                         <th className="p-4 text-center">Acción</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
                                     {isFinanceLoading ? (
-                                        <tr><td colSpan={4} className="text-center py-12 text-slate-400 font-bold">Cargando desglose...</td></tr>
+                                        <tr><td colSpan={7} className="text-center py-12 text-slate-400 font-bold">Cargando desglose...</td></tr>
                                     ) : filteredData.length === 0 ? (
-                                        <tr><td colSpan={4} className="text-center py-12 text-slate-400 italic font-medium">No hay facturas pendientes en esta categoría.</td></tr>
+                                        <tr><td colSpan={7} className="text-center py-12 text-slate-400 italic font-medium">No hay facturas pendientes en esta categoría.</td></tr>
                                     ) : groupedByProvider.map((group) => (
                                         <React.Fragment key={group.providerName}>
                                             <tr className="bg-indigo-50">
-                                                <td colSpan={2} className="p-3 font-black text-indigo-800">{group.providerName}</td>
+                                                <td colSpan={5} className="p-3 font-black text-indigo-800">{group.providerName}</td>
                                                 <td className="p-3 text-right font-black text-indigo-800">{formatCurrency(group.subtotal)}</td>
                                                 <td className="p-3" />
                                             </tr>
@@ -537,6 +540,8 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                         const approvedReqForInv = approvedRequests.filter(req => req.invoice_folio === inv.invoice_number && req.provider_name === inv.provider_name);
                                         const hasActive = pendingReqForInv.length > 0 || approvedReqForInv.length > 0;
                                         const hasApproved = approvedReqForInv.length > 0;
+                                        const dueDays = invoiceDueDayDiff(inv);
+                                        const abonado = (inv.total_amount || 0) - (inv.outstanding_balance || 0);
                                         
                                         return (
                                             <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
@@ -550,6 +555,17 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                                     </button>
                                                 </td>
                                                 <td className="p-4 text-slate-600 font-medium">{formatDate(inv.due_date)}</td>
+                                                <td className="p-4 text-sm font-bold">
+                                                    {dueDays === null ? (
+                                                        '—'
+                                                    ) : dueDays >= 0 ? (
+                                                        <span className="text-emerald-600">vence en {dueDays} d</span>
+                                                    ) : (
+                                                        <span className="text-rose-600">vencida {Math.abs(dueDays)} d</span>
+                                                    )}
+                                                </td>
+                                                <td className="p-4 text-right tabular-nums text-slate-700">{formatCurrency(inv.total_amount)}</td>
+                                                <td className="p-4 text-right tabular-nums text-emerald-700">{formatCurrency(abonado)}</td>
                                                 <td className={`p-4 text-right font-black text-lg ${theme.textTitle}`}>
                                                     {formatCurrency(inv.outstanding_balance)}
                                                 </td>
