@@ -1726,6 +1726,108 @@ def list_pending_cxc(session: Session = Depends(get_session),
     return result
 
 
+@router.get("/invoices/cxc-report", response_model=list)
+def cxc_report(
+    client_id: Optional[int] = Query(None),
+    date_from: Optional[str] = Query(None),   # ISO 'YYYY-MM-DD'
+    date_to: Optional[str] = Query(None),
+    include_paid: bool = Query(False),
+    only_cancelled: bool = Query(False),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Reporte de Cuentas por Cobrar. Lista plana (el front agrupa por cliente).
+    - Normal (default): PENDING (pendientes + parciales, saldo > 0).
+    - include_paid: agrega PAID (histórico).
+    - only_cancelled: SOLO canceladas (ignora los otros estados).
+    Filtros combinables: client_id, rango de fechas (sobre invoice_date).
+    """
+    from datetime import datetime as _dt
+
+    if only_cancelled:
+        estados = [CXCStatus.CANCELLED]
+    elif include_paid:
+        estados = [CXCStatus.PENDING, CXCStatus.PAID]
+    else:
+        estados = [CXCStatus.PENDING]
+
+    stmt = select(CustomerPayment).where(CustomerPayment.status.in_(estados))
+
+    if date_from:
+        try:
+            df = _dt.fromisoformat(date_from)
+            stmt = stmt.where(CustomerPayment.invoice_date >= df)
+        except ValueError:
+            raise HTTPException(400, "date_from inválida (usa YYYY-MM-DD)")
+    if date_to:
+        try:
+            dt_to = _dt.fromisoformat(date_to)
+            stmt = stmt.where(CustomerPayment.invoice_date <= dt_to.replace(hour=23, minute=59, second=59))
+        except ValueError:
+            raise HTTPException(400, "date_to inválida (usa YYYY-MM-DD)")
+
+    stmt = stmt.order_by(CustomerPayment.invoice_date.asc())
+    rows = session.exec(stmt).all()
+
+    result = []
+    ahora = _dt.utcnow()
+    for cxc in rows:
+        order = session.get(SalesOrder, cxc.sales_order_id)
+
+        cli = None
+        if order and order.client_id:
+            cli = session.get(Client, order.client_id)
+        if client_id is not None:
+            if not order or order.client_id != client_id:
+                continue
+
+        abonado = session.exec(
+            select(func.coalesce(func.sum(CustomerPaymentInstallment.amount), 0.0)).where(
+                CustomerPaymentInstallment.customer_payment_id == cxc.id
+            )
+        ).one()
+        abonado = round(float(abonado or 0.0), 2)
+        monto = round(float(cxc.amount or 0.0), 2)
+        saldo = round(monto - abonado, 2)
+
+        if not include_paid and not only_cancelled and saldo <= 0.01:
+            continue
+
+        if cxc.status == CXCStatus.CANCELLED:
+            estado = "CANCELADA"
+        elif cxc.status == CXCStatus.PAID or saldo <= 0.01:
+            estado = "PAGADA"
+        elif abonado > 0:
+            estado = "PARCIAL"
+        else:
+            estado = "PENDIENTE"
+
+        antiguedad = None
+        if cxc.invoice_date:
+            antiguedad = (ahora - cxc.invoice_date).days
+
+        result.append({
+            "cxc_id": cxc.id,
+            "invoice_folio": cxc.invoice_folio,
+            "invoice_date": cxc.invoice_date.isoformat() if cxc.invoice_date else None,
+            "payment_type": cxc.payment_type,
+            "client_id": order.client_id if order else None,
+            "client_name": cli.full_name if cli else "—",
+            "project_name": order.project_name if order else None,
+            "sales_order_id": cxc.sales_order_id,
+            "monto": monto,
+            "abonado": abonado,
+            "saldo": saldo,
+            "estado": estado,
+            "antiguedad_dias": antiguedad,
+            "payment_date": cxc.payment_date.isoformat() if cxc.payment_date else None,
+            "treasury_transaction_id": getattr(cxc, "treasury_transaction_id", None),
+        })
+
+    return result
+
+
 @router.get("/orders/pending-progress")
 def get_pending_progress_instances(
     session: Session = Depends(get_session),
