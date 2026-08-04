@@ -302,6 +302,23 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
         }
     });
 
+    const groupedByProvider = useMemo(() => {
+        const groups: { providerName: string; invoices: PendingInvoice[]; subtotal: number }[] = [];
+        const indexByName = new Map<string, number>();
+        for (const inv of sortedFilteredData) {
+            const name = inv.provider_name || '—';
+            let idx = indexByName.get(name);
+            if (idx === undefined) {
+                idx = groups.length;
+                indexByName.set(name, idx);
+                groups.push({ providerName: name, invoices: [], subtotal: 0 });
+            }
+            groups[idx].invoices.push(inv);
+            groups[idx].subtotal += inv.outstanding_balance || 0;
+        }
+        return groups;
+    }, [sortedFilteredData]);
+
     const totalAllCount = invoices.length;
     const totalAllAmount = invoices.reduce((sum, inv) => sum + inv.outstanding_balance, 0);
 
@@ -496,7 +513,6 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                             <table className="w-full text-sm text-left border-collapse">
                                 <thead className={`text-xs text-slate-600 uppercase tracking-wider ${theme.bgLight} border-b ${theme.border} font-black`}>
                                     <tr>
-                                        {renderSortableHeader('Proveedor', 'provider_name')}
                                         {renderSortableHeader('Factura', 'invoice_number')}
                                         {renderSortableHeader('Vencimiento', 'due_date')}
                                         {renderSortableHeader('Saldo Deuda', 'outstanding_balance', 'right')}
@@ -505,10 +521,17 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
                                     {isFinanceLoading ? (
-                                        <tr><td colSpan={5} className="text-center py-12 text-slate-400 font-bold">Cargando desglose...</td></tr>
+                                        <tr><td colSpan={4} className="text-center py-12 text-slate-400 font-bold">Cargando desglose...</td></tr>
                                     ) : filteredData.length === 0 ? (
-                                        <tr><td colSpan={5} className="text-center py-12 text-slate-400 italic font-medium">No hay facturas pendientes en esta categoría.</td></tr>
-                                    ) : sortedFilteredData.map(inv => {
+                                        <tr><td colSpan={4} className="text-center py-12 text-slate-400 italic font-medium">No hay facturas pendientes en esta categoría.</td></tr>
+                                    ) : groupedByProvider.map((group) => (
+                                        <React.Fragment key={group.providerName}>
+                                            <tr className="bg-indigo-50">
+                                                <td colSpan={2} className="p-3 font-black text-indigo-800">{group.providerName}</td>
+                                                <td className="p-3 text-right font-black text-indigo-800">{formatCurrency(group.subtotal)}</td>
+                                                <td className="p-3" />
+                                            </tr>
+                                            {group.invoices.map((inv) => {
                                         // Ahora solo nos interesa saber si hay alguna solicitud activa para cambiar a Ámbar. Nada de verdes.
                                         const pendingReqForInv = sentRequests.filter(req => req.invoice_folio === inv.invoice_number && req.provider_name === inv.provider_name);
                                         const approvedReqForInv = approvedRequests.filter(req => req.invoice_folio === inv.invoice_number && req.provider_name === inv.provider_name);
@@ -517,7 +540,6 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                         
                                         return (
                                             <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
-                                                <td className="p-4 font-bold text-slate-800">{inv.provider_name}</td>
                                                 <td className="p-4">
                                                     <button 
                                                         onClick={() => setViewingInvoice(inv)}
@@ -581,6 +603,8 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                             </tr>
                                         )
                                     })}
+                                        </React.Fragment>
+                                    ))}
                                 </tbody>
                             </table>
                         </div>
