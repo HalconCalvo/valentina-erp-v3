@@ -690,7 +690,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                                                 className={`${theme.btnAction} font-bold shadow-sm transition-colors`} 
                                                                 onClick={() => setSelectedInvoice(inv)}
                                                             >
-                                                                <CheckCircle2 size={16} className="mr-1"/> {isChecker ? 'Ejecutar Directo' : 'Se Solicita Pago'}
+                                                                <CheckCircle2 size={16} className="mr-1"/> {isChecker ? 'Pagar' : 'Se Solicita Pago'}
                                                             </Button>
                                                         )}
                                                         {isChecker && (
