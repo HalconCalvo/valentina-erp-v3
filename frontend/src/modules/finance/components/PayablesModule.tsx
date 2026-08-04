@@ -231,6 +231,14 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
         return list;
     }, [cardFilteredInvoices, filterProvider, filterDateFrom, filterDateTo]);
 
+    const reportMetrics = useMemo(() => {
+        const count = doublyFiltered.length;
+        const totalFacturado = doublyFiltered.reduce((s, inv) => s + (inv.total_amount || 0), 0);
+        const totalSaldo = doublyFiltered.reduce((s, inv) => s + (inv.outstanding_balance || 0), 0);
+        const totalAbonado = totalFacturado - totalSaldo;
+        return { count, totalFacturado, totalAbonado, totalSaldo };
+    }, [doublyFiltered]);
+
     const formatCurrency = (amount: number) => amount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
     const formatDate = (dateStr: string) => {
         if (!dateStr) return "-";
@@ -571,6 +579,24 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                         className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
                                     />
                                 </div>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 px-4 py-4 bg-white border-b border-slate-100">
+                            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Facturas vivas</p>
+                                <p className="text-2xl font-black text-indigo-700 tabular-nums mt-1">{reportMetrics.count}</p>
+                            </div>
+                            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Total facturado</p>
+                                <p className="text-2xl font-black text-slate-800 tabular-nums mt-1">{formatCurrency(reportMetrics.totalFacturado)}</p>
+                            </div>
+                            <div className="bg-emerald-50/60 border border-emerald-100 rounded-xl p-4">
+                                <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-700">Abonado</p>
+                                <p className="text-2xl font-black text-emerald-700 tabular-nums mt-1">{formatCurrency(reportMetrics.totalAbonado)}</p>
+                            </div>
+                            <div className="bg-amber-50/60 border border-amber-100 rounded-xl p-4">
+                                <p className="text-[11px] font-bold uppercase tracking-wide text-amber-800">Saldo por pagar</p>
+                                <p className="text-2xl font-black text-amber-800 tabular-nums mt-1">{formatCurrency(reportMetrics.totalSaldo)}</p>
                             </div>
                         </div>
                         <div className="overflow-x-auto">
