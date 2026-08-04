@@ -243,7 +243,7 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
     return (
         <div className="relative animate-fadeIn">
             {activeFilter === null ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 animate-in fade-in duration-300">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 animate-in fade-in duration-300">
                     
                     <div className="w-full relative">
                         <Card onClick={() => setActiveFilter('ADVANCES')} className="p-6 border-l-4 border-l-amber-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-all hover:shadow-lg hover:-translate-y-1">
