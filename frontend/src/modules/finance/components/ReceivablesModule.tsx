@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, FileText, Lock, Unlock, ChevronDown, BadgeDollarSign, FileSearch, ArrowUpDown, ArrowUp, ArrowDown, Layers, Clock } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, FileText, Lock, Unlock, ChevronDown, BadgeDollarSign, FileSearch, ArrowUpDown, ArrowUp, ArrowDown, Layers, Clock, Wallet } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { salesService } from '../../../api/sales-service';
 import { InvoicingRightsRead, SalesOrder } from '../../../types/sales';
@@ -243,7 +243,7 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
     return (
         <div className="relative animate-fadeIn">
             {activeFilter === null ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-in fade-in duration-300">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 animate-in fade-in duration-300">
                     
                     <div className="w-full relative">
                         <Card onClick={() => setActiveFilter('ADVANCES')} className="p-6 border-l-4 border-l-amber-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-all hover:shadow-lg hover:-translate-y-1">
@@ -289,6 +289,22 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
                             <div className="ml-16 h-full flex flex-col justify-between">
                                 <div><h4 className="font-bold text-indigo-800 flex items-center gap-2"><Layers size={18} className="text-indigo-500"/> D. Visor de OV</h4><p className="text-sm text-slate-500 mt-2 mb-4">OV activas — pendiente de facturar.</p></div>
                                 <div className="text-lg font-black text-indigo-600 text-right tracking-tight">{formatCurrency(allVal)}</div>
+                            </div>
+                        </Card>
+                    </div>
+
+                    <div className="w-full relative">
+                        <Card onClick={() => navigate('/finance/cxc-report', { state: { returnTo: financeReturnPath } })} className="p-6 border-l-4 border-l-rose-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-all hover:shadow-lg hover:-translate-y-1">
+                            <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-rose-50 text-rose-700 border-r border-rose-100 font-black group-hover:bg-rose-100 transition-colors ${getCountSize(pendingInvoices.length)}`}>
+                                {pendingInvoices.length}
+                            </div>
+                            <div className="ml-16 h-full flex flex-col justify-between">
+                                <div>
+                                    <h4 className="font-bold text-rose-800 flex items-center gap-2">
+                                        <Wallet size={18} className="text-rose-500" /> E. Cobranza
+                                    </h4>
+                                    <p className="text-sm text-slate-500 mt-2 mb-4">Cuentas por cobrar pendientes</p>
+                                </div>
                             </div>
                         </Card>
                     </div>

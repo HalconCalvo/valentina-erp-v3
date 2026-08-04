@@ -45,6 +45,7 @@ import AgingReportPage from './modules/finance/pages/AgingReportPage';
 import PendingToInvoicePage from './modules/finance/pages/PendingToInvoicePage';
 import SupplierPaymentsReportPage from './modules/finance/pages/SupplierPaymentsReportPage';
 import ProviderStatementPage from './modules/finance/pages/ProviderStatementPage';
+import CxcReportPage from './modules/finance/pages/CxcReportPage';
 
 // 9. PRODUCCIÓN (¡NUEVO V3.5!)
 import FactoryFloorPage from './modules/production/pages/FactoryFloorPage';
@@ -120,6 +121,7 @@ function AppRoutes() {
         <Route path="/finance" element={<Navigate to="/finance/aging" replace />} />
         <Route path="/finance/aging" element={<AgingReportPage key={key} />} />
         <Route path="/finance/pending-invoices" element={<PendingToInvoicePage key={key} />} />
+        <Route path="/finance/cxc-report" element={<CxcReportPage key={key} />} />
         <Route path="/finance/supplier-payments" element={<SupplierPaymentsReportPage key={key} />} />
         <Route path="/finance/provider-statement" element={<ProviderStatementPage key={key} />} />
 
