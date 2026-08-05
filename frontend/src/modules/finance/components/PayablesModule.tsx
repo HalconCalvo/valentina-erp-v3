@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { TrendingDown, Clock, CheckCircle2, AlertCircle, AlertTriangle, Calendar, ArrowLeft, Check, Layers, ArrowUpDown, ArrowUp, ArrowDown, XCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { TrendingDown, Clock, CheckCircle2, AlertCircle, AlertTriangle, Calendar, ArrowLeft, Check, Layers, ArrowUpDown, ArrowUp, ArrowDown, XCircle, FileText } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -51,6 +52,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
     dueBucketMode = 'friday_week',
     parentBackSignal = 0,
 }) => {
+    const navigate = useNavigate();
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase().trim();
     const isChecker = ['DIRECTOR', 'GERENCIA'].includes(userRole);
 
@@ -408,7 +410,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
         <div className="space-y-6">
 
             {activeFilter === null ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mt-4">
                     {dueBucketMode === 'calendar' ? (
                         <>
                             <div className="w-full relative">
@@ -531,6 +533,19 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                             </div>
                         </>
                     )}
+                    <div className="w-full relative">
+                        <Card
+                            onClick={() => navigate('/finance/supplier-payments')}
+                            className="p-6 border-l-4 border-l-teal-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl"
+                        >
+                            <div>
+                                <h4 className="font-bold text-teal-800 flex items-center gap-2">
+                                    <FileText size={18} /> Histórico de Pagos a Proveedores
+                                </h4>
+                                <p className="text-sm text-slate-500 mt-2 mb-4">Pagos ya realizados a Proveedores</p>
+                            </div>
+                        </Card>
+                    </div>
                 </div>
             ) : (
                 <div className="space-y-6">
