@@ -194,6 +194,18 @@ def read_purchase_orders(*, db: Session = Depends(get_session), status: str | No
         materials = []
     mat_map = {m.id: m for m in materials}
 
+    # 4. Folios de factura (CxP) por OC en una sola consulta
+    folios_by_po = {}
+    if order_ids:
+        _folio_rows = db.exec(text("""
+            SELECT purchase_order_id,
+                   STRING_AGG(invoice_folio, ', ' ORDER BY invoice_folio) AS folios
+            FROM accounts_payable
+            WHERE purchase_order_id = ANY(:ids) AND invoice_folio IS NOT NULL
+            GROUP BY purchase_order_id
+        """).bindparams(ids=order_ids)).all()
+        folios_by_po = {row[0]: row[1] for row in _folio_rows}
+
     # --- CONSTRUCCIÓN EN MEMORIA (sin db.get/db.exec dentro de los loops) ---
     results = []
     for o in orders:
@@ -231,6 +243,7 @@ def read_purchase_orders(*, db: Session = Depends(get_session), status: str | No
             "authorized_by": getattr(o, 'authorized_by', None),
             "authorized_at": o.authorized_at.isoformat() if getattr(o, 'authorized_at', None) else None,
             "invoice_folio_reported": getattr(o, 'invoice_folio_reported', None),
+            "invoice_folios": folios_by_po.get(o.id),
             "is_advance": getattr(o, 'is_advance', False),
             "invoice_total_reported": getattr(o, 'invoice_total_reported', 0.0)
         })

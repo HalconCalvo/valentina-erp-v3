@@ -237,7 +237,8 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
                             <th className="px-3 py-3 text-left">Proveedor</th>
                             <th className="px-3 py-3 text-center">Partidas</th>
                             <th className="px-3 py-3 text-center">Estado</th>
-                            <th className="px-3 py-3 text-right">Total</th>
+                            <th className="px-3 py-3 text-center">Factura(s)</th>
+                            <th className="px-3 py-3 text-right">Total (c/IVA)</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
@@ -250,10 +251,11 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
                                 <td className="px-3 py-3 text-xs font-bold text-slate-700">{o.provider_name}</td>
                                 <td className="px-3 py-3 text-center text-xs font-black text-slate-600">{(o.items || []).length}</td>
                                 <td className="px-3 py-3 text-center text-[9px] font-black uppercase text-slate-500">{o.status}</td>
-                                <td className="px-3 py-3 text-right text-xs font-black text-slate-800">${Number(o.total_estimated_amount || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+                                <td className="px-3 py-3 text-center text-xs font-mono text-slate-600">{o.invoice_folios || '—'}</td>
+                                <td className="px-3 py-3 text-right text-xs font-black text-slate-800">${Number((o.total_estimated_amount || 0) * 1.16).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
                             </tr>
                         ))}
-                        {filtered.length === 0 && <tr><td colSpan={6} className="text-center text-xs text-slate-400 py-8">Sin órdenes que coincidan.</td></tr>}
+                        {filtered.length === 0 && <tr><td colSpan={7} className="text-center text-xs text-slate-400 py-8">Sin órdenes que coincidan.</td></tr>}
                     </tbody>
                 </table>
             )}
