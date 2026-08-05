@@ -1342,11 +1342,7 @@ def correct_reception_item(*, db: Session = Depends(get_session), po_id: int, it
         ap_ids = list({r.accounts_payable_id for r in pii_rows if r.accounts_payable_id})
         hay_pagos = False
         for _ap_id in ap_ids:
-            _folio_row = db.exec(text("SELECT invoice_folio FROM accounts_payable WHERE id = :i").bindparams(i=_ap_id)).first()
-            _folio = _folio_row[0] if _folio_row else None
-            if not _folio:
-                continue
-            _inv = db.exec(select(PurchaseInvoice).where(PurchaseInvoice.invoice_number == _folio)).first()
+            _inv = db.exec(select(PurchaseInvoice).where(PurchaseInvoice.accounts_payable_id == _ap_id)).first()
             if _inv:
                 _pay = db.exec(select(SupplierPayment).where(SupplierPayment.purchase_invoice_id == _inv.id)).first()
                 if _pay:
@@ -1396,12 +1392,11 @@ def correct_reception_item(*, db: Session = Depends(get_session), po_id: int, it
             else:
                 db.add(r)
         for _ap_id in ap_ids:
-            _row = db.exec(text("SELECT subtotal, tax_rate, total_amount, invoice_folio FROM accounts_payable WHERE id = :i").bindparams(i=_ap_id)).first()
+            _row = db.exec(text("SELECT subtotal, tax_rate, total_amount FROM accounts_payable WHERE id = :i").bindparams(i=_ap_id)).first()
             if not _row:
                 continue
             _sub_actual = float(_row[0] or 0)
             _rate = float(_row[1] or 0.16)
-            _folio = _row[3]
             _nuevo_sub = max(_sub_actual - monto_revertido, 0.0)
             _nuevo_tax = round(_nuevo_sub * _rate, 2)
             _nuevo_total = round(_nuevo_sub + _nuevo_tax, 2)
@@ -1411,12 +1406,11 @@ def correct_reception_item(*, db: Session = Depends(get_session), po_id: int, it
                 SET subtotal = :s, tax_amount = :t, total_amount = :tot, status = :st
                 WHERE id = :i
             """).bindparams(s=round(_nuevo_sub, 2), t=_nuevo_tax, tot=_nuevo_total, st=_nuevo_status, i=_ap_id))
-            if _folio:
-                db.exec(text("""
-                    UPDATE purchase_invoices
-                    SET subtotal = :s, tax_amount = :t, total_amount = :tot
-                    WHERE invoice_number = :f
-                """).bindparams(s=round(_nuevo_sub, 2), t=_nuevo_tax, tot=_nuevo_total, f=_folio))
+            db.exec(text("""
+                UPDATE purchase_invoices
+                SET subtotal = :s, tax_amount = :t, total_amount = :tot
+                WHERE accounts_payable_id = :ap_id
+            """).bindparams(s=round(_nuevo_sub, 2), t=_nuevo_tax, tot=_nuevo_total, ap_id=_ap_id))
             break  # solo la factura más reciente involucrada
 
         # --- 3) Reabrir el renglón en la OC ---
