@@ -460,7 +460,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                     </div>
                                     <div className="ml-16 h-full flex flex-col justify-between">
                                         <div>
-                                            <h4 className="font-bold text-indigo-800 flex items-center gap-2"><Layers size={18} /> 4.4 Todos</h4>
+                                            <h4 className="font-bold text-indigo-800 flex items-center gap-2"><Layers size={18} /> 4.4 Todas las CxP</h4>
                                             <p className="text-sm text-slate-500 mt-2 mb-4">Documentos por pagar</p>
                                         </div>
                                         <div className="text-lg font-black text-indigo-600 text-right tracking-tight">{formatCurrency(totalAllAmount)}</div>
@@ -522,7 +522,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                     </div>
                                     <div className="ml-16 h-full flex flex-col justify-between">
                                         <div>
-                                            <h4 className="font-bold text-indigo-800 flex items-center gap-2"><Layers size={18} /> Todas</h4>
+                                            <h4 className="font-bold text-indigo-800 flex items-center gap-2"><Layers size={18} /> Todas las CxP</h4>
                                             <p className="text-sm text-slate-500 mt-2 mb-4">Archivo Maestro</p>
                                         </div>
                                         <div className="text-lg font-black text-indigo-600 text-right tracking-tight">{formatCurrency(totalAllAmount)}</div>
