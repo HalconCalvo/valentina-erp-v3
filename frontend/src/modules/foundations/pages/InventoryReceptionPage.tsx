@@ -205,6 +205,19 @@ const InventoryReceptionPage: React.FC = () => {
             return;
         }
 
+        // Guard de folio duplicado (Hueco 2)
+        if (folioWarning && folioWarning.length > 0) {
+            const coincidencias = folioWarning
+                .map((c: any) => `OC #${c.purchase_order_id} — ${formatCurrency(c.total)} (${c.status})`)
+                .join('\n');
+            if (!window.confirm(
+                `⚠️ La factura "${invoiceFolio.trim()}" YA está registrada para este proveedor en:\n\n${coincidencias}\n\n` +
+                `Esto puede ser una OC duplicada. ¿Confirmas que es una factura DISTINTA con el mismo folio y deseas continuar?`
+            )) {
+                return;
+            }
+        }
+
         // Validar discrepancia solo al confirmar
         if (hasFinancialWarning) {
             if (!window.confirm(`⚠️ El monto de la factura (${formatCurrency(Number(invoiceTotal))}) no coincide con el calculado (${formatCurrency(expectedTotal)}).\n\n¿Deseas confirmar el ingreso de todas formas? Administración revisará la diferencia.`)) {
