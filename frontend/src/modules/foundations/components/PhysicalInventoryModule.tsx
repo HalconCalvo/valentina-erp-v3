@@ -97,7 +97,7 @@ export const PhysicalInventoryModule = ({ activeSubSection, onSubSectionChange }
   };
 
   const handlePrint = () => {
-    const rows = filtered.map(m =>
+    const rows = sorted.map(m =>
       `<tr>
         <td style="padding:6px 8px;border:1px solid #ddd;font-family:monospace;font-size:11px">${m.sku}</td>
         <td style="padding:6px 8px;border:1px solid #ddd;font-size:12px">${m.name}</td>
@@ -110,7 +110,7 @@ export const PhysicalInventoryModule = ({ activeSubSection, onSubSectionChange }
       <style>body{font-family:Arial,sans-serif;padding:20px}h2{font-size:16px}table{width:100%;border-collapse:collapse}th{background:#f1f5f9;padding:6px 8px;border:1px solid #ddd;font-size:11px;text-align:left}</style>
       </head><body>
       <h2>📋 Reporte de Inventario Físico — ${new Date().toLocaleDateString('es-MX', { day:'2-digit', month:'long', year:'numeric' })}</h2>
-      <p style="font-size:11px;color:#666">Categoría: ${categoryFilter === 'ALL' ? 'Todas' : categoryFilter} · Total materiales: ${filtered.length}</p>
+      <p style="font-size:11px;color:#666">Categoría: ${categoryFilter === 'ALL' ? 'Todas' : categoryFilter} · Total materiales: ${sorted.length}</p>
       <table><thead><tr>
         <th>SKU</th><th>Material</th><th>Categoría</th><th>Unidad de Uso</th><th>Cantidad Física</th>
       </tr></thead><tbody>${rows}</tbody></table>
