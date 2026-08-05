@@ -617,6 +617,7 @@ def get_pending_invoices(session: SessionDep) -> Any:
             provider_name=prov.business_name if prov else "Prov.",
             invoice_number=clean_invoice_folio(inv.invoice_number),
             due_date=inv.due_date,
+            issue_date=inv.issue_date,
             total_amount=inv.total_amount,
             outstanding_balance=inv.outstanding_balance,
             items=items_list,

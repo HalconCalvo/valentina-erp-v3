@@ -220,13 +220,13 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
         }
         if (filterDateFrom) {
             list = list.filter((inv) => {
-                const d = (inv.due_date || '').slice(0, 10);
+                const d = (inv.issue_date || '').slice(0, 10);
                 return d && d >= filterDateFrom;
             });
         }
         if (filterDateTo) {
             list = list.filter((inv) => {
-                const d = (inv.due_date || '').slice(0, 10);
+                const d = (inv.issue_date || '').slice(0, 10);
                 return d && d <= filterDateTo;
             });
         }
@@ -577,7 +577,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1">Vence desde</label>
+                                    <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1">Compras Desde</label>
                                     <input
                                         type="date"
                                         value={filterDateFrom}
@@ -586,7 +586,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1">Vence hasta</label>
+                                    <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1">Compras Hasta</label>
                                     <input
                                         type="date"
                                         value={filterDateTo}

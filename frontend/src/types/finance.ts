@@ -27,6 +27,7 @@ export interface PendingInvoice {
     provider_name: string;
     invoice_number: string;
     due_date: string; // Viene como string "YYYY-MM-DD" del backend
+    issue_date: string; // fecha de compra "YYYY-MM-DD"
     total_amount: number;
     outstanding_balance: number;
     items?: { description: string; qty: number; price: number }[];

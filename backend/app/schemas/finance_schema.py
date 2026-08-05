@@ -65,7 +65,8 @@ class PendingInvoiceRead(SQLModel):
     id: int
     provider_name: str
     invoice_number: str
-    due_date: date 
+    due_date: date
+    issue_date: date
     total_amount: float
     outstanding_balance: float
     # 🔍 DETALLE DE PRODUCTOS (DRILL-DOWN)
