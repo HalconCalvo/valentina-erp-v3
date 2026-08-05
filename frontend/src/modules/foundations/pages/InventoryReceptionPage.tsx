@@ -477,7 +477,24 @@ const InventoryReceptionPage: React.FC = () => {
         <>
         <div className="animate-in slide-in-from-right-4 duration-300 pb-10">
             <div className="bg-white rounded-3xl border border-emerald-200 shadow-md overflow-hidden border-t-8 border-t-emerald-500">
-                <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center bg-emerald-50/30 gap-6">
+                <div className="p-6 border-b border-slate-100 flex flex-col gap-4 bg-emerald-50/30">
+                    <div className="bg-blue-50 border-2 border-blue-300 rounded-xl px-5 py-4 flex items-center gap-4">
+                        <div className="p-2 rounded-lg bg-blue-100 text-blue-600 shrink-0">
+                            <Truck size={28} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-blue-500">Estás recibiendo una factura de</p>
+                            <h2 className="text-2xl font-black text-blue-900 uppercase leading-tight truncate">{selectedPO.provider_name}</h2>
+                            <p className="text-xs font-bold text-slate-500 mt-0.5">OC: {selectedPO.folio}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                            <p className="text-[11px] font-black uppercase text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                                ⚠️ Verifica que la factura física<br/>sea de ESTE proveedor
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div className="flex items-center gap-5">
                         <Button 
                             onClick={() => setSelectedPO(null)} 
@@ -538,6 +555,7 @@ const InventoryReceptionPage: React.FC = () => {
                                 />
                             </div>
                         </div>
+                    </div>
                     </div>
                 </div>
 
