@@ -690,6 +690,7 @@ const SalesDashboardPage: React.FC = () => {
                                     </td>
                                 )}
                                 <td className="px-6 py-4 flex justify-center items-center gap-2">
+                                    <Button variant="outline" size="sm" className="text-xs px-3" onClick={() => navigate(`/sales/edit/${order.id}`)}>Editar</Button>
                                     <Button variant="outline" size="sm" className="text-xs px-3" onClick={() => setViewingOrderIdForFormat(order.id!)}>Ver Formato</Button>
                                     <Button variant="outline" size="sm" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 px-2" onClick={() => handleViewPDF(order.id!)} title="Descargar PDF">
                                         <FileDown size={14} />
@@ -753,6 +754,7 @@ const SalesDashboardPage: React.FC = () => {
                                     <td className="px-6 py-4 text-right text-slate-500">{formatCurrency(total)}</td>
                                     <td className="px-6 py-4 text-right font-black text-indigo-600">{formatCurrency(highlightValue)}</td>
                                     <td className="px-6 py-4 flex justify-center items-center gap-2">
+                                        <Button variant="outline" size="sm" className="text-xs px-3" onClick={() => navigate(`/sales/edit/${order.id}`)}>Editar</Button>
                                         <Button variant="outline" size="sm" className="text-xs px-3" onClick={() => setViewingOrderIdForFormat(order.id!)}>Ver Formato</Button>
                                         <Button variant="outline" size="sm" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 px-2" onClick={() => handleViewPDF(order.id!)} title="Descargar PDF">
                                             <FileDown size={14} />
