@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { X, Receipt, CheckCircle, Clock, FileText, Package, AlertCircle, PieChart, Users, Coins, Pencil, Plus, Trash2, Check } from 'lucide-react';
 import { SalesOrder } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
@@ -106,6 +107,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     onOrderPatch,
     readOnly = false,
 }) => {
+    const navigate = useNavigate();
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase();
     const canEditOcInRayos = !readOnly && ['ADMIN', 'ADMINISTRADOR', 'GERENCIA', 'DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
     const canEditProjectName = ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'GERENCIA', 'SALES', 'VENTAS'].includes(userRole);
@@ -521,6 +523,13 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                 <Plus size={14} /> Ampliar Orden
                             </button>
                         )}
+                        <button
+                            type="button"
+                            onClick={() => { onClose(); navigate(`/sales/edit/${order.id}`); }}
+                            className="flex items-center gap-1 px-3 py-1.5 text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors"
+                        >
+                            <Pencil size={14} /> Editar OV
+                        </button>
                         <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors">
                             <X size={20} />
                         </button>

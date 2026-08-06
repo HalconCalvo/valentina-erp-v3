@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { 
     FileDown, Calendar, User, FileText, Hash, 
     ClipboardList, Info, Percent, ShieldAlert, Lock, Unlock, Save, Tag, Pencil, Plus
@@ -29,7 +28,6 @@ function daysOpenForCxc(cxc: CustomerPayment): number | null {
 }
 
 export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => {
-    const navigate = useNavigate();
     const [order, setOrder] = useState<SalesOrder | null>(null);
     const [loading, setLoading] = useState(false);
     
@@ -528,14 +526,6 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                                     <Plus size={13} /> Ampliar Orden
                                 </button>
                             )}
-                            <button
-                                type="button"
-                                onClick={() => { onClose(); navigate(`/sales/edit/${orderId}`); }}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 transition-colors"
-                                title="Editar la OV (corregir tasa de IVA, datos, etc.)"
-                            >
-                                <Pencil size={13} /> Editar OV
-                            </button>
                         </div>
                         
                         <div className="flex gap-3">
