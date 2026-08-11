@@ -1,7 +1,7 @@
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 from sqlmodel import SQLModel
-from app.models.finance import PaymentStatus, PaymentMethod
+from app.models.finance import PaymentStatus, PaymentMethod, CreditNoteType
 
 # --- INPUTS ---
 class PaymentRequestCreate(SQLModel):
@@ -74,3 +74,27 @@ class PendingInvoiceRead(SQLModel):
     items: Optional[List[Dict[str, Any]]] = []
     po_folio: Optional[str] = None
     authorized_by: Optional[str] = None
+
+class CreditNoteCreate(SQLModel):
+    purchase_invoice_id: int
+    folio: str
+    credit_type: CreditNoteType = CreditNoteType.PRICE_ADJUSTMENT
+    total_amount: float
+    tax_rate: float = 0.16
+    reason: Optional[str] = None
+
+class CreditNoteRead(SQLModel):
+    id: int
+    purchase_invoice_id: int
+    accounts_payable_id: Optional[int] = None
+    provider_id: int
+    folio: str
+    credit_type: str
+    subtotal: float
+    tax_rate: float
+    tax_amount: float
+    total_amount: float
+    reason: Optional[str] = None
+    status: str
+    created_at: datetime
+    new_outstanding_balance: Optional[float] = None   # saldo de la factura tras la NC

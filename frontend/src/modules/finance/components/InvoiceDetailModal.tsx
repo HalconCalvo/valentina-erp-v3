@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PackageCheck, X } from 'lucide-react';
+import { PackageCheck, X, FileMinus } from 'lucide-react';
 import { PendingInvoice } from '../../../types/finance';
 import client from '../../../api/axios-client';
 
@@ -9,6 +9,18 @@ interface InvoiceDetailModalProps {
 }
 
 export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice, onClose }) => {
+    const userRole = (localStorage.getItem('user_role') || '').toUpperCase().trim();
+    const canCreateNC = ['ADMIN','ADMINISTRACION','ADMINISTRADOR','GERENCIA','DIRECTOR','DIRECCION'].includes(userRole);
+
+    const [localOutstanding, setLocalOutstanding] = useState<number>(Number(invoice.outstanding_balance) || 0);
+    const [showNCForm, setShowNCForm] = useState(false);
+    const [ncType, setNcType] = useState('PRICE_ADJUSTMENT');
+    const [ncFolio, setNcFolio] = useState('');
+    const [ncAmount, setNcAmount] = useState('');
+    const [ncTaxRate, setNcTaxRate] = useState(0.16);
+    const [ncReason, setNcReason] = useState('');
+    const [savingNC, setSavingNC] = useState(false);
+
     const [items, setItems] = useState<any[]>(invoice.items || []);
     const [isLoading, setIsLoading] = useState(!invoice.items || invoice.items.length === 0);
 
@@ -84,8 +96,38 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
         fetchItems();
     }, [invoice]);
 
+    const ncAmountNum = Number(ncAmount) || 0;
+    const nuevoSaldoNC = localOutstanding - ncAmountNum;
+    const ncExcede = ncAmountNum > localOutstanding;
+
+    const handleCreateNC = async () => {
+        if (!ncFolio.trim()) { alert('Ingresa el folio de la Nota de Crédito.'); return; }
+        if (ncAmountNum <= 0) { alert('El monto debe ser mayor a cero.'); return; }
+        if (ncExcede) { alert('La NC no puede exceder el saldo pendiente.'); return; }
+        setSavingNC(true);
+        try {
+            const res = await client.post('/finance/credit-notes', {
+                purchase_invoice_id: invoice.id,
+                folio: ncFolio.trim(),
+                credit_type: ncType,
+                total_amount: ncAmountNum,
+                tax_rate: ncTaxRate,
+                reason: ncReason.trim() || null,
+            });
+            const nuevoSaldo = res.data?.new_outstanding_balance ?? nuevoSaldoNC;
+            setLocalOutstanding(nuevoSaldo);
+            setShowNCForm(false);
+            setNcFolio(''); setNcAmount(''); setNcReason('');
+            alert(`✅ Nota de Crédito registrada. Nuevo saldo de la factura: $${Number(nuevoSaldo).toLocaleString('es-MX', {minimumFractionDigits: 2})}`);
+        } catch (e: any) {
+            alert(e?.response?.data?.detail || 'No se pudo registrar la Nota de Crédito.');
+        } finally {
+            setSavingNC(false);
+        }
+    };
+
     // Cierre A: el pie refleja el SALDO VIVO de la factura (= cascada de CxP), no la suma del desglose.
-    const displayTotal = invoice.outstanding_balance || 0;
+    const displayTotal = localOutstanding;
     const displaySubtotal = displayTotal / 1.16;
     const displayIva = displaySubtotal * 0.16;
 
@@ -172,12 +214,70 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                     )}
                 </div>
 
+                {showNCForm && (
+                    <div className="px-8 py-5 bg-amber-50 border-t-2 border-amber-200">
+                        <h4 className="text-sm font-black uppercase text-amber-800 mb-3 flex items-center gap-2">
+                            <FileMinus size={16} /> Registrar Nota de Crédito
+                        </h4>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-500">Tipo</label>
+                                <select value={ncType} onChange={e => setNcType(e.target.value)} className="w-full p-2 border border-slate-300 rounded text-sm font-bold">
+                                    <option value="PRICE_ADJUSTMENT">Ajuste de precio</option>
+                                    <option value="RETURN">Devolución</option>
+                                    <option value="DISCOUNT">Descuento</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-500">Folio de la NC *</label>
+                                <input value={ncFolio} onChange={e => setNcFolio(e.target.value)} className="w-full p-2 border border-slate-300 rounded text-sm font-bold" placeholder="Folio fiscal" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-500">Monto total (c/IVA) *</label>
+                                <input type="number" value={ncAmount} onChange={e => setNcAmount(e.target.value)} className={`w-full p-2 border rounded text-sm font-bold ${ncExcede ? 'border-red-400 bg-red-50' : 'border-slate-300'}`} placeholder="0.00" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-500">Tasa IVA</label>
+                                <select value={ncTaxRate} onChange={e => setNcTaxRate(Number(e.target.value))} className="w-full p-2 border border-slate-300 rounded text-sm font-bold">
+                                    <option value={0.16}>16%</option>
+                                    <option value={0.08}>8%</option>
+                                    <option value={0}>0% (Tasa Cero)</option>
+                                </select>
+                            </div>
+                            <div className="col-span-2">
+                                <label className="text-[10px] font-black uppercase text-slate-500">Motivo</label>
+                                <input value={ncReason} onChange={e => setNcReason(e.target.value)} className="w-full p-2 border border-slate-300 rounded text-sm" placeholder="Ej. Ajuste de precio pactado" />
+                            </div>
+                        </div>
+                        <div className="flex justify-between items-center mt-4">
+                            <div className="text-sm font-black">
+                                Nuevo saldo:{' '}
+                                <span className={ncExcede ? 'text-red-600' : 'text-emerald-600'}>
+                                    ${nuevoSaldoNC.toLocaleString('es-MX', {minimumFractionDigits: 2})}
+                                </span>
+                                {ncExcede && <span className="text-red-600 text-[10px] ml-2 uppercase font-black">Excede el saldo</span>}
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={() => setShowNCForm(false)} className="px-4 py-2 text-xs font-black uppercase text-slate-500 border border-slate-300 rounded">Cancelar</button>
+                                <button onClick={handleCreateNC} disabled={savingNC || ncExcede} className="px-4 py-2 text-xs font-black uppercase text-white bg-amber-600 hover:bg-amber-700 rounded disabled:opacity-50">
+                                    {savingNC ? 'Guardando...' : 'Registrar NC'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* PIE - TOTALES CLONADOS */}
                 <div className="p-8 bg-slate-50/50 flex justify-between items-center border-t border-slate-100">
                     <div className="flex gap-4">
                         <button onClick={onClose} className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-800 font-black uppercase text-xs h-12 px-10 shadow-sm rounded-lg transition-colors">
                             Cerrar Vista
                         </button>
+                        {canCreateNC && (
+                            <button onClick={() => setShowNCForm(v => !v)} className="bg-amber-600 hover:bg-amber-700 text-white font-black uppercase text-xs h-12 px-8 shadow-sm rounded-lg transition-colors flex items-center gap-2">
+                                <FileMinus size={16} /> {showNCForm ? 'Ocultar NC' : 'Registrar NC'}
+                            </button>
+                        )}
                     </div>
                     <div className="w-80 space-y-1 pr-14">
                         <div className="flex justify-between items-center text-slate-500">

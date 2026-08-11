@@ -9,7 +9,9 @@ from app.models.finance import (
     PaymentStatus, 
     PurchaseInvoice, 
     InvoiceStatus, 
-    PaymentMethod
+    PaymentMethod,
+    CreditNote,
+    CreditNoteStatus,
 )
 from app.models.foundations import Provider
 from app.models.treasury import BankAccount, BankTransaction, TransactionType
@@ -20,7 +22,9 @@ from app.schemas.finance_schema import (
     PaymentApprovalUpdate, 
     SupplierPaymentRead, 
     PendingInvoiceRead,
-    AccountsPayableDashboardStats
+    AccountsPayableDashboardStats,
+    CreditNoteCreate,
+    CreditNoteRead,
 )
 
 router = APIRouter()
@@ -677,4 +681,68 @@ def get_invoice_received_items(purchase_invoice_id: int, session: SessionDep) ->
             "accounts_payable_id": r[6],
             "line_total": float(r[2] or 0) * float(r[3] or 0),
         })
+    return result
+
+
+@router.post("/credit-notes", response_model=CreditNoteRead)
+def create_credit_note(
+    *,
+    session: SessionDep,
+    current_user: CurrentUser,
+    data: CreditNoteCreate,
+):
+    # 1. Validar rol
+    allowed = ["ADMIN", "ADMINISTRACION", "ADMINISTRADOR", "GERENCIA", "DIRECTOR", "DIRECCION"]
+    if current_user.role.upper() not in allowed:
+        raise HTTPException(status_code=403, detail="No tienes permiso para registrar Notas de Credito.")
+
+    # 2. Cargar la factura
+    invoice = session.get(PurchaseInvoice, data.purchase_invoice_id)
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Factura no encontrada.")
+
+    # 3-4. Validar monto
+    if data.total_amount <= 0:
+        raise HTTPException(status_code=400, detail="El monto de la NC debe ser mayor a cero.")
+    saldo_actual = float(invoice.outstanding_balance or 0)
+    if round(data.total_amount, 2) > round(saldo_actual, 2):
+        raise HTTPException(status_code=400, detail=f"La NC (${data.total_amount:,.2f}) no puede exceder el saldo pendiente (${saldo_actual:,.2f}).")
+
+    # 5. Derivar subtotal/IVA del total
+    rate = float(data.tax_rate or 0.16)
+    subtotal = round(data.total_amount / (1 + rate), 2)
+    tax_amount = round(data.total_amount - subtotal, 2)
+
+    # 6. Crear la NC
+    nc = CreditNote(
+        purchase_invoice_id=invoice.id,
+        accounts_payable_id=invoice.accounts_payable_id,
+        provider_id=invoice.provider_id,
+        folio=data.folio,
+        credit_type=data.credit_type,
+        subtotal=subtotal,
+        tax_rate=rate,
+        tax_amount=tax_amount,
+        total_amount=round(data.total_amount, 2),
+        reason=data.reason,
+        status=CreditNoteStatus.ACTIVE,
+        created_by=current_user.id,
+    )
+    session.add(nc)
+
+    # 7. Reducir el saldo vivo de la factura
+    nuevo_saldo = round(saldo_actual - data.total_amount, 2)
+    invoice.outstanding_balance = nuevo_saldo
+
+    # 8. Si queda saldada, marcar PAID
+    if nuevo_saldo <= 0.01:
+        invoice.status = InvoiceStatus.PAID
+
+    session.add(invoice)
+    session.commit()
+    session.refresh(nc)
+
+    # 9. Respuesta con el nuevo saldo
+    result = CreditNoteRead.model_validate(nc, from_attributes=True) if hasattr(CreditNoteRead, "model_validate") else CreditNoteRead(**nc.dict())
+    result.new_outstanding_balance = nuevo_saldo
     return result

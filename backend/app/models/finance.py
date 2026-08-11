@@ -29,6 +29,15 @@ class PaymentMethod(str, Enum):
     CREDIT_CARD = "CREDIT_CARD"
     OTHER = "OTHER"
 
+class CreditNoteType(str, Enum):
+    PRICE_ADJUSTMENT = "PRICE_ADJUSTMENT"   # Ajuste de precio (facturaron de mas)
+    RETURN = "RETURN"                       # Devolucion de mercancia
+    DISCOUNT = "DISCOUNT"                    # Descuento post-factura
+
+class CreditNoteStatus(str, Enum):
+    ACTIVE = "ACTIVE"         # Vigente, aplicada al saldo
+    CANCELLED = "CANCELLED"   # Anulada
+
 # --- 1. FACTURA DE COMPRA (La Deuda) ---
 class PurchaseInvoice(SQLModel, table=True):
     __tablename__ = "purchase_invoices"
@@ -57,6 +66,35 @@ class PurchaseInvoice(SQLModel, table=True):
 
     # Relaciones
     payments: List["SupplierPayment"] = Relationship(back_populates="invoice")
+
+# --- NOTA DE CREDITO (ajuste sobre una factura de compra) ---
+class CreditNote(SQLModel, table=True):
+    __tablename__ = "credit_notes"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    # A que factura afecta (la fuente de verdad con el saldo vivo)
+    purchase_invoice_id: int = Field(foreign_key="purchase_invoices.id", index=True)
+    # Trazabilidad con la CxP
+    accounts_payable_id: Optional[int] = Field(default=None, foreign_key="accounts_payable.id")
+    provider_id: int = Field(foreign_key="providers.id")
+
+    # Documento fiscal
+    folio: str                              # folio de la NC del proveedor
+    uuid_sat: Optional[str] = None
+    credit_type: CreditNoteType = Field(default=CreditNoteType.PRICE_ADJUSTMENT)
+
+    # Montos (la NC se captura por monto TOTAL; subtotal/IVA se derivan)
+    subtotal: float = Field(default=0.0)
+    tax_rate: float = Field(default=0.16)
+    tax_amount: float = Field(default=0.0)
+    total_amount: float                     # lo que reduce del outstanding_balance
+
+    reason: Optional[str] = None
+    status: CreditNoteStatus = Field(default=CreditNoteStatus.ACTIVE)
+
+    created_at: datetime = Field(default_factory=datetime.now)
+    created_by: Optional[int] = Field(default=None, foreign_key="users.id")
 
 # --- 2. SOLICITUDES Y PAGOS A PROVEEDORES (El Evento) ---
 class SupplierPayment(SQLModel, table=True):
