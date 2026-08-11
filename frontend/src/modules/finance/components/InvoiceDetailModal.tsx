@@ -128,8 +128,12 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
 
     // Cierre A: el pie refleja el SALDO VIVO de la factura (= cascada de CxP), no la suma del desglose.
     const displayTotal = localOutstanding;
-    const displaySubtotal = displayTotal / 1.16;
-    const displayIva = displaySubtotal * 0.16;
+    const enCapturaNC = showNCForm && ncAmountNum > 0;
+    const saldoMostrado = enCapturaNC ? nuevoSaldoNC : displayTotal;
+    const subtotalMostrado = saldoMostrado / 1.16;
+    const ivaMostrado = subtotalMostrado * 0.16;
+    const displaySubtotal = subtotalMostrado;
+    const displayIva = ivaMostrado;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
@@ -251,11 +255,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                         </div>
                         <div className="flex justify-between items-center mt-4">
                             <div className="text-sm font-black">
-                                Nuevo saldo:{' '}
-                                <span className={ncExcede ? 'text-red-600' : 'text-emerald-600'}>
-                                    ${nuevoSaldoNC.toLocaleString('es-MX', {minimumFractionDigits: 2})}
-                                </span>
-                                {ncExcede && <span className="text-red-600 text-[10px] ml-2 uppercase font-black">Excede el saldo</span>}
+                                {ncExcede && <span className="text-red-600 text-[10px] uppercase font-black">⚠️ Excede el saldo pendiente</span>}
                             </div>
                             <div className="flex gap-2">
                                 <button onClick={() => setShowNCForm(false)} className="px-4 py-2 text-xs font-black uppercase text-slate-500 border border-slate-300 rounded">Cancelar</button>
@@ -289,8 +289,8 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                             <span className="text-sm font-bold">${displayIva.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
                         <div className="flex justify-between items-center pt-2">
-                            <span className="text-[11px] font-black text-emerald-600 uppercase">Saldo por Pagar</span>
-                            <span className="text-3xl font-black text-slate-900">${displayTotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            <span className="text-[11px] font-black text-emerald-600 uppercase">{enCapturaNC ? 'Nuevo saldo (tras NC)' : 'Saldo a pagar'}</span>
+                            <span className={`text-3xl font-black ${enCapturaNC ? (ncExcede ? 'text-red-600' : 'text-emerald-600') : 'text-slate-900'}`}>${saldoMostrado.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
                     </div>
                 </div>
