@@ -102,9 +102,14 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                         </div>
                         <div>
                             <h3 className="text-xl font-black text-slate-800 uppercase leading-none">{invoice.provider_name}</h3>
-                            <p className="text-[9px] font-black uppercase text-emerald-600 mt-1 tracking-widest leading-none">
-                                DOCUMENTO: {invoice.po_folio || invoice.invoice_number}
+                            <p className="text-[10px] font-black uppercase text-emerald-700 mt-1 tracking-widest leading-none">
+                                FACTURA: {invoice.invoice_number || '—'}
                             </p>
+                            {invoice.po_folio && (
+                                <p className="text-[9px] font-black uppercase text-slate-400 mt-0.5 tracking-widest leading-none">
+                                    OC: {invoice.po_folio}
+                                </p>
+                            )}
                             {/* AQUÍ ESTÁ EL CAMBIO: Fecha de tamaño sm pero con su color original */}
                             <p className="text-sm font-black uppercase text-slate-500 mt-1.5 tracking-tight leading-none">
                                 VENCIMIENTO: {invoice.due_date ? new Date(invoice.due_date).toLocaleDateString('es-MX') : 'INMEDIATO'}
