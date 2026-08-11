@@ -12,10 +12,13 @@ from app.models.finance import (
     PaymentMethod,
     CreditNote,
     CreditNoteStatus,
+    CreditNoteType,
+    PurchaseInvoiceItem,
 )
 from app.models.foundations import Provider
 from app.models.treasury import BankAccount, BankTransaction, TransactionType
 from app.models.inventory import PurchaseOrder
+from app.models.material import Material
 
 from app.schemas.finance_schema import (
     PaymentRequestCreate, 
@@ -738,6 +741,35 @@ def create_credit_note(
     if nuevo_saldo <= 0.01:
         invoice.status = InvoiceStatus.PAID
 
+    # --- Ajuste automatico de costo (PRICE_ADJUSTMENT, 1 partida, costo vigente coincide) ---
+    costo_msg = None
+    if data.credit_type == CreditNoteType.PRICE_ADJUSTMENT:
+        items = session.exec(
+            select(PurchaseInvoiceItem).where(
+                PurchaseInvoiceItem.accounts_payable_id == invoice.accounts_payable_id
+            )
+        ).all()
+        if len(items) == 1:
+            part = items[0]
+            material = session.get(Material, part.material_id) if part.material_id else None
+            qty = float(part.quantity_received or 0)
+            if material and qty > 0:
+                cur = round(float(material.current_cost or 0), 2)
+                punit = round(float(part.unit_cost or 0), 2)
+                if punit == cur:
+                    nc.previous_material_cost = material.current_cost
+                    ajuste_unit = subtotal / qty
+                    nuevo_costo = round(float(material.current_cost) - ajuste_unit, 2)
+                    material.current_cost = nuevo_costo
+                    session.add(material)
+                    costo_msg = f"Costo del material ajustado de ${punit:,.2f} a ${nuevo_costo:,.2f}"
+                else:
+                    costo_msg = f"Costo NO ajustado: el costo vigente (${cur:,.2f}) no corresponde a esta factura (${punit:,.2f}). Ajusta manualmente."
+            else:
+                costo_msg = "Costo NO ajustado: partida sin material o sin cantidad."
+        elif len(items) > 1:
+            costo_msg = f"Costo NO ajustado: la factura tiene {len(items)} partidas. Ajusta manualmente."
+
     session.add(invoice)
     session.commit()
     session.refresh(nc)
@@ -745,4 +777,5 @@ def create_credit_note(
     # 9. Respuesta con el nuevo saldo
     result = CreditNoteRead.model_validate(nc, from_attributes=True) if hasattr(CreditNoteRead, "model_validate") else CreditNoteRead(**nc.dict())
     result.new_outstanding_balance = nuevo_saldo
+    result.cost_adjustment_message = costo_msg
     return result

@@ -98,3 +98,4 @@ class CreditNoteRead(SQLModel):
     status: str
     created_at: datetime
     new_outstanding_balance: Optional[float] = None   # saldo de la factura tras la NC
+    cost_adjustment_message: Optional[str] = None

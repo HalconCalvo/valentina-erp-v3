@@ -95,6 +95,7 @@ class CreditNote(SQLModel, table=True):
 
     created_at: datetime = Field(default_factory=datetime.now)
     created_by: Optional[int] = Field(default=None, foreign_key="users.id")
+    previous_material_cost: Optional[float] = Field(default=None)
 
 # --- 2. SOLICITUDES Y PAGOS A PROVEEDORES (El Evento) ---
 class SupplierPayment(SQLModel, table=True):
