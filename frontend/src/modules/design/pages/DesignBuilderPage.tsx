@@ -324,7 +324,7 @@ export default function DesignBuilderPage() {
               <span className="text-amber-600 text-lg">⚠️</span>
               <div>
                 <p className="font-semibold text-amber-800">
-                  Esta receta tiene materiales que requieren atención:
+                  Esta Receta requiere actualizar algunos materiales que ya no existen.
                 </p>
                 <ul className="mt-1 text-sm text-amber-700 list-disc list-inside">
                   {version.alerts.map((a, i) => <li key={i}>{a}</li>)}
