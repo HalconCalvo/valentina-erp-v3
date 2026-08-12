@@ -437,10 +437,10 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                                         <div key={idx} className="flex justify-between items-center p-2 hover:bg-slate-50 border-b border-slate-50 last:border-0 text-xs">
                                             <div>
                                                 <div className="font-bold text-slate-700">{item.product_name}</div>
-                                                <div className="text-slate-400">Qty: {item.quantity} | Unit: ${item.unit_price.toLocaleString()}</div>
+                                                <div className="text-slate-400">Qty: {item.quantity} | Unit: ${fmt(item.unit_price)}</div>
                                             </div>
                                             <div className="text-right font-mono font-bold text-slate-800">
-                                                ${item.subtotal_price.toLocaleString()}
+                                                ${fmt(item.subtotal_price)}
                                             </div>
                                         </div>
                                     ))}

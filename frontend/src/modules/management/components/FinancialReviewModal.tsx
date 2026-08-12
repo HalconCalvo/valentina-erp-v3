@@ -418,7 +418,10 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
 
     const formatCurrency = (amount: number) => {
         const safeAmount = Number(amount) || 0;
-        return safeAmount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+        return safeAmount.toLocaleString('es-MX', {
+            style: 'currency', currency: 'MXN',
+            minimumFractionDigits: 2, maximumFractionDigits: 2
+        });
     };
 
     if (!orderId) return null;
