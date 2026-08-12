@@ -236,7 +236,7 @@ def create_product_version(
         # Flujo A: El Frontend envió ingredientes específicos (comportamiento habitual)
         for comp_in in version_in.components:
             material = session.get(Material, comp_in.material_id)
-            if material:
+            if material and material.is_active:
                 factor = material.conversion_factor if material.conversion_factor and material.conversion_factor > 0 else 1.0
                 unit_cost = material.current_cost / factor
                 raw_line_cost = comp_in.quantity * unit_cost
@@ -269,7 +269,7 @@ def create_product_version(
 
             for orig_comp in original_components:
                 material = session.get(Material, orig_comp.material_id)
-                if material:
+                if material and material.is_active:
                     # Siempre re-cotizamos con el costo actual del material
                     factor = material.conversion_factor if material.conversion_factor and material.conversion_factor > 0 else 1.0
                     unit_cost = material.current_cost / factor
@@ -326,7 +326,7 @@ def update_product_version(
     for comp_in in version_in.components:
         if comp_in.quantity > 0:
             material = session.get(Material, comp_in.material_id)
-            if not material:
+            if not material or not material.is_active:
                 continue 
 
             factor = material.conversion_factor if material.conversion_factor and material.conversion_factor > 0 else 1.0
