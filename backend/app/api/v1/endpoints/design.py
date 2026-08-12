@@ -378,6 +378,8 @@ def read_version_detail(
         if not material.is_active:
             alerts.append(f"Material inactivo en la receta: {material.name} (SKU {material.sku}). Se excluyó del costo.")
             continue
+        if getattr(material, "is_fictitious", False):
+            alerts.append(f"Material ficticio pendiente de definir: {material.name} (SKU {material.sku}). Actualízalo con el material real antes de producir.")
         factor = material.conversion_factor if material.conversion_factor and material.conversion_factor > 0 else 1.0
         unit_cost = material.current_cost / factor
         cost_line = math.ceil(comp.quantity * unit_cost * 100) / 100
