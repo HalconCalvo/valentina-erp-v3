@@ -14,10 +14,11 @@ from app.models.finance import (
     CreditNoteStatus,
     CreditNoteType,
     PurchaseInvoiceItem,
+    CreditNoteItem,
 )
 from app.models.foundations import Provider
 from app.models.treasury import BankAccount, BankTransaction, TransactionType
-from app.models.inventory import PurchaseOrder
+from app.models.inventory import PurchaseOrder, InventoryTransaction
 from app.models.material import Material
 
 from app.schemas.finance_schema import (
@@ -704,6 +705,42 @@ def create_credit_note(
     if not invoice:
         raise HTTPException(status_code=404, detail="Factura no encontrada.")
 
+    # --- RETURN (devolución): calcular el monto desde las líneas ---
+    return_lines = []  # se llena si es RETURN; se usa después para bajar stock
+    if data.credit_type == CreditNoteType.RETURN:
+        if not data.items:
+            raise HTTPException(status_code=400, detail="Una devolución requiere al menos una línea (material y cantidad).")
+        rate = float(data.tax_rate or 0.16)
+        subtotal_calc = 0.0
+        for line in data.items:
+            if line.returned_quantity <= 0:
+                raise HTTPException(status_code=400, detail="La cantidad a devolver debe ser mayor a cero.")
+            # unit_cost REAL: el de ESTA factura para ese material (no el current_cost del material)
+            pii = session.exec(
+                select(PurchaseInvoiceItem).where(
+                    PurchaseInvoiceItem.accounts_payable_id == invoice.accounts_payable_id,
+                    PurchaseInvoiceItem.material_id == line.material_id
+                )
+            ).first()
+            if not pii:
+                raise HTTPException(status_code=400, detail=f"El material {line.material_id} no está en esta factura, no se puede devolver.")
+            # No devolver más de lo que la factura trajo
+            if line.returned_quantity > float(pii.quantity_received or 0):
+                raise HTTPException(status_code=400, detail=f"No puedes devolver {line.returned_quantity} del material {line.material_id}: la factura solo trajo {pii.quantity_received}.")
+            material = session.get(Material, line.material_id)
+            if not material:
+                raise HTTPException(status_code=404, detail=f"Material {line.material_id} no encontrado.")
+            # No devolver más del stock físico actual (regla: impedir stock negativo)
+            if line.returned_quantity > float(material.physical_stock or 0):
+                raise HTTPException(status_code=400, detail=f"No puedes devolver {line.returned_quantity} de '{material.name}': stock actual es {material.physical_stock}.")
+            unit_cost = float(pii.unit_cost or 0)
+            subtotal_calc += line.returned_quantity * unit_cost
+            return_lines.append((material, line.returned_quantity, unit_cost))
+        subtotal_calc = round(subtotal_calc, 2)
+        tax_calc = round(subtotal_calc * rate, 2)
+        # Sobrescribimos total_amount con el monto calculado (el usuario no lo captura en RETURN)
+        data.total_amount = round(subtotal_calc + tax_calc, 2)
+
     # 3-4. Validar monto
     if data.total_amount <= 0:
         raise HTTPException(status_code=400, detail="El monto de la NC debe ser mayor a cero.")
@@ -740,6 +777,40 @@ def create_credit_note(
     # 8. Si queda saldada, marcar PAID
     if nuevo_saldo <= 0.01:
         invoice.status = InvoiceStatus.PAID
+
+    # --- RETURN: bajar stock, crear kárdex negativo y guardar las líneas ---
+    returned_detail = []
+    if data.credit_type == CreditNoteType.RETURN and return_lines:
+        session.flush()  # para obtener nc.id
+        for material, qty, unit_cost in return_lines:
+            # Bajar stock físico
+            material.physical_stock = float(material.physical_stock or 0) - qty
+            session.add(material)
+            # Kárdex negativo (el current_cost NO se toca)
+            mov = InventoryTransaction(
+                material_id=material.id,
+                quantity=-qty,
+                unit_cost=unit_cost,
+                subtotal=round(-qty * unit_cost, 2),
+                transaction_type="CREDIT_NOTE_RETURN",
+                created_at=datetime.utcnow(),
+            )
+            session.add(mov)
+            # Guardar la línea de la NC
+            nc_item = CreditNoteItem(
+                credit_note_id=nc.id,
+                material_id=material.id,
+                returned_quantity=qty,
+                unit_cost=unit_cost,
+            )
+            session.add(nc_item)
+            returned_detail.append({
+                "material_id": material.id,
+                "material_name": material.name,
+                "returned_quantity": qty,
+                "unit_cost": unit_cost,
+                "line_total": round(qty * unit_cost, 2),
+            })
 
     # --- Ajuste automatico de costo (PRICE_ADJUSTMENT, 1 partida, costo vigente coincide) ---
     costo_msg = None
@@ -778,4 +849,5 @@ def create_credit_note(
     result = CreditNoteRead.model_validate(nc, from_attributes=True) if hasattr(CreditNoteRead, "model_validate") else CreditNoteRead(**nc.dict())
     result.new_outstanding_balance = nuevo_saldo
     result.cost_adjustment_message = costo_msg
+    result.returned_items = returned_detail
     return result

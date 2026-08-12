@@ -97,6 +97,21 @@ class CreditNote(SQLModel, table=True):
     created_by: Optional[int] = Field(default=None, foreign_key="users.id")
     previous_material_cost: Optional[float] = Field(default=None)
 
+# --- Líneas de devolución de una Nota de Crédito (tipo RETURN) ---
+class CreditNoteItem(SQLModel, table=True):
+    __tablename__ = "credit_note_items"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    credit_note_id: int = Field(foreign_key="credit_notes.id", index=True)
+    material_id: int = Field(foreign_key="materials.id")
+
+    # Cantidad devuelta y costo unitario REAL de la factura afectada
+    # (NO el current_cost del material, que puede ser de otra compra por "último costo").
+    returned_quantity: float
+    unit_cost: float
+
+    created_at: datetime = Field(default_factory=datetime.now)
+
 # --- 2. SOLICITUDES Y PAGOS A PROVEEDORES (El Evento) ---
 class SupplierPayment(SQLModel, table=True):
     __tablename__ = "supplier_payments"

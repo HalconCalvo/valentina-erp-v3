@@ -75,13 +75,19 @@ class PendingInvoiceRead(SQLModel):
     po_folio: Optional[str] = None
     authorized_by: Optional[str] = None
 
+class CreditNoteItemCreate(SQLModel):
+    material_id: int
+    returned_quantity: float
+    # unit_cost NO se envía: el backend lo toma de la factura afectada.
+
 class CreditNoteCreate(SQLModel):
     purchase_invoice_id: int
     folio: str
     credit_type: CreditNoteType = CreditNoteType.PRICE_ADJUSTMENT
-    total_amount: float
+    total_amount: Optional[float] = None   # obligatorio en PRICE_ADJUSTMENT/DISCOUNT; en RETURN se calcula
     tax_rate: float = 0.16
     reason: Optional[str] = None
+    items: List[CreditNoteItemCreate] = []   # líneas de devolución (solo para RETURN)
 
 class CreditNoteRead(SQLModel):
     id: int
@@ -99,3 +105,4 @@ class CreditNoteRead(SQLModel):
     created_at: datetime
     new_outstanding_balance: Optional[float] = None   # saldo de la factura tras la NC
     cost_adjustment_message: Optional[str] = None
+    returned_items: List[dict] = []   # detalle de líneas devueltas (material, cantidad, costo)
