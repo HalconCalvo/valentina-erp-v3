@@ -102,7 +102,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
             });
 
             setItemMargins(calculatedMargins);
-            setItemPriceOverrides(new Array(itemsSeguros.length).fill(null));
+            setItemPriceOverrides(itemsSeguros.map(item => Number(item.unit_price) || null));
 
             let totalCost = 0;
             let totalBasePrice = 0;
@@ -241,7 +241,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
             const override = itemPriceOverrides[index];
             const finalUnitPrice = (override != null && !isNaN(override))
                 ? override
-                : Math.ceil(cost * marginMultiplier * commissionMultiplier);
+                : Number((cost * marginMultiplier * commissionMultiplier).toFixed(2));
 
             // El subtotal suma el precio CON comisión incluida (no se vuelve a sumar aparte).
             sumOfItems += (finalUnitPrice * qty);
