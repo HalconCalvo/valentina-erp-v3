@@ -59,7 +59,8 @@ class ProductVersionRead(ProductVersionBase):
     
     # === LA SOLUCIÓN ===
     # Aquí inyectamos el objeto completo del Producto Padre
-    master: Optional[ProductMasterSummary] = None 
+    master: Optional[ProductMasterSummary] = None
+    alerts: List[str] = []   # avisos al consultar (ej. materiales inactivos)
 
 # ==========================================
 # 4. LECTURA MAESTRO COMPLETO (Para Catálogo)

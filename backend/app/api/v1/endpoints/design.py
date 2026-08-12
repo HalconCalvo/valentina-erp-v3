@@ -366,6 +366,39 @@ def read_version_detail(
     version = session.get(ProductVersion, version_id)
     if not version:
         raise HTTPException(status_code=404, detail="Versión no encontrada")
+
+    # Recalcular el costo en vivo desde componentes ACTIVOS y detectar alertas.
+    total_estimated_cost = 0.0
+    total_material_cost = 0.0
+    alerts = []
+    for comp in version.components:
+        material = session.get(Material, comp.material_id)
+        if not material:
+            continue
+        if not material.is_active:
+            alerts.append(f"Material inactivo en la receta: {material.name} (SKU {material.sku}). Se excluyó del costo.")
+            continue
+        factor = material.conversion_factor if material.conversion_factor and material.conversion_factor > 0 else 1.0
+        unit_cost = material.current_cost / factor
+        cost_line = math.ceil(comp.quantity * unit_cost * 100) / 100
+        total_estimated_cost += cost_line
+        if material.production_route == ProductionRoute.MATERIAL:
+            total_material_cost += cost_line
+
+    total_estimated_cost = round(total_estimated_cost, 2)
+    total_material_cost = round(total_material_cost, 2)
+
+    # Guardar solo si cambió (evita escrituras innecesarias). Transaccional.
+    if (round(version.estimated_cost or 0, 2) != total_estimated_cost or
+        round(version.material_cost or 0, 2) != total_material_cost):
+        version.estimated_cost = total_estimated_cost
+        version.material_cost = total_material_cost
+        session.add(version)
+        session.commit()
+        session.refresh(version)
+
+    # Adjuntar alertas al objeto de respuesta (no es columna de BD).
+    version.alerts = alerts
     return version
 
 @router.patch("/versions/{version_id}/status", response_model=ProductVersionRead)
