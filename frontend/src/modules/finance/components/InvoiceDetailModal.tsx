@@ -20,6 +20,8 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
     const [ncTaxRate, setNcTaxRate] = useState(0.16);
     const [ncReason, setNcReason] = useState('');
     const [savingNC, setSavingNC] = useState(false);
+    // RETURN: cantidad a devolver por índice de partida
+    const [returnQty, setReturnQty] = useState<Record<number, number>>({});
 
     const [items, setItems] = useState<any[]>(invoice.items || []);
     const [isLoading, setIsLoading] = useState(!invoice.items || invoice.items.length === 0);
@@ -39,6 +41,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                             unit_price: row.unit_cost,
                             description: row.description,
                             sku: row.sku,
+                            material_id: row.material_id,
                         }));
                         setItems(mapped);
                         setIsLoading(false);
@@ -97,23 +100,46 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
     }, [invoice]);
 
     const ncAmountNum = Number(ncAmount) || 0;
-    const nuevoSaldoNC = localOutstanding - ncAmountNum;
-    const ncExcede = ncAmountNum > localOutstanding;
+    // Monto calculado para RETURN: suma de (cantidad a devolver × precio) + IVA
+    const returnSubtotal = items.reduce((sum, it, idx) => {
+        const q = Number(returnQty[idx]) || 0;
+        return sum + q * (Number(it.unit_price) || 0);
+    }, 0);
+    const returnTotal = Number((returnSubtotal * (1 + Number(ncTaxRate))).toFixed(2));
+    const effectiveNcAmount = ncType === 'RETURN' ? returnTotal : ncAmountNum;
+    const nuevoSaldoNC = localOutstanding - effectiveNcAmount;
+    const ncExcede = effectiveNcAmount > localOutstanding;
 
     const handleCreateNC = async () => {
         if (!ncFolio.trim()) { alert('Ingresa el folio de la Nota de Crédito.'); return; }
-        if (ncAmountNum <= 0) { alert('El monto debe ser mayor a cero.'); return; }
-        if (ncExcede) { alert('La NC no puede exceder el saldo pendiente.'); return; }
+        if (ncType !== 'RETURN') {
+            if (ncAmountNum <= 0) { alert('El monto debe ser mayor a cero.'); return; }
+            if (ncExcede) { alert('La NC no puede exceder el saldo pendiente.'); return; }
+        }
         setSavingNC(true);
         try {
-            const res = await client.post('/finance/credit-notes', {
+            const isReturn = ncType === 'RETURN';
+            const returnItems = items
+                .map((it, idx) => ({ material_id: it.material_id, returned_quantity: Number(returnQty[idx]) || 0 }))
+                .filter(li => li.material_id && li.returned_quantity > 0);
+            if (isReturn && returnItems.length === 0) {
+                alert('Indica al menos una cantidad a devolver.');
+                setSavingNC(false);
+                return;
+            }
+            const payload: any = {
                 purchase_invoice_id: invoice.id,
                 folio: ncFolio.trim(),
                 credit_type: ncType,
-                total_amount: ncAmountNum,
                 tax_rate: ncTaxRate,
                 reason: ncReason.trim() || null,
-            });
+            };
+            if (isReturn) {
+                payload.items = returnItems;
+            } else {
+                payload.total_amount = ncAmountNum;
+            }
+            const res = await client.post('/finance/credit-notes', payload);
             const nuevoSaldo = res.data?.new_outstanding_balance ?? nuevoSaldoNC;
             setLocalOutstanding(nuevoSaldo);
             setShowNCForm(false);
@@ -128,7 +154,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
 
     // Cierre A: el pie refleja el SALDO VIVO de la factura (= cascada de CxP), no la suma del desglose.
     const displayTotal = localOutstanding;
-    const enCapturaNC = showNCForm && ncAmountNum > 0;
+    const enCapturaNC = showNCForm && effectiveNcAmount > 0;
     const saldoMostrado = enCapturaNC ? nuevoSaldoNC : displayTotal;
     const subtotalMostrado = saldoMostrado / 1.16;
     const ivaMostrado = subtotalMostrado * 0.16;
@@ -226,7 +252,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                         <div className="grid grid-cols-2 gap-3">
                             <div>
                                 <label className="text-[10px] font-black uppercase text-slate-500">Tipo</label>
-                                <select value={ncType} onChange={e => setNcType(e.target.value)} className="w-full p-2 border border-slate-300 rounded text-sm font-bold">
+                                <select value={ncType} onChange={e => { setNcType(e.target.value); setReturnQty({}); }} className="w-full p-2 border border-slate-300 rounded text-sm font-bold">
                                     <option value="PRICE_ADJUSTMENT">Ajuste de precio</option>
                                     <option value="RETURN">Devolución</option>
                                     <option value="DISCOUNT">Descuento</option>
@@ -236,10 +262,45 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                                 <label className="text-[10px] font-black uppercase text-slate-500">Folio de la NC *</label>
                                 <input value={ncFolio} onChange={e => setNcFolio(e.target.value)} className="w-full p-2 border border-slate-300 rounded text-sm font-bold" placeholder="Folio fiscal" />
                             </div>
-                            <div>
-                                <label className="text-[10px] font-black uppercase text-slate-500">Monto total (c/IVA) *</label>
-                                <input type="number" value={ncAmount} onChange={e => setNcAmount(e.target.value)} className={`w-full p-2 border rounded text-sm font-bold ${ncExcede ? 'border-red-400 bg-red-50' : 'border-slate-300'}`} placeholder="0.00" />
-                            </div>
+                            {ncType !== 'RETURN' && (
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-500">Monto total (c/IVA) *</label>
+                                    <input type="number" value={ncAmount} onChange={e => setNcAmount(e.target.value)} className={`w-full p-2 border rounded text-sm font-bold ${ncExcede ? 'border-red-400 bg-red-50' : 'border-slate-300'}`} placeholder="0.00" />
+                                </div>
+                            )}
+                            {ncType === 'RETURN' && (
+                                <div className="col-span-2 border border-amber-300 rounded p-3 bg-white">
+                                    <label className="text-[10px] font-black uppercase text-slate-500 block mb-2">Materiales a devolver (máx = recibido)</label>
+                                    {items.length === 0 && (
+                                        <p className="text-xs text-slate-400">Esta factura no tiene materiales con detalle para devolver.</p>
+                                    )}
+                                    {items.map((it, idx) => {
+                                        const recibido = Number(it.quantity) || 0;
+                                        const precio = Number(it.unit_price) || 0;
+                                        return (
+                                            <div key={idx} className="flex items-center gap-2 py-1 border-b border-slate-50 last:border-0">
+                                                <span className="flex-1 text-xs font-bold text-slate-600 uppercase">{it.description || it.name || 'Material'}</span>
+                                                <span className="text-[10px] text-slate-400">recibido: {recibido}</span>
+                                                <span className="text-[10px] text-slate-400">${precio.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                                                <input
+                                                    type="number" min="0" max={recibido} step="any"
+                                                    value={returnQty[idx] ?? ''}
+                                                    onChange={e => {
+                                                        const v = Number(e.target.value);
+                                                        setReturnQty({ ...returnQty, [idx]: v });
+                                                    }}
+                                                    className="w-20 p-1 border border-slate-300 rounded text-sm text-center font-bold"
+                                                    placeholder="0"
+                                                    disabled={!it.material_id}
+                                                />
+                                            </div>
+                                        );
+                                    })}
+                                    <div className="text-right text-sm font-black text-amber-800 mt-2">
+                                        Monto NC (calculado): ${returnTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                                    </div>
+                                </div>
+                            )}
                             <div>
                                 <label className="text-[10px] font-black uppercase text-slate-500">Tasa IVA</label>
                                 <select value={ncTaxRate} onChange={e => setNcTaxRate(Number(e.target.value))} className="w-full p-2 border border-slate-300 rounded text-sm font-bold">
