@@ -397,9 +397,11 @@ def read_version_detail(
         session.commit()
         session.refresh(version)
 
-    # Adjuntar alertas al objeto de respuesta (no es columna de BD).
-    version.alerts = alerts
-    return version
+    # Construir la respuesta con el esquema de lectura (que tiene el campo alerts).
+    # No se puede asignar 'alerts' al objeto SQLModel de tabla directamente.
+    response = ProductVersionRead.model_validate(version)
+    response.alerts = alerts
+    return response
 
 @router.patch("/versions/{version_id}/status", response_model=ProductVersionRead)
 def update_version_status(
