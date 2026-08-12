@@ -318,6 +318,21 @@ export default function DesignBuilderPage() {
       </div>
 
       <div className="flex-1 overflow-auto p-4 md:p-6 bg-slate-50/50">
+        {version?.alerts && version.alerts.length > 0 && (
+          <div className="max-w-6xl mx-auto mb-4 bg-amber-50 border border-amber-300 rounded-lg p-4">
+            <div className="flex items-start gap-2">
+              <span className="text-amber-600 text-lg">⚠️</span>
+              <div>
+                <p className="font-semibold text-amber-800">
+                  Esta receta tiene materiales que requieren atención:
+                </p>
+                <ul className="mt-1 text-sm text-amber-700 list-disc list-inside">
+                  {version.alerts.map((a, i) => <li key={i}>{a}</li>)}
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="max-w-6xl mx-auto bg-white rounded-xl shadow-sm border border-slate-200 p-0 overflow-hidden">
             <VersionRecipeForm 
                 materials={materials} 

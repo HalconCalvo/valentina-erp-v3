@@ -39,6 +39,9 @@ export interface ProductVersion {
     
     // La lista de ingredientes
     components: VersionComponent[];
+
+    // Avisos del backend al consultar (ej. materiales inactivos)
+    alerts?: string[];
 }
 
 // Nivel 1: Maestro (La Familia del Producto)
