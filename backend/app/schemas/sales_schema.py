@@ -55,6 +55,8 @@ class CustomerPaymentRead(CustomerPaymentBase):
 # ==========================================
 class SalesOrderItemInstanceBase(SQLModel):
     custom_name: str
+    street: Optional[str] = None
+    lot: Optional[str] = None
     production_status: InstanceStatus = InstanceStatus.PENDING
     production_batch_id: Optional[int] = None
     is_cancelled: bool = False
