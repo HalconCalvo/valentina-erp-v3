@@ -98,6 +98,16 @@ const RayosXOcQuickEdit: React.FC<{
     );
 };
 
+const INSTANCE_STATUS_META: Record<string, { label: string; cls: string }> = {
+    PENDING:       { label: 'Pendiente',     cls: 'bg-slate-100 text-slate-600' },
+    IN_PRODUCTION: { label: 'En Producción', cls: 'bg-blue-50 text-blue-700' },
+    READY:         { label: 'Empacado',      cls: 'bg-cyan-50 text-cyan-700' },
+    CARGADO:       { label: 'Cargado',       cls: 'bg-indigo-50 text-indigo-700' },
+    INSTALLED:     { label: 'Instalado',     cls: 'bg-green-50 text-green-700' },
+    CLOSED:        { label: 'Cerrado',       cls: 'bg-emerald-100 text-emerald-800' },
+    WARRANTY:      { label: 'Garantía',      cls: 'bg-amber-50 text-amber-700' },
+};
+
 export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     isOpen,
     onClose,
@@ -126,6 +136,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const [savingItemPrice, setSavingItemPrice] = useState(false);
     const [addingInstanceId, setAddingInstanceId] = useState<number | null>(null);
     const [localOrder, setLocalOrder] = useState<SalesOrder>(order);
+    const [deliverablesTab, setDeliverablesTab] = useState<'instancia' | 'casa'>('instancia');
     useEffect(() => { setLocalOrder(order); }, [order]);
     const [editingAdvance, setEditingAdvance] = useState(false);
     const [advanceDraft, setAdvanceDraft] = useState<string>('');
@@ -157,6 +168,43 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         if (!localOrder || !localOrder.items) return [];
         return Array.from(new Map(localOrder.items.map(item => [item.id, item])).values());
     }, [localOrder]);
+
+    // Agrupa TODAS las instancias de la OV por casa (street + lot) para la vista "Por Casa".
+    // Cada instancia lleva su product_name (partida), custom_name y estado.
+    const housesInOrder = useMemo(() => {
+        const map = new Map<string, { street: string; lot: string; key: string; items: any[] }>();
+        const UNASSIGNED = '__unassigned__';
+        uniqueItems.forEach((item: any) => {
+            const realInstances = item.instances ? item.instances.slice(0, item.quantity || 1) : [];
+            realInstances.forEach((inst: any) => {
+                const hasCasa = inst.street || inst.lot;
+                const key = hasCasa ? `${inst.street ?? ''}||${inst.lot ?? ''}` : UNASSIGNED;
+                if (!map.has(key)) {
+                    map.set(key, {
+                        street: inst.street ?? '',
+                        lot: inst.lot ?? '',
+                        key,
+                        items: [],
+                    });
+                }
+                map.get(key)!.items.push({
+                    id: inst.id,
+                    product_name: item.product_name,
+                    custom_name: inst.custom_name,
+                    production_status: inst.production_status,
+                    customer_payment_id: inst.customer_payment_id,
+                });
+            });
+        });
+        // Ordenar: casas con nombre primero (por street, luego lot), "Sin asignar" al final
+        const groups = Array.from(map.values());
+        groups.sort((a, b) => {
+            if (a.key === UNASSIGNED) return 1;
+            if (b.key === UNASSIGNED) return -1;
+            return (a.street + a.lot).localeCompare(b.street + b.lot);
+        });
+        return groups;
+    }, [uniqueItems]);
 
     const resaleItems = useMemo(() => {
         if (!localOrder || !localOrder.items) return [];
@@ -875,12 +923,30 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
 
                     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                         <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
-                            <h3 className="text-sm font-black text-slate-700 flex items-center gap-2">
+                            <h3 className="text-sm font-black text-slate-700 flex items-center gap-2 mb-2">
                                 <Package size={16} className="text-slate-400"/>
-                                Desglose de Entregables (Instancias)
+                                Desglose de Entregables
                             </h3>
+                            <div className="flex gap-1">
+                                <button
+                                    type="button"
+                                    onClick={() => setDeliverablesTab('instancia')}
+                                    className={`px-3 py-1 text-xs font-bold rounded-lg transition ${deliverablesTab === 'instancia' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
+                                >
+                                    Por Instancia
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setDeliverablesTab('casa')}
+                                    className={`px-3 py-1 text-xs font-bold rounded-lg transition ${deliverablesTab === 'casa' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
+                                >
+                                    Por Casa
+                                </button>
+                            </div>
                         </div>
                         <div className="max-h-72 overflow-y-auto p-3 space-y-3">
+                          {deliverablesTab === 'instancia' && (
+                            <>
                             {/* ESCUDO: Cortamos las instancias a la cantidad real que marca la OV */}
                             {uniqueItems.map((item: any) => {
                                 const realInstances = item.instances ? item.instances.slice(0, item.quantity || 1) : [];
@@ -1077,6 +1143,45 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                     </div>
                                 </div>
                             )}
+                            </>
+                          )}
+
+                          {deliverablesTab === 'casa' && (
+                            <div className="space-y-3">
+                              {housesInOrder.length === 0 ? (
+                                <p className="text-sm text-slate-400 text-center py-4">No hay instancias.</p>
+                              ) : (
+                                housesInOrder.map((house: any) => (
+                                  <div key={house.key} className="border border-slate-200 rounded-lg overflow-hidden shadow-sm">
+                                    <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200 flex items-center justify-between">
+                                      <p className="text-sm font-black text-slate-700">
+                                        {house.key === '__unassigned__'
+                                          ? '⬜ Sin asignar'
+                                          : `🏠 ${house.street}${house.street && house.lot ? ', ' : ''}${house.lot}`}
+                                      </p>
+                                      <span className="text-[11px] text-slate-500">{house.items.length} mueble{house.items.length !== 1 ? 's' : ''}</span>
+                                    </div>
+                                    <div className="divide-y divide-slate-100 bg-white">
+                                      {house.items.map((mueble: any) => {
+                                        const meta = INSTANCE_STATUS_META[mueble.production_status] ?? { label: mueble.production_status, cls: 'bg-slate-100 text-slate-500' };
+                                        return (
+                                          <div key={mueble.id} className="py-2 px-4 flex justify-between items-center hover:bg-slate-50 text-sm">
+                                            <span className="font-bold text-slate-700">{mueble.product_name}</span>
+                                            <div className="flex items-center gap-2 shrink-0">
+                                              {mueble.customer_payment_id && (
+                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-100">FACTURADO</span>
+                                              )}
+                                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${meta.cls}`}>{meta.label}</span>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          )}
                         </div>
                     </div>
 
