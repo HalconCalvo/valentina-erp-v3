@@ -1181,7 +1181,7 @@ const SalesDashboardPage: React.FC = () => {
                                 </div>
                             </button>
 
-                            {/* ── Expanded: Instances + Rename ── */}
+                            {/* ── Expanded: abre el bautizo por casa (modal) ── */}
                             {isExpanded && (
                                 <div className="border-t border-slate-100 bg-slate-50/60 px-5 py-4">
                                     {instances.length === 0 ? (
@@ -1189,58 +1189,18 @@ const SalesDashboardPage: React.FC = () => {
                                             Esta OV no tiene instancias generadas todavía.
                                         </p>
                                     ) : (
-                                        <>
-                                            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3">
-                                                Instancias — Asigna un alias descriptivo (ej. "Casa 123, Calle 98 – Cocina")
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-sm text-slate-600">
+                                                {instances.length} instancia{instances.length !== 1 ? 's' : ''} en esta OV.
+                                                Agrúpalas por casa (calle + lote) y asígnales su nombre.
                                             </p>
-                                            <div className="space-y-2 mb-4">
-                                                {instances.map((inst: any, idx: number) => {
-                                                    const sem = getSemaphoreInfo(inst.semaphore);
-                                                    const productName = (order.items ?? []).find((it: any) => (it.instances ?? []).some((i: any) => i.id === inst.id))?.product_name ?? 'Producto';
-                                                    return (
-                                                    <div key={inst.id} className="flex items-center gap-3 bg-white rounded-xl border border-slate-200 px-3 py-2">
-                                                        <span className="w-6 h-6 flex items-center justify-center bg-indigo-100 text-indigo-700 rounded-full text-[10px] font-bold shrink-0">
-                                                            {idx + 1}
-                                                        </span>
-                                                        {/* Semáforo de producción */}
-                                                        <div className={`flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-lg border ${sem.bg} border-current/10`} title={sem.label}>
-                                                            <span className="text-xs leading-none">{sem.dot}</span>
-                                                            <span className={`text-[9px] font-bold uppercase tracking-wide ${sem.text} hidden sm:inline`}>{sem.label}</span>
-                                                        </div>
-                                                        <div className="w-24 shrink-0">
-                                                            <p className="text-xs text-slate-400 truncate">{productName}</p>
-                                                        </div>
-                                                        <input
-                                                            type="text"
-                                                            value={instanceNames[inst.id] ?? inst.custom_name ?? ''}
-                                                            onChange={e => setInstanceNames(prev => ({ ...prev, [inst.id]: e.target.value }))}
-                                                            placeholder="Alias / Ubicación..."
-                                                            className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-1.5 text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition bg-white"
-                                                        />
-                                                    </div>
-                                                    );
-                                                })}
-                                            </div>
-                                            <div className="flex justify-end gap-2">
-                                                <button
-                                                    onClick={() => setExpandedOrderId(null)}
-                                                    className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 border border-slate-200 rounded-xl hover:bg-white transition"
-                                                >
-                                                    Cerrar
-                                                </button>
-                                                <button
-                                                    onClick={() => saveInstanceNames(order.id!, instances)}
-                                                    disabled={savingInstances}
-                                                    className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${
-                                                        isSaved
-                                                            ? 'bg-emerald-500 text-white'
-                                                            : 'bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50'
-                                                    }`}
-                                                >
-                                                    {savingInstances ? 'Guardando...' : isSaved ? '✓ Guardado' : `Guardar ${instances.length} aliases → Planeación`}
-                                                </button>
-                                            </div>
-                                        </>
+                                            <button
+                                                onClick={() => setBaptismOrderId(order.id!)}
+                                                className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition"
+                                            >
+                                                Bautizar / Agrupar por casa
+                                            </button>
+                                        </div>
                                     )}
                                 </div>
                             )}
