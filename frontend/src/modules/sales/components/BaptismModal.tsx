@@ -49,7 +49,6 @@ export default function BaptismModal({ orderId, order: orderProp, onClose, onCom
   const [rows, setRows] = useState<InstanceRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Captura de la casa en curso
@@ -125,8 +124,8 @@ export default function BaptismModal({ orderId, order: orderProp, onClose, onCom
     });
   };
 
-  // Asignar los seleccionados a la casa (street+lot) y armar su custom_name
-  const handleAssignHouse = () => {
+  // Asignar los seleccionados a la casa (street+lot), armar custom_name y GUARDAR ya.
+  const handleAssignHouse = async () => {
     setError(null);
     if (!newStreet.trim() || !newLot.trim()) {
       setError('Captura la calle y el lote de la casa antes de asignar.');
@@ -136,64 +135,59 @@ export default function BaptismModal({ orderId, order: orderProp, onClose, onCom
       setError('Selecciona al menos una instancia para la casa.');
       return;
     }
-    setSaved(false);
-    setRows(prev => prev.map(r => {
-      if (selected.has(r.id)) {
-        return {
-          ...r,
-          street: newStreet.trim(),
-          lot: newLot.trim(),
-          custom_name: buildCustomName(r.product_name, newStreet, newLot),
-        };
-      }
-      return r;
-    }));
-    // Limpiar para la siguiente casa
-    setNewStreet('');
-    setNewLot('');
-    setSelected(new Set());
-  };
-
-  // Deshacer una casa: sus instancias vuelven al pool (sin street/lot)
-  const handleUnassignHouse = (street: string, lot: string) => {
-    setSaved(false);
-    setRows(prev => prev.map(r => {
-      if ((r.street ?? '') === street && (r.lot ?? '') === lot) {
-        return { ...r, street: null, lot: null, custom_name: '' };
-      }
-      return r;
-    }));
-  };
-
-  const handleSave = async () => {
-    if (unassigned.length > 0) {
-      const seguir = window.confirm(
-        `Quedan ${unassigned.length} instancia(s) sin asignar a una casa. ` +
-        `Solo se guardarán las que ya tienen casa. ¿Deseas continuar?`
-      );
-      if (!seguir) return;
-    }
+    const street = newStreet.trim();
+    const lot = newLot.trim();
+    // Instancias de esta casa (las seleccionadas), con su nombre armado
+    const payload: BaptismEntry[] = rows
+      .filter(r => selected.has(r.id))
+      .map(r => ({
+        instance_id: r.id,
+        custom_name: buildCustomName(r.product_name, street, lot),
+        street,
+        lot,
+      }));
     setSaving(true);
-    setError(null);
     try {
-      const payload: BaptismEntry[] = rows
-        .filter(r => r.street && r.lot)   // solo las que ya tienen casa
-        .map(r => ({
-          instance_id: r.id,
-          custom_name: r.custom_name.trim() || r.product_name,
-          street: r.street,
-          lot: r.lot,
-        }));
-      if (payload.length === 0) {
-        setError('Asigna al menos una casa antes de guardar.');
-        setSaving(false);
-        return;
-      }
       await planningService.baptizeInstances(orderId, payload);
-      setSaved(true);
-      setTimeout(() => onComplete(), 600);
+      // Éxito: reflejar en pantalla
+      setRows(prev => prev.map(r => {
+        if (selected.has(r.id)) {
+          return { ...r, street, lot, custom_name: buildCustomName(r.product_name, street, lot) };
+        }
+        return r;
+      }));
+      setNewStreet('');
+      setNewLot('');
+      setSelected(new Set());
     } catch (e: any) {
-      setError(e?.response?.data?.detail ?? 'Error al guardar el bautizo.');
+      setError(e?.response?.data?.detail ?? 'No se pudo guardar la casa. Intenta de nuevo.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Deshacer una casa: revertir en la BD (street/lot vacíos -> NULL) y en pantalla.
+  const handleUnassignHouse = async (street: string, lot: string) => {
+    setError(null);
+    const affected = rows.filter(r => (r.street ?? '') === street && (r.lot ?? '') === lot);
+    if (affected.length === 0) return;
+    const payload: BaptismEntry[] = affected.map(r => ({
+      instance_id: r.id,
+      custom_name: r.product_name,   // vuelve al nombre base de la partida
+      street: '',                     // vacío -> el backend lo pone en NULL
+      lot: '',
+    }));
+    setSaving(true);
+    try {
+      await planningService.baptizeInstances(orderId, payload);
+      setRows(prev => prev.map(r => {
+        if ((r.street ?? '') === street && (r.lot ?? '') === lot) {
+          return { ...r, street: null, lot: null, custom_name: '' };
+        }
+        return r;
+      }));
+    } catch (e: any) {
+      setError(e?.response?.data?.detail ?? 'No se pudo deshacer la casa.');
     } finally {
       setSaving(false);
     }
@@ -348,24 +342,16 @@ export default function BaptismModal({ orderId, order: orderProp, onClose, onCom
           )}
 
           {/* Footer */}
-          <div className="flex justify-end gap-3 mt-5 pt-4 border-t border-slate-100">
+          <div className="flex items-center justify-between mt-5 pt-4 border-t border-slate-100">
+            <span className="text-[11px] text-slate-400">
+              {assignedCount}/{rows.length} instancia(s) asignada(s). Cada casa se guarda al asignar.
+            </span>
             <button
-              onClick={onClose}
-              className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-50 transition"
+              onClick={() => { onComplete(); onClose(); }}
+              disabled={saving}
+              className="px-5 py-2 rounded-xl text-sm font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition disabled:opacity-50"
             >
-              Cancelar
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={saving || assignedCount === 0 || saved}
-              className={`
-                px-5 py-2 rounded-xl text-sm font-bold transition-all
-                ${saved
-                  ? 'bg-green-500 text-white'
-                  : 'bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 disabled:cursor-not-allowed'}
-              `}
-            >
-              {saving ? 'Guardando...' : saved ? '✓ Bautizo guardado' : `Guardar ${assignedCount} instancias`}
+              {saving ? 'Guardando...' : 'Cerrar'}
             </button>
           </div>
         </>
