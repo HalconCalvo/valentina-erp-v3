@@ -140,7 +140,11 @@ class SalesOrderItemInstance(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     sales_order_item_id: int = Field(foreign_key="sales_order_items.id")
     
-    custom_name: str = Field(index=True)  
+    custom_name: str = Field(index=True)
+    # Identificación de la casa física (para agrupar instancias por casa).
+    # Una casa se identifica por street + lot dentro de una OV.
+    street: Optional[str] = Field(default=None, index=True)   # calle
+    lot: Optional[str] = Field(default=None, index=True)      # lote
     production_status: InstanceStatus = Field(default=InstanceStatus.PENDING)
     production_batch_id: Optional[int] = Field(default=None)
     stone_batch_id: Optional[int] = Field(

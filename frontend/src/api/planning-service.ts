@@ -67,6 +67,8 @@ export interface HealthPanel {
 export interface BaptismEntry {
   instance_id: number;
   custom_name: string;
+  street?: string | null;
+  lot?: string | null;
 }
 
 export const planningService = {

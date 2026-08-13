@@ -48,6 +48,8 @@ class InstanceScheduleUpdate(BaseModel):
     model_config = {"populate_by_name": True}
 
     custom_name: Optional[str] = None
+    street: Optional[str] = None
+    lot: Optional[str] = None
     scheduled_prod_mdf: Union[datetime, None] = None
     scheduled_prod_stone: Union[datetime, None] = None
     scheduled_inst_mdf: Union[datetime, None] = None
@@ -74,6 +76,8 @@ class CloseInstancePayload(BaseModel):
 class BaptismEntry(BaseModel):
     instance_id: int
     custom_name: str
+    street: Optional[str] = None
+    lot: Optional[str] = None
 
 
 class BaptismPayload(BaseModel):
@@ -380,6 +384,10 @@ def update_instance_schedule(
 
     if payload.custom_name is not None:
         inst.custom_name = payload.custom_name
+    if payload.street is not None:
+        inst.street = payload.street.strip() or None
+    if payload.lot is not None:
+        inst.lot = payload.lot.strip() or None
 
     # Prod MDF
     if payload.clear_prod_mdf:
@@ -570,8 +578,12 @@ def baptize_instances(
     for entry in payload.instances:
         inst = db_instances[entry.instance_id]
         inst.custom_name = entry.custom_name.strip()
+        if entry.street is not None:
+            inst.street = entry.street.strip() or None
+        if entry.lot is not None:
+            inst.lot = entry.lot.strip() or None
         session.add(inst)
-        updated.append({"id": inst.id, "custom_name": inst.custom_name})
+        updated.append({"id": inst.id, "custom_name": inst.custom_name, "street": inst.street, "lot": inst.lot})
 
     session.commit()
 
