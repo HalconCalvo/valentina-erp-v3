@@ -59,19 +59,14 @@ export default function BaptismModal({ orderId, order: orderProp, onClose, onCom
 
   // Cargar detalle de la OV si no viene hidratado con instancias
   useEffect(() => {
-    const hasInstances = (orderProp?.items ?? []).some((it: any) => (it.instances ?? []).length > 0);
-    if (hasInstances) {
-      hydrateRows(orderProp as any);
-    } else {
-      setLoading(true);
-      salesService.getOrderDetail(orderId)
-        .then((data: any) => {
-          setOrder(data);
-          hydrateRows(data);
-        })
-        .catch(() => setError('Error al cargar las instancias de esta OV.'))
-        .finally(() => setLoading(false));
-    }
+    setLoading(true);
+    salesService.getOrderDetail(orderId)
+      .then((data: any) => {
+        setOrder(data);
+        hydrateRows(data);
+      })
+      .catch(() => setError('Error al cargar las instancias de esta OV.'))
+      .finally(() => setLoading(false));
   }, [orderId]);
 
   function hydrateRows(data: any) {
@@ -171,6 +166,13 @@ export default function BaptismModal({ orderId, order: orderProp, onClose, onCom
   };
 
   const handleSave = async () => {
+    if (unassigned.length > 0) {
+      const seguir = window.confirm(
+        `Quedan ${unassigned.length} instancia(s) sin asignar a una casa. ` +
+        `Solo se guardarán las que ya tienen casa. ¿Deseas continuar?`
+      );
+      if (!seguir) return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -298,7 +300,7 @@ export default function BaptismModal({ orderId, order: orderProp, onClose, onCom
           <button
             onClick={handleAssignHouse}
             disabled={selected.size === 0 || !newStreet.trim() || !newLot.trim()}
-            className="w-full h-[38px] mb-4 text-sm font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full h-[42px] mb-4 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm disabled:opacity-40 disabled:cursor-not-allowed transition"
           >
             Asignar {selected.size > 0 ? `${selected.size} ` : ''}seleccionados
             {newStreet.trim() && newLot.trim() ? ` a ${newStreet.trim()}, ${newLot.trim()}` : ' a esta casa'}
