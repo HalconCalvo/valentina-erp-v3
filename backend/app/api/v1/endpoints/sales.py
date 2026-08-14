@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 from fastapi.responses import StreamingResponse
 
 from app.core.database import get_session
-from app.core.deps import get_current_active_user 
+from app.core.deps import get_current_active_user, CurrentUser
 
 # Importamos los modelos
 from app.models.sales import (
@@ -2173,3 +2173,129 @@ def mark_commission_paid(
     session.add(commission)
     session.commit()
     return {"ok": True, "commission_id": commission_id, "is_paid": commission.is_paid}
+
+
+# ================================================================
+# SEGUIMIENTO DE OV — Estado de casas por OV o global
+# ================================================================
+
+class InstanceStatusSummary(BaseModel):
+    id: int
+    product_name: str
+    custom_name: str
+    production_status: str
+    production_batch_id: Optional[int] = None
+    qr_code: Optional[str] = None
+
+class HouseStatusSummary(BaseModel):
+    street: str
+    lot: str
+    grouping_key: str
+    total: int
+    by_status: dict
+    instances: List[InstanceStatusSummary]
+
+class OrderHousesStatus(BaseModel):
+    order_id: int
+    order_folio: str
+    project_name: str
+    client_name: str
+    status: str
+    houses: List[HouseStatusSummary]
+    unassigned: List[InstanceStatusSummary]
+
+ACTIVE_ORDER_STATUSES = [
+    SalesOrderStatus.WAITING_ADVANCE,
+    SalesOrderStatus.SOLD,
+    SalesOrderStatus.IN_PRODUCTION,
+]
+
+ALL_INSTANCE_STATUSES = [
+    "PENDING", "IN_PRODUCTION", "READY",
+    "CARGADO", "INSTALLED", "CLOSED", "WARRANTY"
+]
+
+@router.get("/houses-status", response_model=List[OrderHousesStatus])
+def get_houses_status(
+    current_user: CurrentUser,
+    order_id: Optional[int] = None,
+    session: Session = Depends(get_session),
+):
+    """
+    Devuelve el estado de todas las casas (agrupadas por street+lot) de las OVs
+    activas. Si se pasa order_id, filtra solo esa OV.
+    Soporta: Dirección, Gerencia, Admin, Ventas, Diseño, Producción.
+    """
+    # 1. Cargar las OVs
+    stmt = select(SalesOrder).options(
+        selectinload(SalesOrder.client),
+        selectinload(SalesOrder.items).selectinload(SalesOrderItem.instances),
+    )
+    if order_id:
+        stmt = stmt.where(SalesOrder.id == order_id)
+    else:
+        stmt = stmt.where(SalesOrder.status.in_(ACTIVE_ORDER_STATUSES))
+    
+    orders = session.exec(stmt).unique().all()
+
+    result = []
+    for order in orders:
+        client_name = order.client.full_name if order.client else "—"
+        order_folio = f"OV-{str(order.id).zfill(4)}"
+        
+        houses_map: dict = {}
+        unassigned: list = []
+
+        for item in (order.items or []):
+            for inst in (item.instances or []):
+                if inst.is_cancelled:
+                    continue
+                inst_summary = InstanceStatusSummary(
+                    id=inst.id,
+                    product_name=item.product_name,
+                    custom_name=inst.custom_name or item.product_name,
+                    production_status=inst.production_status,
+                    production_batch_id=inst.production_batch_id,
+                    qr_code=inst.qr_code,
+                )
+                if inst.street or inst.lot:
+                    key = f"{inst.street or ''}||{inst.lot or ''}"
+                    if key not in houses_map:
+                        houses_map[key] = {
+                            "street": inst.street or "",
+                            "lot": inst.lot or "",
+                            "key": key,
+                            "instances": [],
+                        }
+                    houses_map[key]["instances"].append(inst_summary)
+                else:
+                    unassigned.append(inst_summary)
+
+        # Armar el resumen por casa
+        houses = []
+        for key, house_data in sorted(houses_map.items()):
+            by_status = {s: 0 for s in ALL_INSTANCE_STATUSES}
+            for inst in house_data["instances"]:
+                status = inst.production_status
+                if status in by_status:
+                    by_status[status] += 1
+            houses.append(HouseStatusSummary(
+                street=house_data["street"],
+                lot=house_data["lot"],
+                grouping_key=key,
+                total=len(house_data["instances"]),
+                by_status=by_status,
+                instances=house_data["instances"],
+            ))
+
+        result.append(OrderHousesStatus(
+            order_id=order.id,
+            order_folio=order_folio,
+            project_name=order.project_name,
+            client_name=client_name,
+            status=order.status,
+            houses=houses,
+            unassigned=unassigned,
+        ))
+
+    return result
