@@ -34,13 +34,28 @@ interface OrderHousesStatus {
 const STATUS_ORDER = ['CLOSED','INSTALLED','CARGADO','READY','IN_PRODUCTION','PENDING','WARRANTY'];
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
-  CLOSED:        { label: 'Cerrado',       color: '#0F6E56', bg: '#E1F5EE' },
+  CLOSED:        { label: 'Firmado',       color: '#0F6E56', bg: '#E1F5EE' },
   INSTALLED:     { label: 'Instalado',     color: '#1D9E75', bg: '#E1F5EE' },
   CARGADO:       { label: 'Cargado',       color: '#185FA5', bg: '#E6F1FB' },
-  READY:         { label: 'Listo',         color: '#378ADD', bg: '#E6F1FB' },
+  READY:         { label: 'Empacado',      color: '#378ADD', bg: '#E6F1FB' },
   IN_PRODUCTION: { label: 'En producción', color: '#BA7517', bg: '#FAEEDA' },
   PENDING:       { label: 'Pendiente',     color: '#888780', bg: '#F1EFE8' },
   WARRANTY:      { label: 'Garantía',      color: '#993C1D', bg: '#FAECE7' },
+};
+
+// Etapas del flujo normal (en orden, sin PENDING ni WARRANTY)
+const FLOW_STAGES = [
+  { key: 'IN_PRODUCTION', label: 'En producción' },
+  { key: 'READY',         label: 'Empacado'      },
+  { key: 'CARGADO',       label: 'Cargado'       },
+  { key: 'INSTALLED',     label: 'Instalado'     },
+  { key: 'CLOSED',        label: 'Firmado'       },
+];
+
+// Orden numérico de estados para saber cuáles están "completados"
+const STATUS_RANK: Record<string, number> = {
+  PENDING: 0, IN_PRODUCTION: 1, READY: 2,
+  CARGADO: 3, INSTALLED: 4, CLOSED: 5, WARRANTY: 6,
 };
 
 const OV_STATUS_LABEL: Record<string, string> = {
@@ -127,21 +142,43 @@ function HouseCard({ house }: { house: HouseStatus }) {
         </div>
       </div>
       {open && (
-        <div className="border-t border-slate-100 bg-slate-50/50">
+        <div className="border-t border-slate-100 bg-slate-50/50 divide-y divide-slate-50">
           {house.instances.map(inst => {
-            const meta = STATUS_META[inst.production_status];
+            const rank = STATUS_RANK[inst.production_status] ?? 0;
+            const isWarranty = inst.production_status === 'WARRANTY';
             return (
-              <div
-                key={inst.id}
-                className="px-5 py-2 flex items-center justify-between border-b border-slate-50 last:border-0 text-sm"
-              >
-                <span className="text-slate-700 truncate flex-1">{inst.product_name}</span>
-                <span
-                  className="text-[11px] font-bold px-2 py-0.5 rounded-lg shrink-0 ml-3"
-                  style={{ background: meta?.bg || '#F1EFE8', color: meta?.color || '#888' }}
-                >
-                  {meta?.label || inst.production_status}
-                </span>
+              <div key={inst.id} className="px-4 py-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-sm font-bold text-slate-700 truncate flex-1">
+                    {inst.product_name}
+                  </span>
+                  {isWarranty && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-50 text-amber-700">
+                      ⚠ Garantía
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-4 flex-wrap">
+                  {FLOW_STAGES.map(stage => {
+                    const checked = !isWarranty && rank >= STATUS_RANK[stage.key];
+                    return (
+                      <label
+                        key={stage.key}
+                        className="flex items-center gap-1.5 cursor-default select-none"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          readOnly
+                          className="w-3.5 h-3.5 accent-indigo-600 cursor-default"
+                        />
+                        <span className={`text-[11px] font-bold ${checked ? 'text-slate-700' : 'text-slate-300'}`}>
+                          {stage.label}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
             );
           })}
