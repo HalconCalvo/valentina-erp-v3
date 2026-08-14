@@ -53,6 +53,7 @@ import ProductionKanbanPage from './modules/production/pages/ProductionKanbanPag
 import ProductionInProcessPage from './modules/production/pages/ProductionInProcessPage';
 import ProductionReadyPage from './modules/production/pages/ProductionReadyPage';
 import ProductionBlueprintsPage from './modules/production/pages/ProductionBlueprintsPage';
+import OVTrackingPage from './modules/sales/pages/OVTrackingPage';
 
 // 10. PLANEACIÓN ESTRATÉGICA: MATRIZ DE 4 CARRILES
 import PlanningPage from './modules/planning/pages/PlanningPage';
@@ -135,6 +136,7 @@ function AppRoutes() {
         <Route path="/production/in-process" element={<ProductionInProcessPage key={key} />} />
         <Route path="/production/ready" element={<ProductionReadyPage key={key} />} />
         <Route path="/production/blueprints" element={<ProductionBlueprintsPage key={key} />} />
+        <Route path="/ov-tracking" element={<OVTrackingPage key={key} />} />
 
         {/* --- PLANEACIÓN ESTRATÉGICA: TABLERO MAESTRO --- */}
         <Route path="/planning" element={<PlanningPage key={key} />} />

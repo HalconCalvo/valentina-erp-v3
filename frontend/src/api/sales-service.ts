@@ -433,4 +433,14 @@ export const salesService = {
     markCommissionPayrollPaid: async (commissionId: number, isPaid: boolean): Promise<void> => {
         await axiosClient.patch(`/sales/commissions/${commissionId}/mark-paid`, { is_paid: isPaid });
     },
+
+    /**
+     * Seguimiento de OV: estado de casas agrupadas por street+lot.
+     * Sin order_id → todas las OVs activas. Con order_id → solo esa OV.
+     */
+    getHousesStatus: async (orderId?: number): Promise<any[]> => {
+        const params = orderId ? { order_id: orderId } : {};
+        const response = await axiosClient.get('/sales/houses-status', { params });
+        return response.data;
+    },
 };
