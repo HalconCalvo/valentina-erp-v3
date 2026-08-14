@@ -31,18 +31,6 @@ interface OrderHousesStatus {
   unassigned: InstanceStatus[];
 }
 
-const STATUS_ORDER = ['CLOSED','INSTALLED','CARGADO','READY','IN_PRODUCTION','PENDING','WARRANTY'];
-
-const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
-  CLOSED:        { label: 'Firmado',       color: '#0F6E56', bg: '#E1F5EE' },
-  INSTALLED:     { label: 'Instalado',     color: '#1D9E75', bg: '#E1F5EE' },
-  CARGADO:       { label: 'Cargado',       color: '#185FA5', bg: '#E6F1FB' },
-  READY:         { label: 'Empacado',      color: '#378ADD', bg: '#E6F1FB' },
-  IN_PRODUCTION: { label: 'En producción', color: '#BA7517', bg: '#FAEEDA' },
-  PENDING:       { label: 'Pendiente',     color: '#888780', bg: '#F1EFE8' },
-  WARRANTY:      { label: 'Garantía',      color: '#993C1D', bg: '#FAECE7' },
-};
-
 // Etapas del flujo normal (en orden, sin PENDING ni WARRANTY)
 const FLOW_STAGES = [
   { key: 'IN_PRODUCTION', label: 'En producción' },
@@ -82,26 +70,6 @@ function houseBadge(by: Record<string, number>, total: number) {
   return { label: 'Pendiente', color: '#5F5E5A', bg: '#F1EFE8' };
 }
 
-function ProgressBar({ by, total }: { by: Record<string, number>; total: number }) {
-  if (total === 0) return null;
-  return (
-    <div className="flex h-1.5 rounded-full overflow-hidden bg-slate-100">
-      {STATUS_ORDER.map(s => {
-        const count = by[s] || 0;
-        if (count === 0) return null;
-        const pct = (count / total * 100).toFixed(1);
-        return (
-          <div
-            key={s}
-            style={{ width: `${pct}%`, background: STATUS_META[s]?.color || '#888' }}
-            title={`${STATUS_META[s]?.label || s}: ${count}`}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
 function HouseCard({ house }: { house: HouseStatus }) {
   const [open, setOpen] = useState(false);
   const badge = houseBadge(house.by_status, house.total);
@@ -130,16 +98,6 @@ function HouseCard({ house }: { house: HouseStatus }) {
           ? <ChevronUp size={14} className="text-slate-400 shrink-0" />
           : <ChevronDown size={14} className="text-slate-400 shrink-0" />
         }
-      </div>
-      <div className="px-4 pb-2">
-        <ProgressBar by={house.by_status} total={house.total} />
-        <div className="flex gap-3 mt-1.5 flex-wrap">
-          {STATUS_ORDER.filter(s => (house.by_status[s] || 0) > 0).map(s => (
-            <span key={s} className="text-[11px]" style={{ color: STATUS_META[s]?.color }}>
-              ● {STATUS_META[s]?.label}: {house.by_status[s]}
-            </span>
-          ))}
-        </div>
       </div>
       {open && (
         <div className="border-t border-slate-100 bg-slate-50/50 divide-y divide-slate-50">
