@@ -598,6 +598,29 @@ const DirectorDashboard: React.FC = () => {
                         </Card>
                     </div>
 
+                    {/* 7. SEGUIMIENTO DE OV */}
+                    <div className="w-full relative h-40">
+                        <Card
+                            onClick={() => navigate('/ov-tracking')}
+                            className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-indigo-600 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white overflow-hidden group"
+                        >
+                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50 text-indigo-700 border-r border-indigo-100 font-black transition-colors group-hover:bg-indigo-100 text-2xl">
+                                🏘️
+                            </div>
+                            <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                                <div className="flex justify-between items-start">
+                                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">7. Seguimiento</p>
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-bold text-slate-700 leading-tight">Seguimiento<br/>de OV</h3>
+                                </div>
+                                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">Casas por OV activa</p>
+                                </div>
+                            </div>
+                        </Card>
+                    </div>
+
                 </div>
             )}
 
