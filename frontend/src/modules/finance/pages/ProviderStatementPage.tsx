@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, RefreshCw, ArrowLeft } from 'lucide-react';
+import { FileText, ArrowLeft } from 'lucide-react';
 import client from '../../../api/axios-client';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import type { Provider } from '../../foundations/hooks/useProviders';
@@ -52,7 +52,7 @@ const ProviderStatementPage: React.FC = () => {
     const [dateTo, setDateTo] = useState('');
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
-    const [loading, setLoading] = useState(false);
+    const [, setLoading] = useState(false);
     const [report, setReport] = useState<StatementData | null>(null);
 
     useEffect(() => {
@@ -106,6 +106,12 @@ const ProviderStatementPage: React.FC = () => {
             setLoading(false);
         }
     };
+
+    // Consulta automática al cambiar filtros
+    useEffect(() => {
+        if (!canConsult) return;
+        void handleConsult();
+    }, [providerId, dateFrom, dateTo, dateMode, statusFilter]);
 
     const getStatusDisplay = (inv: ProviderInvoice): { text: string; className: string } => {
         if (inv.outstanding <= 0) {
@@ -245,15 +251,6 @@ const ProviderStatementPage: React.FC = () => {
                             ))}
                         </div>
                     </div>
-                    <button
-                        type="button"
-                        onClick={() => void handleConsult()}
-                        disabled={!canConsult || loading}
-                        className="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-lg shadow-sm transition-all text-sm"
-                    >
-                        {loading ? <RefreshCw size={16} className="animate-spin" /> : <FileText size={16} />}
-                        Consultar
-                    </button>
                 </div>
             </section>
 
