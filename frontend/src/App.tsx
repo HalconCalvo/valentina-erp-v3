@@ -17,6 +17,7 @@ import ProvidersPage from './modules/foundations/pages/ProvidersPage';
 import ClientsPage from './modules/foundations/pages/ClientsPage';
 import TaxRatesPage from './modules/foundations/pages/TaxRatesPage';
 import ConfigPage from './modules/foundations/pages/ConfigPage';
+import HelpPage from './modules/foundations/pages/HelpPage';
 
 // 4. DISEÑO
 import DesignCatalogPage from './modules/design/pages/DesignCatalogPage';
@@ -97,6 +98,7 @@ function AppRoutes() {
         <Route path="/clients" element={<ClientsPage key={key} />} />
         <Route path="/tax-rates" element={<TaxRatesPage key={key} />} />
         <Route path="/config" element={<ConfigPage key={key} />} />
+        <Route path="/help" element={<HelpPage />} />
 
         {/* Usuarios */}
         <Route path="/users" element={<UsersPage key={key} />} />

@@ -1,7 +1,9 @@
 import React from 'react';
-import { Search, Bell, Factory, Wifi } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Search, Bell, Factory, Wifi, HelpCircle } from 'lucide-react';
 
 export default function Header() {
+    const navigate = useNavigate();
     return (
         <header className="h-14 bg-white border-b border-slate-200 sticky top-0 z-30 px-6 flex items-center justify-between transition-all">
             
@@ -32,6 +34,14 @@ export default function Header() {
                 </div>
 
                 <div className="h-6 w-px bg-slate-200 hidden lg:block"></div>
+
+                <button
+                    onClick={() => navigate('/help')}
+                    className="p-1.5 text-slate-400 hover:text-indigo-600 transition-colors rounded-lg"
+                    title="Manual de Valentina"
+                >
+                    <HelpCircle size={18} />
+                </button>
 
                 <button className="relative p-1.5 text-slate-400 hover:text-indigo-600 transition-colors">
                     <Bell size={18} />
