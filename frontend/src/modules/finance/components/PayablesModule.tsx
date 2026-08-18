@@ -535,14 +535,14 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                     )}
                     <div className="w-full relative">
                         <Card
-                            onClick={() => navigate('/finance/supplier-payments')}
+                            onClick={() => navigate('/finance/provider-statement')}
                             className="p-6 border-l-4 border-l-teal-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl"
                         >
                             <div>
                                 <h4 className="font-bold text-teal-800 flex items-center gap-2">
-                                    <FileText size={18} /> Histórico de Pagos a Proveedores
+                                    <FileText size={18} /> Estado de Cuenta por Proveedor
                                 </h4>
-                                <p className="text-sm text-slate-500 mt-2 mb-4">Pagos ya realizados a Proveedores</p>
+                                <p className="text-sm text-slate-500 mt-2 mb-4">Facturas, pagos y saldo por proveedor</p>
                             </div>
                         </Card>
                     </div>
