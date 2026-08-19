@@ -16,20 +16,23 @@ depends_on = None
 
 
 def upgrade():
-    op.create_table(
-        'purchase_prepayments',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('purchase_order_id', sa.Integer(), nullable=False),
-        sa.Column('provider_id', sa.Integer(), nullable=False),
-        sa.Column('amount', sa.Float(), nullable=False),
-        sa.Column('payment_date', sa.DateTime(), nullable=False),
-        sa.Column('reference', sa.String(), nullable=True),
-        sa.Column('bank_account', sa.String(), nullable=True),
-        sa.Column('notes', sa.String(), nullable=True),
-        sa.Column('created_at', sa.DateTime(), nullable=False),
-        sa.Column('created_by_user_id', sa.Integer(), nullable=True),
-        sa.PrimaryKeyConstraint('id'),
-    )
+    # Tabla puede existir ya en producción (fue creada manualmente antes del revert)
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS purchase_prepayments (
+            id SERIAL NOT NULL PRIMARY KEY,
+            purchase_order_id INTEGER NOT NULL REFERENCES purchase_orders(id),
+            provider_id INTEGER NOT NULL REFERENCES providers(id),
+            amount FLOAT NOT NULL,
+            payment_date TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+            reference VARCHAR,
+            bank_account VARCHAR,
+            notes VARCHAR,
+            created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+            created_by_user_id INTEGER REFERENCES users(id)
+        )
+    """)
+    op.execute("CREATE INDEX IF NOT EXISTS ix_purchase_prepayments_purchase_order_id ON purchase_prepayments (purchase_order_id)")
+    return  # el resto del upgrade original ya no aplica
 
 
 def downgrade():
