@@ -206,6 +206,21 @@ def read_purchase_orders(*, db: Session = Depends(get_session), status: str | No
         """).bindparams(ids=order_ids)).all()
         folios_by_po = {row[0]: row[1] for row in _folio_rows}
 
+    # 5. Anticipos pagados por OC (facturas ANT- con pagos PAID)
+    advance_paid_by_po = {}
+    if order_ids:
+        from app.models.finance import PurchaseInvoice, SupplierPayment, PaymentStatus
+        _ant_rows = db.exec(text("""
+            SELECT po.id as po_id, COALESCE(SUM(sp.amount), 0) as total_paid
+            FROM purchase_orders po
+            JOIN purchase_invoices pi ON pi.invoice_number = 'ANT-' || po.folio
+            JOIN supplier_payments sp ON sp.purchase_invoice_id = pi.id
+            WHERE po.id = ANY(:ids)
+              AND sp.status = 'PAID'
+            GROUP BY po.id
+        """).bindparams(ids=order_ids)).all()
+        advance_paid_by_po = {row[0]: float(row[1]) for row in _ant_rows}
+
     # --- CONSTRUCCIÓN EN MEMORIA (sin db.get/db.exec dentro de los loops) ---
     results = []
     for o in orders:
@@ -245,7 +260,8 @@ def read_purchase_orders(*, db: Session = Depends(get_session), status: str | No
             "invoice_folio_reported": getattr(o, 'invoice_folio_reported', None),
             "invoice_folios": folios_by_po.get(o.id),
             "is_advance": getattr(o, 'is_advance', False),
-            "invoice_total_reported": getattr(o, 'invoice_total_reported', 0.0)
+            "invoice_total_reported": getattr(o, 'invoice_total_reported', 0.0),
+            "advance_paid": advance_paid_by_po.get(o.id, 0.0),
         })
         
     return results

@@ -472,6 +472,9 @@ const InventoryReceptionPage: React.FC = () => {
     const invoiceTotalNum = Number(invoiceTotal);
     const isFinancialBlocked = false;
     const hasFinancialWarning = invoiceTotal !== '' && invoiceTotalNum > 0 && expectedTotal > 0 && diff > tolerancia;
+    const advancePaid = Number(selectedPO?.advance_paid || 0);
+    const hasAdvance = advancePaid > 0;
+    const saldoConAnticipo = Math.max(0, invoiceTotalNum - advancePaid);
 
     return (
         <>
@@ -555,6 +558,18 @@ const InventoryReceptionPage: React.FC = () => {
                                     onFocus={(e) => e.target.select()}
                                 />
                             </div>
+                            {hasAdvance && invoiceTotalNum > 0 && (
+                                <div className={`mt-2 px-3 py-2 rounded-lg text-[11px] font-bold text-right ${
+                                    saldoConAnticipo <= 0.01
+                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                        : 'bg-amber-50 text-amber-700 border border-amber-200'
+                                }`}>
+                                    {saldoConAnticipo <= 0.01
+                                        ? `✓ Anticipo de ${formatCurrency(advancePaid)} aplicado — esta factura quedará PAGADA`
+                                        : `⚠ Anticipo de ${formatCurrency(advancePaid)} aplicado — Saldo por pagar: ${formatCurrency(saldoConAnticipo)}`
+                                    }
+                                </div>
+                            )}
                         </div>
                     </div>
                     </div>
