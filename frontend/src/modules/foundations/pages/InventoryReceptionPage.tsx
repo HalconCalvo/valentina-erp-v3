@@ -555,21 +555,14 @@ const InventoryReceptionPage: React.FC = () => {
                                     value={displayTotal} 
                                     onChange={(e) => handleAmountInput(e.target.value)}
                                     onBlur={handleBlur}
-                                    onFocus={(e) => e.target.select()}
+                                    onFocus={() => {
+                                        if (invoiceTotal === 0 || invoiceTotal === '') {
+                                            setDisplayTotal('');
+                                            setInvoiceTotal('');
+                                        }
+                                    }}
                                 />
                             </div>
-                            {hasAdvance && invoiceTotalNum > 0 && (
-                                <div className={`mt-2 px-3 py-2 rounded-lg text-[11px] font-bold text-right ${
-                                    saldoConAnticipo <= 0.01
-                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                        : 'bg-amber-50 text-amber-700 border border-amber-200'
-                                }`}>
-                                    {saldoConAnticipo <= 0.01
-                                        ? `✓ Anticipo de ${formatCurrency(advancePaid)} aplicado — esta factura quedará PAGADA`
-                                        : `⚠ Anticipo de ${formatCurrency(advancePaid)} aplicado — Saldo por pagar: ${formatCurrency(saldoConAnticipo)}`
-                                    }
-                                </div>
-                            )}
                         </div>
                     </div>
                     </div>
@@ -745,6 +738,28 @@ const InventoryReceptionPage: React.FC = () => {
                     </button>
                 </div>
 
+
+                {hasAdvance && (
+                    <div className={`mx-8 mb-4 px-5 py-4 rounded-xl text-sm font-black border-2 flex items-center gap-3 ${
+                        saldoConAnticipo <= 0.01
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-400'
+                            : 'bg-orange-50 text-orange-700 border-orange-400'
+                    }`}>
+                        <span className="text-2xl">{saldoConAnticipo <= 0.01 ? '✓' : '⚠'}</span>
+                        <div>
+                            <p className="text-sm font-black">
+                                {saldoConAnticipo <= 0.01
+                                    ? 'Anticipo aplicado — Esta factura quedará PAGADA'
+                                    : `Anticipo aplicado — Saldo por pagar: ${formatCurrency(saldoConAnticipo)}`
+                                }
+                            </p>
+                            <p className="text-xs font-bold opacity-70">
+                                Anticipo pagado: {formatCurrency(advancePaid)}
+                                {invoiceTotalNum > 0 && ` · Factura: ${formatCurrency(invoiceTotalNum)}`}
+                            </p>
+                        </div>
+                    </div>
+                )}
 
                 <div className="p-8 bg-slate-50/50 flex justify-between items-center border-t border-slate-100 mt-6">
                     <div className="flex gap-4">
