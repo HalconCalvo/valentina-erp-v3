@@ -475,6 +475,8 @@ const InventoryReceptionPage: React.FC = () => {
     const advancePaid = Number(selectedPO?.advance_paid || 0);
     const hasAdvance = advancePaid > 0;
     const saldoConAnticipo = Math.max(0, invoiceTotalNum - advancePaid);
+    const overpaid = hasAdvance && invoiceTotalNum > 0 && advancePaid > invoiceTotalNum;
+    const overpaidAmount = overpaid ? Math.round((advancePaid - invoiceTotalNum) * 100) / 100 : 0;
 
     return (
         <>
@@ -744,14 +746,18 @@ const InventoryReceptionPage: React.FC = () => {
                         <span className="text-2xl">⚠</span>
                         <div>
                             <p className="text-sm font-black">
-                                {saldoConAnticipo <= 0.01
-                                    ? 'Anticipo aplicado — Esta factura quedará PAGADA'
-                                    : `Anticipo aplicado — Saldo por pagar: ${formatCurrency(saldoConAnticipo)}`
+                                {overpaid
+                                    ? `⚠ La factura (${formatCurrency(invoiceTotalNum)}) es MENOR al anticipo pagado (${formatCurrency(advancePaid)})`
+                                    : saldoConAnticipo <= 0.01
+                                        ? 'Anticipo aplicado — Esta factura quedará PAGADA'
+                                        : `Anticipo aplicado — Saldo por pagar: ${formatCurrency(saldoConAnticipo)}`
                                 }
                             </p>
                             <p className="text-xs font-bold opacity-70">
-                                Anticipo pagado: {formatCurrency(advancePaid)}
-                                {invoiceTotalNum > 0 && ` · Factura: ${formatCurrency(invoiceTotalNum)}`}
+                                {overpaid
+                                    ? `Diferencia a tu favor: ${formatCurrency(overpaidAmount)} — Verifica antes de confirmar`
+                                    : `Anticipo pagado: ${formatCurrency(advancePaid)} · Factura: ${formatCurrency(invoiceTotalNum)}`
+                                }
                             </p>
                         </div>
                     </div>
