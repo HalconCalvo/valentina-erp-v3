@@ -698,7 +698,7 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
         # sin pasar por accounts_payable ni _sync_pos_to_invoices
         from app.models.finance import PurchaseInvoice, InvoiceStatus
         invoice_folio = data.get("invoice_folio")
-        invoice_total = total_recibido_con_iva
+        invoice_total = total_recibido_con_iva if total_recibido_con_iva > 0 else float(data.get("invoice_total", 0))
         if invoice_folio and invoice_total > 0:
             tax_rate = float(data.get("tax_rate", 0.16) or 0.16)
             _subtotal = round(invoice_total / (1 + tax_rate), 2)
