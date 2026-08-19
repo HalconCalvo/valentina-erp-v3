@@ -364,7 +364,7 @@ def update_instance_schedule(
 
     # Guardia de BAUTIZO: custom_name → DIRECTOR, GERENCIA, SALES, DESIGN
     if intenta_bautizar:
-        allowed_baptism = {UserRole.DIRECTOR, UserRole.GERENCIA, UserRole.SALES, UserRole.DESIGN}
+        allowed_baptism = {UserRole.DIRECTOR, UserRole.MANAGER, UserRole.SALES, UserRole.DESIGN}
         if current_user.role not in allowed_baptism:
             raise HTTPException(
                 status_code=403,
@@ -373,7 +373,7 @@ def update_instance_schedule(
 
     # Guardia de FECHAS: programación → DIRECTOR, GERENCIA, DESIGN (SIN SALES)
     if intenta_fechas:
-        allowed_dates = {UserRole.DIRECTOR, UserRole.GERENCIA, UserRole.DESIGN}
+        allowed_dates = {UserRole.DIRECTOR, UserRole.MANAGER, UserRole.DESIGN}
         if current_user.role not in allowed_dates:
             raise HTTPException(
                 status_code=403,
@@ -545,7 +545,7 @@ def baptize_instances(
     en un único request. Usado en la pantalla de 'Configuración de Instancias'
     que aparece al confirmar una Orden de Venta.
     """
-    allowed = {UserRole.DIRECTOR, UserRole.GERENCIA, UserRole.SALES, UserRole.DESIGN}
+    allowed = {UserRole.DIRECTOR, UserRole.MANAGER, UserRole.SALES, UserRole.DESIGN}
     if current_user.role not in allowed:
         raise HTTPException(
             status_code=403,
@@ -612,7 +612,7 @@ def assign_installation_team(
     ni genera nómina. El equipo puede reasignarse hasta el momento del escaneo QR.
     """
     # Permisos
-    allowed = {UserRole.DIRECTOR, UserRole.GERENCIA, UserRole.DESIGN}
+    allowed = {UserRole.DIRECTOR, UserRole.MANAGER, UserRole.DESIGN}
     if current_user.role not in allowed:
         raise HTTPException(
             status_code=403,

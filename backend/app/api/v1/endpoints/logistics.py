@@ -323,7 +323,7 @@ def defer_installer_payroll(
     current_user: CurrentUser,
 ):
     """Omite el pago esta semana — requiere motivo documentado."""
-    if current_user.role.upper() not in {"GERENCIA", "DIRECTOR", "ADMIN"}:
+    if current_user.role.upper() not in {"MANAGER", "DIRECTOR", "ADMIN"}:
         raise HTTPException(status_code=403, detail="Solo Gerencia, Director o Admin.")
     if not payload.reason or not payload.reason.strip():
         raise HTTPException(status_code=422, detail="Debes escribir el motivo antes de omitir el pago.")
@@ -347,7 +347,7 @@ def mark_payroll_paid(
     current_user: CurrentUser,
 ):
     """(GERENCIA / DIRECTOR / ADMIN) Ejecuta el pago y opcionalmente registra salida bancaria."""
-    if current_user.role.upper() not in {"GERENCIA", "DIRECTOR", "ADMIN"}:
+    if current_user.role.upper() not in {"MANAGER", "DIRECTOR", "ADMIN"}:
         raise HTTPException(status_code=403, detail="Solo Gerencia, Director o Admin pueden ejecutar pagos.")
 
     record = session.get(PayrollPayment, payroll_id)
@@ -402,7 +402,7 @@ def preview_bundle_scan(
     Solo lectura: NO cambia estados, NO toca inventario, NO genera nómina.
     La confirmación real ocurre después en scan_bundle_qr.
     """
-    allowed = {UserRole.LOGISTICS, UserRole.DIRECTOR, UserRole.GERENCIA, UserRole.PRODUCTION}
+    allowed = {UserRole.LOGISTICS, UserRole.DIRECTOR, UserRole.MANAGER, UserRole.PRODUCTION}
     if current_user.role not in allowed:
         raise HTTPException(status_code=403, detail="No tienes permiso para escanear cargas.")
 
@@ -450,7 +450,7 @@ def preview_bundle_scan(
 
     # ¿Quien escanea es el líder asignado?
     es_lider = current_user.id == assignment.leader_user_id
-    puede_autorizar = current_user.role in {UserRole.PRODUCTION, UserRole.DIRECTOR, UserRole.GERENCIA}
+    puede_autorizar = current_user.role in {UserRole.PRODUCTION, UserRole.DIRECTOR, UserRole.MANAGER}
 
     # Bloqueos que impedirían confirmar después
     bloqueo = None
@@ -488,7 +488,7 @@ def reasignar_equipo(
     Solo Jefe de Producción, Gerencia o Dirección.
     Bloqueado si la asignación ya fue procesada (la nómina ya se generó al escanear).
     """
-    allowed = {UserRole.PRODUCTION, UserRole.GERENCIA, UserRole.DIRECTOR}
+    allowed = {UserRole.PRODUCTION, UserRole.MANAGER, UserRole.DIRECTOR}
     if current_user.role not in allowed:
         raise HTTPException(
             status_code=403,
@@ -574,7 +574,7 @@ def scan_bundle_qr(
     - Genera los registros de nómina con el equipo confirmado
     - A partir de aquí el equipo ya no puede modificarse
     """
-    allowed_scan = {UserRole.LOGISTICS, UserRole.DIRECTOR, UserRole.GERENCIA}
+    allowed_scan = {UserRole.LOGISTICS, UserRole.DIRECTOR, UserRole.MANAGER}
     if current_user.role not in allowed_scan:
         raise HTTPException(
             status_code=403,
@@ -737,7 +737,7 @@ async def upload_evidence_photos(
     Las URLs se agregan (append) a evidence_photos_urls en SalesOrderItemInstance.
     No hay candado de tiempo — se pueden subir aunque la instancia ya esté CLOSED.
     """
-    allowed_evidence = {UserRole.LOGISTICS, UserRole.DIRECTOR, UserRole.GERENCIA}
+    allowed_evidence = {UserRole.LOGISTICS, UserRole.DIRECTOR, UserRole.MANAGER}
     if current_user.role not in allowed_evidence:
         raise HTTPException(
             status_code=403,
@@ -800,7 +800,7 @@ def get_my_workday(
     Feed de instalación: LOGISTICS ve sus asignaciones como líder (hoy);
     DIRECTOR / GERENCIA ven todas las asignaciones en curso (sin filtro de fecha).
     """
-    allowed = {UserRole.LOGISTICS, UserRole.DIRECTOR, UserRole.GERENCIA}
+    allowed = {UserRole.LOGISTICS, UserRole.DIRECTOR, UserRole.MANAGER}
     if current_user.role not in allowed:
         raise HTTPException(
             status_code=403,

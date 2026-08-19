@@ -73,7 +73,7 @@ def _is_seller_scoped_role(user: User) -> bool:
     ADMIN, GERENCIA, DIRECTOR y demás roles de staff **no** entran aquí: ven el universo
     completo de órdenes en GET /sales/orders (monitor tipo administración), sin filtro por user_id.
     """
-    return _normalized_role(user) in ("SALES", "VENTAS")
+    return _normalized_role(user) in ("SALES",)
 
 
 def _line_amount_per_instance(item: SalesOrderItem) -> float:
@@ -92,12 +92,10 @@ def _can_edit_client_po_meta(user: User) -> bool:
     r = _normalized_role(user)
     return r in (
         "ADMIN",
-        "ADMINISTRADOR",
-        "GERENCIA",
-        "DIRECTOR",
-        "DIRECCION",
-        "DIRECTION",
         "MANAGER",
+        "DIRECTOR",
+        "SALES",
+        "DESIGN",
     )
 
 
@@ -397,7 +395,7 @@ def update_sales_order(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user)
 ):
-    allowed = {UserRole.DIRECTOR, UserRole.GERENCIA, UserRole.SALES}
+    allowed = {UserRole.DIRECTOR, UserRole.MANAGER, UserRole.SALES}
     if current_user.role not in allowed:
         raise HTTPException(
             status_code=403,
@@ -526,7 +524,7 @@ def add_items_to_order(
     Acumula en subtotal/tax/total. Las instancias de los items nuevos nacen aquí.
     No toca anticipos: el segundo anticipo se emite aparte con el modal de CxC.
     """
-    allowed = {UserRole.DIRECTOR, UserRole.GERENCIA, UserRole.SALES}
+    allowed = {UserRole.DIRECTOR, UserRole.MANAGER, UserRole.SALES}
     if current_user.role not in allowed:
         raise HTTPException(403, "No tienes permisos para ampliar órdenes de venta.")
 

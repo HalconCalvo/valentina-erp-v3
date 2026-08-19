@@ -16,9 +16,7 @@ from app.services.pdf_generator import PDFGenerator
 router = APIRouter()
 
 ALLOWED_ROLES = {
-    "DIRECTOR", "DIRECCION", "DIRECTION",
-    "GERENCIA",
-    "ADMIN", "ADMINISTRADOR",
+    "DIRECTOR", "ADMIN",
 }
 
 PAYMENT_METHOD_ES = {

@@ -5,7 +5,7 @@ from sqlmodel import Field, SQLModel
 # 0. Enum de Roles (Definición Central de Seguridad)
 class UserRole(str, Enum):
     DIRECTOR = "DIRECTOR"       # Acceso Total (Dios)
-    GERENCIA = "GERENCIA"       # Gerencia Operativa / Flujo Maestro (Tu Esposa)
+    MANAGER = "MANAGER"         # Gerencia Operativa / Flujo Maestro
     ADMIN = "ADMIN"             # Finanzas / Contabilidad (El Maker)
     SALES = "SALES"             # Ventas
     DESIGN = "DESIGN"           # Diseño e Ingeniería

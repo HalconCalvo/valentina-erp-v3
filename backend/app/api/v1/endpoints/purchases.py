@@ -344,7 +344,7 @@ def emit_bulk_purchase_order(*, db: Session = Depends(get_session), data: POCrea
 
 @router.put("/orders/{po_id}/authorize")
 def authorize_purchase_order(*, db: Session = Depends(get_session), po_id: int, current_user: CurrentUser):
-    allowed_roles = ["DIRECTOR", "GERENCIA"]
+    allowed_roles = ["DIRECTOR", "MANAGER"]
     if current_user.role.upper() not in allowed_roles:
         raise HTTPException(
             status_code=403,
@@ -842,7 +842,7 @@ def mark_item_no_more(*, db: Session = Depends(get_session), po_id: int, item_id
 @router.put("/orders/{po_id}/declare-satisfied")
 def declare_order_satisfied(*, db: Session = Depends(get_session), po_id: int, current_user: CurrentUser):
     """Declara una OC parcialmente recibida como Satisfecha (cierre manual)."""
-    if current_user.role.upper() not in ["ADMIN", "ADMINISTRACION", "ADMINISTRADOR", "GERENCIA", "DIRECTOR"]:
+    if current_user.role.upper() not in ["ADMIN", "MANAGER", "DIRECTOR"]:
         raise HTTPException(status_code=403, detail="Solo Administración, Gerencia o Dirección pueden declarar una OC como satisfecha.")
     
     po = db.get(PurchaseOrder, po_id)
@@ -1143,7 +1143,7 @@ def create_operational_expense(
     data: OperationalExpenseCreate,
     current_user: CurrentUser
 ):
-    allowed = ["DIRECTOR", "GERENCIA", "ADMIN"]
+    allowed = ["DIRECTOR", "MANAGER", "ADMIN"]
     role = current_user.role.value if hasattr(current_user.role, "value") \
         else str(current_user.role)
     if role.upper() not in allowed:
@@ -1215,7 +1215,7 @@ def get_operational_expenses(
     skip: int = 0,
     limit: int = 100
 ):
-    allowed = ["DIRECTOR", "GERENCIA", "ADMIN"]
+    allowed = ["DIRECTOR", "MANAGER", "ADMIN"]
     role = current_user.role.value if hasattr(current_user.role, "value") \
         else str(current_user.role)
     if role.upper() not in allowed:
@@ -1391,10 +1391,10 @@ def correct_reception_item(*, db: Session = Depends(get_session), po_id: int, it
 
         role = (current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)).upper()
         if hay_pagos:
-            if role != "GERENCIA":
+            if role != "MANAGER":
                 raise HTTPException(status_code=403, detail="Esta factura ya tiene pagos aplicados. Solo Gerencia puede corregirla.")
         else:
-            if role not in ["ADMIN", "ADMINISTRACION", "ADMINISTRADOR", "GERENCIA", "DIRECTOR"]:
+            if role not in ["ADMIN", "MANAGER", "DIRECTOR"]:
                 raise HTTPException(status_code=403, detail="No tienes permiso para corregir recepciones.")
 
         # --- 1) Revertir inventario (kárdex + stock) ---

@@ -166,7 +166,7 @@ def request_supplier_payment(
     session.add(payment)
     session.flush() 
 
-    if current_user.role.upper() in ["DIRECTOR", "DIRECCIÓN", "DIRECCION", "GERENCIA"]:
+    if current_user.role.upper() in ["DIRECTOR", "MANAGER"]:
         account = session.get(BankAccount, payment_in.suggested_account_id)
         if not account:
             raise HTTPException(status_code=400, detail="Cuenta bancaria no válida para el pago directo.")
@@ -326,7 +326,7 @@ def update_payment_status(
     payment_id: int,
     status_in: PaymentApprovalUpdate
 ) -> Any:
-    if current_user.role.upper() not in ["DIRECTOR", "DIRECCIÓN", "DIRECCION", "GERENCIA"]:
+    if current_user.role.upper() not in ["DIRECTOR", "MANAGER"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, 
             detail="Acceso denegado. Solo Dirección o Gerencia autorizan."
@@ -696,7 +696,7 @@ def create_credit_note(
     data: CreditNoteCreate,
 ):
     # 1. Validar rol
-    allowed = ["ADMIN", "ADMINISTRACION", "ADMINISTRADOR", "GERENCIA", "DIRECTOR", "DIRECCION"]
+    allowed = ["ADMIN", "MANAGER", "DIRECTOR"]
     if current_user.role.upper() not in allowed:
         raise HTTPException(status_code=403, detail="No tienes permiso para registrar Notas de Credito.")
 

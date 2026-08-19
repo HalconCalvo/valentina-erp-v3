@@ -191,7 +191,7 @@ def create_production_batch(
     Crea un nuevo Lote de Producción con folio secuencial automático.
     El folio ya no se recibe del frontend — se genera en el backend.
     """
-    allowed = {"DESIGN", "ADMIN", "ADMINISTRADOR", "GERENCIA", "DIRECTOR"}
+    allowed = {"DESIGN", "ADMIN", "MANAGER", "DIRECTOR"}
     role = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
     if role.upper() not in allowed:
         raise HTTPException(status_code=403, detail="No tienes permisos para esta operación.")
@@ -375,7 +375,7 @@ def assign_instance_to_batch(
     CANDADO RTM: Asigna una instancia (bultos) a un Lote de Producción.
     Aquí validamos que la instancia sea apta para fabricarse.
     """
-    allowed = {"DESIGN", "ADMIN", "ADMINISTRADOR", "GERENCIA", "DIRECTOR"}
+    allowed = {"DESIGN", "ADMIN", "MANAGER", "DIRECTOR"}
     role = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
     if role.upper() not in allowed:
         raise HTTPException(status_code=403, detail="No tienes permisos para esta operación.")
@@ -485,7 +485,7 @@ def assign_instance_to_batch(
 
 @router.patch("/{batch_id}/status")
 def update_batch_status(batch_id: int, status: str, current_user: CurrentUser, db: Session = Depends(get_session)):
-    allowed = {"DESIGN", "ADMIN", "ADMINISTRADOR", "GERENCIA", "DIRECTOR"}
+    allowed = {"DESIGN", "ADMIN", "MANAGER", "DIRECTOR"}
     role = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
     if role.upper() not in allowed:
         raise HTTPException(status_code=403, detail="No tienes permisos para esta operación.")
@@ -550,7 +550,7 @@ def delete_production_batch(
     2. Cancela reservas ACTIVA → libera committed_stock
     3. Elimina el lote
     """
-    allowed = {"DESIGN", "ADMIN", "ADMINISTRADOR", "GERENCIA", "DIRECTOR"}
+    allowed = {"DESIGN", "ADMIN", "MANAGER", "DIRECTOR"}
     role = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
     if role.upper() not in allowed:
         raise HTTPException(status_code=403, detail="No tienes permisos para esta operación.")

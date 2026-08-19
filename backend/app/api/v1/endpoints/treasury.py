@@ -44,7 +44,7 @@ def get_bank_accounts(session: SessionDep, current_user: CurrentUser) -> Any:
     accounts = session.exec(statement).all()
 
     role = (current_user.role or "").upper()
-    if role not in {"DIRECTOR", "GERENCIA"}:
+    if role not in {"DIRECTOR", "MANAGER"}:
         # Enmascarar saldo para roles no autorizados
         masked = []
         for acc in accounts:
@@ -277,7 +277,7 @@ def _role_upper(user: Any) -> str:
 
 
 _WEEKLY_FIXED_COST_ROLES = frozenset(
-    {"GERENCIA", "DIRECTOR", "ADMIN", "ADMINISTRADOR", "FINANCE", "FINANZAS"}
+    {"MANAGER", "DIRECTOR", "ADMIN"}
 )
 
 
