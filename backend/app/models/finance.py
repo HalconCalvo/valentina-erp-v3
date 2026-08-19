@@ -181,3 +181,18 @@ class PurchaseInvoiceItem(SQLModel, table=True):
     # Precio unitario de esta entrega (para validar el precio acordado)
     unit_cost: float
     created_at: datetime = Field(default_factory=datetime.now)
+
+
+class PurchasePrepayment(SQLModel, table=True):
+    __tablename__ = "purchase_prepayments"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    purchase_order_id: int = Field(foreign_key="purchase_orders.id", index=True)
+    provider_id: int = Field(foreign_key="providers.id")
+    amount: float                          # monto del prepago (sin IVA aparte, el que sea)
+    payment_date: datetime = Field(default_factory=datetime.utcnow)
+    reference: Optional[str] = Field(default=None)   # referencia bancaria / transferencia
+    bank_account: Optional[str] = Field(default=None) # cuenta de origen
+    notes: Optional[str] = Field(default=None)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")

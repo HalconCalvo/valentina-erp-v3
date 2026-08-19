@@ -482,7 +482,7 @@ def cancel_dispatched_order(*, db: Session = Depends(get_session), po_id: int, c
 
 @router.put("/orders/{po_id}/receive")
 def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, current_user: CurrentUser, data: dict = Body(...)):
-    from app.models.finance import PurchaseInvoice, SupplierPayment, PaymentStatus, InvoiceStatus
+    from app.models.finance import PurchaseInvoice, SupplierPayment, PaymentStatus, InvoiceStatus, PurchasePrepayment
     
     po = db.get(PurchaseOrder, po_id)
     if not po: raise HTTPException(status_code=404, detail="Orden no encontrada")
@@ -632,6 +632,14 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
         ant.status = getattr(InvoiceStatus, "PAID", "PAID")
         ant.outstanding_balance = 0
         db.add(ant)
+
+    # Sumar prepagos registrados en purchase_prepayments para esta OC
+    prepayments = db.exec(
+        select(PurchasePrepayment).where(
+            PurchasePrepayment.purchase_order_id == po.id
+        )
+    ).all()
+    total_pagado_anticipos += sum(float(p.amount) for p in prepayments)
 
     # 3. La Resta: Total Real - Lo que ya pagó Finanzas
     tax_rate = float(data.get("tax_rate", 0.16) or 0.16)
