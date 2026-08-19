@@ -17,14 +17,6 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
     const [dateTo, setDateTo] = useState('');
     const [selected, setSelected] = useState<any | null>(null);
     const [correctModal, setCorrectModal] = useState<{ item: any } | null>(null);
-    const [prepayModal, setPrepayModal] = useState(false);
-    const [prepayAmount, setPrepayAmount] = useState('');
-    const [prepayDate, setPrepayDate] = useState(new Date().toISOString().split('T')[0]);
-    const [prepayRef, setPrepayRef] = useState('');
-    const [prepayNotes, setPrepayNotes] = useState('');
-    const [prepayLoading, setPrepayLoading] = useState(false);
-    const [prepayError, setPrepayError] = useState('');
-    const [prepayments, setPrepayments] = useState<any[]>([]);
     const [realQty, setRealQty] = useState('');
     const [reason, setReason] = useState('');
     const [saving, setSaving] = useState(false);
@@ -89,38 +81,6 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
         } finally { setSaving(false); }
     };
 
-    const loadPrepayments = async (poId: number) => {
-        try {
-            const res = await axiosClient.get(`/finance/prepayments/by-order/${poId}`);
-            setPrepayments(res.data || []);
-        } catch { setPrepayments([]); }
-    };
-
-    const submitPrepayment = async () => {
-        if (!selected) return;
-        const amount = parseFloat(prepayAmount);
-        if (!amount || amount <= 0) { setPrepayError('Captura un monto válido.'); return; }
-        if (!prepayDate) { setPrepayError('Captura la fecha del pago.'); return; }
-        setPrepayLoading(true); setPrepayError('');
-        try {
-            await axiosClient.post('/finance/prepayments', {
-                purchase_order_id: selected.id,
-                provider_id: selected.provider_id,
-                amount,
-                payment_date: prepayDate,
-                reference: prepayRef || null,
-                notes: prepayNotes || null,
-            });
-            await loadPrepayments(selected.id);
-            setPrepayAmount(''); setPrepayRef(''); setPrepayNotes('');
-            setPrepayError('');
-        } catch (e: any) {
-            setPrepayError(e?.response?.data?.detail || 'Error al registrar el prepago.');
-        } finally {
-            setPrepayLoading(false);
-        }
-    };
-
     const filtered = orders;
 
     const statuses = ['TODOS', 'DRAFT', 'ENVIADA', 'RECIBIDA_PARCIAL', 'RECIBIDA_TOTAL', 'CANCELADA'];
@@ -146,27 +106,18 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
                                 </p>
                             </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <Button
-                                variant="outline"
-                                className="text-[9px] font-black uppercase border-indigo-200 h-8 hover:bg-indigo-50 text-indigo-600"
-                                onClick={() => { setPrepayModal(true); loadPrepayments(selected.id); }}
-                            >
-                                💳 Registrar Prepago
-                            </Button>
-                            <Button
-                                variant="outline"
-                                className="text-[9px] font-black uppercase border-slate-200 h-8 hover:bg-slate-100"
-                                onClick={() => {
-                                    const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
-                                    const baseUrl = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:8000';
-                                    window.open(`${baseUrl}/api/v1/purchases/orders/${selected.id}/pdf?token=${token}`, '_blank');
-                                }}
-                            >
-                                <FileText size={14} className="mr-1" />
-                                Ver PDF Oficial
-                            </Button>
-                        </div>
+                        <Button
+                            variant="outline"
+                            className="text-[9px] font-black uppercase border-slate-200 h-8 hover:bg-slate-100"
+                            onClick={() => {
+                                const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+                                const baseUrl = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:8000';
+                                window.open(`${baseUrl}/api/v1/purchases/orders/${selected.id}/pdf?token=${token}`, '_blank');
+                            }}
+                        >
+                            <FileText size={14} className="mr-1" />
+                            Ver PDF Oficial
+                        </Button>
                     </div>
                     <table className="w-full">
                         <thead>
@@ -246,99 +197,6 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
                         </div>
                     </div>
                 )}
-
-            {/* Modal de Prepago */}
-            {prepayModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-base font-black text-slate-800">💳 Registrar Prepago</h3>
-                            <button onClick={() => { setPrepayModal(false); setPrepayError(''); }} className="text-slate-400 hover:text-slate-600 text-lg font-bold">✕</button>
-                        </div>
-                        <p className="text-xs text-slate-500">OC: <span className="font-bold text-slate-700">{selected.folio}</span> · Proveedor: <span className="font-bold text-slate-700">{selected.provider_name}</span></p>
-
-                        {/* Prepagos existentes */}
-                        {prepayments.length > 0 && (
-                            <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 space-y-1">
-                                <p className="text-[10px] font-black text-indigo-700 uppercase tracking-wide">Prepagos registrados</p>
-                                {prepayments.map((p: any) => (
-                                    <div key={p.id} className="flex justify-between items-center text-xs">
-                                        <span className="text-slate-600">{p.payment_date?.slice(0,10)} {p.reference ? `· ${p.reference}` : ''}</span>
-                                        <span className="font-black text-indigo-700">${parseFloat(p.amount).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
-                                    </div>
-                                ))}
-                                <div className="border-t border-indigo-200 pt-1 flex justify-between text-xs font-black">
-                                    <span className="text-indigo-700">Total prepagado</span>
-                                    <span className="text-indigo-800">${prepayments.reduce((s: number, p: any) => s + parseFloat(p.amount), 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Formulario nuevo prepago */}
-                        <div className="space-y-3">
-                            <div>
-                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wide">Monto del prepago *</label>
-                                <input
-                                    type="number" step="0.01" min="0"
-                                    value={prepayAmount}
-                                    onChange={e => setPrepayAmount(e.target.value)}
-                                    placeholder="0.00"
-                                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-indigo-300 outline-none"
-                                />
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wide">Fecha del pago *</label>
-                                <input
-                                    type="date"
-                                    value={prepayDate}
-                                    onChange={e => setPrepayDate(e.target.value)}
-                                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-300 outline-none"
-                                />
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wide">Referencia bancaria</label>
-                                <input
-                                    type="text"
-                                    value={prepayRef}
-                                    onChange={e => setPrepayRef(e.target.value)}
-                                    placeholder="Número de transferencia, SPEI, etc."
-                                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-300 outline-none"
-                                />
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wide">Notas</label>
-                                <input
-                                    type="text"
-                                    value={prepayNotes}
-                                    onChange={e => setPrepayNotes(e.target.value)}
-                                    placeholder="Observaciones opcionales"
-                                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-300 outline-none"
-                                />
-                            </div>
-                        </div>
-
-                        {prepayError && (
-                            <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{prepayError}</p>
-                        )}
-
-                        <div className="flex gap-2 pt-2">
-                            <button
-                                onClick={() => { setPrepayModal(false); setPrepayError(''); }}
-                                className="flex-1 py-2 rounded-xl text-xs font-bold border border-slate-200 text-slate-500 hover:bg-slate-50"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                onClick={submitPrepayment}
-                                disabled={prepayLoading}
-                                className="flex-1 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
-                            >
-                                {prepayLoading ? 'Registrando...' : 'Registrar Prepago'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
             </div>
         );
     }
