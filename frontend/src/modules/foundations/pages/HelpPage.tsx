@@ -267,6 +267,22 @@ const MODULE_CONTENT: Record<string, ModuleInfo> = {
     ],
     tip: 'La tarjeta de acceso está en Producción (5), Ventas (5), Gerencia (6), Dirección (7) y Administración.',
   },
+  gastos: {
+    id: 'gastos',
+    title: 'Gastos Operativos',
+    subtitle: 'Administración — gastos sin Orden de Compra',
+    description: 'Registro de gastos recurrentes y fijos que no pasan por una Orden de Compra. La regla es simple: si no genera OC, va aquí. Complementa a Compras y Almacén que maneja todo lo que sí tiene OC, recepción y afectación de inventario.',
+    cards: [
+      { name: 'Categorías disponibles', desc: 'Planta · Comunicaciones · Combustibles · Transporte · y otras categorías de gasto operativo recurrente.' },
+      { name: 'Proveedor', desc: 'Proveedor del servicio o gasto (ej. CFE para luz, arrendador para renta, gasolinera para combustible).' },
+      { name: 'Concepto', desc: 'Descripción del gasto (ej. "Renta agosto 2026", "Gasolina camión F-150", "Internet fibra óptica").' },
+      { name: 'Importe', desc: 'Monto total del gasto incluyendo IVA.' },
+      { name: 'Fecha factura / Vencimiento', desc: 'Fecha en que se emitió la factura y fecha límite de pago. El sistema alerta cuando se acerca el vencimiento.' },
+      { name: 'Notas', desc: 'Campo libre para observaciones (ej. número de medidor, número de contrato, periodo que cubre).' },
+      { name: '¿Qué va aquí y qué no?', desc: 'SÍ: renta, luz, agua, gas, teléfono, internet, seguros, honorarios profesionales, combustibles, suscripciones de software. NO: materiales de producción, herrajes, MDF — esos van por OC en Compras y Almacén.' },
+    ],
+    tip: 'La regla clave: ¿genera OC y afecta inventario? → Compras y Almacén. ¿No genera OC? → Gastos Operativos.',
+  },
 };
 
 function MapaSVG({ onSelect, selected }: { onSelect: (id: string) => void; selected: string | null }) {
@@ -416,6 +432,13 @@ function MapaSVG({ onSelect, selected }: { onSelect: (id: string) => void; selec
           fill={tx('administracion','#C0DD97','#3B6D11')}>Tareas · Bóveda · CxC · CxP</text>
         <text x="165" y="688" textAnchor="middle" fontSize={10}
           fill={tx('administracion','#C0DD97','#3B6D11')}>Nómina · Caja chica · Gastos operativos</text>
+      </g>
+
+      <g className="cursor-pointer" onClick={() => onSelect('gastos')}>
+        <rect x={18} y={716} width={294} height={28} rx={5}
+          fill={bg('gastos','#3B6D11','#C0DD97')} stroke={bg('gastos','#27500A','#97C459')} strokeWidth="0.5"/>
+        <text x="165" y="730" textAnchor="middle" fontSize={10} fontWeight="500"
+          fill={tx('gastos','#EAF3DE','#27500A')}>Gastos Operativos — sin OC</text>
       </g>
 
       <g className="cursor-pointer" onClick={() => onSelect('compras')}>
