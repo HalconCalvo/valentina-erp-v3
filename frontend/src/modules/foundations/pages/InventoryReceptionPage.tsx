@@ -552,6 +552,7 @@ const InventoryReceptionPage: React.FC = () => {
                                     value={displayTotal} 
                                     onChange={(e) => handleAmountInput(e.target.value)}
                                     onBlur={handleBlur}
+                                    onFocus={(e) => e.target.select()}
                                 />
                             </div>
                         </div>
