@@ -842,7 +842,23 @@ export default function ProductionKanbanPage() {
               Sin instancias en empaque
             </div>
           )}
-          {allInstances.map((instance: any) => {
+          {(() => {
+            const ovMap = new Map<string, { folio: string; client: string; project: string; instances: any[] }>();
+            for (const inst of allInstances) {
+              const key = inst.order_folio || 'Sin OV';
+              if (!ovMap.has(key)) ovMap.set(key, { folio: key, client: inst.client_name || '—', project: inst.project_name || '—', instances: [] });
+              ovMap.get(key)!.instances.push(inst);
+            }
+            const groups = Array.from(ovMap.values()).sort((a, b) => a.folio.localeCompare(b.folio));
+            return groups.map(group => (
+              <details key={group.folio} className="rounded-lg border border-violet-200 overflow-hidden" open={groups.length === 1}>
+                <summary className="flex items-center gap-2 px-3 py-2 bg-violet-100 cursor-pointer list-none hover:bg-violet-200 transition-colors">
+                  <span className="text-xs font-black text-violet-800">{group.folio}</span>
+                  <span className="text-[10px] text-violet-600 flex-1 truncate">{group.project} — {group.client}</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-200 text-violet-800 shrink-0">{group.instances.length}</span>
+                </summary>
+                <div className="flex flex-col gap-3 p-2 bg-white">
+                  {group.instances.map((instance: any) => {
             const isStone = instance.batch_type === 'PIEDRA';
             const { mdf, herrajes } = getBultosRow(instance.id);
             const stonePieces = stoneByInstanceId[instance.id] ?? 0;
@@ -985,7 +1001,11 @@ export default function ProductionKanbanPage() {
                 )}
               </div>
             );
-          })}
+                  })}
+                </div>
+              </details>
+            ));
+          })()}
         </div>
       </div>
     );
@@ -1024,7 +1044,28 @@ export default function ProductionKanbanPage() {
         </div>
 
         <div className="flex flex-col gap-3 overflow-y-auto pr-1">
-          {allReady.map((instance: any, idx: number) => {
+          {allReady.length === 0 && (
+            <div className="border-2 border-dashed border-emerald-200 rounded-lg p-6 text-center text-emerald-500 text-sm">
+              Andén vacío
+            </div>
+          )}
+          {(() => {
+            const ovMap = new Map<string, { folio: string; client: string; project: string; instances: any[] }>();
+            for (const inst of allReady) {
+              const key = inst.order_folio || 'Sin OV';
+              if (!ovMap.has(key)) ovMap.set(key, { folio: key, client: inst.client_name || '—', project: inst.project_name || '—', instances: [] });
+              ovMap.get(key)!.instances.push(inst);
+            }
+            const groups = Array.from(ovMap.values()).sort((a, b) => a.folio.localeCompare(b.folio));
+            return groups.map(group => (
+              <details key={group.folio} className="rounded-lg border border-emerald-200 overflow-hidden" open={groups.length === 1}>
+                <summary className="flex items-center gap-2 px-3 py-2 bg-emerald-100 cursor-pointer list-none hover:bg-emerald-200 transition-colors">
+                  <span className="text-xs font-black text-emerald-800">{group.folio}</span>
+                  <span className="text-[10px] text-emerald-600 flex-1 truncate">{group.project} — {group.client}</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-800 shrink-0">{group.instances.length}</span>
+                </summary>
+                <div className="flex flex-col gap-3 p-2 bg-white">
+                  {group.instances.map((instance: any, idx: number) => {
             const isStoneTrack = instance.track === 'PIEDRA';
             const otherLabel = (() => {
               const ots = instance.other_track_status;
@@ -1089,13 +1130,11 @@ export default function ProductionKanbanPage() {
                 )}
               </div>
             );
-          })}
-
-          {allReady.length === 0 && (
-            <div className="border-2 border-dashed border-emerald-200 rounded-lg p-6 text-center text-emerald-500 text-sm">
-              Aduana vacía
-            </div>
-          )}
+                  })}
+                </div>
+              </details>
+            ));
+          })()}
         </div>
       </div>
     );
