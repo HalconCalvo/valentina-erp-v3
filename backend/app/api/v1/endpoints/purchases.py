@@ -693,6 +693,30 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
                 unit_cost=row["unit_cost"],
             ))
 
+    else:
+        # Anticipo cubrió el 100% — crear la factura directamente como PAID
+        # sin pasar por accounts_payable ni _sync_pos_to_invoices
+        from app.models.finance import PurchaseInvoice, InvoiceStatus
+        invoice_folio = data.get("invoice_folio")
+        invoice_total = total_recibido_con_iva
+        if invoice_folio and invoice_total > 0:
+            tax_rate = float(data.get("tax_rate", 0.16) or 0.16)
+            _subtotal = round(invoice_total / (1 + tax_rate), 2)
+            _tax_amount = round(invoice_total - _subtotal, 2)
+            paid_invoice = PurchaseInvoice(
+                provider_id=po.provider_id,
+                invoice_number=invoice_folio,
+                issue_date=datetime.now().date(),
+                due_date=datetime.now().date(),
+                total_amount=invoice_total,
+                outstanding_balance=0.0,
+                status=getattr(InvoiceStatus, "PAID", "PAID"),
+                subtotal=_subtotal,
+                tax_rate=tax_rate,
+                tax_amount=_tax_amount,
+            )
+            db.add(paid_invoice)
+
     # --- Cierre diferido de renglones marcados en la recepción ---
     # El frontend manda items_to_close: lista de purchase_order_item.id a cerrar.
     # Regla (misma que /no-more): recibido > 0 -> satisfecho; recibido 0 -> cancelado.
