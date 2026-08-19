@@ -739,13 +739,9 @@ const InventoryReceptionPage: React.FC = () => {
                 </div>
 
 
-                {hasAdvance && invoiceTotalNum > 0 && (
-                    <div className={`mx-8 mb-4 px-5 py-4 rounded-xl text-sm font-black border-2 flex items-center gap-3 ${
-                        saldoConAnticipo <= 0.01
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-400'
-                            : 'bg-orange-50 text-orange-700 border-orange-400'
-                    }`}>
-                        <span className="text-2xl">{saldoConAnticipo <= 0.01 ? '✓' : '⚠'}</span>
+                {hasAdvance && invoiceTotalNum > 0 && invoiceFolio.trim() !== '' && (
+                    <div className="mx-8 mb-4 px-5 py-4 rounded-xl text-sm font-black border-2 flex items-center gap-3 bg-orange-50 text-orange-700 border-orange-400">
+                        <span className="text-2xl">⚠</span>
                         <div>
                             <p className="text-sm font-black">
                                 {saldoConAnticipo <= 0.01
