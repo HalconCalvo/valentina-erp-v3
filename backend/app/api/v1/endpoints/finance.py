@@ -1,8 +1,7 @@
-from typing import Any, List, Optional
+from typing import Any, List
 from datetime import datetime, timedelta, date
 from fastapi import APIRouter, HTTPException, status
 from sqlmodel import select, func, text
-from pydantic import BaseModel
 
 from app.core.deps import SessionDep, CurrentUser
 from app.models.finance import (
@@ -16,7 +15,6 @@ from app.models.finance import (
     CreditNoteType,
     PurchaseInvoiceItem,
     CreditNoteItem,
-    PurchasePrepayment,
 )
 from app.models.foundations import Provider
 from app.models.treasury import BankAccount, BankTransaction, TransactionType
@@ -112,31 +110,14 @@ def _sync_pos_to_invoices(session: SessionDep):
 
             total_ap_con_iva = amt
 
-            # Descontar prepagos registrados para esta OC
-            prepaid_total = 0.0
-            if safe_folio:
-                po_match = session.exec(
-                    select(PurchaseOrder).where(PurchaseOrder.folio == safe_folio)
-                ).first()
-                if po_match:
-                    prepayments = session.exec(
-                        select(PurchasePrepayment).where(
-                            PurchasePrepayment.purchase_order_id == po_match.id
-                        )
-                    ).all()
-                    prepaid_total = sum(float(p.amount) for p in prepayments)
-
-            outstanding = max(0.0, round(total_ap_con_iva - prepaid_total, 2))
-            invoice_status = getattr(InvoiceStatus, "PAID", "PAID") if outstanding <= 0.01 else getattr(InvoiceStatus, "PENDING", "PENDING")
-
             inv = PurchaseInvoice(
                 provider_id=prov_id,
                 invoice_number=safe_folio,
                 issue_date=today_date,
                 due_date=due_date_parsed,
                 total_amount=total_ap_con_iva,
-                outstanding_balance=outstanding,
-                status=invoice_status,
+                outstanding_balance=total_ap_con_iva,
+                status=getattr(InvoiceStatus, "PENDING", "PENDING"),
                 subtotal=(ap_subtotal or 0.0),
                 tax_rate=(ap_tax_rate if ap_tax_rate is not None else 0.16),
                 tax_amount=(ap_tax_amount or 0.0),
@@ -870,136 +851,3 @@ def create_credit_note(
     result.cost_adjustment_message = costo_msg
     result.returned_items = returned_detail
     return result
-
-
-# ------------------------------------------------------------------
-# PREPAGOS A PROVEEDORES
-# ------------------------------------------------------------------
-
-class PurchasePrepaymentCreate(BaseModel):
-    purchase_order_id: int
-    provider_id: int
-    amount: float
-    payment_date: str          # ISO date string "2026-08-19"
-    reference: Optional[str] = None
-    bank_account_id: Optional[int] = None
-    notes: Optional[str] = None
-
-class PurchasePrepaymentRead(BaseModel):
-    id: int
-    purchase_order_id: int
-    provider_id: int
-    amount: float
-    payment_date: str
-    reference: Optional[str] = None
-    bank_account: Optional[str] = None
-    notes: Optional[str] = None
-
-@router.post("/prepayments", response_model=PurchasePrepaymentRead)
-def register_prepayment(
-    payload: PurchasePrepaymentCreate,
-    session: SessionDep,
-    current_user: CurrentUser,
-):
-    """
-    Registra un prepago a proveedor vinculado a una OC.
-    Descuenta el monto de la cuenta bancaria seleccionada.
-    Al recepcionar, este prepago se descuenta del outstanding_balance
-    de la factura que se genere para esta OC.
-    """
-    # 1. Verificar que la OC existe
-    po = session.get(PurchaseOrder, payload.purchase_order_id)
-    if not po:
-        raise HTTPException(status_code=404, detail="Orden de Compra no encontrada.")
-
-    # 2. Verificar que el monto no excede el total estimado de la OC
-    existing_prepayments = session.exec(
-        select(PurchasePrepayment).where(
-            PurchasePrepayment.purchase_order_id == payload.purchase_order_id
-        )
-    ).all()
-    total_prepaid = sum(p.amount for p in existing_prepayments)
-    if total_prepaid + payload.amount > po.total_estimated_amount * 1.20:
-        raise HTTPException(
-            status_code=400,
-            detail=f"El prepago excede el 120% del total estimado de la OC (${po.total_estimated_amount:,.2f}). Verifica el monto."
-        )
-
-    # 3. Descontar de la cuenta bancaria si se especificó
-    bank_account_label = None
-    if payload.bank_account_id:
-        account = session.get(BankAccount, payload.bank_account_id)
-        if not account:
-            raise HTTPException(status_code=404, detail="Cuenta bancaria no encontrada.")
-        if float(account.current_balance) < payload.amount:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Saldo insuficiente en la cuenta. Saldo disponible: ${float(account.current_balance):,.2f}"
-            )
-        account.current_balance = float(account.current_balance) - payload.amount
-        session.add(account)
-        # Registrar la transacción bancaria
-        tx = BankTransaction(
-            account_id=account.id,
-            transaction_type=TransactionType.OUT,
-            amount=payload.amount,
-            description=f"Prepago a proveedor OC {po.folio}",
-            reference=payload.reference,
-            transaction_date=datetime.now(),
-        )
-        session.add(tx)
-        bank_account_label = account.name
-
-    # 4. Registrar el prepago
-    prepayment = PurchasePrepayment(
-        purchase_order_id=payload.purchase_order_id,
-        provider_id=payload.provider_id,
-        amount=payload.amount,
-        payment_date=datetime.fromisoformat(payload.payment_date),
-        reference=payload.reference,
-        bank_account=bank_account_label,
-        notes=payload.notes,
-        created_at=datetime.utcnow(),
-        created_by_user_id=current_user.id,
-    )
-    session.add(prepayment)
-    session.commit()
-    session.refresh(prepayment)
-
-    return PurchasePrepaymentRead(
-        id=prepayment.id,
-        purchase_order_id=prepayment.purchase_order_id,
-        provider_id=prepayment.provider_id,
-        amount=prepayment.amount,
-        payment_date=prepayment.payment_date.isoformat(),
-        reference=prepayment.reference,
-        bank_account=prepayment.bank_account,
-        notes=prepayment.notes,
-    )
-
-@router.get("/prepayments/by-order/{purchase_order_id}",
-            response_model=List[PurchasePrepaymentRead])
-def get_prepayments_by_order(
-    purchase_order_id: int,
-    session: SessionDep,
-    current_user: CurrentUser,
-):
-    """Devuelve todos los prepagos registrados para una OC."""
-    prepayments = session.exec(
-        select(PurchasePrepayment).where(
-            PurchasePrepayment.purchase_order_id == purchase_order_id
-        )
-    ).all()
-    return [
-        PurchasePrepaymentRead(
-            id=p.id,
-            purchase_order_id=p.purchase_order_id,
-            provider_id=p.provider_id,
-            amount=p.amount,
-            payment_date=p.payment_date.isoformat(),
-            reference=p.reference,
-            bank_account=p.bank_account,
-            notes=p.notes,
-        )
-        for p in prepayments
-    ]
