@@ -471,7 +471,7 @@ const InventoryReceptionPage: React.FC = () => {
     // Si es mayor, solo advertir pero no bloquear
     const invoiceTotalNum = Number(invoiceTotal);
     const isFinancialBlocked = false;
-    const hasFinancialWarning = invoiceTotal !== '' && invoiceTotalNum > 0 && diff > tolerancia;
+    const hasFinancialWarning = invoiceTotal !== '' && invoiceTotalNum > 0 && expectedTotal > 0 && diff > tolerancia;
 
     return (
         <>
