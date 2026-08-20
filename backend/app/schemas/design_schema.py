@@ -26,6 +26,7 @@ class ProductMasterBase(SQLModel):
     client_id: int
     name: str
     category: str = "General"
+    project_name: Optional[str] = None
 
 # Esquema Ligero para incrustar dentro de la Versión
 class ProductMasterSummary(ProductMasterBase):

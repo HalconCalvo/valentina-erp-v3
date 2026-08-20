@@ -66,6 +66,14 @@ const DesignCatalogPage: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState("");
     const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
   const [showProductSuggestions, setShowProductSuggestions] = useState(false);
+    const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+    const toggleProject = (key: string) => {
+        setExpandedProjects(prev => {
+            const next = new Set(prev);
+            next.has(key) ? next.delete(key) : next.add(key);
+            return next;
+        });
+    };
     const [expandedClients, setExpandedClients] = useState<Set<number>>(() => {
       try {
         const saved = sessionStorage.getItem('designCatalog_expandedClients');
@@ -84,7 +92,7 @@ const DesignCatalogPage: React.FC = () => {
     const importInputRef = useRef<HTMLInputElement>(null);
     const [importingClientId, setImportingClientId] = useState<number | null>(null);
 
-    const [formState, setFormState] = useState({ name: '', category: 'General', client_id: 0 });
+    const [formState, setFormState] = useState({ name: '', category: 'General', client_id: 0, project_name: '' });
 
     useEffect(() => {
         loadMasters();
@@ -232,12 +240,21 @@ const DesignCatalogPage: React.FC = () => {
     );
 
     const groupedProducts = useMemo(() => {
-        const filtered = masters.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase()));
-        const groups: Record<number, Record<string, typeof masters>> = {};
+        const filtered = masters.filter(p =>
+            p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            p.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (p.project_name || '').toLowerCase().includes(searchTerm.toLowerCase())
+        );
+        // client → project → category → products
+        const groups: Record<number, Record<string, Record<string, typeof masters>>> = {};
         filtered.forEach(p => {
-            const cid = p.client_id; const cat = p.category || "General";
-            if (!groups[cid]) groups[cid] = {}; if (!groups[cid][cat]) groups[cid][cat] = [];
-            groups[cid][cat].push(p);
+            const cid = p.client_id;
+            const proj = p.project_name?.trim() || 'Sin Proyecto';
+            const cat = p.category || "General";
+            if (!groups[cid]) groups[cid] = {};
+            if (!groups[cid][proj]) groups[cid][proj] = {};
+            if (!groups[cid][proj][cat]) groups[cid][proj][cat] = [];
+            groups[cid][proj][cat].push(p);
         });
         return groups;
     }, [masters, searchTerm]);
@@ -416,14 +433,14 @@ const DesignCatalogPage: React.FC = () => {
 
     const openCreateModal = () => {
         if(isSales) return;
-        fetchClients(); setIsEditing(false); setFormState({ name: '', category: '', client_id: 0 });
+        fetchClients(); setIsEditing(false); setFormState({ name: '', category: '', client_id: 0, project_name: '' });
         setCurrentId(null); setIsModalOpen(true); setShowCategorySuggestions(false);
     };
 
     const openEditModal = (e: React.MouseEvent, item: any) => {
         e.stopPropagation(); if(isSales) return;
         fetchClients(); setIsEditing(true); setCurrentId(item.id);
-        setFormState({ name: item.name, category: item.category, client_id: item.client_id || 0 });
+        setFormState({ name: item.name, category: item.category, client_id: item.client_id || 0, project_name: item.project_name || '' });
         setIsModalOpen(true); setShowCategorySuggestions(false);
     };
 
@@ -500,8 +517,8 @@ const DesignCatalogPage: React.FC = () => {
     const handleSave = async () => {
         if (!formState.name || !formState.client_id) return;
         try {
-            if (isEditing && currentId) await updateMaster(currentId, { ...formState, category: formState.category || "General", client_id: Number(formState.client_id) });
-            else await addMaster({ ...formState, category: formState.category || "General", client_id: Number(formState.client_id), is_active: true });
+            if (isEditing && currentId) await updateMaster(currentId, { ...formState, category: formState.category || "General", client_id: Number(formState.client_id), project_name: formState.project_name || null });
+            else await addMaster({ ...formState, category: formState.category || "General", client_id: Number(formState.client_id), project_name: formState.project_name || null, is_active: true });
             setIsModalOpen(false);
         } catch (e) { console.error(e); }
     };
@@ -931,11 +948,12 @@ const DesignCatalogPage: React.FC = () => {
                                 </div>
                             )}
 
-                            {Object.entries(groupedProducts).map(([clientIdStr, categories]) => {
+                            {Object.entries(groupedProducts).map(([clientIdStr, projects]) => {
                                 const clientId = Number(clientIdStr);
                                 const clientName = getClientName(clientId);
                                 const isExpanded = expandedClients.has(clientId);
-                                const productCount = Object.values(categories).reduce((acc, list) => acc + list.length, 0);
+                                const productCount = Object.values(projects).reduce((acc, cats) =>
+                                    acc + Object.values(cats).reduce((a, list) => a + list.length, 0), 0);
 
                                 return (
                                     <div key={clientId} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
@@ -982,7 +1000,27 @@ const DesignCatalogPage: React.FC = () => {
 
                                         {isExpanded && (
                                             <div className="overflow-x-auto">
-                                                {Object.entries(categories).map(([categoryName, categoryProducts]) => {
+                                                {Object.entries(projects).sort(([a], [b]) => a.localeCompare(b)).map(([projectName, categories]) => {
+                                                    const projKey = `${clientId}-${projectName}`;
+                                                    const isProjExpanded = expandedProjects.has(projKey);
+                                                    const projCount = Object.values(categories).reduce((a, list) => a + list.length, 0);
+                                                    return (
+                                                        <div key={projectName} className="border-b border-slate-100 last:border-b-0">
+                                                            <div
+                                                                onClick={() => toggleProject(projKey)}
+                                                                className="flex items-center justify-between px-6 py-2.5 bg-indigo-50/60 hover:bg-indigo-50 cursor-pointer transition-colors border-b border-indigo-100"
+                                                            >
+                                                                <span className="flex items-center gap-2 text-sm font-bold text-indigo-700">
+                                                                    {isProjExpanded ? <ChevronDown size={15}/> : <ChevronRight size={15}/>}
+                                                                    📁 {projectName}
+                                                                </span>
+                                                                <span className="text-xs font-bold text-indigo-500 bg-indigo-100 px-2 py-0.5 rounded-full">
+                                                                    {projCount} productos
+                                                                </span>
+                                                            </div>
+                                                            {isProjExpanded && (
+                                                                <div>
+                                                                {Object.entries(categories).map(([categoryName, categoryProducts]) => {
                                                     const productosOrdenados = sortDir
                                                         ? [...categoryProducts].sort((a, b) => {
                                                             const cmp = a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
@@ -1071,6 +1109,11 @@ const DesignCatalogPage: React.FC = () => {
                                                             </tbody>
                                                         </table>
                                                     </div>
+                                                    );
+                                                                })}
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     );
                                                 })}
                                             </div>
@@ -1255,6 +1298,16 @@ const DesignCatalogPage: React.FC = () => {
                             <option value={0}>-- Catálogo Interno (Stock) --</option>
                             {clients.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
                         </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Proyecto</label>
+                        <Input
+                            placeholder="Ej. Villas Colibrí, Juan Pérez..."
+                            value={formState.project_name}
+                            onChange={(e) => setFormState({...formState, project_name: e.target.value})}
+                            className="shadow-sm"
+                        />
+                        <p className="text-xs text-slate-400 mt-1">Agrupa las recetas de este cliente por proyecto o fraccionamiento.</p>
                     </div>
                     <div className="relative">
                         <label className="block text-sm font-semibold text-slate-700 mb-1.5">

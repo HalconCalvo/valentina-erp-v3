@@ -50,6 +50,7 @@ export interface ProductMaster {
     client_id: number;
     name: string;              // Ej: "Cocina Tipo A - Torre 1"
     category: string;          // Ej: "Cocinas", "Closets", "Vanities"
+    project_name?: string | null;
     is_active: boolean;
     created_at?: string;
     
