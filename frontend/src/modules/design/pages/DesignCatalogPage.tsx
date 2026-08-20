@@ -66,14 +66,6 @@ const DesignCatalogPage: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState("");
     const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
   const [showProductSuggestions, setShowProductSuggestions] = useState(false);
-    const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
-    const toggleProject = (key: string) => {
-        setExpandedProjects(prev => {
-            const next = new Set(prev);
-            next.has(key) ? next.delete(key) : next.add(key);
-            return next;
-        });
-    };
     const [expandedClients, setExpandedClients] = useState<Set<number>>(() => {
       try {
         const saved = sessionStorage.getItem('designCatalog_expandedClients');
@@ -84,7 +76,6 @@ const DesignCatalogPage: React.FC = () => {
     });
     // Orden alfabético por nombre de producto en el listado por cliente (toggle A→Z / Z→A)
     const [sortDir, setSortDir] = useState<'asc' | 'desc' | null>(null);
-    const [sortField, setSortField] = useState<'name' | 'project'>('name');
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [uploadingVersionId, setUploadingVersionId] = useState<number | null>(null);
@@ -243,19 +234,15 @@ const DesignCatalogPage: React.FC = () => {
     const groupedProducts = useMemo(() => {
         const filtered = masters.filter(p =>
             p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            p.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (p.project_name || '').toLowerCase().includes(searchTerm.toLowerCase())
+            p.category.toLowerCase().includes(searchTerm.toLowerCase())
         );
-        // client → project → category → products
-        const groups: Record<number, Record<string, Record<string, typeof masters>>> = {};
+        const groups: Record<number, Record<string, typeof masters>> = {};
         filtered.forEach(p => {
             const cid = p.client_id;
-            const proj = p.project_name?.trim() || 'Sin Proyecto';
             const cat = p.category || "General";
             if (!groups[cid]) groups[cid] = {};
-            if (!groups[cid][proj]) groups[cid][proj] = {};
-            if (!groups[cid][proj][cat]) groups[cid][proj][cat] = [];
-            groups[cid][proj][cat].push(p);
+            if (!groups[cid][cat]) groups[cid][cat] = [];
+            groups[cid][cat].push(p);
         });
         return groups;
     }, [masters, searchTerm]);
@@ -266,13 +253,8 @@ const DesignCatalogPage: React.FC = () => {
         setExpandedClients(newExpanded);
     };
 
-    const handleSort = (field: 'name' | 'project') => {
-        if (sortField === field) {
-            setSortDir(prev => prev === 'asc' ? 'desc' : prev === 'desc' ? null : 'asc');
-        } else {
-            setSortField(field);
-            setSortDir('asc');
-        }
+    const handleSort = () => {
+        setSortDir(prev => prev === 'asc' ? 'desc' : prev === 'desc' ? null : 'asc');
     };
 
     const handleExportRecipes = (clientId: number) => {
@@ -954,12 +936,11 @@ const DesignCatalogPage: React.FC = () => {
                                 </div>
                             )}
 
-                            {Object.entries(groupedProducts).map(([clientIdStr, projects]) => {
+                            {Object.entries(groupedProducts).map(([clientIdStr, categories]) => {
                                 const clientId = Number(clientIdStr);
                                 const clientName = getClientName(clientId);
                                 const isExpanded = expandedClients.has(clientId);
-                                const productCount = Object.values(projects).reduce((acc, cats) =>
-                                    acc + Object.values(cats).reduce((a, list) => a + list.length, 0), 0);
+                                const productCount = Object.values(categories).reduce((acc, list) => acc + list.length, 0);
 
                                 return (
                                     <div key={clientId} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
@@ -1006,33 +987,11 @@ const DesignCatalogPage: React.FC = () => {
 
                                         {isExpanded && (
                                             <div className="overflow-x-auto">
-                                                {Object.entries(projects).sort(([a], [b]) => a.localeCompare(b)).map(([projectName, categories]) => {
-                                                    const projKey = `${clientId}-${projectName}`;
-                                                    const isProjExpanded = expandedProjects.has(projKey);
-                                                    const projCount = Object.values(categories).reduce((a, list) => a + list.length, 0);
-                                                    return (
-                                                        <div key={projectName} className="border-b border-slate-100 last:border-b-0">
-                                                            <div
-                                                                onClick={() => toggleProject(projKey)}
-                                                                className="flex items-center justify-between px-6 py-2.5 bg-indigo-50/60 hover:bg-indigo-50 cursor-pointer transition-colors border-b border-indigo-100"
-                                                            >
-                                                                <span className="flex items-center gap-2 text-sm font-bold text-indigo-700">
-                                                                    {isProjExpanded ? <ChevronDown size={15}/> : <ChevronRight size={15}/>}
-                                                                    📁 {projectName}
-                                                                </span>
-                                                                <span className="text-xs font-bold text-indigo-500 bg-indigo-100 px-2 py-0.5 rounded-full">
-                                                                    {projCount} productos
-                                                                </span>
-                                                            </div>
-                                                            {isProjExpanded && (
-                                                                <div>
-                                                                {Object.entries(categories).map(([categoryName, categoryProducts]) => {
+                                                {Object.entries(categories).map(([categoryName, categoryProducts]) => {
                                                     const productosOrdenados = sortDir
                                                         ? [...categoryProducts].sort((a, b) => {
-                                                            const val = sortField === 'project'
-                                                                ? (a.project_name || '').localeCompare(b.project_name || '', 'es', { sensitivity: 'base' })
-                                                                : a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
-                                                            return sortDir === 'asc' ? val : -val;
+                                                            const cmp = a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
+                                                            return sortDir === 'asc' ? cmp : -cmp;
                                                         })
                                                         : categoryProducts;
                                                     return (
@@ -1042,27 +1001,17 @@ const DesignCatalogPage: React.FC = () => {
                                                                 <tr>
                                                                     <th
                                                                         className="px-6 py-3 w-[40%] cursor-pointer select-none hover:text-indigo-600 transition-colors"
-                                                                        onClick={() => handleSort('name')}
+                                                                        onClick={handleSort}
                                                                         title="Ordenar productos por nombre"
                                                                     >
                                                                         <span className="flex items-center gap-2">
                                                                             <Tag size={14}/> {categoryName}
-                                                                            <span className="text-slate-400">{sortField === 'name' && (sortDir === 'asc' ? '▲' : sortDir === 'desc' ? '▼' : '')}</span>
+                                                                            <span className="text-slate-400">{sortDir === 'asc' ? '▲' : sortDir === 'desc' ? '▼' : ''}</span>
                                                                         </span>
                                                                     </th>
-                                                                    <th
-                                                                        className="px-6 py-3 w-[18%] cursor-pointer select-none hover:text-indigo-600 transition-colors"
-                                                                        onClick={() => handleSort('project')}
-                                                                        title="Ordenar por proyecto"
-                                                                    >
-                                                                        <span className="flex items-center gap-1">
-                                                                            Proyecto
-                                                                            {sortField === 'project' && (sortDir === 'asc' ? ' ▲' : sortDir === 'desc' ? ' ▼' : '')}
-                                                                        </span>
-                                                                    </th>
-                                                                    <th className="px-6 py-3 text-center w-[12%]">Estado</th>
-                                                                    <th className="px-6 py-3 w-[15%]">Versión Activa</th>
-                                                                    <th className="px-6 py-3 text-center w-[20%]">Acciones</th>
+                                                                    <th className="px-6 py-3 text-center w-[15%]">Estado</th>
+                                                                    <th className="px-6 py-3 w-[20%]">Versión Activa</th>
+                                                                    <th className="px-6 py-3 text-center w-[25%]">Acciones</th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody className="divide-y divide-slate-100">
@@ -1088,12 +1037,6 @@ const DesignCatalogPage: React.FC = () => {
                                                                                     <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-500 text-xs mt-1 inline-block">
                                                                                         SKU: PRD-{product.id.toString().padStart(4, '0')} {v ? `- ${v.version_name}` : ''}
                                                                                     </span>
-                                                                                </td>
-                                                                                <td className="px-6 py-4">
-                                                                                    {product.project_name
-                                                                                        ? <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full border border-indigo-100">{product.project_name}</span>
-                                                                                        : <span className="text-[10px] text-slate-300 italic">—</span>
-                                                                                    }
                                                                                 </td>
                                                                                 <td className="px-6 py-4 text-center">
                                                                                     {v ? (
@@ -1133,11 +1076,6 @@ const DesignCatalogPage: React.FC = () => {
                                                             </tbody>
                                                         </table>
                                                     </div>
-                                                    );
-                                                                })}
-                                                                </div>
-                                                            )}
-                                                        </div>
                                                     );
                                                 })}
                                             </div>
