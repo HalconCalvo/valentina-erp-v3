@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { X } from 'lucide-react';
+import { X, Plus, Trash2 } from 'lucide-react';
 import { BankAccount, BankTransactionCreate } from '../../../types/treasury';
 import { treasuryService } from '../../../api/treasury-service';
 import { salesService } from '../../../api/sales-service';
+import axiosClient from '../../../api/axios-client';
 
 interface Props {
   isOpen: boolean;
@@ -25,6 +26,8 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
   // Camino A: facturas de CxC pendientes que un ingreso puede afectar (opcional)
   const [pendingInvoices, setPendingInvoices] = useState<any[]>([]);
   const [selectedCxcId, setSelectedCxcId] = useState<number | ''>('');
+  // Items adicionales de CxC para cobro múltiple
+  const [extraCxcItems, setExtraCxcItems] = useState<{cxc_id: number | ''; amount: string}[]>([]);
 
   // Reseteamos el formulario al abrir
   useEffect(() => {
@@ -38,6 +41,7 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
       });
       setDisplayAmount(''); // Limpiamos la pantalla visual del importe
       setSelectedCxcId(initialCxcId ?? '');
+      setExtraCxcItems([]);
       salesService.getPendingInvoices().then(setPendingInvoices).catch(() => setPendingInvoices([]));
     }
   }, [isOpen, selectedAccountId, initialType, initialCxcId, reset]);
@@ -58,28 +62,54 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
   const importeCobro = Number(watchAmount || 0);
   const nuevoSaldo = Math.max(saldoActual - importeCobro, 0);
   const quedaSaldada = selectedInvoice && importeCobro > 0 && (saldoActual - importeCobro) <= 0.01;
+  const totalAplicado = (selectedCxcId && selectedInvoice
+    ? Math.min(importeCobro, saldoActual)
+    : 0)
+    + extraCxcItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+  const sobrante = Math.max(importeCobro - totalAplicado, 0);
+  const excedido = totalAplicado > importeCobro + 0.01;
 
   if (!isOpen) return null;
 
   const onSubmit = async (data: BankTransactionCreate) => {
     try {
-      const finalData = { ...data };
-      if (data.transaction_type === 'IN' && selectedCxcId) {
-        finalData.related_entity_type = 'CUSTOMER_PAYMENT';
-        finalData.related_entity_id = Number(selectedCxcId);
-        if (selectedInvoice) {
-          finalData.description = `Cobro ${selectedInvoice.payment_type} — ${selectedInvoice.project_name} — Fact. ${selectedInvoice.invoice_folio}`;
+      const tieneExtras = extraCxcItems.some(i => i.cxc_id !== '');
+
+      if (data.transaction_type === 'IN' && selectedCxcId && tieneExtras) {
+        // Cobro múltiple — endpoint bulk
+        const items = [
+          { cxc_id: Number(selectedCxcId), amount: Math.min(importeCobro, saldoActual) },
+          ...extraCxcItems
+            .filter(i => i.cxc_id !== '' && parseFloat(i.amount) > 0)
+            .map(i => ({ cxc_id: Number(i.cxc_id), amount: parseFloat(i.amount) }))
+        ];
+        await axiosClient.post('/treasury/transactions/bulk-cxc', {
+          account_id: data.account_id || selectedAccountId,
+          amount: data.amount,
+          reference: data.reference,
+          description: `Cobro múltiple — ${items.length} factura(s)`,
+          items,
+        });
+      } else {
+        // Flujo original — una sola factura
+        const finalData = { ...data };
+        if (data.transaction_type === 'IN' && selectedCxcId) {
+          finalData.related_entity_type = 'CUSTOMER_PAYMENT';
+          finalData.related_entity_id = Number(selectedCxcId);
+          if (selectedInvoice) {
+            finalData.description = `Cobro ${selectedInvoice.payment_type} — ${selectedInvoice.project_name} — Fact. ${selectedInvoice.invoice_folio}`;
+          }
         }
+        if (!selectedInvoice) {
+          finalData.description = finalData.description || 'Ingreso general';
+        }
+        await treasuryService.createTransaction(finalData);
       }
-      if (!selectedInvoice) {
-        finalData.description = finalData.description || 'Ingreso general';
-      }
-      await treasuryService.createTransaction(finalData);
-      onSuccess(); 
-      onClose(); 
-    } catch (error) {
+      onSuccess();
+      onClose();
+    } catch (error: any) {
       console.error('Error al registrar el movimiento:', error);
-      alert('Hubo un error al registrar el movimiento.');
+      alert(error?.response?.data?.detail || 'Hubo un error al registrar el movimiento.');
     }
   };
 
@@ -177,6 +207,86 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
             </div>
           )}
 
+          {watchType === 'IN' && selectedInvoice && (
+            <div className="mb-6 w-full md:w-2/3 space-y-3">
+              {/* Facturas adicionales */}
+              {extraCxcItems.map((item, idx) => {
+                const inv = pendingInvoices.find(i => i.cxc_id === Number(item.cxc_id));
+                return (
+                  <div key={idx} className="bg-indigo-50 rounded-xl p-4 border border-indigo-200 flex items-start gap-3">
+                    <div className="flex-1 space-y-2">
+                      <select
+                        value={item.cxc_id}
+                        onChange={e => {
+                          const updated = [...extraCxcItems];
+                          const cxcId = e.target.value ? Number(e.target.value) : '';
+                          const invSaldo = pendingInvoices.find(i => i.cxc_id === Number(cxcId))?.saldo || 0;
+                          updated[idx] = { cxc_id: cxcId, amount: String(Number(invSaldo).toFixed(2)) };
+                          setExtraCxcItems(updated);
+                        }}
+                        className="w-full px-3 py-2 border border-indigo-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                      >
+                        <option value="">— Selecciona factura —</option>
+                        {pendingInvoices
+                          .filter(i => i.cxc_id !== Number(selectedCxcId) && !extraCxcItems.some((ex, j) => j !== idx && ex.cxc_id === i.cxc_id))
+                          .map(i => (
+                            <option key={i.cxc_id} value={i.cxc_id}>
+                              {i.project_name} — {i.invoice_folio} — Saldo ${Number(i.saldo || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                            </option>
+                          ))
+                        }
+                      </select>
+                      {inv && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-indigo-600 font-medium">Abono:</span>
+                          <div className="relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-indigo-500 text-xs font-bold">$</span>
+                            <input
+                              type="text"
+                              value={item.amount}
+                              onChange={e => {
+                                const updated = [...extraCxcItems];
+                                updated[idx] = { ...updated[idx], amount: e.target.value.replace(/[^0-9.]/g, '') };
+                                setExtraCxcItems(updated);
+                              }}
+                              className="pl-5 pr-3 py-1.5 border border-indigo-200 rounded-lg text-sm font-bold text-indigo-700 w-36 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                            />
+                          </div>
+                          <span className="text-[11px] text-indigo-500">de ${Number(inv.saldo || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                      )}
+                    </div>
+                    <button type="button" onClick={() => setExtraCxcItems(prev => prev.filter((_, j) => j !== idx))}
+                      className="text-rose-400 hover:text-rose-600 p-1 mt-1">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                );
+              })}
+
+              {/* Botón agregar + resumen */}
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setExtraCxcItems(prev => [...prev, { cxc_id: '', amount: '' }])}
+                  className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 text-xs font-bold border border-indigo-200 px-3 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors"
+                >
+                  <Plus size={14} /> Agregar factura
+                </button>
+                {importeCobro > 0 && (
+                  <div className={`text-xs font-bold px-3 py-1.5 rounded-lg ${excedido ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+                    {excedido
+                      ? `⚠ Excedido por $${(totalAplicado - importeCobro).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+                      : sobrante > 0.01
+                        ? `Sobrante: $${sobrante.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+                        : '✓ Depósito aplicado al 100%'
+                    }
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-col md:flex-row gap-4 items-end">
             
             {!selectedInvoice && (
@@ -258,7 +368,7 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
             </button>
             <button 
               type="submit" 
-              disabled={isSubmitting || watchAmount <= 0}
+              disabled={isSubmitting || watchAmount <= 0 || excedido}
               className={`px-8 py-3 text-white rounded-xl font-bold transition-transform active:scale-[0.98] shadow-sm flex items-center gap-2 
                 disabled:opacity-50 disabled:pointer-events-none
                 ${watchType === 'IN' 

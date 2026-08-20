@@ -172,6 +172,73 @@ def _aplicar_abono_a_factura(session, cxc_id, monto, bank_tx, current_user):
         session.add(order)
 
 # ------------------------------------------------------------------
+# COBRO MÚLTIPLE: una transacción bancaria afecta N facturas de CxC
+# ------------------------------------------------------------------
+
+class BulkCxcItem(BaseModel):
+    cxc_id: int
+    amount: float
+
+class BulkCxcPayload(BaseModel):
+    account_id: int
+    amount: float          # total del depósito
+    reference: Optional[str] = None
+    description: Optional[str] = None
+    items: List[BulkCxcItem]  # lista de {cxc_id, amount}
+
+@router.post("/transactions/bulk-cxc")
+def create_bulk_cxc_payment(
+    payload: BulkCxcPayload,
+    session: SessionDep,
+    current_user: CurrentUser,
+):
+    """
+    Registra un depósito bancario único que se distribuye entre
+    múltiples facturas de CxC. Cada item puede ser pago total o abono parcial.
+    La suma de items no puede superar el monto total del depósito.
+    """
+    # 1. Validar suma de items
+    total_items = round(sum(i.amount for i in payload.items), 2)
+    if total_items > round(payload.amount + 0.01, 2):
+        raise HTTPException(
+            status_code=400,
+            detail=f"La suma de los abonos (${total_items:,.2f}) supera el depósito (${payload.amount:,.2f})."
+        )
+
+    # 2. Validar cuenta bancaria
+    account = session.get(BankAccount, payload.account_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Cuenta bancaria no encontrada.")
+
+    # 3. Crear la transacción bancaria por el monto total del depósito
+    db_transaction = BankTransaction(
+        account_id=payload.account_id,
+        transaction_type=TransactionType.IN,
+        amount=payload.amount,
+        reference=payload.reference,
+        description=payload.description or f"Cobro múltiple — {len(payload.items)} factura(s)",
+        transaction_date=datetime.utcnow(),
+        created_by_user_id=current_user.id,
+    )
+    session.add(db_transaction)
+    account.current_balance += payload.amount
+    session.add(account)
+    session.flush()  # para obtener db_transaction.id
+
+    # 4. Aplicar abono a cada factura
+    for item in payload.items:
+        _aplicar_abono_a_factura(
+            session=session,
+            cxc_id=item.cxc_id,
+            monto=item.amount,
+            bank_tx=db_transaction,
+            current_user=current_user,
+        )
+
+    session.commit()
+    return {"status": "success", "transaction_id": db_transaction.id, "items_applied": len(payload.items)}
+
+# ------------------------------------------------------------------
 # 3. TRANSFERENCIAS ENTRE CUENTAS
 # ------------------------------------------------------------------
 @router.post("/transfer")
