@@ -38,6 +38,7 @@ export default function UsersPage() {
     commission_rate: 0,
     global_commission_rate: 0,
     monthly_quota: '' as number | string,
+    phone: '',
   };
 
   const [form, setForm] = useState(initialForm);
@@ -83,6 +84,7 @@ export default function UsersPage() {
           is_active: user.is_active,
           commission_rate: user.commission_rate || 0,
           global_commission_rate: user.global_commission_rate || 0,
+          phone: user.phone || '',
           monthly_quota: mq != null && mq !== '' ? mq : '',
       });
       setEditingId(user.id);
@@ -302,6 +304,16 @@ export default function UsersPage() {
                     )}
 
                     {/* Contraseña */}
+                    <div>
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Teléfono / Celular</label>
+                            <input
+                                type="tel"
+                                className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-300 outline-none"
+                                placeholder="Ej. 999-123-4567"
+                                value={form.phone}
+                                onChange={e => setForm({...form, phone: e.target.value})}
+                            />
+                        </div>
                     <div className="bg-orange-50 p-4 rounded-lg border border-orange-100">
                         <label className="text-xs font-bold text-orange-800 uppercase tracking-wide flex items-center gap-1">
                             <Key size={14}/> {isEditing ? 'Cambiar Contraseña' : 'Contraseña Inicial'}
@@ -363,6 +375,9 @@ export default function UsersPage() {
                                     )}
                                 </span>
                                 <span className="text-xs text-slate-500">{user.email}</span>
+                                {user.phone && (
+                                    <span className="text-xs text-slate-400">{user.phone}</span>
+                                )}
                             </div>
                         </td>
                         

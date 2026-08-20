@@ -91,7 +91,7 @@ class PDFGenerator:
         
         canvas.restoreState()
 
-    def generate_quote_pdf(self, order, client, config, seller_name="Departamento de Ventas", seller_email="") -> BytesIO:
+    def generate_quote_pdf(self, order, client, config, seller_name="Departamento de Ventas", seller_email="", seller_phone="") -> BytesIO:
         buffer = BytesIO()
         
         doc = SimpleDocTemplate(
@@ -288,6 +288,8 @@ class PDFGenerator:
         
         if seller_email:
             signature_block.append(Paragraph(f"<font size=9 color='#555555'>{seller_email}</font>", self.styles['Normal']))
+        if seller_phone:
+            signature_block.append(Paragraph(f"<font size=9 color='#555555'>📱 {seller_phone}</font>", self.styles['Normal']))
             
         signature_block.append(Paragraph(f"<font size=8 color='#888888'>{company_title}</font>", self.styles['Normal']))
         

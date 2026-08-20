@@ -24,6 +24,7 @@ class UserUpdate(SQLModel):
     monthly_sales_target: float | None = None
     monthly_quota: float | None = None  # Meta mensual (V5); editable solo ADMIN/DIRECTOR
     global_commission_rate: float | None = None
+    phone: str | None = None
 
 # 2. Base (Atributos compartidos)
 class UserBase(SQLModel):
@@ -35,6 +36,7 @@ class UserBase(SQLModel):
     monthly_sales_target: float = Field(default=0.0)
     monthly_quota: float | None = Field(default=None)  # Meta mensual explícita (V5)
     global_commission_rate: float = Field(default=0.0)
+    phone: Optional[str] = Field(default=None)
 
 # 3. Tabla de Base de Datos (Lo que se guarda)
 class User(UserBase, table=True):

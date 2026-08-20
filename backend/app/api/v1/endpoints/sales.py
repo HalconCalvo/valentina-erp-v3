@@ -1238,6 +1238,7 @@ def download_quote_pdf(order_id: int, session: Session = Depends(get_session)):
     
     seller_name = seller.full_name if seller else "Departamento de Ventas"
     seller_email = seller.email if seller else ""
+    seller_phone = seller.phone if seller and seller.phone else ""
 
     pdf_gen = PDFGenerator()
     pdf_buffer = pdf_gen.generate_quote_pdf(
@@ -1245,7 +1246,8 @@ def download_quote_pdf(order_id: int, session: Session = Depends(get_session)):
         client=client, 
         config=config, 
         seller_name=seller_name, 
-        seller_email=seller_email
+        seller_email=seller_email,
+        seller_phone=seller_phone
     )
 
     filename = f"Cotizacion_{order.id}.pdf"

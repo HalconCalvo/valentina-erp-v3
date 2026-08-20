@@ -13,6 +13,7 @@ export interface User {
     /** Meta mensual de ventas (V5); preferir sobre monthly_sales_target si existe */
     monthly_quota?: number | null;
     monthly_sales_target?: number | null;
+    phone?: string | null;
 }
 
 export function useUsers() {
