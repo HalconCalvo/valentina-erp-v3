@@ -4,6 +4,7 @@ import time
 import uuid as uuid_lib
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy import or_
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 import os
 from uuid import uuid4
@@ -96,6 +97,9 @@ def read_product_masters(
             ProductVersion.status == VersionStatus.READY
         ).distinct()
     
+    query = query.options(
+        selectinload(ProductMaster.versions).selectinload(ProductVersion.components)
+    )
     masters = session.exec(query).all()
     return masters
 
