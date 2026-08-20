@@ -64,7 +64,12 @@ router = APIRouter()
 
 
 def _normalized_role(user: User) -> str:
-    return (str(user.role) if user.role is not None else "").strip().upper()
+    role = user.role
+    if role is None:
+        return ""
+    if hasattr(role, 'value'):
+        return str(role.value).strip().upper()
+    return str(role).strip().upper()
 
 
 def _is_seller_scoped_role(user: User) -> bool:
