@@ -228,7 +228,11 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
                       >
                         <option value="">— Selecciona factura —</option>
                         {pendingInvoices
-                          .filter(i => i.cxc_id !== Number(selectedCxcId) && !extraCxcItems.some((ex, j) => j !== idx && ex.cxc_id === i.cxc_id))
+                          .filter(i => 
+                            i.cxc_id !== Number(selectedCxcId) && 
+                            !extraCxcItems.some((ex, j) => j !== idx && ex.cxc_id === i.cxc_id) &&
+                            (selectedInvoice?.client_id == null || i.client_id === selectedInvoice.client_id)
+                          )
                           .map(i => (
                             <option key={i.cxc_id} value={i.cxc_id}>
                               {i.project_name} — {i.invoice_folio} — Saldo ${Number(i.saldo || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}

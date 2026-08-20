@@ -1720,6 +1720,7 @@ def list_pending_cxc(session: Session = Depends(get_session),
             "saldo": max(float(cxc.amount or 0.0) - abonado, 0.0),
             "project_name": order.project_name if order else None,
             "sales_order_id": cxc.sales_order_id,
+            "client_id": order.client_id if order else None,
         })
     return result
 
