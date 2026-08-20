@@ -526,7 +526,7 @@ def physical_count_with_date(
     """
     role = current_user.role.value if hasattr(current_user.role, "value") \
         else str(current_user.role)
-    if role.upper() not in ["DIRECTOR", "ADMIN", "GERENCIA"]:
+    if role.upper() not in ["DIRECTOR", "ADMIN", "MANAGER"]:
         raise HTTPException(
             status_code=403,
             detail="Solo Dirección, Administración o Gerencia pueden capturar inventario físico."
@@ -642,7 +642,7 @@ def seed_kardex_opening(current_user: CurrentUser, session: SessionDep):
     """
     role = current_user.role.value if hasattr(current_user.role, "value") \
         else str(current_user.role)
-    if role.upper() not in ["DIRECTOR", "ADMIN", "GERENCIA"]:
+    if role.upper() not in ["DIRECTOR", "ADMIN", "MANAGER"]:
         raise HTTPException(
             status_code=403,
             detail="Solo Dirección, Administración o Gerencia pueden sembrar el saldo de apertura."
