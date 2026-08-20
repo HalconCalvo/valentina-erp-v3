@@ -66,6 +66,14 @@ const DesignCatalogPage: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState("");
     const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
   const [showProductSuggestions, setShowProductSuggestions] = useState(false);
+    const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+    const toggleCategory = (key: string) => {
+        setExpandedCategories(prev => {
+            const next = new Set(prev);
+            next.has(key) ? next.delete(key) : next.add(key);
+            return next;
+        });
+    };
     const [expandedClients, setExpandedClients] = useState<Set<number>>(() => {
       try {
         const saved = sessionStorage.getItem('designCatalog_expandedClients');
@@ -988,6 +996,8 @@ const DesignCatalogPage: React.FC = () => {
                                         {isExpanded && (
                                             <div className="overflow-x-auto">
                                                 {Object.entries(categories).map(([categoryName, categoryProducts]) => {
+                                                    const catKey = `${clientId}-${categoryName}`;
+                                                    const isCatExpanded = expandedCategories.has(catKey);
                                                     const productosOrdenados = sortDir
                                                         ? [...categoryProducts].sort((a, b) => {
                                                             const cmp = a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
@@ -995,7 +1005,21 @@ const DesignCatalogPage: React.FC = () => {
                                                         })
                                                         : categoryProducts;
                                                     return (
-                                                    <div key={categoryName} className="mb-0">
+                                                    <div key={categoryName} className="mb-0 border-b border-slate-100 last:border-b-0">
+                                                        {/* Header colapsable de categoría */}
+                                                        <div
+                                                            onClick={() => toggleCategory(catKey)}
+                                                            className="flex items-center justify-between px-6 py-3 bg-slate-50 hover:bg-slate-100 cursor-pointer transition-colors border-b border-slate-200"
+                                                        >
+                                                            <span className="flex items-center gap-2 text-xs font-black text-slate-600 uppercase tracking-wide">
+                                                                {isCatExpanded ? <ChevronDown size={14}/> : <ChevronRight size={14}/>}
+                                                                <Tag size={13}/> {categoryName}
+                                                            </span>
+                                                            <span className="text-[10px] font-bold text-slate-400 bg-slate-200 px-2 py-0.5 rounded-full">
+                                                                {categoryProducts.length} productos
+                                                            </span>
+                                                        </div>
+                                                        {isCatExpanded && (
                                                         <table className="w-full text-sm text-left">
                                                             <thead className="text-xs text-slate-500 uppercase bg-white border-b border-slate-200">
                                                                 <tr>
@@ -1005,7 +1029,7 @@ const DesignCatalogPage: React.FC = () => {
                                                                         title="Ordenar productos por nombre"
                                                                     >
                                                                         <span className="flex items-center gap-2">
-                                                                            <Tag size={14}/> {categoryName}
+                                                                            Nombre
                                                                             <span className="text-slate-400">{sortDir === 'asc' ? '▲' : sortDir === 'desc' ? '▼' : ''}</span>
                                                                         </span>
                                                                     </th>
@@ -1075,6 +1099,7 @@ const DesignCatalogPage: React.FC = () => {
                                                                 })}
                                                             </tbody>
                                                         </table>
+                                                        )}
                                                     </div>
                                                     );
                                                 })}
