@@ -254,10 +254,9 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
         // Comisión siempre viene como decimal (0.05 = 5%)
         const commissionMultiplier = 1 + commission;
         const salesPrice = costoParaPrecio * marginMultiplier * commissionMultiplier;
-        // frozen_cost = costoParaPrecio (el mismo base usado para calcular el precio de venta)
-        // Así el costo que ve Dirección en el modal de autorización coincide con el costo
-        // que vio Ventas al crear la cotización.
-        setLineItem({...lineItem, version_id: selectedVersionId, unit_price: Number(salesPrice.toFixed(2)), frozen_cost: costoParaPrecio});
+        // frozen_cost = estimatedCost puro de la receta (sin ajustes de IVA)
+        // Es el costo base que se muestra en el catálogo de Diseño.
+        setLineItem({...lineItem, version_id: selectedVersionId, unit_price: Number(salesPrice.toFixed(2)), frozen_cost: estimatedCost});
     };
 
     const handleClientChange = (e: React.ChangeEvent<HTMLSelectElement>) => { setHeader({...header, client_id: Number(e.target.value)}); setSelectedCategory(''); setLineItem({...lineItem, master_id: 0, version_id: 0, unit_price: 0, frozen_cost: 0}); setEditingIndex(null); };
