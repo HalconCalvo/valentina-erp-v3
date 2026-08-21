@@ -242,7 +242,26 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
         const selectedVersionId = Number(e.target.value);
         const master = masters.find(m => m.id === lineItem.master_id);
         const version = master?.versions?.find((v: any) => v.id === selectedVersionId);
-        const estimatedCost = version ? Number(version.estimated_cost ?? version.total_cost ?? version.cost ?? 0) : 0;
+        // Calcular costo en tiempo real desde componentes con precios actuales
+        // Replica la lógica del backend: SUM(quantity × current_cost / conversion_factor)
+        // con Math.ceil al centavo por línea — igual que design.py
+        let realtimeCost = 0;
+        if (version?.components && version.components.length > 0) {
+            for (const comp of version.components) {
+                const qty = Number(comp.quantity) || 0;
+                const cost = Number(comp.current_cost) || 0;
+                const factor = Number(comp.conversion_factor) || 1;
+                const unitCost = cost / factor;
+                const costLine = Math.ceil(qty * unitCost * 100) / 100;
+                realtimeCost += costLine;
+                // material_cost solo incluye componentes de tipo MATERIAL
+                // El backend marca esto con production_route === 'MATERIAL'
+                // Como no tenemos ese campo en el frontend, usamos estimated_cost como referencia
+            }
+            realtimeCost = Math.round(realtimeCost * 100) / 100;
+        }
+        // Si no hay componentes con precios (versión sin datos), usar estimated_cost como respaldo
+        const estimatedCost = realtimeCost > 0 ? realtimeCost : Number(version?.estimated_cost ?? version?.total_cost ?? version?.cost ?? 0);
         const materialCost = version ? Number(version.material_cost ?? 0) : 0;
         // Si el IVA aún no está seleccionado, buscar la tasa por defecto del config.
         // Evita que taxRate=0 active incorrectamente el ajuste de tasa cero.

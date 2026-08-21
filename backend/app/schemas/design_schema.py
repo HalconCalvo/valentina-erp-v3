@@ -17,6 +17,8 @@ class VersionComponentCreate(VersionComponentBase):
 
 class VersionComponentRead(VersionComponentBase):
     id: int
+    current_cost: Optional[float] = None      # precio actual del material
+    conversion_factor: Optional[float] = None  # factor de conversión (ej. 1000 para tornillos por millar)
 
 # ==========================================
 # 2. MAESTROS (Concepto / Familia)

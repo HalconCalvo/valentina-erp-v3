@@ -101,6 +101,26 @@ def read_product_masters(
         selectinload(ProductMaster.versions).selectinload(ProductVersion.components)
     )
     masters = session.exec(query).all()
+
+    # Enriquecer componentes con current_cost y conversion_factor del material
+    material_ids = {
+        comp.material_id
+        for m in masters
+        for v in m.versions
+        for comp in v.components
+        if comp.material_id
+    }
+    if material_ids:
+        mats = session.exec(select(Material).where(Material.id.in_(material_ids))).all()
+        mat_map = {mat.id: mat for mat in mats}
+        for master in masters:
+            for version in master.versions:
+                for comp in version.components:
+                    mat = mat_map.get(comp.material_id)
+                    if mat:
+                        comp.current_cost = mat.current_cost
+                        comp.conversion_factor = mat.conversion_factor or 1.0
+
     return masters
 
 @router.get("/masters/{master_id}", response_model=ProductMasterRead)
