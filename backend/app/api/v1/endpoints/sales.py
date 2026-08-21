@@ -1592,6 +1592,65 @@ def emit_advance_invoice(order_id: int, payload: PaymentPayload,
         "status": new_cxc.status,
     }
 
+@router.post("/orders/{order_id}/emit_full_invoice", response_model=dict)
+def emit_full_invoice(order_id: int, payload: PaymentPayload,
+                      session: Session = Depends(get_session),
+                      current_user: User = Depends(get_current_active_user)):
+    """
+    Emite una factura por el 100% del contrato desde el inicio.
+    Los pagos (anticipo + avances) se van abonando a esta factura
+    conforme avanza la obra. Útil para planificación fiscal.
+    """
+    order = session.get(SalesOrder, order_id)
+    if not order:
+        raise HTTPException(404, "Orden de venta no encontrada.")
+
+    # Validar que no exista ya una factura FULL para esta OV
+    existing = session.exec(
+        select(CustomerPayment).where(
+            CustomerPayment.sales_order_id == order_id,
+            CustomerPayment.payment_type == PaymentType.FULL,
+            CustomerPayment.status != CXCStatus.CANCELLED
+        )
+    ).first()
+    if existing:
+        raise HTTPException(409, f"Ya existe una factura al 100% para esta OV (folio: {existing.invoice_folio}).")
+
+    monto = float(payload.amount or 0.0)
+    if monto <= 0:
+        raise HTTPException(422, "El monto de la factura debe ser mayor a cero.")
+
+    if not payload.invoice_folio:
+        raise HTTPException(422, "El folio de la factura es obligatorio.")
+
+    new_cxc = CustomerPayment(
+        sales_order_id=order.id,
+        payment_type=PaymentType.FULL,
+        invoice_folio=payload.invoice_folio,
+        amount=monto,
+        status=CXCStatus.PENDING,
+        created_by_user_id=current_user.id,
+        invoice_date=payload.invoice_date or datetime.utcnow(),
+    )
+    session.add(new_cxc)
+
+    # Cambiar estado de la OV a SOLD si estaba en WAITING_ADVANCE
+    if order.status == SalesOrderStatus.WAITING_ADVANCE:
+        order.status = SalesOrderStatus.SOLD
+        session.add(order)
+
+    session.commit()
+    session.refresh(new_cxc)
+
+    return {
+        "message": "Factura al 100% emitida.",
+        "cxc_id": new_cxc.id,
+        "payment_type": new_cxc.payment_type,
+        "invoice_folio": new_cxc.invoice_folio,
+        "amount": new_cxc.amount,
+        "status": new_cxc.status,
+    }
+
 @router.post("/invoices/{cxc_id}/installments", response_model=dict)
 def register_installment(cxc_id: int, payload: PaymentPayload,
                          session: Session = Depends(get_session),

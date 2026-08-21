@@ -11,10 +11,11 @@ interface ReceivableChargeModalProps {
 }
 
 export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ isOpen, onClose, order, onSuccess }) => {
-    const [tipoFactura, setTipoFactura] = useState<'ADVANCE' | 'PROGRESS'>(
+    const [tipoFactura, setTipoFactura] = useState<'ADVANCE' | 'PROGRESS' | 'FULL'>(
         order.status === 'WAITING_ADVANCE' ? 'ADVANCE' : 'PROGRESS'
     );
     const isAdvance = tipoFactura === 'ADVANCE';
+    const isFull = tipoFactura === 'FULL';
 
     const [invoiceFolio, setInvoiceFolio] = useState('');
     const [invoiceDate, setInvoiceDate] = useState<string>('');
@@ -193,6 +194,33 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
         }
     };
 
+    // Modo factura al 100% (Camino C): factura por el total del contrato desde el inicio.
+    const handleSaveFullInvoice = async () => {
+        if (!importeFactura || importeFactura <= 0) {
+            alert("Captura el importe de la factura.");
+            return;
+        }
+        if (!invoiceFolio.trim()) {
+            alert("El folio de la factura es obligatorio.");
+            return;
+        }
+        setIsLoading(true);
+        try {
+            await salesService.emitFullInvoice(order.id!, {
+                invoice_folio: invoiceFolio.trim(),
+                amount: Number(importeFactura),
+                invoice_date: invoiceDate || null,
+            });
+            onSuccess();
+            onClose();
+        } catch (error: any) {
+            console.error("Error al emitir la factura al 100%:", error);
+            alert(error.response?.data?.detail || "No se pudo emitir la factura al 100%.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     // Modo anticipo (Camino A): emitir la factura de anticipo (crea CxC ADVANCE PENDING).
     const handleSaveAdvanceTarget = async () => {
         if (!importeFactura || importeFactura <= 0) {
@@ -225,7 +253,7 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
                 <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                     <div>
                         <h2 className="text-lg font-black text-slate-800">
-                            {isAdvance ? 'Emitir Factura de Anticipo' : 'Registrar Factura por Avance'}
+                            {isAdvance ? 'Emitir Factura de Anticipo' : isFull ? 'Factura al 100% del Contrato' : 'Registrar Factura por Avance'}
                         </h2>
                         <p className="text-xs text-slate-500 font-medium">Proyecto: {order.project_name}</p>
                     </div>
@@ -262,6 +290,17 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
                                 >
                                     Avance de obra
                                 </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setTipoFactura('FULL')}
+                                    className={`flex-1 px-3 py-2 text-sm font-bold rounded-lg border transition-colors ${
+                                        tipoFactura === 'FULL'
+                                            ? 'bg-emerald-600 text-white border-emerald-600'
+                                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                    }`}
+                                >
+                                    100% Contrato
+                                </button>
                             </div>
                         </div>
                         <div className="space-y-1">
@@ -275,7 +314,7 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
                         </div>
                     </div>
                     
-                    {!isAdvance && (
+                    {!isAdvance && !isFull && (
                         <div className="space-y-3">
                             <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                                 <CheckSquare size={14}/> 1. Selecciona los Productos a Cobrar
@@ -361,7 +400,61 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
                         </div>
                     )}
 
-                    {!isAdvance && (
+                    {isFull && (
+                        <div className="p-4 bg-emerald-50/50 rounded-xl border border-emerald-100 space-y-4">
+                            {/* Importe y folio de la factura al 100% → Emitir */}
+                            <div className="space-y-3">
+                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                    <DollarSign size={14}/> Factura al 100% del Contrato
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-[11px] font-bold text-slate-500 uppercase">Folio de Factura *</label>
+                                        <div className="relative">
+                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <FileText size={16} className="text-slate-400" />
+                                            </div>
+                                            <input
+                                                type="text"
+                                                className="w-full pl-10 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-bold"
+                                                placeholder="Ej. F-023"
+                                                value={invoiceFolio}
+                                                onChange={(e) => setInvoiceFolio(e.target.value.toUpperCase())}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[11px] font-bold text-emerald-600 uppercase">Importe Total MXN *</label>
+                                        <div className="relative">
+                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none font-black text-emerald-600">$</div>
+                                            <input
+                                                type="text"
+                                                className="w-full pl-7 pr-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-black text-emerald-700"
+                                                value={displayImporte}
+                                                onChange={(e) => handleCurrencyTyping(e, setImporteFactura, setDisplayImporte)}
+                                                placeholder="0.00"
+                                            />
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                                            <Calculator size={10}/> Total del contrato: {formatCurrency(totalOrder)}
+                                        </p>
+                                    </div>
+                                </div>
+                                <p className="text-[11px] text-slate-500 italic">
+                                    Se crea una factura por el total. El anticipo y los avances se abonarán a esta factura conforme avance la obra.
+                                </p>
+                                <button
+                                    onClick={handleSaveFullInvoice}
+                                    disabled={isLoading || importeFactura <= 0 || !invoiceFolio.trim()}
+                                    className="px-4 py-2 text-sm font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                                >
+                                    {isLoading ? 'Emitiendo...' : 'Emitir factura al 100%'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {!isAdvance && !isFull && (
                     <div className="space-y-4">
                         <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                             <DollarSign size={14}/> 2. Configuración Financiera
@@ -398,7 +491,7 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
                                 </div>
                             </div>
 
-                            {!isAdvance && (
+                            {!isAdvance && !isFull && (
                                 <div className="space-y-1 md:col-span-2">
                                     <label className="text-[11px] font-bold text-amber-600 uppercase flex justify-between">
                                         <span>Descuento de la Bolsa de Anticipo (Amortización)</span>
@@ -428,7 +521,7 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
                     <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-lg transition-colors">
                         {isAdvance ? 'Cerrar' : 'Cancelar'}
                     </button>
-                    {!isAdvance && (
+                    {!isAdvance && !isFull && (
                     <button onClick={handleSubmit} disabled={isLoading} className="px-6 py-2 text-sm font-black text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm disabled:opacity-50">
                         {isLoading ? 'Procesando...' : 'Registrar en Sistema'}
                     </button>

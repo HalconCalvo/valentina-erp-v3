@@ -275,6 +275,14 @@ export const salesService = {
     },
 
     /**
+     * Camino C: emite factura por el 100% del contrato (CustomerPayment FULL PENDING).
+     */
+    emitFullInvoice: async (orderId: number, payload: { invoice_folio: string; amount: number; invoice_date?: string | null }) => {
+        const response = await axiosClient.post(`/sales/orders/${orderId}/emit_full_invoice`, payload);
+        return response.data;
+    },
+
+    /**
      * ADMINISTRACIÓN: Registra un Avance/Estimación (Cobro por Instancias)
      */
     registerProgressPayment: async (orderId: number, payload: PaymentPayload) => {

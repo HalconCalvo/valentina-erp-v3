@@ -233,6 +233,7 @@ const InventoryReceptionPage: React.FC = () => {
                 tax_rate: taxRate,
                 received_items: [
                     ...(selectedPO.items || []).map((item: any, idx: number) => ({
+                        item_id: item.id,
                         sku: item.sku,
                         expected_qty: item.qty,
                         received_qty: Number(receivedItems[idx]) || 0,

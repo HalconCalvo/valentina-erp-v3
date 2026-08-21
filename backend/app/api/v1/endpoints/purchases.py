@@ -509,20 +509,31 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
     po.is_advance = False
     
     # 1. Ingresar stock físico
-    # Construir diccionario de cantidades recibidas por SKU
-    received_map = {}       # sku -> qty (se mantiene para la lógica de stock existente)
-    edited_by_sku = {}      # sku -> dict con los campos editados del renglón
+    # Construir diccionarios de cantidades recibidas.
+    # Si el frontend manda item_id, usamos esa clave para soportar múltiples
+    # renglones del mismo SKU (ej. piedra con precios diferentes).
+    # Si no, usamos SKU como antes (compatibilidad hacia atrás).
+    received_map = {}       # sku -> qty (para lógica de stock)
+    edited_by_sku = {}      # sku o item_id -> dict con campos editados
+    edited_by_item_id = {}  # item_id -> dict (tiene prioridad sobre SKU)
+    received_by_item_id = {}  # item_id -> qty (tiene prioridad sobre SKU)
     for ri in (data.get("received_items") or []):
         _sku = ri.get("sku", "")
+        _item_id = ri.get("item_id")
         _rq = ri.get("received_qty")
         if _rq is None:
             _rq = ri.get("expected_qty") or 0
-        received_map[_sku] = float(_rq)
-        edited_by_sku[_sku] = {
+        received_map[_sku] = received_map.get(_sku, 0) + float(_rq)
+        _edit_data = {
             "sku": ri.get("sku"),
             "description": ri.get("description"),
             "unit_cost": ri.get("unit_cost"),
         }
+        if _item_id:
+            edited_by_item_id[int(_item_id)] = _edit_data
+            received_by_item_id[int(_item_id)] = float(_rq)
+        else:
+            edited_by_sku[_sku] = _edit_data
 
     # --- 5c parte A: sembrar renglones NUEVOS agregados en la recepción ---
     # El frontend marca cada renglón agregado con is_new=True y su material_id.
@@ -567,7 +578,10 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
             if mat:
                 mat_sku = mat.sku or ""
                 route = (getattr(mat, 'production_route', 'MATERIAL') or 'MATERIAL').upper()
-                qty_this_delivery = received_map.get(mat_sku, 0)
+                if item.id in received_by_item_id:
+                    qty_this_delivery = received_by_item_id[item.id]
+                else:
+                    qty_this_delivery = received_map.get(mat_sku, 0)
 
                 # Solo ingresar stock para materiales físicos
                 if route == 'MATERIAL' and qty_this_delivery > 0:
@@ -578,7 +592,8 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
 
                     # Rastro fechado en el Kárdex (Fase 1): ENTRADA por recepción de OC.
                     # No altera physical_stock (ya sumado arriba); el commit lo hace el endpoint.
-                    _edited_cost = edited_by_sku.get(mat_sku, {}).get("unit_cost")
+                    _edited = edited_by_item_id.get(item.id) or edited_by_sku.get(mat_sku, {})
+                    _edited_cost = _edited.get("unit_cost")
                     _costo_kardex = float(_edited_cost) if _edited_cost is not None else float(getattr(item, 'expected_unit_cost', 0.0) or 0.0)
                     registrar_movimiento_inventario(
                         db,
@@ -590,7 +605,10 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
                     )
         else:
             # Item sin material (descripción libre)
-            qty_this_delivery = received_map.get(item.custom_description or "", 0)
+            if item.id in received_by_item_id:
+                qty_this_delivery = received_by_item_id[item.id]
+            else:
+                qty_this_delivery = received_map.get(item.custom_description or "", 0)
 
         # Acumular quantity_received para TODOS los items
         prev_received = float(item.quantity_received or 0)
@@ -601,7 +619,7 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
         if qty_this_delivery > 0:
             # Resolver el sku base para buscar lo editado
             _base_sku = (mat.sku if (item.material_id and mat) else None)
-            _edited = edited_by_sku.get(_base_sku or "", {})
+            _edited = edited_by_item_id.get(item.id) or edited_by_sku.get(_base_sku or "", {})
             # sku/description/unit_cost EDITADOS con respaldo al comportamiento actual
             if item.material_id and mat:
                 _desc_default = mat.name

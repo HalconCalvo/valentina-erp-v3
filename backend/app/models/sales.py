@@ -39,9 +39,10 @@ class PaymentMethod(str, enum.Enum):
     OTHER = "OTHER"
 
 class PaymentType(str, enum.Enum):
-    ADVANCE = "ADVANCE"         
-    PROGRESS = "PROGRESS"       
-    SETTLEMENT = "SETTLEMENT"   
+    ADVANCE = "ADVANCE"
+    PROGRESS = "PROGRESS"
+    FULL = "FULL"               # Factura por el 100% del contrato desde el inicio
+    SETTLEMENT = "SETTLEMENT"
 
 class CXCStatus(str, enum.Enum):
     PENDING = "PENDING"     
