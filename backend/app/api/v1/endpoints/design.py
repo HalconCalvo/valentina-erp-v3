@@ -110,18 +110,33 @@ def read_product_masters(
         for comp in v.components
         if comp.material_id
     }
+    mat_map = {}
     if material_ids:
         mats = session.exec(select(Material).where(Material.id.in_(material_ids))).all()
         mat_map = {mat.id: mat for mat in mats}
-        for master in masters:
-            for version in master.versions:
-                for comp in version.components:
-                    mat = mat_map.get(comp.material_id)
-                    if mat:
-                        comp.current_cost = mat.current_cost
-                        comp.conversion_factor = mat.conversion_factor or 1.0
 
-    return masters
+    # Serializar a dict enriquecido para no mutar modelos SQLModel
+    result = []
+    for master in masters:
+        m_dict = master.model_dump()
+        m_dict['versions'] = []
+        for version in master.versions:
+            v_dict = version.model_dump()
+            v_dict['components'] = []
+            for comp in version.components:
+                c_dict = comp.model_dump()
+                mat = mat_map.get(comp.material_id)
+                if mat:
+                    c_dict['current_cost'] = mat.current_cost
+                    c_dict['conversion_factor'] = mat.conversion_factor or 1.0
+                else:
+                    c_dict['current_cost'] = None
+                    c_dict['conversion_factor'] = None
+                v_dict['components'].append(c_dict)
+            m_dict['versions'].append(v_dict)
+        result.append(m_dict)
+
+    return result
 
 @router.get("/masters/{master_id}", response_model=ProductMasterRead)
 def read_product_master_detail(
