@@ -141,6 +141,8 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
         if (order && order.items) {
             const newMargins = new Array(order.items.length).fill(safeVal);
             setItemMargins(newMargins);
+            // Limpiar overrides para que los precios se recalculen desde el nuevo margen
+            setItemPriceOverrides(new Array(order.items.length).fill(null));
         }
     };
 
@@ -619,14 +621,20 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                             type="range" min="0" max="50" step="0.5"
                                             disabled={isReadOnly || processing}
                                             value={commissionPercent}
-                                            onChange={(e) => setCommissionPercent(Number(e.target.value))}
+                                            onChange={(e) => {
+                                                setCommissionPercent(Number(e.target.value));
+                                                setItemPriceOverrides(prev => prev.map(() => null));
+                                            }}
                                             className="flex-1 h-2 bg-amber-100 rounded-lg appearance-none cursor-pointer accent-amber-500"
                                         />
                                         <input 
                                             type="number" step="0.1"
                                             disabled={isReadOnly || processing}
                                             value={commissionPercent}
-                                            onChange={(e) => setCommissionPercent(Number(e.target.value))}
+                                            onChange={(e) => {
+                                                setCommissionPercent(Number(e.target.value));
+                                                setItemPriceOverrides(prev => prev.map(() => null));
+                                            }}
                                             className="w-16 p-1 text-right text-xs font-bold border rounded border-amber-200 text-amber-700 outline-none"
                                         />
                                     </div>
