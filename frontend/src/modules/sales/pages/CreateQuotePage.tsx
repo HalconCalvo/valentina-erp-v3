@@ -244,7 +244,14 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
         const version = master?.versions?.find((v: any) => v.id === selectedVersionId);
         const estimatedCost = version ? Number(version.estimated_cost ?? version.total_cost ?? version.cost ?? 0) : 0;
         const materialCost = version ? Number(version.material_cost ?? 0) : 0;
-        const taxRate = selectedTaxRate ? Number(selectedTaxRate.rate) : 0;
+        // Si el IVA aún no está seleccionado, buscar la tasa por defecto del config.
+        // Evita que taxRate=0 active incorrectamente el ajuste de tasa cero.
+        const defaultTaxRate = config?.default_tax_rate_id
+            ? taxRates.find(t => t.id === config.default_tax_rate_id)
+            : taxRates[0];
+        const taxRate = selectedTaxRate
+            ? Number(selectedTaxRate.rate)
+            : defaultTaxRate ? Number(defaultTaxRate.rate) : 0.16;
         const costoParaPrecio = calcCostoParaPrecio(estimatedCost, materialCost, taxRate);
         const margin = Number(header.applied_margin_percent) || 0;
         const commission = Number(commissionRate) || 0;
