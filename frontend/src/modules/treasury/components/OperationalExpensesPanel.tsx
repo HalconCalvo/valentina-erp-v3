@@ -45,7 +45,7 @@ interface Props {
 }
 
 const emptyForm = () => ({
-    provider_name: '',
+    provider_name: null as string | null,
     concept: '',
     overhead_category: '',
     total_amount: '',
@@ -57,6 +57,14 @@ const emptyForm = () => ({
 
 export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onRefresh, userRole }) => {
     const [expenses, setExpenses] = useState<Expense[]>([]);
+    const [providers, setProviders] = useState<{id: number, business_name: string}[]>([]);
+
+    useEffect(() => {
+        axiosClient.get('/foundations/providers')
+            .then(res => setProviders(Array.isArray(res.data) ? res.data : []))
+            .catch(() => setProviders([]));
+    }, []);
+
     const [showModal, setShowModal] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
@@ -336,13 +344,16 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
                                     Proveedor (opcional)
                                 </label>
-                                <input
-                                    type="text"
-                                    placeholder="Ej. CFE, Telmex, Arrendadora..."
-                                    value={form.provider_name}
-                                    onChange={e => setForm(f => ({ ...f, provider_name: e.target.value }))}
-                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-rose-400"
-                                />
+                                <select
+                                    value={form.provider_name || ''}
+                                    onChange={e => setForm(f => ({ ...f, provider_name: e.target.value || null }))}
+                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-rose-400 bg-white"
+                                >
+                                    <option value="">— Sin proveedor —</option>
+                                    {providers.map(p => (
+                                        <option key={p.id} value={p.business_name}>{p.business_name}</option>
+                                    ))}
+                                </select>
                             </div>
 
                             {/* Concepto */}

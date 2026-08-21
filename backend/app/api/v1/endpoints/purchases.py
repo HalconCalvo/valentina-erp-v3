@@ -663,6 +663,21 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
 
     # Si hay saldo vivo, se genera la deuda en CxP
     if saldo_restante > 0.01:
+        invoice_folio = data.get("invoice_folio")
+        if invoice_folio:
+            existing_ap = db.exec(text("""
+                SELECT id FROM accounts_payable
+                WHERE provider_id = :prov AND invoice_folio = :folio AND status != 'CANCELADO'
+            """).bindparams(prov=po.provider_id, folio=invoice_folio)).first()
+            if existing_ap:
+                raise HTTPException(status_code=400, detail=f"La factura {invoice_folio} ya está registrada para este proveedor.")
+            existing_inv = db.exec(select(PurchaseInvoice).where(
+                PurchaseInvoice.invoice_number == invoice_folio,
+                PurchaseInvoice.provider_id == po.provider_id
+            )).first()
+            if existing_inv:
+                raise HTTPException(status_code=400, detail=f"La factura {invoice_folio} ya está registrada para este proveedor.")
+
         prov = db.get(Provider, po.provider_id)
         credit_days = getattr(prov, 'credit_days', 0) or 0
         due_date = datetime.now() + timedelta(days=credit_days)
@@ -716,6 +731,13 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
         invoice_folio = data.get("invoice_folio")
         invoice_total = total_recibido_con_iva if total_recibido_con_iva > 0 else float(data.get("invoice_total", 0))
         if invoice_folio and invoice_total > 0:
+            # Candado anti-duplicados
+            existing = db.exec(select(PurchaseInvoice).where(
+                PurchaseInvoice.invoice_number == invoice_folio,
+                PurchaseInvoice.provider_id == po.provider_id
+            )).first()
+            if existing:
+                raise HTTPException(status_code=400, detail=f"La factura {invoice_folio} ya está registrada para este proveedor.")
             tax_rate = float(data.get("tax_rate", 0.16) or 0.16)
             _subtotal = round(invoice_total / (1 + tax_rate), 2)
             _tax_amount = round(invoice_total - _subtotal, 2)
