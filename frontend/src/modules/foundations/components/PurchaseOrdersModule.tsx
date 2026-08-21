@@ -558,13 +558,32 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     const existingUsageUnits = [...new Set(materialsList.map(m => m.usage_unit).filter(Boolean))].sort();
 
     const handleSelectMaterial = (index: number, mat: any) => {
+        const sku = getMatSku(mat);
+        const category = (mat.category || '').trim().toLowerCase();
+
+        // Verificar si el SKU ya existe en otro renglón de la OC
+        const duplicateIndex = manualOrderForm.items.findIndex(
+            (it, i) => i !== index && (it.sku || '').trim().toUpperCase() === sku.toUpperCase()
+        );
+
+        if (duplicateIndex !== -1 && category !== 'piedra') {
+            // Categoría ≠ Piedra → redirigir al renglón existente
+            alert(`⚠️ El SKU "${sku}" ya está en el renglón ${duplicateIndex + 1}. Revisa la cantidad o el precio de ese renglón.`);
+            setActiveDropdown({ type: null, index: null });
+            // Scroll/highlight al renglón existente
+            const rowEl = document.getElementById(`oc-row-${duplicateIndex}`);
+            if (rowEl) rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+
+        // Categoría = Piedra o no hay duplicado → agregar normalmente
         const newItems = [...manualOrderForm.items];
         const dbCost = parseFloat(mat.current_cost || mat.standard_cost || mat.cost || 0);
         const cost = dbCost.toFixed(2);
         
         newItems[index] = {
             ...newItems[index],
-            sku: getMatSku(mat),
+            sku: sku,
             material_name: getMatDesc(mat),
             expected_cost: cost
         };
@@ -1126,7 +1145,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 </thead>
                                 <tbody className="divide-y divide-slate-50">
                                     {manualOrderForm.items.map((item, rowIndex) => (
-                                        <tr key={rowIndex} className="hover:bg-slate-50/30 transition-colors group">
+                                        <tr key={rowIndex} id={`oc-row-${rowIndex}`} className="hover:bg-slate-50/30 transition-colors group">
                                             <td className="px-6 py-4 align-middle relative">
                                                 <input
                                                     value={item.sku}
