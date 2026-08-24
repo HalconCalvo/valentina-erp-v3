@@ -176,8 +176,6 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
                                     } else {
                                         setManualMatId('');
                                     }
-                                    setShowMatDropdown(true);
-                                    setSearchTerm(val);
                                 } else {
                                     setManualMatId('');
                                     setSearchTerm('');
