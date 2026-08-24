@@ -29,6 +29,7 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
     const [manualQty, setManualQty] = useState('');
     const [manualNotes, setManualNotes] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
+    const [skuSearch, setSkuSearch] = useState('');
     const [showMatDropdown, setShowMatDropdown] = useState(false);
 
     useEffect(() => {
@@ -104,7 +105,7 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
                 notes: manualNotes.trim() ? `[MANUAL] ${manualNotes}` : "[MANUAL] Petición Ad-hoc"
             });
             setManualMatId(''); setCustomDesc(''); setManualQty(''); setManualNotes('');
-            setSearchTerm(''); setShowManualForm(false);
+            setSearchTerm(''); setSkuSearch(''); setShowManualForm(false);
             loadData(true);
         } catch (error) { alert("Error al crear"); }
         finally { setIsLoading(false); }
@@ -157,6 +158,50 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
             </div>
 
             <form onSubmit={handleCreateManualReq} className="space-y-6 max-w-xl">
+                    {/* Búsqueda por SKU */}
+                    <div className="relative">
+                        <label className="text-xs font-black text-slate-500 uppercase tracking-wider">SKU (opcional)</label>
+                        <input
+                            type="text"
+                            placeholder="Ej. 0601-368, CHPCTA1BCO..."
+                            value={skuSearch}
+                            onChange={e => {
+                                const val = e.target.value.toUpperCase();
+                                setSkuSearch(val);
+                                if (val.trim()) {
+                                    const found = materials.find(m => m.sku.toUpperCase() === val.trim());
+                                    if (found) {
+                                        setManualMatId(String(found.id));
+                                        setSearchTerm(`[${found.sku}] ${found.name}`);
+                                    } else {
+                                        setManualMatId('');
+                                    }
+                                    setShowMatDropdown(true);
+                                    setSearchTerm(val);
+                                } else {
+                                    setManualMatId('');
+                                    setSearchTerm('');
+                                }
+                            }}
+                            className="mt-1 w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-400 font-mono uppercase"
+                        />
+                        {skuSearch && materials.filter(m => m.sku.toUpperCase().includes(skuSearch)).length > 0 && (
+                            <div className="absolute z-20 w-full bg-white border border-slate-200 rounded-xl shadow-xl mt-1 max-h-40 overflow-y-auto">
+                                {materials.filter(m => m.sku.toUpperCase().includes(skuSearch)).slice(0, 8).map(m => (
+                                    <div key={m.id}
+                                        onClick={() => {
+                                            setManualMatId(String(m.id));
+                                            setSearchTerm(`[${m.sku}] ${m.name}`);
+                                            setSkuSearch(m.sku);
+                                            setShowMatDropdown(false);
+                                        }}
+                                        className="px-4 py-2.5 hover:bg-indigo-50 cursor-pointer text-sm font-medium text-slate-700">
+                                        <span className="font-mono text-xs text-indigo-600 mr-2">{m.sku}</span>{m.name}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 {/* Material o descripción libre */}
                 <div className="relative">
                     <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Material o Descripción</label>
