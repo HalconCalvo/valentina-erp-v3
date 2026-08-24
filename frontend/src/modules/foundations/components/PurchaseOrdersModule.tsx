@@ -660,6 +660,26 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                     <div>
                                         <div className="flex items-center gap-3">
                                             <h3 className="text-xl font-black text-slate-800 uppercase tracking-tighter leading-none">{group.provider_name || "Asignación Pendiente"}</h3>
+                                            <button
+                                                onClick={() => {
+                                                    setAssignModal({
+                                                        open: true,
+                                                        requisitionId: group.items[0]?.requisition_id,
+                                                        itemName: group.provider_name || 'Proveedor',
+                                                        currentQty: 0,
+                                                    });
+                                                    setAssignForm({
+                                                        provider_id: String(group.provider_id || ''),
+                                                        provider_search: group.provider_name || '',
+                                                        expected_unit_cost: '0.00',
+                                                    });
+                                                }}
+                                                title={isUnassigned ? "Asignar Proveedor" : "Cambiar Proveedor"}
+                                                className={`p-1.5 rounded-lg transition-colors border text-xs font-bold flex items-center gap-1 ${isUnassigned ? 'bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white border-indigo-100' : 'bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white border-amber-100'}`}
+                                            >
+                                                <Building2 size={13} />
+                                                {isUnassigned ? 'Asignar' : 'Cambiar'}
+                                            </button>
                                         </div>
                                         <p className="text-[9px] font-black uppercase tracking-[0.25em] text-slate-400 mt-1">Abastecimiento Valentina</p>
                                     </div>
@@ -711,7 +731,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                                     <td className="px-8 py-3 text-right text-xs font-black text-slate-800">${((item.qty || 0) * (item.expected_cost || 0)).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
                                                     <td className="px-6 py-3 text-center">
                                                         <div className="flex justify-center gap-2">
-                                                            {(
+                                                            {isUnassigned && (
                                                                 <button
                                                                     onClick={() => {
                                                                         setAssignModal({
@@ -721,13 +741,13 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                                                             currentQty: item.qty,
                                                                         });
                                                                         setAssignForm({
-                                                                            provider_id: String(item.provider_id || ''),
-                                                                            provider_search: item.provider_name || '',
-                                                                            expected_unit_cost: String(item.expected_cost || '0.00'),
+                                                                            provider_id: '',
+                                                                            provider_search: '',
+                                                                            expected_unit_cost: '0.00',
                                                                         });
                                                                     }}
-                                                                    title={isUnassigned ? "Asignar Proveedor y Precio" : "Cambiar Proveedor o Precio"}
-                                                                    className={`p-1.5 rounded-md transition-colors shadow-sm border ${isUnassigned ? 'bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white border-indigo-100' : 'bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white border-amber-100'}`}
+                                                                    title="Asignar Proveedor y Precio"
+                                                                    className="p-1.5 bg-indigo-50 text-indigo-600 rounded-md hover:bg-indigo-600 hover:text-white transition-colors shadow-sm border border-indigo-100"
                                                                 >
                                                                     <Building2 size={16} />
                                                                 </button>
