@@ -42,7 +42,7 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
         if (!silent) setIsLoading(true);
         try {
             const [matRes, reqRes, ordRes] = await Promise.all([
-                axiosClient.get('/foundations/materials/'), 
+                axiosClient.get('/foundations/materials'), 
                 axiosClient.get('/purchases/requisitions/'),
                 axiosClient.get('/purchases/orders/')
             ]);
