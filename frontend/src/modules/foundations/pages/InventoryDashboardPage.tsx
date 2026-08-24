@@ -162,9 +162,9 @@ export const InventoryDashboardPage = () => {
                         <Card onClick={() => setActiveSection('REQUISITIONS')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-indigo-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group">
                             <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50 text-indigo-700 border-r border-indigo-100 font-black text-3xl transition-colors group-hover:bg-indigo-100">{pendingTasksCount}</div>
                             <div className="ml-16 h-full flex flex-col justify-between">
-                                <div className="flex justify-between items-start"><p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">1. Requisiciones</p><ClipboardList size={16} className="text-indigo-500" /></div>
+                                <div className="flex justify-between items-start"><p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">1. Solicitud de Compra</p><ClipboardList size={16} className="text-indigo-500" /></div>
                                 <div className="mt-4 flex justify-end"><div className="text-2xl font-black text-indigo-600 tracking-tight">Alertas</div></div>
-                                <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100"><p className="text-[10px] text-slate-400 font-bold uppercase">Stock crítico y aplazadas</p><ArrowUpRight size={14} className="text-indigo-400"/></div>
+                                <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100"><p className="text-[10px] text-slate-400 font-bold uppercase">Stock crítico y solicitudes</p><ArrowUpRight size={14} className="text-indigo-400"/></div>
                             </div>
                         </Card>
                     </div>
@@ -174,9 +174,9 @@ export const InventoryDashboardPage = () => {
                         <Card onClick={() => setActiveSection('PURCHASE_ORDERS')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-emerald-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group">
                             <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-emerald-50 text-emerald-700 border-r border-emerald-100 font-black text-3xl transition-colors group-hover:bg-emerald-100">{purchasingCount}</div>
                             <div className="ml-16 h-full flex flex-col justify-between">
-                                <div className="flex justify-between items-start"><p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">2. Compras</p><ShoppingCart size={16} className="text-emerald-500" /></div>
-                                <div className="mt-4 flex justify-end"><div className="text-2xl font-black text-emerald-600 tracking-tight">Cotizar</div></div>
-                                <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100"><p className="text-[10px] text-slate-400 font-bold uppercase">Motor de Abastecimiento</p><Wrench size={14} className="text-emerald-400"/></div>
+                                <div className="flex justify-between items-start"><p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">2. Generar Órdenes de Compra</p><ShoppingCart size={16} className="text-emerald-500" /></div>
+                                <div className="mt-4 flex justify-end"><div className="text-2xl font-black text-emerald-600 tracking-tight">Órdenes</div></div>
+                                <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100"><p className="text-[10px] text-slate-400 font-bold uppercase">Asignar proveedor y emitir OC</p><Wrench size={14} className="text-emerald-400"/></div>
                             </div>
                         </Card>
                     </div>
