@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
     Search, Ban, Send, PackageCheck, 
     ArrowUpRight, Loader2, ArrowLeft,
-    Building2, ShoppingCart, CheckCircle2, FileText, XCircle, Trash2, CheckSquare, Square, AlertCircle, RefreshCw, Snowflake, Plus, AlertTriangle
+    Building2, ShoppingCart, CheckCircle2, FileText, XCircle, Trash2, CheckSquare, Square, AlertCircle, RefreshCw, Snowflake, Plus, AlertTriangle, Truck
 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/Button';
 import axiosClient from '../../../api/axios-client';
 import { AllPurchaseOrdersModule } from './AllPurchaseOrdersModule';
 
-type SubSection = 'CREATION' | 'BRAKE' | 'SENDING' | 'ALL_ORDERS' | null;
+type SubSection = 'CREATION' | 'BRAKE' | 'SENDING' | 'PARTIAL' | 'ALL_ORDERS' | null;
 
 interface PurchaseOrdersModuleProps {
     onSubSectionChange?: (active: boolean) => void;
@@ -819,12 +819,13 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         </div>
     );
 
-    const renderBrakeTable = () => {
-        const draftOrders = brakeOrders.filter(o => safeStatus(o.status) === 'DRAFT');
+    const renderBrakeTable = (statusFilter: string = 'DRAFT') => {
+        const draftOrders = brakeOrders.filter(o => safeStatus(o.status) === statusFilter);
+        const isPartial = statusFilter === 'RECIBIDA_PARCIAL';
         return (
             <div className="space-y-12 pb-20">
                 {draftOrders.length === 0 ? (
-                    <div className="text-center py-20 bg-slate-50 rounded-2xl border border-slate-100 border-dashed"><Ban className="mx-auto text-slate-200 mb-4" size={48} /><p className="text-slate-400 font-black uppercase text-[10px]">No hay órdenes en revisión</p></div>
+                    <div className="text-center py-20 bg-slate-50 rounded-2xl border border-slate-100 border-dashed"><Ban className="mx-auto text-slate-200 mb-4" size={48} /><p className="text-slate-400 font-black uppercase text-[10px]">{isPartial ? 'No hay órdenes en recepción parcial' : 'No hay órdenes en revisión'}</p></div>
                 ) : (
                     draftOrders.map((order, idx) => {
                         const subtotal = order.total_estimated_amount || 0;
@@ -832,9 +833,9 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                         const total = subtotal + iva;
                         const canAuthorize = role === 'DIRECTOR' || role === 'GERENCIA';
                         return (
-                            <div key={idx} className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden border-l-4 border-l-rose-500 animate-in fade-in duration-300">
-                                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-rose-50/30">
-                                    <div className="flex items-center gap-5"><div className="p-3 rounded-2xl shadow-inner bg-rose-100 text-rose-600"><FileText size={24} /></div><div><h3 className="text-xl font-black text-slate-800 uppercase leading-none">{order.provider_name}</h3><p className="text-[9px] font-black uppercase text-slate-400 mt-1 tracking-widest text-rose-600">FOLIO: {order.folio}</p></div></div>
+                            <div key={idx} className={`bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden border-l-4 animate-in fade-in duration-300 ${isPartial ? 'border-l-amber-500' : 'border-l-rose-500'}`}>
+                                <div className={`p-6 border-b border-slate-100 flex justify-between items-center ${isPartial ? 'bg-amber-50/30' : 'bg-rose-50/30'}`}>
+                                    <div className="flex items-center gap-5"><div className={`p-3 rounded-2xl shadow-inner ${isPartial ? 'bg-amber-100 text-amber-600' : 'bg-rose-100 text-rose-600'}`}><FileText size={24} /></div><div><h3 className="text-xl font-black text-slate-800 uppercase leading-none">{order.provider_name}</h3><p className={`text-[9px] font-black uppercase text-slate-400 mt-1 tracking-widest ${isPartial ? 'text-amber-600' : 'text-rose-600'}`}>FOLIO: {order.folio}</p></div></div>
                                 </div>
                                 <table className="w-full">
                                     <thead>
@@ -851,10 +852,13 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                     </tbody>
                                 </table>
                                 <div className="p-8 bg-white flex justify-between items-end border-t border-slate-50">
+                                    {!isPartial && (
                                     <div className="flex gap-3">
                                         {canAuthorize && <Button onClick={() => handleAuthorizeOrder(order.id, order.folio)} className="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-200 font-black uppercase text-xs h-12 px-10 shadow-lg">Autorizar Firma</Button>}
                                         <Button onClick={() => handleRejectOrder(order.id, order.folio)} variant="outline" className="text-slate-400 font-black uppercase text-[10px] px-6 h-12 border-slate-200">Rechazar</Button>
                                     </div>
+                                    )}
+                                    {isPartial && <div />}
                                     <div className="w-80 space-y-1 pr-14">
                                         <div className="flex justify-between items-center px-2 py-1 text-slate-500"><span className="text-[10px] font-black uppercase tracking-widest">Subtotal</span><span className="text-sm font-bold">${subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
                                         <div className="flex justify-between items-center px-2 py-1 border-b border-slate-100 pb-3 text-slate-500"><span className="text-[10px] font-black uppercase tracking-widest">IVA (16%)</span><span className="text-sm font-bold">${iva.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
@@ -960,16 +964,17 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     };
 
     const subMenuItems = [
-        { id: 'CREATION', title: 'A. SOLICITUDES', icon: <Search />, color: 'indigo', bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-100', activeBorder: 'border-l-indigo-600', count: suggestedOrders.length, desc: 'Revisar' },
-        { id: 'BRAKE', title: 'B. FRENO', icon: <Ban />, color: 'rose', bg: 'bg-rose-50', text: 'text-rose-600', border: 'border-rose-100', activeBorder: 'border-l-rose-600', count: brakeOrders.filter(o => safeStatus(o.status) === 'DRAFT').length, desc: 'Pausadas' },
-        { id: 'SENDING', title: 'C. POR ENVIAR', icon: <Send />, color: 'emerald', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100', activeBorder: 'border-l-emerald-600', count: brakeOrders.filter(o => safeStatus(o.status) === 'AUTORIZADA').length, desc: 'Envío' },
-        { id: 'ALL_ORDERS', title: 'D. TODAS LAS OC', icon: <Search />, color: 'slate', bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-100', activeBorder: 'border-l-slate-600', count: 0, desc: 'Rayos X' },
+        { id: 'CREATION', title: 'A. GENERAR OC', icon: <Search />, color: 'indigo', bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-100', activeBorder: 'border-l-indigo-600', count: suggestedOrders.length, desc: 'Desde solicitudes o directa' },
+        { id: 'BRAKE', title: 'B. POR AUTORIZAR', icon: <Ban />, color: 'rose', bg: 'bg-rose-50', text: 'text-rose-600', border: 'border-rose-100', activeBorder: 'border-l-rose-600', count: brakeOrders.filter(o => safeStatus(o.status) === 'DRAFT').length, desc: 'Pendientes de autorización' },
+        { id: 'SENDING', title: 'C. AUTORIZADAS', icon: <Send />, color: 'emerald', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100', activeBorder: 'border-l-emerald-600', count: brakeOrders.filter(o => safeStatus(o.status) === 'AUTORIZADA').length, desc: 'Listas para enviar' },
+        { id: 'PARTIAL', title: 'D. EN RECEPCIÓN', icon: <Truck />, color: 'amber', bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-100', activeBorder: 'border-l-amber-600', count: brakeOrders.filter(o => safeStatus(o.status) === 'RECIBIDA_PARCIAL').length, desc: 'Recepción parcial' },
+        { id: 'ALL_ORDERS', title: 'E. TODAS LAS OCs', icon: <Search />, color: 'slate', bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-100', activeBorder: 'border-l-slate-600', count: 0, desc: 'Consulta y corrección' },
     ];
 
     return (
         <div className="space-y-10 min-h-[600px] relative">
             {activeSubSection === null && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-in fade-in duration-300">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 animate-in fade-in duration-300">
                     {subMenuItems.map(item => (
                         <div key={item.id} className="w-full relative h-40">
                             <Card onClick={() => setActiveSubSection(item.id as SubSection)} className={`p-6 cursor-pointer transition-all border-l-4 transform hover:-translate-y-1 h-full bg-white shadow-sm hover:shadow-xl ${item.activeBorder}`}>
@@ -1011,13 +1016,17 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 </>
                             ) : activeSubSection === 'BRAKE' ? (
                                 <><Ban size={28} className="text-rose-600"/> Mesa de Control / Freno</>
+                            ) : activeSubSection === 'SENDING' ? (
+                                <><Send size={28} className="text-emerald-600"/> Centro de Despacho</>
+                            ) : activeSubSection === 'PARTIAL' ? (
+                                <><Truck size={28} className="text-amber-600"/> En Recepción</>
                             ) : activeSubSection === 'ALL_ORDERS' ? (
                                 <div className="flex flex-col">
                                     <span className="flex items-center gap-3"><Search size={28} className="text-slate-600"/> Todas las Órdenes de Compra</span>
                                     <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Consulta y corrección</span>
                                 </div>
                             ) : (
-                                <><Send size={28} className="text-emerald-600"/> Centro de Despacho</>
+                                null
                             )}
                         </div>
                         <div className="flex gap-2">
@@ -1043,13 +1052,15 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                     ) : (
                         activeSubSection === 'CREATION' ? renderPlanningTable()
                         : activeSubSection === 'BRAKE' ? renderBrakeTable()
+                        : activeSubSection === 'SENDING' ? renderSendingTable()
+                        : activeSubSection === 'PARTIAL' ? renderBrakeTable('RECIBIDA_PARCIAL')
                         : activeSubSection === 'ALL_ORDERS' ? (
                             <AllPurchaseOrdersModule
                                 onDetailChange={setAllOrdersDetailOpen}
                                 closeSignal={allOrdersCloseSignal}
                             />
                         )
-                        : renderSendingTable()
+                        : null
                     )}
                 </div>
             )}

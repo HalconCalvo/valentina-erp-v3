@@ -72,6 +72,24 @@ def read_requisitions(db: Session = Depends(get_session), skip: int = 0, limit: 
     
     return [dict(r) for r in result]
 
+@router.put("/requisitions/{req_id}/cancel")
+def cancel_requisition(
+    *,
+    db: Session = Depends(get_session),
+    req_id: int,
+    current_user: CurrentUser
+):
+    req = db.get(PurchaseRequisition, req_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Requisición no encontrada")
+    if req.status == "PROCESADA":
+        raise HTTPException(status_code=400, detail="No se puede cancelar una requisición ya procesada en una OC")
+    req.status = "CANCELADA"
+    db.add(req)
+    db.commit()
+    db.refresh(req)
+    return {"ok": True, "message": "Requisición cancelada"}
+
 @router.delete("/requisitions/{req_id}")
 def delete_purchase_requisition(*, db: Session = Depends(get_session), req_id: int, current_user: CurrentUser):
     req = db.get(PurchaseRequisition, req_id)
@@ -82,6 +100,32 @@ def delete_purchase_requisition(*, db: Session = Depends(get_session), req_id: i
     db.delete(req)
     db.commit()
     return {"status": "success"}
+
+@router.patch("/requisitions/{req_id}")
+def update_requisition(
+    *,
+    db: Session = Depends(get_session),
+    req_id: int,
+    data: dict = Body(...),
+    current_user: CurrentUser
+):
+    req = db.get(PurchaseRequisition, req_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Requisición no encontrada")
+    if req.status in ("PROCESADA", "CANCELADA"):
+        raise HTTPException(status_code=400, detail="No se puede editar una requisición procesada o cancelada")
+    if "material_id" in data:
+        req.material_id = data["material_id"]
+    if "custom_description" in data:
+        req.custom_description = data["custom_description"]
+    if "requested_quantity" in data:
+        req.requested_quantity = float(data["requested_quantity"])
+    if "notes" in data:
+        req.notes = data["notes"]
+    db.add(req)
+    db.commit()
+    db.refresh(req)
+    return req
 
 @router.put("/requisitions/{req_id}/transfer")
 def transfer_critical_requisition(*, db: Session = Depends(get_session), req_id: int, current_user: CurrentUser):

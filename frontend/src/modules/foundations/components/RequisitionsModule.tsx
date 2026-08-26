@@ -8,9 +8,9 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 
 interface Material { id: number; sku: string; name: string; physical_stock: number; min_stock: number; usage_unit: string; }
-interface Requisition { id: number; material_id: number; custom_description?: string; requested_quantity: number; status: string; notes: string; created_at: string; }
+interface Requisition { id: number; material_id: number; custom_description?: string; requested_quantity: number; status: string; notes: string; created_at: string; requested_by_user_id?: number; }
 
-type RequisitionSubSection = 'CRITICAL' | 'FROZEN' | 'NEW' | null;
+type RequisitionSubSection = 'CRITICAL' | 'FROZEN' | 'MINE' | 'NEW' | null;
 
 interface RequisitionsModuleProps {
     onSubSectionChange?: (isActive: boolean) => void;
@@ -31,6 +31,8 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
     const [searchTerm, setSearchTerm] = useState('');
     const [skuSearch, setSkuSearch] = useState('');
     const [showMatDropdown, setShowMatDropdown] = useState(false);
+    const [editingReq, setEditingReq] = useState<Requisition | null>(null);
+    const currentUserId = parseInt(localStorage.getItem('user_id') || '0');
 
     useEffect(() => {
         if (onSubSectionChange) {
@@ -66,6 +68,11 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
     // ---> FILTROS ROBUSTOS <---
     const frozenReqs = requisitions.filter(r => r.status?.toUpperCase() === 'APLAZADA');
 
+    const myReqs = requisitions.filter(r => 
+        r.requested_by_user_id === currentUserId && 
+        r.status?.toUpperCase() !== 'CANCELADA'
+    );
+
     const reqMaterialIds = [...frozenReqs].map(r => r.material_id);
     const activeOrders = orders.filter(o => ['DRAFT', 'ENVIADA'].includes(o.status?.toUpperCase()));
     const orderMaterialIds = activeOrders.flatMap(o => o.items?.map((i: any) => i.material_id) || []);
@@ -85,12 +92,27 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
         } catch (error) { alert("Error al actualizar estatus"); }
     };
 
-    const handleDeleteReq = async (id: number) => {
-        if (!window.confirm("¿Seguro que deseas ELIMINAR esta solicitud manual?")) return;
+    const handleCancelReq = async (id: number) => {
+        if (!window.confirm("¿Cancelar esta solicitud? Quedará registrada como cancelada.")) return;
         try {
-            await axiosClient.delete(`/purchases/requisitions/${id}`);
+            await axiosClient.put(`/purchases/requisitions/${id}/cancel`);
             loadData(true);
-        } catch (error) { alert("Error al eliminar."); }
+        } catch (error: any) {
+            alert(error.response?.data?.detail || "Error al cancelar.");
+        }
+    };
+
+    const handleEditReq = async (req: Requisition, newQty: number, newNotes: string) => {
+        try {
+            await axiosClient.patch(`/purchases/requisitions/${req.id}`, {
+                requested_quantity: newQty,
+                notes: newNotes,
+            });
+            setEditingReq(null);
+            loadData(true);
+        } catch (error: any) {
+            alert(error.response?.data?.detail || "Error al editar.");
+        }
     };
 
     const handleCreateManualReq = async (e: React.FormEvent) => {
@@ -264,6 +286,66 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
         </Card>
     );
 
+    const renderMyRequisitionsTable = () => (
+        <Card className="p-6 space-y-4">
+            <div className="flex justify-between items-center">
+                <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                    <ClipboardList className="text-purple-500"/> Mis Solicitudes
+                </h3>
+                <Button onClick={() => setActiveSubSection(null)} variant="outline" className="font-black uppercase text-[10px] tracking-widest px-4 border-slate-300">
+                    <ArrowLeft size={16} className="mr-2"/> Regresar
+                </Button>
+            </div>
+            {myReqs.length === 0 ? (
+                <p className="text-center text-slate-400 py-8 font-medium">No tienes solicitudes activas.</p>
+            ) : (
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                        <thead className="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-100">
+                            <tr>
+                                <th className="pb-3 font-black">Material</th>
+                                <th className="pb-3 font-black text-center">Cantidad</th>
+                                <th className="pb-3 font-black">Notas</th>
+                                <th className="pb-3 font-black text-center">Estado</th>
+                                <th className="pb-3 font-black text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                            {myReqs.map(req => (
+                                <tr key={req.id} className="hover:bg-slate-50">
+                                    <td className="py-3 font-medium text-slate-700">{getMaterialName(req)}</td>
+                                    <td className="py-3 text-center font-black text-slate-800">{req.requested_quantity}</td>
+                                    <td className="py-3 text-slate-500 text-xs">{req.notes}</td>
+                                    <td className="py-3 text-center">
+                                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                                            req.status === 'PROCESADA' ? 'bg-emerald-50 text-emerald-700' :
+                                            req.status === 'APLAZADA' ? 'bg-slate-100 text-slate-600' :
+                                            req.status === 'CANCELADA' ? 'bg-red-50 text-red-600' :
+                                            'bg-amber-50 text-amber-700'
+                                        }`}>{req.status}</span>
+                                    </td>
+                                    <td className="py-3 text-center">
+                                        <div className="flex justify-center gap-2">
+                                            {!['PROCESADA', 'CANCELADA'].includes(req.status) && (
+                                                <button
+                                                    onClick={() => handleCancelReq(req.id)}
+                                                    className="p-1.5 bg-red-50 text-red-500 rounded-md hover:bg-red-600 hover:text-white transition-colors border border-red-100"
+                                                    title="Cancelar solicitud"
+                                                >
+                                                    <X size={14}/>
+                                                </button>
+                                            )}
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </Card>
+    );
+
     const renderCriticalStockTable = () => (
         <Card className="p-8 bg-white animate-in slide-in-from-right-4 duration-300 space-y-6 rounded-3xl border-slate-100 shadow-xl">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-6">
@@ -352,12 +434,14 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
 
     if (activeSubSection === 'CRITICAL') return renderCriticalStockTable();
     if (activeSubSection === 'FROZEN') return renderFrozenReqsTable();
+    if (activeSubSection === 'MINE') return renderMyRequisitionsTable();
     if (activeSubSection === 'NEW') return renderNewRequisitionForm();
 
     const subMenuItems = [
-        { id: 'CRITICAL', title: 'A. STOCK CRÍTICO', count: criticalStock.length, color: 'orange', bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-100', desc: 'Stock bajo el mínimo' },
-        { id: 'FROZEN', title: 'B. CONGELADORA', count: frozenReqs.length, color: 'slate', bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-100', desc: 'Requisiciones Aplazadas' },
-        { id: 'NEW', title: 'C. NUEVA REQUISICIÓN', count: '+', color: 'indigo', bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-100', desc: 'Solicitud Manual' },
+        { id: 'CRITICAL', title: 'A. URGENTES', count: criticalStock.length, color: 'orange', bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-100', desc: 'Stock crítico' },
+        { id: 'FROZEN', title: 'B. APLAZADAS', count: frozenReqs.length, color: 'slate', bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-100', desc: 'Requisiciones aplazadas' },
+        { id: 'MINE', title: 'C. MIS SOLICITUDES', count: myReqs.length, color: 'purple', bg: 'bg-purple-50', text: 'text-purple-600', border: 'border-purple-100', desc: 'Creadas por mí' },
+        { id: 'NEW', title: 'D. NUEVA SOLICITUD', count: '+', color: 'indigo', bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-100', desc: 'Crear solicitud' },
     ];
 
     return (
