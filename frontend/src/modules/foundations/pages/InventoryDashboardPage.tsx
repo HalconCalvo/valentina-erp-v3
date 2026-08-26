@@ -160,7 +160,7 @@ export const InventoryDashboardPage = () => {
             {!activeSection ? (
                 <div className="flex flex-wrap justify-center gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 mt-4">
                     {/* TARJETA 1 */}
-                    <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(25%-18px)] relative h-40">
+                    <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] relative h-40">
                         <Card onClick={() => setActiveSection('REQUISITIONS')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-indigo-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group">
                             <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50 text-indigo-700 border-r border-indigo-100 font-black text-3xl transition-colors group-hover:bg-indigo-100">{pendingTasksCount}</div>
                             <div className="ml-16 h-full flex flex-col justify-between">
@@ -172,7 +172,7 @@ export const InventoryDashboardPage = () => {
                     </div>
 
                     {/* TARJETA 2 */}
-                    <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(25%-18px)] relative h-40">
+                    <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] relative h-40">
                         <Card onClick={() => setActiveSection('PURCHASE_ORDERS')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-emerald-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group">
                             <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-emerald-50 text-emerald-700 border-r border-emerald-100 font-black text-3xl transition-colors group-hover:bg-emerald-100">{purchasingCount}</div>
                             <div className="ml-16 h-full flex flex-col justify-between">
@@ -184,7 +184,7 @@ export const InventoryDashboardPage = () => {
                     </div>
 
                     {/* TARJETA 3 */}
-                    <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(25%-18px)] relative h-40">
+                    <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] relative h-40">
                         <Card onClick={() => setActiveSection('RECEPTIONS')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-blue-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group">
                             <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-blue-50 text-blue-700 border-r border-blue-100 font-black text-3xl transition-colors group-hover:bg-blue-100">{receptionsCount}</div>
                             <div className="ml-16 h-full flex flex-col justify-between">
@@ -196,7 +196,7 @@ export const InventoryDashboardPage = () => {
                     </div>
 
                     {/* TARJETA 4 */}
-                    <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(25%-18px)] relative h-40">
+                    <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] relative h-40">
                         <Card onClick={() => setActiveSection('PHYSICAL_INVENTORY')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-orange-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group">
                             <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-orange-50 text-orange-700 border-r border-orange-100 font-black text-3xl transition-colors group-hover:bg-orange-100">$</div>
                             <div className="ml-16 h-full flex flex-col justify-between">
@@ -218,7 +218,7 @@ export const InventoryDashboardPage = () => {
                     </div>
 
                     {/* TARJETA 5 — MATERIALES */}
-                    <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(25%-18px)] relative h-40">
+                    <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] relative h-40">
                         <Card onClick={() => setActiveSection('MATERIALS')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-violet-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group">
                             <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-violet-50 text-violet-700 border-r border-violet-100 font-black text-3xl transition-colors group-hover:bg-violet-100">
                                 <Package size={24} />
@@ -231,7 +231,7 @@ export const InventoryDashboardPage = () => {
                         </Card>
                     </div>
                     {/* TARJETA 6 — PROVEEDORES */}
-                    <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(25%-18px)] relative h-40">
+                    <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] relative h-40">
                         <Card onClick={() => setActiveSection('PROVIDERS')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-cyan-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group">
                             <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-cyan-50 text-cyan-700 border-r border-cyan-100 font-black text-3xl transition-colors group-hover:bg-cyan-100">
                                 <Truck size={24} />
