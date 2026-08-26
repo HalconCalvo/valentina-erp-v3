@@ -3,6 +3,7 @@ import axiosClient from '../../../api/axios-client';
 
 interface MaterialFormProps {
     initialSku?: string;
+    initialProviderId?: number;
     onCreated: (material: any) => void;  // recibe el material creado (con id)
     onCancel: () => void;
 }
@@ -14,7 +15,7 @@ const ROUTES = [
     { value: 'SERVICIO', label: 'SERVICIO (Externo)' },
 ];
 
-export const MaterialForm: React.FC<MaterialFormProps> = ({ initialSku = '', onCreated, onCancel }) => {
+export const MaterialForm: React.FC<MaterialFormProps> = ({ initialSku = '', initialProviderId = 0, onCreated, onCancel }) => {
     const [form, setForm] = useState<any>({
         sku: initialSku,
         name: '',
@@ -29,7 +30,7 @@ export const MaterialForm: React.FC<MaterialFormProps> = ({ initialSku = '', onC
         is_resale: false,
         sale_price: 0,
         associated_element_sku: '',
-        provider_id: 0,
+        provider_id: initialProviderId,
     });
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');

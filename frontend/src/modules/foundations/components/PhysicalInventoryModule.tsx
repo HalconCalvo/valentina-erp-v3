@@ -2,8 +2,9 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axiosClient from '../../../api/axios-client';
 import { ClipboardList, DollarSign, Printer, ClipboardCheck } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
+import { MaterialForm } from './MaterialForm';
 
-type SubSection = 'CONTEO' | 'COSTEO' | null;
+type SubSection = 'CONTEO' | 'AJUSTES' | 'COSTEO' | null;
 type Tab = 'REPORTE' | 'CAPTURA';
 
 interface Material {
@@ -22,6 +23,100 @@ interface PhysicalInventoryModuleProps {
   activeSubSection?: string | null;
   onSubSectionChange?: (section: string | null) => void;
 }
+
+const AjustesInventario: React.FC<{ materials: any[]; onSaved: () => void }> = ({ materials, onSaved }) => {
+    const [matSearch, setMatSearch] = useState('');
+    const [selectedMat, setSelectedMat] = useState<any | null>(null);
+    const [showDropdown, setShowDropdown] = useState(false);
+    const [qty, setQty] = useState('');
+    const [motivo, setMotivo] = useState('');
+    const [saving, setSaving] = useState(false);
+    const [historial, setHistorial] = useState<any[]>([]);
+
+    const filtered = materials.filter(m =>
+        m.name.toLowerCase().includes(matSearch.toLowerCase()) ||
+        m.sku.toLowerCase().includes(matSearch.toLowerCase())
+    );
+
+    const handleSave = async () => {
+        if (!selectedMat || !qty || !motivo.trim()) return alert('Completa todos los campos.');
+        setSaving(true);
+        try {
+            await axiosClient.post(`/foundations/materials/${selectedMat.id}/adjust`, {
+                quantity_adjustment: parseFloat(qty),
+                reason: motivo.trim(),
+            });
+            setSelectedMat(null);
+            setMatSearch('');
+            setQty('');
+            setMotivo('');
+            onSaved();
+            alert('Ajuste aplicado correctamente.');
+        } catch (e: any) {
+            alert(e.response?.data?.detail || 'Error al aplicar ajuste.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="space-y-6 max-w-xl">
+            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6 space-y-4">
+                <p className="text-xs font-black text-blue-700 uppercase tracking-widest">Nuevo Ajuste</p>
+                <div className="relative">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">Material</label>
+                    <input
+                        type="text"
+                        placeholder="Buscar por SKU o descripción..."
+                        value={matSearch}
+                        onChange={e => { setMatSearch(e.target.value); setSelectedMat(null); setShowDropdown(true); }}
+                        onFocus={() => setShowDropdown(true)}
+                        className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400"
+                    />
+                    {showDropdown && matSearch && filtered.length > 0 && (
+                        <div className="absolute z-20 w-full bg-white border border-slate-200 rounded-xl shadow-xl mt-1 max-h-48 overflow-y-auto">
+                            {filtered.slice(0, 8).map(m => (
+                                <div key={m.id}
+                                    onClick={() => { setSelectedMat(m); setMatSearch(`[${m.sku}] ${m.name}`); setShowDropdown(false); }}
+                                    className="px-4 py-2.5 hover:bg-blue-50 cursor-pointer text-sm font-medium text-slate-700">
+                                    <span className="font-mono text-xs text-blue-600 mr-2">{m.sku}</span>{m.name}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+                <div>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">Cantidad a ajustar (positiva o negativa)</label>
+                    <input
+                        type="number"
+                        step="0.01"
+                        placeholder="Ej. -5 o +10"
+                        value={qty}
+                        onChange={e => setQty(e.target.value)}
+                        className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400"
+                    />
+                </div>
+                <div>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">Motivo (obligatorio)</label>
+                    <textarea
+                        placeholder="Ej. Error detectado en conteo de julio..."
+                        value={motivo}
+                        onChange={e => setMotivo(e.target.value)}
+                        rows={3}
+                        className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400 resize-none"
+                    />
+                </div>
+                <button
+                    onClick={handleSave}
+                    disabled={saving || !selectedMat || !qty || !motivo.trim()}
+                    className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl transition-colors disabled:opacity-50"
+                >
+                    {saving ? 'Aplicando...' : 'Aplicar Ajuste'}
+                </button>
+            </div>
+        </div>
+    );
+};
 
 export const PhysicalInventoryModule = ({ activeSubSection, onSubSectionChange }: PhysicalInventoryModuleProps = {}) => {
   const [internalSection, setInternalSection] = useState<SubSection>(null);
@@ -45,6 +140,7 @@ export const PhysicalInventoryModule = ({ activeSubSection, onSubSectionChange }
   const [quickQty, setQuickQty] = useState('');
   const [quickSaved, setQuickSaved] = useState(false);
   const [skuNotFound, setSkuNotFound] = useState(false);
+  const [showMaterialFormInCount, setShowMaterialFormInCount] = useState(false);
   const [fechaConteo, setFechaConteo] = useState<string>(
     new Date().toISOString().split('T')[0]   // hoy en formato YYYY-MM-DD
   );
@@ -275,6 +371,30 @@ export const PhysicalInventoryModule = ({ activeSubSection, onSubSectionChange }
             </div>
           </Card>
         </div>
+
+        <div className="w-full md:w-[calc(50%-12px)] relative h-40">
+          <Card
+            onClick={() => setActiveSection('AJUSTES')}
+            className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-blue-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group"
+          >
+            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-blue-50 text-blue-600 border-r border-blue-100 transition-colors group-hover:bg-blue-100">
+              <ClipboardCheck size={28} />
+            </div>
+            <div className="ml-16 h-full flex flex-col justify-between">
+              <div className="flex justify-between items-start">
+                <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">3. Ajustes</p>
+                <ClipboardCheck size={16} className="text-blue-400" />
+              </div>
+              <div className="mt-2">
+                <div className="text-2xl font-black text-blue-600 tracking-tight">Ajustar</div>
+                <p className="text-xs text-slate-400 mt-1">Corregir diferencias de inventario</p>
+              </div>
+              <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
+                <p className="text-[10px] text-slate-400 font-bold uppercase">Material · Cantidad · Motivo</p>
+              </div>
+            </div>
+          </Card>
+        </div>
       </div>
     </div>
   );
@@ -414,6 +534,19 @@ export const PhysicalInventoryModule = ({ activeSubSection, onSubSectionChange }
                                   : 'Ingresa el SKU y presiona Enter...'}
                           </div>
                       </div>
+
+                      {skuNotFound && (
+                          <div className="flex flex-col gap-1.5">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider opacity-0">Alta</label>
+                              <button
+                                  type="button"
+                                  onClick={() => setShowMaterialFormInCount(true)}
+                                  className="h-11 px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl transition-colors whitespace-nowrap"
+                              >
+                                  + Dar de alta
+                              </button>
+                          </div>
+                      )}
 
                       {/* CANTIDAD */}
                       <div className="flex flex-col gap-1.5">
@@ -573,6 +706,35 @@ export const PhysicalInventoryModule = ({ activeSubSection, onSubSectionChange }
               </div>
           </div>
       )}
+
+      {showMaterialFormInCount && (
+          <MaterialForm
+              initialSku={skuInput}
+              onCancel={() => setShowMaterialFormInCount(false)}
+              onCreated={(mat) => {
+                  setMaterials(prev => [mat, ...prev]);
+                  setQuickMaterial(mat);
+                  setSkuInput(mat.sku);
+                  setSkuNotFound(false);
+                  setShowMaterialFormInCount(false);
+                  setTimeout(() => qtyInputRef.current?.focus(), 50);
+              }}
+          />
+      )}
+    </div>
+  );
+
+  if (activeSection === 'AJUSTES') return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center border-b border-slate-200 pb-4">
+        <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
+          <ClipboardCheck className="text-blue-500"/> Ajustes de Inventario
+        </h3>
+        <button onClick={() => setActiveSection(null)} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 font-bold rounded-lg hover:bg-slate-50 transition-all shadow-sm text-sm">
+          ← Regresar
+        </button>
+      </div>
+      <AjustesInventario materials={materials} onSaved={() => {}} />
     </div>
   );
 

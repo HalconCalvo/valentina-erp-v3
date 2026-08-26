@@ -829,6 +829,7 @@ const InventoryReceptionPage: React.FC = () => {
         {showMaterialForm && (
             <MaterialForm
                 initialSku={showMaterialForm.sku}
+                initialProviderId={selectedPO?.provider_id || 0}
                 onCancel={() => setShowMaterialForm(null)}
                 onCreated={(mat) => {
                     setMaterialsList(prev => [mat, ...prev]);

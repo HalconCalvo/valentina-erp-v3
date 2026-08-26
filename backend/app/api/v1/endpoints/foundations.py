@@ -469,6 +469,40 @@ def toggle_tax_rate(tax_id: int, session: Session = Depends(get_session)):
 # 5. MATERIALES
 # ==========================================
 # --- IMPORTE NECESARIO (Asegúrate de que 'Provider' esté importado al inicio del archivo) ---
+@router.post("/materials/{material_id}/adjust")
+def adjust_material_by_delta(
+    material_id: int,
+    body: dict,
+    current_user: CurrentUser,
+    session: Session = Depends(get_session),
+):
+    """
+    Ajusta el stock físico de un material por delta (+/-).
+    body: { "quantity_adjustment": float, "reason": str }
+    """
+    material = session.get(Material, material_id)
+    if not material:
+        raise HTTPException(status_code=404, detail="Material no encontrado")
+
+    delta = float(body.get("quantity_adjustment", 0))
+    reason = body.get("reason", "Ajuste manual")
+
+    if delta == 0:
+        return {"ok": True, "message": "Sin diferencia, stock no modificado"}
+
+    material.physical_stock = (material.physical_stock or 0) + delta
+    session.add(material)
+    session.commit()
+    session.refresh(material)
+
+    return {
+        "ok": True,
+        "material_id": material_id,
+        "movement_type": "AJUSTE_POSITIVO" if delta > 0 else "AJUSTE_NEGATIVO",
+        "delta": delta,
+        "new_stock": material.physical_stock,
+    }
+
 @router.patch("/materials/{material_id}/adjust-stock")
 def adjust_material_stock(
     material_id: int,
