@@ -171,3 +171,80 @@ SALES y roles operativos NUNCA tocan finanzas.
 - Toda operación async tiene manejo de errores
 - Toda lista tiene VEmptyState
 - Toda operación lenta tiene indicador de carga
+
+
+---
+
+## COMPONENTES V — EJEMPLOS DE USO OBLIGATORIOS
+
+### VConfirmDialog — SIEMPRE para acciones destructivas
+NUNCA: if (!window.confirm('¿Eliminar?')) return;
+SIEMPRE:
+  const [showConfirm, setShowConfirm] = useState(false);
+  <VConfirmDialog
+    isOpen={showConfirm}
+    title="Cancelar solicitud"
+    message="Esta solicitud quedará marcada como cancelada."
+    consequence="No podrás reactivarla — deberás crear una nueva."
+    variant="danger"
+    confirmLabel="Sí, cancelar"
+    onConfirm={async () => { await handleCancel(); setShowConfirm(false); }}
+    onCancel={() => setShowConfirm(false)}
+  />
+
+### VToast — SIEMPRE para feedback al usuario
+NUNCA: alert('Guardado correctamente');
+NUNCA: alert('Error al guardar');
+SIEMPRE:
+  import { toast } from '@/components/ui/VToast';
+  toast.success('Solicitud cancelada correctamente');
+  toast.error('No se pudo cancelar. Intenta de nuevo.');
+  toast.warning('Esta OC ya fue enviada al proveedor');
+
+### VTable — SIEMPRE para listas de datos
+NUNCA: <table><thead>...</thead><tbody>...</tbody></table>
+SIEMPRE:
+  import { VTable } from '@/components/ui/VTable';
+  <VTable
+    columns={[{ key: 'name', label: 'Material', sortable: true }]}
+    data={items}
+    isLoading={loading}
+    emptyState={{ title: 'Sin materiales', description: 'Agrega el primero.' }}
+    actions={(row) => [
+      { label: 'Editar', icon: <Pencil size={14}/>, onClick: () => edit(row) },
+      { label: 'Cancelar', icon: <X size={14}/>, variant: 'danger',
+        onClick: () => setConfirmId(row.id),
+        hidden: row.status === 'CANCELADA' }
+    ]}
+  />
+
+### VCurrencyInput — SIEMPRE para montos en MXN
+NUNCA: <input type="number" value={price} onChange={...} />
+SIEMPRE:
+  import { VCurrencyInput } from '@/components/ui/VCurrencyInput';
+  <VCurrencyInput
+    label="Precio unitario *"
+    value={price}
+    onChange={setPrice}
+    min={0.01}
+    error={price <= 0 ? 'El precio debe ser mayor a cero' : undefined}
+  />
+
+### VStatusBadge — SIEMPRE para estados de entidades
+NUNCA: <span className="bg-green-100 text-green-700">PAGADA</span>
+SIEMPRE:
+  import { VStatusBadge } from '@/components/ui/VStatusBadge';
+  <VStatusBadge status={invoice.status} entity="invoice" />
+
+### VEmptyState — SIEMPRE para listas vacías
+NUNCA: {items.length === 0 && <p>No hay elementos</p>}
+SIEMPRE:
+  import { VEmptyState } from '@/components/ui/VEmptyState';
+  {items.length === 0 && (
+    <VEmptyState
+      icon={<Package size={48}/>}
+      title="Sin solicitudes activas"
+      description="Crea la primera solicitud de compra."
+      action={{ label: 'Nueva solicitud', onClick: () => setShowForm(true) }}
+    />
+  )}
