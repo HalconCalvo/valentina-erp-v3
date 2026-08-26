@@ -2,10 +2,12 @@ import React from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import { VToastContainer } from '@/components/ui/VToast';
 
 export default function MainLayout() {
   return (
-    <div className="flex h-screen bg-slate-50 font-sans">
+    <VToastContainer>
+      <div className="flex h-screen bg-slate-50 font-sans">
       {/* 1. Sidebar Fijo a la izquierda (Width 64 = 16rem = 256px) */}
       <Sidebar />
 
@@ -26,6 +28,7 @@ export default function MainLayout() {
         </main>
 
       </div>
-    </div>
+      </div>
+    </VToastContainer>
   );
 }
