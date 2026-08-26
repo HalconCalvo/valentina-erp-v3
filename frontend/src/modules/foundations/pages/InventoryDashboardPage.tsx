@@ -9,8 +9,10 @@ import { RequisitionsModule } from '../components/RequisitionsModule';
 import { PurchaseOrdersModule } from '../components/PurchaseOrdersModule';
 import InventoryReceptionPage from './InventoryReceptionPage';
 import { PhysicalInventoryModule } from '../components/PhysicalInventoryModule';
+import MaterialsPage from './MaterialsPage';
+import ProvidersPage from './ProvidersPage';
 
-type InventorySection = 'REQUISITIONS' | 'PURCHASE_ORDERS' | 'RECEPTIONS' | 'PHYSICAL_INVENTORY' | null;
+type InventorySection = 'REQUISITIONS' | 'PURCHASE_ORDERS' | 'RECEPTIONS' | 'PHYSICAL_INVENTORY' | 'MATERIALS' | 'PROVIDERS' | null;
 
 export const InventoryDashboardPage = () => {
     const navigate = useNavigate();
@@ -150,7 +152,7 @@ export const InventoryDashboardPage = () => {
                             <Package className="text-slate-600" size={32}/> 
                             Compras y Almacén
                         </h1>
-                        <p className="text-slate-500 mt-1 font-medium">Control total de entrada: Requisiciones, Órdenes, Aduana e Inventario.</p>
+                        <p className="text-slate-500 mt-1 font-medium">Solicitudes, órdenes, recepción, inventario, materiales y proveedores.</p>
                     </div>
                 </div>
             )}
@@ -215,6 +217,33 @@ export const InventoryDashboardPage = () => {
                         </Card>
                     </div>
 
+                    {/* TARJETA 5 — MATERIALES */}
+                    <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(25%-18px)] relative h-40">
+                        <Card onClick={() => setActiveSection('MATERIALS')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-violet-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group">
+                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-violet-50 text-violet-700 border-r border-violet-100 font-black text-3xl transition-colors group-hover:bg-violet-100">
+                                <Package size={24} />
+                            </div>
+                            <div className="ml-16 h-full flex flex-col justify-between">
+                                <div className="flex justify-between items-start"><p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">5. Materiales</p><Package size={16} className="text-violet-500" /></div>
+                                <div className="mt-4 flex justify-end"><div className="text-2xl font-black text-violet-600 tracking-tight">Catálogo</div></div>
+                                <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100"><p className="text-[10px] text-slate-400 font-bold uppercase">Altas, bajas y cambios</p><ArrowUpRight size={14} className="text-violet-400"/></div>
+                            </div>
+                        </Card>
+                    </div>
+                    {/* TARJETA 6 — PROVEEDORES */}
+                    <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(25%-18px)] relative h-40">
+                        <Card onClick={() => setActiveSection('PROVIDERS')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-cyan-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group">
+                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-cyan-50 text-cyan-700 border-r border-cyan-100 font-black text-3xl transition-colors group-hover:bg-cyan-100">
+                                <Truck size={24} />
+                            </div>
+                            <div className="ml-16 h-full flex flex-col justify-between">
+                                <div className="flex justify-between items-start"><p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">6. Proveedores</p><Truck size={16} className="text-cyan-500" /></div>
+                                <div className="mt-4 flex justify-end"><div className="text-2xl font-black text-cyan-600 tracking-tight">Directorio</div></div>
+                                <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100"><p className="text-[10px] text-slate-400 font-bold uppercase">Altas, bajas y cambios</p><ArrowUpRight size={14} className="text-cyan-400"/></div>
+                            </div>
+                        </Card>
+                    </div>
+
                 </div>
             ) : (
                 <div className="animate-in fade-in slide-in-from-right-8 duration-500 mt-2">
@@ -246,6 +275,12 @@ export const InventoryDashboardPage = () => {
                             activeSubSection={physicalInventorySubSection}
                             onSubSectionChange={setPhysicalInventorySubSection}
                         />
+                    )}
+                    {activeSection === 'MATERIALS' && renderActiveSection('Catálogo de Materiales',
+                        <MaterialsPage />
+                    )}
+                    {activeSection === 'PROVIDERS' && renderActiveSection('Proveedores',
+                        <ProvidersPage />
                     )}
                 </div>
             )}
