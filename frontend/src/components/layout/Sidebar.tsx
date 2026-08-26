@@ -33,8 +33,6 @@ const menuItems = [
   { icon: CalendarDays, label: 'Planeación Maestra', path: '/planning', allowedRoles: ['DIRECTOR', 'GERENCIA', 'DESIGN', 'PRODUCTION', 'ADMIN', 'SALES'] },
   { icon: Truck, label: 'Logística e Instalación', path: '/logistics', allowedRoles: ['DIRECTOR', 'GERENCIA', 'ADMIN', 'WAREHOUSE', 'SALES', 'LOGISTICS', 'PRODUCTION'] },
   { icon: ClipboardList, label: 'Compras y Almacén', path: '/inventory', allowedRoles: ['DIRECTOR', 'GERENCIA', 'ADMIN', 'WAREHOUSE', 'PRODUCTION'] },
-  { icon: Package, label: 'Catálogo Materiales', path: '/materials', allowedRoles: ['DIRECTOR', 'GERENCIA', 'ADMIN', 'DESIGN', 'WAREHOUSE', 'PRODUCTION'] }, 
-  { icon: Briefcase, label: 'Proveedores', path: '/providers', allowedRoles: ['DIRECTOR', 'GERENCIA', 'ADMIN', 'WAREHOUSE'] },
   { icon: Landmark, label: 'Administración', path: '/treasury', allowedRoles: ['DIRECTOR', 'GERENCIA', 'ADMIN'] },
   { icon: UserCog, label: 'Usuarios y Comisiones', path: '/users', allowedRoles: ['DIRECTOR'] },
   { icon: Percent, label: 'Registro Impuestos', path: '/tax-rates', allowedRoles: ['DIRECTOR', 'ADMIN'] }, 
@@ -46,11 +44,11 @@ const rolePriorities: Record<string, string[]> = {
   // Ahora el Director ve su panel estratégico antes que la gerencia
   'DIRECTOR': ['/', '/director', '/planning', '/management', '/treasury'],
   'GERENCIA': ['/', '/management', '/planning', '/treasury', '/production', '/sales'],
-  'ADMIN': ['/', '/treasury', '/planning', '/inventory', '/providers', '/materials'],
+  'ADMIN': ['/', '/treasury', '/inventory'],
   // Ventas ya no necesita priorizar /design
   'SALES': ['/', '/sales', '/planning', '/clients', '/logistics'],
-  'DESIGN': ['/', '/design', '/planning', '/materials', '/production'],
-  'WAREHOUSE': ['/', '/inventory', '/providers', '/materials', '/logistics'],
+  'DESIGN': ['/', '/design', '/planning', '/production'],
+  'WAREHOUSE': ['/', '/inventory', '/logistics'],
   'PRODUCTION': ['/', '/production', '/planning', '/inventory'],
   'LOGISTICS': ['/', '/logistics', '/production']
 };
