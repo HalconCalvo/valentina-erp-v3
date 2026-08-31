@@ -4,6 +4,15 @@ import { X, Receipt, CheckCircle, Clock, FileText, Package, AlertCircle, PieChar
 import { SalesOrder } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
 import { AddItemsModal } from '../../sales/components/AddItemsModal';
+import { toast } from '@/components/ui/VToast';
+import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+
+type OrderStatementPendingConfirm =
+    | { kind: 'CANCEL_OV' }
+    | { kind: 'DELETE_INSTANCE'; itemId: number; inst: any }
+    | { kind: 'DELETE_RESALE'; item: any }
+    | { kind: 'ADD_INSTANCE'; item: any }
+    | { kind: 'PAY_COMMISSION'; customerPaymentId: number };
 
 /** Días desde emisión hasta hoy; solo documentos sin pago registrado / no pagados. */
 function daysOpenForCxc(cxc: {
@@ -146,6 +155,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const [isUpdatingCommission, setIsUpdatingCommission] = useState(false);
     const [ocSaving, setOcSaving] = useState(false);
     const [cancelling, setCancelling] = useState(false);
+    const [pendingConfirm, setPendingConfirm] = useState<OrderStatementPendingConfirm | null>(null);
 
     const [editingName, setEditingName] = useState(false);
     const [nameDraft, setNameDraft] = useState('');
@@ -238,8 +248,8 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                     }
                 });
                 setCommissionByPaymentId(m);
-            } catch (e) {
-                console.error(e);
+            } catch {
+                /* ignore commission load errors */
             }
         })();
         return () => {
@@ -280,8 +290,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
             try {
                 const data = await salesService.getInstallments(cxcId);
                 setInstallmentsByInvoice((prev) => ({ ...prev, [cxcId]: data }));
-            } catch (e) {
-                console.error(e);
+            } catch {
                 setInstallmentsByInvoice((prev) => ({ ...prev, [cxcId]: null }));
             } finally {
                 setLoadingInstallments(null);
@@ -306,9 +315,8 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
             } else {
                 onSuccess();
             }
-        } catch (e) {
-            console.error(e);
-            alert('No se pudo guardar la OC del cliente.');
+        } catch {
+            toast.error('No se pudo guardar la OC del cliente.');
         } finally {
             setOcSaving(false);
         }
@@ -327,9 +335,9 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
             }
         } catch (err: any) {
             if (err?.response?.status === 403) {
-                alert('No tienes permisos para editar el nombre del proyecto.');
+                toast.error('No tienes permisos para editar el nombre del proyecto.');
             } else {
-                alert('Error al guardar el nombre del proyecto.');
+                toast.error('Error al guardar el nombre del proyecto.');
             }
         } finally {
             setSavingName(false);
@@ -338,7 +346,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
 
     const handleSaveAdvance = async () => {
         const val = Number(advanceDraft);
-        if (isNaN(val) || val < 0) { alert('Importe inválido.'); return; }
+        if (isNaN(val) || val < 0) { toast.warning('Importe inválido.'); return; }
         setSavingAdvance(true);
         try {
             await salesService.updateOrder(order.id, { advance_invoice_amount: Number(val.toFixed(2)) } as any);
@@ -346,28 +354,26 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
             setEditingAdvance(false);
             if (onOrderPatch) onOrderPatch({ advance_invoice_amount: Number(val.toFixed(2)) } as any);
         } catch (err: any) {
-            alert(err?.response?.status === 403 ? 'No tienes permisos.' : 'Error al guardar el anticipo.');
+            toast.error(err?.response?.status === 403 ? 'No tienes permisos.' : 'Error al guardar el anticipo.');
         } finally {
             setSavingAdvance(false);
         }
     };
 
-    const handleCancelOv = async () => {
-        const ok = window.confirm(
-            "¿Cancelar esta OV?\n\n" +
-            "Las instancias (Productos Vendidos) se cancelarán y la OV NO podrá " +
-            "reactivarse. Si el cliente reaparece, deberás generar una OV nueva.\n\n" +
-            "Los productos cotizados se conservan."
-        );
-        if (!ok) return;
+    const handleCancelOv = () => {
+        setPendingConfirm({ kind: 'CANCEL_OV' });
+    };
+
+    const executeCancelOv = async () => {
         setCancelling(true);
         try {
             await salesService.cancelOv(order.id!);
-            onSuccess();   // el padre refresca (await loadData) y luego cierra el modal
+            onSuccess();
         } catch (err: any) {
-            alert(err?.response?.data?.detail || "No se pudo cancelar la OV.");
+            toast.error(err?.response?.data?.detail || 'No se pudo cancelar la OV.');
         } finally {
             setCancelling(false);
+            setPendingConfirm(null);
         }
     };
 
@@ -381,32 +387,40 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         }
     };
 
-    const handleDeleteInstance = async (itemId: number, inst: any) => {
+    const handleDeleteInstance = (itemId: number, inst: any) => {
         if (inst.production_status !== 'PENDING' || inst.customer_payment_id) {
             return;
         }
-        if (!window.confirm(`¿Eliminar esta unidad (${inst.custom_name || 'instancia'})? Esta acción no se puede deshacer.`)) return;
+        setPendingConfirm({ kind: 'DELETE_INSTANCE', itemId, inst });
+    };
+
+    const executeDeleteInstance = async (itemId: number, inst: any) => {
         try {
             setDeletingId(inst.id);
             await salesService.deleteInstance((order as any).id, itemId, inst.id);
             await refreshOrderInPlace();
         } catch (e: any) {
-            alert(e?.response?.data?.detail || 'No se pudo eliminar la unidad.');
+            toast.error(e?.response?.data?.detail || 'No se pudo eliminar la unidad.');
         } finally {
             setDeletingId(null);
+            setPendingConfirm(null);
         }
     };
 
-    const handleDeleteResale = async (item: any) => {
-        if (!window.confirm(`¿Eliminar el accesorio "${item.product_name}"? Esta acción no se puede deshacer.`)) return;
+    const handleDeleteResale = (item: any) => {
+        setPendingConfirm({ kind: 'DELETE_RESALE', item });
+    };
+
+    const executeDeleteResale = async (item: any) => {
         try {
             setDeletingId(item.id);
             await salesService.deleteResaleItem((order as any).id, item.id);
             await refreshOrderInPlace();
         } catch (e: any) {
-            alert(e?.response?.data?.detail || 'No se pudo eliminar el accesorio.');
+            toast.error(e?.response?.data?.detail || 'No se pudo eliminar el accesorio.');
         } finally {
             setDeletingId(null);
+            setPendingConfirm(null);
         }
     };
 
@@ -420,7 +434,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     };
     const saveEditResale = async (item: any) => {
         if (editQty <= 0 || editPrice < 0) {
-            alert('Cantidad y precio deben ser válidos.');
+            toast.warning('Cantidad y precio deben ser válidos.');
             return;
         }
         try {
@@ -432,7 +446,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
             setEditingResaleId(null);
             await refreshOrderInPlace();
         } catch (e: any) {
-            alert(e?.response?.data?.detail || 'No se pudo editar el accesorio.');
+            toast.error(e?.response?.data?.detail || 'No se pudo editar el accesorio.');
         } finally {
             setSavingResale(false);
         }
@@ -444,40 +458,49 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     };
     const cancelEditItemPrice = () => setEditingPriceItemId(null);
     const saveEditItemPrice = async (item: any) => {
-        if (editItemPrice < 0) { alert('El precio no puede ser negativo.'); return; }
+        if (editItemPrice < 0) { toast.warning('El precio no puede ser negativo.'); return; }
         try {
             setSavingItemPrice(true);
             await salesService.patchProductionPrice((order as any).id, item.id, editItemPrice);
             setEditingPriceItemId(null);
             await refreshOrderInPlace();
         } catch (e: any) {
-            alert(e?.response?.data?.detail || 'No se pudo cambiar el precio.');
+            toast.error(e?.response?.data?.detail || 'No se pudo cambiar el precio.');
         } finally {
             setSavingItemPrice(false);
         }
     };
-    const handleAddInstance = async (item: any) => {
-        if (!window.confirm(`¿Agregar una unidad a "${item.product_name}"?`)) return;
+    const handleAddInstance = (item: any) => {
+        setPendingConfirm({ kind: 'ADD_INSTANCE', item });
+    };
+
+    const executeAddInstance = async (item: any) => {
         try {
             setAddingInstanceId(item.id);
             await salesService.addInstance((order as any).id, item.id);
             await refreshOrderInPlace();
         } catch (e: any) {
-            alert(e?.response?.data?.detail || 'No se pudo agregar la unidad.');
+            toast.error(e?.response?.data?.detail || 'No se pudo agregar la unidad.');
         } finally {
             setAddingInstanceId(null);
+            setPendingConfirm(null);
         }
     };
 
-    const handlePayCommission = async (customerPaymentId: number) => {
+    const handlePayCommission = (customerPaymentId: number) => {
         if (readOnly) return;
         const comm = commissionByPaymentId[customerPaymentId];
         if (!comm) {
-            alert('No hay registro de comisión para esta factura.');
+            toast.warning('No hay registro de comisión para esta factura.');
             return;
         }
         if (comm.is_paid) return;
-        if (!window.confirm('¿Confirmar pago de comisión al vendedor?')) return;
+        setPendingConfirm({ kind: 'PAY_COMMISSION', customerPaymentId });
+    };
+
+    const executePayCommission = async (customerPaymentId: number) => {
+        const comm = commissionByPaymentId[customerPaymentId];
+        if (!comm) return;
 
         setIsUpdatingCommission(true);
         try {
@@ -488,11 +511,11 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
             }));
             onSuccess();
             onClose();
-        } catch (error: unknown) {
-            console.error('Error al marcar comisión pagada:', error);
-            alert('No se pudo registrar el pago de comisión.');
+        } catch {
+            toast.error('No se pudo registrar el pago de comisión.');
         } finally {
             setIsUpdatingCommission(false);
+            setPendingConfirm(null);
         }
     };
 
@@ -1197,6 +1220,60 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                     setShowAddItems(false);
                     await refreshOrderInPlace();
                 }}
+            />
+        )}
+        {pendingConfirm && (
+            <VConfirmDialog
+                isOpen={pendingConfirm !== null}
+                title={
+                    pendingConfirm.kind === 'CANCEL_OV' ? 'Cancelar orden de venta'
+                    : pendingConfirm.kind === 'DELETE_INSTANCE' ? 'Eliminar unidad'
+                    : pendingConfirm.kind === 'DELETE_RESALE' ? 'Eliminar accesorio'
+                    : pendingConfirm.kind === 'ADD_INSTANCE' ? 'Agregar unidad'
+                    : 'Pagar comisión'
+                }
+                message={
+                    pendingConfirm.kind === 'CANCEL_OV'
+                        ? '¿Cancelar esta OV?'
+                        : pendingConfirm.kind === 'DELETE_INSTANCE'
+                        ? `¿Eliminar esta unidad (${pendingConfirm.inst.custom_name || 'instancia'})?`
+                        : pendingConfirm.kind === 'DELETE_RESALE'
+                        ? `¿Eliminar el accesorio "${pendingConfirm.item.product_name}"?`
+                        : pendingConfirm.kind === 'ADD_INSTANCE'
+                        ? `¿Agregar una unidad a "${pendingConfirm.item.product_name}"?`
+                        : '¿Confirmar pago de comisión al vendedor?'
+                }
+                consequence={
+                    pendingConfirm.kind === 'CANCEL_OV'
+                        ? 'Las instancias se cancelarán y la OV no podrá reactivarse. Los productos cotizados se conservan.'
+                        : pendingConfirm.kind === 'DELETE_INSTANCE' || pendingConfirm.kind === 'DELETE_RESALE'
+                        ? 'Esta acción no se puede deshacer.'
+                        : pendingConfirm.kind === 'ADD_INSTANCE'
+                        ? 'Se agregará una nueva unidad al producto en la orden.'
+                        : 'La comisión quedará marcada como pagada en nómina.'
+                }
+                variant={
+                    pendingConfirm.kind === 'CANCEL_OV'
+                    || pendingConfirm.kind === 'DELETE_INSTANCE'
+                    || pendingConfirm.kind === 'DELETE_RESALE'
+                        ? 'danger'
+                        : 'default'
+                }
+                confirmLabel={
+                    pendingConfirm.kind === 'CANCEL_OV' ? 'Sí, cancelar OV'
+                    : pendingConfirm.kind === 'DELETE_INSTANCE' ? 'Sí, eliminar'
+                    : pendingConfirm.kind === 'DELETE_RESALE' ? 'Sí, eliminar'
+                    : pendingConfirm.kind === 'ADD_INSTANCE' ? 'Sí, agregar'
+                    : 'Sí, confirmar pago'
+                }
+                onConfirm={async () => {
+                    if (pendingConfirm.kind === 'CANCEL_OV') await executeCancelOv();
+                    else if (pendingConfirm.kind === 'DELETE_INSTANCE') await executeDeleteInstance(pendingConfirm.itemId, pendingConfirm.inst);
+                    else if (pendingConfirm.kind === 'DELETE_RESALE') await executeDeleteResale(pendingConfirm.item);
+                    else if (pendingConfirm.kind === 'ADD_INSTANCE') await executeAddInstance(pendingConfirm.item);
+                    else if (pendingConfirm.kind === 'PAY_COMMISSION') await executePayCommission(pendingConfirm.customerPaymentId);
+                }}
+                onCancel={() => setPendingConfirm(null)}
             />
         )}
         </>

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FileText, ArrowLeft } from 'lucide-react';
 import client from '../../../api/axios-client';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { toast } from '@/components/ui/VToast';
 import type { Provider } from '../../foundations/hooks/useProviders';
 
 type StatusFilter = 'paid' | 'pending' | 'all';
@@ -62,8 +63,7 @@ const ProviderStatementPage: React.FC = () => {
             try {
                 const { data } = await client.get<Provider[]>('/foundations/providers');
                 if (!cancelled) setProviders(Array.isArray(data) ? data : []);
-            } catch (e) {
-                console.error(e);
+            } catch {
                 if (!cancelled) setProviders([]);
             } finally {
                 if (!cancelled) setLoadingProviders(false);
@@ -95,13 +95,13 @@ const ProviderStatementPage: React.FC = () => {
             });
             if (!response.ok) {
                 const err = await response.json();
-                alert(`Error: ${err.detail}`);
+                toast.error(err.detail || 'Error al consultar el estado de cuenta.');
                 return;
             }
             const data: StatementData = await response.json();
             setReport(data);
         } catch {
-            alert('Error al consultar el estado de cuenta.');
+            toast.error('Error al consultar el estado de cuenta.');
         } finally {
             setLoading(false);
         }

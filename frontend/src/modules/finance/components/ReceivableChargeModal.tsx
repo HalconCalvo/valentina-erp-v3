@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { X, FileText, CheckSquare, DollarSign, Calculator, AlertTriangle } from 'lucide-react';
 import { SalesOrder, PaymentPayload } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
+import { toast } from '@/components/ui/VToast';
 
 interface ReceivableChargeModalProps {
     isOpen: boolean;
@@ -168,7 +169,7 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
         // handleSubmit ahora es SOLO para modo avance/instancias. El modo anticipo usa sus
         // propias acciones (guardar importe objetivo / registrar abono).
         if (selectedInstances.length === 0) {
-            alert("Debes seleccionar al menos un producto para facturar el avance.");
+            toast.warning('Debes seleccionar al menos un producto para facturar el avance.');
             return;
         }
 
@@ -187,8 +188,7 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
             onSuccess();
             onClose();
         } catch (error: any) {
-            console.error("Error al registrar el cobro:", error);
-            alert(error.response?.data?.detail || "Hubo un error al registrar el cobro. Revisa la consola.");
+            toast.error(error.response?.data?.detail || 'Hubo un error al registrar el cobro.');
         } finally {
             setIsLoading(false);
         }
@@ -197,11 +197,11 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
     // Modo factura al 100% (Camino C): factura por el total del contrato desde el inicio.
     const handleSaveFullInvoice = async () => {
         if (!importeFactura || importeFactura <= 0) {
-            alert("Captura el importe de la factura.");
+            toast.warning('Captura el importe de la factura.');
             return;
         }
         if (!invoiceFolio.trim()) {
-            alert("El folio de la factura es obligatorio.");
+            toast.warning('El folio de la factura es obligatorio.');
             return;
         }
         setIsLoading(true);
@@ -214,8 +214,7 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
             onSuccess();
             onClose();
         } catch (error: any) {
-            console.error("Error al emitir la factura al 100%:", error);
-            alert(error.response?.data?.detail || "No se pudo emitir la factura al 100%.");
+            toast.error(error.response?.data?.detail || 'No se pudo emitir la factura al 100%.');
         } finally {
             setIsLoading(false);
         }
@@ -224,7 +223,7 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
     // Modo anticipo (Camino A): emitir la factura de anticipo (crea CxC ADVANCE PENDING).
     const handleSaveAdvanceTarget = async () => {
         if (!importeFactura || importeFactura <= 0) {
-            alert("Captura un importe de anticipo mayor a cero.");
+            toast.warning('Captura un importe de anticipo mayor a cero.');
             return;
         }
         setIsLoading(true);
@@ -237,8 +236,7 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
             onSuccess();
             onClose();
         } catch (error: any) {
-            console.error("Error al emitir la factura de anticipo:", error);
-            alert(error.response?.data?.detail || "No se pudo emitir la factura de anticipo.");
+            toast.error(error.response?.data?.detail || 'No se pudo emitir la factura de anticipo.');
         } finally {
             setIsLoading(false);
         }

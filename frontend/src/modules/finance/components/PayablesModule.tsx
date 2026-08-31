@@ -11,6 +11,8 @@ import { BankAccount } from '../../../types/treasury';
 
 import { PaymentRequestModal } from './PaymentRequestModal';
 import { InvoiceDetailModal } from './InvoiceDetailModal';
+import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import { toast } from '@/components/ui/VToast';
 
 type PayableFilter =
  | 'ALL'
@@ -75,6 +77,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
 
     const [viewingInvoice, setViewingInvoice] = useState<PendingInvoice | null>(null);
     const [cancellingId, setCancellingId] = useState<number | null>(null);
+    const [pendingCancelInvoice, setPendingCancelInvoice] = useState<PendingInvoice | null>(null);
 
     const lastParentBackSig = useRef(0);
     useEffect(() => {
@@ -115,8 +118,8 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
             setInvoices(invoicesData);
             setSentRequests(pendingReqData);
             setApprovedRequests(approvedReqData);
-        } catch (error) {
-            console.error("Error al refrescar pagos", error);
+        } catch {
+            toast.error('No se pudieron refrescar los pagos.');
         } finally {
             if (showSpinner) setIsFinanceLoading(false);
         }
@@ -265,15 +268,18 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
         setSelectedInvoice(relatedInvoice || null);
     };
 
-    const handleCancelInvoice = async (inv: any) => {
-        if (!window.confirm(`¿Cancelar la factura ${inv.invoice_number} de ${inv.provider_name}?\n\nEsta acción no se puede deshacer.`)) return;
+    const handleCancelInvoice = (inv: PendingInvoice) => {
+        setPendingCancelInvoice(inv);
+    };
+
+    const executeCancelInvoice = async (inv: PendingInvoice) => {
         setCancellingId(inv.id);
         try {
             await financeService.cancelInvoice(inv.id);
-            alert(`✅ Factura ${inv.invoice_number} cancelada correctamente.`);
+            toast.success(`Factura ${inv.invoice_number} cancelada correctamente.`);
             loadData(true);
         } catch (err: any) {
-            alert(err.response?.data?.detail || '❌ Error al cancelar la factura.');
+            toast.error(err.response?.data?.detail || 'Error al cancelar la factura.');
         } finally {
             setCancellingId(null);
         }
@@ -284,7 +290,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
             if (editingRequest) {
                 if (isChecker) {
                     if (!payload.suggested_account_id) {
-                        alert("⚠️ Selecciona una cuenta bancaria de origen para efectuar el pago.");
+                        toast.warning('Selecciona una cuenta bancaria de origen para efectuar el pago.');
                         return;
                     }
 
@@ -298,21 +304,21 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                         await financeService.executePayment(editingRequest.id);
                     }
                     
-                    alert("✅ Pago ejecutado exitosamente.");
+                    toast.success('Pago ejecutado exitosamente.');
                 } else {
                     await financeService.updatePaymentRequest(editingRequest.id, payload);
-                    alert("✅ Solicitud actualizada.");
+                    toast.success('Solicitud actualizada.');
                 }
             } else {
                 await financeService.requestPayment(payload);
-                if (isChecker) alert("✅ Pago efectuado directamente.");
-                else alert("✅ Solicitud enviada a Gerencia.");
+                if (isChecker) toast.success('Pago efectuado directamente.');
+                else toast.success('Solicitud enviada a Gerencia.');
             }
             setSelectedInvoice(null); 
             setEditingRequest(null);
             loadData(true);
-        } catch (e) {
-            alert("❌ Error al procesar el pago. Intenta de nuevo.");
+        } catch (e: any) {
+            toast.error(e?.response?.data?.detail || 'Error al procesar el pago. Intenta de nuevo.');
         }
     };
 
@@ -746,6 +752,22 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
             
             {/* VISOR DE FACTURAS/OC (Los Rayos X) */}
             {viewingInvoice && <InvoiceDetailModal invoice={viewingInvoice} onClose={() => setViewingInvoice(null)} />}
+
+            {pendingCancelInvoice && (
+                <VConfirmDialog
+                    isOpen={pendingCancelInvoice !== null}
+                    title="Cancelar factura"
+                    message={`¿Cancelar la factura ${pendingCancelInvoice.invoice_number} de ${pendingCancelInvoice.provider_name}?`}
+                    consequence="Esta acción no se puede deshacer. El saldo quedará en $0."
+                    variant="danger"
+                    confirmLabel="Sí, cancelar"
+                    onConfirm={async () => {
+                        await executeCancelInvoice(pendingCancelInvoice);
+                        setPendingCancelInvoice(null);
+                    }}
+                    onCancel={() => setPendingCancelInvoice(null)}
+                />
+            )}
         </div>
     );
 };

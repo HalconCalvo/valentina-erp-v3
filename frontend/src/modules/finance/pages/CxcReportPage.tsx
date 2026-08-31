@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, FileText, RefreshCw } from 'lucide-react';
 import { salesService } from '../../../api/sales-service';
+import { toast } from '@/components/ui/VToast';
 
 export interface CxcReportRow {
     cxc_id: number;
@@ -63,8 +64,8 @@ const CxcReportPage: React.FC = () => {
                 only_cancelled: onlyCancelled,
             });
             setRows(Array.isArray(data) ? data : []);
-        } catch (e) {
-            console.error('Error cargando reporte CxC:', e);
+        } catch {
+            toast.error('No se pudo cargar el reporte de CxC.');
             setRows([]);
         } finally {
             setLoading(false);

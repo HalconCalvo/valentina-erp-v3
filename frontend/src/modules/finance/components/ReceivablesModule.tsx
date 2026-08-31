@@ -7,6 +7,7 @@ import { InvoicingRightsRead, SalesOrder } from '../../../types/sales';
 import { normalizeOrderStatus, STATUS_WAITING_ADVANCE } from '../utils/pendingInvoiceBuckets';
 import { ReceivableChargeModal } from './ReceivableChargeModal';
 import { OrderStatementModal } from './OrderStatementModal';
+import { toast } from '@/components/ui/VToast';
 
 // ---> 1. AGREGAMOS EL FILTRO 'ALL' <---
 type ReceivableFilter = 'ALL' | 'ADVANCES' | null;
@@ -93,8 +94,8 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
             } else {
                 setOrders([]);
             }
-        } catch (error) {
-            console.error("Error cargando cuentas por cobrar:", error);
+        } catch {
+            toast.error('No se pudieron cargar las cuentas por cobrar.');
         } finally {
             setIsLoading(false);
         }

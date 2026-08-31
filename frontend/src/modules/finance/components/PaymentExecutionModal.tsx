@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { X, CheckCircle2, DollarSign, Landmark, ArrowRight, AlertTriangle, Undo2 } from 'lucide-react';
+import { X, CheckCircle2, DollarSign, Landmark, AlertTriangle, Undo2 } from 'lucide-react';
 import { financeService } from '../../../api/finance-service';
 import { treasuryService } from '../../../api/treasury-service';
 import { SupplierPayment } from '../../../types/finance';
 import { BankAccount } from '../../../types/treasury';
 import { Button } from '@/components/ui/Button';
+import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import { toast } from '@/components/ui/VToast';
 
 interface PaymentExecutionModalProps {
     onClose: () => void;
@@ -12,7 +14,6 @@ interface PaymentExecutionModalProps {
 }
 
 export const PaymentExecutionModal: React.FC<PaymentExecutionModalProps> = ({ onClose, onSuccess }) => {
-    // --- SEGURIDAD: Leer el Rol ---
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase().trim();
     const isDirector = ['ADMIN', 'ADMINISTRADOR', 'DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
 
@@ -20,6 +21,8 @@ export const PaymentExecutionModal: React.FC<PaymentExecutionModalProps> = ({ on
     const [accounts, setAccounts] = useState<BankAccount[]>([]);
     const [loading, setLoading] = useState(true);
     const [processingId, setProcessingId] = useState<number | null>(null);
+    const [pendingExecuteId, setPendingExecuteId] = useState<number | null>(null);
+    const [pendingRevokeId, setPendingRevokeId] = useState<number | null>(null);
 
     useEffect(() => {
         loadData();
@@ -33,59 +36,50 @@ export const PaymentExecutionModal: React.FC<PaymentExecutionModalProps> = ({ on
             ]);
             setApprovedPayments(paymentsData);
             setAccounts(accountsData);
-        } catch (error) {
-            console.error("Error cargando pagos aprobados:", error);
+        } catch {
+            toast.error('No se pudieron cargar los pagos aprobados.');
         } finally {
             setLoading(false);
         }
     };
 
-    const handleExecute = async (paymentId: number) => {
-        if (!confirm("¿Confirma que ya realizó la transferencia en el portal bancario y desea ejecutar este pago en el sistema?")) return;
-
+    const executePayment = async (paymentId: number) => {
         setProcessingId(paymentId);
         try {
             await financeService.executePayment(paymentId);
-            alert("✅ Pago ejecutado y descontado de Tesorería exitosamente.");
+            toast.success('Pago ejecutado y descontado de Tesorería exitosamente.');
             
-            // Refrescar lista local
             const remaining = approvedPayments.filter(p => p.id !== paymentId);
             setApprovedPayments(remaining);
             
             if (remaining.length === 0) {
-                onSuccess(); // Cerrar si ya no hay más pagos
+                onSuccess();
             }
         } catch (error: any) {
-            console.error(error);
-            const detail = error?.response?.data?.detail || "Error desconocido al ejecutar el pago.";
-            alert(`❌ ${detail}`);
+            toast.error(error?.response?.data?.detail || 'Error desconocido al ejecutar el pago.');
         } finally {
             setProcessingId(null);
+            setPendingExecuteId(null);
         }
     };
 
-    // NUEVA FUNCIÓN: Revocar autorización (Solo Dirección)
-    const handleRevoke = async (paymentId: number) => {
-        if (!confirm("⚠️ ¿Estás seguro de cancelar esta autorización? El pago regresará a estatus 'Pendiente' y Finanzas no podrá ejecutarlo.")) return;
-
+    const executeRevoke = async (paymentId: number) => {
         setProcessingId(paymentId);
         try {
-            // Reutilizamos el endpoint de status para regresarlo a PENDING
             await financeService.updatePaymentStatus(paymentId, 'PENDING');
-            alert("✅ Autorización revocada. El pago ha regresado a la bandeja de pendientes.");
+            toast.success('Autorización revocada. El pago ha regresado a la bandeja de pendientes.');
             
-            // Refrescar lista local
             const remaining = approvedPayments.filter(p => p.id !== paymentId);
             setApprovedPayments(remaining);
             
             if (remaining.length === 0) {
                 onSuccess(); 
             }
-        } catch (error) {
-            console.error(error);
-            alert("❌ Error al revocar la autorización. Revise su conexión.");
+        } catch (error: any) {
+            toast.error(error?.response?.data?.detail || 'Error al revocar la autorización. Revise su conexión.');
         } finally {
             setProcessingId(null);
+            setPendingRevokeId(null);
         }
     };
 
@@ -99,7 +93,6 @@ export const PaymentExecutionModal: React.FC<PaymentExecutionModalProps> = ({ on
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
                 
-                {/* Header */}
                 <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
                     <div>
                         <h2 className="text-xl font-black text-emerald-700 flex items-center gap-2">
@@ -112,7 +105,6 @@ export const PaymentExecutionModal: React.FC<PaymentExecutionModalProps> = ({ on
                     </button>
                 </div>
 
-                {/* Body */}
                 <div className="overflow-y-auto p-6 bg-slate-50/50 flex-1">
                     {loading ? (
                         <div className="text-center py-10 text-slate-400">Cargando pagos listos...</div>
@@ -139,7 +131,6 @@ export const PaymentExecutionModal: React.FC<PaymentExecutionModalProps> = ({ on
                                             </div>
                                             <h3 className="text-lg font-bold text-slate-800">{payment.provider_name}</h3>
                                             
-                                            {/* Info de la cuenta dictaminada por Dirección */}
                                             <div className="mt-3 bg-slate-50 border border-slate-200 rounded-lg p-3 flex items-center justify-between">
                                                 <div className="flex items-center gap-2">
                                                     <Landmark size={18} className="text-slate-400"/>
@@ -173,7 +164,7 @@ export const PaymentExecutionModal: React.FC<PaymentExecutionModalProps> = ({ on
                                             
                                             <Button 
                                                 className="bg-emerald-600 hover:bg-emerald-700 text-white w-full"
-                                                onClick={() => handleExecute(payment.id)}
+                                                onClick={() => setPendingExecuteId(payment.id)}
                                                 disabled={processingId === payment.id || !hasFunds}
                                             >
                                                 {processingId === payment.id ? 'Ejecutando...' : (
@@ -181,10 +172,9 @@ export const PaymentExecutionModal: React.FC<PaymentExecutionModalProps> = ({ on
                                                 )}
                                             </Button>
 
-                                            {/* BOTÓN EXCLUSIVO DE DIRECCIÓN PARA REVOCAR */}
                                             {isDirector && (
                                                 <button 
-                                                    onClick={() => handleRevoke(payment.id)}
+                                                    onClick={() => setPendingRevokeId(payment.id)}
                                                     disabled={processingId === payment.id}
                                                     className="text-xs font-bold text-red-500 hover:text-red-700 flex items-center gap-1 mt-2 transition-colors disabled:opacity-50"
                                                     title="Regresar a Pendiente de Autorización"
@@ -204,6 +194,32 @@ export const PaymentExecutionModal: React.FC<PaymentExecutionModalProps> = ({ on
                     <Button variant="secondary" onClick={onClose}>Cerrar</Button>
                 </div>
             </div>
+
+            {pendingExecuteId !== null && (
+                <VConfirmDialog
+                    isOpen={pendingExecuteId !== null}
+                    title="Ejecutar pago"
+                    message="¿Confirma que ya realizó la transferencia en el portal bancario y desea ejecutar este pago en el sistema?"
+                    consequence="El monto se descontará de la cuenta bancaria asignada en Tesorería."
+                    variant="default"
+                    confirmLabel="Sí, ejecutar"
+                    onConfirm={() => executePayment(pendingExecuteId)}
+                    onCancel={() => setPendingExecuteId(null)}
+                />
+            )}
+
+            {pendingRevokeId !== null && (
+                <VConfirmDialog
+                    isOpen={pendingRevokeId !== null}
+                    title="Revocar autorización"
+                    message="¿Estás seguro de cancelar esta autorización?"
+                    consequence="El pago regresará a estatus Pendiente y Finanzas no podrá ejecutarlo hasta que sea autorizado nuevamente."
+                    variant="danger"
+                    confirmLabel="Sí, revocar"
+                    onConfirm={() => executeRevoke(pendingRevokeId)}
+                    onCancel={() => setPendingRevokeId(null)}
+                />
+            )}
         </div>
     );
 };

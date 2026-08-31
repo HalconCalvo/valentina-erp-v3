@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { PackageCheck, X, FileMinus } from 'lucide-react';
 import { PendingInvoice } from '../../../types/finance';
 import client from '../../../api/axios-client';
+import { toast } from '@/components/ui/VToast';
 
 interface InvoiceDetailModalProps {
     invoice: PendingInvoice;
@@ -88,8 +89,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                 }
 
                 setItems(fetchedItems);
-            } catch (error) {
-                console.error("Error al cargar el desglose del documento:", error);
+            } catch {
                 setItems([]); 
             } finally {
                 setIsLoading(false);
@@ -111,10 +111,10 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
     const ncExcede = effectiveNcAmount > localOutstanding;
 
     const handleCreateNC = async () => {
-        if (!ncFolio.trim()) { alert('Ingresa el folio de la Nota de Crédito.'); return; }
+        if (!ncFolio.trim()) { toast.warning('Ingresa el folio de la Nota de Crédito.'); return; }
         if (ncType !== 'RETURN') {
-            if (ncAmountNum <= 0) { alert('El monto debe ser mayor a cero.'); return; }
-            if (ncExcede) { alert('La NC no puede exceder el saldo pendiente.'); return; }
+            if (ncAmountNum <= 0) { toast.warning('El monto debe ser mayor a cero.'); return; }
+            if (ncExcede) { toast.warning('La NC no puede exceder el saldo pendiente.'); return; }
         }
         setSavingNC(true);
         try {
@@ -123,7 +123,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                 .map((it, idx) => ({ material_id: it.material_id, returned_quantity: Number(returnQty[idx]) || 0 }))
                 .filter(li => li.material_id && li.returned_quantity > 0);
             if (isReturn && returnItems.length === 0) {
-                alert('Indica al menos una cantidad a devolver.');
+                toast.warning('Indica al menos una cantidad a devolver.');
                 setSavingNC(false);
                 return;
             }
@@ -144,9 +144,9 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
             setLocalOutstanding(nuevoSaldo);
             setShowNCForm(false);
             setNcFolio(''); setNcAmount(''); setNcReason('');
-            alert(`✅ Nota de Crédito registrada. Nuevo saldo de la factura: $${Number(nuevoSaldo).toLocaleString('es-MX', {minimumFractionDigits: 2})}`);
+            toast.success(`Nota de Crédito registrada. Nuevo saldo de la factura: $${Number(nuevoSaldo).toLocaleString('es-MX', {minimumFractionDigits: 2})}`);
         } catch (e: any) {
-            alert(e?.response?.data?.detail || 'No se pudo registrar la Nota de Crédito.');
+            toast.error(e?.response?.data?.detail || 'No se pudo registrar la Nota de Crédito.');
         } finally {
             setSavingNC(false);
         }

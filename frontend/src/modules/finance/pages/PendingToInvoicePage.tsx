@@ -5,6 +5,7 @@ import { salesService } from '../../../api/sales-service';
 import { SalesOrder, PendingProgressInstance, InvoicingRightsRead, InvoicingRightAdvanceRow } from '../../../types/sales';
 import { OrderStatementModal } from '../components/OrderStatementModal';
 import { ReceivableChargeModal } from '../components/ReceivableChargeModal';
+import { toast } from '@/components/ui/VToast';
 
 type VendorSortField = 'TYPE' | 'FOLIO' | 'CLIENT' | 'PROJECT' | 'AMOUNT';
 type SortDirection = 'asc' | 'desc';
@@ -52,8 +53,8 @@ const PendingToInvoicePage = () => {
             setIsLoading(true);
             const rights = await salesService.getInvoicingRights();
             setInvoicingRights(rights);
-        } catch (error) {
-            console.error('Error cargando órdenes / derecho a facturación:', error);
+        } catch {
+            toast.error('No se pudieron cargar los derechos de facturación.');
             setInvoicingRights(null);
         } finally {
             setIsLoading(false);
@@ -111,8 +112,8 @@ const PendingToInvoicePage = () => {
             const det = await salesService.getOrderDetail(orderId);
             setSelectedOrderForStatement(det);
             setIsStatementModalOpen(true);
-        } catch (e) {
-            console.error(e);
+        } catch {
+            toast.error('No se pudo abrir el estado de cuenta de la orden.');
         }
     }, []);
 
@@ -503,8 +504,8 @@ const PendingToInvoicePage = () => {
                                                             });
                                                             setProgressModalOrderId(null);
                                                             await loadSalesData();
-                                                        } catch (err) {
-                                                            console.error('Error registrando avance:', err);
+                                                        } catch (err: any) {
+                                                            toast.error(err?.response?.data?.detail || 'No se pudo registrar el avance.');
                                                         } finally {
                                                             setRegisteringProgress(null);
                                                         }

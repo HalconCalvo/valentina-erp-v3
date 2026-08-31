@@ -153,8 +153,8 @@ const DirectorDashboard: React.FC = () => {
                         setAnnualTarget(fetchedTarget);
                     }
                 }
-            } catch (e) {
-                console.error("Error al leer la meta anual global", e);
+            } catch {
+                /* ignore optional config fetch errors */
             }
 
             // 2. Cargar Ventas y calcular usando la meta leída
@@ -176,8 +176,8 @@ const DirectorDashboard: React.FC = () => {
                     const notifData = await notifRes.json();
                     setPendingPurchaseAuths(notifData.orders_to_authorize || 0);
                 }
-            } catch (notifErr) {
-                console.error("Fallo conectando con notificaciones de compras:", notifErr);
+            } catch {
+                /* ignore optional notifications fetch errors */
             }
 
             // COST KPI
@@ -235,8 +235,8 @@ const DirectorDashboard: React.FC = () => {
                 // Liquidez Neta
                 setLiquidityNet(bancos + cxcTotal - cxp);
 
-            } catch (e) {
-                console.error('Error cargando datos de liquidez:', e);
+            } catch {
+                /* ignore liquidity fetch errors */
             }
 
             try {
@@ -252,8 +252,8 @@ const DirectorDashboard: React.FC = () => {
                 /* ignore health errors */
             }
 
-        } catch (error) {
-            console.error("Error cargando datos del Director:", error);
+        } catch {
+            /* ignore dashboard load errors */
         } finally {
             if (!silent) setIsLoading(false);
         }

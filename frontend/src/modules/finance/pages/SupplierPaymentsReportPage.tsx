@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FileText, RefreshCw, Download, ArrowLeft } from 'lucide-react';
 import client from '../../../api/axios-client';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { toast } from '@/components/ui/VToast';
 import type { Provider } from '../../foundations/hooks/useProviders';
 
 type StatusFilter = 'paid' | 'pending' | 'all';
@@ -73,8 +74,7 @@ const SupplierPaymentsReportPage: React.FC = () => {
             try {
                 const { data } = await client.get<Provider[]>('/foundations/providers');
                 if (!cancelled) setProviders(Array.isArray(data) ? data : []);
-            } catch (e) {
-                console.error(e);
+            } catch {
                 if (!cancelled) setProviders([]);
             } finally {
                 if (!cancelled) setLoadingProviders(false);
@@ -104,13 +104,13 @@ const SupplierPaymentsReportPage: React.FC = () => {
             });
             if (!response.ok) {
                 const err = await response.json();
-                alert(`Error: ${err.detail}`);
+                toast.error(err.detail || 'Error al generar el reporte.');
                 return;
             }
             const data: SupplierPaymentsReportData = await response.json();
             setReport(data);
         } catch {
-            alert('Error al generar el reporte.');
+            toast.error('Error al generar el reporte.');
         } finally {
             setLoading(false);
         }
@@ -133,7 +133,7 @@ const SupplierPaymentsReportPage: React.FC = () => {
             });
             if (!response.ok) {
                 const err = await response.json();
-                alert(`Error: ${err.detail}`);
+                toast.error(err.detail || 'Error al descargar el PDF.');
                 return;
             }
             const blob = await response.blob();
@@ -146,7 +146,7 @@ const SupplierPaymentsReportPage: React.FC = () => {
             a.remove();
             window.URL.revokeObjectURL(url);
         } catch {
-            alert('Error al descargar el PDF.');
+            toast.error('Error al descargar el PDF.');
         }
     };
 

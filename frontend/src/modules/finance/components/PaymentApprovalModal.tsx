@@ -5,6 +5,8 @@ import { treasuryService } from '../../../api/treasury-service';
 import { SupplierPayment } from '../../../types/finance';
 import { BankAccount } from '../../../types/treasury';
 import { Button } from '@/components/ui/Button';
+import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import { toast } from '@/components/ui/VToast';
 
 interface PaymentApprovalModalProps {
     onClose: () => void;
@@ -20,6 +22,7 @@ export const PaymentApprovalModal: React.FC<PaymentApprovalModalProps> = ({ onCl
     
     const [loading, setLoading] = useState(true);
     const [processingId, setProcessingId] = useState<number | null>(null);
+    const [pendingDecision, setPendingDecision] = useState<{ id: number; decision: 'APPROVED' | 'REJECTED' } | null>(null);
 
     useEffect(() => {
         loadData();
@@ -42,8 +45,8 @@ export const PaymentApprovalModal: React.FC<PaymentApprovalModalProps> = ({ onCl
             });
             setSelectedAccounts(initialAccounts);
             
-        } catch (error) {
-            console.error("Error cargando datos:", error);
+        } catch {
+            toast.error('No se pudieron cargar las solicitudes de pago.');
         } finally {
             setLoading(false);
         }
@@ -53,41 +56,44 @@ export const PaymentApprovalModal: React.FC<PaymentApprovalModalProps> = ({ onCl
         setSelectedAccounts(prev => ({ ...prev, [paymentId]: accountId }));
     };
 
-    const handleDecision = async (id: number, decision: 'APPROVED' | 'REJECTED') => {
+    const handleDecision = (id: number, decision: 'APPROVED' | 'REJECTED') => {
         const accountId = selectedAccounts[id];
 
         if (decision === 'APPROVED' && !accountId) {
-            alert("⚠️ Debes seleccionar una cuenta bancaria origen para Autorizar el pago.");
+            toast.warning('Debes seleccionar una cuenta bancaria origen para Autorizar el pago.');
             return;
         }
 
-        if (!window.confirm(`¿Estás seguro de ${decision === 'APPROVED' ? 'AUTORIZAR' : 'RECHAZAR'} este pago?`)) return;
+        setPendingDecision({ id, decision });
+    };
+
+    const executeDecision = async () => {
+        if (!pendingDecision) return;
+        const { id, decision } = pendingDecision;
+        const accountId = selectedAccounts[id];
 
         setProcessingId(id);
         try {
             await financeService.updatePaymentStatus(id, decision, decision === 'APPROVED' ? Number(accountId) : undefined);
             
-            // --- ACTUALIZACIÓN DE SALDOS ---
-            // Si fue aprobado, descargamos las cuentas bancarias de nuevo para reflejar el saldo actualizado
             if (decision === 'APPROVED') {
                 const updatedAccounts = await treasuryService.getAccounts();
                 setAccounts(updatedAccounts);
             }
             
-            // Quitamos la solicitud de la lista
             const remainingRequests = requests.filter(req => req.id !== id);
             setRequests(remainingRequests);
             
-            // Avisamos al padre que hubo un cambio
             onUpdate();
 
             if (remainingRequests.length === 0) {
                 onClose();
             }
-        } catch (error) {
-            alert("Error al procesar la solicitud.");
+        } catch (error: any) {
+            toast.error(error?.response?.data?.detail || 'Error al procesar la solicitud.');
         } finally {
             setProcessingId(null);
+            setPendingDecision(null);
         }
     };
 
@@ -209,6 +215,23 @@ export const PaymentApprovalModal: React.FC<PaymentApprovalModalProps> = ({ onCl
                     <Button variant="secondary" onClick={onClose}>Cerrar</Button>
                 </div>
             </div>
+
+            {pendingDecision && (
+                <VConfirmDialog
+                    isOpen={pendingDecision !== null}
+                    title={pendingDecision.decision === 'APPROVED' ? 'Autorizar pago' : 'Rechazar pago'}
+                    message={`¿Estás seguro de ${pendingDecision.decision === 'APPROVED' ? 'AUTORIZAR' : 'RECHAZAR'} este pago?`}
+                    consequence={
+                        pendingDecision.decision === 'APPROVED'
+                            ? 'El pago quedará autorizado y podrá ejecutarse desde Tesorería.'
+                            : 'La solicitud será rechazada y no podrá ejecutarse.'
+                    }
+                    variant={pendingDecision.decision === 'REJECTED' ? 'danger' : 'default'}
+                    confirmLabel={pendingDecision.decision === 'APPROVED' ? 'Sí, autorizar' : 'Sí, rechazar'}
+                    onConfirm={executeDecision}
+                    onCancel={() => setPendingDecision(null)}
+                />
+            )}
         </div>
     );
 };

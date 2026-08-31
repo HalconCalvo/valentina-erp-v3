@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Calendar, CreditCard, Hash, FileText, Landmark } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { toast } from '@/components/ui/VToast';
 import { PaymentMethod, PaymentRequestPayload, SupplierPayment, PendingInvoice } from '../../../types/finance';
 import { treasuryService } from '../../../api/treasury-service';
 import { BankAccount } from '../../../types/treasury';
@@ -76,7 +77,9 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
             setDisplayAmount(formatInitialAmount(existingRequest.amount));
         }
         
-        treasuryService.getAccounts().then(data => setAccounts(data)).catch(console.error);
+        treasuryService.getAccounts()
+            .then(data => setAccounts(data))
+            .catch(() => toast.error('No se pudieron cargar las cuentas bancarias.'));
     }, [invoice, existingRequest]);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -87,18 +90,17 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
             : (invoice?.outstanding_balance || 0);
 
         if (amount <= 0) {
-            alert("Monto inválido.");
+            toast.warning('Monto inválido.');
             return;
         }
         
         if (!existingRequest && amount > maxAmount) {
-             alert(`Monto inválido. No puede ser mayor al saldo pendiente ($${formatInitialAmount(maxAmount)}).`);
+             toast.warning(`Monto inválido. No puede ser mayor al saldo pendiente ($${formatInitialAmount(maxAmount)}).`);
              return;
         }
 
-        // Validación extra: Si es Gerencia (isChecker) efectuando el pago, DEBE elegir la cuenta de donde saldrá el dinero.
         if (isChecker && !existingRequest && !suggestedAccount) {
-            alert("Para efectuar el pago directo, debes seleccionar de qué cuenta bancaria saldrá el dinero.");
+            toast.warning('Para efectuar el pago directo, debes seleccionar de qué cuenta bancaria saldrá el dinero.');
             return;
         }
 
@@ -119,9 +121,8 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
                 notes
             });
             onClose();
-        } catch (error) {
-            console.error(error);
-            alert("Error al procesar la solicitud.");
+        } catch (error: any) {
+            toast.error(error?.response?.data?.detail || 'Error al procesar la solicitud.');
         } finally {
             setLoading(false);
         }

@@ -6,6 +6,7 @@ import { CustomerPayment, PaymentType, SalesOrder, SalesOrderStatus } from '../.
 import { enrichSalesOrdersWithPaymentsWhenMissing } from '../../sales/utils/enrichOrdersPayments';
 import { OrderStatementModal } from './OrderStatementModal';
 import { ReceivableChargeModal } from './ReceivableChargeModal';
+import { toast } from '@/components/ui/VToast';
 
 // =============================================================================
 // V5.6 — Lógica única de antigüedad / monitor de cartera (carga + filas)
@@ -268,8 +269,8 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
             setIsLoading(true);
             const allQuotes = await loadSalesOrdersWithAdministrationAgingCxc();
             setOrders(allQuotes);
-        } catch (error) {
-            console.error('Error cargando cuentas por cobrar:', error);
+        } catch {
+            toast.error('No se pudieron cargar las cuentas por cobrar.');
         } finally {
             setIsLoading(false);
         }
