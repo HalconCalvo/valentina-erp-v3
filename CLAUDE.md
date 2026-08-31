@@ -248,3 +248,125 @@ SIEMPRE:
       action={{ label: 'Nueva solicitud', onClick: () => setShowForm(true) }}
     />
   )}
+
+
+---
+
+## REGLAS DE BACKEND (Python/FastAPI/SQLModel)
+
+### ARQUITECTURA — 4 CAPAS OBLIGATORIAS
+
+La responsabilidad de cada capa es fija. Cursor NO mezcla responsabilidades.
+
+CAPA 1 — Endpoints (app/api/v1/endpoints/)
+  - Solo recibe la petición HTTP
+  - Valida autenticación y rol del usuario
+  - Llama al Service correspondiente
+  - Devuelve la respuesta HTTP
+  - NUNCA contiene lógica de negocio
+  - NUNCA hace queries a la base de datos directamente
+  - Máximo 20 líneas por función de endpoint
+
+CAPA 2 — Services (app/services/)
+  - Contiene TODA la lógica de negocio
+  - Orquesta múltiples operaciones
+  - Maneja transacciones atómicas
+  - Llama al Repository para acceso a datos
+  - NUNCA conoce detalles de HTTP (no usa Request ni Response)
+  - Máximo 50 líneas por función de service
+
+CAPA 3 — Repositories (app/repositories/)
+  - ÚNICO punto de acceso a la base de datos
+  - Solo hace queries — sin lógica de negocio
+  - Retorna modelos o None
+  - NUNCA lanza HTTPException — lanza excepciones de dominio
+  - Máximo 30 líneas por función de repository
+
+CAPA 4 — Database (PostgreSQL)
+  - Solo datos
+  - Modelos en app/models/
+  - Migraciones en Alembic
+
+### REGLA DE ORO DEL BACKEND:
+Todo código nuevo va en services/ o repositories/.
+Los endpoints solo llaman y devuelven.
+Si Cursor escribe lógica de negocio en un endpoint, está violando la arquitectura.
+
+### ESTRUCTURA DE ARCHIVOS:
+app/
+  api/v1/endpoints/   — máximo 400 líneas por archivo, máximo 20 líneas por función
+  services/           — lógica de negocio, máximo 50 líneas por función
+  repositories/       — acceso a datos, máximo 30 líneas por función
+  models/             — modelos SQLModel, un archivo por dominio
+  schemas/            — Pydantic schemas de entrada y salida
+  core/               — configuración, seguridad, dependencias
+
+### IMPORTS:
+- SIEMPRE al inicio del archivo — NUNCA dentro de funciones
+- Orden: stdlib → third party (fastapi, sqlmodel) → app
+- NUNCA importar el mismo módulo dos veces
+- Si un import se usa en 3+ archivos, centralizarlo en app/core/deps.py
+
+### VALIDACIÓN CON PYDANTIC:
+- Todo input de API debe tener un schema Pydantic en app/schemas/
+- La validación ocurre automáticamente antes de ejecutar cualquier lógica
+- NUNCA validar manualmente con if/raise dentro del endpoint
+- Schemas de entrada: sufijo Create o Update (ej. SalesOrderCreate)
+- Schemas de salida: sufijo Read (ej. SalesOrderRead)
+
+### IDEMPOTENCIA EN OPERACIONES CRÍTICAS:
+- Crear factura, registrar pago, recepcionar OC — deben ser seguras si
+  se ejecutan dos veces (el sistema detecta el duplicado y lo rechaza)
+- Usar candados: verificar existencia antes de crear
+- Usar índices únicos en BD para campos que no pueden duplicarse
+
+### TRANSACCIONES ATÓMICAS:
+- Si una operación afecta múltiples tablas, debe ser TODO O NADA
+- Usar try/except alrededor de session.commit()
+- Si algo falla: session.rollback() antes de lanzar la excepción
+- NUNCA hacer commit parcial en operaciones multi-tabla
+
+### MANEJO DE ERRORES:
+- Endpoints: HTTPException con status_code y detail descriptivo
+- Services: excepciones de dominio propias (ej. InvoiceAlreadyPaidError)
+- Repositories: retornar None si no existe, nunca lanzar excepción
+- NUNCA retornar {"error": "..."} — siempre HTTPException
+- Códigos: 200 éxito, 201 creado, 400 error de negocio,
+           403 sin permisos, 404 no encontrado, 409 conflicto
+
+### LOGGING ESTRUCTURADO (auditoría):
+- Toda operación financiera debe registrar: quién, qué, cuándo, cuánto
+- Usar app/core/logger.py (a crear en Fase 2)
+- Operaciones a auditar: crear/editar/cancelar facturas, pagos,
+  movimientos bancarios, cambios de estado de OV y OC
+- NUNCA usar print() — siempre el logger estructurado
+
+### QUERIES A BASE DE DATOS:
+- NUNCA hacer queries dentro de loops — usar selectinload() o joins
+- SIEMPRE usar session.exec(select(...)) — nunca SQL raw salvo casos justificados
+- SIEMPRE usar selectinload() para relaciones que se van a usar
+- session.add() → session.commit() → session.refresh() en ese orden exacto
+- NUNCA session.flush() salvo cuando se necesitan IDs antes del commit
+
+### NOMENCLATURA:
+- Endpoints: snake_case descriptivo (get_sales_orders, create_purchase_order)
+- Services: snake_case con verbo (process_payment, calculate_order_total)
+- Repositories: snake_case con verbo de datos (find_by_id, find_all, save, delete)
+- Modelos: PascalCase (SalesOrder, PurchaseInvoice)
+- Schemas: PascalCase + sufijo (SalesOrderCreate, SalesOrderRead)
+- Variables y parámetros: snake_case
+- Constantes: UPPER_SNAKE_CASE
+
+### TAMAÑO DE FUNCIONES:
+- Endpoint: máximo 20 líneas
+- Service: máximo 50 líneas
+- Repository: máximo 30 líneas
+- Si una función supera el límite, dividirla en funciones auxiliares privadas
+- Funciones auxiliares privadas: prefijo _ (ej. _calculate_tax)
+
+### LO QUE CURSOR NO HACE SIN INSTRUCCIÓN DE CLAUDE:
+- NO reorganizar archivos de endpoints (rompe imports del frontend)
+- NO cambiar nombres de endpoints existentes (rompe el frontend)
+- NO modificar modelos sin considerar migración de Alembic
+- NO eliminar campos de modelos existentes
+- NO hacer commits sin que Claude haya verificado la migración
