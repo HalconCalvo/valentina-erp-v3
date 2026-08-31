@@ -1118,7 +1118,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     return (
         <div className="space-y-10 min-h-[600px] relative">
             {activeSubSection === null && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 animate-in fade-in duration-300">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in duration-300">
                     {subMenuItems.map(item => (
                         <div key={item.id} className="w-full relative h-40">
                             <Card onClick={() => setActiveSubSection(item.id as SubSection)} className={`p-6 cursor-pointer transition-all border-l-4 transform hover:-translate-y-1 h-full bg-white shadow-sm hover:shadow-xl ${item.activeBorder}`}>

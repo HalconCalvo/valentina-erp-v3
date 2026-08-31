@@ -341,7 +341,7 @@ export const PhysicalInventoryModule = ({ activeSubSection, onSubSectionChange }
       <div className="flex flex-wrap gap-6 mt-2">
 
         {/* SUB-TARJETA 1 — CONTEO */}
-        <div className="w-full md:w-[calc(50%-12px)] relative h-40">
+        <div className="w-full md:w-[calc(33.333%-16px)] relative h-40">
           <Card
             onClick={() => { setActiveSection('CONTEO'); setActiveTab('REPORTE'); setSavedIds([]); setCountEntries({}); }}
             className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-orange-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group"
@@ -366,7 +366,7 @@ export const PhysicalInventoryModule = ({ activeSubSection, onSubSectionChange }
         </div>
 
         {/* SUB-TARJETA 2 — COSTEO */}
-        <div className="w-full md:w-[calc(50%-12px)] relative h-40">
+        <div className="w-full md:w-[calc(33.333%-16px)] relative h-40">
           <Card
             onClick={() => setActiveSection('COSTEO')}
             className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-emerald-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group"
@@ -390,7 +390,7 @@ export const PhysicalInventoryModule = ({ activeSubSection, onSubSectionChange }
           </Card>
         </div>
 
-        <div className="w-full md:w-[calc(50%-12px)] relative h-40">
+        <div className="w-full md:w-[calc(33.333%-16px)] relative h-40">
           <Card
             onClick={() => setActiveSection('AJUSTES')}
             className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-blue-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group"
