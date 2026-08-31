@@ -57,6 +57,13 @@ export default function DesignBuilderPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteVersionConfirm, setShowDeleteVersionConfirm] = useState(false);
+  const [commercialDescription, setCommercialDescription] = useState<string>(
+    version?.commercial_description || ''
+  );
+
+  useEffect(() => {
+    setCommercialDescription(version?.commercial_description || '');
+  }, [version?.commercial_description]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -172,7 +179,8 @@ export default function DesignBuilderPage() {
       await designService.updateVersion(version.id, {
           ...version,
           status: VersionStatus.DRAFT, 
-          components: cleanComponents
+          components: cleanComponents,
+          commercial_description: commercialDescription,
       });
 
       if (newStatus !== VersionStatus.DRAFT) {
@@ -181,7 +189,8 @@ export default function DesignBuilderPage() {
             master_id: version.master.id,
             version_name: version.version_name,
             status: newStatus, 
-            components: cleanComponents
+            components: cleanComponents,
+            commercial_description: commercialDescription,
           });
       }
 
@@ -348,7 +357,9 @@ export default function DesignBuilderPage() {
                 defaultValues={componentsToRender} 
                 initialStatus={version.status} 
                 onSave={handleSaveAll}         
-                isLoading={isSaving} 
+                isLoading={isSaving}
+                commercialDescription={commercialDescription}
+                onDescriptionChange={(val) => setCommercialDescription(val)}
             />
         </div>
       </div>

@@ -36,6 +36,7 @@ export interface ProductVersion {
     is_active: boolean;
     created_at?: string;
     blueprint_path?: string | null;
+    commercial_description?: string | null;
     
     // La lista de ingredientes
     components: VersionComponent[];

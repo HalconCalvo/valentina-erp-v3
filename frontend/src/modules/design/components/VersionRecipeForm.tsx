@@ -10,7 +10,9 @@ interface Props {
   defaultValues: VersionComponent[];
   onSave: (data: VersionComponent[], status: VersionStatus) => void; 
   isLoading: boolean;
-  initialStatus: VersionStatus; 
+  initialStatus: VersionStatus;
+  commercialDescription: string;
+  onDescriptionChange: (value: string) => void;
 }
 
 // ============================================================================
@@ -139,7 +141,9 @@ export const VersionRecipeForm = ({
     defaultValues, 
     onSave, 
     isLoading,
-    initialStatus 
+    initialStatus,
+    commercialDescription,
+    onDescriptionChange,
 }: Props) => {
     
   const { control, register, handleSubmit, setValue, getValues, watch } = useForm({
@@ -425,6 +429,23 @@ export const VersionRecipeForm = ({
                 <option value={VersionStatus.READY}>🟢 LISTO (Bloqueado)</option>
                 <option value={VersionStatus.OBSOLETE}>⚫ OBSOLETO</option>
             </select>
+         </div>
+
+         <div className="w-full lg:col-span-full mt-2 pt-3 border-t border-amber-200">
+            <label className="text-[10px] font-bold text-slate-600 uppercase tracking-widest block mb-1">
+                Descripción Comercial
+            </label>
+            <p className="text-[10px] text-slate-500 mb-2">
+                Se mostrará en el PDF de cotización para el cliente
+            </p>
+            <textarea
+                value={commercialDescription}
+                onChange={(e) => onDescriptionChange(e.target.value)}
+                disabled={isReadOnly}
+                placeholder="Ej: Cocina en MDF 15mm Blanco, puertas Durango, jaladeras 256mm..."
+                rows={3}
+                className="w-full text-xs border border-slate-200 rounded px-3 py-2 disabled:bg-slate-100 disabled:cursor-not-allowed resize-none outline-none focus:ring-1 focus:ring-indigo-200"
+            />
          </div>
       </div>
 
