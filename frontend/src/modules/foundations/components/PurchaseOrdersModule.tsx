@@ -7,8 +7,21 @@ import {
 
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import { toast } from '@/components/ui/VToast';
 import axiosClient from '../../../api/axios-client';
 import { AllPurchaseOrdersModule } from './AllPurchaseOrdersModule';
+
+type PendingConfirm =
+    | { kind: 'emit'; group: any }
+    | { kind: 'authorize'; orderId: number; folio: string }
+    | { kind: 'removeItem'; orderId: number; itemId: number; sku: string }
+    | { kind: 'deleteReq'; reqId: number }
+    | { kind: 'freeze'; reqId: number }
+    | { kind: 'transfer'; requisitionId: number; materialName: string }
+    | { kind: 'reject'; orderId: number; folio: string }
+    | { kind: 'dispatch'; orderId: number; folio: string }
+    | { kind: 'revoke'; orderId: number; folio: string };
 
 type SubSection = 'CREATION' | 'BRAKE' | 'SENDING' | 'PARTIAL' | 'ALL_ORDERS' | null;
 
@@ -96,6 +109,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
 
     const [pendingCategory, setPendingCategory] = useState<string>('');
     const [categoryError, setCategoryError] = useState<string | null>(null);
+    const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
 
     const OVERHEAD_CATEGORIES = [
         'MATERIALES', 'PLANTA', 'COMUNICACIONES', 'COMBUSTIBLES', 'TRANSPORTE',
@@ -163,8 +177,8 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     ]);
             setProvidersList(extractList(provRes, 'providers'));
             setMaterialsList(extractList(matRes, 'materials'));
-        } catch (error) {
-            console.error("Error al cargar catálogos:", error);
+        } catch {
+            toast.error('Error al cargar catálogos.');
         }
     };
 
@@ -190,8 +204,8 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                 });
                 setSelectedItems(initialSelection);
             }
-        } catch (error) {
-            console.error("Error al cargar planeación:", error);
+        } catch {
+            toast.error('Error al cargar planeación.');
         } finally {
             if (!silent) setLoading(false);
         }
@@ -203,8 +217,8 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
             const ts = new Date().getTime();
             const response = await axiosClient.get(`/purchases/orders/?t=${ts}`);
             setBrakeOrders(extractList({data: response.data}, 'orders'));
-        } catch (error) {
-            console.error("Error al cargar órdenes:", error);
+        } catch {
+            toast.error('Error al cargar órdenes.');
         } finally {
             if (!silent) setLoading(false);
         }
@@ -228,35 +242,220 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         return () => clearInterval(interval);
     }, []); 
 
-    const handleEmitPurchaseOrder = async (group: any) => {
+    const handleEmitPurchaseOrder = (group: any) => {
         const itemsToEmit = group.items.filter((item: any) => selectedItems[`${group.provider_id}-${item.material_id}`]);
-        if (itemsToEmit.length === 0) return alert("Debe seleccionar al menos un producto.");
+        if (itemsToEmit.length === 0) {
+            toast.warning('Debe seleccionar al menos un producto.');
+            return;
+        }
         if (!pendingCategory) {
             setCategoryError("Debes seleccionar una categoría antes de generar la OC.");
             return;
         }
-        if (!window.confirm(`¿Confirmar emisión de Orden de Compra para ${group.provider_name}?`)) return;
+        setPendingConfirm({ kind: 'emit', group });
+    };
+
+    const executePendingConfirm = async () => {
+        if (!pendingConfirm) return;
+
         setLoading(true);
         try {
-            const payload = {
-                provider_id: group.provider_id,
-                overhead_category: pendingCategory,
-                items: itemsToEmit.map((item: any) => ({
-                    requisition_id: item.requisition_id,
-                    material_id: item.material_id,
-                    name: item.name,
-                    qty: item.qty,
-                    expected_cost: item.expected_cost
-                }))
-            };
-            await axiosClient.post('/purchases/orders/bulk-emit', payload);
-            fetchPlanning(true);
-            fetchBrakeOrders(true);
+            switch (pendingConfirm.kind) {
+                case 'emit': {
+                    const { group } = pendingConfirm;
+                    const itemsToEmit = group.items.filter(
+                        (item: any) => selectedItems[`${group.provider_id}-${item.material_id}`],
+                    );
+                    await axiosClient.post('/purchases/orders/bulk-emit', {
+                        provider_id: group.provider_id,
+                        overhead_category: pendingCategory,
+                        items: itemsToEmit.map((item: any) => ({
+                            requisition_id: item.requisition_id,
+                            material_id: item.material_id,
+                            name: item.name,
+                            qty: item.qty,
+                            expected_cost: item.expected_cost,
+                        })),
+                    });
+                    toast.success('Orden de compra emitida correctamente.');
+                    fetchPlanning(true);
+                    fetchBrakeOrders(true);
+                    break;
+                }
+                case 'authorize':
+                    await axiosClient.put(`/purchases/orders/${pendingConfirm.orderId}/authorize`);
+                    toast.success('Orden autorizada correctamente.');
+                    fetchBrakeOrders(true);
+                    break;
+                case 'removeItem':
+                    await axiosClient.delete(
+                        `/purchases/orders/${pendingConfirm.orderId}/items/${pendingConfirm.itemId}`,
+                    );
+                    toast.success('Partida removida de la orden.');
+                    fetchBrakeOrders(true);
+                    fetchPlanning(true);
+                    break;
+                case 'deleteReq':
+                    await axiosClient.delete(`/purchases/requisitions/${pendingConfirm.reqId}`);
+                    toast.success('Solicitud eliminada correctamente.');
+                    fetchPlanning(true);
+                    break;
+                case 'freeze':
+                    await axiosClient.put(
+                        `/purchases/requisitions/${pendingConfirm.reqId}/status?status=APLAZADA`,
+                    );
+                    toast.success('Compra aplazada correctamente.');
+                    fetchPlanning(true);
+                    break;
+                case 'transfer':
+                    await axiosClient.put(
+                        `/purchases/requisitions/${pendingConfirm.requisitionId}/transfer`,
+                    );
+                    toast.success('Material transferido a asignación pendiente.');
+                    fetchPlanning(true);
+                    break;
+                case 'reject':
+                    await axiosClient.post(
+                        `/purchases/orders/${pendingConfirm.orderId}/reject?action=RE-COTIZAR`,
+                    );
+                    toast.success('Orden enviada a re-cotización.');
+                    fetchBrakeOrders(true);
+                    fetchPlanning(true);
+                    break;
+                case 'dispatch':
+                    await axiosClient.put(`/purchases/orders/${pendingConfirm.orderId}/dispatch`);
+                    toast.success('Orden marcada como enviada.');
+                    fetchBrakeOrders(true);
+                    break;
+                case 'revoke':
+                    await axiosClient.put(`/purchases/orders/${pendingConfirm.orderId}/revoke`);
+                    toast.success('Autorización revocada. La orden regresó a mesa de control.');
+                    fetchBrakeOrders(true);
+                    break;
+            }
+            setPendingConfirm(null);
         } catch (error: any) {
-            alert(error.response?.data?.detail || "Error al emitir la Orden de Compra.");
+            const detail = error.response?.data?.detail;
+            const messages: Record<PendingConfirm['kind'], string> = {
+                emit: 'Error al emitir la Orden de Compra.',
+                authorize: 'Error al autorizar.',
+                removeItem: 'Error al remover partida.',
+                deleteReq: 'Error al eliminar.',
+                freeze: 'Error al aplazar.',
+                transfer: 'Error al transferir.',
+                reject: 'Error al rechazar.',
+                dispatch: 'Error al despachar.',
+                revoke: 'Error al revocar.',
+            };
+            toast.error(detail || messages[pendingConfirm.kind]);
+            throw error;
         } finally {
             setLoading(false);
         }
+    };
+
+    const getConfirmDialogProps = () => {
+        if (!pendingConfirm) return null;
+
+        switch (pendingConfirm.kind) {
+            case 'emit':
+                return {
+                    title: 'Emitir orden de compra',
+                    message: `¿Confirmar emisión de Orden de Compra para ${pendingConfirm.group.provider_name}?`,
+                    consequence: 'Se generará una OC con los materiales seleccionados.',
+                    variant: 'default' as const,
+                    confirmLabel: 'Confirmar emisión',
+                };
+            case 'authorize':
+                return {
+                    title: 'Autorizar orden',
+                    message: `¿Autorizar definitivamente la orden ${pendingConfirm.folio}?`,
+                    consequence: 'La orden quedará lista para despacho al proveedor.',
+                    variant: 'default' as const,
+                    confirmLabel: 'Autorizar',
+                };
+            case 'removeItem':
+                return {
+                    title: 'Quitar partida',
+                    message: `¿Quitar SKU ${pendingConfirm.sku} de esta orden?`,
+                    consequence: 'La partida se eliminará de la orden de compra.',
+                    variant: 'danger' as const,
+                    confirmLabel: 'Quitar partida',
+                };
+            case 'deleteReq':
+                return {
+                    title: 'Eliminar solicitud',
+                    message: '¿Eliminar esta solicitud manual permanentemente?',
+                    consequence: 'La solicitud quedará eliminada del sistema.',
+                    variant: 'danger' as const,
+                    confirmLabel: 'Eliminar',
+                };
+            case 'freeze':
+                return {
+                    title: 'Aplazar compra',
+                    message: '¿Aplazar la compra de este material?',
+                    consequence: 'Se enviará a la Congeladora para su revisión posterior.',
+                    variant: 'default' as const,
+                    confirmLabel: 'Aplazar',
+                };
+            case 'transfer':
+                return {
+                    title: 'Transferir material',
+                    message: `¿Sustituir "${pendingConfirm.materialName}"?`,
+                    consequence: 'Se moverá a Asignación Pendiente.',
+                    variant: 'default' as const,
+                    confirmLabel: 'Transferir',
+                };
+            case 'reject':
+                return {
+                    title: `Rechazar orden ${pendingConfirm.folio}`,
+                    message: 'Elige cómo proceder con esta orden.',
+                    consequence: 'Re-cotizar devuelve la orden a revisión. Eliminar todo cancela la orden por completo.',
+                    variant: 'danger' as const,
+                    confirmLabel: 'Re-cotizar',
+                    cancelLabel: 'Eliminar todo',
+                };
+            case 'dispatch':
+                return {
+                    title: 'Despachar orden',
+                    message: `¿Confirmar despacho de la orden ${pendingConfirm.folio} al proveedor?`,
+                    consequence: 'La orden quedará marcada como enviada.',
+                    variant: 'default' as const,
+                    confirmLabel: 'Confirmar despacho',
+                };
+            case 'revoke':
+                return {
+                    title: 'Revocar autorización',
+                    message: `¿Revocar firma de la orden ${pendingConfirm.folio}?`,
+                    consequence: 'Regresará a Mesa de Control para edición.',
+                    variant: 'danger' as const,
+                    confirmLabel: 'Revocar firma',
+                };
+            default:
+                return null;
+        }
+    };
+
+    const handleConfirmDialogCancel = async () => {
+        if (pendingConfirm?.kind === 'reject') {
+            setLoading(true);
+            try {
+                await axiosClient.post(
+                    `/purchases/orders/${pendingConfirm.orderId}/reject?action=CANCELAR`,
+                );
+                toast.success('Orden eliminada correctamente.');
+                fetchBrakeOrders(true);
+                fetchPlanning(true);
+                setPendingConfirm(null);
+            } catch (error: any) {
+                toast.error(error.response?.data?.detail || 'Error al rechazar.');
+                throw error;
+            } finally {
+                setLoading(false);
+            }
+            return;
+        }
+        setPendingConfirm(null);
     };
 
     const handleAddRow = () => {
@@ -283,10 +482,12 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         const validItems = manualOrderForm.items.filter(it => it.material_name.trim() !== '');
         
         if (!manualOrderForm.provider_name || validItems.length === 0) {
-            return alert("Por favor, completa el proveedor y al menos un material válido.");
+            toast.warning('Por favor, completa el proveedor y al menos un material válido.');
+            return;
         }
         if (!manualOrderForm.overhead_category) {
-            return alert("Debes seleccionar una categoría de gasto.");
+            toast.warning('Debes seleccionar una categoría de gasto.');
+            return;
         }
         
         setLoading(true);
@@ -305,73 +506,39 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
             
             setIsManualModalOpen(false);
             setManualOrderForm({ provider_name: '', overhead_category: '', items: [{ sku: '', material_name: '', qty: 1, expected_cost: '0.00' }] });
+            toast.success('Orden manual creada correctamente.');
             fetchBrakeOrders(true);
         } catch (error: any) {
-            alert(error.response?.data?.detail || "Error al crear la orden manual.");
+            toast.error(error.response?.data?.detail || 'Error al crear la orden manual.');
         } finally {
             setLoading(false);
         }
     };
 
-    const handleAuthorizeOrder = async (orderId: number, folio: string) => {
-        if (!window.confirm(`¿Autorizar definitivamente la orden ${folio}?`)) return;
-        setLoading(true);
-        try {
-            await axiosClient.put(`/purchases/orders/${orderId}/authorize`);
-            fetchBrakeOrders(true); 
-        } catch (error) {
-            alert("Error al autorizar.");
-        } finally {
-            setLoading(false);
-        }
+    const handleAuthorizeOrder = (orderId: number, folio: string) => {
+        setPendingConfirm({ kind: 'authorize', orderId, folio });
     };
 
-    const handleRemoveItemFromOrder = async (orderId: number, itemId: number, sku: string) => {
-        if (!window.confirm(`¿Quitar SKU ${sku} de esta orden?`)) return;
-        setLoading(true);
-        try {
-            await axiosClient.delete(`/purchases/orders/${orderId}/items/${itemId}`);
-            fetchBrakeOrders(true);
-            fetchPlanning(true);
-        } catch (error) {
-            alert("Error al remover partida.");
-        } finally {
-            setLoading(false);
-        }
+    const handleRemoveItemFromOrder = (orderId: number, itemId: number, sku: string) => {
+        setPendingConfirm({ kind: 'removeItem', orderId, itemId, sku });
     };
 
-    const handleDeleteManualRequisition = async (reqId: number) => {
-        if (!window.confirm("¿Eliminar esta solicitud manual permanentemente?")) return;
-        setLoading(true);
-        try {
-            await axiosClient.delete(`/purchases/requisitions/${reqId}`);
-            fetchPlanning(true);
-        } catch (error) {
-            alert("Error al eliminar.");
-        } finally {
-            setLoading(false);
-        }
+    const handleDeleteManualRequisition = (reqId: number) => {
+        setPendingConfirm({ kind: 'deleteReq', reqId });
     };
 
-    const handleFreezeRequisition = async (reqId: number) => {
-        if (!window.confirm("¿Aplazar la compra de este material? Se enviará a la Congeladora para su revisión posterior.")) return;
-        setLoading(true);
-        try {
-            await axiosClient.put(`/purchases/requisitions/${reqId}/status?status=APLAZADA`);
-            fetchPlanning(true);
-        } catch (error) {
-            alert("Error al aplazar.");
-        } finally {
-            setLoading(false);
-        }
+    const handleFreezeRequisition = (reqId: number) => {
+        setPendingConfirm({ kind: 'freeze', reqId });
     };
 
     const handleSubmitRequisition = async () => {
         if (!reqForm.description && !reqForm.material_id) {
-            return alert("Describe qué necesitas o selecciona un material.");
+            toast.warning('Describe qué necesitas o selecciona un material.');
+            return;
         }
         if (!reqForm.qty || parseFloat(reqForm.qty) <= 0) {
-            return alert("Ingresa una cantidad válida.");
+            toast.warning('Ingresa una cantidad válida.');
+            return;
         }
         setLoading(true);
         try {
@@ -388,9 +555,10 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                 description: '', qty: '1', notes: '',
                 isCatalogItem: false, material_id: '', material_search: ''
             });
+            toast.success('Solicitud creada correctamente.');
             fetchPlanning(true);
         } catch (error: any) {
-            alert(error.response?.data?.detail || "Error al crear la solicitud.");
+            toast.error(error.response?.data?.detail || 'Error al crear la solicitud.');
         } finally {
             setLoading(false);
         }
@@ -398,11 +566,13 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
 
     const handleAssignProvider = async () => {
         if (!assignModal.requisitionId || !assignForm.provider_id) {
-            return alert("Selecciona un proveedor.");
+            toast.warning('Selecciona un proveedor.');
+            return;
         }
         const cost = parseFloat(assignForm.expected_unit_cost);
         if (isNaN(cost) || cost < 0) {
-            return alert("Ingresa un precio unitario válido.");
+            toast.warning('Ingresa un precio unitario válido.');
+            return;
         }
         setLoading(true);
         try {
@@ -415,53 +585,25 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
             );
             setAssignModal({ open: false, requisitionId: null, itemName: '', currentQty: 0 });
             setAssignForm({ provider_id: '', provider_search: '', expected_unit_cost: '0.00' });
+            toast.success('Proveedor asignado correctamente.');
             fetchPlanning(true);
         } catch (error: any) {
-            alert(error.response?.data?.detail || "Error al asignar proveedor.");
+            toast.error(error.response?.data?.detail || 'Error al asignar proveedor.');
         } finally {
             setLoading(false);
         }
     };
 
-    const handleTransferCriticalItem = async (requisitionId: number, materialName: string) => {
-        if (!window.confirm(`¿Sustituir "${materialName}"? Se moverá a Asignación Pendiente.`)) return;
-        setLoading(true);
-        try {
-            await axiosClient.put(`/purchases/requisitions/${requisitionId}/transfer`);
-            fetchPlanning(true);
-        } catch (error) {
-            alert("Error al transferir.");
-        } finally {
-            setLoading(false);
-        }
+    const handleTransferCriticalItem = (requisitionId: number, materialName: string) => {
+        setPendingConfirm({ kind: 'transfer', requisitionId, materialName });
     };
 
-    const handleRejectOrder = async (orderId: number, folio: string) => {
-        const confirmReject = window.confirm(`RECHAZAR ORDEN ${folio}\nAceptar: RE-COTIZAR\nCancelar: ELIMINAR TODO`);
-        const action = confirmReject ? "RE-COTIZAR" : "CANCELAR";
-        setLoading(true);
-        try {
-            await axiosClient.post(`/purchases/orders/${orderId}/reject?action=${action}`);
-            fetchBrakeOrders(true);
-            fetchPlanning(true);
-        } catch (error) {
-            alert("Error al rechazar.");
-        } finally {
-            setLoading(false);
-        }
+    const handleRejectOrder = (orderId: number, folio: string) => {
+        setPendingConfirm({ kind: 'reject', orderId, folio });
     };
 
-    const handleDispatchOrder = async (orderId: number, folio: string) => {
-        if (!window.confirm(`¿Confirmar despacho de la orden ${folio} al proveedor?`)) return;
-        setLoading(true);
-        try {
-            await axiosClient.put(`/purchases/orders/${orderId}/dispatch`);
-            fetchBrakeOrders(true); 
-        } catch (error) {
-            alert("Error al despachar.");
-        } finally {
-            setLoading(false);
-        }
+    const handleDispatchOrder = (orderId: number, folio: string) => {
+        setPendingConfirm({ kind: 'dispatch', orderId, folio });
     };
 
     const handleRequestAdvance = async (orderId: number, folio: string, total: number) => {
@@ -477,38 +619,36 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         if (!amountStr) return;
         
         const amount = parseFloat(amountStr.replace(/,/g, ''));
-        if (isNaN(amount) || amount <= 0) return alert("Monto inválido");
+        if (isNaN(amount) || amount <= 0) {
+            toast.warning('Monto inválido');
+            return;
+        }
 
         setLoading(true);
         try {
             await axiosClient.post(`/purchases/orders/${orderId}/request-advance`, { amount });
+            toast.success('Anticipo solicitado correctamente.');
             fetchBrakeOrders(true); 
         } catch (error: any) {
-            const mensaje = error.response?.data?.detail || "Error: Ya solicitaste este anticipo o hubo un problema de red.";
-            alert(mensaje);
+            toast.error(
+                error.response?.data?.detail ||
+                    'Error: Ya solicitaste este anticipo o hubo un problema de red.',
+            );
         } finally {
             setLoading(false);
         }
     };
 
-    const handleRevokeAuthorization = async (orderId: number, folio: string) => {
-        if (!window.confirm(`¿Revocar firma de la orden ${folio}? Regresará a Mesa de Control para edición.`)) return;
-        setLoading(true);
-        try {
-            await axiosClient.put(`/purchases/orders/${orderId}/revoke`);
-            fetchBrakeOrders(true);
-        } catch (error) {
-            alert("Error al revocar.");
-        } finally {
-            setLoading(false);
-        }
+    const handleRevokeAuthorization = (orderId: number, folio: string) => {
+        setPendingConfirm({ kind: 'revoke', orderId, folio });
     };
 
     const handleSendByEmail = async () => {
         if (!emailModal.orderId) return;
         const email = emailModal.providerEmail.trim();
         if (!email || !email.includes('@')) {
-            return alert('Ingresa un correo válido.');
+            toast.warning('Ingresa un correo válido.');
+            return;
         }
         setSendingEmail(true);
         try {
@@ -517,11 +657,11 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                 { to_email: email },
                 { timeout: 30000 }
             );
-            alert(`✅ OC ${emailModal.folio} enviada por correo a ${email}`);
+            toast.success(`OC ${emailModal.folio} enviada por correo a ${email}`);
             setEmailModal({ open: false, orderId: null, folio: '', providerEmail: '' });
             fetchBrakeOrders(true);
         } catch (error: any) {
-            alert(error.response?.data?.detail || 'Error al enviar el correo.');
+            toast.error(error.response?.data?.detail || 'Error al enviar el correo.');
         } finally {
             setSendingEmail(false);
         }
@@ -568,7 +708,9 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
 
         if (duplicateIndex !== -1 && category !== 'piedra') {
             // Categoría ≠ Piedra → redirigir al renglón existente
-            alert(`⚠️ El SKU "${sku}" ya está en el renglón ${duplicateIndex + 1}. Revisa la cantidad o el precio de ese renglón.`);
+            toast.warning(
+                `El SKU "${sku}" ya está en el renglón ${duplicateIndex + 1}. Revisa la cantidad o el precio de ese renglón.`,
+            );
             setActiveDropdown({ type: null, index: null });
             // Scroll/highlight al renglón existente
             const rowEl = document.getElementById(`oc-row-${duplicateIndex}`);
@@ -594,7 +736,8 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
 
     const handleSaveNewMaterial = async () => {
         if (!newMatForm.sku.trim() || !newMatForm.name.trim()) {
-            return alert("SKU y Nombre son obligatorios.");
+            toast.warning('SKU y Nombre son obligatorios.');
+            return;
         }
         setNewMatLoading(true);
         try {
@@ -628,8 +771,9 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                 current_cost: '0.00',
                 min_stock: 0, max_stock: 0,
             });
+            toast.success('Material creado correctamente.');
         } catch (err: any) {
-            alert(err.response?.data?.detail || "Error al crear el material.");
+            toast.error(err.response?.data?.detail || 'Error al crear el material.');
         } finally {
             setNewMatLoading(false);
         }
@@ -1824,6 +1968,23 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                 </div>
             </div>
         )}
+        {(() => {
+            const confirmProps = getConfirmDialogProps();
+            if (!confirmProps) return null;
+            return (
+                <VConfirmDialog
+                    isOpen={pendingConfirm !== null}
+                    title={confirmProps.title}
+                    message={confirmProps.message}
+                    consequence={confirmProps.consequence}
+                    variant={confirmProps.variant}
+                    confirmLabel={confirmProps.confirmLabel}
+                    cancelLabel={confirmProps.cancelLabel}
+                    onConfirm={executePendingConfirm}
+                    onCancel={handleConfirmDialogCancel}
+                />
+            );
+        })()}
         </div>
     );
 };

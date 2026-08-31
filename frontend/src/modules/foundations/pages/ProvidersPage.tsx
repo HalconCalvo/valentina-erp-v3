@@ -5,6 +5,8 @@ import { Plus, Search, Edit, Trash2, X, Phone, Mail, User, Building2, Smartphone
 
 // 1. IMPORTAR BOTÓN DE EXPORTACIÓN
 import ExportButton from '@/components/ui/ExportButton';
+import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import { toast } from '@/components/ui/VToast';
 
 export default function ProvidersPage() {
   const { providers, loading, createProvider, updateProvider, deleteProvider } = useProviders();
@@ -14,6 +16,7 @@ export default function ProvidersPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [importingCsv, setImportingCsv] = useState(false);
   const csvInputRef = useRef<HTMLInputElement>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ id: number; name: string } | null>(null);
   
   const initialForm: Provider = { 
     business_name: '', 
@@ -70,8 +73,12 @@ export default function ProvidersPage() {
       ? await updateProvider(editingId, formData)
       : await createProvider(formData);
 
-    if (result.success) setIsModalOpen(false);
-    else alert(result.error);
+    if (result.success) {
+      toast.success(editingId ? 'Proveedor actualizado correctamente.' : 'Proveedor creado correctamente.');
+      setIsModalOpen(false);
+    } else {
+      toast.error(result.error || 'Error al guardar el proveedor.');
+    }
   };
 
   const filteredProviders = providers.filter(p => 
@@ -95,10 +102,12 @@ export default function ProvidersPage() {
         body: formData,
       });
       const result = await res.json();
-      alert(`✅ Importación completada:\n${result.created} creados\n${result.updated} actualizados\n${result.errors?.length ?? 0} errores`);
+      toast.success(
+        `Importación completada: ${result.created} creados, ${result.updated} actualizados, ${result.errors?.length ?? 0} errores.`,
+      );
       window.location.reload();
     } catch {
-      alert('Error al importar el CSV.');
+      toast.error('Error al importar el CSV.');
     } finally {
       setImportingCsv(false);
       if (csvInputRef.current) csvInputRef.current.value = '';
@@ -247,11 +256,7 @@ export default function ProvidersPage() {
                                 <Edit size={16} />
                             </button>
                             <button 
-                                onClick={() => {
-                                    if(window.confirm(`¿Estás seguro de eliminar a ${prov.business_name}?`)) {
-                                        deleteProvider(prov.id!);
-                                    }
-                                }} 
+                                onClick={() => setPendingDelete({ id: prov.id!, name: prov.business_name })} 
                                 className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
                                 title="Eliminar Proveedor"
                             >
@@ -421,6 +426,23 @@ export default function ProvidersPage() {
             color: #94a3b8;
         }
       `}</style>
+
+      <VConfirmDialog
+        isOpen={pendingDelete !== null}
+        title="Eliminar proveedor"
+        message={pendingDelete ? `¿Estás seguro de eliminar a ${pendingDelete.name}?` : ''}
+        consequence="El proveedor quedará dado de baja y no estará disponible para nuevas órdenes de compra."
+        variant="danger"
+        confirmLabel="Sí, eliminar"
+        onConfirm={async () => {
+          if (pendingDelete) {
+            await deleteProvider(pendingDelete.id);
+            toast.success('Proveedor eliminado correctamente.');
+            setPendingDelete(null);
+          }
+        }}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

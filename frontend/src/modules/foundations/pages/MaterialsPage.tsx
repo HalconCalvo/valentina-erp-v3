@@ -10,15 +10,24 @@ import {
 import client from '@/api/axios-client'; 
 
 import ExportButton from '@/components/ui/ExportButton';
+import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import { toast } from '@/components/ui/VToast';
 
 import { ColumnDef } from "@tanstack/react-table"
 import { DataTable } from "@/components/ui/DataTable"
 import { MaterialsTableToolbar } from "../components/MaterialsTableToolbar"
 
+type PendingConfirm =
+  | { kind: 'delete'; id: number }
+  | { kind: 'reactivate'; id: number }
+  | { kind: 'importCsv'; fileName: string };
+
 export default function MaterialsPage() {
   const { materials, loading, fetchMaterials, createMaterial, updateMaterial, deleteMaterial, reactivateMaterial } = useMaterials();
   const { providers, fetchProviders } = useProviders(); 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pendingImportFileRef = useRef<File | null>(null);
+  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
 
   const [userRole, setUserRole] = useState(''); 
   const [showForm, setShowForm] = useState(false);
@@ -54,7 +63,7 @@ export default function MaterialsPage() {
     fetchProviders();
     client.get('/foundations/config')
       .then(res => setTargetMargin(Number(res.data?.target_profit_margin) || 0))
-      .catch(console.error);
+      .catch(() => toast.error('Error al cargar configuración.'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -294,42 +303,47 @@ export default function MaterialsPage() {
       })
   });
 
+  const executeCsvImport = async () => {
+    const file = pendingImportFileRef.current;
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await client.post('/foundations/materials/import-csv', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      const { created, updated, errors } = response.data;
+      let message = `Importación completada. Creados: ${created}, Actualizados: ${updated}`;
+      if (errors && errors.length > 0) {
+        toast.warning(`${message}. Hubo ${errors.length} error(es) en el archivo.`);
+      } else {
+        toast.success(message);
+      }
+      window.location.reload();
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || error.message || 'Error al importar.');
+    } finally {
+      pendingImportFileRef.current = null;
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if(isReadOnly) return; 
     const file = event.target.files?.[0];
     if (!file) return;
 
     if (!file.name.endsWith('.csv')) {
-        alert("Por favor selecciona un archivo .csv válido.");
-        return;
-    }
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    if (!confirm(`¿Deseas importar "${file.name}"?`)) {
+        toast.warning('Por favor selecciona un archivo .csv válido.');
         if (fileInputRef.current) fileInputRef.current.value = '';
         return;
     }
 
-    try {
-        const response = await client.post('/foundations/materials/import-csv', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-        });
-
-        const { created, updated, errors } = response.data;
-        let message = `✅ Importación completada.\n- Creados: ${created}\n- Actualizados: ${updated}`;
-        if (errors && errors.length > 0) message += `\n\n⚠️ Hubo errores. Revisa consola.`;
-        
-        alert(message);
-        window.location.reload(); 
-
-    } catch (error: any) {
-        console.error(error);
-        alert("❌ Error al importar: " + (error.response?.data?.detail || error.message));
-    } finally {
-        if (fileInputRef.current) fileInputRef.current.value = '';
-    }
+    pendingImportFileRef.current = file;
+    setPendingConfirm({ kind: 'importCsv', fileName: file.name });
   };
 
   const handleSkuBlur = () => {
@@ -356,20 +370,26 @@ export default function MaterialsPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = (id: number) => {
     if(isReadOnly) return;
-    if (!confirm("¿Estás seguro de eliminar este material?")) return;
+    setPendingConfirm({ kind: 'delete', id });
+  };
+
+  const executeDelete = async (id: number) => {
     await deleteMaterial(id);
   };
 
-  const handleReactivate = async (id: number) => {
+  const handleReactivate = (id: number) => {
     if (isReadOnly) return;
-    if (!window.confirm("¿Reactivar este material? Volverá a estar disponible para uso.")) return;
+    setPendingConfirm({ kind: 'reactivate', id });
+  };
+
+  const executeReactivate = async (id: number) => {
     const res = await reactivateMaterial(id, showInactive);
     if (res.success) {
-      alert("✅ Material reactivado.");
+      toast.success('Material reactivado.');
     } else {
-      alert(`❌ Error: ${res.error}`);
+      toast.error(res.error || 'Error al reactivar el material.');
     }
   };
 
@@ -378,7 +398,8 @@ export default function MaterialsPage() {
     if(isReadOnly) return;
     
     if (!form.sku || !form.name || !form.category) {
-        return alert("Por favor completa los campos obligatorios.");
+        toast.warning('Por favor completa los campos obligatorios.');
+        return;
     }
 
     const payload = {
@@ -401,9 +422,73 @@ export default function MaterialsPage() {
         resetForm();
         window.location.reload(); 
     } else {
-        alert(`❌ Error: ${res.error}`);
+        toast.error(res.error || 'Error al guardar el material.');
     }
   };
+
+  const getConfirmDialogProps = () => {
+    if (!pendingConfirm) return null;
+
+    switch (pendingConfirm.kind) {
+      case 'delete':
+        return {
+          title: 'Dar de baja material',
+          message: '¿Estás seguro de eliminar este material?',
+          consequence: 'El material quedará inactivo y no estará disponible para nuevas operaciones.',
+          variant: 'danger' as const,
+          confirmLabel: 'Sí, dar de baja',
+        };
+      case 'reactivate':
+        return {
+          title: 'Reactivar material',
+          message: '¿Reactivar este material?',
+          consequence: 'Volverá a estar disponible para uso en cotizaciones, compras e inventario.',
+          variant: 'default' as const,
+          confirmLabel: 'Reactivar',
+        };
+      case 'importCsv':
+        return {
+          title: 'Importar CSV',
+          message: `¿Deseas importar "${pendingConfirm.fileName}"?`,
+          consequence: 'Se crearán o actualizarán materiales según el contenido del archivo.',
+          variant: 'default' as const,
+          confirmLabel: 'Importar',
+        };
+      default:
+        return null;
+    }
+  };
+
+  const handleConfirmDialog = async () => {
+    if (!pendingConfirm) return;
+
+    try {
+      switch (pendingConfirm.kind) {
+        case 'delete':
+          await executeDelete(pendingConfirm.id);
+          break;
+        case 'reactivate':
+          await executeReactivate(pendingConfirm.id);
+          break;
+        case 'importCsv':
+          await executeCsvImport();
+          break;
+      }
+      setPendingConfirm(null);
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || 'No se pudo completar la acción.');
+    }
+  };
+
+  const handleConfirmCancel = () => {
+    if (pendingConfirm?.kind === 'importCsv') {
+      pendingImportFileRef.current = null;
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+    setPendingConfirm(null);
+  };
+
+  const confirmDialogProps = getConfirmDialogProps();
 
   const resetForm = () => {
       setForm(initialFormState);
@@ -789,6 +874,19 @@ export default function MaterialsPage() {
       </div>
 
       <style>{`.input-std { width: 100%; padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 0.375rem; font-size: 0.875rem; color: #1e293b; transition: all 0.2s; } .input-std:focus { outline: none; border-color: #6366f1; ring: 2px solid #e0e7ff; }`}</style>
+
+      {confirmDialogProps && (
+        <VConfirmDialog
+          isOpen={pendingConfirm !== null}
+          title={confirmDialogProps.title}
+          message={confirmDialogProps.message}
+          consequence={confirmDialogProps.consequence}
+          variant={confirmDialogProps.variant}
+          confirmLabel={confirmDialogProps.confirmLabel}
+          onConfirm={handleConfirmDialog}
+          onCancel={handleConfirmCancel}
+        />
+      )}
     </div>
   );
 }

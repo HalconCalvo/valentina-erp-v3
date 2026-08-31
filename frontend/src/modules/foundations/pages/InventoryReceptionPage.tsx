@@ -5,7 +5,15 @@ import {
 } from 'lucide-react';
 import axiosClient from '../../../api/axios-client';
 import { MaterialForm } from '../components/MaterialForm';
-import { Button } from "@/components/ui/Button"
+import { Button } from "@/components/ui/Button";
+import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import { toast } from '@/components/ui/VToast';
+
+type PendingConfirm =
+    | { kind: 'cancel' }
+    | { kind: 'declareSatisfied' }
+    | { kind: 'submitDuplicateFolio' }
+    | { kind: 'submitFinancialMismatch' };
 
 // Utilidades seguras
 const formatCurrency = (amount: any): string => {
@@ -53,6 +61,7 @@ const InventoryReceptionPage: React.FC = () => {
     const [materialsList, setMaterialsList] = useState<any[]>([]);
     const [addedRows, setAddedRows] = useState<Array<{ material_id: number | null; sku: string; name: string; received_qty: string; unit_cost: string; search: string }>>([]);
     const [showMaterialForm, setShowMaterialForm] = useState<{ rowIndex: number; sku: string } | null>(null);
+    const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
 
     useEffect(() => {
         fetchIncomingPOs();
@@ -70,8 +79,8 @@ const InventoryReceptionPage: React.FC = () => {
             ]);
             const allPOs = [...(resEnviada.data || []), ...(resParcial.data || [])];
             setIncomingPOs(allPOs);
-        } catch (error) {
-            console.error("Error al cargar OCs en tránsito", error);
+        } catch {
+            toast.error('Error al cargar OCs en tránsito.');
             setIncomingPOs([]);
         } finally {
             setIsLoadingPOs(false);
@@ -82,17 +91,18 @@ const InventoryReceptionPage: React.FC = () => {
         if (!advanceModal.po) return;
         const amount = parseFloat(advanceAmount.replace(/,/g, ''));
         if (!amount || amount <= 0) {
-            return alert("Ingresa un monto válido mayor a $0.");
+            toast.warning('Ingresa un monto válido mayor a $0.');
+            return;
         }
         setAdvanceLoading(true);
         try {
             await axiosClient.post(`/purchases/orders/${advanceModal.po.id}/request-advance`, { amount });
-            alert(`✅ Anticipo de ${formatCurrency(amount)} registrado. Tesorería lo procesará.`);
+            toast.success(`Anticipo de ${formatCurrency(amount)} registrado. Tesorería lo procesará.`);
             setAdvanceModal({ open: false, po: null });
             setAdvanceAmount('');
             fetchIncomingPOs();
         } catch (err: any) {
-            alert(err.response?.data?.detail || "❌ Error al registrar el anticipo.");
+            toast.error(err.response?.data?.detail || 'Error al registrar el anticipo.');
         } finally {
             setAdvanceLoading(false);
         }
@@ -197,33 +207,8 @@ const InventoryReceptionPage: React.FC = () => {
         }
     };
 
-    const handleSubmit = async () => {
+    const executeReceiveSubmit = async () => {
         if (!selectedPO) return;
-        
-        if (!invoiceFolio || invoiceTotal === '') {
-            alert("Por favor ingresa el folio de la factura que trajo el chofer y el total exacto.");
-            return;
-        }
-
-        // Guard de folio duplicado (Hueco 2)
-        if (folioWarning && folioWarning.length > 0) {
-            const coincidencias = folioWarning
-                .map((c: any) => `OC #${c.purchase_order_id} — ${formatCurrency(c.total)} (${c.status})`)
-                .join('\n');
-            if (!window.confirm(
-                `⚠️ La factura "${invoiceFolio.trim()}" YA está registrada para este proveedor en:\n\n${coincidencias}\n\n` +
-                `Esto puede ser una OC duplicada. ¿Confirmas que es una factura DISTINTA con el mismo folio y deseas continuar?`
-            )) {
-                return;
-            }
-        }
-
-        // Validar discrepancia solo al confirmar
-        if (hasFinancialWarning) {
-            if (!window.confirm(`⚠️ El monto de la factura (${formatCurrency(Number(invoiceTotal))}) no coincide con el calculado (${formatCurrency(expectedTotal)}).\n\n¿Deseas confirmar el ingreso de todas formas? Administración revisará la diferencia.`)) {
-                return;
-            }
-        }
 
         setIsSubmitting(true);
         try {
@@ -259,51 +244,43 @@ const InventoryReceptionPage: React.FC = () => {
 
             await axiosClient.put(`/purchases/orders/${selectedPO.id}/receive`, payload);
 
-            alert("✅ Recepción completada. Inventario actualizado.");
-            setSelectedPO(null); 
-            fetchIncomingPOs(); 
-            
-        } catch (error) {
-            console.error(error);
-            alert("❌ Error al procesar la recepción.");
+            toast.success('Recepción completada. Inventario actualizado.');
+            setSelectedPO(null);
+            fetchIncomingPOs();
+        } catch (error: any) {
+            toast.error(error.response?.data?.detail || 'Error al procesar la recepción.');
         } finally {
             setIsSubmitting(false);
         }
     };
 
     // --- NUEVA FUNCIÓN: CANCELAR ENTREGA ---
-    const handleCancelOrder = async () => {
+    const executeCancelOrder = async () => {
         if (!selectedPO) return;
-        
-        if (!window.confirm(`⚠️ ¿Estás seguro de RECHAZAR la entrega y CANCELAR la orden ${selectedPO.folio}?\n\nEsta acción no se puede deshacer. Los materiales regresarán a la mesa de compras para pedirse a otro proveedor.`)) {
-            return;
-        }
 
         setIsCancelling(true);
         try {
             await axiosClient.put(`/purchases/orders/${selectedPO.id}/cancel`);
-            alert("🚫 Orden cancelada exitosamente. Los materiales están libres de nuevo.");
+            toast.success('Orden cancelada exitosamente. Los materiales están libres de nuevo.');
             setSelectedPO(null);
             fetchIncomingPOs();
-        } catch (error) {
-            console.error(error);
-            alert("❌ Error al cancelar la orden.");
+        } catch (error: any) {
+            toast.error(error.response?.data?.detail || 'Error al cancelar la orden.');
         } finally {
             setIsCancelling(false);
         }
     };
 
-    const handleDeclareSatisfied = async () => {
+    const executeDeclareSatisfied = async () => {
         if (!selectedPO) return;
-        if (!window.confirm(`¿Declarar la OC ${selectedPO.folio} como Satisfecha?\n\nEsto cerrará la orden aunque falten productos. Los faltantes deberán pedirse en una nueva OC.`)) return;
         setDeclaringSatisfied(true);
         try {
             await axiosClient.put(`/purchases/orders/${selectedPO.id}/declare-satisfied`);
-            alert("✅ OC declarada como Satisfecha.");
+            toast.success('OC declarada como Satisfecha.');
             setSelectedPO(null);
             fetchIncomingPOs();
         } catch (err: any) {
-            alert(err.response?.data?.detail || "❌ Error al declarar la OC como satisfecha.");
+            toast.error(err.response?.data?.detail || 'Error al declarar la OC como satisfecha.');
         } finally {
             setDeclaringSatisfied(false);
         }
@@ -478,6 +455,105 @@ const InventoryReceptionPage: React.FC = () => {
     const saldoConAnticipo = Math.max(0, invoiceTotalNum - advancePaid);
     const overpaid = hasAdvance && invoiceTotalNum > 0 && advancePaid > invoiceTotalNum;
     const overpaidAmount = overpaid ? Math.round((advancePaid - invoiceTotalNum) * 100) / 100 : 0;
+
+    const initiateSubmit = () => {
+        if (!selectedPO) return;
+
+        if (!invoiceFolio || invoiceTotal === '') {
+            toast.warning('Por favor ingresa el folio de la factura que trajo el chofer y el total exacto.');
+            return;
+        }
+
+        if (folioWarning && folioWarning.length > 0) {
+            setPendingConfirm({ kind: 'submitDuplicateFolio' });
+            return;
+        }
+
+        if (hasFinancialWarning) {
+            setPendingConfirm({ kind: 'submitFinancialMismatch' });
+            return;
+        }
+
+        void executeReceiveSubmit();
+    };
+
+    const getConfirmDialogProps = () => {
+        if (!pendingConfirm || !selectedPO) return null;
+
+        switch (pendingConfirm.kind) {
+            case 'cancel':
+                return {
+                    title: 'Rechazar y cancelar recepción',
+                    message: `¿Rechazar la entrega y cancelar la orden ${selectedPO.folio}?`,
+                    consequence: 'Esta acción no se puede deshacer. Los materiales regresarán a la mesa de compras para pedirse a otro proveedor.',
+                    variant: 'danger' as const,
+                    confirmLabel: 'Sí, cancelar OC',
+                };
+            case 'declareSatisfied':
+                return {
+                    title: 'Declarar OC satisfecha',
+                    message: `¿Declarar la OC ${selectedPO.folio} como Satisfecha?`,
+                    consequence: 'Esto cerrará la orden aunque falten productos. Los faltantes deberán pedirse en una nueva OC.',
+                    variant: 'default' as const,
+                    confirmLabel: 'Declarar satisfecha',
+                };
+            case 'submitDuplicateFolio': {
+                const coincidencias = (folioWarning || [])
+                    .map((c: any) => `OC #${c.purchase_order_id} — ${formatCurrency(c.total)} (${c.status})`)
+                    .join(', ');
+                return {
+                    title: 'Factura con folio duplicado',
+                    message: `La factura "${invoiceFolio.trim()}" ya está registrada para este proveedor: ${coincidencias}.`,
+                    consequence: 'Esto puede ser una OC duplicada. Confirma solo si es una factura distinta con el mismo folio.',
+                    variant: 'default' as const,
+                    confirmLabel: 'Confirmar ingreso',
+                };
+            }
+            case 'submitFinancialMismatch':
+                return {
+                    title: 'Discrepancia en el monto',
+                    message: `El monto de la factura (${formatCurrency(Number(invoiceTotal))}) no coincide con el calculado (${formatCurrency(expectedTotal)}).`,
+                    consequence: 'Administración revisará la diferencia si confirmas el ingreso de todas formas.',
+                    variant: 'default' as const,
+                    confirmLabel: 'Confirmar ingreso',
+                };
+            default:
+                return null;
+        }
+    };
+
+    const handleConfirmDialog = async () => {
+        if (!pendingConfirm) return;
+
+        try {
+            switch (pendingConfirm.kind) {
+                case 'cancel':
+                    await executeCancelOrder();
+                    setPendingConfirm(null);
+                    break;
+                case 'declareSatisfied':
+                    await executeDeclareSatisfied();
+                    setPendingConfirm(null);
+                    break;
+                case 'submitDuplicateFolio':
+                    if (hasFinancialWarning) {
+                        setPendingConfirm({ kind: 'submitFinancialMismatch' });
+                    } else {
+                        await executeReceiveSubmit();
+                        setPendingConfirm(null);
+                    }
+                    break;
+                case 'submitFinancialMismatch':
+                    await executeReceiveSubmit();
+                    setPendingConfirm(null);
+                    break;
+            }
+        } catch {
+            // Errors handled inside execute* functions via toast
+        }
+    };
+
+    const confirmDialogProps = getConfirmDialogProps();
 
     return (
         <>
@@ -767,7 +843,7 @@ const InventoryReceptionPage: React.FC = () => {
                 <div className="p-8 bg-slate-50/50 flex justify-between items-center border-t border-slate-100 mt-6">
                     <div className="flex gap-4">
                         <Button 
-                            onClick={handleSubmit} 
+                            onClick={initiateSubmit} 
                             disabled={isSubmitting || isCancelling}
                             className="font-black uppercase text-xs h-12 px-10 shadow-sm transition-colors bg-emerald-600 hover:bg-emerald-700 text-white"
                         >
@@ -776,7 +852,7 @@ const InventoryReceptionPage: React.FC = () => {
                         
                         {/* EL NUEVO BOTÓN DE PÁNICO */}
                         <Button 
-                            onClick={handleCancelOrder} 
+                            onClick={() => setPendingConfirm({ kind: 'cancel' })} 
                             disabled={isSubmitting || isCancelling} 
                             variant="outline"
                             className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300 hover:text-rose-700 font-black uppercase text-[10px] h-12 px-6 shadow-sm transition-all"
@@ -785,7 +861,7 @@ const InventoryReceptionPage: React.FC = () => {
                         </Button>
                         {canDeclare && selectedPO?.status === 'RECIBIDA_PARCIAL' && (
                             <Button
-                                onClick={handleDeclareSatisfied}
+                                onClick={() => setPendingConfirm({ kind: 'declareSatisfied' })}
                                 disabled={isSubmitting || declaringSatisfied}
                                 variant="outline"
                                 className="border-amber-300 text-amber-700 hover:bg-amber-50 font-black uppercase text-[10px] h-12 px-6 shadow-sm transition-all"
@@ -836,6 +912,19 @@ const InventoryReceptionPage: React.FC = () => {
                     selectMaterialForRow(showMaterialForm.rowIndex, mat);
                     setShowMaterialForm(null);
                 }}
+            />
+        )}
+
+        {confirmDialogProps && (
+            <VConfirmDialog
+                isOpen={pendingConfirm !== null}
+                title={confirmDialogProps.title}
+                message={confirmDialogProps.message}
+                consequence={confirmDialogProps.consequence}
+                variant={confirmDialogProps.variant}
+                confirmLabel={confirmDialogProps.confirmLabel}
+                onConfirm={handleConfirmDialog}
+                onCancel={() => setPendingConfirm(null)}
             />
         )}
         </>

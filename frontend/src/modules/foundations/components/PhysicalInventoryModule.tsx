@@ -3,6 +3,8 @@ import axiosClient from '../../../api/axios-client';
 import { ClipboardList, DollarSign, Printer, ClipboardCheck } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { MaterialForm } from './MaterialForm';
+import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import { toast } from '@/components/ui/VToast';
 
 type SubSection = 'CONTEO' | 'AJUSTES' | 'COSTEO' | null;
 type Tab = 'REPORTE' | 'CAPTURA';
@@ -39,7 +41,10 @@ const AjustesInventario: React.FC<{ materials: any[]; onSaved: () => void }> = (
     );
 
     const handleSave = async () => {
-        if (!selectedMat || !qty || !motivo.trim()) return alert('Completa todos los campos.');
+        if (!selectedMat || !qty || !motivo.trim()) {
+            toast.warning('Completa todos los campos.');
+            return;
+        }
         setSaving(true);
         try {
             await axiosClient.post(`/foundations/materials/${selectedMat.id}/adjust`, {
@@ -51,9 +56,9 @@ const AjustesInventario: React.FC<{ materials: any[]; onSaved: () => void }> = (
             setQty('');
             setMotivo('');
             onSaved();
-            alert('Ajuste aplicado correctamente.');
+            toast.success('Ajuste aplicado correctamente.');
         } catch (e: any) {
-            alert(e.response?.data?.detail || 'Error al aplicar ajuste.');
+            toast.error(e.response?.data?.detail || 'Error al aplicar ajuste.');
         } finally {
             setSaving(false);
         }
@@ -141,6 +146,7 @@ export const PhysicalInventoryModule = ({ activeSubSection, onSubSectionChange }
   const [quickSaved, setQuickSaved] = useState(false);
   const [skuNotFound, setSkuNotFound] = useState(false);
   const [showMaterialFormInCount, setShowMaterialFormInCount] = useState(false);
+  const [pendingConfirm, setPendingConfirm] = useState<{ kind: 'adjustAll'; count: number } | null>(null);
   const [fechaConteo, setFechaConteo] = useState<string>(
     new Date().toISOString().split('T')[0]   // hoy en formato YYYY-MM-DD
   );
@@ -227,14 +233,14 @@ export const PhysicalInventoryModule = ({ activeSubSection, onSubSectionChange }
       });
       setSavedIds(prev => [...prev, material.id]);
       await loadMaterials();
-    } catch { alert('Error al guardar ajuste.'); }
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || 'Error al guardar ajuste.');
+    }
     finally { setSaving(false); }
   };
 
-  const handleAdjustAll = async () => {
+  const executeAdjustAll = async () => {
     const entries = Object.entries(countEntries).filter(([, v]) => v !== '');
-    if (entries.length === 0) return alert('No hay cantidades capturadas.');
-    if (!confirm(`¿Confirmas aplicar ${entries.length} ajuste(s) de inventario?`)) return;
     setSaving(true);
     try {
       for (const [id, val] of entries) {
@@ -247,8 +253,20 @@ export const PhysicalInventoryModule = ({ activeSubSection, onSubSectionChange }
       }
       await loadMaterials();
       setCountEntries({});
-    } catch { alert('Error al guardar ajustes.'); }
-    finally { setSaving(false); }
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || 'Error al guardar ajustes.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAdjustAll = () => {
+    const entries = Object.entries(countEntries).filter(([, v]) => v !== '');
+    if (entries.length === 0) {
+      toast.warning('No hay cantidades capturadas.');
+      return;
+    }
+    setPendingConfirm({ kind: 'adjustAll', count: entries.length });
   };
 
   const handleSkuSearch = (sku: string) => {
@@ -295,8 +313,8 @@ export const PhysicalInventoryModule = ({ activeSubSection, onSubSectionChange }
               setSkuNotFound(false);
               skuInputRef.current?.focus();
           }, 800);
-      } catch {
-          alert('Error al guardar ajuste.');
+      } catch (error: any) {
+          toast.error(error.response?.data?.detail || 'Error al guardar ajuste.');
       } finally {
           setSaving(false);
       }
@@ -721,6 +739,20 @@ export const PhysicalInventoryModule = ({ activeSubSection, onSubSectionChange }
               }}
           />
       )}
+
+      <VConfirmDialog
+        isOpen={pendingConfirm?.kind === 'adjustAll'}
+        title="Confirmar ajustes de inventario"
+        message={`¿Confirmas aplicar ${pendingConfirm?.count ?? 0} ajuste(s) de inventario?`}
+        consequence="Se actualizará el stock físico de los materiales capturados según las cantidades contadas."
+        variant="warning"
+        confirmLabel="Aplicar ajustes"
+        onConfirm={async () => {
+          await executeAdjustAll();
+          setPendingConfirm(null);
+        }}
+        onCancel={() => setPendingConfirm(null)}
+      />
     </div>
   );
 
