@@ -1,11 +1,15 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Receipt, CheckCircle, Clock, FileText, Package, AlertCircle, PieChart, Users, Coins, Pencil, Plus, Trash2, Check } from 'lucide-react';
+import { X, Receipt, CheckCircle, Clock, FileText, Package, AlertCircle, PieChart, Users, Coins, Pencil, Plus, Trash2, Check, XCircle } from 'lucide-react';
 import { SalesOrder } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
+import axiosClient from '../../../api/axios-client';
 import { AddItemsModal } from '../../sales/components/AddItemsModal';
 import { toast } from '@/components/ui/VToast';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import Modal from '@/components/ui/Modal';
+import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
 
 type OrderStatementPendingConfirm =
     | { kind: 'CANCEL_OV' }
@@ -128,6 +132,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
 }) => {
     const navigate = useNavigate();
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase();
+    const hasAbsolutePower = ['ADMIN', 'ADMINISTRADOR', 'ADMINISTRACIÓN', 'ADMINISTRATION', 'FINANCE', 'FINANZAS', 'DIRECTOR', 'DIRECCION', 'DIRECTION', 'GERENCIA', 'MANAGER'].includes(userRole);
     const canEditOcInRayos = !readOnly && ['ADMIN', 'ADMINISTRADOR', 'GERENCIA', 'DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
     const canEditProjectName = ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'GERENCIA', 'SALES', 'VENTAS'].includes(userRole);
     const canEditAdvance = ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'GERENCIA'].includes(userRole);
@@ -172,6 +177,15 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const [commissionByPaymentId, setCommissionByPaymentId] = useState<
         Record<number, { id: number; is_paid: boolean }>
     >({});
+
+    const [editPaymentModal, setEditPaymentModal] = useState<{ open: boolean; cxc: any | null }>({ open: false, cxc: null });
+    const [editPaymentForm, setEditPaymentForm] = useState<{ invoice_folio: string; invoice_date: string; amount: string; notes: string }>({
+        invoice_folio: '', invoice_date: '', amount: '', notes: '',
+    });
+    const [cancelPaymentModal, setCancelPaymentModal] = useState<{ open: boolean; cxc: any | null }>({ open: false, cxc: null });
+    const [cancelPaymentReason, setCancelPaymentReason] = useState<string>('');
+    const [savingPaymentEdit, setSavingPaymentEdit] = useState(false);
+    const [cancellingPayment, setCancellingPayment] = useState(false);
 
     // ESCUDO: Aniquilar clones en la lista visual de Rayos X
     const uniqueItems = useMemo(() => {
@@ -295,6 +309,95 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
             } finally {
                 setLoadingInstallments(null);
             }
+        }
+    };
+
+    const handleOpenEditPayment = (cxc: any) => {
+        setEditPaymentForm({
+            invoice_folio: cxc.invoice_folio || '',
+            invoice_date: cxc.invoice_date ? cxc.invoice_date.slice(0, 10) : '',
+            amount: String(cxc.amount || ''),
+            notes: cxc.notes || '',
+        });
+        setEditPaymentModal({ open: true, cxc });
+    };
+
+    const handleSaveEditPayment = async () => {
+        if (!editPaymentModal.cxc || !order.id) return;
+        const cxc = editPaymentModal.cxc;
+        const notesOnly = cxc.status === 'PAID' || !!cxc.treasury_transaction_id;
+        const body: Record<string, string | number> = {};
+
+        if (notesOnly) {
+            if (editPaymentForm.notes !== (cxc.notes || '')) {
+                body.notes = editPaymentForm.notes;
+            }
+        } else {
+            if (editPaymentForm.invoice_folio !== (cxc.invoice_folio || '')) {
+                body.invoice_folio = editPaymentForm.invoice_folio;
+            }
+            const origDate = cxc.invoice_date ? cxc.invoice_date.slice(0, 10) : '';
+            if (editPaymentForm.invoice_date !== origDate) {
+                body.invoice_date = editPaymentForm.invoice_date
+                    ? `${editPaymentForm.invoice_date}T12:00:00`
+                    : '';
+            }
+            const newAmount = parseFloat(editPaymentForm.amount);
+            const origAmount = Number(cxc.amount || 0);
+            if (!isNaN(newAmount) && newAmount !== origAmount) {
+                body.amount = newAmount;
+            }
+            if (editPaymentForm.notes !== (cxc.notes || '')) {
+                body.notes = editPaymentForm.notes;
+            }
+        }
+
+        if (Object.keys(body).length === 0) {
+            setEditPaymentModal({ open: false, cxc: null });
+            return;
+        }
+
+        setSavingPaymentEdit(true);
+        try {
+            await axiosClient.patch(`/sales/orders/${order.id}/payments/${cxc.id}`, body);
+            setEditPaymentModal({ open: false, cxc: null });
+            toast.success('Factura actualizada');
+            await onSuccess();
+        } catch (error: any) {
+            if (error.response?.status === 422) {
+                toast.error(error.response?.data?.detail || 'Error al actualizar la factura');
+            } else {
+                toast.error('Error al actualizar la factura');
+            }
+        } finally {
+            setSavingPaymentEdit(false);
+        }
+    };
+
+    const handleCancelPayment = async () => {
+        if (!cancelPaymentModal.cxc || !order.id) return;
+        if (!cancelPaymentReason.trim()) {
+            toast.warning('Debes ingresar un motivo');
+            return;
+        }
+        setCancellingPayment(true);
+        try {
+            await axiosClient.patch(
+                `/sales/orders/${order.id}/payments/${cancelPaymentModal.cxc.id}/cancel`,
+                { cancel_reason: cancelPaymentReason },
+            );
+            setCancelPaymentModal({ open: false, cxc: null });
+            setCancelPaymentReason('');
+            toast.success('Factura cancelada');
+            await onSuccess();
+        } catch (error: any) {
+            if (error.response?.status === 422) {
+                toast.error(error.response?.data?.detail || 'Error al cancelar la factura');
+            } else {
+                toast.error('Error al cancelar la factura');
+            }
+        } finally {
+            setCancellingPayment(false);
         }
     };
 
@@ -761,6 +864,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                             <th className="p-3 text-center">Días</th>
                                             <th className="p-3 text-right">Cobro</th>
                                             <th className="p-3 text-right">Comisión</th>
+                                            <th className="p-3 w-16"></th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
@@ -773,6 +877,19 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                             const isFacturaCancelada = cxc.status === 'CANCELLED';
                                             const isExpanded = expandedInvoiceId === cxc.id;
                                             const daysOpen = daysOpenForCxc(cxc);
+                                            const hasTreasuryPayment = !!cxc.treasury_transaction_id;
+                                            const canEditRow =
+                                                hasAbsolutePower
+                                                && !isFacturaCancelada
+                                                && (
+                                                    (cxc.status === 'PENDING' && !hasTreasuryPayment)
+                                                    || isFacturaPagada
+                                                    || hasTreasuryPayment
+                                                );
+                                            const canCancelRow =
+                                                hasAbsolutePower
+                                                && cxc.status === 'PENDING'
+                                                && !hasTreasuryPayment;
 
                                             return (
                                                 <React.Fragment key={cxc.id}>
@@ -864,11 +981,38 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                             <span className="text-slate-300 text-xs">—</span>
                                                         )}
                                                     </td>
+                                                    <td className="p-3 text-center">
+                                                        {canEditRow && (
+                                                            <div className="flex items-center justify-center gap-1.5">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleOpenEditPayment(cxc)}
+                                                                    className="text-slate-400 hover:text-indigo-600"
+                                                                    title={hasTreasuryPayment || isFacturaPagada ? 'Editar notas' : 'Editar factura'}
+                                                                >
+                                                                    <Pencil size={15} />
+                                                                </button>
+                                                                {canCancelRow && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setCancelPaymentReason('');
+                                                                            setCancelPaymentModal({ open: true, cxc });
+                                                                        }}
+                                                                        className="text-slate-400 hover:text-rose-600"
+                                                                        title="Cancelar factura"
+                                                                    >
+                                                                        <XCircle size={15} />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </td>
                                                 </tr>
 
                                                 {isExpanded && (
                                                     <tr className="bg-slate-50/70">
-                                                        <td colSpan={7} className="p-4">
+                                                        <td colSpan={8} className="p-4">
                                                             <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 shadow-sm">
                                                                 {loadingInstallments === cxc.id ? (
                                                                     <p className="text-xs text-slate-500 italic flex items-center gap-2">
@@ -1221,6 +1365,142 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                     await refreshOrderInPlace();
                 }}
             />
+        )}
+        {editPaymentModal.open && editPaymentModal.cxc && (
+            <Modal
+                isOpen={editPaymentModal.open}
+                onClose={() => setEditPaymentModal({ open: false, cxc: null })}
+                title={`Editar Factura ${editPaymentModal.cxc.invoice_folio || 'S/F'}`}
+                size="sm"
+            >
+                <div className="flex flex-col gap-4">
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                        Esta factura ya fue timbrada en Compaq. Los cambios en Valentina son internos y no modifican el CFDI fiscal.
+                    </div>
+                    {(() => {
+                        const notesOnly =
+                            editPaymentModal.cxc.status === 'PAID'
+                            || !!editPaymentModal.cxc.treasury_transaction_id;
+                        return (
+                            <>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                        Folio de factura
+                                    </label>
+                                    <Input
+                                        type="text"
+                                        value={editPaymentForm.invoice_folio}
+                                        onChange={(e) => setEditPaymentForm((f) => ({ ...f, invoice_folio: e.target.value }))}
+                                        disabled={notesOnly}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                        Fecha de factura
+                                    </label>
+                                    <Input
+                                        type="date"
+                                        value={editPaymentForm.invoice_date}
+                                        onChange={(e) => setEditPaymentForm((f) => ({ ...f, invoice_date: e.target.value }))}
+                                        disabled={notesOnly}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                        Importe
+                                    </label>
+                                    <Input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={editPaymentForm.amount}
+                                        onChange={(e) => setEditPaymentForm((f) => ({ ...f, amount: e.target.value }))}
+                                        disabled={notesOnly || !!editPaymentModal.cxc.treasury_transaction_id}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                        Notas
+                                    </label>
+                                    <Input
+                                        type="text"
+                                        value={editPaymentForm.notes}
+                                        onChange={(e) => setEditPaymentForm((f) => ({ ...f, notes: e.target.value }))}
+                                    />
+                                </div>
+                            </>
+                        );
+                    })()}
+                    <div className="flex items-center justify-between gap-4 pt-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => setEditPaymentModal({ open: false, cxc: null })}
+                            disabled={savingPaymentEdit}
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            onClick={() => void handleSaveEditPayment()}
+                            disabled={savingPaymentEdit}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+                        >
+                            {savingPaymentEdit ? 'Guardando…' : 'Guardar cambios'}
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
+        )}
+        {cancelPaymentModal.open && cancelPaymentModal.cxc && (
+            <Modal
+                isOpen={cancelPaymentModal.open}
+                onClose={() => {
+                    if (cancellingPayment) return;
+                    setCancelPaymentModal({ open: false, cxc: null });
+                    setCancelPaymentReason('');
+                }}
+                title="Cancelar Factura"
+                size="sm"
+            >
+                <div className="flex flex-col gap-4">
+                    <p className="text-sm text-slate-600 leading-relaxed">
+                        Esta acción cancela la factura en Valentina y libera las instancias vinculadas.
+                        Asegúrate de haber cancelado también el CFDI en Compaq antes de continuar.
+                    </p>
+                    <div>
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                            Motivo de cancelación *
+                        </label>
+                        <Input
+                            type="text"
+                            autoFocus
+                            placeholder="Describe el motivo..."
+                            value={cancelPaymentReason}
+                            onChange={(e) => setCancelPaymentReason(e.target.value)}
+                        />
+                    </div>
+                    <div className="flex items-center justify-between gap-4 pt-2">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setCancelPaymentModal({ open: false, cxc: null });
+                                setCancelPaymentReason('');
+                            }}
+                            disabled={cancellingPayment}
+                            className="px-6 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-black rounded-lg transition-colors disabled:opacity-50"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => void handleCancelPayment()}
+                            disabled={cancellingPayment}
+                            className="px-5 py-2 font-bold rounded-lg transition-colors disabled:opacity-50 bg-red-600 hover:bg-red-700 text-white"
+                        >
+                            {cancellingPayment ? 'Procesando…' : 'Confirmar cancelación'}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         )}
         {pendingConfirm && (
             <VConfirmDialog
