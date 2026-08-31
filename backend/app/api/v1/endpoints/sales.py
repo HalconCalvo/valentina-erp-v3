@@ -31,6 +31,8 @@ from app.schemas.sales_schema import (
     SalesOrderItemCreate,
     AddItemsPayload,
     CustomerPaymentRead,
+    CustomerPaymentUpdate,
+    CustomerPaymentCancel,
 )
 
 class PaymentPayload(BaseModel):
@@ -1945,6 +1947,121 @@ def update_payment_commission(
     session.commit()
     session.refresh(payment)
     return {"ok": True, "commission_paid": payment.commission_paid}
+
+
+@router.patch("/orders/{order_id}/payments/{payment_id}", response_model=CustomerPaymentRead)
+def update_customer_payment(
+    order_id: int,
+    payment_id: int,
+    data: CustomerPaymentUpdate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    allowed = {UserRole.DIRECTOR, UserRole.MANAGER, UserRole.ADMIN}
+    if current_user.role not in allowed:
+        raise HTTPException(status_code=403, detail="Sin permisos para editar facturas de cliente.")
+
+    payment = session.get(CustomerPayment, payment_id)
+    if not payment or payment.sales_order_id != order_id:
+        raise HTTPException(status_code=404, detail="Factura no encontrada en esta orden.")
+
+    updates = data.model_dump(exclude_unset=True)
+
+    if payment.treasury_transaction_id is not None:
+        forbidden = set(updates.keys()) - {"notes"}
+        if forbidden:
+            raise HTTPException(
+                status_code=422,
+                detail="This invoice has a registered payment. Only notes can be edited.",
+            )
+        if "notes" in updates:
+            payment.notes = updates["notes"]
+    else:
+        instance_ids = updates.pop("instance_ids", None)
+        for field, value in updates.items():
+            setattr(payment, field, value)
+
+        if instance_ids is not None:
+            current_linked = session.exec(
+                select(SalesOrderItemInstance).where(
+                    SalesOrderItemInstance.customer_payment_id == payment_id
+                )
+            ).all()
+            for inst in current_linked:
+                inst.customer_payment_id = None
+                session.add(inst)
+
+            for iid in instance_ids:
+                inst = session.exec(
+                    select(SalesOrderItemInstance)
+                    .join(
+                        SalesOrderItem,
+                        SalesOrderItemInstance.sales_order_item_id == SalesOrderItem.id,
+                    )
+                    .where(
+                        SalesOrderItemInstance.id == iid,
+                        SalesOrderItem.sales_order_id == order_id,
+                    )
+                ).first()
+                if not inst:
+                    raise HTTPException(
+                        status_code=422,
+                        detail="Instance not found or does not belong to this order.",
+                    )
+                inst.customer_payment_id = payment_id
+                session.add(inst)
+
+    session.add(payment)
+    session.commit()
+    session.refresh(payment)
+    return payment
+
+
+@router.patch("/orders/{order_id}/payments/{payment_id}/cancel", response_model=CustomerPaymentRead)
+def cancel_customer_payment(
+    order_id: int,
+    payment_id: int,
+    data: CustomerPaymentCancel,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    allowed = {UserRole.DIRECTOR, UserRole.MANAGER}
+    if current_user.role not in allowed:
+        raise HTTPException(status_code=403, detail="Sin permisos para cancelar facturas de cliente.")
+
+    payment = session.get(CustomerPayment, payment_id)
+    if not payment or payment.sales_order_id != order_id:
+        raise HTTPException(status_code=404, detail="Factura no encontrada en esta orden.")
+
+    if payment.status != CXCStatus.PENDING:
+        raise HTTPException(
+            status_code=422,
+            detail="Only pending invoices can be cancelled.",
+        )
+
+    if payment.treasury_transaction_id is not None:
+        raise HTTPException(
+            status_code=422,
+            detail="This invoice has a registered payment. Reverse the bank transaction first.",
+        )
+
+    payment.status = CXCStatus.CANCELLED
+    payment.notes = (payment.notes or "") + f" | CANCELLED: {data.cancel_reason}"
+
+    linked_instances = session.exec(
+        select(SalesOrderItemInstance).where(
+            SalesOrderItemInstance.customer_payment_id == payment_id
+        )
+    ).all()
+    for inst in linked_instances:
+        inst.customer_payment_id = None
+        session.add(inst)
+
+    session.add(payment)
+    session.commit()
+    session.refresh(payment)
+    return payment
+
 
 # ==========================================
 # 8. REPORTE DE COMISIONES

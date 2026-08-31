@@ -1269,3 +1269,22 @@ reconoce el error y regresa a su rol sin defensividad.
 - sanear_recetas.py
 - sanear_recetas_v2.py
 - Mover a scripts/ o agregar a .gitignore
+
+---
+## SESIÓN 2026-08-31 (tarde) — Editar OC frontend
+### Completado:
+- Frontend editar OC — PurchaseOrdersModule.tsx:
+  * Edición inline de overhead_category en card de OC (Enter/Blur guarda, Escape cancela)
+  * Botón Pencil por item → modal editar partida (qty, costo, descripción)
+  * Botón XCircle por item → modal cancelar partida con motivo obligatorio
+  * Cancelación en cascada: si todos los items cancelados → OC pasa a CANCELADA
+  * Solo visible para DIRECTOR, MANAGER, ADMIN
+  * Usa VModal, VConfirmDialog, VToast — 0 violaciones de principios
+- Campo exchange_rate eliminado (Koloka opera 100% en MXN)
+- Commit: d755534
+### Estado de Editar OC:
+- Backend: COMPLETO ✓
+- Frontend: COMPLETO ✓
+### Siguiente pendiente:
+- Editar y cancelar Factura cliente (ALTA)
+- Bug folio duplicado en rollback (producción)

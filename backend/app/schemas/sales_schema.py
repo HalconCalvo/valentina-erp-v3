@@ -203,3 +203,21 @@ class SalesOrderUpdate(SQLModel):
     total_price: Optional[float] = None
 
     items: Optional[List[SalesOrderItemCreate]] = None
+
+
+# ==========================================
+# EDICIÓN Y CANCELACIÓN DE CXC (Customer Payments)
+# ==========================================
+
+class CustomerPaymentUpdate(BaseModel):
+    """Campos editables de una factura/cobro de cliente (todos opcionales — PATCH)."""
+    invoice_folio: Optional[str] = None
+    invoice_date: Optional[datetime] = None
+    amount: Optional[float] = None
+    notes: Optional[str] = None
+    instance_ids: Optional[List[int]] = None
+
+
+class CustomerPaymentCancel(BaseModel):
+    """Payload para cancelar una factura/cobro pendiente."""
+    cancel_reason: str
