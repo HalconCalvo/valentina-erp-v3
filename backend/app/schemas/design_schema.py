@@ -53,12 +53,16 @@ class ProductVersionCreate(ProductVersionBase):
     master_id: int
     components: List[VersionComponentCreate] = []
 
+class ProductVersionUpdate(SQLModel):
+    commercial_description: Optional[str] = None
+
 class ProductVersionRead(ProductVersionBase):
     id: int
     master_id: int
     created_at: datetime
     components: List[VersionComponentRead] = []
     blueprint_path: Optional[str] = None
+    commercial_description: Optional[str] = None
     
     # === LA SOLUCIÓN ===
     # Aquí inyectamos el objeto completo del Producto Padre

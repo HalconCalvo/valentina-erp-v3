@@ -38,7 +38,7 @@ from datetime import datetime
 # Schemas
 from app.schemas.design_schema import (
     ProductMasterCreate, ProductMasterRead,
-    ProductVersionCreate, ProductVersionRead
+    ProductVersionCreate, ProductVersionRead, ProductVersionUpdate
 )
 
 router = APIRouter()
@@ -338,6 +338,29 @@ def create_product_version(
     session.refresh(db_version)
     
     return db_version
+
+@router.patch("/versions/{version_id}", response_model=ProductVersionRead)
+def patch_product_version(
+    version_id: int,
+    data: ProductVersionUpdate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    allowed = {UserRole.DIRECTOR, UserRole.MANAGER, UserRole.ADMIN, UserRole.DESIGN}
+    if current_user.role not in allowed:
+        raise HTTPException(status_code=403, detail="Sin permisos.")
+
+    version = session.get(ProductVersion, version_id)
+    if not version:
+        raise HTTPException(status_code=404, detail="Versión no encontrada")
+
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(version, field, value)
+
+    session.add(version)
+    session.commit()
+    session.refresh(version)
+    return version
 
 @router.put("/versions/{version_id}", response_model=ProductVersionRead)
 def update_product_version(

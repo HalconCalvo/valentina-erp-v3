@@ -1465,3 +1465,40 @@ No tiene modelo propio. Editar y cancelar ya está cubierto por:
 - PATCH /purchases/invoices/{invoice_id} (construido hoy)
 - Frontend PayablesModule ya muestra botones Editar/Cancelar
 No se requiere trabajo adicional para este pendiente.
+
+---
+## SESIÓN 2026-08-31 (tarde) — Gasto Operativo CRUD completo
+### Completado:
+**Backend:**
+- PATCH /purchases/operational-expenses/{id} — editar gasto
+  * Roles: DIRECTOR, MANAGER, ADMIN
+  * Con pagos: solo due_date editable
+  * Sin pagos: todos los campos
+- PATCH /purchases/operational-expenses/{id}/cancel — cancelar gasto
+  * Roles: DIRECTOR, MANAGER, ADMIN
+  * 422 si ya cancelado o tiene pagos
+  * UPDATE status = CANCELADO + nota con motivo
+- Schemas: OperationalExpenseUpdate, OperationalExpenseCancel en finance_schema.py
+- Commit: e628ae8
+**Frontend (OperationalExpensesPanel):**
+- Botón Pencil + XCircle por gasto PENDIENTE
+- Badge CANCELADO para gastos cancelados
+- Modal editar: folio, importe, fecha, categoría
+- Modal cancelar: motivo obligatorio + advertencia
+- Commit: 2f9cdb8
+### CRUD PENDIENTES — ESTADO FINAL HOY:
+- Editar OC (cabecera e items) ✓ COMPLETO
+- Editar/cancelar Factura cliente ✓ COMPLETO
+- Bug folio duplicado rollback ✓ RESUELTO
+- Editar Factura proveedor ✓ COMPLETO
+- Cancelar/editar Movimiento bancario ✓ COMPLETO
+- Anticipo proveedor ✓ CUBIERTO (usa PurchaseInvoice)
+- Editar/cancelar Gasto operativo ✓ COMPLETO
+### Otros cambios de hoy:
+- fix: trailing slash en /foundations/materials (DesignCatalogPage)
+- feat: autocomplete materiales en modal Editar Partida OC
+- Principio permanente: autocomplete en todos los campos de entidades
+### Pendientes para próxima sesión:
+1. Descripción técnica por instancia (ALTA)
+2. Menús MANAGER, DIRECTOR, SALES, PRODUCTION, LOGISTICS
+3. Scripts sueltos en raíz: mover a scripts/ o agregar a .gitignore

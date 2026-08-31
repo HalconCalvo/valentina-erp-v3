@@ -54,6 +54,7 @@ class ProductVersion(SQLModel, table=True):
     
     is_active: bool = Field(default=True)
     blueprint_path: Optional[str] = Field(default=None)
+    commercial_description: Optional[str] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     
     # Relaciones

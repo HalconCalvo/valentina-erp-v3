@@ -67,9 +67,11 @@ class SalesOrderItemInstanceBase(SQLModel):
 class SalesOrderItemInstanceRead(SalesOrderItemInstanceBase):
     id: int
     sales_order_item_id: int
+    description_override: Optional[str] = None
 
 class SalesOrderItemInstanceUpdate(SQLModel):
     custom_name: Optional[str] = None
+    description_override: Optional[str] = None
     production_status: Optional[InstanceStatus] = None
     production_batch_id: Optional[int] = None
     is_cancelled: Optional[bool] = None

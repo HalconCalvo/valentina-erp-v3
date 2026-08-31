@@ -33,6 +33,8 @@ from app.schemas.sales_schema import (
     CustomerPaymentRead,
     CustomerPaymentUpdate,
     CustomerPaymentCancel,
+    SalesOrderItemInstanceUpdate,
+    SalesOrderItemInstanceRead,
 )
 
 class PaymentPayload(BaseModel):
@@ -690,6 +692,30 @@ def delete_order_instance(
     except Exception as e:
         session.rollback()
         raise HTTPException(500, f"Error al eliminar instancia: {e}")
+
+
+@router.patch("/instances/{instance_id}", response_model=SalesOrderItemInstanceRead)
+def update_sales_order_instance(
+    instance_id: int,
+    data: SalesOrderItemInstanceUpdate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    allowed = {UserRole.DIRECTOR, UserRole.MANAGER, UserRole.ADMIN, UserRole.SALES, UserRole.DESIGN}
+    if current_user.role not in allowed:
+        raise HTTPException(status_code=403, detail="Sin permisos.")
+
+    instance = session.get(SalesOrderItemInstance, instance_id)
+    if not instance:
+        raise HTTPException(status_code=404, detail="Instancia no encontrada")
+
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(instance, field, value)
+
+    session.add(instance)
+    session.commit()
+    session.refresh(instance)
+    return instance
 
 
 @router.delete("/orders/{order_id}/items/{item_id}/resale")

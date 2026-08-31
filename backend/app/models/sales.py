@@ -142,6 +142,7 @@ class SalesOrderItemInstance(SQLModel, table=True):
     sales_order_item_id: int = Field(foreign_key="sales_order_items.id")
     
     custom_name: str = Field(index=True)
+    description_override: Optional[str] = Field(default=None)
     # Identificación de la casa física (para agrupar instancias por casa).
     # Una casa se identifica por street + lot dentro de una OV.
     street: Optional[str] = Field(default=None, index=True)   # calle
