@@ -370,3 +370,67 @@ app/
 - NO modificar modelos sin considerar migración de Alembic
 - NO eliminar campos de modelos existentes
 - NO hacer commits sin que Claude haya verificado la migración
+
+
+---
+
+## ARQUITECTURA BACKEND — SECCIÓN CRÍTICA (leer antes de tocar cualquier archivo Python)
+
+### Las 4 capas del backend de Valentina son OBLIGATORIAS e INAMOVIBLES:
+
+CAPA A — ENDPOINT (app/api/v1/endpoints/{dominio}.py)
+  Hace: recibir HTTP, validar rol, llamar al Service, devolver respuesta
+  NO hace: lógica de negocio, queries a BD, cálculos
+  Tamaño máximo: 20 líneas por función
+
+CAPA B — SERVICE (app/services/{dominio}_service.py)  ← AÚN NO EXISTE, SE CREA EN FASE 2
+  Hace: toda la lógica de negocio, orquestar operaciones, manejar transacciones
+  NO hace: queries directas a BD, conocer HTTP
+  Tamaño máximo: 50 líneas por función
+
+CAPA C — REPOSITORY (app/repositories/{dominio}_repository.py)  ← AÚN NO EXISTE, SE CREA EN FASE 2
+  Hace: queries a la BD, retornar modelos o None
+  NO hace: lógica de negocio, lanzar HTTPException
+  Tamaño máximo: 30 líneas por función
+
+CAPA D — DATABASE (PostgreSQL via SQLModel)
+  Hace: persistir datos
+  Modelos en: app/models/{dominio}.py
+
+### REGLA QUE CURSOR DEBE REPETIRSE ANTES DE ESCRIBIR CÓDIGO PYTHON:
+"¿Este código es lógica de negocio? → Va en services/"
+"¿Este código es una query a BD? → Va en repositories/"
+"¿Este código es una ruta HTTP? → Va en endpoints/ y llama al service"
+
+### ESTADO ACTUAL DE LA MIGRACIÓN:
+- services/ y repositories/ NO existen todavía
+- Todo el código está actualmente en endpoints/ (deuda técnica)
+- La migración es GRADUAL: todo código NUEVO va en la capa correcta
+- El código existente se migra cuando se toca por otra razón
+
+### EJEMPLO CORRECTO:
+# endpoints/sales.py
+@router.post("/orders")
+def create_order(data: SalesOrderCreate, session: Session, user: CurrentUser):
+    return sales_service.create_order(session, data, user)  # 3 líneas, delega al service
+
+# services/sales_service.py
+def create_order(session, data, user):
+    _validate_client_exists(session, data.client_id)
+    order = _build_order(data, user)
+    session.add(order)
+    session.commit()
+    session.refresh(order)
+    return order
+
+### EJEMPLO INCORRECTO (viola la arquitectura):
+# endpoints/sales.py  ← NUNCA así
+@router.post("/orders")
+def create_order(data, session, user):
+    client = session.get(Client, data.client_id)  # query en endpoint
+    if not client:
+        raise HTTPException(404)
+    order = SalesOrder(...)  # construcción en endpoint
+    session.add(order)       # commit en endpoint
+    session.commit()
+    return order
