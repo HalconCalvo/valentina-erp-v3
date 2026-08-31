@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
+import { toast } from '@/components/ui/VToast';
 
 interface SignaturePadProps {
   onSave: (dataUrl: string) => void;
@@ -11,7 +12,7 @@ export default function SignaturePad({ onSave, onCancel }: SignaturePadProps) {
 
   const handleSave = () => {
     if (!sigRef.current || sigRef.current.isEmpty()) {
-      alert('Por favor recaba la firma antes de guardar.');
+      toast.warning('Por favor recaba la firma antes de guardar.');
       return;
     }
     const dataUrl = sigRef.current.getTrimmedCanvas().toDataURL('image/png');

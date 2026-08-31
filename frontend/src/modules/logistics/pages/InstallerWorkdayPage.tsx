@@ -10,6 +10,7 @@ import {
 } from '../../../api/logistics-service';
 import QRScanner from '../components/QRScanner';
 import SignaturePad from '../components/SignaturePad';
+import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 
 type View = 'list' | 'detail' | 'qr' | 'confirm' | 'photos' | 'signature';
 
@@ -30,6 +31,7 @@ export default function InstallerWorkdayPage() {
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showMarkInstalledConfirm, setShowMarkInstalledConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const userRole =
@@ -157,7 +159,6 @@ export default function InstallerWorkdayPage() {
 
   const handleMarkInstalled = async () => {
     if (!selected) return;
-    if (!window.confirm('¿Confirmar que el trabajo físico está terminado?')) return;
     const assignmentId = selected.assignment_id;
     try {
       await markAssignmentInstalled(assignmentId);
@@ -392,7 +393,7 @@ export default function InstallerWorkdayPage() {
               {selected.assignment_status === 'CARGADO' && (
                 <button
                   type="button"
-                  onClick={() => void handleMarkInstalled()}
+                  onClick={() => setShowMarkInstalledConfirm(true)}
                   className="w-full py-4 rounded-2xl bg-green-500 text-white font-semibold active:bg-green-600"
                 >
                   ✅ Trabajo Terminado
@@ -532,6 +533,20 @@ export default function InstallerWorkdayPage() {
           />
         </>
       )}
+
+      <VConfirmDialog
+        isOpen={showMarkInstalledConfirm}
+        title="Trabajo terminado"
+        message="¿Confirmar que el trabajo físico está terminado?"
+        consequence="La asignación pasará a estado instalado y quedará pendiente la firma del cliente."
+        variant="default"
+        confirmLabel="Sí, confirmar"
+        onConfirm={async () => {
+          setShowMarkInstalledConfirm(false);
+          await handleMarkInstalled();
+        }}
+        onCancel={() => setShowMarkInstalledConfirm(false)}
+      />
     </div>
   );
 }
