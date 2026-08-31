@@ -18,6 +18,8 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
+import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import { toast } from '@/components/ui/VToast';
 import { SalesOrderItem, SalesOrderStatus } from '../../../types/sales';
 
 // --- HELPERS DE FORMATO ---
@@ -102,6 +104,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
     const [selectedResaleSku, setSelectedResaleSku] = useState('');
     const [resaleSearch, setResaleSearch] = useState('');
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
+    const [showRecalculateConfirm, setShowRecalculateConfirm] = useState(false);
 
     useEffect(() => {
         const loadCatalogs = async () => {
@@ -118,7 +121,9 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                 setResaleList(Array.isArray(resaleRes.data) ? resaleRes.data : []);
 
                 if (!isEditMode) fetchUserCommission();
-            } catch (error) { console.error("Error cargando catálogos", error); }
+            } catch {
+                toast.error('Error al cargar catálogos.');
+            }
         };
         loadCatalogs();
     }, []); 
@@ -137,7 +142,9 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                     }
                 }
             }
-        } catch (e) { console.error(e); } 
+        } catch {
+            toast.error('Error al cargar la comisión del usuario.');
+        } 
         finally { setLoadingCommission(false); }
     };
 
@@ -187,9 +194,8 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                         if (savedRate > 1) savedRate = savedRate / 100;
                         setCommissionRate(savedRate);
                     }
-                } catch (error) {
-                    console.error(error);
-                    alert("Error al cargar cotización.");
+                } catch {
+                    toast.error('Error al cargar cotización.');
                     navigate('/sales');
                 } finally { setLoadingData(false); }
             };
@@ -288,7 +294,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
     const handleClientChange = (e: React.ChangeEvent<HTMLSelectElement>) => { setHeader({...header, client_id: Number(e.target.value)}); setSelectedCategory(''); setLineItem({...lineItem, master_id: 0, version_id: 0, unit_price: 0, frozen_cost: 0}); setEditingIndex(null); };
     
     const handleAddItem = () => {
-        if (lineItem.quantity <= 0 || lineItem.unit_price <= 0) { alert("Precio/Cantidad inválidos"); return; }
+        if (lineItem.quantity <= 0 || lineItem.unit_price <= 0) { toast.warning('Precio/Cantidad inválidos'); return; }
         let productName = lineItem.manual_name;
         if (addMode === 'CATALOG') {
             let foundMaster = masters.find(m => m.id === Number(lineItem.master_id));
@@ -298,7 +304,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
             else productName = "Producto de Catálogo";
         } else if (addMode === 'RESALE') {
             if (!selectedResaleSku) {
-                alert('Selecciona un accesorio de reventa.');
+                toast.warning('Selecciona un accesorio de reventa.');
                 return;
             }
             const mat = resaleList.find((m) => m.sku === selectedResaleSku);
@@ -349,10 +355,13 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
         // guardadas no tienen desglosado (solo frozen_unit_cost sin IVA). Recalcular desde ahí
         // borraría ese ajuste, así que no aplicamos el recálculo masivo.
         if (selectedTaxRate && Number(selectedTaxRate.rate) === 0) {
-            alert("En cotizaciones con IVA tasa cero, vuelve a seleccionar la versión del producto para recalcular su precio con el IVA de materiales. El recálculo masivo no aplica aquí.");
+            toast.warning('En cotizaciones con IVA tasa cero, vuelve a seleccionar la versión del producto para recalcular su precio con el IVA de materiales. El recálculo masivo no aplica aquí.');
             return;
         }
-        if(!confirm(`¿Estás seguro de recalcular TODOS los precios usando un margen del ${header.applied_margin_percent}% y comisión del ${(commissionRate * 100).toFixed(1)}%? Esto sobrescribirá precios manuales.`)) return;
+        setShowRecalculateConfirm(true);
+    };
+
+    const executeRecalculatePrices = () => {
         const rawMargin = Number(header.applied_margin_percent) || 0;
         const commission = Number(commissionRate) || 0;
         let marginMultiplier = 1;
@@ -365,7 +374,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
             return item;
         });
         setItems(newItems);
-        alert("Precios actualizados.");
+        toast.success('Precios actualizados.');
     };
 
     const handleSubmit = async (targetStatus?: SalesOrderStatus) => {
@@ -375,7 +384,10 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
         if (!header.tax_rate_id) missingFields.push("Impuesto (IVA)");
         if (items.length === 0) missingFields.push("Al menos 1 Producto");
 
-        if (missingFields.length > 0) { alert(`⚠️ No se puede guardar. Faltan:\n\n- ${missingFields.join("\n- ")}`); return; }
+        if (missingFields.length > 0) {
+            toast.warning(`No se puede guardar. Faltan: ${missingFields.join(', ')}`);
+            return;
+        }
 
         setSaving(true);
         try {
@@ -401,17 +413,19 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
             if (isEditMode && id) {
                 if (targetStatus === SalesOrderStatus.ACCEPTED) {
                    await salesService.authorizeOrder(Number(id));
-                   alert("✅ Cotización AUTORIZADA correctamente.");
+                   toast.success('Cotización AUTORIZADA correctamente.');
                 } else {
                    await salesService.updateOrder(Number(id), payload);
-                   alert("✅ Cotización Actualizada.");
+                   toast.success('Cotización actualizada.');
                 }
             } else {
                 await salesService.createOrder(payload);
-                alert("✅ Cotización Creada Exitosamente.");
+                toast.success('Cotización creada exitosamente.');
             }
             navigate('/sales'); 
-        } catch (error: any) { alert("Error al guardar: " + (error.response?.data?.detail || error.message)); } 
+        } catch (error: any) {
+            toast.error(error.response?.data?.detail || 'Error al guardar la cotización.');
+        } 
         finally { setSaving(false); }
     };
 
@@ -794,6 +808,19 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
             </div>
 
 
+            <VConfirmDialog
+                isOpen={showRecalculateConfirm}
+                title="Recalcular precios"
+                message={`¿Recalcular TODOS los precios usando un margen del ${header.applied_margin_percent}% y comisión del ${(commissionRate * 100).toFixed(1)}%?`}
+                consequence="Esto sobrescribirá los precios manuales de todas las partidas con costo congelado."
+                variant="default"
+                confirmLabel="Sí, recalcular"
+                onConfirm={() => {
+                    executeRecalculatePrices();
+                    setShowRecalculateConfirm(false);
+                }}
+                onCancel={() => setShowRecalculateConfirm(false)}
+            />
         </div>
     );
 };

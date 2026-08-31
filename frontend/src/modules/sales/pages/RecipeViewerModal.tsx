@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, FileText, Package, DollarSign, Layers } from 'lucide-react';
 import { SalesOrderItem } from '../../../types/sales';
+import { toast } from '@/components/ui/VToast';
 
 interface RecipeViewerModalProps {
     item: SalesOrderItem | null;
@@ -24,8 +25,8 @@ export const RecipeViewerModal: React.FC<RecipeViewerModalProps> = ({ item, onCl
         } else if (item.cost_snapshot) {
             recipeData = item.cost_snapshot;
         }
-    } catch (e) {
-        console.error("Error leyendo la receta", e);
+    } catch {
+        toast.error('Error al leer la receta guardada.');
     }
 
     const hasData = Object.keys(recipeData).length > 0;

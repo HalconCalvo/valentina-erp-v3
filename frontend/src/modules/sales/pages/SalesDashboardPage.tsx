@@ -12,6 +12,8 @@ import {
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
+import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import { toast } from '@/components/ui/VToast';
 
 import { salesService } from '../../../api/sales-service';
 import { SalesOrder } from '../../../types/sales';
@@ -29,6 +31,14 @@ type SalesSection = 'GOALS' | 'QUOTES' | 'COLLECTIONS' | 'MONITOR' | null;
 type GoalDetailView = 'COMMISSIONS' | 'CLOSED' | 'STREET' | 'EFFECTIVENESS' | null;
 type QuoteDetailView = 'DRAFTS' | 'REVIEW' | 'AUTHORIZED' | 'EXPIRING' | 'HISTORY' | null;
 type CollectionDetailView = 'RETAINED' | 'PAYABLE' | 'ADVANCES' | 'AR_AGING' | null;
+
+type SalesPendingConfirm =
+    | { kind: 'REQUEST_AUTH'; orderId: number }
+    | { kind: 'GENERATE_OV'; orderId: number }
+    | { kind: 'DUPLICATE_OV'; orderId: number; folio: string; dateStrYmd: string; duplicateId: number; projectName: string }
+    | { kind: 'REQUEST_CHANGES'; orderId: number }
+    | { kind: 'MARK_LOST'; orderId: number }
+    | { kind: 'DELETE_DRAFT'; orderId: number };
 
 const COLLECTION_DETAIL_KEYS: CollectionDetailView[] = ['RETAINED', 'PAYABLE', 'ADVANCES', 'AR_AGING'];
 
@@ -98,12 +108,12 @@ const ClientOcCaptureModal: React.FC<{
     const handleSubmit = async () => {
         const trimmed = folioRef.current?.value?.trim() ?? '';
         if (!trimmed) {
-            alert('Ingresa el folio de la OC del cliente.');
+            toast.warning('Ingresa el folio de la OC del cliente.');
             return;
         }
         const dateStr = dateRef.current?.value ?? '';
         if (!dateStr) {
-            alert('Selecciona la fecha de la OC del cliente.');
+            toast.warning('Selecciona la fecha de la OC del cliente.');
             return;
         }
         await onConfirm(orderId, trimmed, dateStr);
@@ -230,6 +240,7 @@ const SalesDashboardPage: React.FC = () => {
     const [monthlyQuota, setMonthlyQuota] = useState(0);
     const [ocModalOpen, setOcModalOpen] = useState(false);
     const [ocModalOrderId, setOcModalOrderId] = useState<number | null>(null);
+    const [pendingConfirm, setPendingConfirm] = useState<SalesPendingConfirm | null>(null);
 
     useEffect(() => {
         client.get('/users/me')
@@ -272,8 +283,8 @@ const SalesDashboardPage: React.FC = () => {
         try {
             const uniqueOrders = await loadSalesOrdersWithAdministrationAgingCxc();
             setOrders(uniqueOrders as SalesOrder[]);
-        } catch (error) {
-            console.error("Error cargando cotizaciones:", error);
+        } catch {
+            toast.error('Error al cargar cotizaciones.');
         } finally {
             if (!silent) setIsLoading(false);
         }
@@ -372,8 +383,7 @@ const SalesDashboardPage: React.FC = () => {
         calculateMetrics(orders);
     }, [orders, calculateMetrics]);
 
-    const handleRequestAuth = async (orderId: number) => {
-        if (!window.confirm("¿Estás seguro de enviar esta cotización a Dirección para su revisión y autorización?")) return;
+    const executeRequestAuth = async (orderId: number) => {
         setIsLoading(true);
         try {
             const token = localStorage.getItem('token');
@@ -383,22 +393,44 @@ const SalesDashboardPage: React.FC = () => {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (!response.ok) throw new Error('Error al solicitar autorización');
-            // Optimista: la cotización pasa a SENT y sale de Borradores de inmediato
             setOrders(prev => prev.map(o =>
                 o.id === orderId ? { ...o, status: 'SENT' as any } : o
             ));
-            await loadData();   // confirma con el backend
-        } catch (error) {
-            alert("Hubo un problema al enviar la cotización a revisión.");
+            await loadData();
+        } catch {
+            toast.error('Hubo un problema al enviar la cotización a revisión.');
             setIsLoading(false);
         }
     };
 
+    const handleRequestAuth = (orderId: number) => {
+        setPendingConfirm({ kind: 'REQUEST_AUTH', orderId });
+    };
+
     /** Solo desde cotización ACCEPTED — acción &quot;Generar OV&quot; (no reutilizar para otras filas). */
     const openClientOcModal = (orderId: number) => {
-        if (!window.confirm('¿Generar la orden de venta (OV)? Deberás capturar el folio y la fecha de la OC del cliente; luego se validará el semáforo financiero (3%).')) return;
-        setOcModalOrderId(orderId);
-        setOcModalOpen(true);
+        setPendingConfirm({ kind: 'GENERATE_OV', orderId });
+    };
+
+    const executeAdvanceRequest = async (orderId: number, folio: string, dateStrYmd: string) => {
+        setIsLoading(true);
+        try {
+            const client_po_date = `${dateStrYmd}T12:00:00`;
+            await salesService.requestAdvance(orderId, { client_po_folio: folio, client_po_date });
+            setOcModalOpen(false);
+            setOcModalOrderId(null);
+            toast.success("SEMÁFORO VERDE: Los costos son estables. La orden ha pasado a 'Esperando Anticipo'.");
+            await loadData();
+        } catch (error: any) {
+            if (error.response?.status === 409) {
+                toast.error(error.response?.data?.detail || 'Alerta financiera: variación de costos superior al umbral.');
+                await loadData();
+            } else {
+                toast.error(error.response?.data?.detail || 'Error al procesar la orden de venta.');
+            }
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const submitClientOcModal = async (orderId: number, folio: string, dateStrYmd: string) => {
@@ -410,34 +442,18 @@ const SalesDashboardPage: React.FC = () => {
             (o.project_name || '').trim().toLowerCase() === (current.project_name || '').trim().toLowerCase() &&
             ACTIVE_STATUSES.includes(o.status)
         );
-        if (posibleDuplicado) {
-            const seguir = window.confirm(
-                `⚠ Posible duplicado.\n\n` +
-                `Ya existe una OV activa para este cliente y proyecto "${current!.project_name}" ` +
-                `(OV #${posibleDuplicado.id}, estado ${posibleDuplicado.status}).\n\n` +
-                `¿Seguro que deseas generar otra OV? Si no es un duplicado, continúa.`
-            );
-            if (!seguir) return;
+        if (posibleDuplicado && current) {
+            setPendingConfirm({
+                kind: 'DUPLICATE_OV',
+                orderId,
+                folio,
+                dateStrYmd,
+                duplicateId: posibleDuplicado.id as number,
+                projectName: current.project_name || '',
+            });
+            return;
         }
-
-        setIsLoading(true);
-        try {
-            const client_po_date = `${dateStrYmd}T12:00:00`;
-            await salesService.requestAdvance(orderId, { client_po_folio: folio, client_po_date });
-            setOcModalOpen(false);
-            setOcModalOrderId(null);
-            alert("🟢 SEMÁFORO VERDE: Los costos son estables. La orden ha pasado a 'Esperando Anticipo'.");
-            await loadData();
-        } catch (error: any) {
-            if (error.response?.status === 409) {
-                alert(`🔴 ALERTA FINANCIERA\n\n${error.response.data.detail}`);
-                await loadData();
-            } else {
-                alert("Error al procesar: " + (error.response?.data?.detail || error.message));
-            }
-        } finally {
-            setIsLoading(false);
-        }
+        await executeAdvanceRequest(orderId, folio, dateStrYmd);
     };
 
     const handleViewPDF = async (orderId: number) => {
@@ -445,7 +461,7 @@ const SalesDashboardPage: React.FC = () => {
         if (pdfWindow) {
             pdfWindow.document.write('<div style="font-family: sans-serif; padding: 40px; text-align: center; color: #666;"><h3>Generando documento PDF...</h3><p>Por favor espere un momento.</p></div>');
         } else {
-            alert("⚠️ Tu navegador bloqueó la ventana emergente. Por favor permite las ventanas emergentes para este sitio en la barra de direcciones.");
+            toast.warning('Tu navegador bloqueó la ventana emergente. Por favor permite las ventanas emergentes para este sitio en la barra de direcciones.');
             return;
         }
         setIsLoading(true);
@@ -455,47 +471,56 @@ const SalesDashboardPage: React.FC = () => {
             pdfWindow.location.href = fileURL;
         } catch (error: any) {
             pdfWindow.close(); 
-            alert("Error al cargar el PDF. Revisa tu conexión o contacta a soporte.");
+            toast.error(error.response?.data?.detail || 'Error al cargar el PDF. Revisa tu conexión o contacta a soporte.');
         } finally {
             setIsLoading(false);
         }
     };
 
-    const handleRequestChanges = async (orderId: number) => {
-        if (!window.confirm("¿El cliente solicitó ajustes? La cotización regresará al estatus de Borrador (Desbloqueada) para que la edites.")) return;
+    const executeRequestChanges = async (orderId: number) => {
         setIsLoading(true);
         try {
             await client.post(`/sales/orders/${orderId}/request_changes`);
-            alert("Cotización desbloqueada. Búscala en tus Borradores para editarla.");
+            toast.success('Cotización desbloqueada. Búscala en tus Borradores para editarla.');
             await loadData();
         } catch (error: any) {
-            alert("Error al procesar: " + (error.response?.data?.detail || error.message));
+            toast.error(error.response?.data?.detail || 'Error al desbloquear la cotización.');
             setIsLoading(false);
         }
     };
 
-    const handleMarkLost = async (orderId: number) => {
-        if (!window.confirm("¿Estás seguro de marcar esta cotización como PERDIDA? Esta acción cerrará el proyecto.")) return;
+    const handleRequestChanges = (orderId: number) => {
+        setPendingConfirm({ kind: 'REQUEST_CHANGES', orderId });
+    };
+
+    const executeMarkLost = async (orderId: number) => {
         setIsLoading(true);
         try {
             await client.post(`/sales/orders/${orderId}/mark_lost`);
             await loadData();
         } catch (error: any) {
-            alert("Error al procesar: " + (error.response?.data?.detail || error.message));
+            toast.error(error.response?.data?.detail || 'Error al marcar la cotización como perdida.');
             setIsLoading(false);
         }
     };
 
-    const handleDeleteDraft = async (orderId: number) => {
-        if (!window.confirm("¿Estás seguro de eliminar este borrador de forma permanente? Esta acción no se puede deshacer.")) return;
+    const handleMarkLost = (orderId: number) => {
+        setPendingConfirm({ kind: 'MARK_LOST', orderId });
+    };
+
+    const executeDeleteDraft = async (orderId: number) => {
         setIsLoading(true);
         try {
             await client.delete(`/sales/orders/${orderId}`);
             await loadData();
         } catch (error: any) {
-            alert("Error al eliminar: " + (error.response?.data?.detail || error.message));
+            toast.error(error.response?.data?.detail || 'Error al eliminar el borrador.');
             setIsLoading(false);
         }
+    };
+
+    const handleDeleteDraft = (orderId: number) => {
+        setPendingConfirm({ kind: 'DELETE_DRAFT', orderId });
     };
 
     const formatCurrency = (amount: number) => amount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
@@ -1013,7 +1038,7 @@ const SalesDashboardPage: React.FC = () => {
             setSavedOrders(prev => new Set([...prev, orderId]));
             await loadData(true);
         } catch {
-            alert('Error al guardar los alias. Verifica la conexión.');
+            toast.error('Error al guardar los alias. Verifica la conexión.');
         } finally {
             setSavingInstances(false);
         }
@@ -1751,6 +1776,109 @@ const SalesDashboardPage: React.FC = () => {
                         setIsLoading(false);
                     }}
                     onConfirm={(oid, folio, dateStrYmd) => submitClientOcModal(oid, folio, dateStrYmd)}
+                />
+            )}
+
+            {pendingConfirm?.kind === 'REQUEST_AUTH' && (
+                <VConfirmDialog
+                    isOpen
+                    title="Enviar a autorización"
+                    message="¿Enviar esta cotización a Dirección para su revisión y autorización?"
+                    consequence="La cotización pasará a Esperando Autorización y quedará bloqueada para edición hasta la respuesta de Dirección."
+                    variant="default"
+                    confirmLabel="Sí, enviar"
+                    onConfirm={async () => {
+                        const { orderId } = pendingConfirm;
+                        setPendingConfirm(null);
+                        await executeRequestAuth(orderId);
+                    }}
+                    onCancel={() => setPendingConfirm(null)}
+                />
+            )}
+
+            {pendingConfirm?.kind === 'GENERATE_OV' && (
+                <VConfirmDialog
+                    isOpen
+                    title="Generar orden de venta"
+                    message="¿Generar la orden de venta (OV)? Deberás capturar el folio y la fecha de la OC del cliente."
+                    consequence="Después se validará el semáforo financiero (3%) antes de pasar a Esperando Anticipo."
+                    variant="default"
+                    confirmLabel="Continuar"
+                    onConfirm={() => {
+                        const { orderId } = pendingConfirm;
+                        setPendingConfirm(null);
+                        setOcModalOrderId(orderId);
+                        setOcModalOpen(true);
+                    }}
+                    onCancel={() => setPendingConfirm(null)}
+                />
+            )}
+
+            {pendingConfirm?.kind === 'DUPLICATE_OV' && (
+                <VConfirmDialog
+                    isOpen
+                    title="Posible OV duplicada"
+                    message={`Ya existe una OV activa para este cliente y proyecto "${pendingConfirm.projectName}" (OV #${pendingConfirm.duplicateId}). ¿Generar otra OV de todos modos?`}
+                    consequence="Si no es un duplicado real, puedes continuar; de lo contrario, cancela para evitar órdenes repetidas."
+                    variant="warning"
+                    confirmLabel="Sí, generar otra OV"
+                    onConfirm={async () => {
+                        const { orderId, folio, dateStrYmd } = pendingConfirm;
+                        setPendingConfirm(null);
+                        await executeAdvanceRequest(orderId, folio, dateStrYmd);
+                    }}
+                    onCancel={() => setPendingConfirm(null)}
+                />
+            )}
+
+            {pendingConfirm?.kind === 'REQUEST_CHANGES' && (
+                <VConfirmDialog
+                    isOpen
+                    title="Solicitar cambios"
+                    message="¿El cliente solicitó ajustes? La cotización regresará al estatus de Borrador (Desbloqueada) para que la edites."
+                    consequence="Podrás modificar partidas y condiciones desde la sección de Borradores."
+                    variant="default"
+                    confirmLabel="Sí, desbloquear"
+                    onConfirm={async () => {
+                        const { orderId } = pendingConfirm;
+                        setPendingConfirm(null);
+                        await executeRequestChanges(orderId);
+                    }}
+                    onCancel={() => setPendingConfirm(null)}
+                />
+            )}
+
+            {pendingConfirm?.kind === 'MARK_LOST' && (
+                <VConfirmDialog
+                    isOpen
+                    title="Marcar como perdida"
+                    message="¿Marcar esta cotización como PERDIDA?"
+                    consequence="Esta acción cerrará el proyecto y no podrás reactivarlo."
+                    variant="danger"
+                    confirmLabel="Sí, marcar perdida"
+                    onConfirm={async () => {
+                        const { orderId } = pendingConfirm;
+                        setPendingConfirm(null);
+                        await executeMarkLost(orderId);
+                    }}
+                    onCancel={() => setPendingConfirm(null)}
+                />
+            )}
+
+            {pendingConfirm?.kind === 'DELETE_DRAFT' && (
+                <VConfirmDialog
+                    isOpen
+                    title="Eliminar borrador"
+                    message="¿Eliminar este borrador de forma permanente?"
+                    consequence="Esta acción no se puede deshacer."
+                    variant="danger"
+                    confirmLabel="Sí, eliminar"
+                    onConfirm={async () => {
+                        const { orderId } = pendingConfirm;
+                        setPendingConfirm(null);
+                        await executeDeleteDraft(orderId);
+                    }}
+                    onCancel={() => setPendingConfirm(null)}
                 />
             )}
 

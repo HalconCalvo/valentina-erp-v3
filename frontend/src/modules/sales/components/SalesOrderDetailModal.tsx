@@ -7,6 +7,7 @@ import {
 // IMPORTACIONES CORREGIDAS (LA CAUSA DEL CORTO CIRCUITO)
 import Modal from '@/components/ui/Modal'; 
 import { Button } from '@/components/ui/Button';
+import { toast } from '@/components/ui/VToast';
 
 import { CustomerPayment, SalesOrder } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
@@ -76,8 +77,8 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
             setClientPoFolio((data as any).client_po_folio || '');
             const raw = (data as any).client_po_date;
             setClientPoDate(raw ? String(raw).slice(0, 10) : '');
-        } catch (error) {
-            console.error(error);
+        } catch {
+            toast.error('Error al cargar el detalle de la orden.');
         } finally {
             setLoading(false);
         }
@@ -118,9 +119,8 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
             // @ts-ignore
             await salesService.updateOrder(orderId, { notes, conditions, advance_percent: advancePercent });
             setIsEditingAdvance(false);
-        } catch (error) {
-            console.error(error);
-            alert("Error al guardar cambios.");
+        } catch {
+            toast.error('Error al guardar cambios.');
         } finally {
             setIsSaving(false);
         }
@@ -135,9 +135,9 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
             setEditingName(false);
         } catch (err: any) {
             if (err?.response?.status === 403) {
-                alert('No tienes permisos para editar el nombre del proyecto.');
+                toast.error('No tienes permisos para editar el nombre del proyecto.');
             } else {
-                alert('Error al guardar el nombre del proyecto.');
+                toast.error(err?.response?.data?.detail || 'Error al guardar el nombre del proyecto.');
             }
         } finally {
             setSavingName(false);
@@ -157,9 +157,8 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
             await salesService.updateOrder(orderId, body as Partial<SalesOrder>);
             const data = await salesService.getOrderDetail(orderId);
             setOrder(data);
-        } catch (error) {
-            console.error(error);
-            alert("Error al guardar OC del cliente.");
+        } catch (error: any) {
+            toast.error(error?.response?.data?.detail || 'Error al guardar OC del cliente.');
         } finally {
             setIsSaving(false);
         }
@@ -174,9 +173,8 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
             
             const filename = `Cotizacion_${order.project_name.replace(/\s+/g, '_')}.pdf`;
             await salesService.downloadPDF(orderId, filename);
-        } catch (error) {
-            console.error(error);
-            alert("Error al generar el PDF.");
+        } catch (error: any) {
+            toast.error(error?.response?.data?.detail || 'Error al generar el PDF.');
         } finally {
             setIsDownloading(false);
         }

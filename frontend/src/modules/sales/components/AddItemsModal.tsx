@@ -5,6 +5,7 @@ import { salesService } from '../../../api/sales-service';
 import { designService } from '../../../api/design-service';
 import axiosClient from '../../../api/axios-client';
 import { useFoundations } from '../../foundations/hooks/useFoundations';
+import { toast } from '@/components/ui/VToast';
 
 interface AddItemsModalProps {
     isOpen: boolean;
@@ -90,8 +91,8 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
                 ]);
                 setMasters(filteredMasters || []);
                 setResaleList(Array.isArray(resaleRes.data) ? resaleRes.data : []);
-            } catch (error) {
-                console.error('Error cargando catálogo', error);
+            } catch {
+                toast.error('Error al cargar el catálogo.');
             } finally {
                 setLoadingCatalog(false);
             }
@@ -164,7 +165,7 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
 
     const handleAddToStaging = () => {
         if (lineItem.quantity <= 0 || lineItem.unit_price <= 0) {
-            alert('Captura cantidad y precio unitario válidos.');
+            toast.warning('Captura cantidad y precio unitario válidos.');
             return;
         }
 
@@ -181,7 +182,7 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
             else productName = 'Producto de Catálogo';
         } else if (addMode === 'RESALE') {
             if (!selectedResaleSku) {
-                alert('Selecciona un accesorio de reventa.');
+                toast.warning('Selecciona un accesorio de reventa.');
                 return;
             }
             const mat = resaleList.find((m) => m.sku === selectedResaleSku);
@@ -189,7 +190,7 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
         }
 
         if (!productName) {
-            alert('Indica el nombre del producto.');
+            toast.warning('Indica el nombre del producto.');
             return;
         }
 
@@ -226,8 +227,7 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
             onSuccess();
             onClose();
         } catch (error: any) {
-            console.error('Error al ampliar la orden:', error);
-            alert(error.response?.data?.detail || 'No se pudieron agregar las partidas.');
+            toast.error(error.response?.data?.detail || 'No se pudieron agregar las partidas.');
         } finally {
             setIsLoading(false);
         }
