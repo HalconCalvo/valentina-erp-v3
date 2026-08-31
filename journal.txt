@@ -1288,3 +1288,34 @@ reconoce el error y regresa a su rol sin defensividad.
 ### Siguiente pendiente:
 - Editar y cancelar Factura cliente (ALTA)
 - Bug folio duplicado en rollback (producción)
+
+---
+## SESIÓN 2026-08-31 (tarde) — Editar y cancelar Factura Cliente
+### Completado:
+**Backend:**
+- PATCH /orders/{order_id}/payments/{payment_id} — editar factura cliente
+  * Roles: DIRECTOR, MANAGER, ADMIN
+  * Con treasury_transaction_id: solo notas editables
+  * Sin treasury_transaction_id: folio, fecha, importe, notas, instancias
+  * Reasignación de instancias: desvincula actuales y vincula nuevas
+- PATCH /orders/{order_id}/payments/{payment_id}/cancel — cancelar factura
+  * Roles: DIRECTOR, MANAGER (ADMIN no puede cancelar)
+  * Solo si PENDING y sin treasury_transaction_id
+  * Desvincula instancias, agrega motivo a notes
+- Schemas: CustomerPaymentUpdate, CustomerPaymentCancel en sales_schema.py
+- Commits: 6c6d96c (backend), d73717b (frontend)
+**Frontend (OrderStatementModal):**
+- Botón Pencil por factura — editar folio, fecha, importe, notas
+- Botón XCircle por factura — cancelar con motivo obligatorio
+- Nota amarilla: advertencia sobre CFDI en Compaq
+- Importe deshabilitado si ya tiene pago en tesorería
+- Solo visible para hasAbsolutePower
+### Decisiones arquitectónicas de esta sesión:
+- Koloka NO cancela CFDIs en Compaq — Valentina corrige internamente
+- Valentina registra DESPUÉS de timbrar en Compaq
+- Cancelar factura es excepcional — requiere motivo obligatorio
+- amount NO es editable si hay treasury_transaction_id
+### Siguiente pendiente:
+- Bug folio duplicado en rollback de recepción (accounts_payable)
+- Editar Factura proveedor
+- Cancelar Movimiento bancario

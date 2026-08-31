@@ -1525,17 +1525,27 @@ def correct_reception_item(*, db: Session = Depends(get_session), po_id: int, it
             _nuevo_sub = max(_sub_actual - monto_revertido, 0.0)
             _nuevo_tax = round(_nuevo_sub * _rate, 2)
             _nuevo_total = round(_nuevo_sub + _nuevo_tax, 2)
-            _nuevo_status = "CANCELADO" if _nuevo_total <= 0.01 else "PENDIENTE"
-            db.exec(text("""
-                UPDATE accounts_payable
-                SET subtotal = :s, tax_amount = :t, total_amount = :tot, status = :st
-                WHERE id = :i
-            """).bindparams(s=round(_nuevo_sub, 2), t=_nuevo_tax, tot=_nuevo_total, st=_nuevo_status, i=_ap_id))
-            db.exec(text("""
-                UPDATE purchase_invoices
-                SET subtotal = :s, tax_amount = :t, total_amount = :tot
-                WHERE accounts_payable_id = :ap_id
-            """).bindparams(s=round(_nuevo_sub, 2), t=_nuevo_tax, tot=_nuevo_total, ap_id=_ap_id))
+            if _nuevo_total <= 0.01:
+                # Total llegó a cero — eliminar el registro para liberar el folio
+                db.exec(text("""
+                    DELETE FROM purchase_invoices
+                    WHERE accounts_payable_id = :ap_id
+                """).bindparams(ap_id=_ap_id))
+                db.exec(text("""
+                    DELETE FROM accounts_payable
+                    WHERE id = :i
+                """).bindparams(i=_ap_id))
+            else:
+                db.exec(text("""
+                    UPDATE accounts_payable
+                    SET subtotal = :s, tax_amount = :t, total_amount = :tot, status = 'PENDIENTE'
+                    WHERE id = :i
+                """).bindparams(s=round(_nuevo_sub, 2), t=_nuevo_tax, tot=_nuevo_total, i=_ap_id))
+                db.exec(text("""
+                    UPDATE purchase_invoices
+                    SET subtotal = :s, tax_amount = :t, total_amount = :tot
+                    WHERE accounts_payable_id = :ap_id
+                """).bindparams(s=round(_nuevo_sub, 2), t=_nuevo_tax, tot=_nuevo_total, ap_id=_ap_id))
             break  # solo la factura más reciente involucrada
 
         # --- 3) Reabrir el renglón en la OC ---
