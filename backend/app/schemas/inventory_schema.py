@@ -1,5 +1,6 @@
 from typing import List, Optional, Dict
 from datetime import datetime
+from pydantic import BaseModel
 from sqlmodel import SQLModel
 
 # --- INPUTS (Lo que recibimos del Frontend) ---
@@ -114,3 +115,26 @@ class StockMovementCreate(SQLModel):
     unit_cost: Optional[float] = None
     reference: Optional[str] = None
     notes: Optional[str] = None
+
+
+# ==========================================
+# SCHEMAS: EDICIÓN Y CANCELACIÓN DE OC
+# ==========================================
+
+class PurchaseOrderItemUpdate(BaseModel):
+    """Campos editables de una partida de OC (todos opcionales — PATCH)."""
+    quantity_ordered: Optional[float] = None
+    expected_unit_cost: Optional[float] = None
+    custom_description: Optional[str] = None
+
+
+class PurchaseOrderItemCancel(BaseModel):
+    """Payload para cancelar una partida de OC sin recepción."""
+    cancel_reason: str
+
+
+class PurchaseOrderUpdate(BaseModel):
+    """Campos editables de una OC (todos opcionales — PATCH)."""
+    provider_id: Optional[int] = None
+    exchange_rate: Optional[float] = None
+    overhead_category: Optional[str] = None

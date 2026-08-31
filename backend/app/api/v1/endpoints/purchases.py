@@ -16,6 +16,7 @@ from app.services.purchase_manager import PurchaseManager
 from app.services.pdf_generator import PDFGenerator
 from app.services.email_service import send_purchase_order_email
 from app.services.inventory_manager import registrar_movimiento_inventario
+from app.schemas.inventory_schema import PurchaseOrderUpdate, PurchaseOrderItemUpdate, PurchaseOrderItemCancel
 
 router = APIRouter()
 
@@ -1579,3 +1580,131 @@ def correct_reception_item(*, db: Session = Depends(get_session), po_id: int, it
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error al corregir recepción: {str(e)}")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# EDICIÓN Y CANCELACIÓN DE PARTIDAS (post-creación, pre-recepción)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _resolve_role(current_user) -> str:
+    return (current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)).upper()
+
+
+@router.patch("/orders/{po_id}")
+def update_purchase_order(
+    *,
+    db: Session = Depends(get_session),
+    po_id: int,
+    data: PurchaseOrderUpdate,
+    current_user: CurrentUser,
+):
+    if _resolve_role(current_user) not in ["DIRECTOR", "MANAGER", "ADMIN"]:
+        raise HTTPException(status_code=403, detail="Sin permisos para editar órdenes de compra.")
+
+    po = db.get(PurchaseOrder, po_id)
+    if not po:
+        raise HTTPException(status_code=404, detail="Orden de compra no encontrada.")
+
+    if po.status == "CANCELADA" or "RECIBIDA_TOTAL" in po.status:
+        raise HTTPException(
+            status_code=422,
+            detail="Purchase order cannot be edited in its current status",
+        )
+
+    if po.status == "AUTORIZADA":
+        po.status = "DRAFT"
+
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(po, field, value)
+
+    db.add(po)
+    db.commit()
+    db.refresh(po)
+    return po
+
+
+@router.patch("/orders/{po_id}/items/{item_id}")
+def update_purchase_order_item(
+    *,
+    db: Session = Depends(get_session),
+    po_id: int,
+    item_id: int,
+    data: PurchaseOrderItemUpdate,
+    current_user: CurrentUser,
+):
+    if _resolve_role(current_user) not in ["DIRECTOR", "MANAGER", "ADMIN"]:
+        raise HTTPException(status_code=403, detail="Sin permisos para editar partidas de órdenes de compra.")
+
+    po = db.get(PurchaseOrder, po_id)
+    if not po:
+        raise HTTPException(status_code=404, detail="Orden de compra no encontrada.")
+
+    item = db.get(PurchaseOrderItem, item_id)
+    if not item or item.purchase_order_id != po_id:
+        raise HTTPException(status_code=404, detail="Partida no encontrada en esta orden.")
+
+    if item.is_cancelled:
+        raise HTTPException(status_code=422, detail="Cannot edit a cancelled item")
+
+    incoming = data.model_dump(exclude_unset=True)
+    new_qty = incoming.get("quantity_ordered")
+    if new_qty is not None and new_qty < (item.quantity_received or 0):
+        raise HTTPException(
+            status_code=422,
+            detail="Cannot reduce quantity below already received amount",
+        )
+
+    if po.status == "AUTORIZADA":
+        po.status = "DRAFT"
+        db.add(po)
+
+    for field, value in incoming.items():
+        setattr(item, field, value)
+
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.patch("/orders/{po_id}/items/{item_id}/cancel")
+def cancel_purchase_order_item(
+    *,
+    db: Session = Depends(get_session),
+    po_id: int,
+    item_id: int,
+    data: PurchaseOrderItemCancel,
+    current_user: CurrentUser,
+):
+    if _resolve_role(current_user) not in ["DIRECTOR", "MANAGER", "ADMIN"]:
+        raise HTTPException(status_code=403, detail="Sin permisos para cancelar partidas.")
+
+    po = db.get(PurchaseOrder, po_id)
+    if not po:
+        raise HTTPException(status_code=404, detail="Orden de compra no encontrada.")
+
+    item = db.get(PurchaseOrderItem, item_id)
+    if not item or item.purchase_order_id != po_id:
+        raise HTTPException(status_code=404, detail="Partida no encontrada en esta orden.")
+
+    if (item.quantity_received or 0) > 0:
+        raise HTTPException(
+            status_code=422,
+            detail="Cannot cancel an item that has already been received",
+        )
+
+    item.is_cancelled = True
+    item.cancel_reason = data.cancel_reason
+    db.add(item)
+    db.flush()
+
+    all_items = db.exec(
+        select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po_id)
+    ).all()
+    if all(it.is_cancelled for it in all_items):
+        po.status = "CANCELADA"
+        db.add(po)
+
+    db.commit()
+    db.refresh(item)
+    return item

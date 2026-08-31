@@ -283,6 +283,39 @@ const MODULE_CONTENT: Record<string, ModuleInfo> = {
     ],
     tip: 'La regla clave: ¿genera OC y afecta inventario? → Compras y Almacén. ¿No genera OC? → Gastos Operativos.',
   },
+  anticipo_proveedor: {
+    id: 'anticipo_proveedor',
+    title: 'Anticipo a Proveedor',
+    subtitle: 'Compras → Recepción → CxP → Pago → Recepción',
+    description: 'Algunos proveedores exigen que les pagues antes de enviarte la mercancía. Valentina maneja esto con un flujo de 4 pasos que conecta Compras, Administración, Tesorería y Recepción. El sistema descuenta automáticamente lo que ya pagaste cuando llegas a recepcionar la factura real.',
+    cards: [
+      {
+        name: 'Paso 1 — Solicitar el anticipo (Administración)',
+        desc: 'Ve a Compras y Almacén → Recepción. En el Andén de Descarga verás todas las OCs en tránsito. Cada una tiene un botón naranja "⚠ ANTICIPO". Al hacer clic, capturas el monto del anticipo (puede ser el 100%, 50% o el porcentaje que el proveedor pida). El sistema crea automáticamente una factura proforma "ANT-OC-{folio}" en Cuentas por Pagar para que Tesorería la procese.',
+      },
+      {
+        name: 'Paso 2 — Pagar el anticipo (Gerencia / Tesorería)',
+        desc: 'Ve a Administración → Por Pagar → Todas las CxP. Ahí aparece la factura proforma "ANT-OC-{folio}" junto a las demás facturas. El botón "Pagar" abre el modal de pago con: monto, fecha, método (transferencia, etc.), cuenta bancaria de origen y referencia SPEI. Al confirmar con "Efectuar Pago Directo", el saldo de la Bóveda baja automáticamente.',
+      },
+      {
+        name: 'Paso 3 — Llega la mercancía con la factura del proveedor',
+        desc: 'El proveedor envía la mercancía junto con su factura fiscal. La factura puede llegar por el monto exacto de la OC o puede ser un poco diferente si el proveedor agregó materiales extra o hubo ajustes de precio. Eso es normal y Valentina lo maneja.',
+      },
+      {
+        name: 'Paso 4 — Recepcionar (Administración)',
+        desc: 'Ve a Compras y Almacén → Recepción → selecciona la OC que llegó. Captura el folio y monto real de la factura del proveedor. Verifica las cantidades recibidas partida por partida. Al confirmar el ingreso, Valentina calcula automáticamente: saldo = monto real de la factura − lo que ya pagaste de anticipo. Si el anticipo cubrió el 100%, la factura nace como PAGADA y no aparece en CxP. Si fue parcial, solo aparece la diferencia.',
+      },
+      {
+        name: '¿Qué pasa si la factura llega diferente a la cotización?',
+        desc: 'No hay problema. El monto que importa es el de la factura real del proveedor, no el de la cotización original. Si el proveedor mandó materiales extra y la factura llegó más alta, Valentina calcula la diferencia correctamente: saldo = factura real − anticipo pagado. Esa diferencia sí aparece en CxP para pagarla normalmente.',
+      },
+      {
+        name: '¿Se puede pagar el anticipo en partes?',
+        desc: 'Sí. Puedes registrar el anticipo por el monto que sea — el 30%, el 50%, el 100%, o cualquier porcentaje que acuerdes con el proveedor. El sistema acumula todos los pagos anteriores y los descuenta del saldo al recepcionar.',
+      },
+    ],
+    tip: 'El botón "⚠ ANTICIPO" solo aparece en el Andén de Recepción (Compras → Recepción). Si el proveedor te pide el anticipo antes de que la OC llegue al andén, primero autoriza y envía la OC para que aparezca en tránsito.',
+  },
 };
 
 function MapaSVG({ onSelect, selected }: { onSelect: (id: string) => void; selected: string | null }) {
@@ -358,6 +391,16 @@ function MapaSVG({ onSelect, selected }: { onSelect: (id: string) => void; selec
           fill={tx('compras','#B5D4F4','#185FA5')}>Recepción (match 3 vías)</text>
         <text x="517" y="240" textAnchor="middle" fontSize={10}
           fill={tx('compras','#B5D4F4','#185FA5')}>Inventario · Notas de crédito</text>
+      </g>
+
+      <g className="cursor-pointer" onClick={() => onSelect('anticipo_proveedor')}>
+        <rect x={370} y={270} width={294} height={22} rx={4}
+          fill={bg('anticipo_proveedor','#185FA5','#B5D4F4')}
+          stroke={bg('anticipo_proveedor','#0C447C','#85B7EB')} strokeWidth="0.5"/>
+        <text x="517" y="281" textAnchor="middle" fontSize={10} fontWeight="500"
+          fill={tx('anticipo_proveedor','#E6F1FB','#0C447C')}>
+          Flujo: Anticipo a Proveedor (4 pasos)
+        </text>
       </g>
 
       <line x1="312" y1="220" x2="368" y2="220" stroke="#D3D1C7" strokeWidth="0.8" strokeDasharray="4 3" markerEnd="url(#harr)"/>
