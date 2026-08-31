@@ -212,6 +212,9 @@ class PDFGenerator:
         if hasattr(order, 'items'):
             for item in order.items:
                 desc = f"<b>{item.product_name}</b>"
+                commercial_desc = getattr(item, 'commercial_description', None)
+                if commercial_desc and str(commercial_desc).strip():
+                    desc += f"<br/><font size='8' color='#64748b'>{commercial_desc.strip()}</font>"
                 p_desc = Paragraph(desc, self.styles['NormalSmall'])
                 qty = item.quantity
                 unit_price = item.unit_price

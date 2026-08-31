@@ -1502,3 +1502,31 @@ No se requiere trabajo adicional para este pendiente.
 1. Descripción técnica por instancia (ALTA)
 2. Menús MANAGER, DIRECTOR, SALES, PRODUCTION, LOGISTICS
 3. Scripts sueltos en raíz: mover a scripts/ o agregar a .gitignore
+
+---
+## SESIÓN 2026-08-31 (tarde) — Descripción Comercial por Receta
+### Completado:
+**Backend:**
+- Campo commercial_description en ProductVersion (migración q3k4l5m6n7o8)
+- Campo description_override en SalesOrderItemInstance
+- PATCH /design/versions/{id} — editar commercial_description
+- PATCH /sales/instances/{id} — editar description_override
+- Fix: PUT /design/versions/{id} ahora persiste commercial_description
+- Commits: 637f589 (modelos+migración), 7a496aa (fix PUT)
+
+**Frontend:**
+- VersionRecipeForm: textarea de descripción comercial en header sticky
+  * Se mantiene fijo al hacer scroll en los materiales
+  * Deshabilitado cuando versión está en modo solo lectura
+- DesignCatalogPage: badge "Con descripción" debajo del SKU
+- CreateQuotePage: 
+  * Campo descripción comercial en formulario de agregar item
+  * Se prellena automáticamente al seleccionar versión
+  * Editable para override por cotización
+  * Visible debajo del nombre en tabla de items
+- Commits: 97c9201, 7a496aa, db4e1b4
+
+### Pendientes para próxima sesión:
+1. Incluir commercial_description en PDF de cotización
+2. Menús MANAGER, DIRECTOR, SALES, PRODUCTION, LOGISTICS
+3. Scripts sueltos en raíz: mover a scripts/
