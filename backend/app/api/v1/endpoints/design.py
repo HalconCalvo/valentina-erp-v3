@@ -375,6 +375,8 @@ def update_product_version(
 
     db_version.version_name = version_in.version_name
     db_version.status = version_in.status
+    if version_in.commercial_description is not None:
+        db_version.commercial_description = version_in.commercial_description
     
     existing_comps = session.exec(
         select(VersionComponent).where(VersionComponent.version_id == version_id)

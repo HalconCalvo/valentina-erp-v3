@@ -28,7 +28,8 @@ export interface SalesOrderItem {
     
     // Identificación
     product_name: string;
-    origin_version_id?: number | null; 
+    origin_version_id?: number | null;
+    commercial_description?: string;
     
     // Valores
     quantity: number;

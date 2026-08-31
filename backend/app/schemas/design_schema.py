@@ -52,6 +52,7 @@ class ProductVersionBase(SQLModel):
 class ProductVersionCreate(ProductVersionBase):
     master_id: int
     components: List[VersionComponentCreate] = []
+    commercial_description: Optional[str] = None
 
 class ProductVersionUpdate(SQLModel):
     commercial_description: Optional[str] = None

@@ -404,34 +404,36 @@ export const VersionRecipeForm = ({
     >
       
       {/* HEADER: Monitor y Semáforo */}
-      <div className="mb-6 bg-amber-50 border border-amber-200 rounded-lg p-3 shadow-sm sticky top-0 z-20 flex flex-col lg:flex-row gap-4 lg:items-center justify-between">
-         <div className="flex items-center gap-4">
-             <div className="flex items-center gap-2 font-bold uppercase text-xs text-amber-900">
-                 <Activity size={16} /> Monitor
+      <div className="mb-6 bg-amber-50 border border-amber-200 rounded-lg p-3 shadow-sm sticky top-0 z-20 flex flex-col gap-4">
+         <div className="flex flex-col lg:flex-row gap-4 lg:items-center justify-between">
+             <div className="flex items-center gap-4">
+                 <div className="flex items-center gap-2 font-bold uppercase text-xs text-amber-900">
+                     <Activity size={16} /> Monitor
+                 </div>
+                 <div className="flex gap-4 border-l border-amber-200 pl-4 text-xs">
+                    <div>Tableros: <b>{monitor.boardsTotal.toFixed(2)}</b></div>
+                    <div>Hojas: <b className="text-emerald-700">{monitor.producTotal}</b></div>
+                 </div>
              </div>
-             <div className="flex gap-4 border-l border-amber-200 pl-4 text-xs">
-                <div>Tableros: <b>{monitor.boardsTotal.toFixed(2)}</b></div>
-                <div>Hojas: <b className="text-emerald-700">{monitor.producTotal}</b></div>
+
+             <div className="flex items-center gap-2 bg-white/50 p-1.5 rounded border border-amber-100">
+                {internalStatus === VersionStatus.READY ? <Unlock size={14} className="text-emerald-600"/> : <Lock size={14} className="text-amber-600"/>}
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Estatus:</label>
+                <select 
+                    className={`text-xs font-bold border-none outline-none cursor-pointer rounded px-2 py-1 ${
+                        internalStatus === VersionStatus.READY ? 'text-emerald-700 bg-emerald-100' : 'text-amber-700 bg-amber-100'
+                    }`}
+                    value={internalStatus}
+                    onChange={(e) => setInternalStatus(e.target.value as VersionStatus)}
+                >
+                    <option value={VersionStatus.DRAFT}>🔴 Draft (Editable)</option>
+                    <option value={VersionStatus.READY}>🟢 LISTO (Bloqueado)</option>
+                    <option value={VersionStatus.OBSOLETE}>⚫ OBSOLETO</option>
+                </select>
              </div>
          </div>
 
-         <div className="flex items-center gap-2 bg-white/50 p-1.5 rounded border border-amber-100">
-            {internalStatus === VersionStatus.READY ? <Unlock size={14} className="text-emerald-600"/> : <Lock size={14} className="text-amber-600"/>}
-            <label className="text-[10px] font-bold text-slate-500 uppercase">Estatus:</label>
-            <select 
-                className={`text-xs font-bold border-none outline-none cursor-pointer rounded px-2 py-1 ${
-                    internalStatus === VersionStatus.READY ? 'text-emerald-700 bg-emerald-100' : 'text-amber-700 bg-amber-100'
-                }`}
-                value={internalStatus}
-                onChange={(e) => setInternalStatus(e.target.value as VersionStatus)}
-            >
-                <option value={VersionStatus.DRAFT}>🔴 Draft (Editable)</option>
-                <option value={VersionStatus.READY}>🟢 LISTO (Bloqueado)</option>
-                <option value={VersionStatus.OBSOLETE}>⚫ OBSOLETO</option>
-            </select>
-         </div>
-
-         <div className="w-full lg:col-span-full mt-2 pt-3 border-t border-amber-200">
+         <div className="w-full pt-3 border-t border-amber-200">
             <label className="text-[10px] font-bold text-slate-600 uppercase tracking-widest block mb-1">
                 Descripción Comercial
             </label>

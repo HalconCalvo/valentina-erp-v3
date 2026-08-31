@@ -95,7 +95,8 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
     const [items, setItems] = useState<SalesOrderItem[]>([]);
     
     const [lineItem, setLineItem] = useState({
-        master_id: 0, version_id: 0, quantity: 1, unit_price: 0, manual_name: '', frozen_cost: 0 
+        master_id: 0, version_id: 0, quantity: 1, unit_price: 0, manual_name: '', frozen_cost: 0,
+        commercial_description: ''
     });
     
     const [loadingCost, setLoadingCost] = useState<boolean>(false);
@@ -288,7 +289,8 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
         const salesPrice = costoParaPrecio * marginMultiplier * commissionMultiplier;
         // frozen_cost = estimatedCost puro de la receta (sin ajustes de IVA)
         // Es el costo base que se muestra en el catálogo de Diseño.
-        setLineItem({...lineItem, version_id: selectedVersionId, unit_price: Number(salesPrice.toFixed(2)), frozen_cost: estimatedCost});
+        setLineItem({...lineItem, version_id: selectedVersionId, unit_price: Number(salesPrice.toFixed(2)), frozen_cost: estimatedCost,
+            commercial_description: version?.commercial_description || ''});
     };
 
     const handleClientChange = (e: React.ChangeEvent<HTMLSelectElement>) => { setHeader({...header, client_id: Number(e.target.value)}); setSelectedCategory(''); setLineItem({...lineItem, master_id: 0, version_id: 0, unit_price: 0, frozen_cost: 0}); setEditingIndex(null); };
@@ -322,23 +324,24 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                     : (editingIndex !== null ? items[editingIndex].frozen_unit_cost : 0)),
             is_resale: addMode === 'RESALE',
             resale_sku: addMode === 'RESALE' ? selectedResaleSku : null,
+            commercial_description: lineItem.commercial_description,
         };
         const updatedItems = [...items];
         if (editingIndex !== null) { updatedItems[editingIndex] = newItem; setEditingIndex(null); } else { updatedItems.push(newItem); }
         setItems(updatedItems);
-        setLineItem({master_id: 0, version_id: 0, quantity: 1, unit_price: 0, manual_name: '', frozen_cost: 0});
+        setLineItem({master_id: 0, version_id: 0, quantity: 1, unit_price: 0, manual_name: '', frozen_cost: 0, commercial_description: ''});
         setSelectedResaleSku('');
         setResaleSearch('');
         setAddMode('CATALOG');
     };
 
     const handleRemoveItem = (id?: number) => { setItems(items.filter(i => i.id !== id)); if (editingIndex !== null) handleCancelEdit(); };
-    const handleCancelEdit = () => { setEditingIndex(null); setLineItem({master_id: 0, version_id: 0, quantity: 1, unit_price: 0, manual_name: '', frozen_cost: 0}); setAddMode('CATALOG'); };
+    const handleCancelEdit = () => { setEditingIndex(null); setLineItem({master_id: 0, version_id: 0, quantity: 1, unit_price: 0, manual_name: '', frozen_cost: 0, commercial_description: ''}); setAddMode('CATALOG'); };
     
     const handleEditItem = (index: number) => {
         const item = items[index];
         setEditingIndex(index);
-        const newItemState = { master_id: 0, version_id: 0, quantity: item.quantity, unit_price: item.unit_price, manual_name: item.product_name, frozen_cost: item.frozen_unit_cost || 0 };
+        const newItemState = { master_id: 0, version_id: 0, quantity: item.quantity, unit_price: item.unit_price, manual_name: item.product_name, frozen_cost: item.frozen_unit_cost || 0, commercial_description: item.commercial_description || '' };
         if (item.origin_version_id) { 
             setAddMode('CATALOG'); let found = false; 
             for (const m of masters) { 
@@ -601,6 +604,20 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                                             <option value={0}>-- Seleccionar --</option>{availableVersions?.map((v:any) => <option key={v.id} value={v.id}>{v.version_name}</option>)}
                                         </select>
                                     </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500">DESCRIPCIÓN COMERCIAL</label>
+                                        <p className="text-[10px] text-slate-400 mb-1">
+                                            Se jala de la receta. Puedes modificarla para esta cotización.
+                                        </p>
+                                        <textarea
+                                            value={lineItem.commercial_description}
+                                            onChange={(e) => setLineItem({...lineItem, commercial_description: e.target.value})}
+                                            disabled={lineItem.version_id === 0}
+                                            placeholder="Descripción que verá el cliente en el PDF..."
+                                            rows={3}
+                                            className="w-full p-2 border rounded text-sm resize-none disabled:bg-slate-50 disabled:text-slate-400"
+                                        />
+                                    </div>
                                 </>
                             )}
 
@@ -718,6 +735,11 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                                                 <span className="font-bold text-slate-800 text-sm">
                                                     {item.product_name}
                                                 </span>
+                                                {item.commercial_description && (
+                                                    <p className="text-xs text-slate-500 mt-0.5 font-normal">
+                                                        {item.commercial_description}
+                                                    </p>
+                                                )}
                                             </td>
                                             <td className="text-center font-bold text-slate-700 px-2 py-3">{item.quantity}</td>
                                             
