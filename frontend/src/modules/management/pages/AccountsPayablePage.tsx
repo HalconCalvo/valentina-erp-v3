@@ -8,6 +8,8 @@ import Button from '@/components/ui/Button';
 import { financeService } from '../../../api/finance-service';
 import { AccountsPayableStats, PendingInvoice, PaymentRequestPayload } from '../../../types/finance';
 import { PaymentRequestModal } from '../../finance/components/PaymentRequestModal';
+import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import { toast } from '@/components/ui/VToast';
 
 const AccountsPayablePage: React.FC = () => {
     const [stats, setStats] = useState<AccountsPayableStats | null>(null);
@@ -19,6 +21,7 @@ const AccountsPayablePage: React.FC = () => {
     // Homologado con los nombres del Dashboard
     const [activeFilter, setActiveFilter] = useState<'ALL' | 'IMMEDIATE' | 'SHORT_TERM' | 'LONG_TERM'>('ALL');
     const [selectedInvoice, setSelectedInvoice] = useState<PendingInvoice | null>(null);
+    const [pendingCancelInvoice, setPendingCancelInvoice] = useState<PendingInvoice | null>(null);
 
     const loadData = async () => {
         setLoading(true);
@@ -28,25 +31,28 @@ const AccountsPayablePage: React.FC = () => {
 
             const pendingData = await financeService.getPendingInvoices();
             setInvoices(pendingData);
-        } catch (error) {
-            console.error("Error cargando mesa de control:", error);
+        } catch {
+            toast.error('Error al cargar mesa de control.');
         } finally {
             setLoading(false);
         }
     };
 
-    const handleCancelInvoice = async (inv: PendingInvoice) => {
-        if (!window.confirm(`¿Cancelar la factura ${inv.invoice_number} de ${inv.provider_name}?\n\nEsta acción no se puede deshacer. El saldo quedará en $0.`)) return;
+    const executeCancelInvoice = async (inv: PendingInvoice) => {
         setCancellingId(inv.id);
         try {
             await financeService.cancelInvoice(inv.id);
-            alert(`✅ Factura ${inv.invoice_number} cancelada correctamente.`);
+            toast.success(`Factura ${inv.invoice_number} cancelada correctamente.`);
             await loadData();
         } catch (err: any) {
-            alert(err.response?.data?.detail || '❌ Error al cancelar la factura.');
+            toast.error(err.response?.data?.detail || 'Error al cancelar la factura.');
         } finally {
             setCancellingId(null);
         }
+    };
+
+    const handleCancelInvoice = (inv: PendingInvoice) => {
+        setPendingCancelInvoice(inv);
     };
 
     useEffect(() => {
@@ -126,12 +132,11 @@ const AccountsPayablePage: React.FC = () => {
     const handleRequestPayment = async (data: PaymentRequestPayload) => {
         try {
             await financeService.requestPayment(data);
-            alert("✅ Solicitud enviada a Dirección para autorización.");
+            toast.success('Solicitud enviada a Dirección para autorización.');
             setSelectedInvoice(null);
             loadData();
-        } catch (error) {
-            console.error(error);
-            alert("Error al solicitar el pago.");
+        } catch (error: any) {
+            toast.error(error.response?.data?.detail || 'Error al solicitar el pago.');
         }
     };
 
@@ -148,7 +153,7 @@ const AccountsPayablePage: React.FC = () => {
                 <div className="text-right flex items-center gap-4">
                     <Button 
                         className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold border-2 border-emerald-600 shadow-lg transform transition hover:scale-105" 
-                        onClick={() => alert("Próximamente: Panel de Ejecución de Pagos Autorizados")}
+                        onClick={() => toast.info('Próximamente: Panel de Ejecución de Pagos Autorizados')}
                     >
                         <CheckCircle size={18} className="mr-2"/> Pagos Listos para Ejecutar
                     </Button>
@@ -307,6 +312,22 @@ const AccountsPayablePage: React.FC = () => {
                     invoice={selectedInvoice}
                     onClose={() => setSelectedInvoice(null)}
                     onSubmit={handleRequestPayment}
+                />
+            )}
+
+            {pendingCancelInvoice && (
+                <VConfirmDialog
+                    isOpen={pendingCancelInvoice !== null}
+                    title="Cancelar factura"
+                    message={`¿Cancelar la factura ${pendingCancelInvoice.invoice_number} de ${pendingCancelInvoice.provider_name}?`}
+                    consequence="Esta acción no se puede deshacer. El saldo quedará en $0."
+                    variant="danger"
+                    confirmLabel="Sí, cancelar"
+                    onConfirm={async () => {
+                        await executeCancelInvoice(pendingCancelInvoice);
+                        setPendingCancelInvoice(null);
+                    }}
+                    onCancel={() => setPendingCancelInvoice(null)}
                 />
             )}
         </div>

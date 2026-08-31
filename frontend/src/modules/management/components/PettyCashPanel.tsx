@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { pettyCashService } from '../../../api/petty-cash-service';
+import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import { toast } from '@/components/ui/VToast';
 import {
   PettyCashFund,
   PettyCashMovement,
@@ -93,6 +95,7 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
 
   const receiptRef = useRef<HTMLInputElement>(null);
   const [uploadTarget, setUploadTarget] = useState<number | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
 
   // ── DATA LOAD ──────────────────────────────────────────────────────────────
 
@@ -153,15 +156,18 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm('¿Eliminar este movimiento? El saldo será revertido.')) return;
+  const executeDelete = async (id: number) => {
     try {
       await pettyCashService.deleteMovement(id);
       await load();
       onRefresh();
     } catch (e: any) {
-      alert(e?.response?.data?.detail || 'Error al eliminar el movimiento.');
+      toast.error(e?.response?.data?.detail || 'Error al eliminar el movimiento.');
     }
+  };
+
+  const handleDelete = (id: number) => {
+    setPendingDeleteId(id);
   };
 
   const handleEdit = async () => {
@@ -184,7 +190,7 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
       await pettyCashService.uploadReceipt(uploadTarget, file);
       await load();
     } catch {
-      alert('Error al subir el comprobante.');
+      toast.error('Error al subir el comprobante.');
     } finally {
       setUploadTarget(null);
       if (receiptRef.current) receiptRef.current.value = '';
@@ -561,6 +567,21 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
           </div>
         </Modal>
       )}
+      <VConfirmDialog
+        isOpen={pendingDeleteId !== null}
+        title="Eliminar movimiento"
+        message="¿Eliminar este movimiento de caja chica?"
+        consequence="El saldo del fondo será revertido según el monto del movimiento."
+        variant="danger"
+        confirmLabel="Sí, eliminar"
+        onConfirm={async () => {
+          if (pendingDeleteId !== null) {
+            await executeDelete(pendingDeleteId);
+            setPendingDeleteId(null);
+          }
+        }}
+        onCancel={() => setPendingDeleteId(null)}
+      />
     </div>
   );
 }

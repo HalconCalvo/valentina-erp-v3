@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
+import { toast } from '@/components/ui/VToast';
 import client from '../../../api/axios-client';
 import { financeService } from '../../../api/finance-service';
 import { salesService } from '../../../api/sales-service';
@@ -174,11 +175,11 @@ const ManagementDashboard: React.FC = () => {
                     pending_requisitions: notifRes.data.orders_to_authorize || 0,
                     pending_sales_advances: rights?.advances.length ?? 0,
                 });
-            } catch (e) {
-                console.error('Error cargando notificaciones de compras (Gerencia)', e);
+            } catch {
+                toast.error('Error al cargar notificaciones de compras.');
             }
-        } catch (e) {
-            console.error('ManagementDashboard loadData', e);
+        } catch {
+            toast.error('Error al cargar el panel de administración.');
         }
     }, [canSeeBanks]);
 
@@ -613,8 +614,8 @@ const ManagementDashboard: React.FC = () => {
                         try {
                             const o = await salesService.getOrderDetail(orderId);
                             setSelectedOrderForRayosX(o);
-                        } catch (e) {
-                            console.error(e);
+                        } catch {
+                            toast.error('No se pudo cargar el detalle de la orden.');
                         }
                     }}
                     onRefresh={loadData}
