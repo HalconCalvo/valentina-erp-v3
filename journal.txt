@@ -1530,3 +1530,22 @@ No se requiere trabajo adicional para este pendiente.
 1. Incluir commercial_description en PDF de cotización
 2. Menús MANAGER, DIRECTOR, SALES, PRODUCTION, LOGISTICS
 3. Scripts sueltos en raíz: mover a scripts/
+
+---
+## SESIÓN 2026-08-31 (cierre) — Descripción Comercial en PDF
+### Completado:
+- PDF de cotización muestra commercial_description debajo del nombre del producto
+  * Texto en gris, tamaño 8, solo cuando existe la descripción
+  * Sin cambio visual si no hay descripción
+- Commit: 3e4d280
+### Feature Descripción Comercial — COMPLETO ✓
+- Campo en receta (ProductVersion.commercial_description)
+- Header sticky en VersionRecipeForm
+- Indicador "Con descripción" en catálogo de Diseño
+- Prellenado automático en cotizador con override por item
+- Visible en tabla de items del cotizador
+- Visible en PDF de cotización
+### Pendientes para próxima sesión:
+1. Menús MANAGER, DIRECTOR, SALES, PRODUCTION, LOGISTICS — pendiente desde 24-Aug
+2. Scripts sueltos en raíz: mover a scripts/
+3. Probar end-to-end: receta con descripción → cotización → PDF

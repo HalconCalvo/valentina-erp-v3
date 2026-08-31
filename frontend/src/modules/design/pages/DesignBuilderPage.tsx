@@ -350,7 +350,7 @@ export default function DesignBuilderPage() {
             </div>
           </div>
         )}
-        <div className="max-w-6xl mx-auto bg-white rounded-xl shadow-sm border border-slate-200 p-0 overflow-hidden">
+        <div className="max-w-6xl mx-auto bg-white rounded-xl shadow-sm border border-slate-200 p-0">
             <VersionRecipeForm 
                 materials={materials} 
                 edgebandingFactor={edgebandingFactor} 

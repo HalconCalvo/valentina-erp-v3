@@ -404,7 +404,7 @@ export const VersionRecipeForm = ({
     >
       
       {/* HEADER: Monitor y Semáforo */}
-      <div className="mb-6 bg-amber-50 border border-amber-200 rounded-lg p-3 shadow-sm sticky top-0 z-20 flex flex-col gap-4">
+      <div className="mb-6 bg-amber-50 border border-amber-200 rounded-lg p-3 shadow-sm sticky top-0 z-[100] flex flex-col gap-4">
          <div className="flex flex-col lg:flex-row gap-4 lg:items-center justify-between">
              <div className="flex items-center gap-4">
                  <div className="flex items-center gap-2 font-bold uppercase text-xs text-amber-900">
