@@ -1381,3 +1381,23 @@ Cuando _nuevo_total > 0.01: UPDATE con status = PENDIENTE fijo (sin CANCELADO).
 1. Frontend cancelar movimiento bancario — MEDIA
 2. Editar y cancelar Anticipo proveedor — MEDIA
 3. Editar y cancelar Gasto operativo — MEDIA
+
+---
+## RESUMEN SESIÓN 2026-08-31 — Todo lo completado hoy
+### Commits en orden:
+- 44e2302 — feat: edit PO header and items + cancel individual item + docs supplier advance
+- d755534 — feat: edit PO items inline and cancel item with reason — frontend
+- 6c6d96c — feat: edit and cancel client invoice — backend
+- d73717b — feat: edit and cancel client invoice — frontend
+- 47611d7 — fix: delete accounts_payable on full reversal instead of marking CANCELADO
+- 115314f — feat: edit supplier invoice — backend
+- 451d5c9 — feat: edit supplier invoice — frontend
+- 44e3582 — feat: cancel and edit bank transaction — backend + migration
+- bf5e0b8 — fix: remove trailing slash from materials endpoint call
+### Pendientes para la próxima sesión (en orden):
+1. Frontend cancelar/editar movimiento bancario (TreasuryPage) — MEDIA
+2. Editar y cancelar Anticipo proveedor — MEDIA
+3. Editar y cancelar Gasto operativo — MEDIA
+### Nota:
+- Error "cargar materiales" en DesignCatalogPage resuelto (slash sobrante)
+- Migración p2j3k4l5m6n7 deployada en Render (bank_transactions)

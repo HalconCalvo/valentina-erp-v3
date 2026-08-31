@@ -118,6 +118,10 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     const [cancelItemModal, setCancelItemModal] = useState<{ open: boolean; orderId: number | null; item: any | null }>({ open: false, orderId: null, item: null });
     const [cancelItemReason, setCancelItemReason] = useState<string>('');
 
+    const [allMaterials, setAllMaterials] = useState<any[]>([]);
+    const [materialSuggestions, setMaterialSuggestions] = useState<any[]>([]);
+    const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
+
     const OVERHEAD_CATEGORIES = [
         'MATERIALES', 'PLANTA', 'COMUNICACIONES', 'COMBUSTIBLES', 'TRANSPORTE',
         'INSUMOS', 'MAQUINARIA', 'EXTERNOS', 'MAQUILA', 'OTRO'
@@ -248,6 +252,12 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         
         return () => clearInterval(interval);
     }, []); 
+
+    useEffect(() => {
+        axiosClient.get('/foundations/materials')
+            .then(res => setAllMaterials(extractList({ data: res.data }, 'materials')))
+            .catch(() => { /* fail silently */ });
+    }, []);
 
     const handleEmitPurchaseOrder = (group: any) => {
         const itemsToEmit = group.items.filter((item: any) => selectedItems[`${group.provider_id}-${item.material_id}`]);
@@ -659,6 +669,34 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         } catch (error: any) {
             toast.error(error.response?.data?.detail || 'Error al actualizar categoría.');
         }
+    };
+
+    const handleDescriptionChange = (value: string) => {
+        setEditItemForm(f => ({ ...f, custom_description: value }));
+        if (value.length >= 2) {
+            const lower = value.toLowerCase();
+            const filtered = allMaterials
+                .filter(m =>
+                    (m.name && String(m.name).toLowerCase().includes(lower)) ||
+                    (m.sku && String(m.sku).toLowerCase().includes(lower))
+                )
+                .slice(0, 8);
+            setMaterialSuggestions(filtered);
+            setShowSuggestions(true);
+        } else {
+            setMaterialSuggestions([]);
+            setShowSuggestions(false);
+        }
+    };
+
+    const handleSelectSuggestion = (material: any) => {
+        setEditItemForm(f => ({
+            ...f,
+            custom_description: material.name,
+            expected_unit_cost: String(material.current_cost ?? ''),
+        }));
+        setShowSuggestions(false);
+        setMaterialSuggestions([]);
     };
 
     const handleOpenEditItem = (orderId: number, item: any) => {
@@ -2002,14 +2040,35 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-indigo-400"
                             />
                         </div>
-                        <div>
+                        <div className="relative">
                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Descripción personalizada</label>
                             <input
                                 type="text"
                                 value={editItemForm.custom_description}
-                                onChange={e => setEditItemForm(f => ({ ...f, custom_description: e.target.value }))}
+                                onChange={e => handleDescriptionChange(e.target.value)}
+                                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                                onFocus={() => {
+                                    if (editItemForm.custom_description.length >= 2) {
+                                        handleDescriptionChange(editItemForm.custom_description);
+                                    }
+                                }}
+                                autoComplete="off"
                                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-indigo-400"
                             />
+                            {showSuggestions && materialSuggestions.length > 0 && (
+                                <div className="absolute z-50 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-[200px] overflow-y-auto">
+                                    {materialSuggestions.map((material, idx) => (
+                                        <div
+                                            key={material.id ?? idx}
+                                            onClick={() => handleSelectSuggestion(material)}
+                                            className="px-3 py-2 cursor-pointer hover:bg-indigo-50"
+                                        >
+                                            <span className="text-xs text-slate-400">{material.sku}</span>
+                                            <span className="text-sm text-slate-700 ml-2">{material.name}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
                     <div className="p-6 border-t border-slate-100 flex gap-3 justify-end">
