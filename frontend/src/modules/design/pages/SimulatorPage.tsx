@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom'; 
 import { designService, PendingInstance, SimulateBatchResponse } from '../../../api/design-service';
 import { productionService } from '../../../api/production-service';
+import { toast } from '@/components/ui/VToast';
 import { planningService } from '../../../api/planning-service';
 // IMPORTACIÓN CORREGIDA: Se agregaron Calculator y RefreshCw
 import { Package, CheckSquare, Square, AlertTriangle, ShieldCheck, Factory, Beaker, ArrowLeft, Calculator, RefreshCw, Pencil, Check, X, Tag } from 'lucide-react';
@@ -84,8 +85,8 @@ export default function SimulatorPage() {
     try {
       const data = await designService.getPendingInstances(batchType);
       setPendingInstances(data);
-    } catch (error) {
-      console.error("Error cargando el radar:", error);
+    } catch {
+      toast.error('Error al cargar el radar de instancias pendientes.');
     } finally {
       setLoadingRadar(false);
     }
@@ -99,15 +100,17 @@ export default function SimulatorPage() {
   };
 
   const handleSimulate = async () => {
-    if (selectedIds.length === 0) return alert("Selecciona al menos una instancia");
+    if (selectedIds.length === 0) {
+      toast.warning('Selecciona al menos una instancia');
+      return;
+    }
     
     setSimulating(true);
     try {
       const result = await designService.simulateBatch(selectedIds, batchType);
       setSimulationResult(result);
-    } catch (error) {
-      console.error("Error en la simulación:", error);
-      alert("Error al simular el lote. Verifica la conexión.");
+    } catch (error: any) {
+      toast.error(error?.response?.data?.detail || 'Error al simular el lote. Verifica la conexión.');
     } finally {
       setSimulating(false);
     }
@@ -131,15 +134,14 @@ export default function SimulatorPage() {
         await productionService.updateBatchStatus(newBatch.id, 'ON_HOLD');
       }
 
-      alert(`¡Lote ${newBatch.folio} inyectado con éxito en Producción!`);
-      
+      toast.success(`Lote ${newBatch.folio} inyectado con éxito en Producción.`);
+
       setSelectedIds([]);
       setSimulationResult(null);
       loadPendingInstances();
 
-    } catch (error) {
-      console.error("Error creando el lote:", error);
-      alert("Hubo un error al inyectar el lote en fábrica.");
+    } catch (error: any) {
+      toast.error(error?.response?.data?.detail || 'Hubo un error al inyectar el lote en fábrica.');
     } finally {
       setCreating(false);
     }
@@ -160,13 +162,13 @@ export default function SimulatorPage() {
         );
       }
 
-      alert(`✅ Lote ${newBatch.folio} de Piedra creado en Producción.`);
+      toast.success(`Lote ${newBatch.folio} de Piedra creado en Producción.`);
       setSelectedIds([]);
       setSimulationResult(null);
       loadPendingInstances();
     } catch (error: any) {
       const serverError = error.response?.data?.detail || error.message;
-      alert(`Error al crear lote de Piedra:\n${JSON.stringify(serverError, null, 2)}`);
+      toast.error(typeof serverError === 'string' ? serverError : 'Error al crear lote de Piedra.');
     } finally {
       setCreating(false);
     }
@@ -191,7 +193,7 @@ export default function SimulatorPage() {
       );
       setEditingId(null);
     } catch {
-      alert('Error al guardar el alias. Intenta de nuevo.');
+      toast.error('Error al guardar el alias. Intenta de nuevo.');
     } finally {
       setSavingName(false);
     }
@@ -221,7 +223,7 @@ export default function SimulatorPage() {
       );
       setShowMassBaptism(false);
     } catch {
-      alert('Error al guardar los alias. Intenta de nuevo.');
+      toast.error('Error al guardar los alias. Intenta de nuevo.');
     } finally {
       setSavingName(false);
     }

@@ -17,6 +17,8 @@ import Badge from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import ExportButton from '@/components/ui/ExportButton';
+import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import { toast } from '@/components/ui/VToast';
 
 import * as XLSX from 'xlsx';
 import axiosClient from '../../../api/axios-client';
@@ -25,6 +27,12 @@ import { productionService } from '../../../api/production-service';
 import { VersionStatus } from '../../../types/design';
 
 type ModuleView = 'HOME' | 'CATALOG' | 'DEFICIT' | 'SIMULATOR_MODULE' | 'SIMULATOR_BATCHES';
+
+type CatalogPendingConfirm =
+    | { kind: 'DELETE_BLUEPRINT'; versionId: number }
+    | { kind: 'IMPORT_RECIPES'; data: { products: unknown[]; client_name?: string; client_id?: number }; clientId: number | null }
+    | { kind: 'DELETE_VERSION'; versionId: number; versionName: string; productName: string }
+    | { kind: 'DELETE_BATCH'; batchId: number; folio: string };
 
 const DesignCatalogPage: React.FC = () => {
     const navigate = useNavigate();
@@ -91,6 +99,7 @@ const DesignCatalogPage: React.FC = () => {
     const [exportingClientId, setExportingClientId] = useState<number | null>(null);
     const importInputRef = useRef<HTMLInputElement>(null);
     const [importingClientId, setImportingClientId] = useState<number | null>(null);
+    const [pendingConfirm, setPendingConfirm] = useState<CatalogPendingConfirm | null>(null);
 
     const [formState, setFormState] = useState({ name: '', category: 'General', client_id: 0, project_name: '' });
 
@@ -99,7 +108,7 @@ const DesignCatalogPage: React.FC = () => {
         fetchClients();
         axiosClient.get('/foundations/materials/')
             .then(res => setMaterials(Array.isArray(res.data) ? res.data : res.data?.data || []))
-            .catch(() => console.error('Error cargando materiales'));
+            .catch(() => toast.error('Error al cargar materiales.'));
     }, [loadMasters, fetchClients]);
 
     useEffect(() => {
@@ -127,8 +136,8 @@ const DesignCatalogPage: React.FC = () => {
                     ['DRAFT', 'ON_HOLD', 'IN_PRODUCTION'].includes(b.status)
                 )
             );
-        } catch (err) {
-            console.error("Error cargando métricas", err);
+        } catch {
+            toast.error('Error al cargar métricas del panel.');
         }
     };
 
@@ -143,7 +152,7 @@ const DesignCatalogPage: React.FC = () => {
                 .sort((a: any, b: any) => a.id - b.id);
             setLiveBatches(live);
         } catch {
-            console.error('Error cargando lotes vivos');
+            toast.error('Error al cargar lotes activos.');
         } finally {
             setLoadingLiveBatches(false);
         }
@@ -184,11 +193,10 @@ const DesignCatalogPage: React.FC = () => {
             }
             const { path } = await uploadRes.json();
             await designService.updateVersionBlueprint(uploadingVersionId, path);
-            alert("✅ Plano adjuntado a la versión.");
+            toast.success('Plano adjuntado a la versión.');
             await loadMasters();
         } catch (error: any) {
-            console.error(error);
-            alert(`Error al subir: ${error.message}`);
+            toast.error(error?.message || error?.response?.data?.detail || 'Error al subir el archivo.');
         } finally {
             if (fileInputRef.current) fileInputRef.current.value = '';
             setUploadingVersionId(null);
@@ -198,17 +206,19 @@ const DesignCatalogPage: React.FC = () => {
     const handleViewBlueprint = (path: string) => setViewingBlueprintUrl(path); 
     const closeBlueprintModal = () => setViewingBlueprintUrl(null);
 
-    const handleDeleteVersionBlueprint = async (e: React.MouseEvent, versionId: number) => {
-        e.stopPropagation();
-        if(isSales) return;
-        if (window.confirm("¿Eliminar el plano de esta versión?")) {
-            try {
-                await designService.updateVersionBlueprint(versionId, '');
-                await loadMasters();
-            } catch (error) {
-                alert("Error al eliminar el plano.");
-            }
+    const executeDeleteVersionBlueprint = async (versionId: number) => {
+        try {
+            await designService.updateVersionBlueprint(versionId, '');
+            await loadMasters();
+        } catch {
+            toast.error('Error al eliminar el plano.');
         }
+    };
+
+    const handleDeleteVersionBlueprint = (e: React.MouseEvent, versionId: number) => {
+        e.stopPropagation();
+        if (isSales) return;
+        setPendingConfirm({ kind: 'DELETE_BLUEPRINT', versionId });
     };
 
     const uniqueCategories = useMemo(() => {
@@ -373,6 +383,39 @@ const DesignCatalogPage: React.FC = () => {
         XLSX.writeFile(wb, `Respaldo_Recetas_${fecha}.xlsx`);
     };
 
+    const executeImportRecipes = async (data: CatalogPendingConfirm & { kind: 'IMPORT_RECIPES' }) => {
+        let creados = 0;
+        let errores = 0;
+
+        for (const product of data.data.products as any[]) {
+            try {
+                const newMaster = await designService.createMaster({
+                    name: product.name,
+                    category: product.category || 'General',
+                    client_id: data.clientId || data.data.client_id,
+                    is_active: true
+                });
+
+                for (const version of (product.versions || [])) {
+                    await designService.createVersion({
+                        master_id: newMaster.id,
+                        version_name: version.version_name || 'V1.0',
+                        status: VersionStatus.DRAFT,
+                        is_active: true,
+                        components: version.components || []
+                    });
+                }
+                creados++;
+            } catch {
+                errores++;
+            }
+        }
+
+        toast.success(`Importación completada: ${creados} productos creados, ${errores} errores.`);
+        await loadMasters();
+        setImportingClientId(null);
+    };
+
     const handleImportRecipes = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -382,48 +425,20 @@ const DesignCatalogPage: React.FC = () => {
             const data = JSON.parse(text);
 
             if (!data.products || !Array.isArray(data.products)) {
-                return alert('Archivo inválido. No contiene productos.');
+                toast.warning('Archivo inválido. No contiene productos.');
+                return;
             }
 
-            const confirmMsg =
-                `¿Importar ${data.products.length} productos de "${data.client_name}"?\n\n` +
-                `Se crearán como NUEVOS productos. Los existentes NO se modifican.`;
-            if (!window.confirm(confirmMsg)) return;
-
-            let creados = 0;
-            let errores = 0;
-
-            for (const product of data.products) {
-                try {
-                    const newMaster = await designService.createMaster({
-                        name: product.name,
-                        category: product.category || 'General',
-                        client_id: importingClientId || data.client_id,
-                        is_active: true
-                    });
-
-                    for (const version of (product.versions || [])) {
-                        await designService.createVersion({
-                            master_id: newMaster.id,
-                            version_name: version.version_name || 'V1.0',
-                            status: VersionStatus.DRAFT,
-                            is_active: true,
-                            components: version.components || []
-                        });
-                    }
-                    creados++;
-                } catch {
-                    errores++;
-                }
-            }
-
-            alert(`✅ Importación completada.\n${creados} productos creados.\n${errores} errores.`);
-            await loadMasters();
+            setPendingConfirm({
+                kind: 'IMPORT_RECIPES',
+                data,
+                clientId: importingClientId,
+            });
         } catch {
-            alert('Error al leer el archivo. Verifica que sea un JSON válido.');
+            toast.error('Error al leer el archivo. Verifica que sea un JSON válido.');
+            setImportingClientId(null);
         } finally {
             if (importInputRef.current) importInputRef.current.value = '';
-            setImportingClientId(null);
         }
     };
 
@@ -445,8 +460,12 @@ const DesignCatalogPage: React.FC = () => {
         if(isSales) return;
         const confirmacion = window.prompt(`⚠ ALERTA CRÍTICA: BORRADO EN CASCADA ⚠\n\nEstás a punto de eliminar "${productName}".\nPara confirmar, escribe: ELIMINAR`);
         if (confirmacion === "ELIMINAR") { 
-            try { await deleteMaster(id); alert("✅ Producto eliminado."); } 
-            catch (err) { alert("Error al eliminar."); } 
+            try {
+                await deleteMaster(id);
+                toast.success('Producto eliminado.');
+            } catch {
+                toast.error('Error al eliminar el producto.');
+            }
         }
     };
 
@@ -472,41 +491,42 @@ const DesignCatalogPage: React.FC = () => {
             if (confirmacion === "ELIMINAR") {
                 try {
                     await deleteMaster(product.id);
-                    alert("✅ Producto eliminado.");
-                } catch (err) {
-                    alert("Error al eliminar el producto.");
+                    toast.success('Producto eliminado.');
+                } catch {
+                    toast.error('Error al eliminar el producto.');
                 }
             }
             return;
         }
 
-        // Caso normal: hay más de una versión → borrar SOLO esta versión, confirmación simple.
-        if (window.confirm(
-            `¿Eliminar la versión "${v.version_name}" de "${product.name}"?\n\n` +
-            `Esta acción no se puede deshacer.`
-        )) {
-            try {
-                await designService.deleteVersion(v.id);
-                alert("✅ Versión eliminada.");
-                await loadMasters(); // refrescar para que la fila borrada desaparezca
-            } catch (err: any) {
-                if (err?.response?.status === 409) {
-                    alert(err.response.data.detail);  // "Esta versión ya fue utilizada..."
-                } else {
-                    alert("Error al eliminar la versión.");
-                }
-            }
+        setPendingConfirm({
+            kind: 'DELETE_VERSION',
+            versionId: v.id,
+            versionName: v.version_name,
+            productName: product.name,
+        });
+    };
+
+    const executeDeleteVersionOnly = async (versionId: number) => {
+        try {
+            await designService.deleteVersion(versionId);
+            toast.success('Versión eliminada.');
+            await loadMasters();
+        } catch (err: any) {
+            toast.error(err?.response?.data?.detail || 'Error al eliminar la versión.');
         }
     };
 
     const handleOpenProduct = async (masterId: number, versions: any[]) => {
-        if (isSales) { alert("🔒 Acceso Restringido."); return; }
+        if (isSales) { toast.warning('Acceso restringido.'); return; }
         if (versions && versions.length > 0) navigate(`/design/versions/${versions[0].id}`);
         else {
             try {
                 const newVersion = await designService.createVersion({ master_id: masterId, version_name: "V1.0", status: VersionStatus.DRAFT, is_active: true, components: [] });
                 await loadMasters(); navigate(`/design/versions/${newVersion.id}`);
-            } catch { alert("Error."); }
+            } catch {
+                toast.error('Error al abrir el producto.');
+            }
         }
     };
 
@@ -516,7 +536,9 @@ const DesignCatalogPage: React.FC = () => {
             if (isEditing && currentId) await updateMaster(currentId, { ...formState, category: formState.category || "General", client_id: Number(formState.client_id), project_name: formState.project_name || null });
             else await addMaster({ ...formState, category: formState.category || "General", client_id: Number(formState.client_id), project_name: formState.project_name || null, is_active: true });
             setIsModalOpen(false);
-        } catch (e) { console.error(e); }
+        } catch {
+            toast.error('Error al guardar el producto.');
+        }
     };
 
     const totalDrafts = masters.filter(m => m.versions?.[0]?.status === VersionStatus.DRAFT || !m.versions?.length).length;
@@ -539,21 +561,18 @@ const DesignCatalogPage: React.FC = () => {
         setCurrentView(prev as any);
     };
 
-    const handleDeleteBatch = async (batchId: number, folio: string) => {
-        if (!window.confirm(
-            `¿Detener el lote ${folio}?\n\n` +
-            `Las instancias regresarán a PENDIENTE y el material ` +
-            `comprometido quedará liberado.\n\n` +
-            `Esta acción no se puede deshacer.`
-        )) return;
+    const handleDeleteBatch = (batchId: number, folio: string) => {
+        setPendingConfirm({ kind: 'DELETE_BATCH', batchId, folio });
+    };
 
+    const executeDeleteBatch = async (batchId: number) => {
         setDeletingBatchId(batchId);
         try {
             const result = await productionService.deleteBatch(batchId);
-            alert(result.message);
+            toast.success(result.message || 'Lote detenido correctamente.');
             await loadLiveBatches();
         } catch (e: any) {
-            alert(e?.response?.data?.detail || 'Error al eliminar el lote.');
+            toast.error(e?.response?.data?.detail || 'Error al eliminar el lote.');
         } finally {
             setDeletingBatchId(null);
         }
@@ -1348,7 +1367,7 @@ const DesignCatalogPage: React.FC = () => {
                                                     await loadMasters();
                                                     navigate(`/design/versions/${newVersion.id}`);
                                                 } catch {
-                                                    alert("Error al abrir el producto.");
+                                                    toast.error('Error al abrir el producto.');
                                                 }
                                             }
                                         }}
@@ -1398,6 +1417,77 @@ const DesignCatalogPage: React.FC = () => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {pendingConfirm?.kind === 'DELETE_BLUEPRINT' && (
+                <VConfirmDialog
+                    isOpen
+                    title="Eliminar plano"
+                    message="¿Eliminar el plano de esta versión?"
+                    consequence="El archivo dejará de estar vinculado a la versión; podrás subir uno nuevo después."
+                    variant="danger"
+                    confirmLabel="Sí, eliminar plano"
+                    onConfirm={async () => {
+                        const { versionId } = pendingConfirm;
+                        setPendingConfirm(null);
+                        await executeDeleteVersionBlueprint(versionId);
+                    }}
+                    onCancel={() => setPendingConfirm(null)}
+                />
+            )}
+
+            {pendingConfirm?.kind === 'IMPORT_RECIPES' && (
+                <VConfirmDialog
+                    isOpen
+                    title="Importar recetas"
+                    message={`¿Importar ${pendingConfirm.data.products.length} productos de "${pendingConfirm.data.client_name || 'cliente'}"?`}
+                    consequence="Se crearán como NUEVOS productos. Los existentes NO se modifican."
+                    variant="default"
+                    confirmLabel="Sí, importar"
+                    onConfirm={async () => {
+                        const payload = pendingConfirm;
+                        setPendingConfirm(null);
+                        await executeImportRecipes(payload);
+                    }}
+                    onCancel={() => {
+                        setPendingConfirm(null);
+                        setImportingClientId(null);
+                    }}
+                />
+            )}
+
+            {pendingConfirm?.kind === 'DELETE_VERSION' && (
+                <VConfirmDialog
+                    isOpen
+                    title="Eliminar versión"
+                    message={`¿Eliminar la versión "${pendingConfirm.versionName}" de "${pendingConfirm.productName}"?`}
+                    consequence="Esta acción no se puede deshacer."
+                    variant="danger"
+                    confirmLabel="Sí, eliminar versión"
+                    onConfirm={async () => {
+                        const { versionId } = pendingConfirm;
+                        setPendingConfirm(null);
+                        await executeDeleteVersionOnly(versionId);
+                    }}
+                    onCancel={() => setPendingConfirm(null)}
+                />
+            )}
+
+            {pendingConfirm?.kind === 'DELETE_BATCH' && (
+                <VConfirmDialog
+                    isOpen
+                    title="Detener lote"
+                    message={`¿Detener el lote ${pendingConfirm.folio}?`}
+                    consequence="Las instancias regresarán a PENDIENTE y el material comprometido quedará liberado. Esta acción no se puede deshacer."
+                    variant="danger"
+                    confirmLabel="Sí, detener lote"
+                    onConfirm={async () => {
+                        const { batchId } = pendingConfirm;
+                        setPendingConfirm(null);
+                        await executeDeleteBatch(batchId);
+                    }}
+                    onCancel={() => setPendingConfirm(null)}
+                />
             )}
         </div>
     );

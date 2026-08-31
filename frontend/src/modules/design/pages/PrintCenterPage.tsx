@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { designService, LabelRequestItem } from '../../../api/design-service';
+import { toast } from '@/components/ui/VToast';
 
 export default function PrintCenterPage() {
   const navigate = useNavigate();
@@ -47,7 +48,7 @@ export default function PrintCenterPage() {
       );
       if (!response.ok) {
         const err = await response.json();
-        alert(`Error: ${err.detail}`);
+        toast.error(err.detail || 'Error al generar las etiquetas.');
         return;
       }
       const blob = await response.blob();
@@ -60,7 +61,7 @@ export default function PrintCenterPage() {
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch {
-      alert('Error al descargar las etiquetas.');
+      toast.error('Error al descargar las etiquetas.');
     }
   };
 
@@ -78,7 +79,7 @@ export default function PrintCenterPage() {
       );
       if (!response.ok) {
         const err = await response.json();
-        alert(`Error: ${err.detail}`);
+        toast.error(err.detail || 'Error al generar el manifiesto.');
         return;
       }
       const blob = await response.blob();
@@ -91,7 +92,7 @@ export default function PrintCenterPage() {
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch {
-      alert('Error al descargar el manifiesto.');
+      toast.error('Error al descargar el manifiesto.');
     }
   };
 

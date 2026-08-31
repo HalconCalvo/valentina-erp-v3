@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, User, Loader } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { VConfirmDialog } from "@/components/ui/VConfirmDialog";
+import { toast } from "@/components/ui/VToast";
 import { VersionRecipeForm } from "../components/VersionRecipeForm"; 
 import { designService } from "../../../api/design-service"; 
 import axiosClient from "../../../api/axios-client"; 
@@ -54,6 +56,7 @@ export default function DesignBuilderPage() {
   const [productName, setProductName] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [showDeleteVersionConfirm, setShowDeleteVersionConfirm] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -150,8 +153,8 @@ export default function DesignBuilderPage() {
             setComponentsToRender(hydratedComponents);
         }
 
-      } catch (err) {
-        console.error("Error cargando datos:", err);
+      } catch {
+        toast.error('Error al cargar los datos de la versión.');
       } finally {
         setIsLoading(false);
       }
@@ -182,12 +185,25 @@ export default function DesignBuilderPage() {
           });
       }
 
-      alert("✅ Guardado correctamente.");
+      toast.success('Guardado correctamente.');
       window.location.reload(); 
 
-    } catch (e) {
-      console.error("Error al guardar:", e);
-      alert("Error al guardar.");
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || 'Error al guardar.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const executeDeleteVersion = async () => {
+    if (!version?.id) return;
+    try {
+      setIsSaving(true);
+      await designService.deleteVersion(version.id);
+      toast.success('Versión eliminada correctamente.');
+      navigate("/design");
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || 'Error al eliminar la versión.');
     } finally {
       setIsSaving(false);
     }
@@ -232,7 +248,9 @@ export default function DesignBuilderPage() {
                                     setIsSaving(true);
                                     await designService.renameVersion(version.id!, newName.trim());
                                     setVersion({...version, version_name: newName.trim()});
-                                } catch (e) { alert("Error al renombrar la versión."); }
+                                } catch (e: any) {
+                                    toast.error(e?.response?.data?.detail || 'Error al renombrar la versión.');
+                                }
                                 finally { setIsSaving(false); }
                             }
                         }}
@@ -265,7 +283,9 @@ export default function DesignBuilderPage() {
                                         // Usamos React Router para una transición fluida en lugar de recargar la página
                                         navigate(`/design/versions/${newVersionId}`);
                                     }
-                                } catch (e) { alert("Error al crear la nueva versión."); }
+                                } catch (e: any) {
+                                    toast.error(e?.response?.data?.detail || 'Error al crear la nueva versión.');
+                                }
                                 finally { setIsSaving(false); }
                             }
                         }}
@@ -280,21 +300,9 @@ export default function DesignBuilderPage() {
 
                     {/* ELIMINAR VERSIÓN AISLADA */}
                     <button 
-                        onClick={async () => {
+                        onClick={() => {
                             if (!version.id) return;
-                            // Verificación de seguridad
-                            if (window.confirm(`¿Estás seguro de eliminar ÚNICAMENTE la versión "${version.version_name}"?\n\nLa familia del producto y las demás versiones NO se borrarán.`)) {
-                                try {
-                                    setIsSaving(true);
-                                    await designService.deleteVersion(version.id);
-                                    alert("✅ Versión eliminada correctamente.");
-                                    navigate("/design"); // Regresa al catálogo general
-                                } catch (e) { 
-                                    console.error(e);
-                                    alert("Error al eliminar la versión."); 
-                                }
-                                finally { setIsSaving(false); }
-                            }
+                            setShowDeleteVersionConfirm(true);
                         }}
                         className="p-1.5 text-red-500 hover:bg-white hover:shadow-sm rounded transition-all"
                         title="Eliminar esta versión (No afecta al producto maestro)"
@@ -344,6 +352,20 @@ export default function DesignBuilderPage() {
             />
         </div>
       </div>
+
+      <VConfirmDialog
+        isOpen={showDeleteVersionConfirm}
+        title="Eliminar versión"
+        message={`¿Eliminar únicamente la versión "${version.version_name}"?`}
+        consequence="La familia del producto y las demás versiones NO se borrarán."
+        variant="danger"
+        confirmLabel="Sí, eliminar versión"
+        onConfirm={async () => {
+          await executeDeleteVersion();
+          setShowDeleteVersionConfirm(false);
+        }}
+        onCancel={() => setShowDeleteVersionConfirm(false)}
+      />
     </div>
   );
 }
