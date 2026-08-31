@@ -434,3 +434,37 @@ def create_order(data, session, user):
     session.add(order)       # commit en endpoint
     session.commit()
     return order
+
+
+---
+
+## CORRECCIÓN — ESTADO REAL DEL BACKEND (actualizado tras inspección)
+
+### Lo que YA EXISTE en app/services/:
+- cloud_storage.py   — integración con Google Cloud Storage
+- label_printer.py   — generación de etiquetas ZPL para impresora
+- planning_service.py — lógica de planeación estratégica (351 líneas)
+- pdf_generator.py   — generación de PDFs (1,018 líneas — demasiado grande, dividir)
+- purchase_manager.py — lógica de compras y requisiciones
+- email_service.py   — envío de emails
+- inventory_manager.py — lógica de inventario
+- cost_engine.py     — cálculo de costos
+- traceability.py    — trazabilidad de movimientos
+
+### Lo que NO EXISTE y debe crearse en Fase 2:
+- app/repositories/  — acceso a datos (aún no existe)
+- app/services/sales_service.py — lógica de ventas (hoy en endpoints/sales.py)
+- app/services/finance_service.py — lógica financiera (hoy en endpoints/finance.py)
+- app/core/logger.py — logging estructurado para auditoría
+
+### Regla actualizada para Cursor:
+Cuando la lógica de negocio YA EXISTE en un service → úsalo y extiéndelo
+Cuando NO existe un service para el dominio → créalo en app/services/
+NUNCA escribir lógica de negocio nueva en endpoints/
+NUNCA crear un service de más de 400 líneas — dividir por responsabilidad
+
+### pdf_generator.py tiene 1,018 líneas — PENDIENTE DIVIDIR:
+- pdf_quotation.py   — PDFs de cotizaciones
+- pdf_orders.py      — PDFs de órdenes de compra
+- pdf_reports.py     — PDFs de reportes
+Esta división se hace en Fase 3, cuando se toque por otra razón.
