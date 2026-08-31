@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useFoundations } from '../hooks/useFoundations';
 import { Percent, Plus, Power, CheckCircle, XCircle, Pencil, Trash2 } from 'lucide-react';
+import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import { toast } from '@/components/ui/VToast';
 
 export default function TaxRatesPage() {
   // NOTA: Agregamos updateTaxRate y deleteTaxRate a la desestructuración del hook
@@ -11,6 +13,7 @@ export default function TaxRatesPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [name, setName] = useState('');
   const [rateStr, setRateStr] = useState('');
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
 
   const resetForm = () => {
     setName('');
@@ -26,23 +29,26 @@ export default function TaxRatesPage() {
     setShowForm(true);
   };
 
-  const handleDeleteClick = async (id: number) => {
-    if (window.confirm("¿Estás seguro de que deseas eliminar este impuesto? Esta acción lo ocultará del sistema.")) {
-        const res = await deleteTaxRate(id);
-        if (res?.success) {
-            alert("Impuesto eliminado correctamente.");
-        } else {
-            alert("Error al eliminar: " + (res?.error || "Desconocido"));
-        }
+  const handleDeleteClick = (id: number) => {
+    setPendingDeleteId(id);
+  };
+
+  const executeDelete = async (id: number) => {
+    const res = await deleteTaxRate(id);
+    if (res?.success) {
+      toast.success('Impuesto eliminado correctamente.');
+    } else {
+      toast.error(res?.error || 'Error al eliminar el impuesto.');
     }
+    setPendingDeleteId(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // 1. Validar inputs visualmente
-    if (!name) return alert("El campo Nombre está vacío");
-    if (!rateStr) return alert("El campo Tasa está vacío");
+    if (!name) { toast.warning('El campo Nombre está vacío'); return; }
+    if (!rateStr) { toast.warning('El campo Tasa está vacío'); return; }
     
     // 2. Diagnóstico de conversión
     const rateDecimal = parseFloat(rateStr) / 100;
@@ -57,13 +63,13 @@ export default function TaxRatesPage() {
         }
 
         if (res.success) {
-            alert("¡Guardado correctamente!");
+            toast.success('Guardado correctamente.');
             resetForm();
         } else {
-            alert("Error del Backend: " + (res.error || "Desconocido")); 
+            toast.error(res.error || 'Error del backend al guardar.');
         }
-    } catch (error) {
-        alert("Error Crítico en Frontend: " + error);
+    } catch {
+        toast.error('Error al guardar el impuesto.');
     }
   };
 
@@ -191,6 +197,19 @@ export default function TaxRatesPage() {
             </tbody>
         </table>
       </div>
+
+      {pendingDeleteId !== null && (
+        <VConfirmDialog
+          isOpen={pendingDeleteId !== null}
+          title="Eliminar impuesto"
+          message="¿Estás seguro de que deseas eliminar este impuesto?"
+          consequence="Esta acción lo ocultará del sistema."
+          variant="danger"
+          confirmLabel="Sí, eliminar"
+          onConfirm={() => executeDelete(pendingDeleteId)}
+          onCancel={() => setPendingDeleteId(null)}
+        />
+      )}
     </div>
   );
 }

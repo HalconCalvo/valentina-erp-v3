@@ -6,6 +6,8 @@ import {
   Percent, Briefcase, PenTool, Package, Hammer, User,
   TrendingUp, Truck, Target
 } from 'lucide-react';
+import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import { toast } from '@/components/ui/VToast';
 
 // --- 1. CONFIGURACIÓN DE ROLES (Nombres visuales) ---
 const ROLE_OPTIONS = {
@@ -42,6 +44,7 @@ export default function UsersPage() {
   };
 
   const [form, setForm] = useState(initialForm);
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
 
   // --- HELPER DE COLORES ---
   const getRoleBadgeClasses = (role: string) => {
@@ -92,17 +95,20 @@ export default function UsersPage() {
       setShowForm(true);
   };
 
-  const handleDelete = async (id: number) => {
-    if (confirm("⚠️ ¿Estás seguro de eliminar este usuario permanentemente?")) {
-      await deleteUser(id);
-    }
+  const handleDelete = (id: number) => {
+    setPendingDeleteId(id);
+  };
+
+  const executeDelete = async (id: number) => {
+    await deleteUser(id);
+    setPendingDeleteId(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!form.full_name || !form.email) {
-        alert("Nombre y Email son obligatorios");
+        toast.warning('Nombre y Email son obligatorios');
         return;
     }
 
@@ -124,7 +130,7 @@ export default function UsersPage() {
         result = await updateUser(editingId, payload);
     } else {
         if (!form.password) {
-            alert("La contraseña es obligatoria para nuevos usuarios");
+            toast.warning('La contraseña es obligatoria para nuevos usuarios');
             return;
         }
         result = await createUser(payload);
@@ -133,7 +139,7 @@ export default function UsersPage() {
     if (result.success) {
         resetForm();
     } else {
-        alert(`Error: ${result.error}`);
+        toast.error(result.error || 'Error al guardar el usuario');
     }
   };
 
@@ -425,6 +431,19 @@ export default function UsersPage() {
             </tbody>
         </table>
       </div>
+
+      {pendingDeleteId !== null && (
+        <VConfirmDialog
+          isOpen={pendingDeleteId !== null}
+          title="Eliminar usuario"
+          message="¿Estás seguro de eliminar este usuario permanentemente?"
+          consequence="Esta acción no se puede deshacer. El usuario perderá acceso al sistema."
+          variant="danger"
+          confirmLabel="Sí, eliminar"
+          onConfirm={() => executeDelete(pendingDeleteId)}
+          onCancel={() => setPendingDeleteId(null)}
+        />
+      )}
     </div>
   );
 }

@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 
 import ExportButton from '@/components/ui/ExportButton';
+import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import { toast } from '@/components/ui/VToast';
 
 export default function ClientsPage() {
   const { clients, loading, createClient, updateClient, deleteClient } = useClients();
@@ -32,6 +34,7 @@ export default function ClientsPage() {
   };
   
   const [form, setForm] = useState<Client>(initialForm);
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
 
   // --- CONFIGURACIÓN REPORTE EXCEL (COMPLETO) ---
   const mapClientsForExcel = (c: Client) => ({
@@ -76,7 +79,7 @@ export default function ClientsPage() {
     if (res && res.success) {
         closeModal();
     } else {
-        alert(res ? res.error : "Error desconocido");
+        toast.error(res?.error || 'Error desconocido');
     }
   };
 
@@ -87,10 +90,13 @@ export default function ClientsPage() {
       setShowModal(true);
   };
 
-  const handleDelete = async (id: number) => {
-      if (window.confirm('¿Estás seguro de eliminar este cliente?')) {
-          await deleteClient(id);
-      }
+  const handleDelete = (id: number) => {
+      setPendingDeleteId(id);
+  };
+
+  const executeDelete = async (id: number) => {
+      await deleteClient(id);
+      setPendingDeleteId(null);
   };
 
   const closeModal = () => {
@@ -152,10 +158,14 @@ export default function ClientsPage() {
         body: formData,
       });
       const result = await res.json();
-      alert(`✅ Importación completada:\n${result.created} creados\n${result.updated} actualizados\n${result.errors?.length ?? 0} errores`);
+      if (!res.ok) {
+        toast.error(result.detail || 'Error al importar el CSV.');
+        return;
+      }
+      toast.success(`Importación completada: ${result.created} creados, ${result.updated} actualizados, ${result.errors?.length ?? 0} errores`);
       window.location.reload();
     } catch {
-      alert('Error al importar el CSV.');
+      toast.error('Error al importar el CSV.');
     } finally {
       setImportingCsv(false);
       if (csvInputRef.current) csvInputRef.current.value = '';
@@ -386,6 +396,19 @@ export default function ClientsPage() {
         .input-mini:focus { border-color: #6366f1; }
         .label-std { display: block; font-size: 0.75rem; font-weight: 700; color: #64748b; margin-bottom: 0.25rem; }
       `}</style>
+
+      {pendingDeleteId !== null && (
+        <VConfirmDialog
+          isOpen={pendingDeleteId !== null}
+          title="Eliminar cliente"
+          message="¿Estás seguro de eliminar este cliente?"
+          consequence="Esta acción no se puede deshacer."
+          variant="danger"
+          confirmLabel="Sí, eliminar"
+          onConfirm={() => executeDelete(pendingDeleteId)}
+          onCancel={() => setPendingDeleteId(null)}
+        />
+      )}
     </div>
   );
 }

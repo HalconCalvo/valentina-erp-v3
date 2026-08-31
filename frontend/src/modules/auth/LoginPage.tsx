@@ -42,9 +42,7 @@ export default function LoginPage() {
             }
         };
 
-        console.log("Enviando credenciales...", params.toString());
         const { data } = await client.post<AuthResponse>('/login/access-token', params, config);
-        console.log("Login Exitoso:", data);
 
         localStorage.setItem('token', data.access_token);
         localStorage.setItem('user_role', data.role || 'ADMIN');
@@ -54,8 +52,6 @@ export default function LoginPage() {
         window.location.href = '/';
 
     } catch (err: any) {
-        console.error("Error Login:", err);
-        
         // Decodificador de errores para mostrar en pantalla
         let msg = "Error de conexión.";
         if (err.response) {

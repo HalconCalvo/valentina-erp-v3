@@ -6,6 +6,8 @@ import HealthSidebar from '../components/HealthSidebar';
 import InstanceEditModal from '../components/InstanceEditModal';
 import { usePlanningCalendar, useHealthPanel } from '../hooks/usePlanning';
 import { InstanceSchedule, CalendarPill, planningService } from '../../../api/planning-service';
+import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import { toast } from '@/components/ui/VToast';
 
 type ViewMode = 'month' | 'week' | 'day';
 
@@ -69,6 +71,7 @@ export default function PlanningPage() {
 
   // ── Focus-mode search query (shared across HealthSidebar + all calendar views) ──
   const [searchQuery, setSearchQuery] = useState('');
+  const [pendingUnscheduleId, setPendingUnscheduleId] = useState<number | null>(null);
 
   // ── Instance lookup map built from health panel data for rich pill matching ──
   const instanceLookup = useMemo<Record<number, InstanceSchedule>>(() => {
@@ -207,9 +210,25 @@ export default function PlanningPage() {
       setHighlightDays({});
       handleRefresh();
     } catch {
-      alert('Error al desprogramar la instancia. Intenta de nuevo.');
+      toast.error('Error al desprogramar la instancia. Intenta de nuevo.');
     }
   }, [editingInstance, handleRefresh]);
+
+  const executeUnscheduleFromDrop = async (id: number) => {
+    try {
+      await planningService.updateInstance(id, {
+        clear_prod_mdf:   true,
+        clear_prod_stone: true,
+        clear_inst_mdf:   true,
+        clear_inst_stone: true,
+      });
+      handleRefresh();
+    } catch {
+      toast.error('Error al desprogramar.');
+    } finally {
+      setPendingUnscheduleId(null);
+    }
+  };
 
   // Inicializar resaltados del mes con las fechas ya guardadas en la instancia editada
   useEffect(() => {
@@ -373,18 +392,7 @@ export default function PlanningPage() {
           const instanceId = e.dataTransfer.getData('pill_instance_id');
           if (!instanceId) return;
           const id = Number(instanceId);
-          if (!window.confirm(
-            '¿Desprogramar todos los procesos de esta instancia?\n\n' +
-            'Se eliminarán PM, PP, IM e IP del calendario.'
-          )) return;
-          planningService.updateInstance(id, {
-            clear_prod_mdf:   true,
-            clear_prod_stone: true,
-            clear_inst_mdf:   true,
-            clear_inst_stone: true,
-          })
-            .then(() => handleRefresh())
-            .catch(() => alert('Error al desprogramar.'));
+          setPendingUnscheduleId(id);
         }}
       >
         <HealthSidebar
@@ -427,6 +435,19 @@ export default function PlanningPage() {
         <div 
           className="lg:hidden fixed inset-0 z-30 bg-black/30 backdrop-blur-sm"
           onClick={() => setShowSidebar(false)}
+        />
+      )}
+
+      {pendingUnscheduleId !== null && (
+        <VConfirmDialog
+          isOpen={pendingUnscheduleId !== null}
+          title="Desprogramar instancia"
+          message="¿Desprogramar todos los procesos de esta instancia?"
+          consequence="Se eliminarán PM, PP, IM e IP del calendario."
+          variant="danger"
+          confirmLabel="Sí, desprogramar"
+          onConfirm={() => executeUnscheduleFromDrop(pendingUnscheduleId)}
+          onCancel={() => setPendingUnscheduleId(null)}
         />
       )}
     </div>

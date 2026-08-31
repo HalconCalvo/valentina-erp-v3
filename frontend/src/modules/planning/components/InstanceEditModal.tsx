@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react';
 import { planningService, InstanceSchedule, CalendarPill } from '../../../api/planning-service';
 import { getSemaphoreConfig } from '../hooks/usePlanning';
+import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 
 interface Installer {
   id: number;
@@ -34,6 +35,15 @@ const LANE_META = [
 ] as const;
 
 type LaneField = typeof LANE_META[number]['field'];
+
+type PendingLaneConfirm = {
+  field: LaneField;
+  dayStr: string;
+  laneCode: string;
+  title: string;
+  message: string;
+  consequence: string;
+};
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 
@@ -165,6 +175,8 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [pickerYear, setPickerYear] = useState(() => new Date().getFullYear());
   const [pickerMonth, setPickerMonth] = useState(() => new Date().getMonth() + 1);
+  const [pendingLaneConfirm, setPendingLaneConfirm] = useState<PendingLaneConfirm | null>(null);
+  const [showUnscheduleConfirm, setShowUnscheduleConfirm] = useState(false);
 
   const [installers, setInstallers] = useState<Installer[]>([]);
   const [imLeaderId, setImLeaderId] = useState<number | ''>('');
@@ -334,48 +346,58 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
     const lane = LANE_META.find(l => l.field === field);
     if (!lane) return;
 
-    // Contar cuántas instancias (distintas a la actual) ya tienen este carril en esta fecha
     const pillsThatDay = calendarData[dayStr] ?? [];
     const sameLanePills = pillsThatDay.filter(
       p => p.lane === lane.code && p.instance_id !== instance.id
     );
     const count = sameLanePills.length;
 
-    // Construir lista legible de instancias ya programadas
     const buildList = () =>
       sameLanePills
-        .map(p => `  • ${lane.code}|${p.custom_name}`)
-        .join('\n');
+        .map(p => `${lane.code}|${p.custom_name}`)
+        .join(', ');
 
-    let shouldProceed = true;
-    if (count >= 4) {
-      // Alerta grande: capacidad interna superada
-      shouldProceed = window.confirm(
-        `⚠️ YA ESTÁN PROGRAMADAS ${count} ${lane.code} PARA ESE DÍA\n\n` +
-        `Capacidad interna superada. Solo continúa si usarás recursos externos.\n\n` +
-        `Instancias ya programadas:\n${buildList()}\n\n` +
-        `¿Continuar de todos modos?`
-      );
-    } else if (count >= 1) {
-      // Alerta chica: mostrar instancias ya programadas
-      shouldProceed = window.confirm(
-        `Ya ${count === 1 ? 'hay' : 'están'} ${count} ${count === 1 ? 'instancia programada' : 'instancias programadas'} para ${lane.code} el ${formatDisplayDate(dayStr)}:\n\n` +
-        `${buildList()}\n\n` +
-        `¿Programar también esta instancia en la misma fecha?`
-      );
-    }
-
-    if (!shouldProceed) {
-      // Usuario canceló — cerrar picker sin cambiar fecha
+    const applyLaneDate = () => {
+      setDates(prev => ({ ...prev, [field]: dayStr }));
+      onDateSelect?.(dayStr, lane.code);
       setPickerOpenField(null);
       setCalendarOpen(false);
+    };
+
+    if (count >= 4) {
+      setPendingLaneConfirm({
+        field,
+        dayStr,
+        laneCode: lane.code,
+        title: 'Capacidad superada',
+        message: `Ya están programadas ${count} ${lane.code} para ese día.`,
+        consequence: `Capacidad interna superada. Solo continúa si usarás recursos externos. Instancias: ${buildList()}`,
+      });
+      return;
+    }
+    if (count >= 1) {
+      setPendingLaneConfirm({
+        field,
+        dayStr,
+        laneCode: lane.code,
+        title: 'Programar en fecha ocupada',
+        message: `Ya ${count === 1 ? 'hay' : 'están'} ${count} ${count === 1 ? 'instancia programada' : 'instancias programadas'} para ${lane.code} el ${formatDisplayDate(dayStr)}.`,
+        consequence: `Instancias ya programadas: ${buildList()}. ¿Programar también esta instancia en la misma fecha?`,
+      });
       return;
     }
 
+    applyLaneDate();
+  };
+
+  const confirmLaneDate = () => {
+    if (!pendingLaneConfirm) return;
+    const { field, dayStr, laneCode } = pendingLaneConfirm;
     setDates(prev => ({ ...prev, [field]: dayStr }));
-    onDateSelect?.(dayStr, lane.code);
+    onDateSelect?.(dayStr, laneCode);
     setPickerOpenField(null);
     setCalendarOpen(false);
+    setPendingLaneConfirm(null);
   };
 
   const handleSaveImTeam = async () => {
@@ -919,13 +941,7 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
                 instance.schedule.IP) && (
               <button
                 type="button"
-                onClick={() => {
-                  if (!window.confirm(
-                    '¿Desprogramar todos los procesos de esta instancia?\n\n' +
-                    'Se eliminarán PM, PP, IM e IP del calendario.'
-                  )) return;
-                  onUnscheduleAll?.();
-                }}
+                onClick={() => setShowUnscheduleConfirm(true)}
                 className="px-4 py-2 text-sm font-bold text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition"
               >
                 🗑️ Desprogramar todo
@@ -959,6 +975,39 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
           </div>
         </div>
       </div>
+
+      {pendingLaneConfirm && (
+        <VConfirmDialog
+          isOpen={pendingLaneConfirm !== null}
+          title={pendingLaneConfirm.title}
+          message={pendingLaneConfirm.message}
+          consequence={pendingLaneConfirm.consequence}
+          variant="default"
+          confirmLabel="Sí, continuar"
+          onConfirm={confirmLaneDate}
+          onCancel={() => {
+            setPendingLaneConfirm(null);
+            setPickerOpenField(null);
+            setCalendarOpen(false);
+          }}
+        />
+      )}
+
+      {showUnscheduleConfirm && (
+        <VConfirmDialog
+          isOpen={showUnscheduleConfirm}
+          title="Desprogramar instancia"
+          message="¿Desprogramar todos los procesos de esta instancia?"
+          consequence="Se eliminarán PM, PP, IM e IP del calendario."
+          variant="danger"
+          confirmLabel="Sí, desprogramar"
+          onConfirm={() => {
+            onUnscheduleAll?.();
+            setShowUnscheduleConfirm(false);
+          }}
+          onCancel={() => setShowUnscheduleConfirm(false)}
+        />
+      )}
     </div>
   );
 }

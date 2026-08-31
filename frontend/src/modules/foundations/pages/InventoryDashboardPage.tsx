@@ -83,8 +83,7 @@ export const InventoryDashboardPage = () => {
                 
                 setPurchasingCount(planningCount + activeOrdersCount);
 
-            } catch (error) {
-                console.error("Error al cargar las métricas del dashboard", error);
+            } catch {
                 setPendingTasksCount('!');
                 setReceptionsCount('!');
                 setPurchasingCount('!');

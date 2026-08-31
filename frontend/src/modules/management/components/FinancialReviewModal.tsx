@@ -9,6 +9,8 @@ import axiosClient from '../../../api/axios-client';
 import { SalesOrder, SalesOrderStatus } from '../../../types/sales';
 import { useFoundations } from '../../foundations/hooks/useFoundations';
 import { Button } from '@/components/ui/Button';
+import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import { toast } from '@/components/ui/VToast';
 
 interface FinancialReviewModalProps {
     orderId: number | null;
@@ -21,6 +23,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
     const [loading, setLoading] = useState(false);
     const [processing, setProcessing] = useState(false);
     const [order, setOrder] = useState<SalesOrder | null>(null);
+    const [pendingConfirm, setPendingConfirm] = useState<'AUTHORIZE' | 'REJECT' | null>(null);
 
     // Catálogo de tasas de impuesto (misma fuente que CreateQuotePage) para leer la tasa REAL
     // de la cotización y respetar tasa cero (sin fallback hardcodeado a 0.16).
@@ -123,9 +126,8 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
 
             setGlobalMargin(Number(initialWeightedMargin.toFixed(2)) || 0);
 
-        } catch (error) {
-            console.error("Error cargando orden:", error);
-            alert("No se pudo cargar la información.");
+        } catch {
+            toast.error('No se pudo cargar la información.');
             onClose();
         } finally {
             setLoading(false);
@@ -361,12 +363,15 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
 
     const handleAuthorize = async () => {
         if (!order || !simulation || isReadOnly) return;
-        // No autorizar con la tasa de IVA sin resolver (catálogo aún no cargado).
         if (taxRates.length === 0) {
-            alert("Aún se está cargando la configuración de impuestos. Intenta de nuevo en un momento.");
+            toast.warning('Aún se está cargando la configuración de impuestos. Intenta de nuevo en un momento.');
             return;
         }
-        if (!window.confirm("¿Confirmar Autorización de Precios y Condiciones?")) return;
+        setPendingConfirm('AUTHORIZE');
+    };
+
+    const executeAuthorize = async () => {
+        if (!order || !simulation || isReadOnly) return;
 
         setProcessing(true);
         try {
@@ -374,7 +379,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                 product_name: i.product_name,
                 origin_version_id: i.origin_version_id,
                 quantity: Number(i.quantity) || 1,
-                unit_price: Number(i.newUnitPrice.toFixed(2)), // precio CON comisión incluida
+                unit_price: Number(i.newUnitPrice.toFixed(2)),
                 frozen_unit_cost: Number(i.frozen_unit_cost) || 0,
                 cost_snapshot: i.cost_snapshot
             }));
@@ -394,27 +399,31 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
 
             if(onOrderUpdated) onOrderUpdated();
             onClose();
-        } catch (error) {
-            console.error(error);
-            alert("Error al autorizar. Revisa la consola.");
+        } catch (error: any) {
+            toast.error(error?.response?.data?.detail || 'Error al autorizar.');
         } finally {
             setProcessing(false);
+            setPendingConfirm(null);
         }
     };
 
-    const handleReject = async () => {
+    const handleReject = () => {
         if (!order || isReadOnly) return;
-        if (!window.confirm("¿Rechazar cotización y enviar a borrador?")) return;
+        setPendingConfirm('REJECT');
+    };
+
+    const executeReject = async () => {
+        if (!order || isReadOnly) return;
         setProcessing(true);
         try {
             await axiosClient.post(`/sales/orders/${order.id}/request_changes`);
             if(onOrderUpdated) onOrderUpdated();
             onClose();
-        } catch (error) { 
-            console.error(error); 
-            alert("Error al rechazar cotización."); 
+        } catch (error: any) { 
+            toast.error(error?.response?.data?.detail || 'Error al rechazar cotización.'); 
         } finally { 
-            setProcessing(false); 
+            setProcessing(false);
+            setPendingConfirm(null);
         }
     };
 
@@ -757,8 +766,29 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                         </div>
 
                     </div>
-                </div>
             </div>
         </div>
+
+        {pendingConfirm && (
+            <VConfirmDialog
+                isOpen={pendingConfirm !== null}
+                title={pendingConfirm === 'AUTHORIZE' ? 'Autorizar cotización' : 'Rechazar cotización'}
+                message={
+                    pendingConfirm === 'AUTHORIZE'
+                        ? '¿Confirmar Autorización de Precios y Condiciones?'
+                        : '¿Rechazar cotización y enviar a borrador?'
+                }
+                consequence={
+                    pendingConfirm === 'AUTHORIZE'
+                        ? 'La cotización quedará autorizada y podrá enviarse al cliente.'
+                        : 'La cotización regresará a borrador para correcciones.'
+                }
+                variant={pendingConfirm === 'REJECT' ? 'danger' : 'default'}
+                confirmLabel={pendingConfirm === 'AUTHORIZE' ? 'Sí, autorizar' : 'Sí, rechazar'}
+                onConfirm={pendingConfirm === 'AUTHORIZE' ? executeAuthorize : executeReject}
+                onCancel={() => setPendingConfirm(null)}
+            />
+        )}
+    </div>
     );
 };

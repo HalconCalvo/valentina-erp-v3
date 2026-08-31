@@ -7,6 +7,7 @@ import {
     UploadCloud, Target, TrendingUp, DollarSign, Hammer
 } from 'lucide-react';
 import { GlobalConfig } from '../../../types/foundations';
+import { toast } from '@/components/ui/VToast';
 
 export default function ConfigPage() {
   
@@ -105,9 +106,8 @@ export default function ConfigPage() {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       setLogoPath(data.url); 
-    } catch (error) {
-      console.error("Error upload:", error);
-      alert("Error al subir el logo.");
+    } catch (error: any) {
+      toast.error(error?.response?.data?.detail || 'Error al subir el logo.');
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -129,7 +129,7 @@ export default function ConfigPage() {
     const helperRateNum = helperRate ? parseFloat(unformatMoney(helperRate)) : 0;
 
     if (isNaN(margin) || isNaN(tolerance) || isNaN(days) || isNaN(edgeFactor) || isNaN(leaderRateNum) || isNaN(helperRateNum)) {
-        alert("Por favor revisa los campos numéricos.");
+        toast.warning('Por favor revisa los campos numéricos.');
         return;
     }
     
@@ -154,11 +154,10 @@ export default function ConfigPage() {
 
     try {
         await updateConfig(updatedData as GlobalConfig); 
-        alert("✅ Configuración guardada correctamente.");
+        toast.success('Configuración guardada correctamente.');
         window.location.reload(); 
-    } catch (err) {
-        console.error("Error al guardar:", err);
-        alert("❌ Ocurrió un error al guardar.");
+    } catch (err: any) {
+        toast.error(err?.response?.data?.detail || 'Ocurrió un error al guardar.');
     }
   };
 

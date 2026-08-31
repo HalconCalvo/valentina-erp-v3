@@ -3,7 +3,8 @@ import { Bell, CheckCircle2, ShoppingCart, ArrowRight } from 'lucide-react';
 
 // ---> RUTAS CORREGIDAS (Subimos 3 niveles hasta src/) <---
 import { Card } from '@/components/ui/Card'; 
-import api from '../../../api/axios-client'; 
+import api from '../../../api/axios-client';
+import { toast } from '@/components/ui/VToast';
 
 export const NotificationsCard: React.FC = () => {
     const [tasks, setTasks] = useState({ pending_requisitions: 0, total_alerts: 0 });
@@ -15,8 +16,8 @@ export const NotificationsCard: React.FC = () => {
                 // Usamos la instancia de axios de tu proyecto
                 const response = await api.get('/purchases/notifications/pending-tasks');
                 setTasks(response.data);
-            } catch (error) {
-                console.error("Error al cargar notificaciones:", error);
+            } catch {
+                toast.error('No se pudieron cargar las notificaciones.');
             } finally {
                 setLoading(false);
             }
