@@ -1359,3 +1359,25 @@ Cuando _nuevo_total > 0.01: UPDATE con status = PENDIENTE fijo (sin CANCELADO).
 1. Cancelar Movimiento bancario — MEDIA
 2. Editar y cancelar Anticipo proveedor — MEDIA
 3. Editar y cancelar Gasto operativo — MEDIA
+
+---
+## SESIÓN 2026-08-31 (tarde) — Cancelar y editar Movimiento Bancario
+### Completado:
+**Backend + Migración:**
+- Migración p2j3k4l5m6n7: agrega is_cancelled, cancel_reason, cancelled_at a bank_transactions
+- PATCH /treasury/transactions/{id} — editar description y reference
+  * Roles: DIRECTOR, MANAGER
+  * 422 si ya está cancelada
+- PATCH /treasury/transactions/{id}/cancel — cancelar movimiento
+  * Roles: DIRECTOR, MANAGER
+  * Verifica ligaduras con CustomerPayment y SupplierPayment antes de cancelar
+  * Revierte current_balance según tipo (IN/OUT/TRANSFER)
+  * Marca is_cancelled, cancel_reason, cancelled_at
+- Schemas: BankTransactionUpdate, BankTransactionCancel en treasury_schema.py
+- Commit: 44e3582
+### Pendiente inmediato:
+- Frontend para cancelar/editar movimiento bancario (TreasuryPage)
+### Pendientes restantes:
+1. Frontend cancelar movimiento bancario — MEDIA
+2. Editar y cancelar Anticipo proveedor — MEDIA
+3. Editar y cancelar Gasto operativo — MEDIA

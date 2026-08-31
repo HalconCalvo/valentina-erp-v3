@@ -106,7 +106,7 @@ const DesignCatalogPage: React.FC = () => {
     useEffect(() => {
         loadMasters();
         fetchClients();
-        axiosClient.get('/foundations/materials/')
+        axiosClient.get('/foundations/materials')
             .then(res => setMaterials(Array.isArray(res.data) ? res.data : res.data?.data || []))
             .catch(() => toast.error('Error al cargar materiales.'));
     }, [loadMasters, fetchClients]);
