@@ -1080,3 +1080,140 @@ Si un usuario tiene que buscar algo, el diseño falló.
 El sistema debe presentar la información correcta
 al usuario correcto en el momento correcto.
 
+
+---
+## CONTEXTO COMPLETO PARA NUEVO CHAT — VALENTINA ERP v3
+## (Leer esto al inicio de cada nueva sesión)
+
+### DATOS DEL PROYECTO
+- Empresa: Koloka (Grupo Incamex Koloka SA de CV) — Mérida, Yucatán
+- Director: Gabriel Frías
+- Producto: Valentina ERP v3 — sistema de gestión empresarial
+- Repo: HalconCalvo/valentina-erp-v3
+- Ruta local: /Users/gabrielfrias/Proyectos/SGP_V3/
+
+### STACK TÉCNICO
+- Frontend: React / TypeScript / Vite / Tailwind
+- Backend: Python / FastAPI / SQLModel / Alembic
+- BD Producción: PostgreSQL en Render (conexión via ~/.pgurl_valentina)
+- BD Local: SQLite
+- Hosting: Render (backend + frontend + PostgreSQL)
+- Deploy: push a GitHub → Render auto-deploya
+
+### URLS
+- Backend producción: https://valentina-backend.onrender.com/api/v1
+- Repo GitHub: https://github.com/HalconCalvo/valentina-erp-v3
+
+### CREDENCIALES (NO están aquí — están en tu Mac)
+- PostgreSQL: source ~/.pgurl_valentina && psql "$PGURL"
+- Render: dashboard en render.com
+- GitHub: configurado en git local
+
+### ROLES DEL SISTEMA
+- DIRECTOR (esposa de Gabriel) — acceso total, bancos, tesorería
+- MANAGER (contable) — facturas cliente, cobranza, nómina, autoriza OCs
+- ADMIN (administradora) — compras, proveedores, facturas proveedor, gastos
+- SALES (vendedor) — solo cotizaciones y ventas propias
+- DESIGN — diseño e ingeniería, recetas
+- PRODUCTION — producción, solicitudes de compra
+- WAREHOUSE — compras y almacén
+- LOGISTICS — entrega e instalación en campo
+
+### REGLAS DE NEGOCIO KOLOKA
+- 90% inmobiliarias/hoteles, 10% particulares
+- Precio por modelo de casa (Guayacán, Fresno, Laurel, etc.)
+- Fabricación bajo demanda conforme la inmobiliaria construye
+- Pago: Anticipo → Avances → Fondo de garantía → Finiquito
+- Finanzas: solo DIRECTOR, MANAGER y ADMIN
+
+### ROLES CLAUDE Y CURSOR
+- Claude = Arquitecto (define, verifica, no manda código)
+- Cursor = Programador (construye lo que Claude define, lee CLAUDE.md)
+- Gabriel = Director del Proyecto (aprueba o rechaza todo)
+- Cursor usa modelo Sonnet 4.6 (verificado que lee CLAUDE.md correctamente)
+
+### ESTADO ACTUAL DEL FRONTEND
+- 0 violaciones de principios en todo el proyecto ✓
+- Librería V completamente implementada:
+  VConfirmDialog, VToast, VEmptyState, VCurrencyInput, VStatusBadge, VTable
+- Todos los módulos refactorizados:
+  Compras, Administración, Ventas, Diseño, Producción,
+  Logística, Tesorería, Dirección, Finance, Auth, Planning, Foundations
+
+### ESTADO ACTUAL DEL BACKEND
+- FASE 1 ✓ — Arquitectura de 4 capas documentada en CLAUDE.md
+- FASE 2 ✓ — Estructura base creada:
+  repositories/__init__.py + base_repository.py
+  services/sales_service.py (placeholder)
+  services/finance_service.py (placeholder)
+  core/logger.py (logging estructurado JSON)
+- FASE 3 EN PROGRESO — Migración gradual por módulo:
+  Orden: auth → treasury → logistics → finance → design →
+  production → planning → foundations → purchases → sales
+  Trabajo por módulo:
+  1. Corregir imports dentro de funciones
+  2. Corregir queries dentro de loops (selectinload)
+  3. Estandarizar manejo de errores (HTTPException)
+  4. Documentar qué lógica migra a services/
+
+### ARCHIVOS CLAVE DEL BACKEND
+- endpoints/sales.py — 2,365 líneas (el más crítico)
+- endpoints/purchases.py — 1,580 líneas
+- endpoints/design.py — 1,148 líneas
+- services/pdf_generator.py — 1,018 líneas (pendiente dividir)
+- services/planning_service.py — 351 líneas
+- services/purchase_manager.py — 154 líneas
+
+### PRINCIPIOS TÉCNICOS (5 pilares)
+1. Regla de oro: nada se elimina físicamente — siempre cancelar con trazabilidad
+2. Estándares de calidad: autocomplete, fechas con calendario, validación
+3. 4 caminos por flujo: feliz, corrección, excepción, cancelación
+4. Librería de componentes V: nadie construye desde cero
+5. Plataforma: web app + PWA para instaladores (después)
+
+### PRINCIPIOS UX (10 principios nivel Oracle/SAP)
+1. Orientado a procesos, no a pantallas
+2. Roles y responsabilidades claros
+3. Trazabilidad completa
+4. Alertas proactivas
+5. Consistencia total
+6. Datos en tiempo real
+7. Acceso directo a entidades (máx 3 clics)
+8. El contexto no se pierde
+9. Validación antes de permitir
+10. El proceso define la pantalla
+
+### PENDIENTES EN ORDEN DE PRIORIDAD
+1. BACKEND Fase 3 — migración gradual por módulo (esta semana)
+2. UX — rediseño de navegación y flujos (próxima semana):
+   - Facturas accesibles directamente, no dentro de Rayos X
+   - Separar vistas de Administración por rol (ADMIN vs MANAGER)
+   - Rediseñar Sidebar según roles definidos
+3. CRUD pendientes:
+   - Editar OC (cabecera e items) — ALTA
+   - Editar y cancelar Factura cliente — ALTA
+   - Editar Factura proveedor — ALTA
+   - Cancelar Movimiento bancario — MEDIA
+   - Editar y cancelar Anticipo proveedor — MEDIA
+   - Editar y cancelar Gasto operativo — MEDIA
+4. Descripción técnica por instancia (PDF, producción, etiqueta ZPL)
+5. window.prompt del anticipo proveedor → modal propio
+6. window.prompt de DesignCatalogPage → VConfirmDialog
+
+### MENÚ COMPRAS Y ALMACÉN (definitivo)
+6 tarjetas en grid 3+3:
+1. Solicitud de Compra — Urgentes, Aplazadas, Mis solicitudes, Nueva
+2. Órdenes de Compra — Nueva OC, Por autorizar, Autorizadas,
+   Enviadas, En recepción, Todas
+3. Recepción — OCs en tránsito, Recepcionar, Alta sustituto,
+   Corregir, Cancelar parcial
+4. Inventario — Conteo físico, Ajustes, Valuación
+5. Materiales — Lista, Nuevo, Editar, Baja lógica, CSV
+6. Proveedores — Lista, Nuevo, Editar, Baja lógica, Estado cuenta
+
+### CÓMO INICIAR UNA NUEVA SESIÓN
+1. Leer journal: tail -200 /Users/gabrielfrias/Proyectos/SGP_V3/journal.txt
+2. Verificar estado: git log --oneline -10
+3. Declarar qué se va a construir y por qué cumple los principios
+4. Nunca tocar código sin haber leído el journal primero
+
