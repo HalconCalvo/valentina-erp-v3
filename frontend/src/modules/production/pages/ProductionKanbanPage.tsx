@@ -5,6 +5,8 @@ import axiosClient from '../../../api/axios-client';
 import { ProductionBatch } from '../../../types/production';
 import { Lock, Package, AlertCircle, ArrowRight, CheckCircle2, Boxes } from 'lucide-react';
 import { jsPDF } from 'jspdf';
+import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import { toast } from '@/components/ui/VToast';
 
 const STATUS_READY_TO_INSTALL = 'READY_TO_INSTALL';
 const STATUS_PACKING = 'PACKING';
@@ -242,7 +244,7 @@ async function openBlueprintLinks(batch: any) {
   }
 
   if (opened.size === 0) {
-    alert('No hay planos disponibles para las instancias de este lote.');
+    toast.warning('No hay planos disponibles para las instancias de este lote.');
   }
 }
 
@@ -281,6 +283,7 @@ export default function ProductionKanbanPage() {
     logo_path?: string | null;
   } | null>(null);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
+  const [pendingDispatchInst, setPendingDispatchInst] = useState<any | null>(null);
 
   const batchesForView = useMemo(() => {
     if (materialFilter === 'ALL') return batches;
@@ -312,7 +315,7 @@ export default function ProductionKanbanPage() {
       const response = await axiosClient.get('/production/instances/ready');
       setReadyInstances(response.data);
     } catch {
-      console.error('Error cargando instancias listas');
+      toast.error('Error al cargar instancias listas para instalar.');
     }
   };
 
@@ -346,8 +349,8 @@ export default function ProductionKanbanPage() {
       setBultosByInstanceId(initialBultos);
       setStoneByInstanceId(initialStone);
       setLabelsRequestedInstanceIds(initialLabels);
-    } catch (error) {
-      console.error("Error al cargar los lotes:", error);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.detail || 'Error al cargar los lotes.');
     } finally {
       setLoading(false);
     }
@@ -362,7 +365,7 @@ export default function ProductionKanbanPage() {
       loadBatches(); 
     } catch (error: any) {
       const serverError = error.response?.data?.detail || error.message;
-      alert(`Error del backend al crear lote:\n${JSON.stringify(serverError, null, 2)}`);
+      toast.error(typeof serverError === 'string' ? serverError : 'Error del backend al crear lote.');
     }
   };
 
@@ -408,7 +411,7 @@ export default function ProductionKanbanPage() {
     if (batch.status === newStatus) return;
 
     if (batch.status === 'IN_PRODUCTION' && newStatus === 'DRAFT') {
-      alert("Operación denegada: Un lote en producción no puede regresar a la fila de espera.");
+      toast.warning('Operación denegada: un lote en producción no puede regresar a la fila de espera.');
       return;
     }
 
@@ -420,15 +423,12 @@ export default function ProductionKanbanPage() {
     try {
       await productionService.updateBatchStatus(batchId, newStatus);
     } catch (error: any) {
-      console.error("Error actualizando estatus:", error);
-      alert("No se pudo actualizar el estatus.");
+      toast.error(error?.response?.data?.detail || 'No se pudo actualizar el estatus.');
       setBatches(previousBatches);
     }
   };
 
-  const handleDispatchHardware = async (inst: any) => {
-    if (inst.hardware_dispatched) return;
-    if (!confirm(`¿Confirmas que los herrajes de "${inst.custom_name}" ya fueron surtidos a producción?`)) return;
+  const executeDispatchHardware = async (inst: any) => {
     setDispatchingHardware(inst.id);
     try {
       const token = localStorage.getItem('token');
@@ -437,7 +437,6 @@ export default function ProductionKanbanPage() {
         method: 'PATCH',
         headers: { 'Authorization': `Bearer ${token}` },
       });
-      // Actualizar selectedBatch inmediatamente sin cerrar el modal
       setSelectedBatch((prev: any) => {
         if (!prev) return prev;
         return {
@@ -450,11 +449,16 @@ export default function ProductionKanbanPage() {
         };
       });
       await loadBatches();
-    } catch {
-      alert('Error al marcar herrajes como surtidos.');
+    } catch (error: any) {
+      toast.error(error?.response?.data?.detail || 'Error al marcar herrajes como surtidos.');
     } finally {
       setDispatchingHardware(null);
     }
+  };
+
+  const handleDispatchHardware = (inst: any) => {
+    if (inst.hardware_dispatched) return;
+    setPendingDispatchInst(inst);
   };
 
   const loadHerrajesPreview = async (inst: any) => {
@@ -480,8 +484,8 @@ export default function ProductionKanbanPage() {
         herrajes: herrajesData?.herrajes ?? [],
         blueprintPath: blueprintData?.blueprint_path ?? null,
       });
-    } catch {
-      alert('Error al cargar herrajes. Verifica la conexión.');
+    } catch (error: any) {
+      toast.error(error?.response?.data?.detail || 'Error al cargar herrajes. Verifica la conexión.');
     } finally {
       setLoadingHerrajesPreview(false);
     }
@@ -706,7 +710,7 @@ export default function ProductionKanbanPage() {
   const handleDeclareStonePieces = async (instanceId: number) => {
     const pieces = stoneByInstanceId[instanceId];
     if (!pieces || pieces < 1) {
-      alert('Ingresa al menos 1 pieza de piedra.');
+      toast.warning('Ingresa al menos 1 pieza de piedra.');
       return;
     }
     try {
@@ -726,12 +730,12 @@ export default function ProductionKanbanPage() {
       );
       if (!response.ok) {
         const err = await response.json();
-        alert(`Error: ${err.detail}`);
+        toast.error(err.detail || 'Error al declarar piezas de piedra.');
         return;
       }
-      alert(`✅ ${pieces} piezas de piedra declaradas correctamente.`);
+      toast.success(`${pieces} piezas de piedra declaradas correctamente.`);
     } catch {
-      alert('Error al declarar piezas. Verifica la conexión.');
+      toast.error('Error al declarar piezas. Verifica la conexión.');
     }
   };
 
@@ -744,7 +748,6 @@ export default function ProductionKanbanPage() {
   };
 
   const handleMoveToReady = async (instanceIds: number[]) => {
-    console.log('handleMoveToReady llamado con:', instanceIds);
     if (instanceIds.length === 0) return;
     setMovingToReady(true);
     try {
@@ -773,11 +776,7 @@ export default function ProductionKanbanPage() {
       await loadBatches();
       await loadReadyInstances();
     } catch (error: any) {
-      console.error('Error:', error);
-      alert(
-        error?.response?.data?.detail ||
-        'Error al mover instancias.'
-      );
+      toast.error(error?.response?.data?.detail || 'Error al mover instancias.');
     } finally {
       setMovingToReady(false);
     }
@@ -823,7 +822,6 @@ export default function ProductionKanbanPage() {
           <button
             type="button"
             onClick={() => {
-              console.log('BOTÓN VERDE CLICKEADO', selectedPackingIds);
               handleMoveToReady(selectedPackingIds);
             }}
             disabled={movingToReady}
@@ -991,7 +989,7 @@ export default function ProductionKanbanPage() {
                           typeof detail === 'string'
                             ? detail
                             : JSON.stringify(detail ?? err.message ?? error);
-                        alert(msg);
+                        toast.error(typeof detail === 'string' ? detail : msg || 'Error al solicitar etiquetas.');
                       }
                     }}
                     className="w-full py-2 rounded-lg text-xs font-bold border transition disabled:opacity-40 disabled:cursor-not-allowed bg-violet-600 text-white border-violet-600 hover:bg-violet-700"
@@ -1347,10 +1345,10 @@ export default function ProductionKanbanPage() {
                                 if (data.blueprint_path) {
                                   window.open(data.blueprint_path, '_blank');
                                 } else {
-                                  alert('Esta instancia no tiene plano disponible.');
+                                  toast.warning('Esta instancia no tiene plano disponible.');
                                 }
                               } catch {
-                                alert('Error al obtener el plano.');
+                                toast.error('Error al obtener el plano.');
                               }
                             }}
                             className="flex items-center gap-1.5 text-xs font-bold
@@ -1510,6 +1508,23 @@ export default function ProductionKanbanPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {pendingDispatchInst && (
+        <VConfirmDialog
+          isOpen={pendingDispatchInst !== null}
+          title="Marcar herrajes surtidos"
+          message={`¿Confirmas que los herrajes de "${pendingDispatchInst.custom_name}" ya fueron surtidos a producción?`}
+          consequence="La instancia quedará marcada como surtida y no podrás revertir este registro desde el Kanban."
+          variant="default"
+          confirmLabel="Sí, marcar surtido"
+          onConfirm={async () => {
+            const inst = pendingDispatchInst;
+            setPendingDispatchInst(null);
+            await executeDispatchHardware(inst);
+          }}
+          onCancel={() => setPendingDispatchInst(null)}
+        />
       )}
     </div>
   );
