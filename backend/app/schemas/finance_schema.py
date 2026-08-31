@@ -1,5 +1,6 @@
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
+from pydantic import BaseModel
 from sqlmodel import SQLModel
 from app.models.finance import PaymentStatus, PaymentMethod, CreditNoteType
 
@@ -106,3 +107,11 @@ class CreditNoteRead(SQLModel):
     new_outstanding_balance: Optional[float] = None   # saldo de la factura tras la NC
     cost_adjustment_message: Optional[str] = None
     returned_items: List[dict] = []   # detalle de líneas devueltas (material, cantidad, costo)
+
+
+class PurchaseInvoiceUpdate(BaseModel):
+    """Campos editables de una factura de proveedor (todos opcionales — PATCH)."""
+    invoice_number: Optional[str] = None
+    issue_date: Optional[date] = None
+    due_date: Optional[date] = None
+    total_amount: Optional[float] = None

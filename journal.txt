@@ -1319,3 +1319,21 @@ reconoce el error y regresa a su rol sin defensividad.
 - Bug folio duplicado en rollback de recepción (accounts_payable)
 - Editar Factura proveedor
 - Cancelar Movimiento bancario
+
+---
+## SESIÓN 2026-08-31 (tarde) — Bug folio duplicado en rollback
+### Problema:
+Al revertir una recepción completa, accounts_payable quedaba en status
+CANCELADO en vez de eliminarse. El folio quedaba ocupado y al reutilizarlo
+el candado (status != 'CANCELADO') no lo detectaba como duplicado.
+### Solución aplicada:
+Cuando _nuevo_total <= 0.01 en la corrección de recepción:
+- DELETE purchase_invoices WHERE accounts_payable_id = ap_id (primero)
+- DELETE accounts_payable WHERE id = ap_id (después)
+Cuando _nuevo_total > 0.01: UPDATE con status = PENDIENTE fijo (sin CANCELADO).
+### Commit: 47611d7
+### Pendientes restantes en orden:
+1. Editar Factura proveedor — ALTA
+2. Cancelar Movimiento bancario — MEDIA
+3. Editar y cancelar Anticipo proveedor — MEDIA
+4. Editar y cancelar Gasto operativo — MEDIA

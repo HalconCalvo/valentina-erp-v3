@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from app.models.inventory import PurchaseRequisition, PurchaseOrder, PurchaseOrderItem
 from app.models.material import Material
 from app.models.foundations import Provider, GlobalConfig
+from app.models.finance import PurchaseInvoice
 from app.models.users import UserRole
 from app.core.deps import get_session, CurrentUser
 from app.services.purchase_manager import PurchaseManager
@@ -17,6 +18,7 @@ from app.services.pdf_generator import PDFGenerator
 from app.services.email_service import send_purchase_order_email
 from app.services.inventory_manager import registrar_movimiento_inventario
 from app.schemas.inventory_schema import PurchaseOrderUpdate, PurchaseOrderItemUpdate, PurchaseOrderItemCancel
+from app.schemas.finance_schema import PurchaseInvoiceUpdate
 
 router = APIRouter()
 
@@ -1718,3 +1720,47 @@ def cancel_purchase_order_item(
     db.commit()
     db.refresh(item)
     return item
+
+
+@router.patch("/invoices/{invoice_id}")
+def update_purchase_invoice(
+    *,
+    db: Session = Depends(get_session),
+    invoice_id: int,
+    data: PurchaseInvoiceUpdate,
+    current_user: CurrentUser,
+):
+    if _resolve_role(current_user) not in ["DIRECTOR", "MANAGER", "ADMIN"]:
+        raise HTTPException(status_code=403, detail="Sin permisos para editar facturas de proveedor.")
+
+    invoice = db.get(PurchaseInvoice, invoice_id)
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Factura no encontrada.")
+
+    updates = data.model_dump(exclude_unset=True)
+    pagos_aplicados = invoice.total_amount - invoice.outstanding_balance
+
+    if pagos_aplicados >= invoice.total_amount:
+        forbidden = set(updates.keys()) - {"due_date"}
+        if forbidden:
+            raise HTTPException(
+                status_code=422,
+                detail="This invoice is fully paid. Only due_date can be edited.",
+            )
+    elif pagos_aplicados > 0:
+        if "total_amount" in updates:
+            raise HTTPException(
+                status_code=422,
+                detail="This invoice has partial payments. Amount cannot be edited.",
+            )
+    else:
+        if "total_amount" in updates:
+            invoice.outstanding_balance = updates["total_amount"]
+
+    for field, value in updates.items():
+        setattr(invoice, field, value)
+
+    db.add(invoice)
+    db.commit()
+    db.refresh(invoice)
+    return invoice
