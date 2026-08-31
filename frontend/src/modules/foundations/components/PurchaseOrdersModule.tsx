@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
     Search, Ban, Send, PackageCheck, 
     ArrowUpRight, Loader2, ArrowLeft,
-    Building2, ShoppingCart, CheckCircle2, FileText, XCircle, Trash2, CheckSquare, Square, AlertCircle, RefreshCw, Snowflake, Plus, AlertTriangle, Truck
+    Building2, ShoppingCart, CheckCircle2, FileText, XCircle, Trash2, CheckSquare, Square, AlertCircle, RefreshCw, Snowflake, Plus, AlertTriangle, Truck, Pencil
 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
@@ -110,6 +110,13 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     const [pendingCategory, setPendingCategory] = useState<string>('');
     const [categoryError, setCategoryError] = useState<string | null>(null);
     const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
+
+    const [editingOverheadId, setEditingOverheadId] = useState<number | null>(null);
+    const [overheadDraft, setOverheadDraft] = useState<string>('');
+    const [editItemModal, setEditItemModal] = useState<{ open: boolean; orderId: number | null; item: any | null }>({ open: false, orderId: null, item: null });
+    const [editItemForm, setEditItemForm] = useState<{ quantity_ordered: string; expected_unit_cost: string; custom_description: string }>({ quantity_ordered: '', expected_unit_cost: '', custom_description: '' });
+    const [cancelItemModal, setCancelItemModal] = useState<{ open: boolean; orderId: number | null; item: any | null }>({ open: false, orderId: null, item: null });
+    const [cancelItemReason, setCancelItemReason] = useState<string>('');
 
     const OVERHEAD_CATEGORIES = [
         'MATERIALES', 'PLANTA', 'COMUNICACIONES', 'COMBUSTIBLES', 'TRANSPORTE',
@@ -643,6 +650,70 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         setPendingConfirm({ kind: 'revoke', orderId, folio });
     };
 
+    const handleSaveOverhead = async (orderId: number) => {
+        try {
+            await axiosClient.patch(`/purchases/orders/${orderId}`, { overhead_category: overheadDraft });
+            setEditingOverheadId(null);
+            toast.success('Categoría actualizada');
+            fetchBrakeOrders(true);
+        } catch (error: any) {
+            toast.error(error.response?.data?.detail || 'Error al actualizar categoría.');
+        }
+    };
+
+    const handleOpenEditItem = (orderId: number, item: any) => {
+        setEditItemForm({
+            quantity_ordered: String(item.quantity_ordered ?? item.qty ?? ''),
+            expected_unit_cost: String(item.expected_unit_cost ?? item.expected_cost ?? ''),
+            custom_description: item.custom_description ?? item.name ?? '',
+        });
+        setEditItemModal({ open: true, orderId, item });
+    };
+
+    const handleSaveEditItem = async () => {
+        if (!editItemModal.orderId || !editItemModal.item) return;
+        const original = editItemModal.item;
+        const body: Record<string, any> = {};
+        const qty = parseFloat(editItemForm.quantity_ordered);
+        const cost = parseFloat(editItemForm.expected_unit_cost);
+        const desc = editItemForm.custom_description.trim();
+        const origQty = parseFloat(String(original.quantity_ordered ?? original.qty ?? 0));
+        const origCost = parseFloat(String(original.expected_unit_cost ?? original.expected_cost ?? 0));
+        const origDesc = (original.custom_description ?? original.name ?? '').trim();
+        if (!isNaN(qty) && qty !== origQty) body.quantity_ordered = qty;
+        if (!isNaN(cost) && cost !== origCost) body.expected_unit_cost = cost;
+        if (desc !== origDesc) body.custom_description = desc;
+        if (Object.keys(body).length === 0) { setEditItemModal({ open: false, orderId: null, item: null }); return; }
+        try {
+            await axiosClient.patch(`/purchases/orders/${editItemModal.orderId}/items/${original.id}`, body);
+            setEditItemModal({ open: false, orderId: null, item: null });
+            toast.success('Partida actualizada');
+            fetchBrakeOrders(true);
+        } catch (error: any) {
+            toast.error(error.response?.data?.detail || 'Error al actualizar la partida.');
+        }
+    };
+
+    const handleCancelItem = async () => {
+        if (!cancelItemModal.orderId || !cancelItemModal.item) return;
+        if (!cancelItemReason.trim()) {
+            toast.warning('Debes ingresar un motivo');
+            return;
+        }
+        try {
+            await axiosClient.patch(
+                `/purchases/orders/${cancelItemModal.orderId}/items/${cancelItemModal.item.id}/cancel`,
+                { cancel_reason: cancelItemReason },
+            );
+            setCancelItemModal({ open: false, orderId: null, item: null });
+            setCancelItemReason('');
+            toast.success('Partida cancelada');
+            fetchBrakeOrders(true);
+        } catch (error: any) {
+            toast.error(error.response?.data?.detail || 'Error al cancelar la partida.');
+        }
+    };
+
     const handleSendByEmail = async () => {
         if (!emailModal.orderId) return;
         const email = emailModal.providerEmail.trim();
@@ -979,18 +1050,18 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                         return (
                             <div key={idx} className={`bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden border-l-4 animate-in fade-in duration-300 ${isPartial ? 'border-l-amber-500' : 'border-l-rose-500'}`}>
                                 <div className={`p-6 border-b border-slate-100 flex justify-between items-center ${isPartial ? 'bg-amber-50/30' : 'bg-rose-50/30'}`}>
-                                    <div className="flex items-center gap-5"><div className={`p-3 rounded-2xl shadow-inner ${isPartial ? 'bg-amber-100 text-amber-600' : 'bg-rose-100 text-rose-600'}`}><FileText size={24} /></div><div><h3 className="text-xl font-black text-slate-800 uppercase leading-none">{order.provider_name}</h3><p className={`text-[9px] font-black uppercase text-slate-400 mt-1 tracking-widest ${isPartial ? 'text-amber-600' : 'text-rose-600'}`}>FOLIO: {order.folio}</p></div></div>
+                                    <div className="flex items-center gap-5"><div className={`p-3 rounded-2xl shadow-inner ${isPartial ? 'bg-amber-100 text-amber-600' : 'bg-rose-100 text-rose-600'}`}><FileText size={24} /></div><div><h3 className="text-xl font-black text-slate-800 uppercase leading-none">{order.provider_name}</h3><p className={`text-[9px] font-black uppercase text-slate-400 mt-1 tracking-widest ${isPartial ? 'text-amber-600' : 'text-rose-600'}`}>FOLIO: {order.folio}</p>{['DIRECTOR', 'MANAGER', 'ADMIN'].includes(role) && (<div className="mt-1.5 flex items-center gap-1.5">{editingOverheadId === order.id ? (<input autoFocus value={overheadDraft} onChange={e => setOverheadDraft(e.target.value)} onBlur={() => handleSaveOverhead(order.id)} onKeyDown={e => { if (e.key === 'Enter') handleSaveOverhead(order.id); if (e.key === 'Escape') setEditingOverheadId(null); }} className="text-[10px] font-black uppercase border-b border-slate-400 bg-transparent outline-none px-0 py-0 w-36 text-slate-600" />) : (<span className="text-[9px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1">{order.overhead_category || '—'}<button onClick={() => { setOverheadDraft(order.overhead_category || ''); setEditingOverheadId(order.id); }} className="text-slate-300 hover:text-slate-500 ml-1"><Pencil size={10} /></button></span>)}</div>)}</div></div>
                                 </div>
                                 <table className="w-full">
                                     <thead>
                                         <tr className="border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                            <th className="px-8 py-4 text-left w-32">SKU</th><th className="px-4 py-4 text-left">Descripción</th><th className="px-4 py-4 text-center">Cant.</th><th className="px-4 py-4 text-center w-32">P. Unit</th><th className="px-8 py-4 text-right">Proyecto</th><th className="px-8 py-4 text-right w-40">Importe</th><th className="px-6 py-4 text-center w-10">Quitar</th>
+                                            <th className="px-8 py-4 text-left w-32">SKU</th><th className="px-4 py-4 text-left">Descripción</th><th className="px-4 py-4 text-center">Cant.</th><th className="px-4 py-4 text-center w-32">P. Unit</th><th className="px-8 py-4 text-right">Proyecto</th><th className="px-8 py-4 text-right w-40">Importe</th><th className="px-6 py-4 text-center w-28">Acciones</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50">
                                         {order.items?.map((item: any, i: number) => (
                                             <tr key={i} className="hover:bg-slate-50/30 transition-colors">
-                                                <td className="px-8 py-3 font-black text-indigo-600 text-[11px] uppercase">{item.sku}</td><td className="px-4 py-3 font-bold text-slate-700 text-xs uppercase">{item.name}</td><td className="px-4 py-3 text-center text-xs font-black text-slate-600">{item.qty}</td><td className="px-4 py-3 text-center text-xs font-bold text-slate-400">${(item.expected_cost || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td><td className="px-8 py-3 text-right"><span className="text-[10px] font-black text-rose-600 uppercase">{item.project_name || "GENERAL"}</span></td><td className="px-8 py-3 text-right text-xs font-black text-slate-800">${(item.subtotal || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td><td className="px-6 py-3 text-center"><button onClick={() => handleRemoveItemFromOrder(order.id, item.id, item.sku)} className="text-rose-400 hover:text-rose-600"><Trash2 size={16} /></button></td>
+                                                <td className="px-8 py-3 font-black text-indigo-600 text-[11px] uppercase">{item.sku}</td><td className="px-4 py-3 font-bold text-slate-700 text-xs uppercase">{item.name}</td><td className="px-4 py-3 text-center text-xs font-black text-slate-600">{item.qty}</td><td className="px-4 py-3 text-center text-xs font-bold text-slate-400">${(item.expected_cost || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td><td className="px-8 py-3 text-right"><span className="text-[10px] font-black text-rose-600 uppercase">{item.project_name || "GENERAL"}</span></td><td className="px-8 py-3 text-right text-xs font-black text-slate-800">${(item.subtotal || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td><td className="px-6 py-3 text-center"><div className="flex items-center justify-center gap-1.5">{!item.is_cancelled && ['DIRECTOR', 'MANAGER', 'ADMIN'].includes(role) && (<><button onClick={() => handleOpenEditItem(order.id, item)} className="text-indigo-400 hover:text-indigo-600" title="Editar partida"><Pencil size={14} /></button><button onClick={() => { setCancelItemReason(''); setCancelItemModal({ open: true, orderId: order.id, item }); }} className="text-amber-400 hover:text-amber-600" title="Cancelar partida"><XCircle size={14} /></button></>)}<button onClick={() => handleRemoveItemFromOrder(order.id, item.id, item.sku)} className="text-rose-400 hover:text-rose-600" title="Quitar de OC"><Trash2 size={16} /></button></div></td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -1903,6 +1974,94 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                     </div>
                 </div>
             )}
+        {editItemModal.open && (
+            <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border-t-4 border-t-indigo-500 animate-in zoom-in-95 duration-200">
+                    <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                        <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Editar Partida</h3>
+                        <button onClick={() => setEditItemModal({ open: false, orderId: null, item: null })} className="text-slate-400 hover:text-slate-600">
+                            <XCircle size={22} />
+                        </button>
+                    </div>
+                    <div className="p-6 space-y-4">
+                        <div>
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Cantidad ordenada</label>
+                            <input
+                                type="number" min="0" step="0.01"
+                                value={editItemForm.quantity_ordered}
+                                onChange={e => setEditItemForm(f => ({ ...f, quantity_ordered: e.target.value }))}
+                                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-indigo-400"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Costo unitario esperado</label>
+                            <input
+                                type="number" min="0" step="0.01"
+                                value={editItemForm.expected_unit_cost}
+                                onChange={e => setEditItemForm(f => ({ ...f, expected_unit_cost: e.target.value }))}
+                                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-indigo-400"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Descripción personalizada</label>
+                            <input
+                                type="text"
+                                value={editItemForm.custom_description}
+                                onChange={e => setEditItemForm(f => ({ ...f, custom_description: e.target.value }))}
+                                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-indigo-400"
+                            />
+                        </div>
+                    </div>
+                    <div className="p-6 border-t border-slate-100 flex gap-3 justify-end">
+                        <Button variant="outline" onClick={() => setEditItemModal({ open: false, orderId: null, item: null })} className="border-slate-200 text-slate-500 font-black uppercase text-[10px] px-5">
+                            Cancelar
+                        </Button>
+                        <Button onClick={handleSaveEditItem} className="bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[10px] px-6 shadow-md">
+                            Guardar cambios
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {cancelItemModal.open && (
+            <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border-t-4 border-t-rose-500 animate-in zoom-in-95 duration-200">
+                    <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                        <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Cancelar Partida</h3>
+                        <button onClick={() => setCancelItemModal({ open: false, orderId: null, item: null })} className="text-slate-400 hover:text-slate-600">
+                            <XCircle size={22} />
+                        </button>
+                    </div>
+                    <div className="p-6 space-y-4">
+                        <p className="text-sm font-bold text-slate-700">Esta acción no se puede deshacer. La partida quedará cancelada con trazabilidad.</p>
+                        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 font-bold">
+                            Si todos los ítems de la OC quedan cancelados, la OC se cancelará automáticamente.
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Motivo de cancelación *</label>
+                            <input
+                                type="text"
+                                autoFocus
+                                placeholder="Describe el motivo..."
+                                value={cancelItemReason}
+                                onChange={e => setCancelItemReason(e.target.value)}
+                                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-rose-400"
+                            />
+                        </div>
+                    </div>
+                    <div className="p-6 border-t border-slate-100 flex gap-3 justify-end">
+                        <Button variant="outline" onClick={() => setCancelItemModal({ open: false, orderId: null, item: null })} className="border-slate-200 text-slate-500 font-black uppercase text-[10px] px-5">
+                            Volver
+                        </Button>
+                        <Button onClick={handleCancelItem} className="bg-rose-600 hover:bg-rose-700 text-white font-black uppercase text-[10px] px-6 shadow-md">
+                            Confirmar cancelación
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        )}
+
         {emailModal.open && (
             <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
                 <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border-t-4 border-t-emerald-500 animate-in zoom-in-95 duration-200">

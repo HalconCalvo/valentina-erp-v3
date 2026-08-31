@@ -1247,3 +1247,25 @@ Gabriel = DIRECTOR DEL PROYECTO
 Si Gabriel dice "Arquitecto, no programador" — Claude para inmediatamente,
 reconoce el error y regresa a su rol sin defensividad.
 
+
+---
+## SESIÓN 2026-08-31 — Editar OC (backend)
+### Completado:
+- CRUD backend para editar OC — 3 endpoints nuevos:
+  * PATCH /purchases/orders/{po_id} — editar cabecera (provider, exchange_rate, overhead_category)
+  * PATCH /purchases/orders/{po_id}/items/{item_id} — editar item (qty, costo, descripción)
+  * PATCH /purchases/orders/{po_id}/items/{item_id}/cancel — cancelar item individual
+- Schemas nuevos en inventory_schema.py: PurchaseOrderUpdate, PurchaseOrderItemUpdate, PurchaseOrderItemCancel
+- Reglas aplicadas: 403/404/422, regresa a DRAFT si estaba AUTORIZADA, cascada a CANCELADA si todos los items cancelados
+- HelpPage: documentado flujo de anticipo a proveedor (pendiente desde 2026-08-19)
+- Commit: 44e2302
+### Pendiente inmediato:
+- Frontend para editar OC (modal de edición en PurchaseOrdersModule)
+- Luego: Editar/cancelar Factura cliente
+- Luego: Bug folio duplicado en rollback
+### Scripts sueltos en raíz del repo (pendiente limpiar):
+- Recalcular_costos_recetas.py
+- Refrescar_costo_cotizaciones.py
+- sanear_recetas.py
+- sanear_recetas_v2.py
+- Mover a scripts/ o agregar a .gitignore
