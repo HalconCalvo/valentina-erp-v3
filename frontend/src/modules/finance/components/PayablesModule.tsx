@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TrendingDown, Clock, CheckCircle2, AlertCircle, AlertTriangle, Calendar, ArrowLeft, Check, Layers, ArrowUpDown, ArrowUp, ArrowDown, XCircle, FileText } from 'lucide-react';
+import { TrendingDown, Clock, CheckCircle2, AlertCircle, AlertTriangle, Calendar, ArrowLeft, Check, Layers, ArrowUpDown, ArrowUp, ArrowDown, XCircle, FileText, Pencil } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import { financeService } from '../../../api/finance-service';
 import { treasuryService } from '../../../api/treasury-service';
+import axiosClient from '../../../api/axios-client';
 import { AccountsPayableStats, PendingInvoice, SupplierPayment, PaymentRequestPayload } from '../../../types/finance';
 import { BankAccount } from '../../../types/treasury';
 
@@ -13,6 +14,8 @@ import { PaymentRequestModal } from './PaymentRequestModal';
 import { InvoiceDetailModal } from './InvoiceDetailModal';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
+import Modal from '@/components/ui/Modal';
+import { Input } from '@/components/ui/Input';
 
 type PayableFilter =
  | 'ALL'
@@ -78,6 +81,12 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
     const [viewingInvoice, setViewingInvoice] = useState<PendingInvoice | null>(null);
     const [cancellingId, setCancellingId] = useState<number | null>(null);
     const [pendingCancelInvoice, setPendingCancelInvoice] = useState<PendingInvoice | null>(null);
+
+    const [editInvoiceModal, setEditInvoiceModal] = useState<{ open: boolean; inv: any | null }>({ open: false, inv: null });
+    const [editInvoiceForm, setEditInvoiceForm] = useState<{ invoice_number: string; issue_date: string; due_date: string; total_amount: string }>({
+        invoice_number: '', issue_date: '', due_date: '', total_amount: '',
+    });
+    const [savingInvoiceEdit, setSavingInvoiceEdit] = useState(false);
 
     const lastParentBackSig = useRef(0);
     useEffect(() => {
@@ -270,6 +279,59 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
 
     const handleCancelInvoice = (inv: PendingInvoice) => {
         setPendingCancelInvoice(inv);
+    };
+
+    const handleOpenEditInvoice = (inv: PendingInvoice) => {
+        setEditInvoiceForm({
+            invoice_number: inv.invoice_number || '',
+            issue_date: inv.issue_date ? inv.issue_date.slice(0, 10) : '',
+            due_date: inv.due_date ? inv.due_date.slice(0, 10) : '',
+            total_amount: String(inv.total_amount || ''),
+        });
+        setEditInvoiceModal({ open: true, inv });
+    };
+
+    const handleSaveEditInvoice = async () => {
+        if (!editInvoiceModal.inv) return;
+        const inv = editInvoiceModal.inv as PendingInvoice;
+        setSavingInvoiceEdit(true);
+        try {
+            const body: Record<string, string | number> = {};
+            if (editInvoiceForm.invoice_number !== (inv.invoice_number || '')) {
+                body.invoice_number = editInvoiceForm.invoice_number;
+            }
+            const origIssue = inv.issue_date ? inv.issue_date.slice(0, 10) : '';
+            if (editInvoiceForm.issue_date !== origIssue) {
+                body.issue_date = editInvoiceForm.issue_date;
+            }
+            const origDue = inv.due_date ? inv.due_date.slice(0, 10) : '';
+            if (editInvoiceForm.due_date !== origDue) {
+                body.due_date = editInvoiceForm.due_date;
+            }
+            const newTotal = parseFloat(editInvoiceForm.total_amount);
+            const origTotal = Number(inv.total_amount || 0);
+            if (!isNaN(newTotal) && newTotal !== origTotal) {
+                body.total_amount = newTotal;
+            }
+
+            if (Object.keys(body).length === 0) {
+                setEditInvoiceModal({ open: false, inv: null });
+                return;
+            }
+
+            await axiosClient.patch(`/purchases/invoices/${inv.id}`, body);
+            setEditInvoiceModal({ open: false, inv: null });
+            toast.success('Factura actualizada');
+            loadData(true);
+        } catch (err: any) {
+            if (err.response?.status === 422) {
+                toast.error(err.response?.data?.detail || 'Error al actualizar la factura');
+            } else {
+                toast.error('Error al actualizar la factura');
+            }
+        } finally {
+            setSavingInvoiceEdit(false);
+        }
     };
 
     const executeCancelInvoice = async (inv: PendingInvoice) => {
@@ -714,6 +776,18 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                                                 <CheckCircle2 size={16} className="mr-1"/> {isChecker ? 'Pagar' : 'Se Solicita Pago'}
                                                             </Button>
                                                         )}
+                                                        {isChecker
+                                                            && (inv as any).status !== 'PAID'
+                                                            && (inv as any).status !== 'CANCELLED' && (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                                                                onClick={() => handleOpenEditInvoice(inv)}
+                                                            >
+                                                                <Pencil size={14} />
+                                                            </Button>
+                                                        )}
                                                         {isChecker && (
                                                             <Button
                                                                 size="sm"
@@ -768,6 +842,92 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                     onCancel={() => setPendingCancelInvoice(null)}
                 />
             )}
+
+            {editInvoiceModal.open && editInvoiceModal.inv && (() => {
+                const inv = editInvoiceModal.inv as PendingInvoice;
+                const abonado = (inv.total_amount || 0) - (inv.outstanding_balance || 0);
+                const hasPayments = abonado > 0;
+                return (
+                    <Modal
+                        isOpen={editInvoiceModal.open}
+                        onClose={() => {
+                            if (savingInvoiceEdit) return;
+                            setEditInvoiceModal({ open: false, inv: null });
+                        }}
+                        title={`Editar Factura ${inv.invoice_number || ''}`}
+                        size="sm"
+                    >
+                        <div className="flex flex-col gap-4">
+                            {hasPayments && (
+                                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                                    Esta factura tiene pagos aplicados. Solo puedes editar la fecha de vencimiento.
+                                </div>
+                            )}
+                            <div>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                    Folio de factura
+                                </label>
+                                <Input
+                                    type="text"
+                                    value={editInvoiceForm.invoice_number}
+                                    onChange={(e) => setEditInvoiceForm((f) => ({ ...f, invoice_number: e.target.value }))}
+                                    disabled={hasPayments}
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                    Fecha de emisión
+                                </label>
+                                <Input
+                                    type="date"
+                                    value={editInvoiceForm.issue_date}
+                                    onChange={(e) => setEditInvoiceForm((f) => ({ ...f, issue_date: e.target.value }))}
+                                    disabled={hasPayments}
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                    Fecha de vencimiento
+                                </label>
+                                <Input
+                                    type="date"
+                                    value={editInvoiceForm.due_date}
+                                    onChange={(e) => setEditInvoiceForm((f) => ({ ...f, due_date: e.target.value }))}
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                    Importe total
+                                </label>
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={editInvoiceForm.total_amount}
+                                    onChange={(e) => setEditInvoiceForm((f) => ({ ...f, total_amount: e.target.value }))}
+                                    disabled={hasPayments}
+                                />
+                            </div>
+                            <div className="flex items-center justify-between gap-4 pt-2">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setEditInvoiceModal({ open: false, inv: null })}
+                                    disabled={savingInvoiceEdit}
+                                >
+                                    Cancelar
+                                </Button>
+                                <Button
+                                    onClick={() => void handleSaveEditInvoice()}
+                                    disabled={savingInvoiceEdit}
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+                                >
+                                    {savingInvoiceEdit ? 'Guardando…' : 'Guardar cambios'}
+                                </Button>
+                            </div>
+                        </div>
+                    </Modal>
+                );
+            })()}
         </div>
     );
 };
