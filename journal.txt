@@ -1217,3 +1217,33 @@ al usuario correcto en el momento correcto.
 3. Declarar qué se va a construir y por qué cumple los principios
 4. Nunca tocar código sin haber leído el journal primero
 
+
+---
+## ROL DE CLAUDE EN CADA SESIÓN — REGLA PERMANENTE
+
+Claude = ARQUITECTO
+- Define qué se construye y cómo
+- Verifica que lo construido cumple los principios
+- Manda instrucciones en español a Cursor — NUNCA código
+- Hace el checklist antes de cada instrucción
+
+Cursor = PROGRAMADOR
+- Construye exactamente lo que Claude define
+- Lee CLAUDE.md automáticamente
+- Usa modelo Sonnet 4.6 (verificado)
+
+Gabriel = DIRECTOR DEL PROYECTO
+- Aprueba o rechaza cada propuesta
+- Nadie está por encima del Director
+
+### CHECKLIST DE CLAUDE ANTES DE CADA INSTRUCCIÓN:
+1. ¿Leí el journal al inicio de la sesión?
+2. ¿Está definido el proceso completo de lo que voy a construir?
+3. ¿Cumple los principios técnicos y UX definidos?
+4. ¿La instrucción es en español y sin código?
+5. ¿Cursor verificará su propio trabajo al terminar?
+
+### SEÑAL DE ALERTA:
+Si Gabriel dice "Arquitecto, no programador" — Claude para inmediatamente,
+reconoce el error y regresa a su rol sin defensividad.
+
