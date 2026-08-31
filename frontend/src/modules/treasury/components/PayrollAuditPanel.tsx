@@ -22,6 +22,7 @@ import {
 import { BankAccount, WeeklyFixedCostPayload, WeeklyFixedCostRecord } from '../../../types/treasury';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { toast } from '@/components/ui/VToast';
 
 export type PayrollLevel1 = 'COMMISSIONS' | 'INSTALLATIONS' | 'WEEKLY' | null;
 type SubView = 'RETAINED' | 'PAYABLE' | 'PAID';
@@ -119,8 +120,8 @@ export const PayrollAuditPanel: React.FC<Props> = ({
           notes: wk.notes || '',
         }));
       }
-    } catch (e) {
-      console.error('Error cargando nómina:', e);
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || 'Error al cargar datos de nómina.');
     }
   }, []);
 
@@ -192,7 +193,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
     const k = commKey(row);
     const note = commDeferReason[k]?.trim();
     if (!note) {
-      alert('Escribe el motivo del diferimiento u omisión.');
+      toast.warning('Escribe el motivo del diferimiento u omisión.');
       return;
     }
     await salesService.updateCommissionPayroll(row.id, {
@@ -207,7 +208,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
   const handleDeferInstall = async (row: PayrollPaymentRecord) => {
     const note = instDeferReason[row.id]?.trim();
     if (!note) {
-      alert('Escribe el motivo del diferimiento u omisión.');
+      toast.warning('Escribe el motivo del diferimiento u omisión.');
       return;
     }
     await treasuryService.deferInstallerPayroll(row.id, note);
@@ -220,7 +221,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
     const bankId = instBankPick[row.id];
     if (accounts.length > 0) {
       if (bankId == null || Number.isNaN(bankId)) {
-        alert('Selecciona la cuenta bancaria de salida.');
+        toast.warning('Selecciona la cuenta bancaria de salida.');
         return;
       }
     }
@@ -236,8 +237,8 @@ export const PayrollAuditPanel: React.FC<Props> = ({
       await treasuryService.saveWeeklyFixedCosts(weekly);
       await loadOverviews();
       onRefresh();
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || 'Error al guardar el cierre semanal.');
     } finally {
       setWeeklySaving(false);
     }
@@ -249,9 +250,8 @@ export const PayrollAuditPanel: React.FC<Props> = ({
     try {
       const data = await treasuryService.listWeeklyFixedCosts(histFrom, histTo);
       setHistory(data);
-    } catch (e) {
-      console.error('Error cargando histórico:', e);
-      alert('Error al cargar el histórico.');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || 'Error al cargar el histórico.');
     } finally {
       setLoadingHistory(false);
     }
@@ -281,9 +281,8 @@ export const PayrollAuditPanel: React.FC<Props> = ({
       });
       setEditingId(null);
       await loadHistory();
-    } catch (e) {
-      console.error('Error guardando corrección:', e);
-      alert('Error al guardar la corrección.');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || 'Error al guardar la corrección.');
     } finally {
       setSavingEdit(false);
     }

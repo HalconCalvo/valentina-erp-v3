@@ -35,6 +35,7 @@ import { PayrollAuditPanel, type PayrollLevel1 } from '../components/PayrollAudi
 // --- UI ---
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { toast } from '@/components/ui/VToast';
 
 type AdminSection = 'TASKS' | 'BANKS' | 'RECEIVABLES' | 'PAYABLES' | 'PAYROLL' | 'PETTY_CASH' | 'OPERATIONAL_EXPENSES' | null;
 
@@ -225,8 +226,8 @@ export const TreasuryPage = () => {
               pending_requisitions: comprasAutorizadas.length, 
               pending_sales_advances: pendingSalesAdvancesCount
           });
-      } catch(e) {
-          console.error("Error cargando notificaciones de compras", e);
+      } catch {
+          /* ignore requisition notification errors */
       }
 
       try {
@@ -246,8 +247,8 @@ export const TreasuryPage = () => {
         /* ignore */
       }
 
-    } catch (error) {
-      console.error('Error al cargar datos del Dashboard', error);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.detail || 'Error al cargar datos del dashboard.');
       setIsAccountsLoading(false);
     }
   };
@@ -641,8 +642,8 @@ export const TreasuryPage = () => {
                 try {
                   const o = await salesService.getOrderDetail(orderId);
                   setSelectedOrderForRayosX(o);
-                } catch (e) {
-                  console.error(e);
+                } catch (e: any) {
+                  toast.error(e?.response?.data?.detail || 'Error al cargar el detalle de la orden.');
                 }
               }}
               onRefresh={fetchData}

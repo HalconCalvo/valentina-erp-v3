@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { X } from 'lucide-react';
 import { BankAccountCreate } from '../../../types/treasury';
 import { treasuryService } from '../../../api/treasury-service';
+import { toast } from '@/components/ui/VToast';
 
 interface Props {
   isOpen: boolean;
@@ -26,9 +27,8 @@ export const CreateAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess
       reset(); // Limpia el formulario
       onSuccess(); // Le avisa a la tabla que recargue los datos
       onClose(); // Cierra el modal
-    } catch (error) {
-      console.error('Error al crear la cuenta:', error);
-      alert('Hubo un error al guardar la cuenta. Revisa la consola.');
+    } catch (error: any) {
+      toast.error(error?.response?.data?.detail || 'Hubo un error al guardar la cuenta.');
     }
   };
 

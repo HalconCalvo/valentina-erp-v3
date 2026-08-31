@@ -5,6 +5,7 @@ import { BankAccount, BankTransactionCreate } from '../../../types/treasury';
 import { treasuryService } from '../../../api/treasury-service';
 import { salesService } from '../../../api/sales-service';
 import axiosClient from '../../../api/axios-client';
+import { toast } from '@/components/ui/VToast';
 
 interface Props {
   isOpen: boolean;
@@ -108,8 +109,7 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
       onSuccess();
       onClose();
     } catch (error: any) {
-      console.error('Error al registrar el movimiento:', error);
-      alert(error?.response?.data?.detail || 'Hubo un error al registrar el movimiento.');
+      toast.error(error?.response?.data?.detail || 'Hubo un error al registrar el movimiento.');
     }
   };
 

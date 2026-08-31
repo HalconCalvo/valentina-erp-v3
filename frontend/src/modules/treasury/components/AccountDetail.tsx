@@ -3,6 +3,8 @@ import { ArrowLeft, ArrowRight, PlusCircle, MinusCircle, ArrowRightLeft, Search,
 import { BankAccount } from '../../../types/treasury';
 import { treasuryService } from '../../../api/treasury-service';
 import axiosClient from '../../../api/axios-client';
+import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import { toast } from '@/components/ui/VToast';
 
 interface Transaction {
   id: number;
@@ -43,6 +45,7 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
   const [editingDesc, setEditingDesc] = useState('');
   const [editingRef, setEditingRef] = useState('');
   const [savingTx, setSavingTx] = useState(false);
+  const [showTransferConfirm, setShowTransferConfirm] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -52,8 +55,8 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
       const data = await treasuryService.getAccountTransactions(account.id);
       setTransactions(data || []);
       setCurrentPage(1); 
-    } catch (error) {
-      console.error('Error al cargar el historial', error);
+    } catch {
+      toast.error('Error al cargar el historial de movimientos.');
     } finally {
       setIsLoading(false);
     }
@@ -64,22 +67,31 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
           const data = await treasuryService.getAccounts();
           setAccounts((data || []).filter((a: BankAccount) => a.id !== account.id));
       } catch {
-          console.error('Error al cargar cuentas');
+          toast.error('Error al cargar cuentas para transferencia.');
       }
   };
 
-  const handleTransfer = async () => {
+  const getTransferAmount = () => parseFloat(transferForm.amount.replace(/,/g, ''));
+
+  const handleTransfer = () => {
       if (!transferForm.to_account_id || !transferForm.amount) {
-          return alert('Selecciona la cuenta destino e ingresa el monto.');
+          toast.warning('Selecciona la cuenta destino e ingresa el monto.');
+          return;
       }
-      const amount = parseFloat(transferForm.amount.replace(/,/g, ''));
+      const amount = getTransferAmount();
       if (isNaN(amount) || amount <= 0) {
-          return alert('Ingresa un monto válido.');
+          toast.warning('Ingresa un monto válido.');
+          return;
       }
       if (amount > (account.current_balance || 0)) {
-          return alert('Saldo insuficiente.');
+          toast.warning('Saldo insuficiente.');
+          return;
       }
-      if (!confirm(`¿Transferir $${amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })} a la cuenta seleccionada?`)) return;
+      setShowTransferConfirm(true);
+  };
+
+  const executeTransfer = async () => {
+      const amount = getTransferAmount();
       setTransferring(true);
       try {
           await treasuryService.transferFunds({
@@ -89,12 +101,13 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
               reference: transferForm.reference || undefined,
               description: transferForm.description || 'Transferencia entre cuentas'
           });
-          alert('✅ Transferencia realizada exitosamente.');
+          toast.success('Transferencia realizada exitosamente.');
           setShowTransferModal(false);
+          setShowTransferConfirm(false);
           setTransferForm({ to_account_id: '', amount: '', reference: '', description: '' });
           fetchTransactions();
       } catch (error: any) {
-          alert(error.response?.data?.detail || 'Error al realizar la transferencia.');
+          toast.error(error.response?.data?.detail || 'Error al realizar la transferencia.');
       } finally {
           setTransferring(false);
       }
@@ -117,7 +130,7 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
           const res = await axiosClient.get(`/treasury/accounts/${account.id}/transactions`);
           setTransactions(res.data || []);
       } catch (err: any) {
-          alert(err.response?.data?.detail || '❌ Error al actualizar el movimiento.');
+          toast.error(err.response?.data?.detail || 'Error al actualizar el movimiento.');
       } finally {
           setSavingTx(false);
       }
@@ -566,6 +579,19 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
               </div>
           </div>
       )}
+
+      <VConfirmDialog
+        isOpen={showTransferConfirm}
+        title="Confirmar transferencia"
+        message={`¿Transferir $${getTransferAmount().toLocaleString('es-MX', { minimumFractionDigits: 2 })} a la cuenta seleccionada?`}
+        consequence="Se registrará un egreso en esta cuenta y un ingreso en la cuenta destino."
+        variant="default"
+        confirmLabel="Sí, transferir"
+        onConfirm={async () => {
+          await executeTransfer();
+        }}
+        onCancel={() => setShowTransferConfirm(false)}
+      />
     </div>
   );
 };
