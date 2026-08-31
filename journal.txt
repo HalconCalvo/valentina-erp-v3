@@ -1,0 +1,1082 @@
+
+---
+## SESIÓN 2026-08-19 — Flujo de Anticipo a Proveedor
+
+### Trabajo completado:
+- Kanban Producción: columnas 3 y 4 agrupadas por OV con acordeones <details>
+- Manual de Valentina (/help): 15 módulos + Gastos Operativos documentados
+- Flujo anticipo a proveedor validado de punta a punta:
+  * Fix Fast-Track: rol DIRECCIÓN ahora reconocido (L169, L329 finance.py)
+  * Fix backend: PurchaseInvoice PAID cuando anticipo cubre 100% (purchases.py)
+  * Fix backend: respaldo invoice_total cuando subtotalDetalle=0
+  * Fix frontend: suprimir advertencia falsa cuando expectedTotal=0
+  * Fix frontend: onFocus select en campo de importe de factura
+
+### Commits de esta sesión:
+- cc96856 — Kanban columnas 3 y 4 agrupadas por OV
+- 70d867d — Manual de Valentina (/help)
+- 522a230 — Gastos Operativos en manual
+- 0bb179a — Fast-Track reconoce DIRECCIÓN y DIRECCION
+- dac4f94 — PurchaseInvoice PAID cuando anticipo 100%
+- 95b902b — Respaldo invoice_total en anticipo 100%
+- 280b813 — Suprimir advertencia monto cuando expectedTotal=0
+- d87b9c4 — onFocus select en campo de importe
+
+### Pendientes identificados:
+1. Mensaje informativo en recepción: "⚠ Pago Anticipado — Saldo: $0.00"
+2. Normalizar roles del sistema a inglés puro
+3. Bug accounts_payable folio duplicado en rollback (usar DELETE no CANCELADO)
+4. Fondo de Garantía (nueva etapa de facturación 5-10%)
+5. NC Capa 3 (mensajes UI, listado, anular NC)
+6. Kanban columna 3 muestra advertencia de monto al recepcionar OC prepagada
+
+### Flujo anticipo a proveedor validado:
+Andén → ⚠ ANTICIPO → CxP (ANT-OC-folio) → Pago Anticipado Fast-Track →
+Bóveda baja → Recepción → factura nace PAID con saldo $0
+
+---
+## SESIÓN 2026-08-19 (tarde) — Anticipo a Proveedor + Normalización Roles
+
+### Trabajo completado:
+
+**Flujo anticipo a proveedor — validado y funcional:**
+- Proceso existente: Recepción → ⚠ ANTICIPO → CxP (ANT-OC-folio) → Pago Fast-Track → Bóveda baja → Recepcionar → factura PAID
+- fix: Fast-Track reconoce DIRECTOR (rol real en BD)
+- fix: PurchaseInvoice PAID se crea directamente cuando anticipo cubre 100%
+- fix: respaldo con invoice_total cuando subtotalDetalle=0
+- feat: campo advance_paid en GET /purchases/orders/
+- feat: recuadro naranja en recepción — aparece al capturar folio+importe, 3 escenarios: saldo cero, saldo pendiente, overpaid
+- fix: campo de importe se limpia al hacer foco si vale 0
+- fix: advertencia de monto suprimida cuando expectedTotal=0
+
+**Normalización de roles a inglés puro:**
+- GERENCIA → MANAGER en UserRole enum (users.py)
+- MANAGER agregado al enum PostgreSQL (ALTER TYPE)
+- 12 referencias UserRole.GERENCIA → UserRole.MANAGER
+- Aliases muertos eliminados de 7 endpoints
+- Migración m9g0h1i2j3k4: UPDATE users SET role=MANAGER WHERE role=GERENCIA
+- Migración l8f9a0b1c2d3: tabla purchase_prepayments (IF NOT EXISTS)
+- Roles válidos: DIRECTOR · MANAGER · ADMIN · SALES · DESIGN · WAREHOUSE · PRODUCTION · LOGISTICS
+
+### Commits:
+- 2e49d30 — advance_paid en andén + recuadro naranja
+- d20a4c2 — UX campo importe + recuadro grande
+- f5a9c42 — recuadro solo al capturar importe
+- 3094d31 — recuadro siempre naranja con folio+importe
+- e159214 — tres escenarios en recuadro
+- a6cd18f — normalización roles GERENCIA → MANAGER
+- faed721 — migración l8 idempotente IF NOT EXISTS
+
+### Pendientes para mañana (en orden):
+1. **Bug accounts_payable folio duplicado** — al hacer rollback de recepción el registro queda CANCELADO en vez de eliminarse; si se reutiliza el mismo folio el sistema no lo registra
+2. **Saldo a favor con proveedor** — cuando anticipo > factura, registrar crédito (3 opciones: NC del proveedor, saldo a favor, devolución)
+3. **Fondo de Garantía** — nueva etapa de facturación (5-10% retenido por cliente, cobrable 4-6 meses después de firma)
+4. **NC Capa 3** — mensajes UI tras registrar NC, listado de NC por factura, anular NC
+5. **HelpPage** — actualizar manual con proceso de anticipo a proveedor
+6. **Estados OC en inglés** — ENVIADA, RECIBIDA_TOTAL, etc. siguen en español (deuda técnica)
+
+---
+## SESIÓN 2026-08-20 — Cobro múltiple, Roles, Diseño, Usuarios
+
+### Trabajo completado:
+
+**Cobro múltiple CxC:**
+- POST /treasury/transactions/bulk-cxc — un depósito aplica a N facturas
+- TransactionModal extendido con "+ Agregar factura"
+- Filtro por cliente en facturas adicionales (client_id en pending-cxc)
+- Validación: suma de abonos no puede superar el depósito
+
+**Diseño e Ingeniería — agrupación por proyecto:**
+- Campo project_name en ProductMaster (modelo + schema + migración n0h1)
+- groupedProducts: client → project → category
+- Acordeón 📁 de proyecto en el catálogo
+- Campo Proyecto en formulario de nuevo/editar producto
+- Pendiente: productos existentes tienen project_name=NULL (Sin Proyecto)
+
+**Fix visibilidad ventas (SALES):**
+- _normalized_role usaba str(enum) → "UserRole.SALES" en vez de "SALES"
+- Fix: usar role.value cuando el rol es enum
+- Ahora Sahía Patrón solo ve su OV
+
+**Fix roles foundations.py:**
+- GERENCIA → MANAGER en inventario físico y saldo apertura
+
+**Usuarios — teléfono/celular:**
+- Columna phone en users (migración o1i2j3k4l5m6)
+- Campo en formulario y visible en lista
+- Aparece en PDF de cotización en la firma del vendedor (📱)
+
+### Commits:
+- a554e57 — cobro múltiple bulk-cxc
+- ef3c6bc — filtrar facturas por cliente
+- 02d3de8 — agrupación por proyecto en diseño
+- 47b556f — fix _normalized_role enum.value
+- b40c8f4 — fix GERENCIA→MANAGER foundations
+- ead99fe — teléfono usuario + PDF cotización
+
+### Pendientes (en orden):
+1. Diseño: poblar project_name en productos existentes (todos en "Sin Proyecto")
+2. Bug accounts_payable folio duplicado en rollback
+3. Saldo a favor con proveedor (anticipo > factura)
+4. Fondo de Garantía (5-10% retenido por cliente)
+5. NC Capa 3 (mensajes UI, listado, anular)
+6. HelpPage — documentar anticipo a proveedor
+7. Estados OC en inglés (ENVIADA, RECIBIDA_TOTAL, etc.)
+8. Clientes Particulares como cliente especial en Diseño
+
+---
+## SESIÓN 2026-08-20 (tarde) — Diseño, Roles, Cobro múltiple, Performance
+
+### Trabajo completado:
+
+**Cobro múltiple CxC:**
+- POST /treasury/transactions/bulk-cxc funcional
+- Filtro por cliente en dropdown de facturas adicionales
+
+**Fix visibilidad SALES:**
+- _normalized_role usaba str(enum) → devolvía "UserRole.SALES"
+- Fix: usar role.value → Sahía Patrón ahora solo ve su OV
+
+**Usuarios — teléfono:**
+- Campo phone en modelo, migración, formulario y lista
+- Aparece en PDF de cotización en la firma del vendedor (📱)
+
+**Diseño e Ingeniería:**
+- Categorías colapsables dentro de cada cliente (client → category accordion)
+- project_name queda en modelo como campo opcional informativo
+- perf: selectinload en read_product_masters — de ~400 queries a 3
+
+### Commits:
+- a554e57 — cobro múltiple bulk-cxc
+- ef3c6bc — filtrar facturas por cliente
+- 47b556f — fix _normalized_role enum.value
+- b40c8f4 — fix GERENCIA→MANAGER foundations
+- ead99fe — teléfono usuario + PDF cotización
+- 99bb286 — revertir agrupación por proyecto
+- 46eb744 — categorías colapsables en diseño
+- a6f10cb — perf selectinload diseño
+
+### Pendientes para mañana (en orden):
+1. **Revisar lógica del cotizador** — comportamiento extraño reportado
+2. **Bug accounts_payable folio duplicado** — CANCELADO en vez de DELETE en rollback
+3. **Saldo a favor con proveedor** — anticipo > factura
+4. **Fondo de Garantía** — 5-10% retenido por cliente
+5. **NC Capa 3** — mensajes UI, listado, anular
+6. **HelpPage** — documentar anticipo a proveedor
+7. **Estados OC en inglés** — ENVIADA, RECIBIDA_TOTAL, etc.
+8. **Clientes Particulares** — cliente especial en Diseño
+
+---
+## SESIÓN 2026-08-21 — Cotizador + Diseño
+
+### Trabajo completado:
+
+**Fix cotizador — 3 bugs en flujo de autorización:**
+- Bug 1: frozen_cost ahora es el costo en tiempo real desde componentes con precios actuales (no estimated_cost histórico)
+- Bug 2: cambiar comisión limpia itemPriceOverrides → recalcula precios
+- Bug 3: cambiar margen global limpia itemPriceOverrides → recalcula precios
+- Backend: VersionComponentRead incluye current_cost y conversion_factor
+- Backend: read_product_masters enriquece componentes via serialización a dict (no mutación de SQLModel)
+- Frontend: handleVersionChange calcula realtimeCost = SUM(quantity × current_cost / conversion_factor) con Math.ceil por línea
+- Diferencia de $0.04 entre Python y JavaScript aceptada (precisión de punto flotante)
+
+**Diseño e Ingeniería:**
+- Categorías colapsables funcionando correctamente
+- project_name en modelo como campo opcional informativo
+
+### Commits:
+- 7719d51 — fix cotizador 3 bugs (comisión, margen, frozen_cost)
+- d8f4822 — frozen_cost = estimatedCost (revertido después)
+- dfc0eb1 — fallback taxRate al seleccionar versión
+- cc21f04 — costo en tiempo real desde componentes
+- 86dc10f — serializar a dict en read_product_masters
+
+### Pendientes para mañana (en orden):
+1. **Bug accounts_payable folio duplicado** — CANCELADO en vez de DELETE en rollback
+2. **Saldo a favor con proveedor** — anticipo > factura
+3. **Fondo de Garantía** — 5-10% retenido por cliente
+4. **NC Capa 3** — mensajes UI, listado, anular
+5. **HelpPage** — documentar anticipo a proveedor
+6. **Estados OC en inglés** — ENVIADA, RECIBIDA_TOTAL, etc.
+7. **Clientes Particulares** — cliente especial en Diseño
+
+---
+## SESIÓN 2026-08-21 (tarde) — Bugs del personal + Factura al 100%
+
+### Trabajo completado:
+
+**#5 Facturas proveedor duplicadas:**
+- Eliminado duplicado de factura 30830643 (COMPAÑIA FERNANDEZ) de la BD
+- Candado anti-duplicados en receive_purchase_order (accounts_payable + purchase_invoices)
+
+**#6 Proveedor en Gastos Operativos:**
+- Campo texto libre → selector de lista de proveedores del sistema
+
+**#4 OC con mismo SKU a costos diferentes (Piedra):**
+- Frontend: handleSelectMaterial detecta SKU duplicado
+  - Categoría Piedra → permite múltiples renglones
+  - Otras categorías → alerta + scroll al renglón existente
+- Backend: receive_purchase_order usa item_id como clave primaria
+- Frontend: received_items incluye item_id en cada renglón
+
+**#2 Factura al 100% del contrato:**
+- PaymentType.FULL agregado al enum
+- Endpoint POST /orders/{order_id}/emit_full_invoice
+- ReceivableChargeModal: botón "100% Contrato" (verde)
+- Bloque UI con folio obligatorio + importe total
+- Visible desde Administración → E. Cobranza → Rayos X y Cobrar → Emitir Factura
+
+### Commits:
+- 3c5ce00 — anti-duplicados + proveedor en Gastos Operativos
+- c54e71b — validación SKU duplicado en OC (Piedra)
+- 9e3fbea — factura al 100% + SKU piedra recepción + anti-duplicados
+
+### Pendientes para mañana (en orden):
+1. **Probar factura al 100%** — validar flujo completo
+2. **Fondo de Garantía** — nueva etapa de facturación 5-10%
+3. **Migración OVs existentes** — sesión dedicada de datos
+4. **Bug accounts_payable folio duplicado** — CANCELADO en vez de DELETE
+5. **Saldo a favor con proveedor** — anticipo > factura
+6. **NC Capa 3** — mensajes UI, listado, anular
+7. **HelpPage** — documentar anticipo a proveedor
+8. **Estados OC en inglés**
+
+### HelpPage — Notas importantes:
+- El instructivo debe explicar el PARA QUÉ de cada elemento, no repetir el texto de las tarjetas
+- Contexto operativo real: cuándo usar cada función, consecuencias de no usarla
+- Tarea adicional: reescribir los mensajes/descripciones de las tarjetas que son confusos
+
+### Pendiente adicional — Revisión UX de títulos y tarjetas:
+- Hacer un recorrido módulo por módulo
+- Reescribir títulos de tarjetas para que sean descriptivos y exactos
+- Eliminar ambigüedades en los textos de descripción
+- Aplica a: Ventas, Administración, Compras, Tesorería, Diseño, Producción, Logística, Dirección
+- Prioridad: media (no bloquea operación pero mejora adopción del sistema)
+
+---
+## ESTRATEGIA ARQUITECTÓNICA — 2026-08-24 (PRIORIDAD MÁXIMA)
+
+### El problema raíz de Valentina:
+Todo se puede CREAR pero nada se puede CORREGIR.
+Esto convierte a Valentina en un sistema de juguete.
+
+### La regla de oro que guía TODO el trabajo de aquí en adelante:
+"Todo lo que se puede crear, se puede corregir.
+ Todo lo que se puede corregir, se puede cancelar.
+ Nada se borra — se cancela con trazabilidad."
+
+### El plan:
+1. Hacer inventario completo de todas las entidades del sistema
+2. Para cada entidad definir: Crear / Editar / Cancelar / Reglas de negocio
+3. Escanear el código actual para ver qué existe y qué falta
+4. Construir lo que falta en orden de impacto operativo
+5. NO agregar funciones nuevas hasta completar el CRUD de las existentes
+
+### Entidades a revisar (en orden):
+1. Cotización
+2. Orden de Venta (OV)
+3. Factura cliente
+4. Abono a factura cliente
+5. Orden de Compra (OC)
+6. Factura proveedor
+7. Anticipo proveedor
+8. Requisición
+9. Movimiento bancario
+10. Gasto operativo
+
+### Regla para cada sesión:
+Antes de tocar código, verificar que la entidad tiene CRUD completo definido.
+Claude NO puede proponer código sin haber definido primero el ciclo de vida completo.
+
+
+### REGLAS DE ROLES — OPERACIONES FINANCIERAS (permanente)
+Crear, editar y cancelar cualquier entidad financiera:
+- DIRECTOR ✓
+- MANAGER ✓  
+- ADMIN ✓
+- SALES ✗ — nunca toca facturación ni cobros
+- Todos los demás roles ✗ en operaciones financieras
+
+Aplica a: facturas cliente, abonos, facturas proveedor, 
+anticipos, OCs, movimientos bancarios, gastos operativos.
+
+
+---
+## LIBRERÍA DE COMPONENTES BASE — VALENTINA ERP
+## Todos los formularios, tablas y modales DEBEN usar estos componentes.
+## Ningún desarrollador construye inputs o tablas desde cero.
+
+### ENTRADA DE DATOS:
+- VSearchSelect    — selector con búsqueda en tiempo real, autocomplete
+- VInput           — input con validación, mensaje de error, estado loading
+- VNumberInput     — numérico con formato moneda/cantidad, min/max, decimales
+- VDatePicker      — selector de fecha con calendario, rango de fechas
+- VTextArea        — área de texto con contador de caracteres
+- VCheckbox        — checkbox con label, descripción y estado indeterminado
+- VToggle          — switch on/off para estados booleanos
+- VFileUpload      — carga de archivos con preview y validación de tipo/tamaño
+
+### SELECCIÓN Y BÚSQUEDA:
+- VSelect          — dropdown simple con opciones estáticas
+- VMultiSelect     — selección múltiple con tags removibles
+- VSearchSelect    — búsqueda en tiempo real contra el API
+- VComboBox        — permite seleccionar existente O capturar nuevo
+- VRadioGroup      — grupo de opciones excluyentes con descripción
+
+### TABLAS Y LISTAS:
+- VTable           — tabla con filtros, ordenamiento, paginación, acciones por rol
+- VDataGrid        — tabla editable inline (para recepciones, OCs)
+- VList            — lista simple con acciones por ítem
+- VKanban          — vista kanban para flujos de trabajo (producción)
+- VTimeline        — historial cronológico de eventos de una entidad
+
+### FORMULARIOS Y MODALES:
+- VForm            — contenedor de formulario con validación global, 
+                     doble clic bloqueado, estado de carga
+- VModal           — modal con header, body, footer, cierre con Escape
+- VDrawer          — panel lateral para formularios largos (no interrumpe flujo)
+- VConfirmDialog   — confirmación con título, consecuencias claras, 
+                     botón de acción en rojo para operaciones destructivas
+- VWizard          — formulario de varios pasos para procesos complejos
+                     (ej. crear OV, recepcionar mercancía)
+
+### FEEDBACK Y ESTADO:
+- VStatusBadge     — badge de estado con color y texto según entidad
+- VAlert           — mensaje de alerta (info, éxito, advertencia, error)
+- VToast           — notificación temporal en esquina de pantalla
+- VLoader          — indicador de carga (spinner, skeleton, progress bar)
+- VEmpty           — estado vacío con mensaje e ilustración
+- VErrorBoundary   — captura errores de React y muestra mensaje amigable
+
+### NAVEGACIÓN Y LAYOUT:
+- VPageHeader      — header de página con título, breadcrumb y acciones
+- VTabs            — pestañas con contenido asociado
+- VAccordion       — sección colapsable con header y contenido
+- VCard            — tarjeta contenedora con header, body, footer
+- VStepper         — indicador de paso actual en procesos de varios pasos
+
+### FINANCIEROS (específicos para ERP):
+- VCurrencyInput   — input de moneda con formato automático MXN
+- VPercentInput    — input de porcentaje con validación 0-100
+- VAmountDisplay   — muestra monto con color según positivo/negativo/neutro
+- VInvoiceStatus   — badge específico para estados de factura
+- VPaymentStatus   — badge específico para estados de pago
+
+### IMPRESIÓN Y EXPORTACIÓN:
+- VPrintButton     — botón que dispara impresión con layout optimizado
+- VExportButton    — exporta tabla a Excel o PDF
+- VQRCode          — generador de código QR para etiquetas
+
+### REGLAS DE USO:
+1. Ningún formulario usa <input> directo — siempre VInput o derivados
+2. Ningún selector usa <select> directo — siempre VSelect o VSearchSelect
+3. Toda tabla usa VTable — nunca <table> manual
+4. Todo modal usa VModal — nunca div fixed manual
+5. Toda confirmación destructiva usa VConfirmDialog
+6. Todo estado de carga usa VLoader — nunca spinners ad-hoc
+7. Todo mensaje de error usa VAlert o VToast — nunca alert()
+
+
+---
+## DECISIONES DE PLATAFORMA
+
+### App principal (todos los roles excepto Logística en campo):
+- Web app en navegador (laptop y PC de escritorio)
+- Diseño optimizado para pantallas 13"-27"
+- Responsivo pero NO mobile-first
+- Stack actual: React/TypeScript/Vite/Tailwind — se mantiene
+
+### Logística en campo (instaladores con iPad):
+- PWA (Progressive Web App) sobre la misma base React
+- Se instala en iPad como app desde Safari
+- Caché de OVs e instancias del día antes de salir a campo
+- Sincronización cuando recupera señal
+- Acceso a cámara para escaneo QR desde navegador iOS
+- A construir DESPUÉS de completar la arquitectura principal
+
+### Hosting:
+- Backend: Render (se mantiene)
+- Frontend: Render (se mantiene)
+- BD: PostgreSQL en Render (se mantiene)
+- Sin cambios de infraestructura por ahora
+
+
+---
+## MENÚ COMPLETO — ROL ADMIN (Administradora de fábrica)
+
+### Sidebar:
+├── Principal
+├── Compras y Almacén
+└── Administración
+
+### Compras y Almacén:
+├── 1. Solicitud de Compra (altas, bajas y cambios)
+│     ├── Solicitudes urgentes (stock crítico)
+│     ├── Solicitudes aplazadas
+│     └── Nueva solicitud (con autocomplete por SKU y descripción)
+├── 2. Generar Órdenes de Compra (altas, bajas y cambios)
+│     ├── Generar OC (desde solicitudes o directa)
+│     ├── Solicitar Autorización (MANAGER o DIRECTOR autoriza)
+│     ├── Centro de Despacho (envío al proveedor)
+│     └── Todas las OCs (consulta, edición, cancelación)
+├── 3. Recepción
+│     └── OCs en tránsito — recepcionar, capturar factura proveedor
+├── 4. Inventario
+│     ├── Conteo físico
+│     └── Valuación de stock
+├── 5. Catálogo de Materiales (altas, bajas y cambios)
+│     ├── Lista de materiales con filtros
+│     ├── Alta de material (con validación de SKU único)
+│     ├── Editar material
+│     ├── Baja lógica (nunca física)
+│     └── Importar CSV
+└── 6. Proveedores (altas, bajas y cambios)
+      ├── Lista de proveedores con filtros
+      ├── Alta de proveedor (con días de crédito, condiciones de pago)
+      ├── Editar proveedor
+      ├── Baja lógica
+      └── Estado de cuenta por proveedor
+
+### Administración (vista ADMIN):
+├── 1. Alertas y pendientes
+│     └── Facturas por recepcionar, pagos urgentes, stock crítico
+├── 2. Facturas Proveedor (altas, bajas y cambios)
+│     ├── Lista global con filtros (proveedor, estado, fecha, vencimiento)
+│     ├── Editar factura (folio, fecha, importe — si no está PAGADA)
+│     └── Cancelar factura (con reversión automática de saldos)
+├── 3. Cuentas por Pagar
+│     ├── Solicitar pago (prepago y contra entrega)
+│     ├── Vencidas — solo vista
+│     ├── Por vencer esta semana — solo vista
+│     └── Estado de cuenta por proveedor
+└── 4. Gastos y Caja Chica
+      ├── Gastos operativos (con selector de proveedor de lista)
+      └── Caja chica
+
+### Reglas de rol ADMIN:
+- ADMIN genera OCs pero NO las autoriza
+- ADMIN solicita pagos pero NO los ejecuta
+- ADMIN ve Cuentas por Pagar pero NO ejecuta pagos a crédito
+- ADMIN NO ve Tesorería (bancos)
+- ADMIN NO ve Ventas ni Facturas Cliente
+
+
+---
+## FLUJO DE CANCELACIÓN DE SOLICITUDES Y OCs
+
+### Solicitud de compra:
+- Cualquier rol puede cancelar SUS PROPIAS solicitudes
+- Solo cancelable si la OC ligada NO ha sido enviada al proveedor
+- Si ya existe OC ligada en BORRADOR o AUTORIZADA:
+  → Notifica a ADMIN para que ajuste o cancele la OC
+  → OC regresa a BORRADOR y requiere nueva autorización
+- Si OC ya fue ENVIADA:
+  → Producción/rol NO puede cancelar directamente
+  → Debe notificar a ADMIN para gestionar con el proveedor
+
+### Cancelación de OC enviada (proveedor acepta):
+- ADMIN cancela la OC desde Valentina con motivo obligatorio
+- Efectos automáticos al cancelar:
+  1. OC queda en estado CANCELADA con fecha, usuario y motivo
+  2. Solicitudes origen regresan a estado PENDIENTE
+  3. Si había anticipo pagado → queda como saldo a favor del proveedor
+  4. Si había factura de anticipo → se cancela y revierte el saldo
+- ADMIN puede generar nueva OC corregida desde las solicitudes
+
+### Regla general:
+- Antes de enviarse al proveedor → error se corrige internamente
+- Después de enviarse → requiere gestión con el proveedor y
+  cancelación explícita en Valentina con motivo documentado
+
+
+---
+## PRINCIPIO: PREVER LO IMPREVISIBLE — APLICA A TODO VALENTINA
+
+### La pregunta que el arquitecto debe hacerse en cada flujo:
+"¿Qué pasa si algo sale mal en este punto?"
+
+### Casos que SIEMPRE deben estar previstos:
+
+#### Error humano de captura:
+- ¿Se puede corregir antes de que tenga efecto externo?
+- ¿Se puede corregir después de que tuvo efecto externo?
+- ¿Qué se revierte automáticamente al corregir?
+
+#### Cancelación por acuerdo entre partes:
+- ¿Quién puede cancelar y en qué estados?
+- ¿Qué efectos tiene la cancelación en saldos y registros ligados?
+- ¿Qué queda como evidencia de la cancelación?
+
+#### Error del proveedor o cliente:
+- Proveedor factura mal → ¿cómo se corrige en Valentina?
+- Cliente pide cambio de producto → ¿cómo afecta la OV y producción?
+- Proveedor no entrega completo → ¿cómo queda el saldo pendiente?
+
+#### Falla técnica o de proceso:
+- ¿Qué pasa si se corta internet en medio de una recepción?
+- ¿Qué pasa si se duplica accidentalmente un registro?
+- ¿Qué pasa si dos usuarios editan el mismo registro al mismo tiempo?
+
+#### Cambio de decisión:
+- ¿Hasta qué punto se puede cambiar de opinión sin consecuencias?
+- ¿A partir de qué punto el cambio requiere aprobación superior?
+- ¿A partir de qué punto el cambio ya no es posible en el sistema?
+
+### Regla de diseño resultante:
+Todo flujo en Valentina debe tener definido:
+1. El camino feliz (todo sale bien)
+2. El camino de corrección (error humano antes de efecto externo)
+3. El camino de excepción (error después de efecto externo)
+4. El camino de cancelación (acuerdo entre partes)
+
+Sin estos 4 caminos definidos, el flujo NO se construye.
+
+
+---
+## SESIÓN 2026-08-24 — Arquitectura y redefinición de Valentina
+
+### Lo más importante de esta sesión:
+Gabriel señaló que Valentina se ha construido sin arquitectura clara,
+produciendo un sistema fragmentado lleno de parches. Se tomó la decisión
+de pausar el desarrollo de features y definir primero las bases.
+
+### Los 5 pilares arquitectónicos definidos:
+1. Regla de oro: todo lo que se crea se puede corregir y cancelar
+2. Estándares mínimos de calidad en cada campo y formulario
+3. Librería de componentes base (VInput, VTable, VModal, etc.)
+4. Plataforma: web app actual + PWA para instaladores (después)
+5. Prever lo imprevisible: 4 caminos por cada flujo
+
+### Flujo maestro de Koloka definido:
+Comercial → Diseño → Compras → Producción → Logística → Facturación → Cobranza
+
+### Inventario de huecos CRUD completado:
+- Factura cliente: falta editar y cancelar
+- OC y sus items: falta editar
+- Requisición: falta editar, cancelar es físico
+- Factura proveedor: falta editar
+- Anticipo proveedor: falta editar y cancelar
+- Movimiento bancario: falta cancelar, editar solo descripción
+- Gasto operativo: falta editar y cancelar
+
+### Menú ADMIN completamente definido:
+- Sidebar: Principal, Compras y Almacén, Administración
+- Solicitudes de compra: todos los roles pueden crear las suyas
+- ADMIN ve todas las solicitudes y las convierte en OC
+- MANAGER/DIRECTOR autorizan OCs
+- Flujo de cancelación de OC con 4 caminos definidos
+
+### Pendiente para mañana (en orden estricto):
+1. Terminar definición de menús: MANAGER, DIRECTOR, SALES,
+   DESIGN, PRODUCTION, WAREHOUSE, LOGISTICS
+2. Construir librería de componentes base (VInput, VTable, etc.)
+3. Construir CRUD completo de Factura Cliente
+   (editar: folio, fecha, importe, tipo, instancias)
+4. Construir CRUD completo de OC (editar cabecera e items)
+5. Rediseñar módulo Administración por rol
+6. Rediseñar Sidebar según roles definidos
+
+### Regla para próximas sesiones:
+Antes de construir cualquier feature, verificar que tiene
+los 4 caminos definidos: feliz, corrección, excepción, cancelación.
+Claude NO propone código sin arquitectura previa.
+
+
+---
+## PENDIENTE: Descripción técnica por instancia en cotización
+
+### Problema:
+Las cotizaciones actuales solo muestran el nombre de la instancia
+(ej. "Cocina Guayacán") sin descripción de materiales y especificaciones.
+
+### Lo que se necesita:
+Campo de texto largo por instancia que describa exactamente
+qué se entrega, con materiales, acabados, medidas y herrajes.
+
+Ejemplo:
+"Cocina Guayacán en MDF de 15mm Blanco con puertas y frentes
+de cajón en MDF de 15mm color Durango, con jaladeras de 256mm,
+bisagras, correderas de extensión y todos los herrajes necesarios
+para su funcionamiento. Incluye Granito Negro San Gabriel de 20mm
+a canto pulido."
+
+### Dónde aplica:
+- Modelo: SalesOrderItemInstance → campo description (texto largo)
+- Vista: cotización PDF — aparece debajo del nombre de cada concepto
+- Vista: Rayos X — visible al consultar el detalle de la instancia
+- Edición: desde el cotizador al crear/editar la OV
+
+### Nivel de prioridad: medio
+Se construye después del CRUD de facturas y OCs.
+
+
+---
+## PENDIENTE: Reubicar el bautizo de instancias
+
+### Problema:
+El BaptismModal (asignar street y lot a instancias) está escondido
+dentro de Ventas y del detalle de OV. No es intuitivo encontrarlo.
+
+### Dónde debería estar:
+Administración → Seguimiento de OV → [seleccionar OV] → Bautizar instancias
+
+Es una operación administrativa, no de ventas. El responsable de
+asignar casas a instancias es Administración, no el vendedor.
+
+### Nivel de prioridad: medio
+Se reubica cuando rediseñemos el módulo de Administración.
+
+
+---
+## CAUSA RAÍZ: OV-0066 sin instancias
+
+### Diagnóstico:
+Las instancias se crean en _create_instances_for_order() que se llama
+en dos puntos:
+1. Al agregar items (add_items endpoint)
+2. Al ejecutar mark_waiting_advance (registrar OC del cliente)
+
+La OV-0066 pasó de ACCEPTED a SOLD sin pasar por WAITING_ADVANCE,
+saltándose el paso donde se crean las instancias.
+
+### Solución aplicada:
+INSERT manual de 11 instancias directamente en BD.
+
+### Pendiente arquitectónico:
+Agregar validación en mark_sold que verifique que todos los items
+tienen instancias — y si no, crearlas antes de cambiar el estado.
+Así se previene este caso en el futuro.
+
+
+---
+## CORRECCIÓN: Descripción técnica por instancia — alcance completo
+
+### Aplica en:
+1. Cotización PDF — debajo del nombre de cada concepto
+2. OV (Rayos X) — visible al consultar el detalle de la instancia
+3. Orden de Producción — para que el operario sepa exactamente qué fabricar
+4. Etiqueta de producción (ZPL) — especificaciones en la etiqueta impresa
+5. Logística — para que el instalador sepa qué lleva a cada casa
+
+### Sin esta descripción, Producción no sabe:
+- Qué material usar (MDF 15mm Blanco vs Durango)
+- Qué herrajes incluir (bisagras, jaladeras, correderas)
+- Qué acabado de granito (Negro San Gabriel 20mm a canto pulido)
+
+### Prioridad: ALTA — no media
+Afecta directamente la calidad de fabricación e instalación.
+
+
+---
+## MENÚ COMPRAS Y ALMACÉN — DEFINIDO (continuar mañana)
+
+### Estructura completa con regla de oro aplicada:
+
+1. Solicitud de Compra
+   - Urgentes (stock crítico)
+   - Aplazadas
+   - Mis solicitudes (por rol — todos los roles pueden crear)
+   - Nueva Solicitud (SKU/descripción con autocomplete, cantidad, notas)
+   - Editar: mientras no tenga OC generada
+   - Cancelar: siempre con trazabilidad
+
+2. Órdenes de Compra
+   - Nueva OC (directa o desde solicitudes)
+   - Pendientes de autorizar
+   - Autorizadas (listas para enviar)
+   - Enviadas al proveedor
+   - En recepción parcial
+   - Todas las OCs
+   - Editar: cualquier estado excepto CANCELADA y RECIBIDA TOTAL
+   - Si se edita OC AUTORIZADA → regresa a PENDIENTE
+   - Cancelar: mientras no tenga recepción total
+   - Si se cancela → solicitudes origen regresan a PENDIENTE
+
+3. Recepción
+   - OCs en tránsito
+   - Recepcionar mercancía
+   - Corregir recepción (cantidad o precio mal capturado)
+   - Cancelar recepción parcial (con reversión de inventario)
+
+4. Inventario
+   - Conteo físico (editar mientras no se cierre)
+   - Valuación de stock
+
+5. Materiales
+   - Lista de materiales (filtrable)
+   - Nuevo material
+   - Editar material (siempre editable)
+   - Baja lógica (nunca física)
+   - Importar CSV
+
+6. Proveedores
+   - Lista de proveedores (filtrable)
+   - Nuevo proveedor
+   - Editar proveedor (siempre editable)
+   - Baja lógica (nunca física)
+   - Estado de cuenta por proveedor
+
+### Para mañana:
+- Continuar con menú de Administración (ADMIN y MANAGER)
+- Luego DIRECTOR, SALES, DESIGN, PRODUCTION, WAREHOUSE, LOGISTICS
+- Luego construir librería de componentes base
+- Luego implementar CRUD pendientes
+
+
+---
+## MENÚ DEFINITIVO — COMPRAS Y ALMACÉN
+
+1. Solicitud de Compra
+   - Urgentes (stock crítico)
+   - Aplazadas
+   - Mis solicitudes (por rol — todos los roles pueden crear)
+   - Nueva Solicitud: SKU/descripción autocomplete, cantidad, notas
+   - Editar: mientras no tenga OC generada
+   - Cancelar: siempre con trazabilidad
+
+2. Órdenes de Compra
+   - Nueva OC (directa o desde solicitudes)
+   - Pendientes de autorizar
+   - Autorizadas (listas para enviar)
+   - Enviadas al proveedor
+   - En recepción parcial
+   - Todas las OCs
+   - Editar: cualquier estado excepto CANCELADA y RECIBIDA TOTAL
+   - Si se edita OC AUTORIZADA → regresa a PENDIENTE
+   - Cancelar: mientras no tenga recepción total
+   - Si se cancela → solicitudes origen regresan a PENDIENTE
+
+3. Recepción
+   - OCs en tránsito
+   - Recepcionar mercancía
+   - Alta rápida de material sustituto (desde recepción):
+     SKU, Nombre, Unidad compra, Unidad uso, Factor conversión,
+     Costo unitario, Proveedor (prellenado automático)
+   - Corregir recepción (cantidad o precio mal capturado)
+   - Cancelar recepción parcial (con reversión de inventario)
+
+4. Inventario
+   - Conteo físico
+     - Nuevo conteo (editar mientras no se cierre)
+     - Alta completa de material desde conteo:
+       SKU, Nombre, Categoría, Unidad compra, Unidad uso,
+       Factor conversión, Costo unitario, Stock mínimo,
+       Stock máximo, Proveedor habitual, Ruta de producción
+     - Historial de conteos (solo lectura)
+   - Ajustes de inventario
+     - Nuevo ajuste: Material (autocomplete), Cantidad +/-, Motivo
+     - Historial de ajustes
+   - Valuación de stock
+
+5. Materiales
+   - Lista de materiales (filtrable)
+   - Nuevo material (campos completos)
+   - Editar material (siempre editable)
+   - Baja lógica (nunca física)
+   - Importar CSV
+
+6. Proveedores
+   - Lista de proveedores (filtrable)
+   - Nuevo proveedor
+   - Editar proveedor (siempre editable)
+   - Baja lógica (nunca física)
+   - Estado de cuenta por proveedor
+
+
+---
+## SESIÓN 2026-08-26 — Compras y Almacén (en progreso)
+
+### Completado hoy:
+- Dashboard 6 tarjetas en grid 3+3
+- Materiales y Proveedores integrados en Compras y Almacén
+- Eliminadas entradas separadas del Sidebar
+- Solicitud de Compra: Urgentes, Aplazadas, Mis Solicitudes, Nueva Solicitud
+- Cancelar solicitud con trazabilidad (reemplaza DELETE físico)
+- Endpoint PATCH para editar solicitud
+- Órdenes de Compra: renombradas + vista En Recepción Parcial
+- Recepción: MaterialForm prellenan provider_id de la OC activa
+- Inventario: sub-sección Ajustes (Material + Cantidad +/- + Motivo)
+- Alta de material desde conteo cuando SKU no existe
+- Backend: POST /materials/{id}/adjust con delta +/-
+
+### Commits:
+- bdd49b1 — integrar Materiales y Proveedores
+- 2efa177 — grid 3 columnas
+- fc287d5 — eliminar entradas del Sidebar
+- dae6673 — mejoras Solicitudes y OC
+- 1f3ae31 — ajustes inventario y proveedor prellenado
+
+### Pendiente de Compras y Almacén:
+- Editar OC (cabecera e items) — PRIORIDAD ALTA
+- Luego continuar con Administración (ADMIN y MANAGER)
+
+
+---
+## DECISIÓN CRÍTICA — 2026-08-26
+
+### División de roles definitiva:
+- Claude = Arquitecto. Define estructura, funcionamiento, reglas de negocio.
+  NO manda código a Cursor. Manda instrucciones claras de QUÉ construir.
+- Cursor = Programador. Construye lo que Claude define.
+- El archivo .cursorrules / CLAUDE.md en la raíz del proyecto
+  contiene los principios que Cursor debe respetar en cada cambio.
+
+### Próxima sesión — ANTES de tocar código:
+Definir la estructura completa para Cursor en 4 capas:
+1. Arquitectura del proyecto (organización, nombrado, dónde va cada cosa)
+2. Librería de componentes base (VInput, VTable, VModal, VConfirmDialog, etc.)
+3. Patrones de código (cómo se llama al API, manejo de errores, estado)
+4. Reglas de negocio de Koloka (reglas que Cursor debe respetar siempre)
+
+### Lo que NO haremos hasta tener eso definido:
+- No tocar el módulo de Compras y Almacén
+- No construir ningún módulo nuevo
+- No mandar instrucciones de código a Cursor
+
+### Estado actual de Compras y Almacén:
+- Funciona pero viola los principios definidos
+- Usa alert(), window.confirm(), <input> y <table> directos
+- Se reconstruirá después de tener la librería de componentes lista
+
+
+---
+## SESIÓN 2026-08-26 (tarde) — Fundamentos de Valentina 2.0
+
+### Logros de esta sesión:
+
+**Estructura para Cursor:**
+- CLAUDE.md creado en la raíz del proyecto (173 líneas)
+- Define las 4 capas: estructura, componentes V, patrones de código, reglas de negocio
+- Incluye ejemplos NUNCA vs SIEMPRE para cada componente
+- Cursor lo lee automáticamente en cada sesión
+
+**Librería de componentes base (Librería V) — construida:**
+- VConfirmDialog — reemplaza window.confirm()
+- VToast — reemplaza alert() con notificaciones globales
+- VEmptyState — estado vacío para listas
+- VCurrencyInput — montos en MXN con formato automático
+- VStatusBadge — estados de entidades (factura, OC, OV, etc.)
+- VTable — tabla con sort, skeleton, vacío y acciones por fila
+
+**Documentación:**
+- PDF de arquitectura generado: Valentina_2_Arquitectura.pdf
+  Cubre: 5 pilares, flujo maestro, roles, menú Compras, CRUD pendientes,
+  librería de componentes y reglas para Cursor
+
+**Decisión estratégica confirmada:**
+- Gabriel no tiene prisa — quiere un sistema a la altura de Oracle/SAP
+- Claude aporta como arquitecto con visión completa, no solo sigue instrucciones
+- La calidad es la prioridad, no la velocidad
+
+### Commits:
+- 7614e40 — CLAUDE.md con reglas de arquitectura
+- 5d98170 — Librería V (6 componentes)
+- 5a77863 — Ejemplos NUNCA vs SIEMPRE en CLAUDE.md
+
+### Para la próxima sesión:
+1. Mapa de integridad de Valentina — identificar puntos donde los datos
+   pueden volverse inconsistentes y definir cómo blindarlos
+   (alineado con la regla de oro y los 4 caminos)
+2. Continuar con la reconstrucción de Compras y Almacén usando Librería V
+3. Definir menús de MANAGER, DIRECTOR y demás roles
+
+
+---
+## SESIÓN 2026-08-27 — Reconstrucción Compras y Almacén con Librería V
+
+### Completado:
+- Tarjeta 1 (RequisitionsModule) reconstruida con Librería V ✓
+- 0 violaciones de principios verificadas
+- Commit: e19b818
+
+### Pendiente inmediato — Tarjeta 2 (PurchaseOrdersModule):
+- 1828 líneas, 43 violaciones detectadas
+- Instrucción lista para Cursor — NO se ha mandado aún
+- Alcance: reemplazar alert(), window.confirm(), console.log
+  y tablas HTML manuales sin tocar lógica de negocio
+
+### Instrucción pendiente para Cursor (Tarjeta 2):
+Refactorizar PurchaseOrdersModule siguiendo CLAUDE.md.
+Reemplazar: alert()→VToast, window.confirm()→VConfirmDialog,
+console.log/error→eliminar, tablas→VTable donde no haya
+checkboxes complejos. NO cambiar lógica ni endpoints.
+
+
+---
+## SESIÓN 2026-08-27 — Refactorización completa con Librería V (Opción A)
+
+### Completado:
+- Todo el frontend de Valentina: 0 violaciones de principios
+- Módulos refactorizados: Compras, Administración, Ventas,
+  Diseño, Producción, Logística, Tesorería, Dirección, Finance,
+  Auth, Planning y Foundations
+- alert()→VToast, confirm()→VConfirmDialog, console.log→eliminado
+
+### Commits:
+- e19b818 — RequisitionsModule
+- 5eb8092 — PurchaseOrdersModule, Recepción, Inventario, Materiales, Proveedores
+- 682f606 — layouts subtarjetas
+- 7467ccc — Administración
+- 5492fe2 — Ventas
+- 93e8604 — Diseño
+- da435d3 — Producción
+- 09a6d58 — Logística
+- 02d1e84 — Tesorería
+- 018dc8e — Dirección y Finance
+- 68aa0ad — limpieza final
+
+### Siguiente paso (Opción B):
+- Separar vistas de Administración por rol (ADMIN vs MANAGER)
+- Rediseñar Sidebar según roles definidos
+- Completar CRUD pendientes (editar OC, facturas, etc.)
+- Mapa de integridad de datos
+
+
+---
+## ARQUITECTURA BACKEND — PLAN DE MIGRACIÓN (seguir al pie de la letra)
+
+### El problema actual:
+- Todo mezclado en endpoints/: lógica de negocio + acceso a datos + respuestas HTTP
+- Archivos gigantes: sales.py 2,365 líneas, purchases.py 1,580 líneas
+- Imports duplicados entre archivos
+- Imports locales dentro de funciones
+- Sin separación de responsabilidades
+
+### La arquitectura objetivo (4 capas):
+API Layer (endpoints)    — solo recibe peticiones y devuelve respuestas
+    ↓
+Service Layer (services) — toda la lógica de negocio vive aquí
+    ↓
+Repository Layer         — todo el acceso a datos vive aquí
+    ↓
+Database (PostgreSQL)    — solo datos
+
+### Regla permanente:
+Ningún código nuevo se escribe directamente en endpoints/.
+Todo lo nuevo va en services/.
+Los endpoints solo llaman al service y devuelven la respuesta.
+
+### Plan de migración en 3 fases:
+
+FASE 1 — Definir arquitectura objetivo en CLAUDE.md (HOY)
+- Documentar las 4 capas y sus responsabilidades
+- Definir los principios profundos del backend
+- Cursor los conoce y los aplica en cada cambio nuevo
+
+FASE 2 — Crear estructura base (PRÓXIMA SESIÓN)
+- Crear carpetas services/ y repositories/ con archivos base
+- Cursor sabe dónde debe ir cada cosa nueva
+- Sin tocar código existente
+
+FASE 3 — Migración gradual por módulo (SESIONES SIGUIENTES)
+- Cada vez que se toca un endpoint para agregar funcionalidad nueva,
+  se refactoriza a la arquitectura correcta
+- El código viejo se migra naturalmente sin riesgo
+- Empezar por el módulo más pequeño y menos crítico
+
+### Principios profundos del backend (a documentar en CLAUDE.md):
+1. Separación de capas — endpoint no tiene lógica de negocio
+2. Validación con Pydantic schemas — antes de ejecutar cualquier lógica
+3. Idempotencia — operaciones críticas seguras si se ejecutan dos veces
+4. Logging estructurado — auditoría de operaciones financieras
+5. Transacciones atómicas — todo o nada en operaciones multi-tabla
+6. Sin queries en loops — usar selectinload o joins
+7. Funciones máximo 50 líneas
+8. Imports solo al inicio del archivo, nunca dentro de funciones
+
+### Estado actual (Backend):
+- FASE 1 — COMPLETADA ✓ (arquitectura documentada en CLAUDE.md)
+- FASE 2 — COMPLETADA ✓ (services/ y repositories/ creados)
+- FASE 3 — EN PROGRESO (migración gradual por módulo)
+
+
+---
+## SESIÓN 2026-08-27 (tarde) — Arquitectura Backend
+
+### Completado:
+- Frontend: 0 violaciones en todo el proyecto
+- CLAUDE.md: reglas completas de backend con 4 capas
+- Cursor configurado con Sonnet 4.6 — lee correctamente el CLAUDE.md
+- Fase 1: arquitectura de 4 capas documentada
+- Fase 2: estructura base creada
+  - repositories/__init__.py + base_repository.py
+  - services/sales_service.py (placeholder)
+  - services/finance_service.py (placeholder)
+  - core/logger.py (logging estructurado JSON)
+
+### Fase 3 — Migración gradual (cuando se toque un endpoint):
+- Todo código nuevo va en services/ o repositories/
+- Los endpoints solo llaman al service y devuelven respuesta
+- pdf_generator.py pendiente dividir en Fase 3
+
+### Commits:
+- 0a00bad — reglas backend en CLAUDE.md
+- 7a5dff3 — arquitectura 4 capas con ejemplos
+- b978819 — estado real del backend
+- a83a33c — Fase 2 estructura base
+
+
+---
+## PRINCIPIOS UX Y DE PROCESO — VALENTINA ERP
+## (Nivel Oracle/SAP — universales, no negociables)
+
+### 1. ORIENTADO A PROCESOS, NO A PANTALLAS
+El sistema guía al usuario a través del proceso completo.
+El usuario no busca funciones — el sistema le dice qué sigue.
+Nunca diseñamos una pantalla sin primero definir el proceso completo
+que esa pantalla soporta.
+
+### 2. ROLES Y RESPONSABILIDADES CLAROS
+Cada actor del proceso ve exactamente lo que necesita para hacer su parte.
+Nada más, nada menos.
+Si un usuario tiene que buscar algo que no le corresponde, el diseño está mal.
+
+### 3. TRAZABILIDAD COMPLETA
+Cada acción queda registrada: quién hizo qué, cuándo y por qué.
+Auditable en cualquier momento.
+Aplica a: facturas, pagos, cambios de estado, cancelaciones, correcciones.
+
+### 4. ALERTAS PROACTIVAS
+El sistema avisa cuando algo requiere atención.
+No espera a que el usuario lo descubra.
+Cada rol tiene su panel de alertas con acciones pendientes.
+
+### 5. CONSISTENCIA TOTAL
+Mismo patrón visual y de interacción en todo el sistema.
+Si el usuario aprende a usar un módulo, sabe usar todos.
+Mismos componentes, mismos colores de estado, mismos flujos de confirmación.
+
+### 6. DATOS EN TIEMPO REAL
+Los números que el usuario ve reflejan el estado actual del negocio.
+Sin necesidad de refrescar manualmente.
+Sin inconsistencias entre módulos.
+
+### 7. ACCESO DIRECTO A ENTIDADES
+Cada entidad importante tiene su propia pantalla accesible desde el menú.
+Las facturas no viven dentro de Rayos X.
+Los pagos no viven dentro de un modal de OV.
+Máximo 3 clics para llegar a cualquier acción.
+
+### 8. EL CONTEXTO NO SE PIERDE
+Si el usuario está viendo una OV y emite una factura,
+al terminar regresa a la misma OV — no al inicio del módulo.
+Las acciones fluyen sin interrumpir el contexto de trabajo.
+
+### 9. VALIDACIÓN ANTES DE PERMITIR
+El sistema no permite avanzar si faltan datos críticos.
+No errores después — validación en el momento correcto del proceso.
+Mensajes claros de qué falta y por qué.
+
+### 10. EL PROCESO DEFINE LA PANTALLA
+Antes de diseñar cualquier pantalla, se define:
+  - ¿Quién inicia este proceso?
+  - ¿Qué información necesita cada actor?
+  - ¿Quién aprueba, quién ejecuta, quién supervisa?
+  - ¿Qué pasa si hay un error en cualquier punto?
+  - ¿Cómo sabe el sistema que el proceso terminó correctamente?
+
+### REGLA DE ORO DEL DISEÑO:
+Si un usuario tiene que buscar algo, el diseño falló.
+El sistema debe presentar la información correcta
+al usuario correcto en el momento correcto.
+

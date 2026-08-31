@@ -468,3 +468,80 @@ NUNCA crear un service de más de 400 líneas — dividir por responsabilidad
 - pdf_orders.py      — PDFs de órdenes de compra
 - pdf_reports.py     — PDFs de reportes
 Esta división se hace en Fase 3, cuando se toque por otra razón.
+
+
+---
+
+## PRINCIPIOS UX Y DE PROCESO — VALENTINA ERP
+## (Nivel Oracle/SAP — universales, no negociables)
+## Cursor los aplica en CADA pantalla y flujo que construye.
+
+### 1. ORIENTADO A PROCESOS, NO A PANTALLAS
+El sistema guía al usuario a través del proceso completo.
+El usuario no busca funciones — el sistema le dice qué sigue.
+Nunca se diseña una pantalla sin primero definir el proceso completo
+que esa pantalla soporta.
+
+### 2. ROLES Y RESPONSABILIDADES CLAROS
+Cada actor del proceso ve exactamente lo que necesita para hacer su parte.
+Nada más, nada menos.
+Si un usuario tiene que buscar algo que no le corresponde, el diseño está mal.
+
+### 3. TRAZABILIDAD COMPLETA
+Cada acción queda registrada: quién hizo qué, cuándo y por qué.
+Auditable en cualquier momento.
+Aplica a: facturas, pagos, cambios de estado, cancelaciones, correcciones.
+
+### 4. ALERTAS PROACTIVAS
+El sistema avisa cuando algo requiere atención.
+No espera a que el usuario lo descubra.
+Cada rol tiene su panel de alertas con acciones pendientes.
+
+### 5. CONSISTENCIA TOTAL
+Mismo patrón visual y de interacción en todo el sistema.
+Si el usuario aprende a usar un módulo, sabe usar todos.
+Mismos componentes, mismos colores de estado, mismos flujos de confirmación.
+
+### 6. DATOS EN TIEMPO REAL
+Los números que el usuario ve reflejan el estado actual del negocio.
+Sin necesidad de refrescar manualmente.
+Sin inconsistencias entre módulos.
+
+### 7. ACCESO DIRECTO A ENTIDADES
+Cada entidad importante tiene su propia pantalla accesible desde el menú.
+Las facturas no viven dentro de Rayos X.
+Los pagos no viven dentro de un modal de OV.
+Máximo 3 clics para llegar a cualquier acción.
+
+### 8. EL CONTEXTO NO SE PIERDE
+Si el usuario está viendo una OV y emite una factura,
+al terminar regresa a la misma OV — no al inicio del módulo.
+Las acciones fluyen sin interrumpir el contexto de trabajo.
+
+### 9. VALIDACIÓN ANTES DE PERMITIR
+El sistema no permite avanzar si faltan datos críticos.
+No errores después — validación en el momento correcto del proceso.
+Mensajes claros de qué falta y por qué.
+
+### 10. EL PROCESO DEFINE LA PANTALLA
+Antes de diseñar cualquier pantalla, Claude define:
+  - ¿Quién inicia este proceso?
+  - ¿Qué información necesita cada actor?
+  - ¿Quién aprueba, quién ejecuta, quién supervisa?
+  - ¿Qué pasa si hay un error en cualquier punto?
+  - ¿Cómo sabe el sistema que el proceso terminó correctamente?
+
+### REGLA DE ORO DEL DISEÑO:
+Si un usuario tiene que buscar algo, el diseño falló.
+El sistema debe presentar la información correcta
+al usuario correcto en el momento correcto.
+
+### CHECKLIST ANTES DE CONSTRUIR CUALQUIER PANTALLA:
+1. ¿Está definido el proceso completo que esta pantalla soporta?
+2. ¿Está claro qué rol usa esta pantalla y para qué?
+3. ¿Tiene alertas proactivas si hay acciones pendientes?
+4. ¿El acceso es directo — máximo 3 clics desde el menú?
+5. ¿Los datos se actualizan en tiempo real?
+6. ¿La validación ocurre antes de permitir avanzar?
+7. ¿El contexto se mantiene al completar una acción?
+8. ¿Es consistente con el resto del sistema en componentes y colores?
