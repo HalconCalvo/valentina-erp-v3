@@ -56,3 +56,14 @@ class TransferCreate(BaseModel):
     amount: float = Field(..., gt=0)
     reference: Optional[str] = "Transferencia entre cuentas"
     description: Optional[str] = None
+
+
+class BankTransactionUpdate(BaseModel):
+    """Campos editables de un movimiento bancario (PATCH)."""
+    description: Optional[str] = None
+    reference: Optional[str] = None
+
+
+class BankTransactionCancel(BaseModel):
+    """Payload para cancelar un movimiento bancario."""
+    cancel_reason: str

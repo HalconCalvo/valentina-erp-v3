@@ -1337,3 +1337,25 @@ Cuando _nuevo_total > 0.01: UPDATE con status = PENDIENTE fijo (sin CANCELADO).
 2. Cancelar Movimiento bancario — MEDIA
 3. Editar y cancelar Anticipo proveedor — MEDIA
 4. Editar y cancelar Gasto operativo — MEDIA
+
+---
+## SESIÓN 2026-08-31 (tarde) — Editar Factura Proveedor
+### Completado:
+**Backend:**
+- PATCH /purchases/invoices/{invoice_id} — editar factura proveedor
+  * Roles: DIRECTOR, MANAGER, ADMIN
+  * Sin pagos: todos los campos editables (folio, fechas, importe)
+  * Con pagos parciales: solo invoice_number, issue_date, due_date
+  * Completamente pagada: solo due_date
+  * Si viene total_amount sin pagos: actualiza también outstanding_balance
+- Schema: PurchaseInvoiceUpdate en finance_schema.py
+- Commit: 115314f (backend), 451d5c9 (frontend)
+**Frontend (PayablesModule):**
+- Botón Pencil por factura — antes del botón CANCELAR
+- Solo visible para isChecker y facturas no PAID ni CANCELLED
+- Modal con campos deshabilitados según pagos aplicados
+- Nota amarilla cuando hay pagos aplicados
+### Pendientes restantes en orden:
+1. Cancelar Movimiento bancario — MEDIA
+2. Editar y cancelar Anticipo proveedor — MEDIA
+3. Editar y cancelar Gasto operativo — MEDIA

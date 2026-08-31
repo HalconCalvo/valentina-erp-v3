@@ -34,6 +34,9 @@ class BankTransaction(SQLModel, table=True):
     amount: float
     reference: Optional[str] = None
     description: Optional[str] = None
+    is_cancelled: bool = Field(default=False)
+    cancel_reason: Optional[str] = Field(default=None)
+    cancelled_at: Optional[datetime] = Field(default=None)
     transaction_date: datetime = Field(default_factory=datetime.now)
     
     # Rastreabilidad cruzada

@@ -8,13 +8,36 @@ from sqlmodel import select, func, text
 from app.core.deps import SessionDep, CurrentUser
 
 from app.models.treasury import BankAccount, BankTransaction, TransactionType, WeeklyFixedCost
+from app.models.sales import CustomerPayment
+from app.models.finance import SupplierPayment
 from app.schemas.treasury_schema import (
     BankAccountCreate, BankAccountResponse, 
     BankTransactionCreate, BankTransactionResponse,
-    TransferCreate
+    TransferCreate,
+    BankTransactionUpdate,
+    BankTransactionCancel,
 )
 
 router = APIRouter()
+
+
+def _require_treasury_manager(current_user: CurrentUser) -> None:
+    role = (current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)).upper()
+    if role not in ("DIRECTOR", "MANAGER"):
+        raise HTTPException(status_code=403, detail="Sin permisos para operaciones de tesorería.")
+
+
+def _revert_account_balance(account: BankAccount, transaction: BankTransaction) -> None:
+    tx_type = (
+        transaction.transaction_type.value
+        if hasattr(transaction.transaction_type, "value")
+        else str(transaction.transaction_type)
+    ).upper()
+    if tx_type in ("IN", "INCOME", "DEPOSIT"):
+        account.current_balance -= transaction.amount
+    elif tx_type in ("OUT", "EXPENSE", "WITHDRAWAL"):
+        account.current_balance += transaction.amount
+
 
 # ------------------------------------------------------------------
 # 1. CUENTAS BANCARIAS
@@ -575,3 +598,81 @@ def update_transaction_description(
     session.commit()
     session.refresh(tx)
     return {"status": "success", "message": "Movimiento actualizado correctamente."}
+
+
+@router.patch("/transactions/{transaction_id}", response_model=BankTransactionResponse)
+def update_bank_transaction(
+    *,
+    session: SessionDep,
+    current_user: CurrentUser,
+    transaction_id: int,
+    data: BankTransactionUpdate,
+) -> Any:
+    _require_treasury_manager(current_user)
+
+    transaction = session.get(BankTransaction, transaction_id)
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Movimiento bancario no encontrado.")
+
+    if transaction.is_cancelled:
+        raise HTTPException(
+            status_code=422,
+            detail="Cannot edit a cancelled transaction.",
+        )
+
+    updates = data.model_dump(exclude_unset=True)
+    for field, value in updates.items():
+        setattr(transaction, field, value)
+
+    session.add(transaction)
+    session.commit()
+    session.refresh(transaction)
+    return transaction
+
+
+@router.patch("/transactions/{transaction_id}/cancel", response_model=BankTransactionResponse)
+def cancel_bank_transaction(
+    *,
+    session: SessionDep,
+    current_user: CurrentUser,
+    transaction_id: int,
+    data: BankTransactionCancel,
+) -> Any:
+    _require_treasury_manager(current_user)
+
+    transaction = session.get(BankTransaction, transaction_id)
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Movimiento bancario no encontrado.")
+
+    if transaction.is_cancelled:
+        raise HTTPException(
+            status_code=422,
+            detail="Transaction is already cancelled.",
+        )
+
+    linked_cxc = session.exec(
+        select(CustomerPayment).where(CustomerPayment.treasury_transaction_id == transaction_id)
+    ).first()
+    linked_supplier = session.exec(
+        select(SupplierPayment).where(SupplierPayment.treasury_transaction_id == transaction_id)
+    ).first()
+    if linked_cxc or linked_supplier:
+        raise HTTPException(
+            status_code=422,
+            detail="This transaction is linked to a payment. Cancel the payment first.",
+        )
+
+    account = session.get(BankAccount, transaction.account_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Cuenta bancaria no encontrada.")
+
+    transaction.is_cancelled = True
+    transaction.cancel_reason = data.cancel_reason
+    transaction.cancelled_at = datetime.utcnow()
+    _revert_account_balance(account, transaction)
+
+    session.add(transaction)
+    session.add(account)
+    session.commit()
+    session.refresh(transaction)
+    return transaction
