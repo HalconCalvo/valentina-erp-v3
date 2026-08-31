@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { ArrowLeft, ArrowRight, PlusCircle, MinusCircle, ArrowRightLeft, Search, Printer } from 'lucide-react';
+import { ArrowLeft, ArrowRight, PlusCircle, MinusCircle, ArrowRightLeft, Search, Printer, XCircle } from 'lucide-react';
 import { BankAccount } from '../../../types/treasury';
 import { treasuryService } from '../../../api/treasury-service';
 import axiosClient from '../../../api/axios-client';
@@ -13,7 +13,8 @@ interface Transaction {
   reference?: string;
   description?: string;
   transaction_date?: string; 
-  running_balance?: number; 
+  running_balance?: number;
+  is_cancelled?: boolean;
 }
 
 interface Props {
@@ -47,7 +48,20 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
   const [savingTx, setSavingTx] = useState(false);
   const [showTransferConfirm, setShowTransferConfirm] = useState(false);
 
+  const [cancelTxModal, setCancelTxModal] = useState<{ open: boolean; tx: any | null }>({ open: false, tx: null });
+  const [cancelTxReason, setCancelTxReason] = useState<string>('');
+  const [cancellingTx, setCancellingTx] = useState<boolean>(false);
+
   const [currentPage, setCurrentPage] = useState(1);
+
+  const currentUser = useMemo(() => {
+    try {
+      const userRaw = localStorage.getItem('user');
+      if (userRaw) return JSON.parse(userRaw);
+    } catch { /* ignore */ }
+    const role = localStorage.getItem('user_role');
+    return role ? { role: role.toUpperCase().trim() } : null;
+  }, []);
 
   const fetchTransactions = async () => {
     try {
@@ -118,10 +132,37 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
     fetchAccounts();
   }, [account.id, account.current_balance]); 
 
+  const handleCancelTransaction = async () => {
+    if (!cancelTxReason.trim()) {
+      toast.warning('Debes ingresar un motivo');
+      return;
+    }
+    if (!cancelTxModal.tx) return;
+    setCancellingTx(true);
+    try {
+      await axiosClient.patch(`/treasury/transactions/${cancelTxModal.tx.id}/cancel`, {
+        cancel_reason: cancelTxReason,
+      });
+      setCancelTxModal({ open: false, tx: null });
+      setCancelTxReason('');
+      toast.success('Movimiento cancelado');
+      const res = await axiosClient.get(`/treasury/accounts/${account.id}/transactions`);
+      setTransactions(res.data || []);
+    } catch (error: any) {
+      if (error.response?.status === 422) {
+        toast.error(error.response?.data?.detail || 'Error al cancelar el movimiento');
+      } else {
+        toast.error('Error al cancelar el movimiento');
+      }
+    } finally {
+      setCancellingTx(false);
+    }
+  };
+
   const handleSaveTransactionEdit = async (txId: number) => {
       setSavingTx(true);
       try {
-          await axiosClient.put(`/treasury/transactions/${txId}/description`, {
+          await axiosClient.patch(`/treasury/transactions/${txId}`, {
               description: editingDesc,
               reference: editingRef
           });
@@ -363,11 +404,11 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
               
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-8 text-gray-400">Cargando movimientos...</td>
+                  <td colSpan={7} className="text-center py-8 text-gray-400">Cargando movimientos...</td>
                 </tr>
               ) : currentTransactions.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-8 text-gray-400">Aún no hay movimientos en esta cuenta.</td>
+                  <td colSpan={7} className="text-center py-8 text-gray-400">Aún no hay movimientos en esta cuenta.</td>
                 </tr>
               ) : (
                 currentTransactions.map((tx) => (
@@ -441,6 +482,23 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
                     {/* 👇 Celda de Saldo cambiada a negro y sin fondo */}
                     <td className="px-6 py-4 text-right text-gray-900 font-bold whitespace-nowrap">
                       ${tx.running_balance?.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-4 py-4 text-center whitespace-nowrap">
+                      {tx.is_cancelled === true ? (
+                        <span className="text-[10px] text-slate-400 font-bold uppercase">CANCELADO</span>
+                      ) : (
+                        (currentUser?.role === 'DIRECTOR' || currentUser?.role === 'MANAGER') &&
+                        editingTxId !== tx.id && (
+                          <XCircle
+                            size={15}
+                            className="text-slate-300 hover:text-rose-500 cursor-pointer inline-block"
+                            onClick={() => {
+                              setCancelTxModal({ open: true, tx });
+                              setCancelTxReason('');
+                            }}
+                          />
+                        )
+                      )}
                     </td>
                   </tr>
                 ))
@@ -592,6 +650,62 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
         }}
         onCancel={() => setShowTransferConfirm(false)}
       />
+
+      {cancelTxModal.open && cancelTxModal.tx && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border-t-4 border-t-rose-500 animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+              <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Cancelar Movimiento</h3>
+              <button
+                onClick={() => { setCancelTxModal({ open: false, tx: null }); setCancelTxReason(''); }}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-slate-50 rounded-lg p-4 space-y-1">
+                <p className="text-sm font-bold text-slate-700">
+                  Monto: ${cancelTxModal.tx.amount?.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                </p>
+                <p className="text-sm text-slate-600">
+                  {cancelTxModal.tx.description || 'Sin descripción'}
+                </p>
+              </div>
+              <p className="text-xs text-rose-600 font-medium leading-relaxed">
+                Esta acción revierte el saldo de la cuenta. Asegúrate de que el movimiento no esté ligado a un pago activo.
+              </p>
+              <div>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                  Motivo de cancelación *
+                </label>
+                <input
+                  type="text"
+                  value={cancelTxReason}
+                  onChange={e => setCancelTxReason(e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-rose-400"
+                  placeholder="Describe el motivo..."
+                />
+              </div>
+            </div>
+            <div className="p-6 border-t border-slate-100 flex gap-3 justify-end">
+              <button
+                onClick={() => { setCancelTxModal({ open: false, tx: null }); setCancelTxReason(''); }}
+                className="px-5 py-2 border border-slate-200 text-slate-500 font-black uppercase text-[10px] rounded-lg hover:bg-slate-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleCancelTransaction}
+                disabled={cancellingTx}
+                className="px-6 py-2 bg-rose-600 hover:bg-rose-700 text-white font-black uppercase text-[10px] rounded-lg shadow-md disabled:opacity-30"
+              >
+                {cancellingTx ? 'Cancelando...' : 'Confirmar cancelación'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

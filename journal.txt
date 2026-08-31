@@ -1401,3 +1401,41 @@ Cuando _nuevo_total > 0.01: UPDATE con status = PENDIENTE fijo (sin CANCELADO).
 ### Nota:
 - Error "cargar materiales" en DesignCatalogPage resuelto (slash sobrante)
 - Migración p2j3k4l5m6n7 deployada en Render (bank_transactions)
+
+---
+## SESIÓN 2026-08-31 (tarde) — Autocomplete en modal Editar Partida OC
+### Completado:
+- Autocomplete en campo "Descripción personalizada" del modal Editar Partida
+  * Carga catálogo de materiales una vez al montar (/foundations/materials)
+  * Filtra por nombre y SKU desde 2 caracteres (case-insensitive)
+  * Máximo 8 sugerencias en dropdown absoluto
+  * Al seleccionar: prellena descripción Y costo unitario automáticamente
+  * Dropdown cierra con onBlur + setTimeout(150)
+- Commit: b338e71
+### Pendientes para próxima sesión:
+1. Frontend cancelar/editar movimiento bancario (TreasuryPage)
+2. Editar y cancelar Anticipo proveedor
+3. Editar y cancelar Gasto operativo
+
+---
+## PRINCIPIO PERMANENTE — Autocomplete en campos de búsqueda
+### Regla:
+Todo campo que haga referencia a una entidad existente en el sistema
+DEBE tener autocomplete. Sin excepciones.
+### Aplica a:
+- SKU de material → autocomplete contra catálogo de materiales
+- Nombre/descripción de material → autocomplete contra catálogo de materiales
+- Proveedor → autocomplete contra catálogo de proveedores
+- Cliente → autocomplete contra catálogo de clientes
+- Producto/modelo → autocomplete contra catálogo de productos
+- Usuario → autocomplete contra lista de usuarios
+### Comportamiento estándar:
+- Activar desde 2 caracteres escritos
+- Máximo 8 sugerencias en dropdown
+- Filtrado case-insensitive por nombre y código/SKU
+- Al seleccionar: prellenar TODOS los campos relacionados automáticamente
+  (ej. seleccionar material → prellena SKU + nombre + costo unitario)
+- Dropdown cierra con onBlur + setTimeout(150)
+- Carga del catálogo: una vez al montar el componente (no en cada keystroke)
+### Este principio se aplica en CADA instrucción que involucre
+campos de captura referenciando entidades del sistema.
