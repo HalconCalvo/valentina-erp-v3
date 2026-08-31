@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axiosClient from '../../../api/axios-client';
 import { Button } from '@/components/ui/Button';
-import { Plus, XCircle, Receipt } from 'lucide-react';
+import { Plus, XCircle, Receipt, Pencil } from 'lucide-react';
+import { toast } from '@/components/ui/VToast';
 
 const OVERHEAD_CATEGORIES_BASE = [
     'PLANTA', 'COMUNICACIONES', 'COMBUSTIBLES', 'TRANSPORTE',
@@ -75,6 +76,15 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
     const [selectedInstanceId, setSelectedInstanceId] = useState<string>('');
     const [instances, setInstances] = useState<any[]>([]);
     const [loadingOrders, setLoadingOrders] = useState(false);
+
+    const [editExpenseModal, setEditExpenseModal] = useState<{ open: boolean; expense: any | null }>({ open: false, expense: null });
+    const [editExpenseForm, setEditExpenseForm] = useState<{ invoice_folio: string; total_amount: string; due_date: string; overhead_category: string }>({
+        invoice_folio: '', total_amount: '', due_date: '', overhead_category: '',
+    });
+    const [cancelExpenseModal, setCancelExpenseModal] = useState<{ open: boolean; expense: any | null }>({ open: false, expense: null });
+    const [cancelExpenseReason, setCancelExpenseReason] = useState<string>('');
+    const [savingExpense, setSavingExpense] = useState<boolean>(false);
+    const [cancellingExpense, setCancellingExpense] = useState<boolean>(false);
 
     const fmt = (n: number) =>
         n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
@@ -162,6 +172,84 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
         }
     };
 
+    const handleOpenEditExpense = (expense: Expense) => {
+        setEditExpenseForm({
+            invoice_folio: expense.invoice_folio || '',
+            total_amount: String(expense.total_amount || ''),
+            due_date: expense.due_date ? expense.due_date.slice(0, 10) : '',
+            overhead_category: expense.overhead_category || '',
+        });
+        setEditExpenseModal({ open: true, expense });
+    };
+
+    const handleSaveEditExpense = async () => {
+        if (!editExpenseModal.expense) return;
+        const original = editExpenseModal.expense;
+        setSavingExpense(true);
+        try {
+            const body: Record<string, unknown> = {};
+            const folio = editExpenseForm.invoice_folio.trim();
+            const amount = parseFloat(editExpenseForm.total_amount);
+            const dueDate = editExpenseForm.due_date;
+            const category = editExpenseForm.overhead_category;
+
+            const origFolio = (original.invoice_folio || '').trim();
+            const origAmount = parseFloat(String(original.total_amount || 0));
+            const origDue = original.due_date ? original.due_date.slice(0, 10) : '';
+            const origCat = original.overhead_category || '';
+
+            if (folio !== origFolio) body.invoice_folio = folio;
+            if (!isNaN(amount) && amount !== origAmount) body.total_amount = amount;
+            if (dueDate !== origDue) body.due_date = dueDate;
+            if (category !== origCat) body.overhead_category = category;
+
+            if (Object.keys(body).length === 0) {
+                setEditExpenseModal({ open: false, expense: null });
+                return;
+            }
+
+            await axiosClient.patch(`/purchases/operational-expenses/${original.id}`, body);
+            setEditExpenseModal({ open: false, expense: null });
+            toast.success('Gasto actualizado');
+            await load();
+        } catch (error: any) {
+            if (error.response?.status === 422) {
+                toast.error(error.response?.data?.detail || 'Error al actualizar el gasto');
+            } else {
+                toast.error('Error al actualizar el gasto');
+            }
+        } finally {
+            setSavingExpense(false);
+        }
+    };
+
+    const handleCancelExpense = async () => {
+        if (!cancelExpenseReason.trim()) {
+            toast.warning('Debes ingresar un motivo');
+            return;
+        }
+        if (!cancelExpenseModal.expense) return;
+        setCancellingExpense(true);
+        try {
+            await axiosClient.patch(
+                `/purchases/operational-expenses/${cancelExpenseModal.expense.id}/cancel`,
+                { cancel_reason: cancelExpenseReason },
+            );
+            setCancelExpenseModal({ open: false, expense: null });
+            setCancelExpenseReason('');
+            toast.success('Gasto cancelado');
+            await load();
+        } catch (error: any) {
+            if (error.response?.status === 422) {
+                toast.error(error.response?.data?.detail || 'Error al cancelar el gasto');
+            } else {
+                toast.error('Error al cancelar el gasto');
+            }
+        } finally {
+            setCancellingExpense(false);
+        }
+    };
+
     const canWrite = ['DIRECTOR', 'GERENCIA', 'ADMIN'].includes(userRole.toUpperCase().trim());
     const isDirector = userRole.toUpperCase().trim() === 'DIRECTOR';
 
@@ -190,12 +278,13 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
                             <th className="px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Monto</th>
                             <th className="px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">Vencimiento</th>
                             <th className="px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">Estado</th>
+                            <th className="px-4 py-3" />
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {expenses.length === 0 ? (
                             <tr>
-                                <td colSpan={6} className="px-4 py-16 text-center">
+                                <td colSpan={7} className="px-4 py-16 text-center">
                                     <div className="flex flex-col items-center gap-3 text-slate-300">
                                         <Receipt size={40} strokeWidth={1} />
                                         <p className="font-black uppercase text-xs">Sin gastos operativos registrados</p>
@@ -241,6 +330,27 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
                                         }`}>
                                             {e.status}
                                         </span>
+                                    </td>
+                                    <td className="px-4 py-3 whitespace-nowrap">
+                                        {String(e.status).toUpperCase() === 'CANCELADO' ? (
+                                            <span className="text-[10px] text-slate-400 font-bold uppercase">CANCELADO</span>
+                                        ) : String(e.status).toUpperCase() === 'PENDIENTE' ? (
+                                            <div className="flex items-center gap-2">
+                                                <Pencil
+                                                    size={14}
+                                                    className="text-slate-400 hover:text-indigo-600 cursor-pointer"
+                                                    onClick={() => handleOpenEditExpense(e)}
+                                                />
+                                                <XCircle
+                                                    size={14}
+                                                    className="text-slate-400 hover:text-rose-600 cursor-pointer"
+                                                    onClick={() => {
+                                                        setCancelExpenseModal({ open: true, expense: e });
+                                                        setCancelExpenseReason('');
+                                                    }}
+                                                />
+                                            </div>
+                                        ) : null}
                                     </td>
                                 </tr>
                             ))
@@ -451,6 +561,148 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
                                 className="bg-rose-600 hover:bg-rose-700 text-white font-black uppercase text-[10px] px-6 shadow-md flex items-center gap-2"
                             >
                                 <Plus size={14} /> Registrar Gasto
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {editExpenseModal.open && editExpenseModal.expense && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border-t-4 border-t-indigo-500 animate-in zoom-in-95 duration-200">
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                            <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">
+                                Editar Gasto Operativo
+                            </h3>
+                            <button onClick={() => setEditExpenseModal({ open: false, expense: null })}>
+                                <XCircle size={22} className="text-slate-400 hover:text-slate-600" />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                    Folio
+                                </label>
+                                <input
+                                    type="text"
+                                    value={editExpenseForm.invoice_folio}
+                                    onChange={e => setEditExpenseForm(f => ({ ...f, invoice_folio: e.target.value }))}
+                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-indigo-400"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                    Importe
+                                </label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={editExpenseForm.total_amount}
+                                    onChange={e => setEditExpenseForm(f => ({ ...f, total_amount: e.target.value }))}
+                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-indigo-400"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                    Fecha de vencimiento
+                                </label>
+                                <input
+                                    type="date"
+                                    value={editExpenseForm.due_date}
+                                    onChange={e => setEditExpenseForm(f => ({ ...f, due_date: e.target.value }))}
+                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-indigo-400"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                    Categoría
+                                </label>
+                                <select
+                                    value={editExpenseForm.overhead_category}
+                                    onChange={e => setEditExpenseForm(f => ({ ...f, overhead_category: e.target.value }))}
+                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-indigo-400"
+                                >
+                                    <option value="">— Seleccionar categoría —</option>
+                                    {(isDirector
+                                        ? OVERHEAD_CATEGORIES_DIRECTOR
+                                        : OVERHEAD_CATEGORIES_BASE
+                                    ).map(c => (
+                                        <option key={c} value={c}>{c}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                        <div className="p-6 border-t border-slate-100 flex gap-3 justify-end">
+                            <Button
+                                variant="outline"
+                                onClick={() => setEditExpenseModal({ open: false, expense: null })}
+                                className="border-slate-200 text-slate-500 font-black uppercase text-[10px] px-5"
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                onClick={handleSaveEditExpense}
+                                disabled={savingExpense}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[10px] px-6 shadow-md disabled:opacity-30"
+                            >
+                                {savingExpense ? 'Guardando...' : 'Guardar cambios'}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {cancelExpenseModal.open && cancelExpenseModal.expense && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border-t-4 border-t-rose-500 animate-in zoom-in-95 duration-200">
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                            <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">
+                                Cancelar Gasto Operativo
+                            </h3>
+                            <button onClick={() => { setCancelExpenseModal({ open: false, expense: null }); setCancelExpenseReason(''); }}>
+                                <XCircle size={22} className="text-slate-400 hover:text-slate-600" />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div className="bg-slate-50 rounded-lg p-4 space-y-1">
+                                <p className="text-sm font-black text-indigo-600">
+                                    {cancelExpenseModal.expense.invoice_folio}
+                                </p>
+                                <p className="text-sm font-bold text-slate-700">
+                                    {fmt(cancelExpenseModal.expense.total_amount)}
+                                </p>
+                            </div>
+                            <p className="text-xs text-rose-600 font-medium leading-relaxed">
+                                Esta acción cancela el gasto en Valentina con trazabilidad.
+                            </p>
+                            <div>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                    Motivo de cancelación *
+                                </label>
+                                <input
+                                    type="text"
+                                    value={cancelExpenseReason}
+                                    onChange={e => setCancelExpenseReason(e.target.value)}
+                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-rose-400"
+                                    placeholder="Describe el motivo..."
+                                />
+                            </div>
+                        </div>
+                        <div className="p-6 border-t border-slate-100 flex gap-3 justify-end">
+                            <Button
+                                variant="outline"
+                                onClick={() => { setCancelExpenseModal({ open: false, expense: null }); setCancelExpenseReason(''); }}
+                                className="border-slate-200 text-slate-500 font-black uppercase text-[10px] px-5"
+                            >
+                                Cerrar
+                            </Button>
+                            <Button
+                                onClick={handleCancelExpense}
+                                disabled={cancellingExpense}
+                                className="bg-rose-600 hover:bg-rose-700 text-white font-black uppercase text-[10px] px-6 shadow-md disabled:opacity-30"
+                            >
+                                {cancellingExpense ? 'Cancelando...' : 'Confirmar cancelación'}
                             </Button>
                         </div>
                     </div>
