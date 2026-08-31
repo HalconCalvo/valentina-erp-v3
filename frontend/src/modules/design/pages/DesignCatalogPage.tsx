@@ -1080,6 +1080,11 @@ const DesignCatalogPage: React.FC = () => {
                                                                                     <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-500 text-xs mt-1 inline-block">
                                                                                         SKU: PRD-{product.id.toString().padStart(4, '0')} {v ? `- ${v.version_name}` : ''}
                                                                                     </span>
+                                                                                    {v?.commercial_description && (
+                                                                                        <span className="text-[10px] text-indigo-500 font-medium mt-1 flex items-center gap-1 inline-flex">
+                                                                                            <FileText size={10} /> Con descripción
+                                                                                        </span>
+                                                                                    )}
                                                                                 </td>
                                                                                 <td className="px-6 py-4 text-center">
                                                                                     {v ? (
