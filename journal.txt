@@ -1439,3 +1439,29 @@ DEBE tener autocomplete. Sin excepciones.
 - Carga del catálogo: una vez al montar el componente (no en cada keystroke)
 ### Este principio se aplica en CADA instrucción que involucre
 campos de captura referenciando entidades del sistema.
+
+---
+## SESIÓN 2026-08-31 (tarde) — Cancelar y editar Movimiento Bancario (frontend)
+### Completado:
+- AccountDetail.tsx actualizado:
+  * URL corregida: PUT → PATCH /treasury/transactions/{id}
+  * Botón XCircle por fila — solo DIRECTOR/MANAGER, solo si no cancelada
+  * Badge CANCELADO cuando tx.is_cancelled === true
+  * Modal cancelación con motivo obligatorio y advertencia de reversión de saldo
+  * Handler handleCancelTransaction() con validación y recarga
+- Commit: b968b05
+### Estado CRUD movimientos bancarios:
+- Backend: COMPLETO ✓ (migración + endpoints)
+- Frontend: COMPLETO ✓
+### Pendientes restantes en orden:
+1. Editar y cancelar Anticipo proveedor — MEDIA
+2. Editar y cancelar Gasto operativo — MEDIA
+
+---
+## DECISIÓN ARQUITECTÓNICA — Anticipo proveedor
+### Conclusión:
+El anticipo proveedor es una PurchaseInvoice con folio ANT-{po.folio}.
+No tiene modelo propio. Editar y cancelar ya está cubierto por:
+- PATCH /purchases/invoices/{invoice_id} (construido hoy)
+- Frontend PayablesModule ya muestra botones Editar/Cancelar
+No se requiere trabajo adicional para este pendiente.

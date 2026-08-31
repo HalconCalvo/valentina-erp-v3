@@ -18,7 +18,7 @@ from app.services.pdf_generator import PDFGenerator
 from app.services.email_service import send_purchase_order_email
 from app.services.inventory_manager import registrar_movimiento_inventario
 from app.schemas.inventory_schema import PurchaseOrderUpdate, PurchaseOrderItemUpdate, PurchaseOrderItemCancel
-from app.schemas.finance_schema import PurchaseInvoiceUpdate
+from app.schemas.finance_schema import PurchaseInvoiceUpdate, OperationalExpenseUpdate, OperationalExpenseCancel
 
 router = APIRouter()
 
@@ -1320,6 +1320,148 @@ def get_operational_expenses(
     """).bindparams(limit=limit, skip=skip)).all()
 
     return [dict(r._mapping) for r in rows]
+
+
+@router.patch("/operational-expenses/{expense_id}")
+def update_operational_expense(
+    *,
+    db: Session = Depends(get_session),
+    expense_id: int,
+    data: OperationalExpenseUpdate,
+    current_user: CurrentUser,
+):
+    if _resolve_role(current_user) not in ["DIRECTOR", "MANAGER", "ADMIN"]:
+        raise HTTPException(status_code=403, detail="Sin permisos.")
+
+    expense = db.exec(text("""
+        SELECT id, status, invoice_folio, total_amount, due_date, overhead_category, notes
+        FROM accounts_payable
+        WHERE id = :expense_id AND purchase_order_id IS NULL
+    """).bindparams(expense_id=expense_id)).first()
+
+    if not expense:
+        raise HTTPException(status_code=404, detail="Operational expense not found")
+
+    expense_row = dict(expense._mapping)
+    if expense_row.get("status") == "CANCELADO":
+        raise HTTPException(status_code=422, detail="Cannot edit a cancelled expense")
+
+    payments_row = db.exec(text("""
+        SELECT COALESCE(SUM(amount), 0)
+        FROM supplier_payments
+        WHERE accounts_payable_id = :expense_id
+    """).bindparams(expense_id=expense_id)).first()
+    payments_total = float(payments_row[0] if payments_row else 0)
+
+    updates = data.model_dump(exclude_unset=True)
+    if not updates:
+        refreshed = db.exec(text("""
+            SELECT ap.id, ap.invoice_folio, ap.total_amount, ap.due_date,
+                   ap.status, ap.created_at, ap.overhead_category,
+                   ap.instance_id, ap.notes, p.business_name AS provider_name
+            FROM accounts_payable ap
+            LEFT JOIN providers p ON ap.provider_id = p.id
+            WHERE ap.id = :expense_id
+        """).bindparams(expense_id=expense_id)).first()
+        return dict(refreshed._mapping)
+
+    if payments_total > 0:
+        forbidden = set(updates.keys()) - {"due_date"}
+        if forbidden:
+            raise HTTPException(
+                status_code=422,
+                detail="This expense has payments applied. Only due_date can be edited.",
+            )
+
+    set_clauses = []
+    params = {"expense_id": expense_id}
+    allowed_fields = ("invoice_folio", "total_amount", "due_date", "overhead_category", "notes")
+    for field in allowed_fields:
+        if field in updates:
+            set_clauses.append(f"{field} = :{field}")
+            params[field] = updates[field]
+
+    if set_clauses:
+        db.exec(text(
+            f"UPDATE accounts_payable SET {', '.join(set_clauses)} "
+            "WHERE id = :expense_id AND purchase_order_id IS NULL"
+        ).bindparams(**params))
+
+    db.commit()
+
+    refreshed = db.exec(text("""
+        SELECT ap.id, ap.invoice_folio, ap.total_amount, ap.due_date,
+               ap.status, ap.created_at, ap.overhead_category,
+               ap.instance_id, ap.notes, p.business_name AS provider_name
+        FROM accounts_payable ap
+        LEFT JOIN providers p ON ap.provider_id = p.id
+        WHERE ap.id = :expense_id
+    """).bindparams(expense_id=expense_id)).first()
+
+    return dict(refreshed._mapping)
+
+
+@router.patch("/operational-expenses/{expense_id}/cancel")
+def cancel_operational_expense(
+    *,
+    db: Session = Depends(get_session),
+    expense_id: int,
+    data: OperationalExpenseCancel,
+    current_user: CurrentUser,
+):
+    if _resolve_role(current_user) not in ["DIRECTOR", "MANAGER", "ADMIN"]:
+        raise HTTPException(status_code=403, detail="Sin permisos.")
+
+    expense = db.exec(text("""
+        SELECT id, status, notes
+        FROM accounts_payable
+        WHERE id = :expense_id AND purchase_order_id IS NULL
+    """).bindparams(expense_id=expense_id)).first()
+
+    if not expense:
+        raise HTTPException(status_code=404, detail="Operational expense not found")
+
+    expense_row = dict(expense._mapping)
+    if expense_row.get("status") == "CANCELADO":
+        raise HTTPException(status_code=422, detail="Expense is already cancelled")
+
+    payments_row = db.exec(text("""
+        SELECT COALESCE(SUM(amount), 0)
+        FROM supplier_payments
+        WHERE accounts_payable_id = :expense_id
+    """).bindparams(expense_id=expense_id)).first()
+    payments_total = float(payments_row[0] if payments_row else 0)
+
+    if payments_total > 0:
+        raise HTTPException(
+            status_code=422,
+            detail="This expense has payments applied. Cannot cancel.",
+        )
+
+    existing_notes = expense_row.get("notes")
+    if existing_notes:
+        new_notes = f"{existing_notes}\nCANCELADO: {data.cancel_reason}"
+    else:
+        new_notes = f"CANCELADO: {data.cancel_reason}"
+
+    db.exec(text("""
+        UPDATE accounts_payable
+        SET status = 'CANCELADO', notes = :notes
+        WHERE id = :expense_id AND purchase_order_id IS NULL
+    """).bindparams(notes=new_notes, expense_id=expense_id))
+
+    db.commit()
+
+    refreshed = db.exec(text("""
+        SELECT ap.id, ap.invoice_folio, ap.total_amount, ap.due_date,
+               ap.status, ap.created_at, ap.overhead_category,
+               ap.instance_id, ap.notes, p.business_name AS provider_name
+        FROM accounts_payable ap
+        LEFT JOIN providers p ON ap.provider_id = p.id
+        WHERE ap.id = :expense_id
+    """).bindparams(expense_id=expense_id)).first()
+
+    return dict(refreshed._mapping)
 
 
 @router.post("/orders/{po_id}/send-email")

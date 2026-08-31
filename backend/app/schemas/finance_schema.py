@@ -115,3 +115,15 @@ class PurchaseInvoiceUpdate(BaseModel):
     issue_date: Optional[date] = None
     due_date: Optional[date] = None
     total_amount: Optional[float] = None
+
+
+class OperationalExpenseUpdate(BaseModel):
+    invoice_folio: Optional[str] = None
+    total_amount: Optional[float] = None
+    due_date: Optional[date] = None
+    overhead_category: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class OperationalExpenseCancel(BaseModel):
+    cancel_reason: str
