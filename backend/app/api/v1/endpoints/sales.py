@@ -247,6 +247,9 @@ def create_sales_order(
             line_amount = item_in.quantity * item_in.unit_price
             items_sum += line_amount
 
+            item_data = item_in.model_dump()
+            commercial_description = item_data.get('commercial_description', None)
+
             db_item = SalesOrderItem(
                 sales_order_id=db_order.id,
                 product_name=item_in.product_name,
@@ -258,6 +261,7 @@ def create_sales_order(
                 frozen_unit_cost=calculated_frozen_cost,
                 is_resale=getattr(item_in, 'is_resale', False),
                 resale_sku=getattr(item_in, 'resale_sku', None),
+                commercial_description=commercial_description,
             )
             session.add(db_item)
             session.flush()

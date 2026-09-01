@@ -90,6 +90,7 @@ class SalesOrderItemBase(SQLModel):
     frozen_unit_cost: float = 0.0
     is_resale: bool = False
     resale_sku: Optional[str] = None
+    commercial_description: Optional[str] = None
 
 class SalesOrderItemCreate(SalesOrderItemBase):
     pass

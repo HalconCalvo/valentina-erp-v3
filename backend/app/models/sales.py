@@ -226,6 +226,7 @@ class SalesOrderItem(SQLModel, table=True):
     # ---> NUEVO SENSOR: FOTOGRAFÍA DE MATERIALES (JSON) <---
     # Ejemplo: {"MDF": 5000, "Granito": 12000, "Mano_Obra": 4000}
     category_breakdown_snapshot: Optional[str] = Field(default=None)
+    commercial_description: Optional[str] = Field(default=None)
 
     order: Optional["SalesOrder"] = Relationship(back_populates="items")
     instances: List[SalesOrderItemInstance] = Relationship(
