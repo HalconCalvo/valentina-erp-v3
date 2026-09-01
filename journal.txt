@@ -1572,3 +1572,19 @@ Si alguna respuesta es NO — no se hace commit hasta corregir.
 2. Corregir GERENCIA → MANAGER en Sidebar
 3. Menús SALES, PRODUCTION, LOGISTICS, WAREHOUSE
 4. Scripts sueltos en raíz: mover a scripts/
+
+---
+## SESIÓN 2026-08-31 (cierre) — Normalización GERENCIA → MANAGER completa
+### Completado:
+- 'GERENCIA' → 'MANAGER' en todo el frontend (0 referencias funcionales restantes)
+- Archivos corregidos: Sidebar, Home, SalesOrderDetailModal, SalesDashboardPage,
+  UsersPage, PlanningPage, PettyCashPanel, ManagementDashboard, PurchaseOrdersModule,
+  MaterialsPage, InventoryReceptionPage, FactoryFloorPage, ProductionKanbanPage,
+  PayablesModule, AccountsReceivableAgingPanel, InvoiceDetailModal, OrderStatementModal,
+  ReceivablesModule, PendingToInvoicePage, OperationalExpensesPanel, TreasuryPage
+- Commits: 580517a, 7aaf625, 89d92c7, f673172
+- canSeeBanks en ManagementDashboard restringido a DIRECTOR únicamente
+### Pendientes para próxima sesión:
+1. Menús SALES, PRODUCTION, LOGISTICS, WAREHOUSE — definir y ajustar
+2. Scripts sueltos en raíz: mover a scripts/
+3. Auditoría de principios CLAUDE.md en archivos tocados hoy

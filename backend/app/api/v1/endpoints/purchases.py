@@ -732,16 +732,11 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
         if invoice_folio:
             existing_ap = db.exec(text("""
                 SELECT id FROM accounts_payable
-                WHERE provider_id = :prov AND invoice_folio = :folio AND status != 'CANCELADO'
-            """).bindparams(prov=po.provider_id, folio=invoice_folio)).first()
+                WHERE provider_id = :prov AND invoice_folio = :folio 
+                AND purchase_order_id = :po_id AND status != 'CANCELADO'
+            """).bindparams(prov=po.provider_id, folio=invoice_folio, po_id=po_id)).first()
             if existing_ap:
-                raise HTTPException(status_code=400, detail=f"La factura {invoice_folio} ya está registrada para este proveedor.")
-            existing_inv = db.exec(select(PurchaseInvoice).where(
-                PurchaseInvoice.invoice_number == invoice_folio,
-                PurchaseInvoice.provider_id == po.provider_id
-            )).first()
-            if existing_inv:
-                raise HTTPException(status_code=400, detail=f"La factura {invoice_folio} ya está registrada para este proveedor.")
+                raise HTTPException(status_code=400, detail=f"La factura {invoice_folio} ya está registrada para esta OC.")
 
         prov = db.get(Provider, po.provider_id)
         credit_days = getattr(prov, 'credit_days', 0) or 0
