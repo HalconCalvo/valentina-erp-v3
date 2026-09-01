@@ -1674,3 +1674,21 @@ useSales.ts, useClients.ts — limpieza en sesión dedicada.
 2. Menús SALES, PRODUCTION, LOGISTICS, WAREHOUSE
 3. Limpieza console.log/error/warn (sesión dedicada)
 4. Scripts sueltos en raíz: mover a scripts/
+
+---
+## SESIÓN 2026-09-01 (tarde) — Correcciones y mejoras
+### Completado:
+- OC-M260827162051: CxP y factura registradas (folio 30899, $1,127.87)
+- 10 OCs sin factura identificadas — esperando folios para registrarlas
+- Recepción Parcial: columnas "Recibido" y "Falta" agregadas a la tabla
+- Botón Regresar en OV y Facturación corregido (regresa a dashboard)
+- CLAUDE.md reescrito a 142 líneas — compacto y completo
+- CLAUDE_FULL.md creado como referencia completa
+- Estándar Opción C adoptado permanentemente
+
+### Pendientes para próxima sesión:
+1. commercial_description en PDF — no se despliega (diagnóstico pendiente)
+2. 10 OCs sin factura — esperando folios de factura
+3. Menús SALES, PRODUCTION, LOGISTICS, WAREHOUSE
+4. Limpieza console.log/error/warn
+5. Scripts sueltos en raíz: mover a scripts/

@@ -57,6 +57,13 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
         }
     }, [isOpen, objetivo, order.status]);
 
+    useEffect(() => {
+        if (tipoFactura === 'FULL') {
+            setImporteFactura(Number(totalOrder.toFixed(2)));
+            setDisplayImporte(new Intl.NumberFormat('en-US').format(Number(totalOrder.toFixed(2))));
+        }
+    }, [tipoFactura, totalOrder]);
+
     const formatCurrency = (value: number) => {
         return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value);
     };
