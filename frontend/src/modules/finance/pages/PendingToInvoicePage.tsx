@@ -20,7 +20,7 @@ const PendingToInvoicePage = () => {
     const returnTo: string = (location.state as any)?.returnTo ?? '/treasury';
 
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase().trim();
-    const hasAbsolutePower = ['ADMIN', 'ADMINISTRADOR', 'ADMINISTRACIÓN', 'ADMINISTRATION', 'FINANCE', 'FINANZAS', 'DIRECTOR', 'GERENCIA'].includes(userRole);
+    const hasAbsolutePower = ['ADMIN', 'ADMINISTRADOR', 'ADMINISTRACIÓN', 'ADMINISTRATION', 'FINANCE', 'FINANZAS', 'DIRECTOR', 'MANAGER'].includes(userRole);
 
     const [invoicingRights, setInvoicingRights] = useState<InvoicingRightsRead | null>(null);
     const [isLoading, setIsLoading] = useState(false);

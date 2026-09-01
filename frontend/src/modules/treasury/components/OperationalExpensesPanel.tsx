@@ -250,7 +250,7 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
         }
     };
 
-    const canWrite = ['DIRECTOR', 'GERENCIA', 'ADMIN'].includes(userRole.toUpperCase().trim());
+    const canWrite = ['DIRECTOR', 'MANAGER', 'ADMIN'].includes(userRole.toUpperCase().trim());
     const isDirector = userRole.toUpperCase().trim() === 'DIRECTOR';
 
     return (

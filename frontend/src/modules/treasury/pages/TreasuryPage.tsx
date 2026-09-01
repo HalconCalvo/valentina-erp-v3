@@ -42,15 +42,15 @@ export const TreasuryPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const userRole = (localStorage.getItem('user_role') || '').toUpperCase().trim();
-  const isChecker = ['DIRECTOR', 'GERENCIA'].includes(userRole);
+  const isChecker = ['DIRECTOR', 'MANAGER'].includes(userRole);
   /** Rayos X / comisiones: mismo criterio amplio que cobranza admin */
   const canFinanceRayosX = [
-    'DIRECTOR', 'GERENCIA', 'ADMIN', 'ADMINISTRADOR', 'FINANCE', 'FINANZAS',
+    'DIRECTOR', 'MANAGER', 'ADMIN', 'ADMINISTRADOR', 'FINANCE', 'FINANZAS',
   ].includes(userRole);
   /** Cierre semanal de costos fijos: alineado con treasury weekly-fixed-costs. */
   const canCaptureWeeklyFixed = [
     'DIRECTOR',
-    'GERENCIA',
+    'MANAGER',
     'ADMIN',
     'ADMINISTRADOR',
     'FINANCE',

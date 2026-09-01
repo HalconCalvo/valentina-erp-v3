@@ -35,7 +35,7 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
 }) => {
     const navigate = useNavigate();
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase().trim();
-    const hasAbsolutePower = ['ADMIN', 'ADMINISTRADOR', 'ADMINISTRACIÓN', 'ADMINISTRATION', 'FINANCE', 'FINANZAS', 'DIRECTOR', 'GERENCIA'].includes(userRole);
+    const hasAbsolutePower = ['ADMIN', 'ADMINISTRADOR', 'ADMINISTRACIÓN', 'ADMINISTRATION', 'FINANCE', 'FINANZAS', 'DIRECTOR', 'MANAGER'].includes(userRole);
 
     const [orders, setOrders] = useState<SalesOrder[]>([]);
     const [invoicingRights, setInvoicingRights] = useState<InvoicingRightsRead | null>(null);
