@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axiosClient from '../../../api/axios-client';
 import { Button } from '@/components/ui/Button';
 import { Plus, XCircle, Receipt, Pencil } from 'lucide-react';
 import { toast } from '@/components/ui/VToast';
+import { Input } from '@/components/ui/Input';
+import SearchableSelect from '@/components/ui/SearchableSelect';
+import { VTable, type VTableColumn } from '@/components/ui/VTable';
 
 const OVERHEAD_CATEGORIES_BASE = [
     'PLANTA', 'COMUNICACIONES', 'COMBUSTIBLES', 'TRANSPORTE',
@@ -252,6 +255,67 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
 
     const canWrite = ['DIRECTOR', 'MANAGER', 'ADMIN'].includes(userRole.toUpperCase().trim());
     const isDirector = userRole.toUpperCase().trim() === 'DIRECTOR';
+    const categoryOptions = isDirector ? OVERHEAD_CATEGORIES_DIRECTOR : OVERHEAD_CATEGORIES_BASE;
+
+    const expenseColumns = useMemo((): VTableColumn<Expense>[] => [
+        {
+            key: 'invoice_folio',
+            label: 'Folio',
+            render: (e) => <span className="font-black text-indigo-600 text-xs">{e.invoice_folio}</span>,
+        },
+        {
+            key: 'provider_name',
+            label: 'Proveedor / Concepto',
+            render: (e) => (
+                <div className="font-bold text-slate-700">
+                    {e.provider_name || '—'}
+                    {e.overhead_category === 'MAQUILA' && e.instance_id && (
+                        <span className="text-[10px] text-rose-600 font-bold block">
+                            Instancia #{e.instance_id}
+                        </span>
+                    )}
+                </div>
+            ),
+        },
+        {
+            key: 'overhead_category',
+            label: 'Categoría',
+            render: (e) => e.overhead_category ? (
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border uppercase ${
+                    CATEGORY_COLORS[e.overhead_category] ?? CATEGORY_COLORS['OTRO']
+                }`}>
+                    {e.overhead_category}
+                </span>
+            ) : '—',
+        },
+        {
+            key: 'total_amount',
+            label: 'Monto',
+            render: (e) => <span className="block text-right font-black text-slate-800">{fmt(e.total_amount)}</span>,
+        },
+        {
+            key: 'due_date',
+            label: 'Vencimiento',
+            render: (e) => (
+                <span className="text-slate-500 text-xs">
+                    {e.due_date ? new Date(e.due_date).toLocaleDateString('es-MX') : '—'}
+                </span>
+            ),
+        },
+        {
+            key: 'status',
+            label: 'Estado',
+            render: (e) => (
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border uppercase ${
+                    String(e.status).toUpperCase() === 'PENDIENTE'
+                        ? 'bg-amber-50 text-amber-700 border-amber-200'
+                        : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                }`}>
+                    {e.status}
+                </span>
+            ),
+        },
+    ], []);
 
     return (
         <div className="space-y-6 animate-in fade-in duration-300">
@@ -269,94 +333,36 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
 
             {/* Tabla */}
             <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-                <table className="w-full text-sm text-left">
-                    <thead className="bg-slate-50 border-b border-slate-200">
-                        <tr>
-                            <th className="px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">Folio</th>
-                            <th className="px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">Proveedor / Concepto</th>
-                            <th className="px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">Categoría</th>
-                            <th className="px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Monto</th>
-                            <th className="px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">Vencimiento</th>
-                            <th className="px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">Estado</th>
-                            <th className="px-4 py-3" />
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {expenses.length === 0 ? (
-                            <tr>
-                                <td colSpan={7} className="px-4 py-16 text-center">
-                                    <div className="flex flex-col items-center gap-3 text-slate-300">
-                                        <Receipt size={40} strokeWidth={1} />
-                                        <p className="font-black uppercase text-xs">Sin gastos operativos registrados</p>
-                                    </div>
-                                </td>
-                            </tr>
-                        ) : (
-                            expenses.map(e => (
-                                <tr key={e.id} className="hover:bg-slate-50 transition-colors">
-                                    <td className="px-4 py-3 font-black text-indigo-600 text-xs">
-                                        {e.invoice_folio}
-                                    </td>
-                                    <td className="px-4 py-3 font-bold text-slate-700">
-                                        {e.provider_name || '—'}
-                                        {e.overhead_category === 'MAQUILA' && e.instance_id && (
-                                            <span className="text-[10px] text-rose-600 font-bold block">
-                                                Instancia #{e.instance_id}
-                                            </span>
-                                        )}
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        {e.overhead_category ? (
-                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border uppercase ${
-                                                CATEGORY_COLORS[e.overhead_category] ?? CATEGORY_COLORS['OTRO']
-                                            }`}>
-                                                {e.overhead_category}
-                                            </span>
-                                        ) : '—'}
-                                    </td>
-                                    <td className="px-4 py-3 text-right font-black text-slate-800">
-                                        {fmt(e.total_amount)}
-                                    </td>
-                                    <td className="px-4 py-3 text-slate-500 text-xs">
-                                        {e.due_date
-                                            ? new Date(e.due_date).toLocaleDateString('es-MX')
-                                            : '—'}
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border uppercase ${
-                                            String(e.status).toUpperCase() === 'PENDIENTE'
-                                                ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                        }`}>
-                                            {e.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-4 py-3 whitespace-nowrap">
-                                        {String(e.status).toUpperCase() === 'CANCELADO' ? (
-                                            <span className="text-[10px] text-slate-400 font-bold uppercase">CANCELADO</span>
-                                        ) : String(e.status).toUpperCase() === 'PENDIENTE' ? (
-                                            <div className="flex items-center gap-2">
-                                                <Pencil
-                                                    size={14}
-                                                    className="text-slate-400 hover:text-indigo-600 cursor-pointer"
-                                                    onClick={() => handleOpenEditExpense(e)}
-                                                />
-                                                <XCircle
-                                                    size={14}
-                                                    className="text-slate-400 hover:text-rose-600 cursor-pointer"
-                                                    onClick={() => {
-                                                        setCancelExpenseModal({ open: true, expense: e });
-                                                        setCancelExpenseReason('');
-                                                    }}
-                                                />
-                                            </div>
-                                        ) : null}
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
+                <VTable
+                    columns={expenseColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+                    data={expenses as unknown as Record<string, unknown>[]}
+                    emptyState={{
+                        icon: <Receipt size={40} strokeWidth={1} />,
+                        title: 'Sin gastos operativos registrados',
+                    }}
+                    actions={(e) => {
+                        const expense = e as unknown as Expense;
+                        if (String(expense.status).toUpperCase() === 'CANCELADO') return [];
+                        if (String(expense.status).toUpperCase() !== 'PENDIENTE') return [];
+                        return [
+                            {
+                                label: 'Editar',
+                                icon: <Pencil size={14} />,
+                                onClick: () => handleOpenEditExpense(expense),
+                            },
+                            {
+                                label: 'Cancelar',
+                                icon: <XCircle size={14} />,
+                                variant: 'danger' as const,
+                                onClick: () => {
+                                    setCancelExpenseModal({ open: true, expense });
+                                    setCancelExpenseReason('');
+                                },
+                            },
+                        ];
+                    }}
+                    className="border-0 shadow-none rounded-none"
+                />
             </div>
 
             {/* Modal nuevo gasto */}
@@ -378,23 +384,15 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
                                     Categoría *
                                 </label>
-                                <select
+                                <SearchableSelect
+                                    items={categoryOptions}
                                     value={form.overhead_category}
-                                    onChange={e => setForm(f => ({ ...f, overhead_category: e.target.value }))}
-                                    className={`w-full border rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none ${
-                                        !form.overhead_category
-                                            ? 'border-red-300 bg-red-50'
-                                            : 'border-slate-200'
-                                    }`}
-                                >
-                                    <option value="">— Seleccionar categoría —</option>
-                                    {(isDirector
-                                        ? OVERHEAD_CATEGORIES_DIRECTOR
-                                        : OVERHEAD_CATEGORIES_BASE
-                                    ).map(c => (
-                                        <option key={c} value={c}>{c}</option>
-                                    ))}
-                                </select>
+                                    onChange={(value) => setForm((f) => ({ ...f, overhead_category: value }))}
+                                    getLabel={(c) => c}
+                                    getValue={(c) => c}
+                                    placeholder="— Seleccionar categoría —"
+                                    className={`w-full ${!form.overhead_category ? 'ring-1 ring-red-300' : ''}`}
+                                />
                             </div>
 
                             {/* Selectores OV e Instancia — solo para MAQUILA */}
@@ -404,23 +402,16 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
                                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
                                             Orden de Venta *
                                         </label>
-                                        <select
+                                        <SearchableSelect
+                                            items={orders}
                                             value={selectedOrderId}
-                                            onChange={e => handleOrderChange(e.target.value)}
+                                            onChange={(value) => void handleOrderChange(value)}
+                                            getLabel={(o) => `OV-${String(o.id).padStart(4, '0')} — ${o.project_name || o.client_name || ''}`}
+                                            getValue={(o) => String(o.id)}
+                                            placeholder="— Seleccionar OV —"
                                             disabled={loadingOrders}
-                                            className={`w-full border rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none ${
-                                                !selectedOrderId
-                                                    ? 'border-red-300 bg-red-50'
-                                                    : 'border-slate-200'
-                                            }`}
-                                        >
-                                            <option value="">— Seleccionar OV —</option>
-                                            {orders.map((o: any) => (
-                                                <option key={o.id} value={o.id}>
-                                                    OV-{String(o.id).padStart(4, '0')} — {o.project_name || o.client_name || ''}
-                                                </option>
-                                            ))}
-                                        </select>
+                                            className={`w-full ${!selectedOrderId ? 'ring-1 ring-red-300' : ''}`}
+                                        />
                                     </div>
 
                                     {selectedOrderId && (
@@ -428,22 +419,15 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
                                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
                                                 Instancia *
                                             </label>
-                                            <select
+                                            <SearchableSelect
+                                                items={instances}
                                                 value={selectedInstanceId}
-                                                onChange={e => setSelectedInstanceId(e.target.value)}
-                                                className={`w-full border rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none ${
-                                                    !selectedInstanceId
-                                                        ? 'border-red-300 bg-red-50'
-                                                        : 'border-slate-200'
-                                                }`}
-                                            >
-                                                <option value="">— Seleccionar instancia —</option>
-                                                {instances.map((inst: any) => (
-                                                    <option key={inst.id} value={inst.id}>
-                                                        {inst.custom_name || `Instancia ${inst.id}`}
-                                                    </option>
-                                                ))}
-                                            </select>
+                                                onChange={setSelectedInstanceId}
+                                                getLabel={(inst) => inst.custom_name || `Instancia ${inst.id}`}
+                                                getValue={(inst) => String(inst.id)}
+                                                placeholder="— Seleccionar instancia —"
+                                                className={`w-full ${!selectedInstanceId ? 'ring-1 ring-red-300' : ''}`}
+                                            />
                                         </div>
                                     )}
                                 </>
@@ -454,16 +438,15 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
                                     Proveedor (opcional)
                                 </label>
-                                <select
+                                <SearchableSelect
+                                    items={providers}
                                     value={form.provider_name || ''}
-                                    onChange={e => setForm(f => ({ ...f, provider_name: e.target.value || null }))}
-                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-rose-400 bg-white"
-                                >
-                                    <option value="">— Sin proveedor —</option>
-                                    {providers.map(p => (
-                                        <option key={p.id} value={p.business_name}>{p.business_name}</option>
-                                    ))}
-                                </select>
+                                    onChange={(value) => setForm((f) => ({ ...f, provider_name: value || null }))}
+                                    getLabel={(p) => p.business_name}
+                                    getValue={(p) => p.business_name}
+                                    placeholder="— Sin proveedor —"
+                                    className="w-full"
+                                />
                             </div>
 
                             {/* Concepto */}
@@ -471,12 +454,12 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
                                     Concepto *
                                 </label>
-                                <input
+                                <Input
                                     type="text"
                                     placeholder="Ej. Renta enero 2026, Factura luz..."
                                     value={form.concept}
                                     onChange={e => setForm(f => ({ ...f, concept: e.target.value }))}
-                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-rose-400"
+                                    className="text-sm font-bold text-slate-700 focus-visible:border-rose-400"
                                 />
                             </div>
 
@@ -487,13 +470,13 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
                                 </label>
                                 <div className="flex items-center border border-slate-200 rounded-lg px-3 py-2 focus-within:border-rose-400">
                                     <span className="text-sm font-bold text-slate-400 mr-2">$</span>
-                                    <input
+                                    <Input
                                         type="number"
                                         min="0"
                                         step="0.01"
                                         value={form.total_amount}
                                         onChange={e => setForm(f => ({ ...f, total_amount: e.target.value }))}
-                                        className="w-full text-sm font-bold text-slate-700 outline-none"
+                                        className="border-0 shadow-none focus-visible:ring-0 text-sm font-bold text-slate-700"
                                     />
                                 </div>
                             </div>
@@ -504,25 +487,23 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
                                         Fecha Factura *
                                     </label>
-                                    <input
+                                    <Input
                                         type="date"
                                         value={form.issue_date}
                                         onChange={e => setForm(f => ({ ...f, issue_date: e.target.value }))}
-                                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-rose-400"
+                                        className="text-sm font-bold text-slate-700 focus-visible:border-rose-400"
                                     />
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
                                         Vencimiento *
                                     </label>
-                                    <input
+                                    <Input
                                         type="date"
                                         value={form.due_date}
                                         onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))}
-                                        className={`w-full border rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none ${
-                                            !form.due_date
-                                                ? 'border-red-300 bg-red-50'
-                                                : 'border-slate-200 focus:border-rose-400'
+                                        className={`text-sm font-bold text-slate-700 focus-visible:border-rose-400 ${
+                                            !form.due_date ? 'border-red-300 bg-red-50' : ''
                                         }`}
                                     />
                                 </div>
@@ -583,54 +564,50 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
                                     Folio
                                 </label>
-                                <input
+                                <Input
                                     type="text"
                                     value={editExpenseForm.invoice_folio}
                                     onChange={e => setEditExpenseForm(f => ({ ...f, invoice_folio: e.target.value }))}
-                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-indigo-400"
+                                    className="text-sm font-bold text-slate-700 focus-visible:border-indigo-400"
                                 />
                             </div>
                             <div>
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
                                     Importe
                                 </label>
-                                <input
+                                <Input
                                     type="number"
                                     min="0"
                                     step="0.01"
                                     value={editExpenseForm.total_amount}
                                     onChange={e => setEditExpenseForm(f => ({ ...f, total_amount: e.target.value }))}
-                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-indigo-400"
+                                    className="text-sm font-bold text-slate-700 focus-visible:border-indigo-400"
                                 />
                             </div>
                             <div>
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
                                     Fecha de vencimiento
                                 </label>
-                                <input
+                                <Input
                                     type="date"
                                     value={editExpenseForm.due_date}
                                     onChange={e => setEditExpenseForm(f => ({ ...f, due_date: e.target.value }))}
-                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-indigo-400"
+                                    className="text-sm font-bold text-slate-700 focus-visible:border-indigo-400"
                                 />
                             </div>
                             <div>
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
                                     Categoría
                                 </label>
-                                <select
+                                <SearchableSelect
+                                    items={categoryOptions}
                                     value={editExpenseForm.overhead_category}
-                                    onChange={e => setEditExpenseForm(f => ({ ...f, overhead_category: e.target.value }))}
-                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-indigo-400"
-                                >
-                                    <option value="">— Seleccionar categoría —</option>
-                                    {(isDirector
-                                        ? OVERHEAD_CATEGORIES_DIRECTOR
-                                        : OVERHEAD_CATEGORIES_BASE
-                                    ).map(c => (
-                                        <option key={c} value={c}>{c}</option>
-                                    ))}
-                                </select>
+                                    onChange={(value) => setEditExpenseForm((f) => ({ ...f, overhead_category: value }))}
+                                    getLabel={(c) => c}
+                                    getValue={(c) => c}
+                                    placeholder="— Seleccionar categoría —"
+                                    className="w-full"
+                                />
                             </div>
                         </div>
                         <div className="p-6 border-t border-slate-100 flex gap-3 justify-end">
@@ -680,11 +657,11 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
                                     Motivo de cancelación *
                                 </label>
-                                <input
+                                <Input
                                     type="text"
                                     value={cancelExpenseReason}
                                     onChange={e => setCancelExpenseReason(e.target.value)}
-                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-rose-400"
+                                    className="text-sm font-bold text-slate-700 focus-visible:border-rose-400"
                                     placeholder="Describe el motivo..."
                                 />
                             </div>

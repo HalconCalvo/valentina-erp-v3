@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'; // <--- 1. IMPORTAR useCallback
 import client from '../../../api/axios-client';
+import { toast } from '@/components/ui/VToast';
 
 export interface Provider {
   id?: number;
@@ -62,12 +63,11 @@ export const useProviders = () => {
   };
 
   const deleteProvider = async (id: number) => {
-    if (!window.confirm("¿Confirma que desea eliminar este proveedor?")) return;
     try {
       await client.delete(`${BASE_URL}/${id}`);
       await fetchProviders();
-    } catch (error) {
-      alert("No se pudo eliminar.");
+    } catch {
+      toast.error('No se pudo eliminar el proveedor.');
     }
   };
 

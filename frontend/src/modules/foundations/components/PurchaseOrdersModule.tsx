@@ -7,6 +7,9 @@ import {
 
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import SearchableSelect from '@/components/ui/SearchableSelect';
+import { VTable } from '@/components/ui/VTable';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 import axiosClient from '../../../api/axios-client';
@@ -938,116 +941,171 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                     </div>
                                 </div>
                             </div>
-                            <div className="p-0 overflow-x-auto">
-                                <table className="w-full">
-                                    <thead>
-                                        <tr className="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                            <th className="px-6 py-4 text-center w-10">Sel.</th>
-                                            <th className="px-4 py-4 text-left w-32">SKU</th>
-                                            <th className="px-4 py-4 text-left">Descripción Material</th>
-                                            <th className="px-4 py-4 text-center">Cantidad</th>
-                                            <th className="px-4 py-4 text-center w-32">Precio Unit.</th>
-                                            <th className="px-8 py-4 text-right">Proyecto</th>
-                                            <th className="px-8 py-4 text-right w-40">Importe</th>
-                                            <th className="px-6 py-4 text-center w-24">Acción</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-50">
-                                        {group.items?.map((item: any, i: number) => {
+                            <VTable
+                                columns={[
+                                    {
+                                        key: 'selected',
+                                        label: 'Sel.',
+                                        width: '40px',
+                                        render: (item) => {
+                                            const isSelected = selectedItems[`${group.provider_id}-${item.material_id}`];
+                                            const isCritical = !!item.project_name;
+                                            return (
+                                                <div className={`text-center ${!isSelected ? 'opacity-40' : ''} ${isCritical ? 'bg-rose-50/20' : ''}`}>
+                                                    <button onClick={() => { const key = `${group.provider_id}-${item.material_id}`; setSelectedItems(prev => ({ ...prev, [key]: !prev[key] })); }} className="text-indigo-600">
+                                                        {isSelected ? <CheckSquare size={18} /> : <Square size={18} />}
+                                                    </button>
+                                                </div>
+                                            );
+                                        },
+                                    },
+                                    {
+                                        key: 'sku',
+                                        label: 'SKU',
+                                        width: '128px',
+                                        render: (item) => {
+                                            const isSelected = selectedItems[`${group.provider_id}-${item.material_id}`];
+                                            const isCritical = !!item.project_name;
+                                            return (
+                                                <span className={`font-black text-indigo-600 text-[11px] uppercase tracking-wider ${!isSelected ? 'opacity-40' : ''} ${isCritical ? 'bg-rose-50/20' : ''}`}>{String(item.sku ?? '')}</span>
+                                            );
+                                        },
+                                    },
+                                    {
+                                        key: 'name',
+                                        label: 'Descripción Material',
+                                        render: (item) => {
                                             const isSelected = selectedItems[`${group.provider_id}-${item.material_id}`];
                                             const isCritical = !!item.project_name;
                                             const isAuto = isAutomaticItem(item);
-                                            
                                             return (
-                                                <tr key={i} className={`hover:bg-slate-50/30 transition-colors group ${!isSelected ? 'opacity-40' : ''} ${isCritical ? 'bg-rose-50/20' : ''}`}>
-                                                    <td className="px-6 py-3 text-center">
-                                                        <button onClick={() => { const key = `${group.provider_id}-${item.material_id}`; setSelectedItems(prev => ({ ...prev, [key]: !prev[key] })); }} className="text-indigo-600">
-                                                            {isSelected ? <CheckSquare size={18} /> : <Square size={18} />}
-                                                        </button>
-                                                    </td>
-                                                    <td className="px-4 py-3 font-black text-indigo-600 text-[11px] uppercase tracking-wider">{item.sku}</td>
-                                                    <td className="px-4 py-3 font-bold text-slate-700 text-xs uppercase tracking-tight leading-snug">
-                                                        <div className="flex flex-col">
-                                                            <span>{item.name}</span>
-                                                            {isAuto && <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest mt-0.5">Alarma del Sistema</span>}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-3 text-center text-xs font-black text-slate-600">{item.qty}</td>
-                                                    <td className="px-4 py-3 text-center text-xs font-bold text-slate-400">${(item.expected_cost || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
-                                                    <td className="px-8 py-3 text-right">
-                                                        {isCritical ? (
-                                                            <div className="flex items-center justify-end gap-2 text-rose-600 font-black text-[10px] uppercase tracking-tighter"><AlertCircle size={14} /> {item.project_name}</div>
-                                                        ) : (
-                                                            <span className="text-[10px] text-slate-400 font-bold uppercase italic tracking-tighter">S/PROYECTO</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-8 py-3 text-right text-xs font-black text-slate-800">${((item.qty || 0) * (item.expected_cost || 0)).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
-                                                    <td className="px-6 py-3 text-center">
-                                                        <div className="flex justify-center gap-2">
-                                                            {isUnassigned && (
-                                                                <button
-                                                                    onClick={() => {
-                                                                        setAssignModal({
-                                                                            open: true,
-                                                                            requisitionId: item.requisition_id,
-                                                                            itemName: item.name,
-                                                                            currentQty: item.qty,
-                                                                        });
-                                                                        setAssignForm({
-                                                                            provider_id: '',
-                                                                            provider_search: '',
-                                                                            expected_unit_cost: '0.00',
-                                                                        });
-                                                                    }}
-                                                                    title="Asignar Proveedor y Precio"
-                                                                    className="p-1.5 bg-indigo-50 text-indigo-600 rounded-md hover:bg-indigo-600 hover:text-white transition-colors shadow-sm border border-indigo-100"
-                                                                >
-                                                                    <Building2 size={16} />
-                                                                </button>
-                                                            )}
-                                                            {!isCritical && (
-                                                                <button onClick={() => handleFreezeRequisition(item.requisition_id)} title="Congelar / Aplazar Compra" className="p-1.5 bg-blue-50 text-blue-500 rounded-md hover:bg-blue-600 hover:text-white transition-colors shadow-sm border border-blue-100">
-                                                                    <Snowflake size={16} />
-                                                                </button>
-                                                            )}
-                                                            {!isAuto && !isCritical && (
-                                                                <button onClick={() => handleDeleteManualRequisition(item.requisition_id)} title="Eliminar Solicitud Manual" className="p-1.5 bg-rose-50 text-rose-400 rounded-md hover:bg-rose-600 hover:text-white transition-colors shadow-sm border border-rose-100">
-                                                                    <Trash2 size={16} />
-                                                                </button>
-                                                            )}
-                                                            {isCritical && (
-                                                                <button onClick={() => handleTransferCriticalItem(item.requisition_id, item.name)} title="Transferir a Sin Asignar" className="p-1.5 bg-indigo-50 text-indigo-400 rounded-md hover:bg-indigo-600 hover:text-white transition-colors">
-                                                                    <RefreshCw size={16} />
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                </tr>
+                                                <div className={`font-bold text-slate-700 text-xs uppercase tracking-tight leading-snug ${!isSelected ? 'opacity-40' : ''} ${isCritical ? 'bg-rose-50/20' : ''}`}>
+                                                    <div className="flex flex-col">
+                                                        <span>{String(item.name ?? '')}</span>
+                                                        {isAuto && <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest mt-0.5">Alarma del Sistema</span>}
+                                                    </div>
+                                                </div>
                                             );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
+                                        },
+                                    },
+                                    {
+                                        key: 'qty',
+                                        label: 'Cantidad',
+                                        render: (item) => {
+                                            const isSelected = selectedItems[`${group.provider_id}-${item.material_id}`];
+                                            const isCritical = !!item.project_name;
+                                            return (
+                                                <span className={`block text-center text-xs font-black text-slate-600 ${!isSelected ? 'opacity-40' : ''} ${isCritical ? 'bg-rose-50/20' : ''}`}>{String(item.qty ?? '')}</span>
+                                            );
+                                        },
+                                    },
+                                    {
+                                        key: 'expected_cost',
+                                        label: 'Precio Unit.',
+                                        width: '128px',
+                                        render: (item) => {
+                                            const isSelected = selectedItems[`${group.provider_id}-${item.material_id}`];
+                                            const isCritical = !!item.project_name;
+                                            return (
+                                                <span className={`block text-center text-xs font-bold text-slate-400 ${!isSelected ? 'opacity-40' : ''} ${isCritical ? 'bg-rose-50/20' : ''}`}>${Number(item.expected_cost || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                                            );
+                                        },
+                                    },
+                                    {
+                                        key: 'project_name',
+                                        label: 'Proyecto',
+                                        render: (item) => {
+                                            const isSelected = selectedItems[`${group.provider_id}-${item.material_id}`];
+                                            const isCritical = !!item.project_name;
+                                            return (
+                                                <div className={`text-right ${!isSelected ? 'opacity-40' : ''} ${isCritical ? 'bg-rose-50/20' : ''}`}>
+                                                    {isCritical ? (
+                                                        <div className="flex items-center justify-end gap-2 text-rose-600 font-black text-[10px] uppercase tracking-tighter"><AlertCircle size={14} /> {String(item.project_name)}</div>
+                                                    ) : (
+                                                        <span className="text-[10px] text-slate-400 font-bold uppercase italic tracking-tighter">S/PROYECTO</span>
+                                                    )}
+                                                </div>
+                                            );
+                                        },
+                                    },
+                                    {
+                                        key: 'importe',
+                                        label: 'Importe',
+                                        width: '160px',
+                                        render: (item) => {
+                                            const isSelected = selectedItems[`${group.provider_id}-${item.material_id}`];
+                                            const isCritical = !!item.project_name;
+                                            return (
+                                                <span className={`block text-right text-xs font-black text-slate-800 ${!isSelected ? 'opacity-40' : ''} ${isCritical ? 'bg-rose-50/20' : ''}`}>${((Number(item.qty) || 0) * (Number(item.expected_cost) || 0)).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                                            );
+                                        },
+                                    },
+                                ]}
+                                data={(group.items || []).map((item: any) => ({ ...item, _groupProviderId: group.provider_id })) as Record<string, unknown>[]}
+                                actions={(item) => {
+                                    const isCritical = !!item.project_name;
+                                    const isAuto = isAutomaticItem(item);
+                                    const actions = [];
+                                    if (isUnassigned) {
+                                        actions.push({
+                                            label: 'Asignar',
+                                            icon: <Building2 size={16} />,
+                                            onClick: () => {
+                                                setAssignModal({
+                                                    open: true,
+                                                    requisitionId: item.requisition_id as number,
+                                                    itemName: String(item.name ?? ''),
+                                                    currentQty: Number(item.qty ?? 0),
+                                                });
+                                                setAssignForm({
+                                                    provider_id: '',
+                                                    provider_search: '',
+                                                    expected_unit_cost: '0.00',
+                                                });
+                                            },
+                                        });
+                                    }
+                                    if (!isCritical) {
+                                        actions.push({
+                                            label: 'Congelar',
+                                            icon: <Snowflake size={16} />,
+                                            onClick: () => handleFreezeRequisition(item.requisition_id as number),
+                                        });
+                                    }
+                                    if (!isAuto && !isCritical) {
+                                        actions.push({
+                                            label: 'Eliminar',
+                                            icon: <Trash2 size={16} />,
+                                            variant: 'danger' as const,
+                                            onClick: () => handleDeleteManualRequisition(item.requisition_id as number),
+                                        });
+                                    }
+                                    if (isCritical) {
+                                        actions.push({
+                                            label: 'Transferir',
+                                            icon: <RefreshCw size={16} />,
+                                            onClick: () => handleTransferCriticalItem(item.requisition_id as number, String(item.name ?? '')),
+                                        });
+                                    }
+                                    return actions;
+                                }}
+                                className="border-0 shadow-none rounded-none"
+                            />
                             <div className="p-8 bg-white flex justify-between items-end border-t border-slate-50">
                                 <div className="flex flex-col gap-2">
                                     <div className="flex flex-col gap-1">
-                                        <select
+                                        <SearchableSelect
+                                            items={OVERHEAD_CATEGORIES}
                                             value={pendingCategory}
-                                            onChange={e => {
-                                                setPendingCategory(e.target.value);
+                                            onChange={(value) => {
+                                                setPendingCategory(value);
                                                 setCategoryError(null);
                                             }}
-                                            className={`border rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none ${
-                                                categoryError
-                                                    ? 'border-red-400 bg-red-50'
-                                                    : 'border-slate-200'
-                                            }`}
-                                        >
-                                            <option value="">— Categoría de gasto —</option>
-                                            {OVERHEAD_CATEGORIES.map(c => (
-                                                <option key={c} value={c}>{c}</option>
-                                            ))}
-                                        </select>
+                                            getLabel={(c) => c}
+                                            getValue={(c) => c}
+                                            placeholder="— Categoría de gasto —"
+                                            className={`w-full ${categoryError ? 'ring-1 ring-red-400' : ''}`}
+                                        />
                                         {categoryError && (
                                             <p className="text-xs text-red-600 font-bold">{categoryError}</p>
                                         )}
@@ -1088,22 +1146,32 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                         return (
                             <div key={idx} className={`bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden border-l-4 animate-in fade-in duration-300 ${isPartial ? 'border-l-amber-500' : 'border-l-rose-500'}`}>
                                 <div className={`p-6 border-b border-slate-100 flex justify-between items-center ${isPartial ? 'bg-amber-50/30' : 'bg-rose-50/30'}`}>
-                                    <div className="flex items-center gap-5"><div className={`p-3 rounded-2xl shadow-inner ${isPartial ? 'bg-amber-100 text-amber-600' : 'bg-rose-100 text-rose-600'}`}><FileText size={24} /></div><div><h3 className="text-xl font-black text-slate-800 uppercase leading-none">{order.provider_name}</h3><p className={`text-[9px] font-black uppercase text-slate-400 mt-1 tracking-widest ${isPartial ? 'text-amber-600' : 'text-rose-600'}`}>FOLIO: {order.folio}</p>{['DIRECTOR', 'MANAGER', 'ADMIN'].includes(role) && (<div className="mt-1.5 flex items-center gap-1.5">{editingOverheadId === order.id ? (<input autoFocus value={overheadDraft} onChange={e => setOverheadDraft(e.target.value)} onBlur={() => handleSaveOverhead(order.id)} onKeyDown={e => { if (e.key === 'Enter') handleSaveOverhead(order.id); if (e.key === 'Escape') setEditingOverheadId(null); }} className="text-[10px] font-black uppercase border-b border-slate-400 bg-transparent outline-none px-0 py-0 w-36 text-slate-600" />) : (<span className="text-[9px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1">{order.overhead_category || '—'}<button onClick={() => { setOverheadDraft(order.overhead_category || ''); setEditingOverheadId(order.id); }} className="text-slate-300 hover:text-slate-500 ml-1"><Pencil size={10} /></button></span>)}</div>)}</div></div>
+                                    <div className="flex items-center gap-5"><div className={`p-3 rounded-2xl shadow-inner ${isPartial ? 'bg-amber-100 text-amber-600' : 'bg-rose-100 text-rose-600'}`}><FileText size={24} /></div><div><h3 className="text-xl font-black text-slate-800 uppercase leading-none">{order.provider_name}</h3><p className={`text-[9px] font-black uppercase text-slate-400 mt-1 tracking-widest ${isPartial ? 'text-amber-600' : 'text-rose-600'}`}>FOLIO: {order.folio}</p>{['DIRECTOR', 'MANAGER', 'ADMIN'].includes(role) && (<div className="mt-1.5 flex items-center gap-1.5">{editingOverheadId === order.id ? (<Input autoFocus value={overheadDraft} onChange={e => setOverheadDraft(e.target.value)} onBlur={() => handleSaveOverhead(order.id)} onKeyDown={e => { if (e.key === 'Enter') handleSaveOverhead(order.id); if (e.key === 'Escape') setEditingOverheadId(null); }} className="text-[10px] font-black uppercase border-b border-slate-400 bg-transparent outline-none px-0 py-0 w-36 text-slate-600" />) : (<span className="text-[9px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1">{order.overhead_category || '—'}<button onClick={() => { setOverheadDraft(order.overhead_category || ''); setEditingOverheadId(order.id); }} className="text-slate-300 hover:text-slate-500 ml-1"><Pencil size={10} /></button></span>)}</div>)}</div></div>
                                 </div>
-                                <table className="w-full">
-                                    <thead>
-                                        <tr className="border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                            <th className="px-8 py-4 text-left w-32">SKU</th><th className="px-4 py-4 text-left">Descripción</th><th className="px-4 py-4 text-center">Cant.</th><th className="px-4 py-4 text-center w-32">P. Unit</th><th className="px-8 py-4 text-right">Proyecto</th><th className="px-8 py-4 text-right w-40">Importe</th><th className="px-6 py-4 text-center w-28">Acciones</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-50">
-                                        {order.items?.map((item: any, i: number) => (
-                                            <tr key={i} className="hover:bg-slate-50/30 transition-colors">
-                                                <td className="px-8 py-3 font-black text-indigo-600 text-[11px] uppercase">{item.sku}</td><td className="px-4 py-3 font-bold text-slate-700 text-xs uppercase">{item.name}</td><td className="px-4 py-3 text-center text-xs font-black text-slate-600">{item.qty}</td><td className="px-4 py-3 text-center text-xs font-bold text-slate-400">${(item.expected_cost || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td><td className="px-8 py-3 text-right"><span className="text-[10px] font-black text-rose-600 uppercase">{item.project_name || "GENERAL"}</span></td><td className="px-8 py-3 text-right text-xs font-black text-slate-800">${(item.subtotal || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td><td className="px-6 py-3 text-center"><div className="flex items-center justify-center gap-1.5">{!item.is_cancelled && ['DIRECTOR', 'MANAGER', 'ADMIN'].includes(role) && (<><button onClick={() => handleOpenEditItem(order.id, item)} className="text-indigo-400 hover:text-indigo-600" title="Editar partida"><Pencil size={14} /></button><button onClick={() => { setCancelItemReason(''); setCancelItemModal({ open: true, orderId: order.id, item }); }} className="text-amber-400 hover:text-amber-600" title="Cancelar partida"><XCircle size={14} /></button></>)}<button onClick={() => handleRemoveItemFromOrder(order.id, item.id, item.sku)} className="text-rose-400 hover:text-rose-600" title="Quitar de OC"><Trash2 size={16} /></button></div></td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                <VTable
+                                    columns={[
+                                        { key: 'sku', label: 'SKU', render: (item) => <span className="font-black text-indigo-600 text-[11px] uppercase">{String(item.sku ?? '')}</span> },
+                                        { key: 'name', label: 'Descripción', render: (item) => <span className="font-bold text-slate-700 text-xs uppercase">{String(item.name ?? '')}</span> },
+                                        { key: 'qty', label: 'Cant.', render: (item) => <span className="block text-center text-xs font-black text-slate-600">{String(item.qty ?? '')}</span> },
+                                        { key: 'expected_cost', label: 'P. Unit', render: (item) => <span className="block text-center text-xs font-bold text-slate-400">${Number(item.expected_cost || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span> },
+                                        { key: 'project_name', label: 'Proyecto', render: (item) => <span className="block text-right text-[10px] font-black text-rose-600 uppercase">{String(item.project_name || 'GENERAL')}</span> },
+                                        { key: 'subtotal', label: 'Importe', render: (item) => <span className="block text-right text-xs font-black text-slate-800">${Number(item.subtotal || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span> },
+                                    ]}
+                                    data={(order.items || []) as Record<string, unknown>[]}
+                                    actions={(item) => {
+                                        if (item.is_cancelled) return [];
+                                        const actions = [];
+                                        if (['DIRECTOR', 'MANAGER', 'ADMIN'].includes(role)) {
+                                            actions.push(
+                                                { label: 'Editar', icon: <Pencil size={14} />, onClick: () => handleOpenEditItem(order.id, item) },
+                                                { label: 'Cancelar', icon: <XCircle size={14} />, variant: 'danger' as const, onClick: () => { setCancelItemReason(''); setCancelItemModal({ open: true, orderId: order.id, item }); } },
+                                            );
+                                        }
+                                        actions.push({ label: 'Quitar', icon: <Trash2 size={16} />, variant: 'danger' as const, onClick: () => handleRemoveItemFromOrder(order.id, Number(item.id), String(item.sku)) });
+                                        return actions;
+                                    }}
+                                    className="border-0 shadow-none rounded-none"
+                                />
                                 <div className="p-8 bg-white flex justify-between items-end border-t border-slate-50">
                                     {!isPartial && (
                                     <div className="flex gap-3">
@@ -1158,20 +1226,18 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                         Ver PDF Oficial
                                     </Button>
                                 </div>
-                                <table className="w-full">
-                                    <thead>
-                                        <tr className="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                            <th className="px-8 py-4 text-left w-32">SKU</th><th className="px-4 py-4 text-left">Descripción</th><th className="px-4 py-4 text-center">Cant.</th><th className="px-4 py-4 text-center w-32">P. Unit</th><th className="px-8 py-4 text-right">Proyecto</th><th className="px-8 py-4 text-right w-40">Importe</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-50">
-                                        {order.items?.map((item: any, i: number) => (
-                                            <tr key={i} className="hover:bg-slate-50/30 transition-colors">
-                                                <td className="px-8 py-3 font-black text-indigo-600 text-[11px] uppercase">{item.sku}</td><td className="px-4 py-3 font-bold text-slate-700 text-xs uppercase">{item.name}</td><td className="px-4 py-3 text-center text-xs font-black text-slate-600">{item.qty}</td><td className="px-4 py-3 text-center text-xs font-bold text-slate-400">${(item.expected_cost || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td><td className="px-8 py-3 text-right"><span className="text-[10px] font-black text-rose-600 uppercase">{item.project_name || "GENERAL"}</span></td><td className="px-8 py-3 text-right text-xs font-black text-slate-800">${(item.subtotal || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                <VTable
+                                    columns={[
+                                        { key: 'sku', label: 'SKU', render: (item) => <span className="font-black text-indigo-600 text-[11px] uppercase">{String(item.sku ?? '')}</span> },
+                                        { key: 'name', label: 'Descripción', render: (item) => <span className="font-bold text-slate-700 text-xs uppercase">{String(item.name ?? '')}</span> },
+                                        { key: 'qty', label: 'Cant.', render: (item) => <span className="block text-center text-xs font-black text-slate-600">{String(item.qty ?? '')}</span> },
+                                        { key: 'expected_cost', label: 'P. Unit', render: (item) => <span className="block text-center text-xs font-bold text-slate-400">${Number(item.expected_cost || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span> },
+                                        { key: 'project_name', label: 'Proyecto', render: (item) => <span className="block text-right text-[10px] font-black text-rose-600 uppercase">{String(item.project_name || 'GENERAL')}</span> },
+                                        { key: 'subtotal', label: 'Importe', render: (item) => <span className="block text-right text-xs font-black text-slate-800">${Number(item.subtotal || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span> },
+                                    ]}
+                                    data={(order.items || []) as Record<string, unknown>[]}
+                                    className="border-0 shadow-none rounded-none"
+                                />
                                 <div className="p-8 bg-slate-50/50 flex justify-between items-center border-t border-slate-100">
                                     <div className="flex gap-4">
                                         {canDispatch && (
@@ -1330,7 +1396,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                     <PackageCheck size={32} strokeWidth={1.5} />
                                 </div>
                                 <div className="flex-1 mr-8 relative">
-                                    <input
+                                    <Input
                                         value={manualOrderForm.provider_name}
                                         onChange={(e) => {
                                             setManualOrderForm({...manualOrderForm, provider_name: e.target.value});
@@ -1394,149 +1460,169 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest whitespace-nowrap">
                                     Categoría de Gasto *
                                 </label>
-                                <select
+                                <SearchableSelect
+                                    items={OVERHEAD_CATEGORIES}
                                     value={manualOrderForm.overhead_category}
-                                    onChange={e => setManualOrderForm({
+                                    onChange={(value) => setManualOrderForm({
                                         ...manualOrderForm,
-                                        overhead_category: e.target.value
+                                        overhead_category: value,
                                     })}
-                                    className={`border rounded-lg px-3 py-1.5 text-sm font-bold text-slate-700 focus:outline-none flex-1 ${
-                                        !manualOrderForm.overhead_category
-                                            ? 'border-red-300 bg-red-50'
-                                            : 'border-slate-200 bg-white'
-                                    }`}
-                                >
-                                    <option value="">— Seleccionar categoría —</option>
-                                    {OVERHEAD_CATEGORIES.map(c => (
-                                        <option key={c} value={c}>{c}</option>
-                                    ))}
-                                </select>
+                                    getLabel={(c) => c}
+                                    getValue={(c) => c}
+                                    placeholder="— Seleccionar categoría —"
+                                    className={`flex-1 ${!manualOrderForm.overhead_category ? 'ring-1 ring-red-300' : ''}`}
+                                />
                             </div>
                         </div>
                         
                         <div className="flex-1 overflow-x-auto overflow-y-visible relative bg-white pb-6">
-                            <table className="w-full min-w-[800px]">
-                                <thead>
-                                    <tr className="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest bg-white sticky top-0 z-10">
-                                        <th className="px-6 py-4 text-left w-48">SKU</th>
-                                        <th className="px-4 py-4 text-left">DESCRIPCIÓN</th>
-                                        <th className="px-4 py-4 text-center w-24">CANT.</th>
-                                        <th className="px-4 py-4 text-center w-32">P. UNIT</th>
-                                        <th className="px-6 py-4 text-center w-28">PROYECTO</th>
-                                        <th className="px-6 py-4 text-right w-36">IMPORTE</th>
-                                        <th className="px-4 py-4 text-center w-12"></th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-50">
-                                    {manualOrderForm.items.map((item, rowIndex) => (
-                                        <tr key={rowIndex} id={`oc-row-${rowIndex}`} className="hover:bg-slate-50/30 transition-colors group">
-                                            <td className="px-6 py-4 align-middle relative">
-                                                <input
-                                                    value={item.sku}
-                                                    onChange={(e) => {
-                                                        handleItemChange(rowIndex, 'sku', e.target.value);
-                                                        setActiveDropdown({type: 'sku', index: rowIndex});
-                                                    }}
-                                                    onFocus={() => setActiveDropdown({type: 'sku', index: rowIndex})}
-                                                    onBlur={() => setTimeout(() => {
-                                                        if(activeDropdown.type === 'sku' && activeDropdown.index === rowIndex) setActiveDropdown({type: null, index: null});
-                                                    }, 250)}
-                                                    placeholder="BUSCAR SKU..."
-                                                    className="w-full bg-transparent border-b border-dashed border-slate-300 focus:border-emerald-500 hover:border-emerald-300 outline-none py-1 font-black text-indigo-600 text-[11px] placeholder-slate-300 uppercase"
-                                                />
-                                                {activeDropdown.type === 'sku' && activeDropdown.index === rowIndex && (
-                                                    <ul className="absolute z-[9999] top-full left-4 w-64 bg-white border border-slate-200 shadow-xl max-h-48 overflow-y-auto mt-1 rounded-xl py-1">
-                                                        {filteredMaterialsBySku.length > 0 ? (
-                                                            filteredMaterialsBySku.map((m, i) => {
-                                                                const mSku = getMatSku(m);
-                                                                const mDesc = getMatDesc(m);
-                                                                return (
-                                                                    <li 
-                                                                        key={i} 
-                                                                        onClick={() => handleSelectMaterial(rowIndex, m)}
-                                                                        className="px-4 py-3 text-xs cursor-pointer hover:bg-emerald-50 hover:text-emerald-700 border-b border-slate-50 last:border-0"
-                                                                    >
-                                                                        <span className="font-black text-indigo-600 block mb-0.5 uppercase">{mSku}</span>
-                                                                        <span className="font-bold text-slate-600 uppercase">{mDesc}</span>
-                                                                    </li>
-                                                                );
-                                                            })
-                                                        ) : (
-                                                            <li
-                                                                onClick={() => {
-                                                                    setNewMatModal({ open: true, rowIndex: rowIndex });
-                                                                    setNewMatForm(f => ({ ...f, sku: item.sku, name: item.material_name }));
-                                                                    setActiveDropdown({ type: null, index: null });
-                                                                }}
-                                                                className="px-4 py-3 text-xs font-black text-emerald-600 uppercase cursor-pointer hover:bg-emerald-50 flex items-center gap-2"
-                                                            >
-                                                                <Plus size={12} strokeWidth={3} /> Dar de alta este material
-                                                            </li>
-                                                        )}
-                                                    </ul>
-                                                )}
-                                            </td>
-                                            
-                                            <td className="px-4 py-4 align-middle relative">
-                                                <input
-                                                    value={item.material_name}
-                                                    onChange={(e) => {
-                                                        handleItemChange(rowIndex, 'material_name', e.target.value);
-                                                        setActiveDropdown({type: 'material', index: rowIndex});
-                                                    }}
-                                                    onFocus={() => setActiveDropdown({type: 'material', index: rowIndex})}
-                                                    onBlur={() => setTimeout(() => {
-                                                        if(activeDropdown.type === 'material' && activeDropdown.index === rowIndex) setActiveDropdown({type: null, index: null});
-                                                    }, 250)}
-                                                    placeholder="ESCRIBIR PRODUCTO..."
-                                                    className="w-full bg-transparent border-b border-dashed border-slate-300 focus:border-emerald-500 hover:border-emerald-300 outline-none py-1 font-bold text-slate-700 text-xs placeholder-slate-300 uppercase"
-                                                />
-                                                {activeDropdown.type === 'material' && activeDropdown.index === rowIndex && (
-                                                    <ul className="absolute z-[9999] top-full left-0 w-[120%] bg-white border border-slate-200 shadow-xl max-h-48 overflow-y-auto mt-1 rounded-xl py-1">
-                                                        {filteredMaterialsByDesc.length > 0 ? (
-                                                            filteredMaterialsByDesc.map((m, i) => {
-                                                                const mSku = getMatSku(m);
-                                                                const mDesc = getMatDesc(m);
-                                                                return (
-                                                                    <li 
-                                                                        key={i} 
-                                                                        onClick={() => handleSelectMaterial(rowIndex, m)}
-                                                                        className="px-4 py-3 text-xs cursor-pointer hover:bg-emerald-50 hover:text-emerald-700 border-b border-slate-50 last:border-0 flex justify-between"
-                                                                    >
-                                                                        <span className="font-bold text-slate-700 uppercase truncate pr-4">{mDesc}</span>
-                                                                        <span className="font-black text-indigo-400 uppercase text-[10px]">{mSku}</span>
-                                                                    </li>
-                                                                );
-                                                            })
-                                                        ) : (
-                                                            <li
-                                                                onClick={() => {
-                                                                    setNewMatModal({ open: true, rowIndex: rowIndex });
-                                                                    setNewMatForm(f => ({ ...f, sku: item.sku, name: item.material_name }));
-                                                                    setActiveDropdown({ type: null, index: null });
-                                                                }}
-                                                                className="px-4 py-3 text-xs font-black text-emerald-600 uppercase cursor-pointer hover:bg-emerald-50 flex items-center gap-2"
-                                                            >
-                                                                <Plus size={12} strokeWidth={3} /> Dar de alta este material
-                                                            </li>
-                                                        )}
-                                                    </ul>
-                                                )}
-                                            </td>
-
-                                            <td className="px-4 py-4 text-center align-middle">
-                                                <input
+                            <VTable
+                                columns={[
+                                    {
+                                        key: 'sku',
+                                        label: 'SKU',
+                                        width: '192px',
+                                        render: (row) => {
+                                            const rowIndex = Number(row.rowIndex);
+                                            const item = manualOrderForm.items[rowIndex];
+                                            if (!item) return null;
+                                            return (
+                                                <div id={`oc-row-${rowIndex}`} className="align-middle relative">
+                                                    <Input
+                                                        value={item.sku}
+                                                        onChange={(e) => {
+                                                            handleItemChange(rowIndex, 'sku', e.target.value);
+                                                            setActiveDropdown({type: 'sku', index: rowIndex});
+                                                        }}
+                                                        onFocus={() => setActiveDropdown({type: 'sku', index: rowIndex})}
+                                                        onBlur={() => setTimeout(() => {
+                                                            if(activeDropdown.type === 'sku' && activeDropdown.index === rowIndex) setActiveDropdown({type: null, index: null});
+                                                        }, 250)}
+                                                        placeholder="BUSCAR SKU..."
+                                                        className="w-full bg-transparent border-b border-dashed border-slate-300 focus:border-emerald-500 hover:border-emerald-300 outline-none py-1 font-black text-indigo-600 text-[11px] placeholder-slate-300 uppercase"
+                                                    />
+                                                    {activeDropdown.type === 'sku' && activeDropdown.index === rowIndex && (
+                                                        <ul className="absolute z-[9999] top-full left-4 w-64 bg-white border border-slate-200 shadow-xl max-h-48 overflow-y-auto mt-1 rounded-xl py-1">
+                                                            {filteredMaterialsBySku.length > 0 ? (
+                                                                filteredMaterialsBySku.map((m, i) => {
+                                                                    const mSku = getMatSku(m);
+                                                                    const mDesc = getMatDesc(m);
+                                                                    return (
+                                                                        <li 
+                                                                            key={i} 
+                                                                            onClick={() => handleSelectMaterial(rowIndex, m)}
+                                                                            className="px-4 py-3 text-xs cursor-pointer hover:bg-emerald-50 hover:text-emerald-700 border-b border-slate-50 last:border-0"
+                                                                        >
+                                                                            <span className="font-black text-indigo-600 block mb-0.5 uppercase">{mSku}</span>
+                                                                            <span className="font-bold text-slate-600 uppercase">{mDesc}</span>
+                                                                        </li>
+                                                                    );
+                                                                })
+                                                            ) : (
+                                                                <li
+                                                                    onClick={() => {
+                                                                        setNewMatModal({ open: true, rowIndex: rowIndex });
+                                                                        setNewMatForm(f => ({ ...f, sku: item.sku, name: item.material_name }));
+                                                                        setActiveDropdown({ type: null, index: null });
+                                                                    }}
+                                                                    className="px-4 py-3 text-xs font-black text-emerald-600 uppercase cursor-pointer hover:bg-emerald-50 flex items-center gap-2"
+                                                                >
+                                                                    <Plus size={12} strokeWidth={3} /> Dar de alta este material
+                                                                </li>
+                                                            )}
+                                                        </ul>
+                                                    )}
+                                                </div>
+                                            );
+                                        },
+                                    },
+                                    {
+                                        key: 'material_name',
+                                        label: 'DESCRIPCIÓN',
+                                        render: (row) => {
+                                            const rowIndex = Number(row.rowIndex);
+                                            const item = manualOrderForm.items[rowIndex];
+                                            if (!item) return null;
+                                            return (
+                                                <div className="align-middle relative">
+                                                    <Input
+                                                        value={item.material_name}
+                                                        onChange={(e) => {
+                                                            handleItemChange(rowIndex, 'material_name', e.target.value);
+                                                            setActiveDropdown({type: 'material', index: rowIndex});
+                                                        }}
+                                                        onFocus={() => setActiveDropdown({type: 'material', index: rowIndex})}
+                                                        onBlur={() => setTimeout(() => {
+                                                            if(activeDropdown.type === 'material' && activeDropdown.index === rowIndex) setActiveDropdown({type: null, index: null});
+                                                        }, 250)}
+                                                        placeholder="ESCRIBIR PRODUCTO..."
+                                                        className="w-full bg-transparent border-b border-dashed border-slate-300 focus:border-emerald-500 hover:border-emerald-300 outline-none py-1 font-bold text-slate-700 text-xs placeholder-slate-300 uppercase"
+                                                    />
+                                                    {activeDropdown.type === 'material' && activeDropdown.index === rowIndex && (
+                                                        <ul className="absolute z-[9999] top-full left-0 w-[120%] bg-white border border-slate-200 shadow-xl max-h-48 overflow-y-auto mt-1 rounded-xl py-1">
+                                                            {filteredMaterialsByDesc.length > 0 ? (
+                                                                filteredMaterialsByDesc.map((m, i) => {
+                                                                    const mSku = getMatSku(m);
+                                                                    const mDesc = getMatDesc(m);
+                                                                    return (
+                                                                        <li 
+                                                                            key={i} 
+                                                                            onClick={() => handleSelectMaterial(rowIndex, m)}
+                                                                            className="px-4 py-3 text-xs cursor-pointer hover:bg-emerald-50 hover:text-emerald-700 border-b border-slate-50 last:border-0 flex justify-between"
+                                                                        >
+                                                                            <span className="font-bold text-slate-700 uppercase truncate pr-4">{mDesc}</span>
+                                                                            <span className="font-black text-indigo-400 uppercase text-[10px]">{mSku}</span>
+                                                                        </li>
+                                                                    );
+                                                                })
+                                                            ) : (
+                                                                <li
+                                                                    onClick={() => {
+                                                                        setNewMatModal({ open: true, rowIndex: rowIndex });
+                                                                        setNewMatForm(f => ({ ...f, sku: item.sku, name: item.material_name }));
+                                                                        setActiveDropdown({ type: null, index: null });
+                                                                    }}
+                                                                    className="px-4 py-3 text-xs font-black text-emerald-600 uppercase cursor-pointer hover:bg-emerald-50 flex items-center gap-2"
+                                                                >
+                                                                    <Plus size={12} strokeWidth={3} /> Dar de alta este material
+                                                                </li>
+                                                            )}
+                                                        </ul>
+                                                    )}
+                                                </div>
+                                            );
+                                        },
+                                    },
+                                    {
+                                        key: 'qty',
+                                        label: 'CANT.',
+                                        width: '96px',
+                                        render: (row) => {
+                                            const rowIndex = Number(row.rowIndex);
+                                            const item = manualOrderForm.items[rowIndex];
+                                            if (!item) return null;
+                                            return (
+                                                <Input
                                                     type="number" min="1"
                                                     value={item.qty}
                                                     onChange={(e) => handleItemChange(rowIndex, 'qty', Number(e.target.value))}
                                                     className="w-16 mx-auto bg-transparent text-center font-black text-slate-800 border-b border-dashed border-slate-300 focus:border-emerald-500 hover:border-emerald-300 outline-none py-1 text-xs"
                                                 />
-                                            </td>
-
-                                            <td className="px-4 py-4 text-center align-middle">
+                                            );
+                                        },
+                                    },
+                                    {
+                                        key: 'expected_cost',
+                                        label: 'P. UNIT',
+                                        width: '128px',
+                                        render: (row) => {
+                                            const rowIndex = Number(row.rowIndex);
+                                            const item = manualOrderForm.items[rowIndex];
+                                            if (!item) return null;
+                                            return (
                                                 <div className="flex items-center justify-center border-b border-dashed border-slate-300 focus-within:border-emerald-500 hover:border-emerald-300 transition-colors w-24 mx-auto">
                                                     <span className="text-xs font-bold text-slate-500 mr-1">$</span>
-                                                    <input
+                                                    <Input
                                                         type="number" min="0" step="0.01"
                                                         value={item.expected_cost}
                                                         onChange={(e) => handleItemChange(rowIndex, 'expected_cost', e.target.value)}
@@ -1547,29 +1633,43 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                                         className="w-full bg-transparent text-left font-bold text-slate-500 outline-none py-1 text-xs"
                                                     />
                                                 </div>
-                                            </td>
-
-                                            <td className="px-6 py-4 text-center align-middle">
-                                                <span className="text-[9px] font-black text-rose-600 uppercase tracking-widest">GENERAL</span>
-                                            </td>
-                                            
-                                            <td className="px-6 py-4 text-right text-xs font-black text-slate-800 align-middle">
-                                                ${(item.qty * (parseFloat(item.expected_cost as string) || 0)).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                                            </td>
-                                            
-                                            <td className="px-4 py-4 text-center align-middle">
-                                                <button 
-                                                    onClick={() => handleRemoveRow(rowIndex)}
-                                                    disabled={manualOrderForm.items.length === 1}
-                                                    className={`p-1.5 rounded-md transition-colors ${manualOrderForm.items.length === 1 ? 'text-slate-200 cursor-not-allowed' : 'text-rose-400 hover:bg-rose-50 hover:text-rose-600'}`}
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                            );
+                                        },
+                                    },
+                                    {
+                                        key: 'project',
+                                        label: 'PROYECTO',
+                                        width: '112px',
+                                        render: () => (
+                                            <span className="text-[9px] font-black text-rose-600 uppercase tracking-widest">GENERAL</span>
+                                        ),
+                                    },
+                                    {
+                                        key: 'importe',
+                                        label: 'IMPORTE',
+                                        width: '144px',
+                                        render: (row) => {
+                                            const rowIndex = Number(row.rowIndex);
+                                            const item = manualOrderForm.items[rowIndex];
+                                            if (!item) return null;
+                                            return (
+                                                <span className="block text-right text-xs font-black text-slate-800">
+                                                    ${(item.qty * (parseFloat(item.expected_cost as string) || 0)).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                                                </span>
+                                            );
+                                        },
+                                    },
+                                ]}
+                                data={manualOrderForm.items.map((item, rowIndex) => ({ ...item, rowIndex })) as Record<string, unknown>[]}
+                                actions={(row) => [{
+                                    label: 'Quitar',
+                                    icon: <Trash2 size={16} />,
+                                    variant: 'danger' as const,
+                                    hidden: manualOrderForm.items.length === 1,
+                                    onClick: () => handleRemoveRow(Number(row.rowIndex)),
+                                }]}
+                                className="border-0 shadow-none rounded-none min-w-[800px]"
+                            />
                             
                             <div className="px-6 pt-4">
                                 <button 
@@ -1649,7 +1749,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
                                     Material (del catálogo o descripción libre)
                                 </label>
-                                <input
+                                <Input
                                     type="text"
                                     placeholder="Buscar en catálogo o escribir descripción..."
                                     value={reqForm.material_search || reqForm.description}
@@ -1707,7 +1807,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
                                     Cantidad
                                 </label>
-                                <input
+                                <Input
                                     type="number"
                                     min="1"
                                     step="0.01"
@@ -1768,7 +1868,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                         <div className="p-6 space-y-4">
                             <div>
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">SKU *</label>
-                                <input
+                                <Input
                                     value={newMatForm.sku}
                                     onChange={e => setNewMatForm(f => ({ ...f, sku: e.target.value.toUpperCase() }))}
                                     placeholder="Ej: MAT-001"
@@ -1804,7 +1904,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                             </div>
                             <div>
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Nombre / Descripción *</label>
-                                <input
+                                <Input
                                     value={newMatForm.name}
                                     onChange={e => setNewMatForm(f => ({ ...f, name: e.target.value.toUpperCase() }))}
                                     placeholder="Ej: TORNILLO HEXAGONAL 1/2"
@@ -1813,7 +1913,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                             </div>
                             <div>
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Categoría</label>
-                                <input
+                                <Input
                                     list="oc-categorias"
                                     value={newMatForm.category}
                                     onChange={e => setNewMatForm(f => ({ ...f, category: e.target.value }))}
@@ -1827,7 +1927,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Unidad de Compra</label>
-                                    <input
+                                    <Input
                                         list="oc-unidades-compra"
                                         value={newMatForm.purchase_unit}
                                         onChange={e => setNewMatForm(f => ({ ...f, purchase_unit: e.target.value.toUpperCase() }))}
@@ -1840,7 +1940,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Unidad de Uso</label>
-                                    <input
+                                    <Input
                                         list="oc-unidades-uso"
                                         value={newMatForm.usage_unit}
                                         onChange={e => setNewMatForm(f => ({ ...f, usage_unit: e.target.value.toUpperCase() }))}
@@ -1855,7 +1955,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Factor de Conversión</label>
-                                    <input
+                                    <Input
                                         type="number" min="0" step="0.01"
                                         value={newMatForm.conversion_factor}
                                         onChange={e => setNewMatForm(f => ({ ...f, conversion_factor: parseFloat(e.target.value) }))}
@@ -1868,7 +1968,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Costo Unitario</label>
                                     <div className="flex items-center border border-slate-200 rounded-lg px-3 py-2 focus-within:border-emerald-400">
                                         <span className="text-xs font-bold text-slate-400 mr-1">$</span>
-                                        <input
+                                        <Input
                                             type="number" min="0" step="0.01"
                                             value={newMatForm.current_cost}
                                             onChange={e => setNewMatForm(f => ({ ...f, current_cost: e.target.value }))}
@@ -1925,7 +2025,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
                                     Proveedor
                                 </label>
-                                <input
+                                <Input
                                     type="text"
                                     placeholder="Buscar o seleccionar proveedor..."
                                     value={assignForm.provider_search}
@@ -1982,7 +2082,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 </label>
                                 <div className="flex items-center border border-slate-200 rounded-lg px-3 py-2 focus-within:border-indigo-400">
                                     <span className="text-sm font-bold text-slate-400 mr-2">$</span>
-                                    <input
+                                    <Input
                                         type="number"
                                         min="0"
                                         step="0.01"
@@ -2024,7 +2124,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                     <div className="p-6 space-y-4">
                         <div>
                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Cantidad ordenada</label>
-                            <input
+                            <Input
                                 type="number" min="0" step="0.01"
                                 value={editItemForm.quantity_ordered}
                                 onChange={e => setEditItemForm(f => ({ ...f, quantity_ordered: e.target.value }))}
@@ -2033,7 +2133,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                         </div>
                         <div>
                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Costo unitario esperado</label>
-                            <input
+                            <Input
                                 type="number" min="0" step="0.01"
                                 value={editItemForm.expected_unit_cost}
                                 onChange={e => setEditItemForm(f => ({ ...f, expected_unit_cost: e.target.value }))}
@@ -2042,7 +2142,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                         </div>
                         <div className="relative">
                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Descripción personalizada</label>
-                            <input
+                            <Input
                                 type="text"
                                 value={editItemForm.custom_description}
                                 onChange={e => handleDescriptionChange(e.target.value)}
@@ -2099,7 +2199,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                         </div>
                         <div>
                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Motivo de cancelación *</label>
-                            <input
+                            <Input
                                 type="text"
                                 autoFocus
                                 placeholder="Describe el motivo..."
@@ -2146,7 +2246,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
                                 Correo del Proveedor
                             </label>
-                            <input
+                            <Input
                                 type="email"
                                 placeholder="proveedor@empresa.com"
                                 value={emailModal.providerEmail}

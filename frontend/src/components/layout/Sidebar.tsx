@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 
 import { useFoundations } from '../../modules/foundations/hooks/useFoundations';
+import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
 
@@ -60,6 +61,7 @@ export default function Sidebar() {
   const currentPath = location.pathname;
 
   const [userRole, setUserRole] = useState<UserRole>('DIRECTOR');
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   useEffect(() => {
     fetchConfig();
@@ -135,13 +137,12 @@ export default function Sidebar() {
   };
 
   const handleLogout = () => {
-    if(window.confirm("¿Cerrar sesión?")) {
-        localStorage.clear();
-        navigate('/login');
-    }
+    localStorage.clear();
+    navigate('/login');
   };
 
   return (
+    <>
     <aside className="w-64 bg-white h-screen fixed left-0 top-0 flex flex-col border-r border-slate-200 z-50 transition-all">
       <div className="h-28 flex items-center justify-center p-6 border-b border-slate-100 bg-slate-50/30">
         <div className="flex items-center justify-center w-full h-full">
@@ -240,12 +241,26 @@ export default function Sidebar() {
         </div>
 
         <button 
-            onClick={handleLogout}
+            onClick={() => setShowLogoutConfirm(true)}
             className="w-full flex items-center justify-center gap-2 p-2 rounded-md border border-slate-200 text-slate-500 hover:bg-red-50 hover:text-red-600 hover:border-red-100 transition-all text-xs font-medium mb-4 bg-white"
         >
           <LogOut size={14} /> Cerrar Sesión
         </button>
       </div>
     </aside>
+
+    <VConfirmDialog
+      isOpen={showLogoutConfirm}
+      title="Cerrar sesión"
+      message="¿Cerrar sesión?"
+      variant="default"
+      confirmLabel="Sí, cerrar sesión"
+      onConfirm={() => {
+        handleLogout();
+        setShowLogoutConfirm(false);
+      }}
+      onCancel={() => setShowLogoutConfirm(false)}
+    />
+    </>
   );
 }

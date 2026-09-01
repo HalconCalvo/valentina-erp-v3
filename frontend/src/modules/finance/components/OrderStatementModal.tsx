@@ -10,6 +10,7 @@ import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import Modal from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { VTable, type VTableColumn } from '@/components/ui/VTable';
 
 type OrderStatementPendingConfirm =
     | { kind: 'CANCEL_OV' }
@@ -50,18 +51,23 @@ const RayosXOcQuickEdit: React.FC<{
     disabled: boolean;
     onQuickSave: (folio: string, dateYmd: string) => Promise<void>;
 }> = ({ order, disabled, onQuickSave }) => {
-    const folioRef = useRef<HTMLInputElement>(null);
-    const dateRef = useRef<HTMLInputElement>(null);
     const savingRef = useRef(false);
 
     const initialFolio = String((order as any).client_po_folio ?? '');
     const rawDate = (order as any).client_po_date;
     const initialDate = rawDate ? String(rawDate).slice(0, 10) : '';
+    const [folioDraft, setFolioDraft] = useState(initialFolio);
+    const [dateDraft, setDateDraft] = useState(initialDate);
+
+    useEffect(() => {
+        setFolioDraft(initialFolio);
+        setDateDraft(initialDate);
+    }, [initialFolio, initialDate]);
 
     const maybeSave = async () => {
         if (disabled || savingRef.current) return;
-        const folio = folioRef.current?.value?.trim() ?? '';
-        const dateYmd = dateRef.current?.value ?? '';
+        const folio = folioDraft.trim();
+        const dateYmd = dateDraft;
         const prevFolio = initialFolio.trim();
         const prevDate = initialDate;
         if (folio === prevFolio && dateYmd === prevDate) return;
@@ -77,21 +83,21 @@ const RayosXOcQuickEdit: React.FC<{
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
                 <label className="text-[10px] font-bold text-teal-700 uppercase">Folio</label>
-                <input
-                    ref={folioRef}
-                    className="w-full mt-1 border border-teal-200 rounded-lg px-2 py-1.5 text-sm bg-white"
-                    defaultValue={initialFolio}
+                <Input
+                    className="mt-1 border-teal-200 bg-white text-sm"
+                    value={folioDraft}
+                    onChange={(e) => setFolioDraft(e.target.value)}
                     onBlur={() => void maybeSave()}
                     disabled={disabled}
                 />
             </div>
             <div>
                 <label className="text-[10px] font-bold text-teal-700 uppercase">Fecha</label>
-                <input
-                    ref={dateRef}
+                <Input
                     type="date"
-                    className="w-full mt-1 border border-teal-200 rounded-lg px-2 py-1.5 text-sm bg-white"
-                    defaultValue={initialDate || undefined}
+                    className="mt-1 border-teal-200 bg-white text-sm"
+                    value={dateDraft || undefined}
+                    onChange={(e) => setDateDraft(e.target.value)}
                     onBlur={() => void maybeSave()}
                     disabled={disabled}
                 />
@@ -634,7 +640,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                             <span>|</span>
                             {editingName ? (
                                 <span className="flex items-center gap-2 flex-1 min-w-0">
-                                    <input
+                                    <Input
                                         className="bg-transparent border-b-2 border-indigo-400 outline-none text-white flex-1 min-w-0"
                                         value={nameDraft}
                                         onChange={e => setNameDraft(e.target.value)}
@@ -780,7 +786,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                             <p className="text-xs font-bold text-indigo-500 uppercase tracking-wider">Importe objetivo del anticipo</p>
                             {editingAdvance ? (
                                 <div className="flex items-center gap-2 mt-1">
-                                    <input
+                                    <Input
                                         type="number"
                                         className="border-b-2 border-indigo-400 outline-none text-lg font-black text-slate-800 w-40"
                                         value={advanceDraft}
@@ -847,36 +853,160 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                 </button>
                             )}
                         </div>
-                        <div className="overflow-x-auto">
-                            {!order.payments || order.payments.length === 0 ? (
-                                <p className="p-6 text-sm text-slate-500 text-center italic flex flex-col items-center gap-2">
-                                    <AlertCircle size={24} className="text-slate-300"/>
-                                    No se ha emitido ninguna factura para este proyecto aún.
-                                </p>
-                            ) : (
-                                <table className="w-full text-sm border-collapse min-w-[720px]">
-                                    <thead>
-                                        <tr className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-500 font-bold">
-                                            <th className="p-3 text-left">Tipo</th>
-                                            <th className="p-3 text-left">Folio</th>
-                                            <th className="p-3 text-left">Fecha factura</th>
-                                            <th className="p-3 text-right">Importe</th>
-                                            <th className="p-3 text-center">Días</th>
-                                            <th className="p-3 text-right">Cobro</th>
-                                            <th className="p-3 text-right">Comisión</th>
-                                            <th className="p-3 w-16"></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {order.payments.map((cxc: any) => {
+                        <div className="overflow-x-auto min-w-[720px]">
+                            <VTable
+                                columns={[
+                                    {
+                                        key: 'payment_type',
+                                        label: 'Tipo',
+                                        render: (cxc: any) => (
+                                            <span
+                                                className={`px-2 py-0.5 text-[10px] font-black rounded uppercase tracking-wider ${
+                                                    cxc.payment_type === 'ADVANCE'
+                                                        ? 'bg-orange-100 text-orange-700'
+                                                        : 'bg-blue-100 text-blue-700'
+                                                }`}
+                                            >
+                                                {cxc.payment_type === 'ADVANCE' ? 'ANTICIPO' : 'AVANCE'}
+                                            </span>
+                                        ),
+                                    },
+                                    {
+                                        key: 'invoice_folio',
+                                        label: 'Folio',
+                                        render: (cxc: any) => (
+                                            <span className="font-bold text-slate-800">{cxc.invoice_folio || 'S/F'}</span>
+                                        ),
+                                    },
+                                    {
+                                        key: 'invoice_date',
+                                        label: 'Fecha factura',
+                                        render: (cxc: any) => (
+                                            <span className="text-slate-600 whitespace-nowrap">
+                                                {formatDate(cxc.invoice_date || cxc.created_at || new Date().toISOString())}
+                                            </span>
+                                        ),
+                                    },
+                                    {
+                                        key: 'amount',
+                                        label: 'Importe',
+                                        render: (cxc: any) => (
+                                            <span className="block text-right font-black text-slate-800">
+                                                {formatCurrency(Number(cxc.amount))}
+                                            </span>
+                                        ),
+                                    },
+                                    {
+                                        key: 'days_open',
+                                        label: 'Días',
+                                        render: (cxc: any) => {
+                                            const daysOpen = daysOpenForCxc(cxc);
+                                            return (
+                                                <span className="block text-center font-bold text-slate-700">
+                                                    {daysOpen != null ? (
+                                                        <span
+                                                            className={
+                                                                daysOpen > 30
+                                                                    ? 'text-red-600'
+                                                                    : daysOpen > 15
+                                                                      ? 'text-amber-600'
+                                                                      : 'text-emerald-600'
+                                                            }
+                                                        >
+                                                            {daysOpen}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-slate-400 font-medium">—</span>
+                                                    )}
+                                                </span>
+                                            );
+                                        },
+                                    },
+                                    {
+                                        key: 'cobro',
+                                        label: 'Cobro',
+                                        render: (cxc: any) => {
+                                            const isFacturaPagada = cxc.status === 'PAID';
+                                            const isFacturaCancelada = cxc.status === 'CANCELLED';
+                                            const isExpanded = expandedInvoiceId === cxc.id;
+                                            return (
+                                                <span className="block text-right">
+                                                    {isFacturaPagada ? (
+                                                        <span className="inline-flex items-center gap-1 text-emerald-600 text-xs font-bold bg-emerald-50 px-2 py-1 rounded border border-emerald-100">
+                                                            <CheckCircle size={14} /> PAGADA
+                                                        </span>
+                                                    ) : isFacturaCancelada ? (
+                                                        <span className="inline-flex items-center gap-1 text-slate-500 text-xs font-bold bg-slate-50 px-2 py-1 rounded border border-slate-200">
+                                                            CANCELADA
+                                                        </span>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => toggleInvoicePanel(cxc.id)}
+                                                            className={`inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors shadow-sm ${
+                                                                isExpanded
+                                                                    ? 'bg-slate-600 hover:bg-slate-700 text-white'
+                                                                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                                                            }`}
+                                                        >
+                                                            <Receipt size={14} /> {isExpanded ? 'Cerrar' : 'Ver abonos'}
+                                                        </button>
+                                                    )}
+                                                </span>
+                                            );
+                                        },
+                                    },
+                                    {
+                                        key: 'commission',
+                                        label: 'Comisión',
+                                        render: (cxc: any) => {
                                             const commRow = commissionByPaymentId[cxc.id];
                                             const isCommissionPaid = commRow
                                                 ? commRow.is_paid
                                                 : cxc.commission_paid === true;
                                             const isFacturaPagada = cxc.status === 'PAID';
+                                            return (
+                                                <span className="block text-right">
+                                                    {isFacturaPagada ? (
+                                                        <>
+                                                            <p className="text-[9px] text-slate-400 font-bold uppercase mb-0.5">
+                                                                {readOnly ? 'Tu Comisión' : 'Vendedor'}
+                                                            </p>
+                                                            {isCommissionPaid ? (
+                                                                <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-1 rounded-md border bg-emerald-50 text-emerald-700 border-emerald-200">
+                                                                    <CheckCircle size={12} /> Pagada
+                                                                </span>
+                                                            ) : readOnly ? (
+                                                                <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-1 rounded-md border bg-slate-50 text-slate-500 border-slate-200">
+                                                                    <Clock size={12} /> Pendiente
+                                                                </span>
+                                                            ) : commRow ? (
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={isUpdatingCommission}
+                                                                    onClick={() => handlePayCommission(cxc.id)}
+                                                                    className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-1 rounded-md border bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 transition-all shadow-sm disabled:opacity-50"
+                                                                >
+                                                                    <Coins size={12} /> Pagar
+                                                                </button>
+                                                            ) : (
+                                                                <span className="text-[10px] text-amber-700 font-bold">Sin registro</span>
+                                                            )}
+                                                        </>
+                                                    ) : (
+                                                        <span className="text-slate-300 text-xs">—</span>
+                                                    )}
+                                                </span>
+                                            );
+                                        },
+                                    },
+                                    {
+                                        key: '_row_actions',
+                                        label: '',
+                                        width: '4rem',
+                                        render: (cxc: any) => {
+                                            const isFacturaPagada = cxc.status === 'PAID';
                                             const isFacturaCancelada = cxc.status === 'CANCELLED';
-                                            const isExpanded = expandedInvoiceId === cxc.id;
-                                            const daysOpen = daysOpenForCxc(cxc);
                                             const hasTreasuryPayment = !!cxc.treasury_transaction_id;
                                             const canEditRow =
                                                 hasAbsolutePower
@@ -890,201 +1020,128 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                 hasAbsolutePower
                                                 && cxc.status === 'PENDING'
                                                 && !hasTreasuryPayment;
-
+                                            if (!canEditRow) return null;
                                             return (
-                                                <React.Fragment key={cxc.id}>
-                                                <tr className="hover:bg-slate-50">
-                                                    <td className="p-3">
-                                                        <span
-                                                            className={`px-2 py-0.5 text-[10px] font-black rounded uppercase tracking-wider ${
-                                                                cxc.payment_type === 'ADVANCE'
-                                                                    ? 'bg-orange-100 text-orange-700'
-                                                                    : 'bg-blue-100 text-blue-700'
-                                                            }`}
+                                                <div className="flex items-center justify-center gap-1.5">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleOpenEditPayment(cxc)}
+                                                        className="text-slate-400 hover:text-indigo-600"
+                                                        title={hasTreasuryPayment || isFacturaPagada ? 'Editar notas' : 'Editar factura'}
+                                                    >
+                                                        <Pencil size={15} />
+                                                    </button>
+                                                    {canCancelRow && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setCancelPaymentReason('');
+                                                                setCancelPaymentModal({ open: true, cxc });
+                                                            }}
+                                                            className="text-slate-400 hover:text-rose-600"
+                                                            title="Cancelar factura"
                                                         >
-                                                            {cxc.payment_type === 'ADVANCE' ? 'ANTICIPO' : 'AVANCE'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="p-3 font-bold text-slate-800">{cxc.invoice_folio || 'S/F'}</td>
-                                                    <td className="p-3 text-slate-600 whitespace-nowrap">
-                                                        {formatDate(cxc.invoice_date || cxc.created_at || new Date().toISOString())}
-                                                    </td>
-                                                    <td className="p-3 text-right font-black text-slate-800">{formatCurrency(Number(cxc.amount))}</td>
-                                                    <td className="p-3 text-center font-bold text-slate-700">
-                                                        {daysOpen != null ? (
-                                                            <span
-                                                                className={
-                                                                    daysOpen > 30
-                                                                        ? 'text-red-600'
-                                                                        : daysOpen > 15
-                                                                          ? 'text-amber-600'
-                                                                          : 'text-emerald-600'
-                                                                }
-                                                            >
-                                                                {daysOpen}
-                                                            </span>
-                                                        ) : (
-                                                            <span className="text-slate-400 font-medium">—</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="p-3 text-right">
-                                                        {isFacturaPagada ? (
-                                                            <span className="inline-flex items-center gap-1 text-emerald-600 text-xs font-bold bg-emerald-50 px-2 py-1 rounded border border-emerald-100">
-                                                                <CheckCircle size={14} /> PAGADA
-                                                            </span>
-                                                        ) : isFacturaCancelada ? (
-                                                            <span className="inline-flex items-center gap-1 text-slate-500 text-xs font-bold bg-slate-50 px-2 py-1 rounded border border-slate-200">
-                                                                CANCELADA
-                                                            </span>
-                                                        ) : (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => toggleInvoicePanel(cxc.id)}
-                                                                className={`inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors shadow-sm ${
-                                                                    isExpanded
-                                                                        ? 'bg-slate-600 hover:bg-slate-700 text-white'
-                                                                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
-                                                                }`}
-                                                            >
-                                                                <Receipt size={14} /> {isExpanded ? 'Cerrar' : 'Ver abonos'}
-                                                            </button>
-                                                        )}
-                                                    </td>
-                                                    <td className="p-3 text-right">
-                                                        {isFacturaPagada ? (
-                                                            <>
-                                                                <p className="text-[9px] text-slate-400 font-bold uppercase mb-0.5">
-                                                                    {readOnly ? 'Tu Comisión' : 'Vendedor'}
-                                                                </p>
-                                                                {isCommissionPaid ? (
-                                                                    <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-1 rounded-md border bg-emerald-50 text-emerald-700 border-emerald-200">
-                                                                        <CheckCircle size={12} /> Pagada
-                                                                    </span>
-                                                                ) : readOnly ? (
-                                                                    <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-1 rounded-md border bg-slate-50 text-slate-500 border-slate-200">
-                                                                        <Clock size={12} /> Pendiente
-                                                                    </span>
-                                                                ) : commRow ? (
-                                                                    <button
-                                                                        type="button"
-                                                                        disabled={isUpdatingCommission}
-                                                                        onClick={() => handlePayCommission(cxc.id)}
-                                                                        className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-1 rounded-md border bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 transition-all shadow-sm disabled:opacity-50"
-                                                                    >
-                                                                        <Coins size={12} /> Pagar
-                                                                    </button>
-                                                                ) : (
-                                                                    <span className="text-[10px] text-amber-700 font-bold">Sin registro</span>
-                                                                )}
-                                                            </>
-                                                        ) : (
-                                                            <span className="text-slate-300 text-xs">—</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="p-3 text-center">
-                                                        {canEditRow && (
-                                                            <div className="flex items-center justify-center gap-1.5">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleOpenEditPayment(cxc)}
-                                                                    className="text-slate-400 hover:text-indigo-600"
-                                                                    title={hasTreasuryPayment || isFacturaPagada ? 'Editar notas' : 'Editar factura'}
-                                                                >
-                                                                    <Pencil size={15} />
-                                                                </button>
-                                                                {canCancelRow && (
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => {
-                                                                            setCancelPaymentReason('');
-                                                                            setCancelPaymentModal({ open: true, cxc });
-                                                                        }}
-                                                                        className="text-slate-400 hover:text-rose-600"
-                                                                        title="Cancelar factura"
-                                                                    >
-                                                                        <XCircle size={15} />
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                    </td>
-                                                </tr>
-
-                                                {isExpanded && (
-                                                    <tr className="bg-slate-50/70">
-                                                        <td colSpan={8} className="p-4">
-                                                            <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 shadow-sm">
-                                                                {loadingInstallments === cxc.id ? (
-                                                                    <p className="text-xs text-slate-500 italic flex items-center gap-2">
-                                                                        <Clock size={14} className="text-slate-400" /> Cargando abonos…
-                                                                    </p>
-                                                                ) : (() => {
-                                                                    const data = installmentsByInvoice[cxc.id];
-                                                                    if (!data) {
-                                                                        return (
-                                                                            <p className="text-xs text-slate-500 italic flex items-center gap-2">
-                                                                                <AlertCircle size={14} className="text-slate-400" /> No se pudieron cargar los abonos.
-                                                                            </p>
-                                                                        );
-                                                                    }
-                                                                    const abonos: any[] = Array.isArray(data.abonos) ? data.abonos : [];
-                                                                    const montoFactura = Number(data.monto_factura ?? cxc.amount ?? 0);
-                                                                    const totalAbonado = Number(data.total_abonado ?? 0);
-                                                                    const saldo = Number(data.saldo ?? Math.max(montoFactura - totalAbonado, 0));
-                                                                    return (
-                                                                        <>
-                                                                            <div className="flex flex-wrap items-center justify-between gap-2">
-                                                                                <p className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                                                                                    <Receipt size={14} className="text-slate-400" /> Abonos de la factura {data.invoice_folio || cxc.invoice_folio || 'S/F'}
-                                                                                </p>
-                                                                                <span className="text-[11px] font-bold text-slate-600">
-                                                                                    Abonado <strong className="text-emerald-700">{formatCurrency(totalAbonado)}</strong> de <strong className="text-slate-800">{formatCurrency(montoFactura)}</strong> — Saldo <strong className="text-amber-700">{formatCurrency(saldo)}</strong>
-                                                                                </span>
-                                                                            </div>
-
-                                                                            {abonos.length === 0 ? (
-                                                                                <p className="text-[11px] text-slate-500 italic">
-                                                                                    Sin abonos registrados. Los abonos se registran desde Tesorería al conciliar el ingreso.
-                                                                                </p>
-                                                                            ) : (
-                                                                                <div className="overflow-x-auto">
-                                                                                    <table className="w-full text-xs border-collapse">
-                                                                                        <thead>
-                                                                                            <tr className="text-[10px] uppercase tracking-wider text-slate-400 font-bold border-b border-slate-100">
-                                                                                                <th className="py-2 pr-3 text-left">Fecha</th>
-                                                                                                <th className="py-2 px-3 text-right">Monto</th>
-                                                                                                <th className="py-2 px-3 text-left">Concepto</th>
-                                                                                                <th className="py-2 pl-3 text-left">Referencia</th>
-                                                                                            </tr>
-                                                                                        </thead>
-                                                                                        <tbody className="divide-y divide-slate-50">
-                                                                                            {abonos.map((ab: any) => (
-                                                                                                <tr key={ab.id}>
-                                                                                                    <td className="py-2 pr-3 text-slate-600 whitespace-nowrap">
-                                                                                                        {ab.payment_date ? formatDate(ab.payment_date) : '—'}
-                                                                                                    </td>
-                                                                                                    <td className="py-2 px-3 text-right font-bold text-slate-800">{formatCurrency(Number(ab.amount || 0))}</td>
-                                                                                                    <td className="py-2 px-3 text-slate-600">{ab.notes || '—'}</td>
-                                                                                                    <td className="py-2 pl-3 text-slate-500 font-mono">{ab.reference || '—'}</td>
-                                                                                                </tr>
-                                                                                            ))}
-                                                                                        </tbody>
-                                                                                    </table>
-                                                                                </div>
-                                                                            )}
-                                                                        </>
-                                                                    );
-                                                                })()}
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                )}
-                                                </React.Fragment>
+                                                            <XCircle size={15} />
+                                                        </button>
+                                                    )}
+                                                </div>
                                             );
-                                        })}
-                                    </tbody>
-                                </table>
-                            )}
+                                        },
+                                    },
+                                ]}
+                                data={(order.payments ?? []) as unknown as Record<string, unknown>[]}
+                                emptyState={{
+                                    icon: <AlertCircle size={24} className="text-slate-300" />,
+                                    title: 'No se ha emitido ninguna factura para este proyecto aún.',
+                                }}
+                                className="border-0 shadow-none rounded-none"
+                            />
+                            {expandedInvoiceId != null && (() => {
+                                const cxc = order.payments?.find((p) => p.id === expandedInvoiceId);
+                                if (!cxc) return null;
+                                return (
+                                    <div className="bg-slate-50/70 p-4 border-t border-slate-100">
+                                        <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 shadow-sm">
+                                            {loadingInstallments === cxc.id ? (
+                                                <p className="text-xs text-slate-500 italic flex items-center gap-2">
+                                                    <Clock size={14} className="text-slate-400" /> Cargando abonos…
+                                                </p>
+                                            ) : (() => {
+                                                const data = installmentsByInvoice[cxc.id];
+                                                if (!data) {
+                                                    return (
+                                                        <p className="text-xs text-slate-500 italic flex items-center gap-2">
+                                                            <AlertCircle size={14} className="text-slate-400" /> No se pudieron cargar los abonos.
+                                                        </p>
+                                                    );
+                                                }
+                                                const abonos: any[] = Array.isArray(data.abonos) ? data.abonos : [];
+                                                const montoFactura = Number(data.monto_factura ?? cxc.amount ?? 0);
+                                                const totalAbonado = Number(data.total_abonado ?? 0);
+                                                const saldo = Number(data.saldo ?? Math.max(montoFactura - totalAbonado, 0));
+                                                const abonoColumns: VTableColumn<any>[] = [
+                                                    {
+                                                        key: 'payment_date',
+                                                        label: 'Fecha',
+                                                        render: (ab) => (
+                                                            <span className="text-slate-600 whitespace-nowrap">
+                                                                {ab.payment_date ? formatDate(ab.payment_date) : '—'}
+                                                            </span>
+                                                        ),
+                                                    },
+                                                    {
+                                                        key: 'amount',
+                                                        label: 'Monto',
+                                                        render: (ab) => (
+                                                            <span className="block text-right font-bold text-slate-800">
+                                                                {formatCurrency(Number(ab.amount || 0))}
+                                                            </span>
+                                                        ),
+                                                    },
+                                                    {
+                                                        key: 'notes',
+                                                        label: 'Concepto',
+                                                        render: (ab) => (
+                                                            <span className="text-slate-600">{ab.notes || '—'}</span>
+                                                        ),
+                                                    },
+                                                    {
+                                                        key: 'reference',
+                                                        label: 'Referencia',
+                                                        render: (ab) => (
+                                                            <span className="text-slate-500 font-mono">{ab.reference || '—'}</span>
+                                                        ),
+                                                    },
+                                                ];
+                                                return (
+                                                    <>
+                                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                                            <p className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                                                <Receipt size={14} className="text-slate-400" /> Abonos de la factura {data.invoice_folio || cxc.invoice_folio || 'S/F'}
+                                                            </p>
+                                                            <span className="text-[11px] font-bold text-slate-600">
+                                                                Abonado <strong className="text-emerald-700">{formatCurrency(totalAbonado)}</strong> de <strong className="text-slate-800">{formatCurrency(montoFactura)}</strong> — Saldo <strong className="text-amber-700">{formatCurrency(saldo)}</strong>
+                                                            </span>
+                                                        </div>
+
+                                                        {abonos.length === 0 ? (
+                                                            <p className="text-[11px] text-slate-500 italic">
+                                                                Sin abonos registrados. Los abonos se registran desde Tesorería al conciliar el ingreso.
+                                                            </p>
+                                                        ) : (
+                                                            <VTable
+                                                                columns={abonoColumns}
+                                                                data={abonos}
+                                                                className="border-0 shadow-none rounded-none text-xs"
+                                                            />
+                                                        )}
+                                                    </>
+                                                );
+                                            })()}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
                         </div>
                     </div>
 
@@ -1133,7 +1190,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                             <div className="flex items-center gap-2 shrink-0">
                                                 {editingPriceItemId === item.id ? (
                                                     <div className="flex items-center gap-1">
-                                                        <input
+                                                        <Input
                                                             type="number"
                                                             step="0.01"
                                                             min={0}
@@ -1236,7 +1293,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                             <p className="text-sm font-bold text-slate-800 truncate">{item.product_name}</p>
                                                             <div className="flex items-center gap-2 mt-1">
                                                                 <label className="text-[10px] text-slate-500 uppercase">Cant.</label>
-                                                                <input
+                                                                <Input
                                                                     type="number"
                                                                     min={1}
                                                                     className="w-16 px-2 py-1 border border-slate-300 rounded text-sm"
@@ -1244,7 +1301,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                                     onChange={(e) => setEditQty(Number(e.target.value))}
                                                                 />
                                                                 <label className="text-[10px] text-slate-500 uppercase">Precio</label>
-                                                                <input
+                                                                <Input
                                                                     type="number"
                                                                     step="0.01"
                                                                     min={0}

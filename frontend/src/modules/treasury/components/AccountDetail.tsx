@@ -5,6 +5,9 @@ import { treasuryService } from '../../../api/treasury-service';
 import axiosClient from '../../../api/axios-client';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
+import { Input } from '@/components/ui/Input';
+import SearchableSelect from '@/components/ui/SearchableSelect';
+import { VTable, type VTableColumn } from '@/components/ui/VTable';
 
 interface Transaction {
   id: number;
@@ -227,6 +230,102 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
     });
   };
 
+  const startEditingTx = (tx: Transaction) => {
+    setEditingTxId(tx.id);
+    setEditingDesc(tx.description || '');
+    setEditingRef(tx.reference || '');
+  };
+
+  const transactionColumns = useMemo((): VTableColumn<Transaction>[] => [
+    {
+      key: 'transaction_date',
+      label: 'Fecha',
+      render: (tx) => <span className="whitespace-nowrap">{formatDate(tx.transaction_date)}</span>,
+    },
+    {
+      key: 'description',
+      label: 'Concepto',
+      render: (tx) => editingTxId === tx.id ? (
+        <Input
+          autoFocus
+          value={editingDesc}
+          onChange={(e) => setEditingDesc(e.target.value)}
+          className="border-indigo-300 focus-visible:ring-indigo-200"
+        />
+      ) : (
+        <span
+          className="cursor-pointer font-medium text-gray-900 hover:text-indigo-600 transition-colors"
+          title="Clic para editar"
+          onClick={() => startEditingTx(tx)}
+        >
+          {tx.description || 'Sin descripción'}
+        </span>
+      ),
+    },
+    {
+      key: 'reference',
+      label: 'Ref',
+      render: (tx) => editingTxId === tx.id ? (
+        <div className="flex items-center gap-2">
+          <Input
+            value={editingRef}
+            onChange={(e) => setEditingRef(e.target.value)}
+            className="border-indigo-300 focus-visible:ring-indigo-200"
+            placeholder="Referencia"
+          />
+          <button
+            onClick={() => handleSaveTransactionEdit(tx.id)}
+            disabled={savingTx}
+            className="px-3 py-1 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 rounded whitespace-nowrap disabled:opacity-50"
+          >
+            {savingTx ? '...' : '✓ Guardar'}
+          </button>
+          <button
+            onClick={() => setEditingTxId(null)}
+            className="px-2 py-1 text-xs font-black text-slate-500 hover:text-slate-700 border border-slate-200 rounded"
+          >
+            ✕
+          </button>
+        </div>
+      ) : (
+        <span
+          className="cursor-pointer text-gray-500 hover:text-indigo-600 transition-colors"
+          title="Clic para editar"
+          onClick={() => startEditingTx(tx)}
+        >
+          {tx.reference || '-'}
+        </span>
+      ),
+    },
+    {
+      key: 'egreso',
+      label: 'Egreso (-)',
+      render: (tx) => (
+        <span className="block text-right font-medium text-red-600 whitespace-nowrap">
+          {tx.transaction_type === 'OUT' ? `$${tx.amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : '-'}
+        </span>
+      ),
+    },
+    {
+      key: 'ingreso',
+      label: 'Ingreso (+)',
+      render: (tx) => (
+        <span className="block text-right font-medium text-green-600 whitespace-nowrap">
+          {tx.transaction_type === 'IN' ? `$${tx.amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : '-'}
+        </span>
+      ),
+    },
+    {
+      key: 'running_balance',
+      label: 'Saldo',
+      render: (tx) => (
+        <span className="block text-right font-bold text-gray-900 whitespace-nowrap">
+          ${tx.running_balance?.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+        </span>
+      ),
+    },
+  ], [editingTxId, editingDesc, editingRef, savingTx]);
+
   const handlePrint = () => {
       const companyName = config?.company_name || 'Valentina ERP';
       const logoPath = config?.logo_path || '';
@@ -388,124 +487,29 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
         </div>
 
         <div className="overflow-x-auto flex-1">
-          <table className="w-full text-left text-sm text-gray-600">
-            <thead className="text-xs text-gray-500 uppercase bg-gray-50">
-              <tr>
-                <th className="px-6 py-4 font-medium whitespace-nowrap">Fecha</th>
-                <th className="px-6 py-4 font-medium min-w-[250px]">Concepto</th>
-                <th className="px-6 py-4 font-medium min-w-[120px]">Ref</th>
-                <th className="px-6 py-4 font-medium text-right text-red-600 min-w-[120px]">Egreso (-)</th>
-                <th className="px-6 py-4 font-medium text-right text-green-600 min-w-[120px]">Ingreso (+)</th>
-                {/* 👇 Cabecera de Saldo cambiada a negro */}
-                <th className="px-6 py-4 font-medium text-right text-gray-900 min-w-[140px]">Saldo</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              
-              {isLoading ? (
-                <tr>
-                  <td colSpan={7} className="text-center py-8 text-gray-400">Cargando movimientos...</td>
-                </tr>
-              ) : currentTransactions.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="text-center py-8 text-gray-400">Aún no hay movimientos en esta cuenta.</td>
-                </tr>
-              ) : (
-                currentTransactions.map((tx) => (
-                  <tr key={tx.id} className="hover:bg-gray-50 transition-colors group">
-                    <td className="px-6 py-4 whitespace-nowrap">{formatDate(tx.transaction_date)}</td>
-                    <td className="px-6 py-4 font-medium text-gray-900">
-                      {editingTxId === tx.id ? (
-                        <input
-                          autoFocus
-                          value={editingDesc}
-                          onChange={e => setEditingDesc(e.target.value)}
-                          className="w-full border border-indigo-300 rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-indigo-200"
-                        />
-                      ) : (
-                        <span
-                          className="cursor-pointer hover:text-indigo-600 transition-colors"
-                          title="Clic para editar"
-                          onClick={() => {
-                            setEditingTxId(tx.id);
-                            setEditingDesc(tx.description || '');
-                            setEditingRef(tx.reference || '');
-                          }}
-                        >
-                          {tx.description || 'Sin descripción'}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-gray-500">
-                      {editingTxId === tx.id ? (
-                        <div className="flex items-center gap-2">
-                          <input
-                            value={editingRef}
-                            onChange={e => setEditingRef(e.target.value)}
-                            className="w-full border border-indigo-300 rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-indigo-200"
-                            placeholder="Referencia"
-                          />
-                          <button
-                            onClick={() => handleSaveTransactionEdit(tx.id)}
-                            disabled={savingTx}
-                            className="px-3 py-1 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 rounded whitespace-nowrap disabled:opacity-50"
-                          >
-                            {savingTx ? '...' : '✓ Guardar'}
-                          </button>
-                          <button
-                            onClick={() => setEditingTxId(null)}
-                            className="px-2 py-1 text-xs font-black text-slate-500 hover:text-slate-700 border border-slate-200 rounded"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      ) : (
-                        <span
-                          className="cursor-pointer hover:text-indigo-600 transition-colors"
-                          title="Clic para editar"
-                          onClick={() => {
-                            setEditingTxId(tx.id);
-                            setEditingDesc(tx.description || '');
-                            setEditingRef(tx.reference || '');
-                          }}
-                        >
-                          {tx.reference || '-'}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-right text-red-600 font-medium whitespace-nowrap">
-                      {tx.transaction_type === 'OUT' ? `$${tx.amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : '-'}
-                    </td>
-                    <td className="px-6 py-4 text-right text-green-600 font-medium whitespace-nowrap">
-                      {tx.transaction_type === 'IN' ? `$${tx.amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : '-'}
-                    </td>
-                    {/* 👇 Celda de Saldo cambiada a negro y sin fondo */}
-                    <td className="px-6 py-4 text-right text-gray-900 font-bold whitespace-nowrap">
-                      ${tx.running_balance?.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="px-4 py-4 text-center whitespace-nowrap">
-                      {tx.is_cancelled === true ? (
-                        <span className="text-[10px] text-slate-400 font-bold uppercase">CANCELADO</span>
-                      ) : (
-                        (currentUser?.role === 'DIRECTOR' || currentUser?.role === 'MANAGER') &&
-                        editingTxId !== tx.id && (
-                          <XCircle
-                            size={15}
-                            className="text-slate-300 hover:text-rose-500 cursor-pointer inline-block"
-                            onClick={() => {
-                              setCancelTxModal({ open: true, tx });
-                              setCancelTxReason('');
-                            }}
-                          />
-                        )
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-
-            </tbody>
-          </table>
+          <VTable
+            columns={transactionColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+            data={currentTransactions as unknown as Record<string, unknown>[]}
+            isLoading={isLoading}
+            emptyState={{
+              title: 'Aún no hay movimientos en esta cuenta.',
+            }}
+            actions={(tx) => {
+              const row = tx as unknown as Transaction;
+              if (row.is_cancelled === true || editingTxId === row.id) return [];
+              if (currentUser?.role !== 'DIRECTOR' && currentUser?.role !== 'MANAGER') return [];
+              return [{
+                label: 'Cancelar',
+                icon: <XCircle size={15} />,
+                variant: 'danger' as const,
+                onClick: () => {
+                  setCancelTxModal({ open: true, tx: row });
+                  setCancelTxReason('');
+                },
+              }];
+            }}
+            className="border-0 shadow-none rounded-none"
+          />
         </div>
 
         {/* Controles de Paginación */}
@@ -564,18 +568,15 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
                           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
                               Cuenta Destino
                           </label>
-                          <select
+                          <SearchableSelect
+                              items={accounts}
                               value={transferForm.to_account_id}
-                              onChange={e => setTransferForm(f => ({ ...f, to_account_id: e.target.value }))}
-                              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-blue-400"
-                          >
-                              <option value="">-- Seleccionar cuenta --</option>
-                              {accounts.map(a => (
-                                  <option key={a.id} value={a.id}>
-                                      {a.name} — ${(a.current_balance || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                                  </option>
-                              ))}
-                          </select>
+                              onChange={(value) => setTransferForm((f) => ({ ...f, to_account_id: value }))}
+                              getLabel={(a) => `${a.name} — $${(a.current_balance || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`}
+                              getValue={(a) => String(a.id)}
+                              placeholder="-- Seleccionar cuenta --"
+                              className="w-full"
+                          />
                       </div>
                       <div>
                           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
@@ -583,14 +584,14 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
                           </label>
                           <div className="flex items-center border border-slate-200 rounded-lg px-3 py-2 focus-within:border-blue-400">
                               <span className="text-sm font-bold text-slate-400 mr-2">$</span>
-                              <input
+                              <Input
                                   type="number"
                                   min="0"
                                   step="0.01"
                                   placeholder="0.00"
                                   value={transferForm.amount}
                                   onChange={e => setTransferForm(f => ({ ...f, amount: e.target.value }))}
-                                  className="w-full text-sm font-bold text-slate-700 outline-none"
+                                  className="border-0 shadow-none focus-visible:ring-0 text-sm font-bold text-slate-700"
                               />
                           </div>
                       </div>
@@ -598,24 +599,24 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
                           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
                               Referencia (opcional)
                           </label>
-                          <input
+                          <Input
                               type="text"
                               placeholder="Ej. TRF-001"
                               value={transferForm.reference}
                               onChange={e => setTransferForm(f => ({ ...f, reference: e.target.value }))}
-                              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-blue-400"
+                              className="text-sm font-bold text-slate-700 focus-visible:border-blue-400"
                           />
                       </div>
                       <div>
                           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
                               Concepto (opcional)
                           </label>
-                          <input
+                          <Input
                               type="text"
                               placeholder="Ej. Traspaso para pago de nómina"
                               value={transferForm.description}
                               onChange={e => setTransferForm(f => ({ ...f, description: e.target.value }))}
-                              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-blue-400"
+                              className="text-sm font-bold text-slate-700 focus-visible:border-blue-400"
                           />
                       </div>
                   </div>
@@ -679,11 +680,11 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
                   Motivo de cancelación *
                 </label>
-                <input
+                <Input
                   type="text"
                   value={cancelTxReason}
                   onChange={e => setCancelTxReason(e.target.value)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-rose-400"
+                  className="text-sm font-bold text-slate-700 focus-visible:border-rose-400"
                   placeholder="Describe el motivo..."
                 />
               </div>

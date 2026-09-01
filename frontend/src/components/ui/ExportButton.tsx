@@ -2,6 +2,7 @@ import React from 'react';
 import * as XLSX from 'xlsx';
 import { Download } from 'lucide-react';
 import { Button } from './Button';
+import { toast } from '@/components/ui/VToast';
 
 interface ExportButtonProps {
     data: any[];           // Los datos a exportar (ej. materials, clients)
@@ -19,7 +20,7 @@ const ExportButton: React.FC<ExportButtonProps> = ({
 
     const handleExport = () => {
         if (!data || data.length === 0) {
-            alert("No hay datos para exportar.");
+            toast.warning('No hay datos para exportar.');
             return;
         }
 
