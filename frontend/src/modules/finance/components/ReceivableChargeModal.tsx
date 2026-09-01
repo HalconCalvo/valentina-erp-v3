@@ -53,14 +53,14 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
             setInvoiceDate(new Date().toISOString().slice(0, 10));
             // Modo anticipo: prellenar el importe objetivo (guardado o sugerido).
             setImporteFactura(Number(objetivo.toFixed(2)));
-            setDisplayImporte(new Intl.NumberFormat('en-US').format(Number(objetivo.toFixed(2))));
+            setDisplayImporte(new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(objetivo.toFixed(2))));
         }
     }, [isOpen, objetivo, order.status]);
 
     useEffect(() => {
         if (tipoFactura === 'FULL') {
             setImporteFactura(Number(totalOrder.toFixed(2)));
-            setDisplayImporte(new Intl.NumberFormat('en-US').format(Number(totalOrder.toFixed(2))));
+            setDisplayImporte(new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(totalOrder.toFixed(2))));
         }
     }, [tipoFactura, totalOrder]);
 

@@ -31,6 +31,11 @@
 - Doble clic — deshabilitar botón mientras procesa
 - Spinners ad-hoc — usar estado de carga del botón
 
+### Formato de moneda obligatorio:
+Todo campo o display de moneda usa formato de miles con dos decimales fijos.
+Usar siempre: Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+Nunca mostrar montos sin decimales o con decimales variables.
+
 ### Autocomplete obligatorio:
 - Todo campo que referencie entidad del sistema usa `SearchableSelect`
 - Activar desde 2 caracteres escritos
