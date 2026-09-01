@@ -318,7 +318,14 @@ export const salesService = {
      */
     registerInstallment: async (
         cxcId: number,
-        payload: { amount: number; payment_date?: string | null; notes?: string | null; reference?: string | null }
+        payload: {
+            amount: number;
+            payment_date?: string | null;
+            notes?: string | null;
+            reference?: string | null;
+            account_id?: number | null;
+            instance_ids?: number[];
+        }
     ) => {
         const response = await axiosClient.post(`/sales/invoices/${cxcId}/installments`, payload);
         return response.data;

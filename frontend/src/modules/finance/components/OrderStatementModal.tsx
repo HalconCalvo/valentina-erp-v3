@@ -11,6 +11,10 @@ import Modal from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { VCurrencyInput } from '@/components/ui/VCurrencyInput';
+import { treasuryService } from '../../../api/treasury-service';
+import type { BankAccount } from '../../../types/treasury';
 
 type OrderStatementPendingConfirm =
     | { kind: 'CANCEL_OV' }
@@ -142,6 +146,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const canEditOcInRayos = !readOnly && ['ADMIN', 'ADMINISTRADOR', 'MANAGER', 'DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
     const canEditProjectName = ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'MANAGER', 'SALES', 'VENTAS'].includes(userRole);
     const canEditAdvance = ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'MANAGER'].includes(userRole);
+    const canRegisterInstallment = ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'MANAGER'].includes(userRole);
     const canExpandOrder =
         ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'MANAGER', 'SALES', 'VENTAS', 'ADMIN', 'ADMINISTRADOR'].includes(userRole)
         && ['ACCEPTED', 'WAITING_ADVANCE', 'SOLD', 'IN_PRODUCTION'].includes((order as any).status);
@@ -193,11 +198,44 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const [savingPaymentEdit, setSavingPaymentEdit] = useState(false);
     const [cancellingPayment, setCancellingPayment] = useState(false);
 
+    const [installmentModal, setInstallmentModal] = useState<{ open: boolean; cxc: any | null }>({ open: false, cxc: null });
+    const [installmentAmount, setInstallmentAmount] = useState<number>(0);
+    const [installmentDate, setInstallmentDate] = useState('');
+    const [installmentReference, setInstallmentReference] = useState('');
+    const [installmentNotes, setInstallmentNotes] = useState('');
+    const [installmentAccountId, setInstallmentAccountId] = useState('');
+    const [installmentInstanceIds, setInstallmentInstanceIds] = useState<number[]>([]);
+    const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+    const [loadingBankAccounts, setLoadingBankAccounts] = useState(false);
+    const [submittingInstallment, setSubmittingInstallment] = useState(false);
+
     // ESCUDO: Aniquilar clones en la lista visual de Rayos X
     const uniqueItems = useMemo(() => {
         if (!localOrder || !localOrder.items) return [];
         return Array.from(new Map(localOrder.items.map(item => [item.id, item])).values());
     }, [localOrder]);
+
+    const unlinkedInstances = useMemo(() => {
+        const list: { id: number; label: string }[] = [];
+        uniqueItems.forEach((item: any) => {
+            const realInstances = item.instances ? item.instances.slice(0, item.quantity || 1) : [];
+            realInstances.forEach((inst: any) => {
+                if (!inst.customer_payment_id) {
+                    const house = [inst.street, inst.lot].filter(Boolean).join(' ');
+                    list.push({
+                        id: inst.id,
+                        label: `${item.product_name} — ${inst.custom_name || 'Instancia'}${house ? ` (${house})` : ''}`,
+                    });
+                }
+            });
+        });
+        return list;
+    }, [uniqueItems]);
+
+    const activeBankAccounts = useMemo(
+        () => bankAccounts.filter((a) => a.is_active),
+        [bankAccounts],
+    );
 
     // Agrupa TODAS las instancias de la OV por casa (street + lot) para la vista "Por Casa".
     // Cada instancia lleva su product_name (partida), custom_name y estado.
@@ -315,6 +353,89 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
             } finally {
                 setLoadingInstallments(null);
             }
+        }
+    };
+
+    const handleOpenInstallmentModal = async (cxc: any) => {
+        setInstallmentModal({ open: true, cxc });
+        setInstallmentReference('');
+        setInstallmentNotes('');
+        setInstallmentAccountId('');
+        setInstallmentInstanceIds([]);
+        setInstallmentDate(new Date().toISOString().slice(0, 10));
+
+        let saldo = Number(cxc.amount || 0);
+        try {
+            const data = await salesService.getInstallments(cxc.id);
+            saldo = Number(data.saldo ?? Math.max(Number(data.monto_factura ?? cxc.amount ?? 0) - Number(data.total_abonado ?? 0), 0));
+            setInstallmentsByInvoice((prev) => ({ ...prev, [cxc.id]: data }));
+        } catch {
+            // keep saldo from invoice amount
+        }
+        setInstallmentAmount(saldo > 0 ? saldo : Number(cxc.amount || 0));
+
+        setLoadingBankAccounts(true);
+        try {
+            const accounts = await treasuryService.getAccounts();
+            setBankAccounts(accounts);
+        } catch {
+            toast.error('No se pudieron cargar las cuentas bancarias.');
+            setBankAccounts([]);
+        } finally {
+            setLoadingBankAccounts(false);
+        }
+    };
+
+    const toggleInstallmentInstance = (instanceId: number) => {
+        setInstallmentInstanceIds((prev) =>
+            prev.includes(instanceId) ? prev.filter((id) => id !== instanceId) : [...prev, instanceId],
+        );
+    };
+
+    const handleSubmitInstallment = async () => {
+        const cxc = installmentModal.cxc;
+        if (!cxc?.id) return;
+        if (installmentAmount <= 0) {
+            toast.warning('El importe del abono debe ser mayor a cero.');
+            return;
+        }
+        if (!installmentAccountId) {
+            toast.warning('Selecciona la cuenta bancaria destino.');
+            return;
+        }
+
+        setSubmittingInstallment(true);
+        try {
+            const payload: {
+                amount: number;
+                payment_date?: string | null;
+                notes?: string | null;
+                reference?: string | null;
+                account_id?: number | null;
+                instance_ids?: number[];
+            } = {
+                amount: installmentAmount,
+                payment_date: installmentDate ? `${installmentDate}T12:00:00` : null,
+                reference: installmentReference.trim() || null,
+                notes: installmentNotes.trim() || null,
+                account_id: Number(installmentAccountId),
+            };
+            if (cxc.payment_type !== 'ADVANCE' && installmentInstanceIds.length > 0) {
+                payload.instance_ids = installmentInstanceIds;
+            }
+            await salesService.registerInstallment(cxc.id, payload);
+            toast.success('Abono registrado correctamente.');
+            setInstallmentModal({ open: false, cxc: null });
+            setInstallmentsByInvoice((prev) => {
+                const next = { ...prev };
+                delete next[cxc.id];
+                return next;
+            });
+            await onSuccess();
+        } catch (error: any) {
+            toast.error(error.response?.data?.detail || 'No se pudo registrar el abono.');
+        } finally {
+            setSubmittingInstallment(false);
         }
     };
 
@@ -940,17 +1061,28 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                             CANCELADA
                                                         </span>
                                                     ) : (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => toggleInvoicePanel(cxc.id)}
-                                                            className={`inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors shadow-sm ${
-                                                                isExpanded
-                                                                    ? 'bg-slate-600 hover:bg-slate-700 text-white'
-                                                                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
-                                                            }`}
-                                                        >
-                                                            <Receipt size={14} /> {isExpanded ? 'Cerrar' : 'Ver abonos'}
-                                                        </button>
+                                                        <div className="flex flex-col items-end gap-1.5">
+                                                            {canRegisterInstallment && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => void handleOpenInstallmentModal(cxc)}
+                                                                    className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors shadow-sm bg-emerald-600 hover:bg-emerald-700 text-white"
+                                                                >
+                                                                    <Plus size={14} /> Registrar Abono
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => toggleInvoicePanel(cxc.id)}
+                                                                className={`inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors shadow-sm ${
+                                                                    isExpanded
+                                                                        ? 'bg-slate-600 hover:bg-slate-700 text-white'
+                                                                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                                                                }`}
+                                                            >
+                                                                <Receipt size={14} /> {isExpanded ? 'Cerrar' : 'Ver abonos'}
+                                                            </button>
+                                                        </div>
                                                     )}
                                                 </span>
                                             );
@@ -1126,7 +1258,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
 
                                                         {abonos.length === 0 ? (
                                                             <p className="text-[11px] text-slate-500 italic">
-                                                                Sin abonos registrados. Los abonos se registran desde Tesorería al conciliar el ingreso.
+                                                                Sin abonos registrados. Usa &quot;Registrar Abono&quot; para conciliar el ingreso.
                                                             </p>
                                                         ) : (
                                                             <VTable
@@ -1502,6 +1634,118 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                             className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
                         >
                             {savingPaymentEdit ? 'Guardando…' : 'Guardar cambios'}
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
+        )}
+        {installmentModal.open && installmentModal.cxc && (
+            <Modal
+                isOpen={installmentModal.open}
+                onClose={() => {
+                    if (submittingInstallment) return;
+                    setInstallmentModal({ open: false, cxc: null });
+                }}
+                title="Registrar Abono"
+                size="md"
+            >
+                <div className="flex flex-col gap-4">
+                    <p className="text-xs text-slate-500">
+                        Factura {installmentModal.cxc.invoice_folio || 'S/F'} — {formatCurrency(Number(installmentModal.cxc.amount || 0))}
+                    </p>
+                    <VCurrencyInput
+                        label="Importe del abono *"
+                        value={installmentAmount}
+                        onChange={setInstallmentAmount}
+                        min={0.01}
+                        error={installmentAmount <= 0 ? 'El importe debe ser mayor a cero' : undefined}
+                    />
+                    <div>
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                            Fecha *
+                        </label>
+                        <Input
+                            type="date"
+                            value={installmentDate}
+                            onChange={(e) => setInstallmentDate(e.target.value)}
+                        />
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                            Referencia
+                        </label>
+                        <Input
+                            type="text"
+                            placeholder="Referencia bancaria o comprobante"
+                            value={installmentReference}
+                            onChange={(e) => setInstallmentReference(e.target.value)}
+                        />
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                            Notas
+                        </label>
+                        <Input
+                            type="text"
+                            placeholder="Concepto del abono"
+                            value={installmentNotes}
+                            onChange={(e) => setInstallmentNotes(e.target.value)}
+                        />
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                            Cuenta bancaria destino *
+                        </label>
+                        {loadingBankAccounts ? (
+                            <p className="text-xs text-slate-500 italic">Cargando cuentas…</p>
+                        ) : (
+                            <SearchableSelect
+                                items={activeBankAccounts}
+                                value={installmentAccountId}
+                                onChange={setInstallmentAccountId}
+                                getLabel={(a) => `${a.name} (${a.account_number}) — ${formatCurrency(a.current_balance)}`}
+                                getValue={(a) => String(a.id)}
+                                placeholder="Buscar cuenta bancaria..."
+                            />
+                        )}
+                    </div>
+                    {installmentModal.cxc.payment_type !== 'ADVANCE' && unlinkedInstances.length > 0 && (
+                        <div>
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">
+                                Instancias cubiertas por este abono
+                            </label>
+                            <div className="max-h-40 overflow-y-auto space-y-2 border border-slate-200 rounded-lg p-3 bg-slate-50">
+                                {unlinkedInstances.map((inst) => (
+                                    <label
+                                        key={inst.id}
+                                        className="flex items-start gap-2 text-sm text-slate-700 cursor-pointer"
+                                    >
+                                        <Input
+                                            type="checkbox"
+                                            className="mt-1 w-4 h-4 rounded border-slate-300"
+                                            checked={installmentInstanceIds.includes(inst.id)}
+                                            onChange={() => toggleInstallmentInstance(inst.id)}
+                                        />
+                                        <span>{inst.label}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    <div className="flex items-center justify-between gap-4 pt-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => setInstallmentModal({ open: false, cxc: null })}
+                            disabled={submittingInstallment}
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            onClick={() => void handleSubmitInstallment()}
+                            disabled={submittingInstallment || loadingBankAccounts}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                        >
+                            {submittingInstallment ? 'Registrando…' : 'Confirmar abono'}
                         </Button>
                     </div>
                 </div>

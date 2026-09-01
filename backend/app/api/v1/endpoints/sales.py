@@ -21,6 +21,7 @@ from app.models.design import ProductVersion
 from app.models.material import Material
 from app.models.foundations import TaxRate, GlobalConfig, Client
 from app.models.users import User, UserRole
+from app.models.treasury import BankAccount, BankTransaction, TransactionType
 from app.services.pdf_generator import PDFGenerator
 
 # --- IMPORTAMOS LOS MOTORES (V3.5) ---
@@ -46,6 +47,7 @@ class PaymentPayload(BaseModel):
     invoice_date: Optional[datetime] = None
     notes: Optional[str] = None               # concepto del abono
     reference: Optional[str] = None           # referencia opcional
+    account_id: Optional[int] = None
 
 
 class ClientPurchaseOrderPayload(BaseModel):
@@ -1720,6 +1722,48 @@ def register_installment(cxc_id: int, payload: PaymentPayload,
         created_by_user_id=current_user.id,
     )
     session.add(inst)
+
+    if payload.account_id:
+        account = session.get(BankAccount, payload.account_id)
+        if not account:
+            raise HTTPException(404, "Cuenta bancaria no encontrada.")
+        type_labels = {
+            PaymentType.ADVANCE: "Anticipo",
+            PaymentType.PROGRESS: "Avance de obra",
+            PaymentType.FULL: "Factura 100%",
+        }
+        tipo = type_labels.get(cxc.payment_type, str(cxc.payment_type))
+        proyecto = order.project_name if order else "—"
+        folio = cxc.invoice_folio or "S/F"
+        bank_tx = BankTransaction(
+            account_id=account.id,
+            transaction_type=TransactionType.IN,
+            amount=monto,
+            reference=payload.reference,
+            description=f"Abono {tipo} — {proyecto} — Folio {folio}",
+            transaction_date=payload.payment_date or datetime.utcnow(),
+            related_entity_type="CUSTOMER_PAYMENT",
+            related_entity_id=cxc.id,
+        )
+        session.add(bank_tx)
+        account.current_balance = float(account.current_balance or 0.0) + monto
+        session.add(account)
+        if cxc.treasury_transaction_id is None:
+            session.flush()
+            cxc.treasury_transaction_id = bank_tx.id
+
+    if payload.instance_ids:
+        for iid in payload.instance_ids:
+            inst_obj = session.get(SalesOrderItemInstance, iid)
+            if not inst_obj:
+                raise HTTPException(404, f"Instancia {iid} no encontrada.")
+            if inst_obj.customer_payment_id is not None:
+                continue
+            item_obj = session.get(SalesOrderItem, inst_obj.sales_order_item_id)
+            if not item_obj or item_obj.sales_order_id != cxc.sales_order_id:
+                raise HTTPException(422, f"La instancia {iid} no pertenece a esta orden.")
+            inst_obj.customer_payment_id = cxc.id
+            session.add(inst_obj)
 
     # Reducir saldo de la OV por el monto abonado
     if order:
