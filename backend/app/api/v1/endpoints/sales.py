@@ -487,6 +487,7 @@ def update_sales_order(
                 frozen_unit_cost=calculated_frozen_cost,
                 is_resale=getattr(item_in, 'is_resale', False),
                 resale_sku=getattr(item_in, 'resale_sku', None),
+                commercial_description=getattr(item_in, 'commercial_description', None),
             )
             session.add(db_item)
             session.flush()
