@@ -45,7 +45,7 @@ const ManagementDashboard: React.FC = () => {
     const navigate = useNavigate();
 
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase().trim();
-    const canSeeBanks = ['DIRECTOR', 'GERENCIA'].includes(userRole);
+    const canSeeBanks = ['DIRECTOR'].includes(userRole);
     const canCaptureWeeklyFixed = [
         'DIRECTOR',
         'GERENCIA',

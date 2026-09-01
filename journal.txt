@@ -1549,3 +1549,26 @@ No se requiere trabajo adicional para este pendiente.
 1. Menús MANAGER, DIRECTOR, SALES, PRODUCTION, LOGISTICS — pendiente desde 24-Aug
 2. Scripts sueltos en raíz: mover a scripts/
 3. Probar end-to-end: receta con descripción → cotización → PDF
+
+---
+## SESIÓN 2026-08-31 (tarde) — Reorganización de módulos
+### Completado:
+- TreasuryPage (ADMIN): eliminadas Bóveda, Nómina y Gastos Operativos
+  Tarjetas restantes: Tareas, Por Cobrar, Por Pagar, Caja Chica, Seguimiento OV
+- ManagementDashboard (DIRECTOR/MANAGER): agregada tarjeta Gastos Operativos
+  con OperationalExpensesPanel al hacer clic
+- Commit: 2432ad9
+### REGLA REFORZADA — Verificación de principios en cada instrucción:
+Antes de autorizar cualquier commit, Claude verifica:
+1. ¿Cursor usó VModal en lugar de div fixed manual?
+2. ¿Cursor usó VInput en lugar de <input> directo?
+3. ¿Cursor usó VTable en lugar de <table> manual?
+4. ¿Cursor usó VToast en lugar de alert()?
+5. ¿Cursor usó VConfirmDialog en lugar de window.confirm()?
+6. ¿Eliminó todo console.log?
+Si alguna respuesta es NO — no se hace commit hasta corregir.
+### Pendientes:
+1. Definir qué tarjetas ve MANAGER vs DIRECTOR en ManagementDashboard
+2. Corregir GERENCIA → MANAGER en Sidebar
+3. Menús SALES, PRODUCTION, LOGISTICS, WAREHOUSE
+4. Scripts sueltos en raíz: mover a scripts/
