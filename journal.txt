@@ -1692,3 +1692,32 @@ useSales.ts, useClients.ts — limpieza en sesión dedicada.
 3. Menús SALES, PRODUCTION, LOGISTICS, WAREHOUSE
 4. Limpieza console.log/error/warn
 5. Scripts sueltos en raíz: mover a scripts/
+
+---
+## SESIÓN 2026-09-01 (tarde) — Abonos desde Rayos X + correcciones OV
+### Completado:
+**Registro de abonos desde Rayos X:**
+- Botón "Registrar Abono" en facturas PENDING (solo DIRECTOR/MANAGER)
+- Modal con: importe, fecha, referencia, notas, cuenta bancaria, instancias
+- Backend: crea BankTransaction IN + vincula instancias en transacción atómica
+- Commit: 7e37ee4
+
+**Correcciones OV-0025 y OV-0026:**
+- Facturas incorrectas eliminadas, instancias desvinculadas
+- outstanding_balance reseteado al valor del contrato
+- Fix: FULL agregado al enum paymenttype (migración s5m6n7o8p9q0)
+- Fix: importe al 100% prellena con total del contrato
+- Fix: campos moneda siempre con 2 decimales
+
+**Recepción Parcial:**
+- Columnas "Recibido" y "Falta" agregadas a la tabla
+
+**OC-M260827162051:**
+- CxP y factura registradas manualmente (folio 30899, $1,127.87)
+
+### Pendientes:
+1. Probar flujo completo: factura al 100% → abono → movimiento bancario
+2. commercial_description en PDF — diagnóstico pendiente
+3. 10 OCs sin factura — esperando folios
+4. Menús SALES, PRODUCTION, LOGISTICS, WAREHOUSE
+5. Limpieza console.log/error/warn

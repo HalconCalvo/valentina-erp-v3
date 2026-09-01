@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/Button';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VCurrencyInput } from '@/components/ui/VCurrencyInput';
+import { VToggle } from '@/components/ui/VToggle';
 import { treasuryService } from '../../../api/treasury-service';
 import type { BankAccount } from '../../../types/treasury';
 
@@ -205,6 +206,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const [installmentNotes, setInstallmentNotes] = useState('');
     const [installmentAccountId, setInstallmentAccountId] = useState('');
     const [installmentInstanceIds, setInstallmentInstanceIds] = useState<number[]>([]);
+    const [installmentIsAdvance, setInstallmentIsAdvance] = useState(false);
     const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
     const [loadingBankAccounts, setLoadingBankAccounts] = useState(false);
     const [submittingInstallment, setSubmittingInstallment] = useState(false);
@@ -362,6 +364,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         setInstallmentNotes('');
         setInstallmentAccountId('');
         setInstallmentInstanceIds([]);
+        setInstallmentIsAdvance(false);
         setInstallmentDate(new Date().toISOString().slice(0, 10));
 
         let saldo = Number(cxc.amount || 0);
@@ -420,7 +423,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                 notes: installmentNotes.trim() || null,
                 account_id: Number(installmentAccountId),
             };
-            if (cxc.payment_type !== 'ADVANCE' && installmentInstanceIds.length > 0) {
+            if (!installmentIsAdvance && cxc.payment_type !== 'ADVANCE' && installmentInstanceIds.length > 0) {
                 payload.instance_ids = installmentInstanceIds;
             }
             await salesService.registerInstallment(cxc.id, payload);
@@ -1710,6 +1713,16 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                         )}
                     </div>
                     {installmentModal.cxc.payment_type !== 'ADVANCE' && unlinkedInstances.length > 0 && (
+                        <VToggle
+                            label="¿Es anticipo?"
+                            checked={installmentIsAdvance}
+                            onCheckedChange={(checked) => {
+                                setInstallmentIsAdvance(checked);
+                                if (checked) setInstallmentInstanceIds([]);
+                            }}
+                        />
+                    )}
+                    {!installmentIsAdvance && installmentModal.cxc.payment_type !== 'ADVANCE' && unlinkedInstances.length > 0 && (
                         <div>
                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">
                                 Instancias cubiertas por este abono
