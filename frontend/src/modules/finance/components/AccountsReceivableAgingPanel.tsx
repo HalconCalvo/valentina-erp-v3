@@ -216,7 +216,6 @@ export function userCanPerformFinanceCXCActions(): boolean {
         'FINANCE',
         'FINANZAS',
         'DIRECTOR',
-        'GERENCIA',
         'MANAGER',
     ].includes(userRole);
 }

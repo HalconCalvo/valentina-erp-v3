@@ -5,7 +5,7 @@ import { productionService } from '../../../api/production-service';
 import { Factory, Boxes, CheckCircle2, FileText } from 'lucide-react';
 
 const PRODUCTION_FULL_ACCESS = ['DIRECTOR', 'PRODUCTION'];
-const PRODUCTION_READ_ONLY = ['ADMIN', 'DESIGN', 'GERENCIA'];
+const PRODUCTION_READ_ONLY = ['ADMIN', 'DESIGN', 'MANAGER'];
 const PRODUCTION_NO_ACCESS = ['SALES', 'WAREHOUSE', 'LOGISTICS'];
 
 export default function FactoryFloorPage() {

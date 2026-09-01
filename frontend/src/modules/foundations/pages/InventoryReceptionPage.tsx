@@ -47,7 +47,7 @@ const InventoryReceptionPage: React.FC = () => {
     const [isCancelling, setIsCancelling] = useState(false); // NUEVO ESTADO
     const [declaringSatisfied, setDeclaringSatisfied] = useState(false);
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase().trim();
-    const canDeclare = ['ADMIN', 'ADMINISTRACION', 'ADMINISTRADOR', 'GERENCIA', 'DIRECTOR'].includes(userRole);
+    const canDeclare = ['ADMIN', 'ADMINISTRACION', 'ADMINISTRADOR', 'MANAGER', 'DIRECTOR'].includes(userRole);
     
     const [receivedItems, setReceivedItems] = useState<Record<number, string>>({});
     const [editedPrices, setEditedPrices] = useState<Record<number, string>>({});

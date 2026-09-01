@@ -11,7 +11,7 @@ interface InvoiceDetailModalProps {
 
 export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice, onClose }) => {
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase().trim();
-    const canCreateNC = ['ADMIN','ADMINISTRACION','ADMINISTRADOR','GERENCIA','DIRECTOR','DIRECCION'].includes(userRole);
+    const canCreateNC = ['ADMIN','ADMINISTRACION','ADMINISTRADOR','MANAGER','DIRECTOR','DIRECCION'].includes(userRole);
 
     const [localOutstanding, setLocalOutstanding] = useState<number>(Number(invoice.outstanding_balance) || 0);
     const [showNCForm, setShowNCForm] = useState(false);

@@ -13,7 +13,7 @@ const STATUS_PACKING = 'PACKING';
 
 type MaterialFilter = 'ALL' | 'MDF' | 'PIEDRA';
 
-const PRODUCTION_READ_ONLY_ROLES = ['ADMIN', 'DESIGN', 'GERENCIA'];
+const PRODUCTION_READ_ONLY_ROLES = ['ADMIN', 'DESIGN', 'MANAGER'];
 
 /** Devuelve el badge de urgencia del lote según el peor semáforo de sus instancias. */
 function getBatchUrgencyBadge(batch: any): { label: string; className: string } | null {

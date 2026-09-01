@@ -59,7 +59,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
 }) => {
     const navigate = useNavigate();
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase().trim();
-    const isChecker = ['DIRECTOR', 'GERENCIA'].includes(userRole);
+    const isChecker = ['DIRECTOR', 'MANAGER'].includes(userRole);
 
     const [stats, setStats] = useState<AccountsPayableStats | null>(null);
     const [invoices, setInvoices] = useState<PendingInvoice[]>([]);
