@@ -11,29 +11,29 @@ import { useFoundations } from '../../modules/foundations/hooks/useFoundations';
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
 
-type UserRole = 'DIRECTOR' | 'GERENCIA' | 'ADMIN' | 'SALES' | 'DESIGN' | 'WAREHOUSE' | 'PRODUCTION' | 'LOGISTICS';
+type UserRole = 'DIRECTOR' | 'MANAGER' | 'ADMIN' | 'SALES' | 'DESIGN' | 'WAREHOUSE' | 'PRODUCTION' | 'LOGISTICS';
 
 // --- CONFIGURACIÓN DEL MENÚ ---
 const menuItems = [
-  { icon: LayoutDashboard, label: 'Principal', path: '/', allowedRoles: ['DIRECTOR', 'GERENCIA', 'ADMIN', 'SALES', 'DESIGN', 'WAREHOUSE', 'PRODUCTION', 'LOGISTICS'] },
+  { icon: LayoutDashboard, label: 'Principal', path: '/', allowedRoles: ['DIRECTOR', 'MANAGER', 'ADMIN', 'SALES', 'DESIGN', 'WAREHOUSE', 'PRODUCTION', 'LOGISTICS'] },
   
   // ---> LA NUEVA PUERTA EXCLUSIVA DEL DIRECTOR <---
   { icon: Shield, label: 'Dirección', path: '/director', allowedRoles: ['DIRECTOR'] },
   
   // ---> INTACTO COMO ESTABA <---
-  { icon: TrendingUp, label: 'Gerencia', path: '/management', allowedRoles: ['DIRECTOR', 'GERENCIA'] },
+  { icon: TrendingUp, label: 'Gerencia', path: '/management', allowedRoles: ['DIRECTOR', 'MANAGER'] },
   
-  { icon: ShoppingCart, label: 'Ventas', path: '/sales', allowedRoles: ['DIRECTOR', 'GERENCIA', 'SALES'] },
-  { icon: Users, label: 'Monitor Clientes', path: '/clients', allowedRoles: ['DIRECTOR', 'GERENCIA', 'SALES', 'ADMIN'] },
+  { icon: ShoppingCart, label: 'Ventas', path: '/sales', allowedRoles: ['DIRECTOR', 'MANAGER', 'SALES'] },
+  { icon: Users, label: 'Monitor Clientes', path: '/clients', allowedRoles: ['DIRECTOR', 'MANAGER', 'SALES', 'ADMIN'] },
   
   // 🔒 CANDADO APLICADO: Ventas ya NO puede entrar a Diseño e Ingeniería.
-  { icon: Ruler, label: 'Diseño e Ingeniería', path: '/design', allowedRoles: ['DIRECTOR', 'GERENCIA', 'DESIGN'] },
+  { icon: Ruler, label: 'Diseño e Ingeniería', path: '/design', allowedRoles: ['DIRECTOR', 'MANAGER', 'DESIGN'] },
   
-  { icon: Factory, label: 'Producción', path: '/production', allowedRoles: ['DIRECTOR', 'GERENCIA', 'ADMIN', 'DESIGN', 'PRODUCTION'] },
-  { icon: CalendarDays, label: 'Planeación Maestra', path: '/planning', allowedRoles: ['DIRECTOR', 'GERENCIA', 'DESIGN', 'PRODUCTION', 'ADMIN', 'SALES'] },
-  { icon: Truck, label: 'Logística e Instalación', path: '/logistics', allowedRoles: ['DIRECTOR', 'GERENCIA', 'ADMIN', 'WAREHOUSE', 'SALES', 'LOGISTICS', 'PRODUCTION'] },
-  { icon: ClipboardList, label: 'Compras y Almacén', path: '/inventory', allowedRoles: ['DIRECTOR', 'GERENCIA', 'ADMIN', 'WAREHOUSE', 'PRODUCTION'] },
-  { icon: Landmark, label: 'Administración', path: '/treasury', allowedRoles: ['DIRECTOR', 'GERENCIA', 'ADMIN'] },
+  { icon: Factory, label: 'Producción', path: '/production', allowedRoles: ['DIRECTOR', 'MANAGER', 'ADMIN', 'DESIGN', 'PRODUCTION'] },
+  { icon: CalendarDays, label: 'Planeación Maestra', path: '/planning', allowedRoles: ['DIRECTOR', 'MANAGER', 'DESIGN', 'PRODUCTION', 'ADMIN', 'SALES'] },
+  { icon: Truck, label: 'Logística e Instalación', path: '/logistics', allowedRoles: ['DIRECTOR', 'MANAGER', 'ADMIN', 'WAREHOUSE', 'SALES', 'LOGISTICS', 'PRODUCTION'] },
+  { icon: ClipboardList, label: 'Compras y Almacén', path: '/inventory', allowedRoles: ['DIRECTOR', 'MANAGER', 'ADMIN', 'WAREHOUSE', 'PRODUCTION'] },
+  { icon: Landmark, label: 'Administración', path: '/treasury', allowedRoles: ['DIRECTOR', 'MANAGER', 'ADMIN'] },
   { icon: UserCog, label: 'Usuarios y Comisiones', path: '/users', allowedRoles: ['DIRECTOR'] },
   { icon: Percent, label: 'Registro Impuestos', path: '/tax-rates', allowedRoles: ['DIRECTOR', 'ADMIN'] }, 
   { icon: Settings, label: 'Parámetros Globales', path: '/config', allowedRoles: ['DIRECTOR'] }, 
@@ -43,7 +43,7 @@ const menuItems = [
 const rolePriorities: Record<string, string[]> = {
   // Ahora el Director ve su panel estratégico antes que la gerencia
   'DIRECTOR': ['/', '/director', '/planning', '/management', '/treasury'],
-  'GERENCIA': ['/', '/management', '/planning', '/treasury', '/production', '/sales'],
+  'MANAGER': ['/', '/management', '/planning', '/treasury', '/production', '/sales'],
   'ADMIN': ['/', '/treasury', '/inventory'],
   // Ventas ya no necesita priorizar /design
   'SALES': ['/', '/sales', '/planning', '/clients', '/logistics'],
@@ -79,7 +79,7 @@ export default function Sidebar() {
         if (userRole === 'SALES' && path === '/sales') return true;
         
         // Si es Admin, Gerente o Director, iluminamos Administración
-        if (['ADMIN', 'DIRECTOR', 'GERENCIA'].includes(userRole) && path === '/treasury') return true;
+        if (['ADMIN', 'DIRECTOR', 'MANAGER'].includes(userRole) && path === '/treasury') return true;
     }
     
     return currentPath.startsWith(path);
@@ -95,7 +95,7 @@ export default function Sidebar() {
   const getRoleBadgeInfo = (role: UserRole) => {
       switch(role) {
           case 'DIRECTOR': return { label: 'DIRECCIÓN', className: 'bg-slate-900 text-white border-slate-700' }; 
-          case 'GERENCIA': return { label: 'GERENCIA', className: 'bg-purple-100 text-purple-700 border-purple-200' }; 
+          case 'MANAGER': return { label: 'MANAGER', className: 'bg-purple-100 text-purple-700 border-purple-200' }; 
           case 'ADMIN': return { label: 'ADMINISTRACIÓN', className: 'bg-indigo-100 text-indigo-700 border-indigo-200' }; 
           case 'SALES': return { label: 'VENTAS', className: 'bg-emerald-100 text-emerald-700 border-emerald-200' }; 
           case 'DESIGN': return { label: 'DISEÑO', className: 'bg-pink-100 text-pink-700 border-pink-200' }; 
@@ -123,7 +123,7 @@ export default function Sidebar() {
   const getRoleNameDetailed = (role: UserRole) => {
       switch(role) {
           case 'DIRECTOR': return 'Dirección Estratégica';
-          case 'GERENCIA': return 'Gerencia Operativa';
+          case 'MANAGER': return 'Gerencia Operativa';
           case 'ADMIN': return 'Administración Contable';
           case 'SALES': return 'Asesor Comercial';
           case 'DESIGN': return 'Ingeniería y Diseño';
@@ -212,7 +212,7 @@ export default function Sidebar() {
         <div className="flex items-center gap-3 mb-3 p-2 rounded-lg hover:bg-white hover:shadow-sm transition-all cursor-pointer group border border-transparent hover:border-slate-100">
           <div className={`w-9 h-9 rounded-full border flex items-center justify-center font-bold text-xs shadow-sm
             ${userRole === 'DIRECTOR' ? 'bg-slate-800 border-slate-900 text-white' : ''}
-            ${userRole === 'GERENCIA' ? 'bg-purple-100 border-purple-200 text-purple-700' : ''}
+            ${userRole === 'MANAGER' ? 'bg-purple-100 border-purple-200 text-purple-700' : ''}
             ${userRole === 'ADMIN' ? 'bg-indigo-100 border-indigo-200 text-indigo-700' : ''}
             ${userRole === 'SALES' ? 'bg-emerald-100 border-emerald-200 text-emerald-700' : ''}
             ${userRole === 'DESIGN' ? 'bg-pink-100 border-pink-200 text-pink-700' : ''}
@@ -221,7 +221,7 @@ export default function Sidebar() {
             ${userRole === 'LOGISTICS' ? 'bg-cyan-100 border-cyan-200 text-cyan-700' : ''}
           `}>
             {userRole === 'DIRECTOR' && <Shield size={16}/>}
-            {userRole === 'GERENCIA' && <TrendingUp size={16}/>}
+            {userRole === 'MANAGER' && <TrendingUp size={16}/>}
             {userRole === 'ADMIN' && <Briefcase size={16}/>}
             {userRole === 'SALES' && <User size={16}/>}
             {userRole === 'DESIGN' && <PenTool size={16}/>}
