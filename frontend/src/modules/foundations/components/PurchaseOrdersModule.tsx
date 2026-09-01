@@ -1143,20 +1143,56 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                         const iva = subtotal * 0.16;
                         const total = subtotal + iva;
                         const canAuthorize = role === 'DIRECTOR' || role === 'MANAGER';
+                        const columns = [
+                            { key: 'sku', label: 'SKU', render: (item: Record<string, unknown>) => <span className="font-black text-indigo-600 text-[11px] uppercase">{String(item.sku ?? '')}</span> },
+                            { key: 'name', label: 'Descripción', render: (item: Record<string, unknown>) => <span className="font-bold text-slate-700 text-xs uppercase">{String(item.name ?? '')}</span> },
+                            { key: 'qty', label: isPartial ? 'Ordenado' : 'Cant.', render: (item: Record<string, unknown>) => <span className="block text-center text-xs font-black text-slate-600">{String(item.qty ?? '')}</span> },
+                            ...(isPartial ? [
+                                {
+                                    key: 'quantity_received',
+                                    label: 'Recibido',
+                                    render: (item: Record<string, unknown>) => {
+                                        const qty = Number(item.qty) || 0;
+                                        const received = Number(item.quantity_received || 0);
+                                        const isComplete = received >= qty;
+                                        return (
+                                            <span className={`block text-center text-xs font-black ${isComplete ? 'text-emerald-600' : 'text-amber-600'}`}>
+                                                {String(received)}
+                                            </span>
+                                        );
+                                    },
+                                },
+                                {
+                                    key: 'faltante',
+                                    label: 'Falta',
+                                    render: (item: Record<string, unknown>) => {
+                                        const faltante = Number(item.qty) - Number(item.quantity_received || 0);
+                                        if (faltante > 0) {
+                                            return (
+                                                <span className="block text-center text-xs font-black text-red-600">
+                                                    Faltan {faltante}
+                                                </span>
+                                            );
+                                        }
+                                        return (
+                                            <span className="block text-center text-xs font-black text-emerald-600">
+                                                ✓
+                                            </span>
+                                        );
+                                    },
+                                },
+                            ] : []),
+                            { key: 'expected_cost', label: 'P. Unit', render: (item: Record<string, unknown>) => <span className="block text-center text-xs font-bold text-slate-400">${Number(item.expected_cost || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span> },
+                            { key: 'project_name', label: 'Proyecto', render: (item: Record<string, unknown>) => <span className="block text-right text-[10px] font-black text-rose-600 uppercase">{String(item.project_name || 'GENERAL')}</span> },
+                            { key: 'subtotal', label: 'Importe', render: (item: Record<string, unknown>) => <span className="block text-right text-xs font-black text-slate-800">${Number(item.subtotal || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span> },
+                        ];
                         return (
                             <div key={idx} className={`bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden border-l-4 animate-in fade-in duration-300 ${isPartial ? 'border-l-amber-500' : 'border-l-rose-500'}`}>
                                 <div className={`p-6 border-b border-slate-100 flex justify-between items-center ${isPartial ? 'bg-amber-50/30' : 'bg-rose-50/30'}`}>
                                     <div className="flex items-center gap-5"><div className={`p-3 rounded-2xl shadow-inner ${isPartial ? 'bg-amber-100 text-amber-600' : 'bg-rose-100 text-rose-600'}`}><FileText size={24} /></div><div><h3 className="text-xl font-black text-slate-800 uppercase leading-none">{order.provider_name}</h3><p className={`text-[9px] font-black uppercase text-slate-400 mt-1 tracking-widest ${isPartial ? 'text-amber-600' : 'text-rose-600'}`}>FOLIO: {order.folio}</p>{['DIRECTOR', 'MANAGER', 'ADMIN'].includes(role) && (<div className="mt-1.5 flex items-center gap-1.5">{editingOverheadId === order.id ? (<Input autoFocus value={overheadDraft} onChange={e => setOverheadDraft(e.target.value)} onBlur={() => handleSaveOverhead(order.id)} onKeyDown={e => { if (e.key === 'Enter') handleSaveOverhead(order.id); if (e.key === 'Escape') setEditingOverheadId(null); }} className="text-[10px] font-black uppercase border-b border-slate-400 bg-transparent outline-none px-0 py-0 w-36 text-slate-600" />) : (<span className="text-[9px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1">{order.overhead_category || '—'}<button onClick={() => { setOverheadDraft(order.overhead_category || ''); setEditingOverheadId(order.id); }} className="text-slate-300 hover:text-slate-500 ml-1"><Pencil size={10} /></button></span>)}</div>)}</div></div>
                                 </div>
                                 <VTable
-                                    columns={[
-                                        { key: 'sku', label: 'SKU', render: (item) => <span className="font-black text-indigo-600 text-[11px] uppercase">{String(item.sku ?? '')}</span> },
-                                        { key: 'name', label: 'Descripción', render: (item) => <span className="font-bold text-slate-700 text-xs uppercase">{String(item.name ?? '')}</span> },
-                                        { key: 'qty', label: 'Cant.', render: (item) => <span className="block text-center text-xs font-black text-slate-600">{String(item.qty ?? '')}</span> },
-                                        { key: 'expected_cost', label: 'P. Unit', render: (item) => <span className="block text-center text-xs font-bold text-slate-400">${Number(item.expected_cost || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span> },
-                                        { key: 'project_name', label: 'Proyecto', render: (item) => <span className="block text-right text-[10px] font-black text-rose-600 uppercase">{String(item.project_name || 'GENERAL')}</span> },
-                                        { key: 'subtotal', label: 'Importe', render: (item) => <span className="block text-right text-xs font-black text-slate-800">${Number(item.subtotal || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span> },
-                                    ]}
+                                    columns={columns}
                                     data={(order.items || []) as Record<string, unknown>[]}
                                     actions={(item) => {
                                         if (item.is_cancelled) return [];
