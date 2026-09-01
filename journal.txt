@@ -1641,3 +1641,36 @@ useSales.ts, useClients.ts — limpieza en sesión dedicada.
 1. Menús SALES, PRODUCTION, LOGISTICS, WAREHOUSE
 2. Limpieza console.log/error/warn (sesión dedicada)
 3. Scripts sueltos en raíz: mover a scripts/
+
+---
+## SESIÓN 2026-09-01 — CLAUDE.md reescrito + correcciones
+### Completado:
+**CLAUDE.md reescrito (142 líneas):**
+- Compacto y completo — Cursor lo lee en su totalidad
+- Incluye: roles, componentes V, autocomplete, 3 clics, 4 caminos,
+  cancelaciones, checklist obligatorio, migraciones Alembic
+- CLAUDE_FULL.md conserva el contenido anterior completo como referencia
+- Commit: acaa3c5
+
+**commercial_description en PDF de cotización:**
+- Campo agregado a SalesOrderItem (modelo + migración r4l5m6n7o8p9)
+- Schema SalesOrderItemBase incluye commercial_description
+- Endpoint de actualización de items ahora persiste el campo
+- Commits: 6a70aeb, e5efd0c
+
+**Gerencia — OV y Facturación:**
+- Visor de OV movido de CXC a tarjeta propia
+- Header padre se oculta al entrar a OV_FACTURACION
+- Grid ajustado a 3 columnas (2 filas de 3)
+- Commits: 1011248, 8b05858, 5690183
+
+**Estándar de trabajo Opción C confirmado:**
+- CLAUDE.md corto con reglas absolutas
+- Cada instrucción incluye checklist relevante
+- Claude verifica con grep antes de autorizar commit
+
+### Pendientes:
+1. Probar commercial_description en PDF (cotización nueva)
+2. Menús SALES, PRODUCTION, LOGISTICS, WAREHOUSE
+3. Limpieza console.log/error/warn (sesión dedicada)
+4. Scripts sueltos en raíz: mover a scripts/

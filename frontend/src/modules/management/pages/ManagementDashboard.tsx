@@ -696,6 +696,7 @@ const ManagementDashboard: React.FC = () => {
                 <ReceivablesModule
                     financeReturnPath="/management"
                     defaultFilter="ALL"
+                    onBackOverride={() => setRoot(null)}
                 />
             )}
 
