@@ -14,6 +14,7 @@ import {
     TrendingDown,
     Search,
     CheckCircle,
+    Receipt,
 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
@@ -33,11 +34,12 @@ import {
     PayrollAuditPanel,
     type PayrollLevel1,
 } from '../../treasury/components/PayrollAuditPanel';
+import { OperationalExpensesPanel } from '../../treasury/components/OperationalExpensesPanel';
 import { OrderStatementModal } from '../../finance/components/OrderStatementModal';
 import { SalesOrder } from '../../../types/sales';
 
 /** Raíz del tablero Administración / Gerencia V4.0 */
-type AdminV4Root = null | 'PENDING' | 'BANKS' | 'CXC' | 'CXP' | 'PAYROLL';
+type AdminV4Root = null | 'PENDING' | 'BANKS' | 'CXC' | 'CXP' | 'PAYROLL' | 'OPERATIONAL_EXPENSES';
 const ManagementDashboard: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
@@ -254,6 +256,7 @@ const ManagementDashboard: React.FC = () => {
         if (root === 'CXC') return '3. Cuentas por cobrar';
         if (root === 'CXP') return '4. Cuentas por pagar';
         if (root === 'PAYROLL') return '5. Nómina';
+        if (root === 'OPERATIONAL_EXPENSES') return 'Gastos Operativos';
         return 'Gerencia';
     };
 
@@ -452,6 +455,33 @@ const ManagementDashboard: React.FC = () => {
 
                     <div className="w-full relative h-40">
                         <Card
+                            onClick={() => setRoot('OPERATIONAL_EXPENSES')}
+                            className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-rose-500 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white overflow-hidden group"
+                        >
+                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-rose-50 text-rose-700 border-r border-rose-100 font-black transition-colors group-hover:bg-rose-100">
+                                <Receipt size={28} className="text-rose-500" />
+                            </div>
+                            <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                                <div className="flex justify-between items-start">
+                                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">
+                                        Gastos Operativos
+                                    </p>
+                                    <Receipt size={16} className="text-rose-500" />
+                                </div>
+                                <div className="text-lg font-black text-rose-600 tracking-tight leading-none truncate text-right">
+                                    Renta, servicios, etc.
+                                </div>
+                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
+                                        Renta, luz, teléfono, etc.
+                                    </p>
+                                </div>
+                            </div>
+                        </Card>
+                    </div>
+
+                    <div className="w-full relative h-40">
+                        <Card
                             onClick={() => navigate('/ov-tracking')}
                             className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-indigo-600 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white overflow-hidden group"
                         >
@@ -619,6 +649,14 @@ const ManagementDashboard: React.FC = () => {
                         }
                     }}
                     onRefresh={loadData}
+                />
+            )}
+
+            {root === 'OPERATIONAL_EXPENSES' && (
+                <OperationalExpensesPanel
+                    onBack={() => setRoot(null)}
+                    onRefresh={loadData}
+                    userRole={userRole}
                 />
             )}
 

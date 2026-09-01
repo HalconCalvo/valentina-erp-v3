@@ -17,7 +17,6 @@ import { SalesOrder } from '../../../types/sales';
 import { pettyCashService } from '../../../api/petty-cash-service';
 import { PettyCashFund } from '../../../types/petty_cash';
 import PettyCashPanel from '../../management/components/PettyCashPanel';
-import { OperationalExpensesPanel } from '../components/OperationalExpensesPanel';
 
 // --- COMPONENTES BANCARIOS (Locales) ---
 import { BankAccountCard } from '../components/BankAccountCard';
@@ -37,7 +36,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { toast } from '@/components/ui/VToast';
 
-type AdminSection = 'TASKS' | 'BANKS' | 'RECEIVABLES' | 'PAYABLES' | 'PAYROLL' | 'PETTY_CASH' | 'OPERATIONAL_EXPENSES' | null;
+type AdminSection = 'TASKS' | 'RECEIVABLES' | 'PAYABLES' | 'PETTY_CASH' | null;
 
 export const TreasuryPage = () => {
   const navigate = useNavigate();
@@ -121,7 +120,7 @@ export const TreasuryPage = () => {
   const [payrollLevel1, setPayrollLevel1] = useState<PayrollLevel1>(null);
 
   useEffect(() => {
-      if (activeSection !== 'PAYROLL') setPayrollLevel1(null);
+      setPayrollLevel1(null);
   }, [activeSection]);
 
   const handleRegresar = () => {
@@ -264,12 +263,9 @@ export const TreasuryPage = () => {
   const getSectionTitle = () => {
     switch(activeSection) {
         case 'TASKS': return 'Centro de Tareas Pendientes';
-        case 'BANKS': return 'Catálogo de Bancos y Bóveda';
         case 'RECEIVABLES': return 'Cuentas por Cobrar';
         case 'PAYABLES': return 'Cuentas por Pagar';
-        case 'PAYROLL': return 'Centro de Nómina y Destajos';
         case 'PETTY_CASH': return 'Caja Chica';
-        case 'OPERATIONAL_EXPENSES': return 'Gastos Operativos';
         default: return isChecker ? 'Tesorería y Flujo Maestro' : 'Administración Central';
     }
   };
@@ -296,8 +292,7 @@ export const TreasuryPage = () => {
                   ? (isChecker ? 'Visión global de cuentas, autorización de pagos y bóveda.' : 'Gestión operativa: cobranza, facturas y armado de solicitudes de pago.')
                   : activeSection === 'TASKS'
                   ? 'Bandeja unificada de acciones requeridas por Administración.'
-                  : activeSection === 'PAYROLL' 
-                  ? 'Auditoría de comisiones comerciales y cálculo de nómina.' : 'Gestión detallada y ejecución operativa.'}
+                  : 'Gestión detallada y ejecución operativa.'}
               </p>
             </div>
 
@@ -341,32 +336,6 @@ export const TreasuryPage = () => {
                   </div>
               </Card>
           </div>
-
-          {/* ---> TARJETA EXTRA: BANCOS (Solo Gerencia) <--- */}
-          {isChecker && (
-              <div className="w-full relative h-40">
-                  <Card onClick={() => setActiveSection('BANKS')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-slate-800 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white overflow-hidden group">
-                      <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-slate-50 text-slate-700 border-r border-slate-200 font-black transition-colors group-hover:bg-slate-100 ${getCountSize(accounts.length)}`}>
-                          {accounts.length}
-                      </div>
-                      <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                          <div className="flex justify-between items-start">
-                              <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Bóveda</p>
-                              <Landmark size={16} className="text-slate-800" />
-                          </div>
-                          <div className="flex justify-end">
-                              <div className="text-lg font-black text-slate-800 tracking-tight leading-none truncate">
-                                  {formatCurrency(totalBankBalance)}
-                              </div>
-                          </div>
-                          <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
-                              <p className="text-[10px] text-slate-400 font-bold uppercase truncate">Saldo Actual</p>
-                              <Wallet size={14} className="text-slate-400"/>
-                          </div>
-                      </div>
-                  </Card>
-              </div>
-          )}
 
           {/* ---> TARJETA 2: COBRAR <--- */}
           <div className="w-full relative h-40">
@@ -416,30 +385,6 @@ export const TreasuryPage = () => {
               </Card>
           </div>
 
-          {/* ---> TARJETA 4: NÓMINA <--- */}
-          <div className="w-full relative h-40">
-              <Card onClick={() => setActiveSection('PAYROLL')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-indigo-500 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white overflow-hidden group">
-                  <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50 text-indigo-700 border-r border-indigo-100 font-black transition-colors group-hover:bg-indigo-100 ${getCountSize(payrollDash.commPayableCount + payrollDash.instPayableCount)}`}>
-                      {payrollDash.commPayableCount + payrollDash.instPayableCount}
-                  </div>
-                  <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                      <div className="flex justify-between items-start">
-                          <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">4. Nómina</p>
-                          <Users size={16} className="text-indigo-500" />
-                      </div>
-                      <div className="flex justify-end">
-                          <div className="text-lg font-black text-indigo-600 tracking-tight leading-none truncate">
-                              {formatCurrency(payrollDash.commPayableTotal + payrollDash.instPayableTotal)}
-                          </div>
-                      </div>
-                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
-                          <p className="text-[10px] text-slate-400 font-bold uppercase truncate">Comisiones y Destajos</p>
-                          <CheckCircle2 size={14} className="text-indigo-400"/>
-                      </div>
-                  </div>
-              </Card>
-          </div>
-
           {/* ---> TARJETA 5: CAJA CHICA <--- */}
           <div className="w-full relative h-40">
             <Card
@@ -472,43 +417,6 @@ export const TreasuryPage = () => {
                       : 'Saldo disponible'}
                   </p>
                   <Banknote size={14} className="text-amber-400" />
-                </div>
-              </div>
-            </Card>
-          </div>
-
-          {/* ---> TARJETA 6: GASTOS OPERATIVOS <--- */}
-          <div className="w-full relative h-40">
-            <Card
-              onClick={() => setActiveSection('OPERATIONAL_EXPENSES')}
-              className={`p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white overflow-hidden group ${
-                operationalExpensesCount > 0
-                  ? 'border-l-rose-500 ring-2 ring-rose-100'
-                  : 'border-l-slate-300'
-              }`}
-            >
-              <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center border-r font-black transition-colors text-2xl ${
-                operationalExpensesCount > 0
-                  ? 'bg-rose-50 text-rose-700 border-rose-100 group-hover:bg-rose-100'
-                  : 'bg-slate-50 text-slate-400 border-slate-100 group-hover:bg-slate-100'
-              }`}>
-                {operationalExpensesCount > 0 ? operationalExpensesCount : <Receipt size={28} className="text-slate-300" />}
-              </div>
-              <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                <div className="flex justify-between items-start">
-                  <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">6. Gastos Operativos</p>
-                  <Receipt size={16} className={operationalExpensesCount > 0 ? 'text-rose-500' : 'text-slate-300'} />
-                </div>
-                <div className={`text-lg font-black tracking-tight leading-none truncate text-right ${
-                  operationalExpensesCount > 0 ? 'text-rose-600' : 'text-slate-500'
-                }`}>
-                  {operationalExpensesCount > 0 ? `${operationalExpensesCount} pendientes` : 'Al día'}
-                </div>
-                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
-                  <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
-                    Renta, luz, teléfono, etc.
-                  </p>
-                  <Receipt size={14} className="text-slate-300" />
                 </div>
               </div>
             </Card>
@@ -589,25 +497,6 @@ export const TreasuryPage = () => {
           )}
 
           {/* DEMÁS VISTAS INTACTAS */}
-          {activeSection === 'BANKS' && isChecker && (
-             <div>
-               {selectedAccountForDetail ? (
-                 <AccountDetail account={selectedAccountForDetail} onBack={() => setSelectedAccountForDetail(null)} onOpenTransaction={(type) => { setTransactionType(type); setIsTransactionModalOpen(true); }} config={config} />
-               ) : (
-                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden p-6">
-                   <div className="flex justify-between items-center mb-6">
-                     <h3 className="font-bold text-slate-800 flex items-center gap-2 text-lg"><Landmark className="text-slate-500"/> Cuentas Autorizadas</h3>
-                     <Button onClick={() => setIsCreateModalOpen(true)} className="bg-slate-800 hover:bg-slate-900 text-white"><Plus size={18} className="mr-1" /> Nueva Cuenta</Button>
-                   </div>
-                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                       {accounts.map((account) => <BankAccountCard key={account.id} account={account} onClick={setSelectedAccountForDetail} />)}
-                   </div>
-                 </div>
-               )}
-             </div>
-          )}
-
-          {/* AQUÍ ES A DONDE VIAJA LA SUB-TARJETA DE VENTAS */}
           {activeSection === 'RECEIVABLES' && (
               <ReceivablesModule
                   onSubSectionChange={setIsSubSectionActive}
@@ -632,34 +521,8 @@ export const TreasuryPage = () => {
             />
           )}
 
-          {activeSection === 'PAYROLL' && (
-            <PayrollAuditPanel
-              canCaptureWeeklyFixed={canCaptureWeeklyFixed}
-              payrollLevel1={payrollLevel1}
-              onPayrollLevel1Change={setPayrollLevel1}
-              accounts={accounts}
-              onOrderInspect={async (orderId) => {
-                try {
-                  const o = await salesService.getOrderDetail(orderId);
-                  setSelectedOrderForRayosX(o);
-                } catch (e: any) {
-                  toast.error(e?.response?.data?.detail || 'Error al cargar el detalle de la orden.');
-                }
-              }}
-              onRefresh={fetchData}
-            />
-          )}
-
           {activeSection === 'PETTY_CASH' && (
             <PettyCashPanel
-              onBack={() => setActiveSection(null)}
-              onRefresh={fetchData}
-              userRole={userRole}
-            />
-          )}
-
-          {activeSection === 'OPERATIONAL_EXPENSES' && (
-            <OperationalExpensesPanel
               onBack={() => setActiveSection(null)}
               onRefresh={fetchData}
               userRole={userRole}
