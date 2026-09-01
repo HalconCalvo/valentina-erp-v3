@@ -1588,3 +1588,24 @@ Si alguna respuesta es NO — no se hace commit hasta corregir.
 1. Menús SALES, PRODUCTION, LOGISTICS, WAREHOUSE — definir y ajustar
 2. Scripts sueltos en raíz: mover a scripts/
 3. Auditoría de principios CLAUDE.md en archivos tocados hoy
+
+---
+## SESIÓN 2026-08-31 (cierre) — Correcciones BD Poliformas + Fix candado factura
+### Correcciones manuales en BD producción:
+- OC-M260826225307 (id 297): precio unitario corregido $622.78 → $536.87
+- OC-M260826225307: total_estimated_amount corregido a $3,221.22
+- Creado accounts_payable id 291 para OC 297: folio 7533, $3,736.61
+- Creada purchase_invoice id 323 para OC 297: folio 7533, $3,736.61
+- Ambas OCs ahora tienen CxP con folio 7533 de Poliformas ✓
+- Total: $1,016.48 + $3,736.61 = $4,753.09 ≈ factura $4,753.16 ✓
+
+### Fix candado anti-duplicados (causa raíz):
+- El candado bloqueaba el mismo folio para cualquier OC del mismo proveedor
+- Corrección: ahora solo bloquea el mismo folio para la MISMA OC
+- Un proveedor puede emitir una factura que cubra múltiples OCs
+- Commit: 3a33298
+
+### Pendientes para próxima sesión:
+1. Menús SALES, PRODUCTION, LOGISTICS, WAREHOUSE
+2. Scripts sueltos en raíz: mover a scripts/
+3. Auditoría principios CLAUDE.md en archivos tocados hoy

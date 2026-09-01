@@ -545,3 +545,54 @@ al usuario correcto en el momento correcto.
 6. ¿La validación ocurre antes de permitir avanzar?
 7. ¿El contexto se mantiene al completar una acción?
 8. ¿Es consistente con el resto del sistema en componentes y colores?
+
+---
+## CHECKLIST DE VERIFICACIÓN OBLIGATORIA — ANTES DE REPORTAR LISTO
+
+Cursor NO puede reportar una tarea como completada sin haber verificado 
+cada punto de esta lista. Si algún punto falla, Cursor lo corrige primero.
+
+### FRONTEND — verificar en TODO código nuevo o modificado:
+
+**Componentes — CERO TOLERANCIA:**
+- [ ] ¿Usé <input> directo? → REEMPLAZAR con Input de @/components/ui/Input
+- [ ] ¿Usé <select> directo? → REEMPLAZAR con SearchableSelect
+- [ ] ¿Usé <table> directo? → REEMPLAZAR con VTable
+- [ ] ¿Usé alert()? → REEMPLAZAR con toast de VToast
+- [ ] ¿Usé window.confirm()? → REEMPLAZAR con VConfirmDialog
+- [ ] ¿Usé div fixed manual para modal? → REEMPLAZAR con Modal
+- [ ] ¿Dejé console.log? → ELIMINAR todos
+
+**Autocomplete — CERO TOLERANCIA:**
+- [ ] ¿Hay campos que referencian entidades del sistema (material, 
+      proveedor, cliente, producto, usuario)?
+      → SIEMPRE usar SearchableSelect con autocomplete
+      → NUNCA texto libre para entidades existentes
+
+**Patrones:**
+- [ ] ¿Toda operación async tiene try/catch?
+- [ ] ¿Toda operación lenta deshabilita el botón mientras procesa?
+- [ ] ¿Toda lista vacía tiene VEmptyState?
+- [ ] ¿Todo feedback al usuario usa VToast?
+- [ ] ¿Toda acción destructiva usa VConfirmDialog con variant=danger?
+
+### BACKEND — verificar en TODO código nuevo o modificado:
+
+**Capas — CERO TOLERANCIA:**
+- [ ] ¿Escribí lógica de negocio en un endpoint? → MOVER a services/
+- [ ] ¿Hice queries directas en un endpoint? → MOVER a repositories/
+- [ ] ¿Hay imports dentro de funciones? → MOVER al inicio del archivo
+- [ ] ¿Hay print()? → ELIMINAR todos
+- [ ] ¿Alguna función supera 50 líneas? → DIVIDIR
+
+**Reglas de negocio:**
+- [ ] ¿Las operaciones financieras verifican rol antes de ejecutar?
+- [ ] ¿Las cancelaciones usan is_cancelled/status en vez de DELETE?
+- [ ] ¿Las operaciones multi-tabla están en una sola transacción?
+- [ ] ¿Los schemas nuevos están en app/schemas/ y no inline?
+
+### REGLA FINAL:
+Si Cursor reporta "Listo" sin haber ejecutado este checklist,
+está violando las reglas del proyecto.
+Claude verificará aleatoriamente con grep y git diff.
+Las violaciones se corrigen ANTES del commit — nunca después.
