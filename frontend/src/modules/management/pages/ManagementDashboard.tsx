@@ -266,7 +266,8 @@ const ManagementDashboard: React.FC = () => {
 
     const hideOwnHeader =
         (root === 'CXC' && recvSubOpen) ||
-        (root === 'CXP' && paySubOpen);
+        (root === 'CXP' && paySubOpen) ||
+        root === 'OV_FACTURACION';
 
     return (
         <div className="p-8 max-w-7xl mx-auto pb-24 space-y-6 animate-fadeIn">
