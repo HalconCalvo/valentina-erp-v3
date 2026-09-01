@@ -15,6 +15,7 @@ import {
     Search,
     CheckCircle,
     Receipt,
+    FileText,
 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
@@ -39,7 +40,7 @@ import { OrderStatementModal } from '../../finance/components/OrderStatementModa
 import { SalesOrder } from '../../../types/sales';
 
 /** Raíz del tablero Administración / Gerencia V4.0 */
-type AdminV4Root = null | 'PENDING' | 'BANKS' | 'CXC' | 'CXP' | 'PAYROLL' | 'OPERATIONAL_EXPENSES';
+type AdminV4Root = null | 'PENDING' | 'BANKS' | 'CXC' | 'CXP' | 'PAYROLL' | 'OPERATIONAL_EXPENSES' | 'OV_FACTURACION';
 const ManagementDashboard: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
@@ -254,6 +255,7 @@ const ManagementDashboard: React.FC = () => {
         if (root === 'PENDING') return '1. Pendientes (alertas)';
         if (root === 'BANKS') return '2. Bancos (confidencial)';
         if (root === 'CXC') return '3. Cuentas por cobrar';
+        if (root === 'OV_FACTURACION') return 'OV y Facturación';
         if (root === 'CXP') return '4. Cuentas por pagar';
         if (root === 'PAYROLL') return '5. Nómina';
         if (root === 'OPERATIONAL_EXPENSES') return 'Gastos Operativos';
@@ -389,6 +391,35 @@ const ManagementDashboard: React.FC = () => {
                                 <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
                                     <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
                                         A + B + C (sub-tarjetas CXC)
+                                    </p>
+                                </div>
+                            </div>
+                        </Card>
+                    </div>
+
+                    <div className="w-full relative h-40">
+                        <Card
+                            onClick={() => setRoot('OV_FACTURACION')}
+                            className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-indigo-600 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white overflow-hidden group"
+                        >
+                            <div
+                                className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50 text-indigo-700 border-r border-indigo-100 font-black transition-colors group-hover:bg-indigo-100 ${getCountSize(invoicingAdvanceCount + invoicingProgressCount)}`}
+                            >
+                                {invoicingAdvanceCount + invoicingProgressCount}
+                            </div>
+                            <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                                <div className="flex justify-between items-start">
+                                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">
+                                        OV y Facturación
+                                    </p>
+                                    <FileText size={16} className="text-indigo-600" />
+                                </div>
+                                <div className="text-lg font-black text-indigo-600 tracking-tight leading-none truncate text-right">
+                                    {formatCurrency(invoicingAdvanceTotal + invoicingProgressTotal)}
+                                </div>
+                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
+                                        Rayos X, anticipos y avances
                                     </p>
                                 </div>
                             </div>
@@ -657,6 +688,13 @@ const ManagementDashboard: React.FC = () => {
                     onBack={() => setRoot(null)}
                     onRefresh={loadData}
                     userRole={userRole}
+                />
+            )}
+
+            {root === 'OV_FACTURACION' && (
+                <ReceivablesModule
+                    financeReturnPath="/management"
+                    defaultFilter="ALL"
                 />
             )}
 

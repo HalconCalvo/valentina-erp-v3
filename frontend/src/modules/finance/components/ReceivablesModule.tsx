@@ -155,15 +155,6 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
         [orders],
     );
 
-    // ---> 2. TOTALES PARA LA TARJETA "VISOR DE OV" (pendiente de facturar, OV activas) <---
-    const allCount = activeOrders.length;
-    const allVal = activeOrders.reduce((sum, o) => {
-        const total = Number(o.total_price) || 0;
-        const facturado = (o.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
-        const pendienteFacturar = total - facturado;
-        return sum + (pendienteFacturar > 0 ? pendienteFacturar : 0);
-    }, 0);
-
     const handleSort = (field: SortField) => {
         if (sortField === field) {
             setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -278,18 +269,6 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
                             <div className="ml-16 h-full flex flex-col justify-between">
                                 <div><h4 className="font-bold text-emerald-800 flex items-center gap-2"><FileText size={18} className="text-emerald-500"/> C. Antigüedad</h4><p className="text-sm text-slate-500 mt-2 mb-4">Toda la cartera viva consolidada.</p></div>
                                 <div className="text-lg font-black text-emerald-600 text-right tracking-tight">{formatCurrency(agingVal)}</div>
-                            </div>
-                        </Card>
-                    </div>
-
-                    <div className="w-full relative">
-                        <Card onClick={() => setActiveFilter('ALL')} className="p-6 border-l-4 border-l-indigo-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-all hover:shadow-lg hover:-translate-y-1">
-                            <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50 text-indigo-700 border-r border-indigo-100 font-black group-hover:bg-indigo-100 transition-colors ${getCountSize(allCount)}`}>
-                                {allCount}
-                            </div>
-                            <div className="ml-16 h-full flex flex-col justify-between">
-                                <div><h4 className="font-bold text-indigo-800 flex items-center gap-2"><Layers size={18} className="text-indigo-500"/> D. Visor de OV</h4><p className="text-sm text-slate-500 mt-2 mb-4">OV activas — pendiente de facturar.</p></div>
-                                <div className="text-lg font-black text-indigo-600 text-right tracking-tight">{formatCurrency(allVal)}</div>
                             </div>
                         </Card>
                     </div>
