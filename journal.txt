@@ -1609,3 +1609,35 @@ Si alguna respuesta es NO — no se hace commit hasta corregir.
 1. Menús SALES, PRODUCTION, LOGISTICS, WAREHOUSE
 2. Scripts sueltos en raíz: mover a scripts/
 3. Auditoría principios CLAUDE.md en archivos tocados hoy
+
+---
+## SESIÓN 2026-09-01 — Auditoría y limpieza de principios
+### Completado:
+**Auditoría frontend — violaciones corregidas:**
+- AccountDetail.tsx: <table>→VTable, <input>→Input, <select>→SearchableSelect
+- OperationalExpensesPanel.tsx: <table>→VTable, <input>→Input, <select>→SearchableSelect
+- OrderStatementModal.tsx: <input>→Input, <table>→VTable
+- PurchaseOrdersModule.tsx: <input>→Input, <table>→VTable, <select>→SearchableSelect
+- ExportButton.tsx: alert()→toast.warning()
+- Sidebar.tsx: window.confirm()→VConfirmDialog
+- useProviders.ts: window.confirm() eliminado, alert()→toast.error()
+**Resultado: 0 alert() y 0 window.confirm() en todo el frontend ✓**
+
+**CLAUDE.md actualizado:**
+- Checklist de verificación obligatoria agregado
+- Cursor debe ejecutarlo antes de reportar cualquier tarea como lista
+- Commit: c5893b8
+
+**Corrección BD Poliformas:**
+- OC-M260826225307: precio $622.78→$536.87, CxP y factura creadas
+- Fix candado: mismo folio permitido en diferentes OCs del mismo proveedor
+- Commit: 3a33298
+
+### Pendiente — console.log/error/warn:
+Quedan en: useUsers.ts, axios-client.ts, sales-service.ts, useDesign.ts,
+useSales.ts, useClients.ts — limpieza en sesión dedicada.
+
+### Pendientes para próxima sesión:
+1. Menús SALES, PRODUCTION, LOGISTICS, WAREHOUSE
+2. Limpieza console.log/error/warn (sesión dedicada)
+3. Scripts sueltos en raíz: mover a scripts/
