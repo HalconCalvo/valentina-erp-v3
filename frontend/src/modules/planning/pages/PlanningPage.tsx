@@ -52,7 +52,7 @@ export default function PlanningPage() {
 
   const userRole = (localStorage.getItem('user_role') || '').toUpperCase();
 
-  const PLANNING_FULL_ACCESS = ['DIRECTOR', 'GERENCIA', 'DESIGN'];
+  const PLANNING_FULL_ACCESS = ['DIRECTOR', 'MANAGER', 'DESIGN'];
   const PLANNING_READ_ONLY = ['PRODUCTION', 'ADMIN', 'SALES'];
   const PLANNING_NO_ACCESS = ['LOGISTICS', 'WAREHOUSE'];
 

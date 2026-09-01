@@ -154,7 +154,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     };
 
     const role = getRole().toUpperCase();
-    const canCreateDirectOC = ['ADMIN', 'GERENCIA', 'DIRECTOR'].includes(role);
+    const canCreateDirectOC = ['ADMIN', 'MANAGER', 'DIRECTOR'].includes(role);
     const canCreateRequisition = ['PRODUCTION', 'WAREHOUSE', 'DESIGN',
                                    'LOGISTICS', 'SALES'].includes(role);
 
@@ -1084,7 +1084,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                         const subtotal = order.total_estimated_amount || 0;
                         const iva = subtotal * 0.16;
                         const total = subtotal + iva;
-                        const canAuthorize = role === 'DIRECTOR' || role === 'GERENCIA';
+                        const canAuthorize = role === 'DIRECTOR' || role === 'MANAGER';
                         return (
                             <div key={idx} className={`bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden border-l-4 animate-in fade-in duration-300 ${isPartial ? 'border-l-amber-500' : 'border-l-rose-500'}`}>
                                 <div className={`p-6 border-b border-slate-100 flex justify-between items-center ${isPartial ? 'bg-amber-50/30' : 'bg-rose-50/30'}`}>
@@ -1129,8 +1129,8 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     const renderSendingTable = () => {
         const authorizedOrders = brakeOrders.filter(o => safeStatus(o.status) === 'AUTORIZADA');
         
-        const canDispatch = ['DIRECTOR', 'GERENCIA', 'ADMIN', 'ADMINISTRACION', 'COMPRAS'].includes(role);
-        const canRevoke = ['DIRECTOR', 'GERENCIA', 'ADMINISTRACION', 'ADMIN', 'COMPRAS'].includes(role);
+        const canDispatch = ['DIRECTOR', 'MANAGER', 'ADMIN', 'ADMINISTRACION', 'COMPRAS'].includes(role);
+        const canRevoke = ['DIRECTOR', 'MANAGER', 'ADMINISTRACION', 'ADMIN', 'COMPRAS'].includes(role);
 
         return (
             <div className="space-y-12 pb-20">

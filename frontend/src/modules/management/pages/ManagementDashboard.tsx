@@ -48,7 +48,7 @@ const ManagementDashboard: React.FC = () => {
     const canSeeBanks = ['DIRECTOR'].includes(userRole);
     const canCaptureWeeklyFixed = [
         'DIRECTOR',
-        'GERENCIA',
+        'MANAGER',
         'ADMIN',
         'ADMINISTRADOR',
         'FINANCE',
@@ -56,7 +56,7 @@ const ManagementDashboard: React.FC = () => {
     ].includes(userRole);
     const canFinanceRayosX = [
         'DIRECTOR',
-        'GERENCIA',
+        'MANAGER',
         'ADMIN',
         'ADMINISTRADOR',
         'FINANCE',

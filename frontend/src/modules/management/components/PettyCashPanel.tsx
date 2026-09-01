@@ -17,7 +17,7 @@ const CATEGORIES: PettyCashCategory[] = [
   'INSUMOS', 'MAQUINARIA', 'EXTERNOS', 'MAQUILA', 'OTRO',
 ];
 
-const MANAGER_ROLES = ['DIRECTOR', 'GERENCIA'];
+const MANAGER_ROLES = ['DIRECTOR', 'MANAGER'];
 
 function fmt(n: number) {
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n);

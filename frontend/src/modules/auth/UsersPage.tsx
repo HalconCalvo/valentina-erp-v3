@@ -12,7 +12,7 @@ import { toast } from '@/components/ui/VToast';
 // --- 1. CONFIGURACIÓN DE ROLES (Nombres visuales) ---
 const ROLE_OPTIONS = {
     'DIRECTOR': 'DIRECCIÓN',       // Negro
-    'GERENCIA': 'GERENCIA',        // Púrpura 
+    'MANAGER': 'MANAGER',        // Púrpura 
     'ADMIN': 'ADMINISTRACIÓN',     // Índigo
     'SALES': 'VENTAS',             // Verde
     'DESIGN': 'DISEÑO',            // Rosa
@@ -50,7 +50,7 @@ export default function UsersPage() {
   const getRoleBadgeClasses = (role: string) => {
       switch(role) {
           case 'DIRECTOR': return 'bg-slate-900 text-white border-slate-700';
-          case 'GERENCIA': return 'bg-purple-100 text-purple-700 border-purple-200'; 
+          case 'MANAGER': return 'bg-purple-100 text-purple-700 border-purple-200'; 
           case 'ADMIN': return 'bg-indigo-100 text-indigo-700 border-indigo-200';
           case 'SALES': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
           case 'DESIGN': return 'bg-pink-100 text-pink-700 border-pink-200';
@@ -64,7 +64,7 @@ export default function UsersPage() {
   const getRoleIcon = (role: string) => {
       switch(role) {
           case 'DIRECTOR': return <Shield size={12} />;
-          case 'GERENCIA': return <TrendingUp size={12} />; 
+          case 'MANAGER': return <TrendingUp size={12} />; 
           case 'ADMIN': return <Briefcase size={12} />;
           case 'SALES': return <User size={12} />;
           case 'DESIGN': return <PenTool size={12} />;

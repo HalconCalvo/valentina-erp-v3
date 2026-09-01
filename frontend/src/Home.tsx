@@ -23,7 +23,7 @@ const Home: React.FC = () => {
   const getRoleConfig = () => {
     switch (userRole) {
       case 'DIRECTOR': return { title: 'Dirección General', subtitle: 'Cuadro de Mando Estratégico.', color: 'from-slate-800 to-black' };
-      case 'GERENCIA': return { title: 'Gerencia Operativa', subtitle: 'Control de rentabilidad y flujos.', color: 'from-purple-600 to-indigo-800' };
+      case 'MANAGER': return { title: 'Gerencia Operativa', subtitle: 'Control de rentabilidad y flujos.', color: 'from-purple-600 to-indigo-800' };
       case 'ADMIN': return { title: 'Administración', subtitle: 'Gestión de Cobranza y Cuentas por Pagar.', color: 'from-indigo-600 to-violet-800' };
       case 'SALES': return { title: 'Panel Comercial', subtitle: 'Tus objetivos y seguimiento.', color: 'from-emerald-500 to-teal-600' };
       case 'DESIGN': return { title: 'Ingeniería', subtitle: 'Desarrollo de productos.', color: 'from-pink-500 to-rose-600' };

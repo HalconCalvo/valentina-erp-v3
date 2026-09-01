@@ -81,7 +81,7 @@ export default function MaterialsPage() {
   const isDesign = ['DESIGN', 'DISEÑO', 'DISENO'].includes(userRole);
   const isProduction = ['PRODUCTION', 'PRODUCCION', 'PRODUCCIÓN'].includes(userRole);
   const isReadOnly = isDesign || isProduction; 
-  const showFinancials = ['ADMIN', 'ADMINISTRADOR', 'DIRECTOR', 'DIRECCION', 'DIRECTION', 'PRODUCTION', 'PRODUCCION', 'GERENCIA'].includes(userRole);
+  const showFinancials = ['ADMIN', 'ADMINISTRADOR', 'DIRECTOR', 'DIRECCION', 'DIRECTION', 'PRODUCTION', 'PRODUCCION', 'MANAGER'].includes(userRole);
 
   const precioSugeridoReventa = (costo: number): number => {
     const m = targetMargin;

@@ -34,9 +34,9 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
     
     // Seguridad para la Puerta Trasera
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase();
-    const canEditName = ['DIRECTOR', 'GERENCIA', 'SALES'].includes(userRole || '');
+    const canEditName = ['DIRECTOR', 'MANAGER', 'SALES'].includes(userRole || '');
     const isDirector = ['ADMIN', 'ADMINISTRADOR', 'DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
-    const canEditOcMeta = ['ADMIN', 'ADMINISTRADOR', 'GERENCIA', 'DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
+    const canEditOcMeta = ['ADMIN', 'ADMINISTRADOR', 'MANAGER', 'DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
 
     // Estados de edición de texto
     const [notes, setNotes] = useState(""); 
@@ -184,7 +184,7 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
     const fmt = (amount: number) => amount.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
     const canExpand =
-        ['DIRECTOR', 'GERENCIA', 'SALES', 'ADMIN', 'ADMINISTRADOR', 'DIRECCION'].includes(userRole)
+        ['DIRECTOR', 'MANAGER', 'SALES', 'ADMIN', 'ADMINISTRADOR', 'DIRECCION'].includes(userRole)
         && order
         && ['ACCEPTED', 'WAITING_ADVANCE', 'SOLD', 'IN_PRODUCTION'].includes((order as any).status);
 

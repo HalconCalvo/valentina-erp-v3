@@ -179,7 +179,7 @@ const SalesDashboardPage: React.FC = () => {
 
     // Only DIRECTOR / MANAGER can open the Financial Audit modal and see margins/costs
     const userRole  = (localStorage.getItem('user_role') || '').toUpperCase().trim();
-    const canAudit  = ['DIRECTOR', 'MANAGER', 'ADMIN', 'ADMINISTRADOR', 'GERENCIA'].includes(userRole);
+    const canAudit  = ['DIRECTOR', 'MANAGER', 'ADMIN', 'ADMINISTRADOR'].includes(userRole);
 
     const [orders, setOrders] = useState<SalesOrder[]>([]);
     const [isLoading, setIsLoading] = useState(true);
