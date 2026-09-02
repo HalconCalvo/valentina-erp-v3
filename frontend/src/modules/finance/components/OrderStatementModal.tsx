@@ -1693,7 +1693,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                         const meta = INSTANCE_STATUS_META[mueble.production_status] ?? { label: mueble.production_status, cls: 'bg-slate-100 text-slate-500' };
                                         return (
                                           <div key={mueble.id} className="py-2 px-4 flex justify-between items-center hover:bg-slate-50 text-sm">
-                                            <span className="font-bold text-slate-700">{mueble.product_name}</span>
+                                            <span className="font-bold text-slate-700">{mueble.custom_name || mueble.product_name}</span>
                                             <div className="flex items-center gap-2 shrink-0">
                                               {mueble.customer_payment_id ? (
                                                 <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-100">FACTURADO</span>

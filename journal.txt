@@ -1746,3 +1746,31 @@ useSales.ts, useClients.ts — limpieza en sesión dedicada.
 3. Menús SALES, PRODUCTION, LOGISTICS, WAREHOUSE
 4. Limpieza console.log/error/warn
 5. Scripts sueltos en raíz: mover a scripts/
+
+---
+## SESIÓN 2026-09-02 — Rayos X y flujo de abonos completo
+### Completado:
+**4 caminos del flujo de abonos:**
+- Migración t6n7o8p9q0r1: is_cancelled, cancel_reason, cancelled_at, bank_transaction_id
+- PATCH /sales/installments/{id} — editar abono (monto, instancias, saldos)
+- PATCH /sales/installments/{id}/cancel — cancelar con reversión atómica
+- Frontend: botones Pencil y XCircle por abono, badge CANCELADO
+- Commit: 9dd1b0d
+
+**Mejoras Rayos X (OrderStatementModal):**
+- Modal fullscreen (98vw x 96vh)
+- Botones "Ver Abonos" y "Abono" con texto compacto
+- Fix badge doble en pestaña Por Casa
+- Anchos de columnas ajustados en tabla de facturas
+- Commits: 6012dc4, fd40965, 6e304f2, c25b152
+
+### Lección aprendida:
+Los 4 caminos deben definirse ANTES de construir cualquier flujo.
+No se manda instrucción a Cursor sin tener los 4 caminos aprobados.
+
+### Pendientes:
+1. commercial_description en PDF
+2. 10 OCs sin factura — esperando folios
+3. Menús SALES, PRODUCTION, LOGISTICS, WAREHOUSE
+4. Limpieza console.log/error/warn
+5. Scripts sueltos en raíz
