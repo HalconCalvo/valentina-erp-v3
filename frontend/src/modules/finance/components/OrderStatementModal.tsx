@@ -1016,9 +1016,9 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                     {
                                         key: 'amount',
                                         label: 'Importe',
-                                        width: '130px',
+                                        width: '110px',
                                         render: (cxc: any) => (
-                                            <span className="block text-right text-sm font-black text-slate-800">
+                                            <span className="block text-left text-sm font-black text-slate-800">
                                                 {formatCurrency(Number(cxc.amount))}
                                             </span>
                                         ),
@@ -1026,7 +1026,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                     {
                                         key: 'days_open',
                                         label: 'Días',
-                                        width: '60px',
+                                        width: '45px',
                                         render: (cxc: any) => {
                                             const daysOpen = daysOpenForCxc(cxc);
                                             return (
