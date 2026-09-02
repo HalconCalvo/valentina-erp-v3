@@ -53,7 +53,8 @@ type UnlinkedHouseGroup = {
     instances: UnlinkedInstanceRow[];
 };
 
-function isInstanceSelectableForAbono(status: string): boolean {
+function isInstanceSelectableForAbono(status: string, paymentType?: string): boolean {
+    if (paymentType === 'FULL') return true;
     const s = String(status || '').toUpperCase();
     return s === 'CLOSED' || s === 'SIGNED';
 }
@@ -506,8 +507,9 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     };
 
     const toggleHouseAll = (instances: UnlinkedInstanceRow[]) => {
+        const paymentType = installmentModal.cxc?.payment_type;
         const selectableIds = instances
-            .filter((inst) => isInstanceSelectableForAbono(inst.production_status))
+            .filter((inst) => isInstanceSelectableForAbono(inst.production_status, paymentType))
             .map((inst) => inst.id);
         if (selectableIds.length === 0) return;
         const allSelected = selectableIds.every((id) => installmentInstanceIds.includes(id));
@@ -1981,8 +1983,9 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                             </label>
                             <div className="max-h-56 overflow-y-auto space-y-2 border border-slate-200 rounded-lg p-3 bg-slate-50">
                                 {unlinkedInstancesByHouse.map((house) => {
+                                    const paymentType = installmentModal.cxc.payment_type;
                                     const selectableIds = house.instances
-                                        .filter((inst) => isInstanceSelectableForAbono(inst.production_status))
+                                        .filter((inst) => isInstanceSelectableForAbono(inst.production_status, paymentType))
                                         .map((inst) => inst.id);
                                     const selectedCount = selectableIds.filter((id) =>
                                         installmentInstanceIds.includes(id),
@@ -2018,7 +2021,10 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                             {isExpanded && (
                                                 <div className="border-t border-slate-100 px-3 py-2 space-y-1.5 bg-slate-50/80">
                                                     {house.instances.map((inst) => {
-                                                        const selectable = isInstanceSelectableForAbono(inst.production_status);
+                                                        const selectable = isInstanceSelectableForAbono(
+                                                            inst.production_status,
+                                                            paymentType,
+                                                        );
                                                         const displayName = inst.custom_name || inst.label;
                                                         return (
                                                             <label
