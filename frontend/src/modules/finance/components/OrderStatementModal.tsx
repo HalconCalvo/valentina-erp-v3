@@ -240,6 +240,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const [installmentInstanceIds, setInstallmentInstanceIds] = useState<number[]>([]);
     const [installmentIsAdvance, setInstallmentIsAdvance] = useState(false);
     const [expandedHouses, setExpandedHouses] = useState<Set<string>>(new Set());
+    const [expandedEditHouses, setExpandedEditHouses] = useState<Set<string>>(new Set());
     const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
     const [loadingBankAccounts, setLoadingBankAccounts] = useState(false);
     const [submittingInstallment, setSubmittingInstallment] = useState(false);
@@ -291,7 +292,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                     }
                     map.get(key)!.instances.push({
                         id: inst.id,
-                        label: `${item.product_name} — ${inst.custom_name || 'Instancia'}`,
+                        label: inst.custom_name || 'Instancia',
                         custom_name: inst.custom_name,
                         production_status: inst.production_status || 'PENDING',
                     });
@@ -317,21 +318,39 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         [bankAccounts],
     );
 
-    const getInstancesSelectableForCxc = (cxcId: number) => {
-        const list: { id: number; label: string }[] = [];
+    const getInstancesByHouseForCxc = (cxcId: number): UnlinkedHouseGroup[] => {
+        const map = new Map<string, UnlinkedHouseGroup>();
+        const UNASSIGNED = '__unassigned__';
         uniqueItems.forEach((item: any) => {
             const realInstances = item.instances ? item.instances.slice(0, item.quantity || 1) : [];
             realInstances.forEach((inst: any) => {
                 if (!inst.customer_payment_id || inst.customer_payment_id === cxcId) {
-                    const house = [inst.street, inst.lot].filter(Boolean).join(' ');
-                    list.push({
+                    const hasCasa = inst.street || inst.lot;
+                    const key = hasCasa ? `${inst.street ?? ''}||${inst.lot ?? ''}` : UNASSIGNED;
+                    if (!map.has(key)) {
+                        map.set(key, {
+                            street: inst.street ?? '',
+                            lot: inst.lot ?? '',
+                            key,
+                            instances: [],
+                        });
+                    }
+                    map.get(key)!.instances.push({
                         id: inst.id,
-                        label: `${item.product_name} — ${inst.custom_name || 'Instancia'}${house ? ` (${house})` : ''}`,
+                        label: inst.custom_name || 'Instancia',
+                        custom_name: inst.custom_name,
+                        production_status: inst.production_status || 'PENDING',
                     });
                 }
             });
         });
-        return list;
+        const groups = Array.from(map.values());
+        groups.sort((a, b) => {
+            if (a.key === UNASSIGNED) return 1;
+            if (b.key === UNASSIGNED) return -1;
+            return (a.street + a.lot).localeCompare(b.street + b.lot);
+        });
+        return groups;
     };
 
     const reloadInstallmentsForCxc = async (cxcId: number) => {
@@ -526,6 +545,29 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         return [house.street, house.lot].filter(Boolean).join(' ') || 'Sin asignar';
     };
 
+    const toggleEditHouse = (key: string) => {
+        setExpandedEditHouses((prev) => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            return next;
+        });
+    };
+
+    const toggleEditHouseAll = (instances: UnlinkedInstanceRow[], paymentType?: string) => {
+        const selectableIds = instances
+            .filter((inst) => isInstanceSelectableForAbono(inst.production_status, paymentType))
+            .map((inst) => inst.id);
+        if (selectableIds.length === 0) return;
+        const allSelected = selectableIds.every((id) => editInstallmentInstanceIds.includes(id));
+        setEditInstallmentInstanceIds((prev) => {
+            if (allSelected) {
+                return prev.filter((id) => !selectableIds.includes(id));
+            }
+            return [...new Set([...prev, ...selectableIds])];
+        });
+    };
+
     const handleSubmitInstallment = async () => {
         const cxc = installmentModal.cxc;
         if (!cxc?.id) return;
@@ -582,6 +624,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         setEditInstallmentNotes(abono.notes || '');
         setEditInstallmentInstanceIds([...linkedIds]);
         setEditInstallmentIsAdvance(cxc.payment_type === 'ADVANCE');
+        setExpandedEditHouses(new Set());
     };
 
     const toggleEditInstallmentInstance = (instanceId: number) => {
@@ -2125,7 +2168,14 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                             onChange={(e) => setEditInstallmentNotes(e.target.value)}
                         />
                     </div>
-                    {editInstallmentModal.cxc.payment_type !== 'ADVANCE' && getInstancesSelectableForCxc(editInstallmentModal.cxc.id).length > 0 && (
+                    {editInstallmentModal.cxc.payment_type !== 'ADVANCE' && (() => {
+                        const editInstancesByHouse = getInstancesByHouseForCxc(editInstallmentModal.cxc.id);
+                        const editInstancesCount = editInstancesByHouse.reduce(
+                            (sum, house) => sum + house.instances.length,
+                            0,
+                        );
+                        if (editInstancesCount === 0) return null;
+                        return (
                         <>
                             <VToggle
                                 label="¿Es anticipo?"
@@ -2144,26 +2194,87 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">
                                         Instancias cubiertas
                                     </label>
-                                    <div className="max-h-40 overflow-y-auto space-y-2 border border-slate-200 rounded-lg p-3 bg-slate-50">
-                                        {getInstancesSelectableForCxc(editInstallmentModal.cxc.id).map((inst) => (
-                                            <label
-                                                key={inst.id}
-                                                className="flex items-start gap-2 text-sm text-slate-700 cursor-pointer"
-                                            >
-                                                <Input
-                                                    type="checkbox"
-                                                    className="mt-1 w-4 h-4 rounded border-slate-300"
-                                                    checked={editInstallmentInstanceIds.includes(inst.id)}
-                                                    onChange={() => toggleEditInstallmentInstance(inst.id)}
-                                                />
-                                                <span>{inst.label}</span>
-                                            </label>
-                                        ))}
+                                    <div className="max-h-56 overflow-y-auto space-y-2 border border-slate-200 rounded-lg p-3 bg-slate-50">
+                                        {editInstancesByHouse.map((house) => {
+                                            const paymentType = editInstallmentModal.cxc.payment_type;
+                                            const selectableIds = house.instances
+                                                .filter((inst) => isInstanceSelectableForAbono(inst.production_status, paymentType))
+                                                .map((inst) => inst.id);
+                                            const selectedCount = selectableIds.filter((id) =>
+                                                editInstallmentInstanceIds.includes(id),
+                                            ).length;
+                                            const allSelected =
+                                                selectableIds.length > 0 && selectedCount === selectableIds.length;
+                                            const someSelected = selectedCount > 0 && !allSelected;
+                                            const isExpanded = expandedEditHouses.has(house.key);
+                                            return (
+                                                <div key={house.key} className="border border-slate-200 rounded-lg bg-white overflow-hidden">
+                                                    <div className="flex items-center gap-2 px-3 py-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => toggleEditHouse(house.key)}
+                                                            className="p-0.5 text-slate-400 hover:text-slate-600 shrink-0"
+                                                            aria-label={isExpanded ? 'Contraer casa' : 'Expandir casa'}
+                                                        >
+                                                            {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                                                        </button>
+                                                        <label className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
+                                                            <CheckboxInput
+                                                                className="w-4 h-4 rounded border-slate-300 shrink-0"
+                                                                checked={allSelected}
+                                                                indeterminate={someSelected}
+                                                                disabled={selectableIds.length === 0}
+                                                                onChange={() => toggleEditHouseAll(house.instances, paymentType)}
+                                                            />
+                                                            <span className="text-sm font-bold text-slate-700 truncate">
+                                                                {getHouseLabel(house)}
+                                                            </span>
+                                                        </label>
+                                                    </div>
+                                                    {isExpanded && (
+                                                        <div className="border-t border-slate-100 px-3 py-2 space-y-1.5 bg-slate-50/80">
+                                                            {house.instances.map((inst) => {
+                                                                const selectable = isInstanceSelectableForAbono(
+                                                                    inst.production_status,
+                                                                    paymentType,
+                                                                );
+                                                                const displayName = inst.custom_name || inst.label;
+                                                                return (
+                                                                    <label
+                                                                        key={inst.id}
+                                                                        className={`flex items-start gap-2 text-sm ${
+                                                                            selectable
+                                                                                ? 'text-slate-700 cursor-pointer'
+                                                                                : 'text-slate-400 cursor-not-allowed'
+                                                                        }`}
+                                                                        title={selectable ? undefined : 'No está instalada'}
+                                                                    >
+                                                                        <Input
+                                                                            type="checkbox"
+                                                                            className="mt-0.5 w-4 h-4 rounded border-slate-300 shrink-0"
+                                                                            checked={editInstallmentInstanceIds.includes(inst.id)}
+                                                                            disabled={!selectable}
+                                                                            onChange={() => {
+                                                                                if (selectable) toggleEditInstallmentInstance(inst.id);
+                                                                            }}
+                                                                        />
+                                                                        <span className={!selectable ? 'opacity-70' : ''}>
+                                                                            {displayName}
+                                                                        </span>
+                                                                    </label>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             )}
                         </>
-                    )}
+                        );
+                    })()}
                     <div className="flex items-center justify-between gap-4 pt-2">
                         <Button
                             variant="outline"
