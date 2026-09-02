@@ -754,8 +754,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
 
     return (
         <>
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+        <Modal isOpen={isOpen} onClose={onClose} size="fullscreen" className="rounded-2xl overflow-hidden [&>div:first-child]:hidden [&>div:last-child]:p-0">
                 
                 <div className="px-6 py-4 border-b border-slate-700 flex justify-between items-center bg-slate-900 text-white">
                     <div>
@@ -1543,8 +1542,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                     </div>
 
                 </div>
-            </div>
-        </div>
+        </Modal>
         {showAddItems && (
             <AddItemsModal
                 isOpen={showAddItems}
