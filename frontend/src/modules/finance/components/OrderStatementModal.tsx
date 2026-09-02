@@ -608,6 +608,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                 return next;
             });
             await onSuccess();
+            await refreshOrderInPlace();
         } catch (error: any) {
             toast.error(error.response?.data?.detail || 'No se pudo registrar el abono.');
         } finally {
