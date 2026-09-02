@@ -340,6 +340,27 @@ export const salesService = {
         return response.data;
     },
 
+    updateInstallment: async (
+        installmentId: number,
+        payload: {
+            amount?: number;
+            payment_date?: string | null;
+            notes?: string | null;
+            reference?: string | null;
+            instance_ids?: number[];
+        }
+    ) => {
+        const response = await axiosClient.patch(`/sales/installments/${installmentId}`, payload);
+        return response.data;
+    },
+
+    cancelInstallment: async (installmentId: number, cancel_reason: string) => {
+        const response = await axiosClient.patch(`/sales/installments/${installmentId}/cancel`, {
+            cancel_reason,
+        });
+        return response.data;
+    },
+
     /**
      * Camino A: facturas de CxC pendientes (para el selector de Tesorería al registrar un ingreso).
      */

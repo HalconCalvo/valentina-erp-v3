@@ -224,3 +224,17 @@ class CustomerPaymentUpdate(BaseModel):
 class CustomerPaymentCancel(BaseModel):
     """Payload para cancelar una factura/cobro pendiente."""
     cancel_reason: str
+
+
+class InstallmentUpdate(BaseModel):
+    """Campos editables de un abono parcial (PATCH)."""
+    amount: Optional[float] = None
+    payment_date: Optional[datetime] = None
+    reference: Optional[str] = None
+    notes: Optional[str] = None
+    instance_ids: Optional[List[int]] = None
+
+
+class InstallmentCancel(BaseModel):
+    """Payload para cancelar un abono registrado."""
+    cancel_reason: str

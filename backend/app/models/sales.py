@@ -131,6 +131,10 @@ class CustomerPaymentInstallment(SQLModel, table=True):
     notes: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     created_by_user_id: int
+    is_cancelled: bool = Field(default=False)
+    cancel_reason: Optional[str] = None
+    cancelled_at: Optional[datetime] = None
+    bank_transaction_id: Optional[int] = Field(default=None, foreign_key="bank_transactions.id")
 
 # ==========================================
 # 3. MODELO DE INSTANCIAS (NIVEL 3 - EL ÁTOMO)

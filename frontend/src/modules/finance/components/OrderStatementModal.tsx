@@ -211,6 +211,28 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const [loadingBankAccounts, setLoadingBankAccounts] = useState(false);
     const [submittingInstallment, setSubmittingInstallment] = useState(false);
 
+    const [editInstallmentModal, setEditInstallmentModal] = useState<{
+        open: boolean;
+        abono: any | null;
+        cxc: any | null;
+        linkedInstanceIds: number[];
+    }>({ open: false, abono: null, cxc: null, linkedInstanceIds: [] });
+    const [editInstallmentAmount, setEditInstallmentAmount] = useState(0);
+    const [editInstallmentDate, setEditInstallmentDate] = useState('');
+    const [editInstallmentReference, setEditInstallmentReference] = useState('');
+    const [editInstallmentNotes, setEditInstallmentNotes] = useState('');
+    const [editInstallmentInstanceIds, setEditInstallmentInstanceIds] = useState<number[]>([]);
+    const [editInstallmentIsAdvance, setEditInstallmentIsAdvance] = useState(false);
+    const [savingInstallmentEdit, setSavingInstallmentEdit] = useState(false);
+
+    const [cancelInstallmentModal, setCancelInstallmentModal] = useState<{
+        open: boolean;
+        abono: any | null;
+        cxc: any | null;
+    }>({ open: false, abono: null, cxc: null });
+    const [cancelInstallmentReason, setCancelInstallmentReason] = useState('');
+    const [cancellingInstallment, setCancellingInstallment] = useState(false);
+
     // ESCUDO: Aniquilar clones en la lista visual de Rayos X
     const uniqueItems = useMemo(() => {
         if (!localOrder || !localOrder.items) return [];
@@ -238,6 +260,29 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         () => bankAccounts.filter((a) => a.is_active),
         [bankAccounts],
     );
+
+    const getInstancesSelectableForCxc = (cxcId: number) => {
+        const list: { id: number; label: string }[] = [];
+        uniqueItems.forEach((item: any) => {
+            const realInstances = item.instances ? item.instances.slice(0, item.quantity || 1) : [];
+            realInstances.forEach((inst: any) => {
+                if (!inst.customer_payment_id || inst.customer_payment_id === cxcId) {
+                    const house = [inst.street, inst.lot].filter(Boolean).join(' ');
+                    list.push({
+                        id: inst.id,
+                        label: `${item.product_name} — ${inst.custom_name || 'Instancia'}${house ? ` (${house})` : ''}`,
+                    });
+                }
+            });
+        });
+        return list;
+    };
+
+    const reloadInstallmentsForCxc = async (cxcId: number) => {
+        const fresh = await salesService.getInstallments(cxcId);
+        setInstallmentsByInvoice((prev) => ({ ...prev, [cxcId]: fresh }));
+        return fresh;
+    };
 
     // Agrupa TODAS las instancias de la OV por casa (street + lot) para la vista "Por Casa".
     // Cada instancia lleva su product_name (partida), custom_name y estado.
@@ -439,6 +484,82 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
             toast.error(error.response?.data?.detail || 'No se pudo registrar el abono.');
         } finally {
             setSubmittingInstallment(false);
+        }
+    };
+
+    const handleOpenEditInstallment = (abono: any, cxc: any, data: any) => {
+        const linkedIds = Array.isArray(data?.linked_instance_ids) ? data.linked_instance_ids : [];
+        setEditInstallmentModal({ open: true, abono, cxc, linkedInstanceIds: linkedIds });
+        setEditInstallmentAmount(Number(abono.amount || 0));
+        setEditInstallmentDate(abono.payment_date ? abono.payment_date.slice(0, 10) : '');
+        setEditInstallmentReference(abono.reference || '');
+        setEditInstallmentNotes(abono.notes || '');
+        setEditInstallmentInstanceIds([...linkedIds]);
+        setEditInstallmentIsAdvance(cxc.payment_type === 'ADVANCE');
+    };
+
+    const toggleEditInstallmentInstance = (instanceId: number) => {
+        setEditInstallmentInstanceIds((prev) =>
+            prev.includes(instanceId) ? prev.filter((id) => id !== instanceId) : [...prev, instanceId],
+        );
+    };
+
+    const handleSaveEditInstallment = async () => {
+        const { abono, cxc } = editInstallmentModal;
+        if (!abono?.id || !cxc?.id) return;
+        if (editInstallmentAmount <= 0) {
+            toast.warning('El importe del abono debe ser mayor a cero.');
+            return;
+        }
+        setSavingInstallmentEdit(true);
+        try {
+            const payload: {
+                amount: number;
+                payment_date?: string | null;
+                notes?: string | null;
+                reference?: string | null;
+                instance_ids?: number[];
+            } = {
+                amount: editInstallmentAmount,
+                payment_date: editInstallmentDate ? `${editInstallmentDate}T12:00:00` : null,
+                reference: editInstallmentReference.trim() || null,
+                notes: editInstallmentNotes.trim() || null,
+            };
+            if (cxc.payment_type !== 'ADVANCE') {
+                payload.instance_ids = editInstallmentIsAdvance ? [] : editInstallmentInstanceIds;
+            }
+            await salesService.updateInstallment(abono.id, payload);
+            toast.success('Abono actualizado correctamente.');
+            setEditInstallmentModal({ open: false, abono: null, cxc: null, linkedInstanceIds: [] });
+            await reloadInstallmentsForCxc(cxc.id);
+            await onSuccess();
+        } catch (error: any) {
+            toast.error(error.response?.data?.detail || 'No se pudo actualizar el abono.');
+        } finally {
+            setSavingInstallmentEdit(false);
+        }
+    };
+
+    const handleCancelInstallment = async () => {
+        const { abono, cxc } = cancelInstallmentModal;
+        if (!abono?.id || !cxc?.id) return;
+        const reason = cancelInstallmentReason.trim();
+        if (!reason) {
+            toast.warning('El motivo de cancelación es obligatorio.');
+            return;
+        }
+        setCancellingInstallment(true);
+        try {
+            await salesService.cancelInstallment(abono.id, reason);
+            toast.success('Abono cancelado correctamente.');
+            setCancelInstallmentModal({ open: false, abono: null, cxc: null });
+            setCancelInstallmentReason('');
+            await reloadInstallmentsForCxc(cxc.id);
+            await onSuccess();
+        } catch (error: any) {
+            toast.error(error.response?.data?.detail || 'No se pudo cancelar el abono.');
+        } finally {
+            setCancellingInstallment(false);
         }
     };
 
@@ -1220,7 +1341,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                         key: 'payment_date',
                                                         label: 'Fecha',
                                                         render: (ab) => (
-                                                            <span className="text-slate-600 whitespace-nowrap">
+                                                            <span className={`text-slate-600 whitespace-nowrap ${ab.is_cancelled ? 'line-through opacity-60' : ''}`}>
                                                                 {ab.payment_date ? formatDate(ab.payment_date) : '—'}
                                                             </span>
                                                         ),
@@ -1229,7 +1350,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                         key: 'amount',
                                                         label: 'Monto',
                                                         render: (ab) => (
-                                                            <span className="block text-right font-bold text-slate-800">
+                                                            <span className={`block text-right font-bold text-slate-800 ${ab.is_cancelled ? 'line-through opacity-60' : ''}`}>
                                                                 {formatCurrency(Number(ab.amount || 0))}
                                                             </span>
                                                         ),
@@ -1238,15 +1359,61 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                         key: 'notes',
                                                         label: 'Concepto',
                                                         render: (ab) => (
-                                                            <span className="text-slate-600">{ab.notes || '—'}</span>
+                                                            <span className={`text-slate-600 ${ab.is_cancelled ? 'line-through opacity-60' : ''}`}>{ab.notes || '—'}</span>
                                                         ),
                                                     },
                                                     {
                                                         key: 'reference',
                                                         label: 'Referencia',
                                                         render: (ab) => (
-                                                            <span className="text-slate-500 font-mono">{ab.reference || '—'}</span>
+                                                            <span className={`text-slate-500 font-mono ${ab.is_cancelled ? 'line-through opacity-60' : ''}`}>{ab.reference || '—'}</span>
                                                         ),
+                                                    },
+                                                    {
+                                                        key: 'status',
+                                                        label: '',
+                                                        width: '110px',
+                                                        render: (ab) => {
+                                                            if (ab.is_cancelled) {
+                                                                return (
+                                                                    <span className="inline-flex text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200">
+                                                                        CANCELADO
+                                                                    </span>
+                                                                );
+                                                            }
+                                                            return null;
+                                                        },
+                                                    },
+                                                    {
+                                                        key: 'actions',
+                                                        label: '',
+                                                        width: '4rem',
+                                                        render: (ab) => {
+                                                            if (ab.is_cancelled || !canRegisterInstallment) return null;
+                                                            return (
+                                                                <div className="flex items-center justify-end gap-1.5">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleOpenEditInstallment(ab, cxc, data)}
+                                                                        className="text-slate-400 hover:text-indigo-600"
+                                                                        title="Editar abono"
+                                                                    >
+                                                                        <Pencil size={15} />
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setCancelInstallmentReason('');
+                                                                            setCancelInstallmentModal({ open: true, abono: ab, cxc });
+                                                                        }}
+                                                                        className="text-slate-400 hover:text-rose-600"
+                                                                        title="Cancelar abono"
+                                                                    >
+                                                                        <XCircle size={15} />
+                                                                    </button>
+                                                                </div>
+                                                            );
+                                                        },
                                                     },
                                                 ];
                                                 return (
@@ -1760,6 +1927,164 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                             className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
                         >
                             {submittingInstallment ? 'Registrando…' : 'Confirmar abono'}
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
+        )}
+        {editInstallmentModal.open && editInstallmentModal.abono && editInstallmentModal.cxc && (
+            <Modal
+                isOpen={editInstallmentModal.open}
+                onClose={() => {
+                    if (savingInstallmentEdit) return;
+                    setEditInstallmentModal({ open: false, abono: null, cxc: null, linkedInstanceIds: [] });
+                }}
+                title="Editar Abono"
+                size="md"
+            >
+                <div className="flex flex-col gap-4">
+                    <VCurrencyInput
+                        label="Importe del abono *"
+                        value={editInstallmentAmount}
+                        onChange={setEditInstallmentAmount}
+                        min={0.01}
+                    />
+                    <div>
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                            Fecha *
+                        </label>
+                        <Input
+                            type="date"
+                            value={editInstallmentDate}
+                            onChange={(e) => setEditInstallmentDate(e.target.value)}
+                        />
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                            Referencia
+                        </label>
+                        <Input
+                            type="text"
+                            value={editInstallmentReference}
+                            onChange={(e) => setEditInstallmentReference(e.target.value)}
+                        />
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                            Notas
+                        </label>
+                        <Input
+                            type="text"
+                            value={editInstallmentNotes}
+                            onChange={(e) => setEditInstallmentNotes(e.target.value)}
+                        />
+                    </div>
+                    {editInstallmentModal.cxc.payment_type !== 'ADVANCE' && getInstancesSelectableForCxc(editInstallmentModal.cxc.id).length > 0 && (
+                        <>
+                            <VToggle
+                                label="¿Es anticipo?"
+                                checked={editInstallmentIsAdvance}
+                                onCheckedChange={(checked) => {
+                                    setEditInstallmentIsAdvance(checked);
+                                    if (checked) {
+                                        setEditInstallmentInstanceIds([]);
+                                    } else {
+                                        setEditInstallmentInstanceIds([...editInstallmentModal.linkedInstanceIds]);
+                                    }
+                                }}
+                            />
+                            {!editInstallmentIsAdvance && (
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">
+                                        Instancias cubiertas
+                                    </label>
+                                    <div className="max-h-40 overflow-y-auto space-y-2 border border-slate-200 rounded-lg p-3 bg-slate-50">
+                                        {getInstancesSelectableForCxc(editInstallmentModal.cxc.id).map((inst) => (
+                                            <label
+                                                key={inst.id}
+                                                className="flex items-start gap-2 text-sm text-slate-700 cursor-pointer"
+                                            >
+                                                <Input
+                                                    type="checkbox"
+                                                    className="mt-1 w-4 h-4 rounded border-slate-300"
+                                                    checked={editInstallmentInstanceIds.includes(inst.id)}
+                                                    onChange={() => toggleEditInstallmentInstance(inst.id)}
+                                                />
+                                                <span>{inst.label}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    )}
+                    <div className="flex items-center justify-between gap-4 pt-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => setEditInstallmentModal({ open: false, abono: null, cxc: null, linkedInstanceIds: [] })}
+                            disabled={savingInstallmentEdit}
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            onClick={() => void handleSaveEditInstallment()}
+                            disabled={savingInstallmentEdit}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+                        >
+                            {savingInstallmentEdit ? 'Guardando…' : 'Guardar cambios'}
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
+        )}
+        {cancelInstallmentModal.open && cancelInstallmentModal.abono && cancelInstallmentModal.cxc && (
+            <Modal
+                isOpen={cancelInstallmentModal.open}
+                onClose={() => {
+                    if (cancellingInstallment) return;
+                    setCancelInstallmentModal({ open: false, abono: null, cxc: null });
+                    setCancelInstallmentReason('');
+                }}
+                title="Cancelar Abono"
+                size="sm"
+            >
+                <div className="flex flex-col gap-4">
+                    <p className="text-sm text-slate-600 leading-relaxed">
+                        Esta acción cancela el abono y revierte el saldo en banco e instancias vinculadas.
+                    </p>
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        Se revertirá el monto de {formatCurrency(Number(cancelInstallmentModal.abono.amount || 0))} en la factura
+                        {cancelInstallmentModal.cxc.status === 'PAID' ? ' y la factura regresará a PENDING.' : '.'}
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                            Motivo de cancelación *
+                        </label>
+                        <Input
+                            type="text"
+                            autoFocus
+                            placeholder="Describe el motivo..."
+                            value={cancelInstallmentReason}
+                            onChange={(e) => setCancelInstallmentReason(e.target.value)}
+                        />
+                    </div>
+                    <div className="flex items-center justify-between gap-4 pt-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setCancelInstallmentModal({ open: false, abono: null, cxc: null });
+                                setCancelInstallmentReason('');
+                            }}
+                            disabled={cancellingInstallment}
+                        >
+                            Volver
+                        </Button>
+                        <Button
+                            onClick={() => void handleCancelInstallment()}
+                            disabled={cancellingInstallment}
+                            className="bg-red-600 hover:bg-red-700 text-white font-bold"
+                        >
+                            {cancellingInstallment ? 'Procesando…' : 'Confirmar cancelación'}
                         </Button>
                     </div>
                 </div>

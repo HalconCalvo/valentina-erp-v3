@@ -152,7 +152,8 @@ def _aplicar_abono_a_factura(session, cxc_id, monto, bank_tx, current_user):
 
     abonado_antes = session.exec(
         select(func.coalesce(func.sum(CustomerPaymentInstallment.amount), 0.0)).where(
-            CustomerPaymentInstallment.customer_payment_id == cxc.id
+            CustomerPaymentInstallment.customer_payment_id == cxc.id,
+            CustomerPaymentInstallment.is_cancelled == False,  # noqa: E712
         )
     ).one()
     abonado_antes = round(float(abonado_antes or 0.0), 2)
@@ -168,6 +169,8 @@ def _aplicar_abono_a_factura(session, cxc_id, monto, bank_tx, current_user):
         created_by_user_id=current_user.id if hasattr(current_user, 'id') else 0,
     )
     session.add(inst)
+    session.flush()
+    inst.bank_transaction_id = bank_tx.id
 
     # Ligar la factura al movimiento bancario si aún no tiene uno (rastreabilidad)
     if getattr(cxc, 'treasury_transaction_id', None) is None:
