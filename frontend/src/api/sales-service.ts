@@ -80,7 +80,7 @@ export const salesService = {
      */
     getOrderDetail: async (orderId: number): Promise<SalesOrder> => {
         const url = API_ROUTES.SALES.ORDER_DETAIL(orderId);
-        const response = await axiosClient.get(url);
+        const response = await axiosClient.get(url, { params: { t: Date.now() } });
         return response.data;
     },
 

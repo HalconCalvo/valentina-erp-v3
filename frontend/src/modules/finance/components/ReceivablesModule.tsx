@@ -394,7 +394,7 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
             )}
 
             {selectedOrderForStatement && (
-                <OrderStatementModal isOpen={isStatementModalOpen} onClose={() => setIsStatementModalOpen(false)} order={selectedOrderForStatement} onSuccess={loadSalesData} onOpenInvoiceModal={(orderToInvoice) => { setSelectedOrderForCharge(orderToInvoice); setIsChargeModalOpen(true); }} />
+                <OrderStatementModal isOpen={isStatementModalOpen} onClose={() => setIsStatementModalOpen(false)} order={selectedOrderForStatement} onSuccess={loadSalesData} onOrderPatch={(patch) => { if (selectedOrderForStatement && (patch as SalesOrder).items) setSelectedOrderForStatement(patch as SalesOrder); }} onOpenInvoiceModal={(orderToInvoice) => { setSelectedOrderForCharge(orderToInvoice); setIsChargeModalOpen(true); }} />
             )}
             {selectedOrderForCharge && hasAbsolutePower && (
                 <ReceivableChargeModal isOpen={isChargeModalOpen} onClose={() => setIsChargeModalOpen(false)} order={selectedOrderForCharge} onSuccess={() => { loadSalesData(); setIsChargeModalOpen(false); }} />

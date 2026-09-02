@@ -195,7 +195,14 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const [addingInstanceId, setAddingInstanceId] = useState<number | null>(null);
     const [localOrder, setLocalOrder] = useState<SalesOrder>(order);
     const [deliverablesTab, setDeliverablesTab] = useState<'instancia' | 'casa'>('instancia');
-    useEffect(() => { setLocalOrder(order); }, [order]);
+    const prevIsOpenRef = useRef(false);
+    useEffect(() => {
+        const justOpened = isOpen && !prevIsOpenRef.current;
+        if (justOpened || order?.id !== localOrder?.id) {
+            setLocalOrder(order);
+        }
+        prevIsOpenRef.current = isOpen;
+    }, [isOpen, order, order?.id, localOrder?.id]);
     const [editingAdvance, setEditingAdvance] = useState(false);
     const [advanceDraft, setAdvanceDraft] = useState<string>('');
     const [savingAdvance, setSavingAdvance] = useState(false);
@@ -607,8 +614,8 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                 delete next[cxc.id];
                 return next;
             });
-            await onSuccess();
             await refreshOrderInPlace();
+            await onSuccess();
         } catch (error: any) {
             toast.error(error.response?.data?.detail || 'No se pudo registrar el abono.');
         } finally {
@@ -866,7 +873,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
             const fresh = await salesService.getOrderDetail((order as any).id);
             setLocalOrder(fresh as SalesOrder);
             if (onOrderPatch) onOrderPatch(fresh as Partial<SalesOrder>);
-        } catch (e) {
+        } catch {
             if (onOrderPatch) onOrderPatch({} as Partial<SalesOrder>);
         }
     };
