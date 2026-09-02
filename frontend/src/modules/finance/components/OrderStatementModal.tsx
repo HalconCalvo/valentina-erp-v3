@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Receipt, CheckCircle, Clock, FileText, Package, AlertCircle, PieChart, Users, Coins, Pencil, Plus, Trash2, Check, XCircle } from 'lucide-react';
+import { X, Receipt, CheckCircle, Clock, FileText, Package, AlertCircle, PieChart, Users, Coins, Pencil, Plus, PlusCircle, Trash2, Check, XCircle } from 'lucide-react';
 import { SalesOrder } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
 import axiosClient from '../../../api/axios-client';
@@ -1052,7 +1052,6 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                         render: (cxc: any) => {
                                             const isFacturaPagada = cxc.status === 'PAID';
                                             const isFacturaCancelada = cxc.status === 'CANCELLED';
-                                            const isExpanded = expandedInvoiceId === cxc.id;
                                             return (
                                                 <span className="block text-right">
                                                     {isFacturaPagada ? (
@@ -1064,27 +1063,25 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                             CANCELADA
                                                         </span>
                                                     ) : (
-                                                        <div className="flex flex-col items-end gap-1.5">
+                                                        <div className="inline-flex items-center justify-end gap-1">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => toggleInvoicePanel(cxc.id)}
+                                                                title="Ver abonos"
+                                                                className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                                                            >
+                                                                <Receipt size={16} />
+                                                            </button>
                                                             {canRegisterInstallment && (
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => void handleOpenInstallmentModal(cxc)}
-                                                                    className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors shadow-sm bg-emerald-600 hover:bg-emerald-700 text-white"
+                                                                    title="Registrar Abono"
+                                                                    className="p-1 rounded hover:bg-slate-100 text-emerald-500 hover:text-emerald-700 transition-colors"
                                                                 >
-                                                                    <Plus size={14} /> Registrar Abono
+                                                                    <PlusCircle size={16} />
                                                                 </button>
                                                             )}
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => toggleInvoicePanel(cxc.id)}
-                                                                className={`inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors shadow-sm ${
-                                                                    isExpanded
-                                                                        ? 'bg-slate-600 hover:bg-slate-700 text-white'
-                                                                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
-                                                                }`}
-                                                            >
-                                                                <Receipt size={14} /> {isExpanded ? 'Cerrar' : 'Ver abonos'}
-                                                            </button>
                                                         </div>
                                                     )}
                                                 </span>
@@ -1527,10 +1524,11 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                           <div key={mueble.id} className="py-2 px-4 flex justify-between items-center hover:bg-slate-50 text-sm">
                                             <span className="font-bold text-slate-700">{mueble.product_name}</span>
                                             <div className="flex items-center gap-2 shrink-0">
-                                              {mueble.customer_payment_id && (
+                                              {mueble.customer_payment_id ? (
                                                 <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-100">FACTURADO</span>
+                                              ) : (
+                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${meta.cls}`}>{meta.label}</span>
                                               )}
-                                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${meta.cls}`}>{meta.label}</span>
                                             </div>
                                           </div>
                                         );

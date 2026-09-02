@@ -1721,3 +1721,28 @@ useSales.ts, useClients.ts — limpieza en sesión dedicada.
 3. 10 OCs sin factura — esperando folios
 4. Menús SALES, PRODUCTION, LOGISTICS, WAREHOUSE
 5. Limpieza console.log/error/warn
+
+---
+## SESIÓN 2026-09-01 (cierre) — Abonos, OVs y limpieza bancaria
+### Completado:
+**Flujo de abonos desde Rayos X:**
+- Toggle "¿Es anticipo?" — oculta instancias cuando está activo
+- VToggle.tsx creado como nuevo componente de la librería V
+- Commit: 627196d
+
+**OV-0025 y OV-0026 — limpieza y reregistro:**
+- Facturas al 100% emitidas correctamente (412 y 413)
+- Anticipos y abonos por avances registrados
+- Movimientos bancarios duplicados eliminados (ids 492, 493, 494, 495)
+- Saldo Santander ajustado a $213,363.39
+
+**Fix enum paymenttype:**
+- FULL agregado al enum PostgreSQL en producción
+- Migración s5m6n7o8p9q0 creada para documentarlo
+
+### Pendientes para próxima sesión:
+1. commercial_description en PDF — diagnóstico pendiente
+2. 10 OCs sin factura — esperando folios de proveedores
+3. Menús SALES, PRODUCTION, LOGISTICS, WAREHOUSE
+4. Limpieza console.log/error/warn
+5. Scripts sueltos en raíz: mover a scripts/
