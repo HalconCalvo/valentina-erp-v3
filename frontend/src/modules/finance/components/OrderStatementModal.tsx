@@ -1014,7 +1014,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                         key: 'amount',
                                         label: 'Importe',
                                         render: (cxc: any) => (
-                                            <span className="block text-right font-black text-slate-800">
+                                            <span className="block text-right text-sm font-black text-slate-800">
                                                 {formatCurrency(Number(cxc.amount))}
                                             </span>
                                         ),
@@ -1066,19 +1066,17 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                             <button
                                                                 type="button"
                                                                 onClick={() => toggleInvoicePanel(cxc.id)}
-                                                                title="Ver abonos"
-                                                                className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                                                                className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors"
                                                             >
-                                                                <Receipt size={16} />
+                                                                <Receipt size={14} /> Ver Abonos
                                                             </button>
                                                             {canRegisterInstallment && (
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => void handleOpenInstallmentModal(cxc)}
-                                                                    title="Registrar Abono"
-                                                                    className="p-1 rounded hover:bg-slate-100 text-emerald-500 hover:text-emerald-700 transition-colors"
+                                                                    className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors"
                                                                 >
-                                                                    <PlusCircle size={16} />
+                                                                    <PlusCircle size={14} /> Abono
                                                                 </button>
                                                             )}
                                                         </div>
