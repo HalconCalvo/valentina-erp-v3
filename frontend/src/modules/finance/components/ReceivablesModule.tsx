@@ -109,12 +109,14 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
     }, []);
 
     // ---> EL PUENTE DE COMUNICACIÓN (Sincroniza Rayos X en tiempo real) <---
+    // No pisar la OV seleccionada mientras Rayos X está abierto: el detalle fresco
+    // vive en localOrder/onOrderPatch; el listado puede ir un tick detrás tras un abono.
     useEffect(() => {
-        if (selectedOrderForStatement) {
+        if (selectedOrderForStatement && !isStatementModalOpen) {
             const freshOrder = orders.find(o => o.id === selectedOrderForStatement.id);
             if (freshOrder) setSelectedOrderForStatement(freshOrder);
         }
-    }, [orders]);
+    }, [orders, isStatementModalOpen]);
 
     const toggleOrder = (id: number) => setExpandedOrderIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 

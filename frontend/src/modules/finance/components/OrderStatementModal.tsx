@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Receipt, CheckCircle, Clock, FileText, Package, AlertCircle, PieChart, Users, Coins, Pencil, Plus, PlusCircle, Trash2, Check, XCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import { SalesOrder } from '../../../types/sales';
@@ -196,13 +196,28 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const [localOrder, setLocalOrder] = useState<SalesOrder>(order);
     const [deliverablesTab, setDeliverablesTab] = useState<'instancia' | 'casa'>('instancia');
     const prevIsOpenRef = useRef(false);
+
+    const refreshOrderInPlace = useCallback(async () => {
+        const orderId = order?.id ?? localOrder?.id;
+        if (!orderId) return;
+        try {
+            const fresh = await salesService.getOrderDetail(orderId);
+            setLocalOrder(fresh as SalesOrder);
+            if (onOrderPatch) onOrderPatch(fresh as Partial<SalesOrder>);
+        } catch {
+            // Mantener localOrder actual si falla el detalle
+        }
+    }, [order?.id, localOrder?.id, onOrderPatch]);
+
     useEffect(() => {
         const justOpened = isOpen && !prevIsOpenRef.current;
-        if (justOpened || order?.id !== localOrder?.id) {
+        if (justOpened && order?.id) {
+            void refreshOrderInPlace();
+        } else if (!justOpened && order?.id != null && order.id !== localOrder?.id) {
             setLocalOrder(order);
         }
         prevIsOpenRef.current = isOpen;
-    }, [isOpen, order, order?.id, localOrder?.id]);
+    }, [isOpen, order, order?.id, localOrder?.id, refreshOrderInPlace]);
     const [editingAdvance, setEditingAdvance] = useState(false);
     const [advanceDraft, setAdvanceDraft] = useState<string>('');
     const [savingAdvance, setSavingAdvance] = useState(false);
@@ -280,13 +295,22 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         return Array.from(new Map(localOrder.items.map(item => [item.id, item])).values());
     }, [localOrder]);
 
+    const linkedInstanceIdsForInstallmentCxc = useMemo(() => {
+        const cxcId = installmentModal.cxc?.id;
+        if (!cxcId) return new Set<number>();
+        const linked = installmentsByInvoice[cxcId]?.linked_instance_ids;
+        return new Set(Array.isArray(linked) ? linked : []);
+    }, [installmentModal.cxc?.id, installmentsByInvoice]);
+
     const unlinkedInstancesByHouse = useMemo(() => {
         const map = new Map<string, UnlinkedHouseGroup>();
         const UNASSIGNED = '__unassigned__';
         uniqueItems.forEach((item: any) => {
             const realInstances = item.instances ? item.instances.slice(0, item.quantity || 1) : [];
             realInstances.forEach((inst: any) => {
-                if (!inst.customer_payment_id) {
+                const isLinked =
+                    !!inst.customer_payment_id || linkedInstanceIdsForInstallmentCxc.has(inst.id);
+                if (!isLinked) {
                     const hasCasa = inst.street || inst.lot;
                     const key = hasCasa ? `${inst.street ?? ''}||${inst.lot ?? ''}` : UNASSIGNED;
                     if (!map.has(key)) {
@@ -313,7 +337,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
             return (a.street + a.lot).localeCompare(b.street + b.lot);
         });
         return groups;
-    }, [uniqueItems]);
+    }, [uniqueItems, linkedInstanceIdsForInstallmentCxc]);
 
     const unlinkedInstancesCount = useMemo(
         () => unlinkedInstancesByHouse.reduce((sum, house) => sum + house.instances.length, 0),
@@ -494,6 +518,8 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         setInstallmentIsAdvance(false);
         setExpandedHouses(new Set());
         setInstallmentDate(new Date().toISOString().slice(0, 10));
+
+        await refreshOrderInPlace();
 
         let saldo = Number(cxc.amount || 0);
         try {
@@ -865,16 +891,6 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         } finally {
             setCancelling(false);
             setPendingConfirm(null);
-        }
-    };
-
-    const refreshOrderInPlace = async () => {
-        try {
-            const fresh = await salesService.getOrderDetail((order as any).id);
-            setLocalOrder(fresh as SalesOrder);
-            if (onOrderPatch) onOrderPatch(fresh as Partial<SalesOrder>);
-        } catch {
-            if (onOrderPatch) onOrderPatch({} as Partial<SalesOrder>);
         }
     };
 
