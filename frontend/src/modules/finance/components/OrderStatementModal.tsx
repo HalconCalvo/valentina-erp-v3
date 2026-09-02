@@ -982,6 +982,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                     {
                                         key: 'payment_type',
                                         label: 'Tipo',
+                                        width: '90px',
                                         render: (cxc: any) => (
                                             <span
                                                 className={`px-2 py-0.5 text-[10px] font-black rounded uppercase tracking-wider ${
@@ -997,6 +998,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                     {
                                         key: 'invoice_folio',
                                         label: 'Folio',
+                                        width: '100px',
                                         render: (cxc: any) => (
                                             <span className="font-bold text-slate-800">{cxc.invoice_folio || 'S/F'}</span>
                                         ),
@@ -1004,6 +1006,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                     {
                                         key: 'invoice_date',
                                         label: 'Fecha factura',
+                                        width: '130px',
                                         render: (cxc: any) => (
                                             <span className="text-slate-600 whitespace-nowrap">
                                                 {formatDate(cxc.invoice_date || cxc.created_at || new Date().toISOString())}
@@ -1013,6 +1016,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                     {
                                         key: 'amount',
                                         label: 'Importe',
+                                        width: '130px',
                                         render: (cxc: any) => (
                                             <span className="block text-right text-sm font-black text-slate-800">
                                                 {formatCurrency(Number(cxc.amount))}
@@ -1022,6 +1026,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                     {
                                         key: 'days_open',
                                         label: 'Días',
+                                        width: '60px',
                                         render: (cxc: any) => {
                                             const daysOpen = daysOpenForCxc(cxc);
                                             return (
@@ -1048,6 +1053,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                     {
                                         key: 'cobro',
                                         label: 'Cobro',
+                                        width: '220px',
                                         render: (cxc: any) => {
                                             const isFacturaPagada = cxc.status === 'PAID';
                                             const isFacturaCancelada = cxc.status === 'CANCELLED';
@@ -1088,6 +1094,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                     {
                                         key: 'commission',
                                         label: 'Comisión',
+                                        width: '100px',
                                         render: (cxc: any) => {
                                             const commRow = commissionByPaymentId[cxc.id];
                                             const isCommissionPaid = commRow
