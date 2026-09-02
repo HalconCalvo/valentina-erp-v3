@@ -350,29 +350,51 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     );
 
     const getInstancesByHouseForCxc = (cxcId: number): UnlinkedHouseGroup[] => {
+        const linkedForThisCxc = new Set<number>(
+            Array.isArray(installmentsByInvoice[cxcId]?.linked_instance_ids)
+                ? installmentsByInvoice[cxcId].linked_instance_ids
+                : [],
+        );
+        const linkedToOtherCxcs = new Set<number>();
+        Object.entries(installmentsByInvoice).forEach(([id, data]) => {
+            if (Number(id) === cxcId) return;
+            const ids = data?.linked_instance_ids;
+            if (Array.isArray(ids)) ids.forEach((i) => linkedToOtherCxcs.add(i));
+        });
+
         const map = new Map<string, UnlinkedHouseGroup>();
         const UNASSIGNED = '__unassigned__';
         uniqueItems.forEach((item: any) => {
             const realInstances = item.instances ? item.instances.slice(0, item.quantity || 1) : [];
             realInstances.forEach((inst: any) => {
-                if (!inst.customer_payment_id || inst.customer_payment_id === cxcId) {
-                    const hasCasa = inst.street || inst.lot;
-                    const key = hasCasa ? `${inst.street ?? ''}||${inst.lot ?? ''}` : UNASSIGNED;
-                    if (!map.has(key)) {
-                        map.set(key, {
-                            street: inst.street ?? '',
-                            lot: inst.lot ?? '',
-                            key,
-                            instances: [],
-                        });
-                    }
-                    map.get(key)!.instances.push({
-                        id: inst.id,
-                        label: inst.custom_name || 'Instancia',
-                        custom_name: inst.custom_name,
-                        production_status: inst.production_status || 'PENDING',
+                const paymentId = inst.customer_payment_id;
+                const linkedToThisCxc =
+                    paymentId === cxcId || (paymentId == null && linkedForThisCxc.has(inst.id));
+                const linkedToOtherCxc =
+                    (paymentId != null && paymentId !== cxcId)
+                    || (paymentId == null && linkedToOtherCxcs.has(inst.id) && !linkedToThisCxc);
+                if (linkedToOtherCxc) return;
+
+                const isAvailable =
+                    paymentId == null || paymentId === cxcId || linkedForThisCxc.has(inst.id);
+                if (!isAvailable) return;
+
+                const hasCasa = inst.street || inst.lot;
+                const key = hasCasa ? `${inst.street ?? ''}||${inst.lot ?? ''}` : UNASSIGNED;
+                if (!map.has(key)) {
+                    map.set(key, {
+                        street: inst.street ?? '',
+                        lot: inst.lot ?? '',
+                        key,
+                        instances: [],
                     });
                 }
+                map.get(key)!.instances.push({
+                    id: inst.id,
+                    label: inst.custom_name || 'Instancia',
+                    custom_name: inst.custom_name,
+                    production_status: inst.production_status || 'PENDING',
+                });
             });
         });
         const groups = Array.from(map.values());
@@ -383,6 +405,11 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         });
         return groups;
     };
+
+    const editInstancesByHouse = useMemo(
+        () => (editInstallmentModal.cxc?.id ? getInstancesByHouseForCxc(editInstallmentModal.cxc.id) : []),
+        [editInstallmentModal.cxc?.id, uniqueItems, installmentsByInvoice],
+    );
 
     const reloadInstallmentsForCxc = async (cxcId: number) => {
         const fresh = await salesService.getInstallments(cxcId);
@@ -649,16 +676,27 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         }
     };
 
-    const handleOpenEditInstallment = (abono: any, cxc: any, data: any) => {
-        const linkedIds = Array.isArray(data?.linked_instance_ids) ? data.linked_instance_ids : [];
-        setEditInstallmentModal({ open: true, abono, cxc, linkedInstanceIds: linkedIds });
+    const handleOpenEditInstallment = async (abono: any, cxc: any, data: any) => {
         setEditInstallmentAmount(Number(abono.amount || 0));
         setEditInstallmentDate(abono.payment_date ? abono.payment_date.slice(0, 10) : '');
         setEditInstallmentReference(abono.reference || '');
         setEditInstallmentNotes(abono.notes || '');
-        setEditInstallmentInstanceIds([...linkedIds]);
+        setEditInstallmentInstanceIds([]);
         setEditInstallmentIsAdvance(cxc.payment_type === 'ADVANCE');
         setExpandedEditHouses(new Set());
+        setEditInstallmentModal({ open: true, abono, cxc, linkedInstanceIds: [] });
+
+        await refreshOrderInPlace();
+
+        let linkedIds: number[] = Array.isArray(data?.linked_instance_ids) ? data.linked_instance_ids : [];
+        try {
+            const freshData = await reloadInstallmentsForCxc(cxc.id);
+            linkedIds = Array.isArray(freshData?.linked_instance_ids) ? freshData.linked_instance_ids : linkedIds;
+        } catch {
+            // Mantener linkedIds del data recibido
+        }
+        setEditInstallmentModal({ open: true, abono, cxc, linkedInstanceIds: linkedIds });
+        setEditInstallmentInstanceIds([...linkedIds]);
     };
 
     const toggleEditInstallmentInstance = (instanceId: number) => {
@@ -695,6 +733,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
             toast.success('Abono actualizado correctamente.');
             setEditInstallmentModal({ open: false, abono: null, cxc: null, linkedInstanceIds: [] });
             await reloadInstallmentsForCxc(cxc.id);
+            await refreshOrderInPlace();
             await onSuccess();
         } catch (error: any) {
             toast.error(error.response?.data?.detail || 'No se pudo actualizar el abono.');
@@ -1547,7 +1586,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                                 <div className="flex items-center justify-end gap-1.5">
                                                                     <button
                                                                         type="button"
-                                                                        onClick={() => handleOpenEditInstallment(ab, cxc, data)}
+                                                                        onClick={() => void handleOpenEditInstallment(ab, cxc, data)}
                                                                         className="text-slate-400 hover:text-indigo-600"
                                                                         title="Editar abono"
                                                                     >
@@ -2193,7 +2232,6 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                         />
                     </div>
                     {editInstallmentModal.cxc.payment_type !== 'ADVANCE' && (() => {
-                        const editInstancesByHouse = getInstancesByHouseForCxc(editInstallmentModal.cxc.id);
                         const editInstancesCount = editInstancesByHouse.reduce(
                             (sum, house) => sum + house.instances.length,
                             0,
