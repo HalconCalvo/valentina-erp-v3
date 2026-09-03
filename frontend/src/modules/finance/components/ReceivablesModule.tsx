@@ -35,7 +35,8 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
 }) => {
     const navigate = useNavigate();
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase().trim();
-    const hasAbsolutePower = ['ADMIN', 'ADMINISTRADOR', 'ADMINISTRACIÓN', 'ADMINISTRATION', 'FINANCE', 'FINANZAS', 'DIRECTOR', 'MANAGER'].includes(userRole);
+    const canViewRayosX = ['ADMIN', 'DIRECTOR', 'MANAGER'].includes(userRole);
+    const hasAbsolutePower = ['DIRECTOR', 'MANAGER'].includes(userRole);
 
     const [orders, setOrders] = useState<SalesOrder[]>([]);
     const [invoicingRights, setInvoicingRights] = useState<InvoicingRightsRead | null>(null);
@@ -378,7 +379,7 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
                                                                 </p>
                                                             </div>
                                                         </div>
-                                                        {hasAbsolutePower && (
+                                                        {canViewRayosX && (
                                                             <button onClick={(e) => { e.stopPropagation(); setSelectedOrderForStatement(order); setIsStatementModalOpen(true); }} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 text-sm font-black rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2 transform hover:-translate-y-0.5">
                                                                 <FileSearch size={18} /> Ver Rayos X y Cobrar
                                                             </button>
@@ -396,7 +397,7 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
             )}
 
             {selectedOrderForStatement && (
-                <OrderStatementModal isOpen={isStatementModalOpen} onClose={() => setIsStatementModalOpen(false)} order={selectedOrderForStatement} onSuccess={loadSalesData} onOrderPatch={(patch) => { if (selectedOrderForStatement && (patch as SalesOrder).items) setSelectedOrderForStatement(patch as SalesOrder); }} onOpenInvoiceModal={(orderToInvoice) => { setSelectedOrderForCharge(orderToInvoice); setIsChargeModalOpen(true); }} />
+                <OrderStatementModal isOpen={isStatementModalOpen} onClose={() => setIsStatementModalOpen(false)} order={selectedOrderForStatement} onSuccess={loadSalesData} onOrderPatch={(patch) => { if (selectedOrderForStatement && (patch as SalesOrder).items) setSelectedOrderForStatement(patch as SalesOrder); }} onOpenInvoiceModal={(orderToInvoice) => { setSelectedOrderForCharge(orderToInvoice); setIsChargeModalOpen(true); }} readOnly={!hasAbsolutePower} />
             )}
             {selectedOrderForCharge && hasAbsolutePower && (
                 <ReceivableChargeModal isOpen={isChargeModalOpen} onClose={() => setIsChargeModalOpen(false)} order={selectedOrderForCharge} onSuccess={() => { loadSalesData(); setIsChargeModalOpen(false); }} />
