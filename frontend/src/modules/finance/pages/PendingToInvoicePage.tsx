@@ -1,14 +1,13 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Unlock, Lock, Search, Factory, FileSearch, Users, ArrowUpDown, ArrowUp, ArrowDown, CheckCircle2, FilePlus, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Unlock, Lock, Search, Factory, FileSearch, Users, CheckCircle2, FilePlus, RefreshCw } from 'lucide-react';
 import { salesService } from '../../../api/sales-service';
 import { SalesOrder, PendingProgressInstance, InvoicingRightsRead, InvoicingRightAdvanceRow } from '../../../types/sales';
 import { OrderStatementModal } from '../components/OrderStatementModal';
 import { ReceivableChargeModal } from '../components/ReceivableChargeModal';
 import { toast } from '@/components/ui/VToast';
-
-type VendorSortField = 'TYPE' | 'FOLIO' | 'CLIENT' | 'PROJECT' | 'AMOUNT';
-type SortDirection = 'asc' | 'desc';
+import { Input } from '@/components/ui/Input';
+import { VTable, type VTableColumn } from '@/components/ui/VTable';
 
 type VendorRightRow =
     | { kind: 'ADVANCE'; order_id: number; folio: string; client: string; project: string; detail: string; amount: number }
@@ -20,14 +19,12 @@ const PendingToInvoicePage = () => {
     const returnTo: string = (location.state as any)?.returnTo ?? '/treasury';
 
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase().trim();
-    const hasAbsolutePower = ['ADMIN', 'ADMINISTRADOR', 'ADMINISTRACIÓN', 'ADMINISTRATION', 'FINANCE', 'FINANZAS', 'DIRECTOR', 'MANAGER'].includes(userRole);
+    const canView = ['ADMIN', 'ADMINISTRADOR', 'ADMINISTRACIÓN', 'ADMINISTRATION', 'FINANCE', 'FINANZAS', 'DIRECTOR', 'MANAGER'].includes(userRole);
+    const hasAbsolutePower = ['DIRECTOR', 'MANAGER'].includes(userRole);
 
     const [invoicingRights, setInvoicingRights] = useState<InvoicingRightsRead | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
-
-    const [vendorSortField, setVendorSortField] = useState<VendorSortField>('AMOUNT');
-    const [vendorSortDirection, setVendorSortDirection] = useState<SortDirection>('desc');
 
     const [isStatementModalOpen, setIsStatementModalOpen] = useState(false);
     const [selectedOrderForStatement, setSelectedOrderForStatement] = useState<SalesOrder | null>(null);
@@ -150,63 +147,105 @@ const PendingToInvoicePage = () => {
         );
     }, [invoicingRights, searchTerm]);
 
-    const handleVendorSort = (field: VendorSortField) => {
-        if (vendorSortField === field) {
-            setVendorSortDirection(vendorSortDirection === 'asc' ? 'desc' : 'asc');
-        } else {
-            setVendorSortField(field);
-            setVendorSortDirection(field === 'AMOUNT' ? 'desc' : 'asc');
-        }
-    };
+    const advancesTableData = useMemo(
+        () =>
+            filteredAdvances.map((row) => ({
+                id: row.order_id,
+                order_id: row.order_id,
+                folio: `OV-${String(row.order_id).padStart(4, '0')}`,
+                client: row.client_name,
+                project: row.project_name || 'Sin Proyecto',
+                amount: row.advance_amount,
+            })),
+        [filteredAdvances],
+    );
 
-    const sortedVendorRows = useMemo(() => {
-        const copy = [...vendorRows];
-        copy.sort((a, b) => {
-            let c = 0;
-            switch (vendorSortField) {
-                case 'TYPE':
-                    c = a.kind.localeCompare(b.kind);
-                    break;
-                case 'FOLIO':
-                    c = a.folio.localeCompare(b.folio);
-                    break;
-                case 'CLIENT':
-                    c = a.client.localeCompare(b.client);
-                    break;
-                case 'PROJECT':
-                    c = a.project.localeCompare(b.project);
-                    break;
-                case 'AMOUNT':
-                    c = a.amount - b.amount;
-                    break;
-            }
-            return vendorSortDirection === 'asc' ? c : -c;
-        });
-        return copy;
-    }, [vendorRows, vendorSortField, vendorSortDirection]);
+    const advancesColumns = useMemo((): VTableColumn<Record<string, unknown>>[] => [
+        {
+            key: 'folio',
+            label: 'Folio',
+            render: (row) => <span className="font-bold text-slate-800 text-sm">{String(row.folio)}</span>,
+        },
+        {
+            key: 'client',
+            label: 'Cliente',
+            render: (row) => <span className="text-xs text-slate-600 font-medium">{String(row.client)}</span>,
+        },
+        {
+            key: 'project',
+            label: 'Proyecto',
+            render: (row) => <span className="text-sm text-slate-600">{String(row.project)}</span>,
+        },
+        {
+            key: 'amount',
+            label: 'Monto anticipo',
+            sortable: true,
+            render: (row) => (
+                <span className="block text-right font-black text-amber-800">
+                    {formatCurrency(Number(row.amount) || 0)}
+                </span>
+            ),
+        },
+    ], []);
 
-    const VendorSortableHeader = ({ field, label, align = 'left' }: { field: VendorSortField; label: string; align?: 'left' | 'right' }) => {
-        const isActive = vendorSortField === field;
-        return (
-            <th
-                className={`p-4 text-${align} cursor-pointer hover:bg-slate-200 transition-colors select-none`}
-                onClick={() => handleVendorSort(field)}
-            >
-                <div className={`flex items-center gap-1 inline-flex ${align === 'right' ? 'flex-row-reverse' : ''}`}>
-                    <span className={isActive ? 'text-indigo-800' : 'text-slate-600 font-bold'}>{label}</span>
-                    {isActive ? (
-                        vendorSortDirection === 'asc' ? (
-                            <ArrowUp size={16} className="text-indigo-600" />
-                        ) : (
-                            <ArrowDown size={16} className="text-indigo-600" />
-                        )
-                    ) : (
-                        <ArrowUpDown size={16} className="text-slate-400 hover:text-slate-600" />
-                    )}
-                </div>
-            </th>
-        );
-    };
+    const vendorTableData = useMemo(
+        () =>
+            [...vendorRows]
+                .sort((a, b) => b.amount - a.amount)
+                .map((r) => ({
+                    id: r.kind === 'ADVANCE' ? `a-${r.order_id}` : `p-${r.instance_id}`,
+                    kind: r.kind === 'ADVANCE' ? 'Anticipo' : 'Avance obra',
+                    kindSort: r.kind,
+                    folio: r.folio,
+                    client: r.client,
+                    project: r.project,
+                    amount: r.amount,
+                    order_id: r.order_id,
+                })),
+        [vendorRows],
+    );
+
+    const vendorColumns = useMemo((): VTableColumn<Record<string, unknown>>[] => [
+        {
+            key: 'kindSort',
+            label: 'Tipo',
+            sortable: true,
+            render: (row) => <span className="text-xs font-bold text-slate-600">{String(row.kind)}</span>,
+        },
+        {
+            key: 'folio',
+            label: 'Folio',
+            sortable: true,
+            render: (row) => <span className="font-bold text-slate-800 text-sm">{String(row.folio)}</span>,
+        },
+        {
+            key: 'client',
+            label: 'Cliente',
+            sortable: true,
+            render: (row) => <span className="text-xs text-slate-600 font-medium">{String(row.client)}</span>,
+        },
+        {
+            key: 'project',
+            label: 'Proyecto',
+            sortable: true,
+            render: (row) => (
+                <span className="text-sm text-slate-600 font-medium flex items-center gap-2">
+                    <Factory size={14} className="text-slate-400" />
+                    {String(row.project)}
+                </span>
+            ),
+        },
+        {
+            key: 'amount',
+            label: 'Monto',
+            sortable: true,
+            render: (row) => (
+                <span className="block text-right font-black text-indigo-700">
+                    {formatCurrency(Number(row.amount) || 0)}
+                </span>
+            ),
+        },
+    ], []);
 
     const handleGoBack = () => {
         if (returnTo === '/sales') {
@@ -224,18 +263,18 @@ const PendingToInvoicePage = () => {
                 <div>
                     <h1
                         className={`text-3xl font-black tracking-tight flex items-center gap-3 ${
-                            hasAbsolutePower ? 'text-blue-800' : 'text-indigo-800'
+                            canView ? 'text-blue-800' : 'text-indigo-800'
                         }`}
                     >
-                        {hasAbsolutePower ? (
+                        {canView ? (
                             <Unlock className="text-blue-500" size={32} />
                         ) : (
                             <Users className="text-indigo-500" size={32} />
                         )}
-                        {hasAbsolutePower ? 'Pendiente de Facturar (Fábrica)' : 'Monitor de Órdenes de Venta'}
+                        {canView ? 'Pendiente de Facturar (Fábrica)' : 'Monitor de Órdenes de Venta'}
                     </h1>
                     <p className="text-slate-500 mt-1 font-medium">
-                        {hasAbsolutePower
+                        {canView
                             ? 'Derecho a facturación: anticipos sin CXC de anticipo + piezas cerradas sin folio administrativo.'
                             : 'Mismo criterio que la tarjeta B en Cobranzas (vista resumida).'}
                     </p>
@@ -252,7 +291,7 @@ const PendingToInvoicePage = () => {
                 </div>
             </div>
 
-            {hasAbsolutePower && invoicingRights && (
+            {canView && invoicingRights && (
                 <div className="bg-blue-50 border border-blue-200 rounded-xl px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div>
                         <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Tarjeta B — Derecho a facturación</p>
@@ -265,7 +304,7 @@ const PendingToInvoicePage = () => {
                 </div>
             )}
 
-            {hasAbsolutePower && (
+            {canView && (
                 <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit">
                     <button
                         onClick={() => setProgressTab('ANTICIPOS')}
@@ -290,14 +329,14 @@ const PendingToInvoicePage = () => {
                 </div>
             )}
 
-            {hasAbsolutePower && (
+            {canView && (
                 <div className="relative w-full max-w-md">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <Search size={18} className="text-slate-400" />
                     </div>
-                    <input
+                    <Input
                         type="text"
-                        className="w-full pl-10 pr-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 font-medium transition-all shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                        className="pl-10 pr-3 py-2.5 bg-white border-slate-200 rounded-lg text-sm focus:ring-2 font-medium transition-all shadow-sm focus:ring-blue-500 focus:border-blue-500"
                         placeholder="Buscar cliente, proyecto u OV…"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
@@ -305,7 +344,7 @@ const PendingToInvoicePage = () => {
                 </div>
             )}
 
-            {hasAbsolutePower && progressTab === 'ANTICIPOS' && (
+            {canView && progressTab === 'ANTICIPOS' && (
                 <div className="bg-white rounded-xl border border-amber-200 shadow-md overflow-hidden">
                     <div className="p-4 border-b border-amber-100 bg-amber-50/50 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                         <div>
@@ -324,45 +363,21 @@ const PendingToInvoicePage = () => {
                         </div>
                     </div>
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-slate-50 border-b text-xs uppercase text-slate-500 font-bold">
-                                    <th className="p-3">Folio</th>
-                                    <th className="p-3">Cliente</th>
-                                    <th className="p-3">Proyecto</th>
-                                    <th className="p-3 text-right">Monto anticipo</th>
-                                    <th className="p-3 text-center">Acción</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {filteredAdvances.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={5} className="p-8 text-center text-slate-500 italic">
-                                            No hay anticipos en este criterio (o filtro sin coincidencias).
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    filteredAdvances.map((row) => (
-                                        <tr key={row.order_id} className="hover:bg-slate-50">
-                                            <td className="p-3 font-bold text-slate-800 text-sm">OV-{String(row.order_id).padStart(4, '0')}</td>
-                                            <td className="p-3 text-xs text-slate-600 font-medium">{row.client_name}</td>
-                                            <td className="p-3 text-sm text-slate-600">{row.project_name || 'Sin Proyecto'}</td>
-                                            <td className="p-3 text-right font-black text-amber-800">{formatCurrency(row.advance_amount)}</td>
-                                            <td className="p-3 text-center">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => openOrderStatement(row.order_id)}
-                                                    className="px-4 py-2 rounded-lg text-xs font-bold text-amber-700 hover:text-white bg-amber-50 hover:bg-amber-600 border border-amber-200 shadow-sm inline-flex items-center gap-2"
-                                                >
-                                                    <FileSearch size={14} />
-                                                    Rayos X
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
+                        <VTable
+                            className="border-0 rounded-none shadow-none"
+                            columns={advancesColumns}
+                            data={advancesTableData}
+                            emptyState={{
+                                title: 'No hay anticipos en este criterio (o filtro sin coincidencias).',
+                            }}
+                            actions={(row) => [
+                                {
+                                    label: 'Rayos X',
+                                    icon: <FileSearch size={14} />,
+                                    onClick: () => openOrderStatement(Number(row.order_id)),
+                                },
+                            ]}
+                        />
                     </div>
                 </div>
             )}
@@ -435,7 +450,7 @@ const PendingToInvoicePage = () => {
                                         <div className="divide-y divide-slate-50">
                                             {instances.map((inst) => (
                                                 <div key={inst.instance_id} className="flex flex-wrap items-center gap-3 px-6 py-2.5">
-                                                    <input
+                                                    <Input
                                                         type="checkbox"
                                                         checked={isOpen ? selectedInstanceIds.includes(inst.instance_id) : true}
                                                         onChange={(e) => {
@@ -472,22 +487,22 @@ const PendingToInvoicePage = () => {
                                             <div className="px-6 pb-4 pt-2 bg-emerald-50/40 flex flex-wrap items-end gap-3">
                                                 <div className="flex flex-col gap-1">
                                                     <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">Folio de Factura</label>
-                                                    <input
+                                                    <Input
                                                         type="text"
                                                         placeholder="Ej. F-2026-0042"
                                                         value={progressFolio}
                                                         onChange={(e) => setProgressFolio(e.target.value)}
-                                                        className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 w-44"
+                                                        className="border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 w-44"
                                                     />
                                                 </div>
                                                 <div className="flex flex-col gap-1">
                                                     <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">Importe (MXN)</label>
-                                                    <input
+                                                    <Input
                                                         type="number"
                                                         placeholder="0.00"
                                                         value={progressAmount}
                                                         onChange={(e) => setProgressAmount(e.target.value)}
-                                                        className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 w-36"
+                                                        className="border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 w-36"
                                                     />
                                                 </div>
                                                 <button
@@ -536,7 +551,7 @@ const PendingToInvoicePage = () => {
                 </div>
             )}
 
-            {!hasAbsolutePower && (
+            {!canView && (
                 <div className="bg-white rounded-xl border border-indigo-200 shadow-md overflow-hidden">
                     <div className="p-4 border-b border-indigo-100 bg-indigo-50/50 flex flex-col md:flex-row justify-between items-start gap-4">
                         <div className="space-y-1">
@@ -553,9 +568,9 @@ const PendingToInvoicePage = () => {
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <Search size={18} className="text-slate-400" />
                             </div>
-                            <input
+                            <Input
                                 type="text"
-                                className="w-full pl-10 pr-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 font-medium transition-all shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                className="pl-10 pr-3 py-2.5 bg-white border-slate-200 rounded-lg text-sm focus:ring-2 font-medium transition-all shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
                                 placeholder="Buscar cliente, proyecto o folio..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -564,56 +579,25 @@ const PendingToInvoicePage = () => {
                     </div>
 
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500 font-bold">
-                                    <VendorSortableHeader field="TYPE" label="Tipo" />
-                                    <VendorSortableHeader field="FOLIO" label="Folio" />
-                                    <VendorSortableHeader field="CLIENT" label="Cliente" />
-                                    <VendorSortableHeader field="PROJECT" label="Proyecto" />
-                                    <VendorSortableHeader field="AMOUNT" label="Monto" align="right" />
-                                    <th className="p-4 text-center">Acción</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {sortedVendorRows.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={6} className="p-12 text-center text-slate-500 italic text-lg">
-                                            Sin registros en este criterio o sin coincidencias de búsqueda.
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    sortedVendorRows.map((r) => (
-                                        <tr key={r.kind === 'ADVANCE' ? `a-${r.order_id}` : `p-${r.instance_id}`} className="hover:bg-slate-50 transition-colors">
-                                            <td className="p-4 text-xs font-bold text-slate-600">
-                                                {r.kind === 'ADVANCE' ? 'Anticipo' : 'Avance obra'}
-                                            </td>
-                                            <td className="p-4 font-bold text-slate-800 text-sm">{r.folio}</td>
-                                            <td className="p-4 text-xs text-slate-600 font-medium">{r.client}</td>
-                                            <td className="p-4 text-sm text-slate-600 font-medium flex items-center gap-2">
-                                                <Factory size={14} className="text-slate-400" />
-                                                {r.project}
-                                            </td>
-                                            <td className="p-4 text-right font-black text-indigo-700">{formatCurrency(r.amount)}</td>
-                                            <td className="p-4 text-center">
-                                                {r.order_id != null ? (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => openOrderStatement(r.order_id)}
-                                                        className="px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2 mx-auto text-indigo-600 hover:text-white bg-indigo-50 hover:bg-indigo-600 border border-indigo-200"
-                                                    >
-                                                        <FileSearch size={14} />
-                                                        Ver Estatus
-                                                    </button>
-                                                ) : (
-                                                    <span className="text-xs text-slate-400">—</span>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
+                        <VTable
+                            className="border-0 rounded-none shadow-none"
+                            columns={vendorColumns}
+                            data={vendorTableData}
+                            emptyState={{
+                                title: 'Sin registros en este criterio o sin coincidencias de búsqueda.',
+                            }}
+                            actions={(row) =>
+                                row.order_id != null
+                                    ? [
+                                          {
+                                              label: 'Ver Estatus',
+                                              icon: <FileSearch size={14} />,
+                                              onClick: () => openOrderStatement(Number(row.order_id)),
+                                          },
+                                      ]
+                                    : []
+                            }
+                        />
                     </div>
                 </div>
             )}
