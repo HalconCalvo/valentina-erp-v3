@@ -44,6 +44,9 @@ const CxcReportPage: React.FC = () => {
     const location = useLocation();
     const returnTo: string = (location.state as { returnTo?: string } | null)?.returnTo ?? '/treasury';
 
+    const userRole = (localStorage.getItem('user_role') || '').toUpperCase().trim();
+    const canCharge = ['DIRECTOR', 'MANAGER'].includes(userRole);
+
     const [rows, setRows] = useState<CxcReportRow[]>([]);
     const [loading, setLoading] = useState(false);
 
@@ -310,7 +313,7 @@ const CxcReportPage: React.FC = () => {
                                                     {row.antiguedad_dias != null ? `${row.antiguedad_dias}d` : '—'}
                                                 </td>
                                                 <td className="p-3 text-center">
-                                                    {canCobrar(row) ? (
+                                                    {canCharge && canCobrar(row) ? (
                                                         <button
                                                             type="button"
                                                             onClick={() => handleCobrar(row)}
