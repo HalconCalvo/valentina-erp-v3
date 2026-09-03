@@ -25,6 +25,11 @@
 | `div fixed` manual | `Modal` de `@/components/ui/Modal` |
 | Estado vacío ad-hoc | `VEmptyState` de `@/components/ui/VEmptyState` |
 
+### Botones de acción en tablas:
+Los botones de acción dentro de columnas de tablas (editar, cancelar,
+eliminar, ver) usan solo ícono — nunca texto. El tooltip (title)
+describe la acción al pasar el cursor.
+
 ### Prohibido absolutamente:
 - `console.log`, `console.error`, `console.warn`
 - `fetch()` directo — siempre `axiosClient`

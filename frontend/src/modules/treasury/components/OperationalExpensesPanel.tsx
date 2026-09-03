@@ -346,12 +346,12 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
                         if (String(expense.status).toUpperCase() !== 'PENDIENTE') return [];
                         return [
                             {
-                                label: 'Editar',
+                                label: '',
                                 icon: <Pencil size={14} />,
                                 onClick: () => handleOpenEditExpense(expense),
                             },
                             {
-                                label: 'Cancelar',
+                                label: '',
                                 icon: <XCircle size={14} />,
                                 variant: 'danger' as const,
                                 onClick: () => {
