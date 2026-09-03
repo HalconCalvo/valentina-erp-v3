@@ -17,6 +17,7 @@ import { SalesOrder } from '../../../types/sales';
 import { pettyCashService } from '../../../api/petty-cash-service';
 import { PettyCashFund } from '../../../types/petty_cash';
 import PettyCashPanel from '../../management/components/PettyCashPanel';
+import { OperationalExpensesPanel } from '../components/OperationalExpensesPanel';
 
 // --- COMPONENTES BANCARIOS (Locales) ---
 import { BankAccountCard } from '../components/BankAccountCard';
@@ -36,7 +37,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { toast } from '@/components/ui/VToast';
 
-type AdminSection = 'TASKS' | 'RECEIVABLES' | 'PAYABLES' | 'PETTY_CASH' | null;
+type AdminSection = 'TASKS' | 'RECEIVABLES' | 'PAYABLES' | 'PETTY_CASH' | 'OPERATIONAL_EXPENSES' | null;
 
 export const TreasuryPage = () => {
   const navigate = useNavigate();
@@ -266,6 +267,7 @@ export const TreasuryPage = () => {
         case 'RECEIVABLES': return 'Cuentas por Cobrar';
         case 'PAYABLES': return 'Cuentas por Pagar';
         case 'PETTY_CASH': return 'Caja Chica';
+        case 'OPERATIONAL_EXPENSES': return 'Gastos Operativos';
         default: return isChecker ? 'Tesorería y Flujo Maestro' : 'Administración Central';
     }
   };
@@ -422,6 +424,34 @@ export const TreasuryPage = () => {
             </Card>
           </div>
 
+          {/* ---> TARJETA: GASTOS OPERATIVOS <--- */}
+          <div className="w-full relative h-40">
+            <Card
+              onClick={() => setActiveSection('OPERATIONAL_EXPENSES')}
+              className={`p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-rose-500 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white overflow-hidden group ${operationalExpensesCount > 0 ? 'ring-2 ring-rose-100' : ''}`}
+            >
+              <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-rose-50 text-rose-700 border-r border-rose-100 font-black transition-colors group-hover:bg-rose-100 ${getCountSize(operationalExpensesCount)}`}>
+                {operationalExpensesCount > 0 ? operationalExpensesCount : <Receipt size={28} className="text-rose-500" />}
+              </div>
+              <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                <div className="flex justify-between items-start">
+                  <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Gastos Operativos</p>
+                  <Receipt size={16} className="text-rose-500" />
+                </div>
+                <div className="text-lg font-black text-rose-600 tracking-tight leading-none truncate text-right">
+                  {operationalExpensesCount > 0
+                    ? `${operationalExpensesCount} pendiente${operationalExpensesCount === 1 ? '' : 's'}`
+                    : 'Renta, servicios, etc.'}
+                </div>
+                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
+                    Renta, luz, teléfono, etc.
+                  </p>
+                </div>
+              </div>
+            </Card>
+          </div>
+
           <div className="w-full relative h-40">
             <Card
               onClick={() => navigate('/ov-tracking')}
@@ -523,6 +553,14 @@ export const TreasuryPage = () => {
 
           {activeSection === 'PETTY_CASH' && (
             <PettyCashPanel
+              onBack={() => setActiveSection(null)}
+              onRefresh={fetchData}
+              userRole={userRole}
+            />
+          )}
+
+          {activeSection === 'OPERATIONAL_EXPENSES' && (
+            <OperationalExpensesPanel
               onBack={() => setActiveSection(null)}
               onRefresh={fetchData}
               userRole={userRole}

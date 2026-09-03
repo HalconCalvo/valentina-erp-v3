@@ -1798,3 +1798,22 @@ No se manda instrucción a Cursor sin tener los 4 caminos aprobados.
 3. Menús SALES, PRODUCTION, LOGISTICS, WAREHOUSE
 4. Limpieza console.log/error/warn
 5. Scripts sueltos en raíz
+
+---
+## SESIÓN 2026-09-03 — Comparativo de congruencia en abonos
+### Completado:
+- Campo is_advance en CustomerPaymentInstallment (migración u7v8w9x0y1z2)
+- PaymentPayload incluye is_advance
+- register_installment persiste is_advance
+- GET /invoices/{cxc_id}/installments devuelve is_advance
+- Comparativo de congruencia en modales Registrar y Editar Abono:
+  * Verde si importe cuadra con instancias - anticipo proporcional
+  * Amarillo con diferencia si no cuadra
+- Commit: df0a7bb
+
+### Pendientes:
+1. commercial_description en PDF
+2. 10 OCs sin factura — esperando folios
+3. Menús SALES, PRODUCTION, LOGISTICS, WAREHOUSE
+4. Limpieza console.log/error/warn
+5. Scripts sueltos en raíz
