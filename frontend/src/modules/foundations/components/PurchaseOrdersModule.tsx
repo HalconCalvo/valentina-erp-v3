@@ -1199,11 +1199,11 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                         const actions = [];
                                         if (['DIRECTOR', 'MANAGER', 'ADMIN'].includes(role)) {
                                             actions.push(
-                                                { label: 'Editar', icon: <Pencil size={14} />, onClick: () => handleOpenEditItem(order.id, item) },
-                                                { label: 'Cancelar', icon: <XCircle size={14} />, variant: 'danger' as const, onClick: () => { setCancelItemReason(''); setCancelItemModal({ open: true, orderId: order.id, item }); } },
+                                                { label: '', icon: <Pencil size={14} />, onClick: () => handleOpenEditItem(order.id, item) },
+                                                { label: '', icon: <XCircle size={14} />, variant: 'danger' as const, onClick: () => { setCancelItemReason(''); setCancelItemModal({ open: true, orderId: order.id, item }); } },
                                             );
                                         }
-                                        actions.push({ label: 'Quitar', icon: <Trash2 size={16} />, variant: 'danger' as const, onClick: () => handleRemoveItemFromOrder(order.id, Number(item.id), String(item.sku)) });
+                                        actions.push({ label: '', icon: <Trash2 size={16} />, variant: 'danger' as const, onClick: () => handleRemoveItemFromOrder(order.id, Number(item.id), String(item.sku)) });
                                         return actions;
                                     }}
                                     className="border-0 shadow-none rounded-none"
