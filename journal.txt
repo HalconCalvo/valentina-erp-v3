@@ -1774,3 +1774,27 @@ No se manda instrucción a Cursor sin tener los 4 caminos aprobados.
 3. Menús SALES, PRODUCTION, LOGISTICS, WAREHOUSE
 4. Limpieza console.log/error/warn
 5. Scripts sueltos en raíz
+
+---
+## SESIÓN 2026-09-02 (tarde) — Modal Rayos X mejoras y abonos
+### Completado:
+- Fix: instancias ya vinculadas no aparecen en nuevo abono
+- Fix: instancias ya vinculadas no aparecen al editar abono
+- Fix: pestaña Por Casa muestra custom_name correctamente
+- Fix: agrupación por casa en modal de abono (checkbox maestro)
+- Fix: instancias seleccionables según tipo de factura (FULL vs PROGRESS)
+- Fix: modal Editar Abono abre después de refresh — excluye instancias vinculadas
+- Commits: 6f9c807, e0d224e, b0cc3d8, fc04724, 93357c2, c84c2e1, 6f702c4
+
+### Pendiente inmediato:
+- Comparativo de importe vs instancias seleccionadas antes de grabar
+  * Fórmula: valor_instancias - anticipo_proporcional = importe_esperado
+  * Verde si cuadra, amarillo con diferencia si no
+  * Necesita verificar unit_price disponible en instancias del frontend
+
+### Pendientes generales:
+1. commercial_description en PDF
+2. 10 OCs sin factura — esperando folios
+3. Menús SALES, PRODUCTION, LOGISTICS, WAREHOUSE
+4. Limpieza console.log/error/warn
+5. Scripts sueltos en raíz

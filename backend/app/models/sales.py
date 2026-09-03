@@ -135,6 +135,7 @@ class CustomerPaymentInstallment(SQLModel, table=True):
     cancel_reason: Optional[str] = None
     cancelled_at: Optional[datetime] = None
     bank_transaction_id: Optional[int] = Field(default=None, foreign_key="bank_transactions.id")
+    is_advance: bool = Field(default=False)
 
 # ==========================================
 # 3. MODELO DE INSTANCIAS (NIVEL 3 - EL ÁTOMO)

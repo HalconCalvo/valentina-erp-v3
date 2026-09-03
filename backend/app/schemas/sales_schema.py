@@ -233,6 +233,7 @@ class InstallmentUpdate(BaseModel):
     reference: Optional[str] = None
     notes: Optional[str] = None
     instance_ids: Optional[List[int]] = None
+    is_advance: Optional[bool] = None
 
 
 class InstallmentCancel(BaseModel):

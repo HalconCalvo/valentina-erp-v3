@@ -325,6 +325,7 @@ export const salesService = {
             reference?: string | null;
             account_id?: number | null;
             instance_ids?: number[];
+            is_advance?: boolean;
         }
     ) => {
         const response = await axiosClient.post(`/sales/invoices/${cxcId}/installments`, payload);
@@ -348,6 +349,7 @@ export const salesService = {
             notes?: string | null;
             reference?: string | null;
             instance_ids?: number[];
+            is_advance?: boolean;
         }
     ) => {
         const response = await axiosClient.patch(`/sales/installments/${installmentId}`, payload);

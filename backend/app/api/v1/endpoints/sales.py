@@ -50,6 +50,7 @@ class PaymentPayload(BaseModel):
     notes: Optional[str] = None               # concepto del abono
     reference: Optional[str] = None           # referencia opcional
     account_id: Optional[int] = None
+    is_advance: bool = False
 
 
 class ClientPurchaseOrderPayload(BaseModel):
@@ -1799,6 +1800,7 @@ def register_installment(cxc_id: int, payload: PaymentPayload,
     abonado_antes = _sum_active_installments(session, cxc.id)
 
     # Registrar el abono
+    is_advance = bool(payload.is_advance) or cxc.payment_type == PaymentType.ADVANCE
     inst = CustomerPaymentInstallment(
         customer_payment_id=cxc.id,
         amount=monto,
@@ -1806,6 +1808,7 @@ def register_installment(cxc_id: int, payload: PaymentPayload,
         reference=payload.reference,
         notes=payload.notes,
         created_by_user_id=current_user.id,
+        is_advance=is_advance,
     )
     session.add(inst)
 
@@ -1914,6 +1917,7 @@ def list_installments(cxc_id: int, session: Session = Depends(get_session),
         "cancel_reason": r.cancel_reason,
         "cancelled_at": r.cancelled_at.isoformat() if r.cancelled_at else None,
         "bank_transaction_id": r.bank_transaction_id,
+        "is_advance": bool(r.is_advance) or cxc.payment_type == PaymentType.ADVANCE,
     } for r in rows]
 
     total_abonado = _sum_active_installments(session, cxc_id)

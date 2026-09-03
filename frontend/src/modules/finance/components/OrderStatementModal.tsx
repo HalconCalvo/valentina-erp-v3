@@ -59,6 +59,79 @@ function isInstanceSelectableForAbono(status: string, paymentType?: string): boo
     return s === 'CLOSED' || s === 'SIGNED';
 }
 
+function calcSelectedInstancesValue(selectedInstanceIds: number[], uniqueItems: any[]): number {
+    if (selectedInstanceIds.length === 0) return 0;
+    const idSet = new Set(selectedInstanceIds);
+    let total = 0;
+    uniqueItems.forEach((item: any) => {
+        const qty = Number(item.quantity) || 1;
+        const valuePerInstance = Number(item.unit_price || 0) / qty;
+        const realInstances = item.instances ? item.instances.slice(0, qty) : [];
+        realInstances.forEach((inst: any) => {
+            if (idSet.has(inst.id)) total += valuePerInstance;
+        });
+    });
+    return total;
+}
+
+function calcAdvanceTotalForCxc(cxcId: number | undefined, installmentsByInvoice: Record<number, any>): number {
+    if (!cxcId) return 0;
+    const abonos = installmentsByInvoice[cxcId]?.abonos;
+    if (!Array.isArray(abonos)) return 0;
+    return abonos
+        .filter((ab: any) => ab.is_advance === true && !ab.is_cancelled)
+        .reduce((sum: number, ab: any) => sum + Number(ab.amount || 0), 0);
+}
+
+type InstallmentCongruenceCompareProps = {
+    selectedInstanceIds: number[];
+    capturedAmount: number;
+    cxcId: number | undefined;
+    uniqueItems: any[];
+    installmentsByInvoice: Record<number, any>;
+    totalOrder: number;
+    formatCurrency: (value: number) => string;
+};
+
+function InstallmentCongruenceCompare({
+    selectedInstanceIds,
+    capturedAmount,
+    cxcId,
+    uniqueItems,
+    installmentsByInvoice,
+    totalOrder,
+    formatCurrency,
+}: InstallmentCongruenceCompareProps) {
+    if (selectedInstanceIds.length === 0) return null;
+
+    const valorInstancias = calcSelectedInstancesValue(selectedInstanceIds, uniqueItems);
+    const anticipoTotal = calcAdvanceTotalForCxc(cxcId, installmentsByInvoice);
+    const orderTotal = Number(totalOrder) || 0;
+    const anticipoProporcional = orderTotal > 0 ? anticipoTotal * (valorInstancias / orderTotal) : 0;
+    const importeEsperado = valorInstancias - anticipoProporcional;
+    const diferencia = Number(capturedAmount || 0) - importeEsperado;
+
+    if (Math.abs(diferencia) <= 1) {
+        return (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800">
+                ✓ Importe cuadra con las instancias seleccionadas
+            </div>
+        );
+    }
+    if (diferencia > 1) {
+        return (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
+                ⚠ El importe excede el valor esperado por {formatCurrency(diferencia)}
+            </div>
+        );
+    }
+    return (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
+            ⚠ El importe es menor al valor esperado por {formatCurrency(Math.abs(diferencia))}
+        </div>
+    );
+}
+
 const CheckboxInput: React.FC<
     React.ComponentProps<typeof Input> & { indeterminate?: boolean }
 > = ({ indeterminate, id, ...props }) => {
@@ -634,12 +707,14 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                 reference?: string | null;
                 account_id?: number | null;
                 instance_ids?: number[];
+                is_advance?: boolean;
             } = {
                 amount: installmentAmount,
                 payment_date: installmentDate ? `${installmentDate}T12:00:00` : null,
                 reference: installmentReference.trim() || null,
                 notes: installmentNotes.trim() || null,
                 account_id: Number(installmentAccountId),
+                is_advance: installmentIsAdvance,
             };
             if (!installmentIsAdvance && cxc.payment_type !== 'ADVANCE' && installmentInstanceIds.length > 0) {
                 payload.instance_ids = installmentInstanceIds;
@@ -668,7 +743,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         setEditInstallmentReference(abono.reference || '');
         setEditInstallmentNotes(abono.notes || '');
         setEditInstallmentInstanceIds([]);
-        setEditInstallmentIsAdvance(cxc.payment_type === 'ADVANCE');
+        setEditInstallmentIsAdvance(Boolean(abono.is_advance) || cxc.payment_type === 'ADVANCE');
         setExpandedEditHouses(new Set());
         setEditInstallmentModal({
             open: false,
@@ -721,11 +796,13 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                 notes?: string | null;
                 reference?: string | null;
                 instance_ids?: number[];
+                is_advance?: boolean;
             } = {
                 amount: editInstallmentAmount,
                 payment_date: editInstallmentDate ? `${editInstallmentDate}T12:00:00` : null,
                 reference: editInstallmentReference.trim() || null,
                 notes: editInstallmentNotes.trim() || null,
+                is_advance: editInstallmentIsAdvance,
             };
             if (cxc.payment_type !== 'ADVANCE') {
                 const preserved = editInstallmentModal.preservedCxcLinkedIds ?? [];
@@ -2034,6 +2111,15 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                         min={0.01}
                         error={installmentAmount <= 0 ? 'El importe debe ser mayor a cero' : undefined}
                     />
+                    <InstallmentCongruenceCompare
+                        selectedInstanceIds={installmentInstanceIds}
+                        capturedAmount={installmentAmount}
+                        cxcId={installmentModal.cxc?.id}
+                        uniqueItems={uniqueItems}
+                        installmentsByInvoice={installmentsByInvoice}
+                        totalOrder={totalOrder}
+                        formatCurrency={formatCurrency}
+                    />
                     <div>
                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
                             Fecha *
@@ -2217,6 +2303,15 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                         value={editInstallmentAmount}
                         onChange={setEditInstallmentAmount}
                         min={0.01}
+                    />
+                    <InstallmentCongruenceCompare
+                        selectedInstanceIds={editInstallmentInstanceIds}
+                        capturedAmount={editInstallmentAmount}
+                        cxcId={editInstallmentModal.cxc?.id}
+                        uniqueItems={uniqueItems}
+                        installmentsByInvoice={installmentsByInvoice}
+                        totalOrder={totalOrder}
+                        formatCurrency={formatCurrency}
                     />
                     <div>
                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
