@@ -2295,3 +2295,25 @@ El SHA debe obtenerse fresco antes de cada escritura para evitar conflictos.
 
 Antes: Gabriel pegaba codigo, Claude adivinaba contexto, verificaciones manuales
 Ahora: Claude lee directo, analiza completo, verifica automatico, Gabriel decide
+
+---
+## SESIÓN 2026-09-04 (cierre) — Análisis profundo + Plan Maestro
+
+### Completado:
+- Acceso pleno de Claude al repo via token GitHub clásico (repo + gist)
+- Análisis profundo leyendo código real — calificación global C+
+- Vulnerabilidad crítica identificada: backdoor /fix-admin en producción
+- Plan Maestro de 10 fases grabado en journal.txt (commit baf40e2)
+- Token anterior revocado, nuevo token activo para próximas sesiones
+
+### Para iniciar mañana — FASE 0 (Seguridad Crítica):
+0.1 Eliminar ruta /fix-admin de main.py
+0.2 Rate limiting en login (máx 5 intentos / 15 min por IP)
+0.3 Restringir CORS: allow_methods y allow_headers específicos
+0.4 Actualizar xlsx (vulnerabilidad conocida)
+0.5 Reemplazar react-signature-canvas alpha por versión estable
+
+### Nota para el próximo agente:
+Leer journal.txt y CLAUDE.md completos antes de cualquier acción.
+Usar token GitHub para leer estado actual del código antes de instruir a Cursor.
+Fase 0 es primera prioridad — seguridad crítica antes que cualquier feature.
