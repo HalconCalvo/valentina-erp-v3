@@ -1817,3 +1817,415 @@ No se manda instrucción a Cursor sin tener los 4 caminos aprobados.
 3. Menús SALES, PRODUCTION, LOGISTICS, WAREHOUSE
 4. Limpieza console.log/error/warn
 5. Scripts sueltos en raíz
+
+---
+## PLAN MAESTRO DE EVOLUCIÓN — VALENTINA ERP
+## Fecha: 2026-09-04
+## Versión: 1.0
+
+---
+
+### PRINCIPIOS QUE RIGEN ESTE PLAN
+
+1. Calidad sobre velocidad — ninguna fase se da por terminada sin cumplir sus criterios de éxito
+2. Los 4 caminos antes de construir — sin excepción
+3. Nada se elimina físicamente — siempre cancelación con trazabilidad
+4. Arquitectura en capas — Router → Service → Repository
+5. Tests antes de marcar como completo
+6. Seguridad no es opcional — cada módulo nuevo incluye validación de roles
+
+---
+
+### FASE 0 — SEGURIDAD CRÍTICA (URGENTE — 1 sesión)
+Objetivo: Cerrar vulnerabilidades que ponen en riesgo el sistema hoy.
+
+Tareas:
+0.1 Eliminar ruta /fix-admin de main.py — backdoor público en producción
+0.2 Agregar rate limiting al endpoint de login (máx 5 intentos / 15 min por IP)
+0.3 Restringir CORS: especificar allow_methods y allow_headers exactos
+0.4 Actualizar xlsx a versión sin vulnerabilidad conocida
+0.5 Reemplazar react-signature-canvas alpha por versión estable
+0.6 Revocar todos los tokens GitHub expuestos en esta sesión
+
+Criterios de éxito:
+- /fix-admin retorna 404
+- Login bloquea después de 5 intentos fallidos
+- CORS solo permite métodos y headers necesarios
+- npm audit sin vulnerabilidades críticas
+
+Dependencias: Ninguna — se hace primero sin excepción.
+
+---
+
+### FASE 1 — FUNDAMENTOS DE ARQUITECTURA BACKEND (4-6 semanas)
+Objetivo: Establecer la arquitectura correcta que sostendrá todo lo demás.
+
+1.1 Crear capa de Services
+- Crear /backend/app/services/sales_service.py
+- Mover lógica de negocio de sales.py al service
+- Crear /backend/app/services/purchase_service.py
+- Mover lógica de purchases.py al service
+- Regla: endpoint máx 20 líneas, service máx 50 líneas por función
+
+1.2 Crear capa de Repositories
+- Crear /backend/app/repositories/sales_repository.py
+- Crear /backend/app/repositories/purchase_repository.py
+- Crear /backend/app/repositories/finance_repository.py
+- Mover todas las queries de BD a repositories
+- Regla: repository máx 30 líneas por función, solo queries
+
+1.3 Mover schemas inline a app/schemas/
+- PaymentPayload → sales_schema.py
+- ManualOrderCreate → inventory_schema.py
+- RequisitionCreate → inventory_schema.py
+- Todos los BaseModel inline en endpoints → sus schemas correspondientes
+
+1.4 Corregir eliminaciones físicas
+- foundations.py: delete_provider → is_active = False
+- foundations.py: delete_client → is_active = False
+- foundations.py: delete_tax_rate → is_active = False
+- purchases.py: delete_purchase_requisition → status = CANCELADA
+- Agregar migración para campos cancelled_at, cancel_reason donde falten
+
+1.5 Corregir SQL injection en PurchaseManager
+- Reemplazar f-strings con text() y parámetros vinculados (:ids)
+- Auditar todos los archivos por uso de f-strings en queries SQL
+
+Criterios de éxito:
+- sales.py < 300 líneas (solo routing)
+- purchases.py < 300 líneas (solo routing)
+- Cero lógica de negocio en endpoints
+- Cero eliminaciones físicas
+- Cero f-strings en queries SQL
+
+---
+
+### FASE 2 — SEPARACIÓN COTIZACIÓN / ORDEN DE VENTA (3-4 semanas)
+Objetivo: Corregir el error arquitectónico más importante del sistema.
+
+2.1 Diseño del modelo
+- Nueva tabla: quotations
+- Nueva tabla: quotation_items
+- SalesOrder agrega: quotation_id (FK → quotations.id)
+- Estados Quotation: DRAFT → SENT → ACCEPTED | REJECTED | EXPIRED | CANCELLED
+- Estados SalesOrder: WAITING_ADVANCE → SOLD → IN_PRODUCTION → FINISHED → COMPLETED | CANCELLED
+
+2.2 Migración de datos
+- sales_orders DRAFT/SENT → copiar a quotations
+- sales_orders ACCEPTED → crear quotation ACCEPTED ligada
+- sales_orders WAITING_ADVANCE en adelante → crear quotation ACCEPTED ligada, OV intacta
+- Migración Alembic con rollback completo
+
+2.3 Backend
+- Nuevos endpoints: POST/GET/PATCH /quotations
+- Endpoint de conversión: POST /quotations/{id}/convert-to-order
+- Al convertir: crear SalesOrder, crear instancias, cambiar estado quotation a ACCEPTED
+- Eliminar estados DRAFT/SENT/ACCEPTED/REJECTED de SalesOrderStatus
+
+2.4 Frontend
+- Nuevo módulo: /sales/quotations (lista)
+- Nuevo módulo: /sales/quotations/new
+- Nuevo módulo: /sales/quotations/{id} con botón "Convertir a OV"
+- SalesDashboardPage muestra solo OVs
+
+Criterios de éxito:
+- Cotización y OV son entidades independientes
+- Se puede editar cotización sin afectar OV
+- Múltiples versiones de cotización por cliente
+- Datos históricos migrados sin pérdida
+
+---
+
+### FASE 3 — ESTADO DEL SERVIDOR CON REACT QUERY (2-3 semanas)
+Objetivo: Eliminar bugs de stale data y simplificar manejo de estado.
+
+3.1 Instalación y configuración
+- Instalar @tanstack/react-query
+- Configurar QueryClient global
+- Configurar devtools en desarrollo
+
+3.2 Migración gradual por módulo (orden de prioridad)
+- OrderStatementModal (más bugs de stale data)
+- ReceivablesModule
+- PurchaseOrdersModule
+- SalesDashboardPage
+- ManagementDashboard
+
+3.3 Patrón estándar
+- Hooks por entidad: useOrders(), useInstallments(), usePurchaseOrders()
+- Invalidación automática después de mutaciones
+- Error boundaries por módulo
+
+Criterios de éxito:
+- Cero bugs de stale data documentados
+- Reducción de useEffect para fetching en 80%
+
+---
+
+### FASE 4 — LOGGING, MONITOREO Y TESTS (Paralelo a otras fases)
+Objetivo: Visibilidad en producción y prevención de regresiones.
+
+4.1 Logging estructurado
+- Configurar structlog en el backend
+- Log de cada request: método, ruta, usuario, tiempo, status
+- Log de errores con stack trace completo
+- Log de operaciones financieras críticas
+- Integrar con Sentry
+
+4.2 Tests de backend
+- Configurar pytest con BD de prueba (SQLite en memoria)
+- Tests unitarios para services (CostEngine, PurchaseManager)
+- Tests de integración para flujos críticos
+- Meta: 70% cobertura en services, 50% en endpoints
+
+4.3 Tests de frontend
+- Configurar Vitest
+- Tests de componentes V library
+- Tests de hooks críticos
+- Tests end-to-end con Playwright
+
+Criterios de éxito:
+- Errores en producción visibles en < 1 minuto
+- Regresiones detectadas antes de producción
+- 60% cobertura global
+
+---
+
+### FASE 5 — MÓDULO DE INVENTARIO COMPLETO (3-4 semanas)
+Objetivo: Kárdex real con valuación de stock y conteos físicos.
+
+5.1 Kárdex
+- Tabla: inventory_movements con trazabilidad completa
+- Tipos: PURCHASE_ENTRY, PRODUCTION_EXIT, ADJUSTMENT, PHYSICAL_COUNT, WASTE, RETURN
+- Todo movimiento genera entrada en Kárdex automáticamente
+
+5.2 Valuación de stock
+- Costo Promedio Ponderado
+- Recalcular current_cost en cada entrada de compra
+- Valor total del inventario en dashboard
+
+5.3 Inventario físico
+- Flujo: crear sesión → capturar conteos → comparar vs teórico → aprobar → ajuste
+- 4 caminos completos
+- Solo DIRECTOR y MANAGER aprueban diferencias
+
+5.4 Alertas de stock
+- Dashboard de materiales bajo mínimo
+- Integración con Compras para requisición automática
+
+Criterios de éxito:
+- Kárdex refleja cada movimiento con trazabilidad
+- Valuación siempre actualizada
+- Inventario físico con 4 caminos completos
+
+---
+
+### FASE 6 — MÓDULO DE RECURSOS HUMANOS (3-4 semanas)
+Objetivo: Gestión completa del personal de Koloka.
+
+6.1 Catálogo de empleados
+- Tabla: employees con datos fiscales, bancarios y laborales
+- Tipos de salario: FIXED, PIECE_RATE, MIXED
+- Relación con users de Valentina
+
+6.2 Nómina fija
+- Generación semanal automática
+- Flujo: generar → revisar → autorizar → pagar
+- Al pagar: movimiento bancario OUT automático
+- 4 caminos completos
+
+6.3 Control de asistencia
+- Registro diario entrada/salida
+- Integración con nómina
+
+6.4 Vacaciones y permisos
+- Saldo de días por empleado
+- Solicitud → aprobación → descuento en nómina
+
+6.5 Integración con nómina a destajo existente
+- Conectar instaladores con catálogo de empleados
+- Reporte unificado fija + destajo
+
+Criterios de éxito:
+- Catálogo completo de empleados
+- Nómina fija con trazabilidad
+- Reporte integrado fija + destajo
+
+---
+
+### FASE 7 — DASHBOARD DE DIRECCIÓN COMPLETO (2-3 semanas)
+Objetivo: Visibilidad ejecutiva real en tiempo real.
+
+7.1 KPIs operativos
+- OVs activas: cantidad, valor, antigüedad
+- Instancias por estado
+- Tiempo promedio ciclo completo
+- Cuellos de botella
+
+7.2 KPIs financieros
+- Rentabilidad por OV: (precio - costo real) / precio
+- Antigüedad CxC y CxP
+- Flujo de caja actual
+
+7.3 KPIs de producción
+- Eficiencia de fábrica
+- Merma real vs objetivo
+- Nómina destajo por semana
+
+7.4 Análisis de rentabilidad
+- Top 10 OVs más rentables
+- Top 10 clientes por volumen y margen
+- Productos más vendidos y su margen
+
+7.5 Flujo de caja proyectado a 30, 60 y 90 días
+
+Criterios de éxito:
+- Dashboard carga en < 3 segundos
+- KPIs en tiempo real
+- Flujo de caja proyectado a 90 días
+
+---
+
+### FASE 8 — CONTABILIDAD Y CUMPLIMIENTO FISCAL (4-6 semanas)
+Objetivo: Contabilidad formal e integración con el SAT.
+
+8.1 Plan de cuentas
+- Catálogo estándar SAT México
+- Cada operación financiera genera póliza contable automática
+
+8.2 Pólizas contables
+- Tablas: accounting_entries y accounting_lines
+- Generación automática en cada operación
+- Pólizas manuales para ajustes
+
+8.3 Reportes contables
+- Balance general
+- Estado de resultados
+- Balanza de comprobación
+- Libro diario y mayor
+
+8.4 Integración SAT (CFDI 4.0)
+- Timbrado de facturas cliente
+- Cancelación de CFDI
+- Complemento de pago (REP)
+- Descarga XML y PDF oficial
+
+8.5 Integración Compaq
+- Exportación de pólizas en formato Compaq
+- Sincronización periódica
+
+Criterios de éxito:
+- Cada operación genera póliza automática
+- Balance general cuadra siempre
+- Facturas timbradas con SAT
+- Exportación a Compaq funcional
+
+---
+
+### FASE 9 — SEGURIDAD AVANZADA Y AUDITORÍA (2-3 semanas)
+Objetivo: Seguridad de nivel empresarial y trazabilidad completa.
+
+9.1 Autenticación avanzada
+- Migrar tokens a httpOnly cookies
+- Refresh tokens con rotación
+- 2FA opcional para DIRECTOR y MANAGER
+
+9.2 Rate limiting
+- slowapi en FastAPI
+- Login: 5 intentos / 15 minutos
+- API general: 100 requests / minuto por usuario
+- Endpoints financieros: 20 requests / minuto
+
+9.3 Auditoría de acciones
+- Tabla: audit_log con old_values, new_values, ip_address
+- Registro automático: CREATE, UPDATE, CANCEL en entidades críticas
+- Panel de auditoría para DIRECTOR
+- Retención: mínimo 2 años
+
+9.4 Backups automáticos
+- Backup diario PostgreSQL a Google Cloud Storage
+- Retención: 30 días diarios, 12 meses mensuales
+- Proceso de restauración documentado y probado
+
+Criterios de éxito:
+- Tokens en httpOnly cookies
+- Rate limiting activo
+- Audit log en todas las operaciones críticas
+- Backup diario verificado
+
+---
+
+### FASE 10 — PWA PARA CAMPO (3-4 semanas)
+Objetivo: App móvil para instaladores y logística en campo.
+
+10.1 Progressive Web App
+- Vite PWA plugin
+- Service Worker para offline
+- Caché de instancias del día
+- Sincronización al recuperar conexión
+
+10.2 Flujo del instalador
+- Login con PIN (campo tiene mala conexión)
+- Ver asignaciones del día
+- Escanear QR de bulto
+- Subir evidencia fotográfica con compresión automática
+- Capturar firma de conformidad
+- Ver historial de la semana
+
+10.3 Flujo del jefe de cuadrilla
+- Ver asignaciones de su cuadrilla
+- Reasignar instaladores
+- Reportar incidencias
+- Ver nómina a destajo acumulada
+
+Criterios de éxito:
+- PWA instalable en iOS y Android
+- Funciona offline con sincronización
+- Flujo completo en < 5 toques
+- Firma digital válida
+
+---
+
+### ORDEN DE EJECUCIÓN Y DEPENDENCIAS
+
+FASE 0 → inmediata, sin dependencias
+FASE 1 → puede iniciar en paralelo con Fase 0
+FASE 2 → requiere Fase 1 completada
+FASE 3 → puede iniciar en paralelo con Fase 1
+FASE 4 → inicia en Fase 1, continúa en paralelo con todo
+FASE 5 → puede iniciar después de Fase 1
+FASE 6 → puede iniciar después de Fase 1
+FASE 7 → requiere Fase 5 y Fase 6 para KPIs completos
+FASE 8 → requiere Fase 2 y Fase 7
+FASE 9 → puede iniciar después de Fase 3
+FASE 10 → requiere Fase 2 completada
+
+---
+
+### ESTIMACIÓN TOTAL
+
+Fase 0: 1 sesión
+Fase 1: 4-6 semanas
+Fase 2: 3-4 semanas
+Fase 3: 2-3 semanas
+Fase 4: Continuo (paralelo)
+Fase 5: 3-4 semanas
+Fase 6: 3-4 semanas
+Fase 7: 2-3 semanas
+Fase 8: 4-6 semanas
+Fase 9: 2-3 semanas
+Fase 10: 3-4 semanas
+
+TOTAL: 6-8 meses de trabajo disciplinado
+
+---
+
+### CALIFICACIÓN OBJETIVO AL COMPLETAR EL PLAN
+
+Stack tecnológico: A
+Seguridad: A
+Arquitectura backend: A
+Modelo de datos: A
+Frontend: A
+Cobertura funcional: A
+GLOBAL: A — ERP de clase mundial
