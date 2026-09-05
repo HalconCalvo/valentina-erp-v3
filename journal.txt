@@ -2229,3 +2229,69 @@ Modelo de datos: A
 Frontend: A
 Cobertura funcional: A
 GLOBAL: A — ERP de clase mundial
+
+---
+## ACCESO PLENO DE CLAUDE AL REPOSITORIO
+## Fecha establecida: 2026-09-04
+
+### TOKEN DE ACCESO
+Tipo: Classic Personal Access Token (ghp_)
+Permisos: repo (completo) + gist
+Nota: Revocar y regenerar si se expone publicamente. Guardar en 1Password.
+
+### CAPACIDADES CON ACCESO PLENO
+
+LECTURA DIRECTA:
+- Leer cualquier archivo del repo sin que Gabriel lo pegue en el chat
+- Leer modelos, endpoints, schemas, servicios, componentes y migraciones
+- Leer CLAUDE.md para verificar principios antes de instruir a Cursor
+- Auditar el codigo completo antes de cada sesion
+
+ESCRITURA DIRECTA:
+- Escribir en journal.txt sin pasar por la terminal de Gabriel
+- Crear y actualizar archivos con commits directos a main
+- Actualizar CLAUDE.md cuando se definen nuevos principios
+
+ANALISIS SIN INTERMEDIARIO:
+- Detectar violaciones de principios leyendo el codigo real
+- Verificar que Cursor no introdujo regresiones
+- Comparar estado actual vs plan maestro
+- Identificar inconsistencias entre modelos, schemas y endpoints
+- Verificar cadena de migraciones Alembic antes del deploy
+
+### PROTOCOLO DE USO (para agentes futuros)
+
+Al inicio de cada sesion:
+1. Leer journal.txt — retomar contexto exacto de donde se dejo
+2. Leer CLAUDE.md — refrescar principios activos
+3. Identificar pendientes de la sesion anterior
+4. Proponer orden de trabajo a Gabriel
+
+Antes de cada instruccion a Cursor:
+1. Leer el archivo a modificar directamente del repo
+2. Verificar estado actual antes de definir el cambio
+3. Anticipar efectos secundarios leyendo archivos relacionados
+
+Despues de cada instruccion a Cursor:
+1. Leer el archivo modificado del repo para verificar el resultado
+2. Buscar violaciones de principios con lectura directa (no solo grep)
+3. Solo entonces autorizar el commit
+
+Al final de cada sesion:
+1. Escribir resumen directamente en journal.txt via GitHub API
+2. Actualizar plan maestro si hubo cambios de prioridad
+
+### COMO LEER Y ESCRIBIR EN EL REPO (codigo Python)
+
+import json, urllib.request, base64
+TOKEN = "TOKEN_REDACTADO"
+REPO = "HalconCalvo/valentina-erp-v3"
+
+Leer: GET api.github.com/repos/{REPO}/contents/{path} con Authorization header
+Escribir: PUT al mismo endpoint con body {message, content (base64), sha}
+El SHA debe obtenerse fresco antes de cada escritura para evitar conflictos.
+
+### IMPACTO EN VELOCIDAD
+
+Antes: Gabriel pegaba codigo, Claude adivinaba contexto, verificaciones manuales
+Ahora: Claude lee directo, analiza completo, verifica automatico, Gabriel decide
