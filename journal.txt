@@ -2380,3 +2380,43 @@ Resultado:
 0.3 ✓ SQL injection corregido
 0.4 ✓ sales.py refactorizado (3 capas)
 0.5 ⏳ purchases.py refactorizado (3 capas) — PENDIENTE
+
+
+---
+## SESIÓN 2026-09-05 — FASE 1 COMPLETADA (Arquitectura Backend)
+
+### Completado:
+
+**1.2 purchases.py refactorizado en 3 capas (commits 69b1f25, 5a82dc5, eeb2623, 6322d92)**
+- Grupo 1 (GET): list_requisitions, list_purchase_orders, get_purchase_planning, get_pending_tasks, check_invoice_folio
+- Grupo 2 (Estado OC): authorize, revoke, reject, dispatch, cancel, declare_satisfied, mark_item_no_more
+- Grupo 3 (CRUD): create/cancel/update requisitions, operational expenses, update PO/items/invoice
+- Grupo 4 (Complejo): receive_purchase_order, generate_po_pdf
+
+Resultado purchases.py:
+- purchases.py: 1,876 → 703 líneas (63% reducción)
+- purchase_service.py: 1,092 líneas (lógica de negocio pura)
+- purchase_repository.py: 447 líneas (solo queries)
+- delete_requisition: db.delete() → status=CANCELADA (regla de oro aplicada)
+- reject_po: eliminaciones físicas → cancelaciones lógicas
+
+### FASE 1 COMPLETADA — Resumen total:
+| Archivo | Antes | Ahora | Reducción |
+|---|---|---|---|
+| sales.py | 2,613 | 1,302 | 50% |
+| purchases.py | 1,876 | 703 | 63% |
+| sales_service.py | 0 | 1,206 | nuevo |
+| purchase_service.py | 0 | 1,092 | nuevo |
+| sales_repository.py | 0 | 337 | nuevo |
+| purchase_repository.py | 0 | 447 | nuevo |
+
+Total: ~2,400 líneas de lógica movidas a capas correctas.
+Arquitectura Router → Service → Repository establecida en los 2 módulos críticos.
+Cero eliminaciones físicas en endpoints y services.
+Cero schemas inline en endpoints.
+Cero SQL injection.
+Backdoor eliminado. Rate limiting activo. CORS restringido.
+
+### Siguiente: FASE 2 — Separación Cotización / Orden de Venta
+Esta es la corrección arquitectónica más importante del sistema.
+Requiere diseño cuidadoso antes de tocar código.
