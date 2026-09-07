@@ -24,6 +24,8 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str = "sqlite:///./local_dev.db"
 
+    DEBUG: bool = True
+
     # Google Cloud
     GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = None
     GOOGLE_CLOUD_BUCKET_NAME: Optional[str] = None
