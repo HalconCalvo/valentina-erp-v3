@@ -20,7 +20,13 @@ quotation_status = sa.Enum(
 
 
 def upgrade() -> None:
-    quotation_status.create(op.get_bind(), checkfirst=True)
+    op.execute(
+        "DO $$ BEGIN "
+        "CREATE TYPE quotationstatus AS ENUM "
+        "('DRAFT', 'SENT', 'ACCEPTED', 'REJECTED', 'EXPIRED', 'CANCELLED'); "
+        "EXCEPTION WHEN duplicate_object THEN null; "
+        "END $$;"
+    )
 
     op.create_table(
         "quotations",
@@ -110,4 +116,4 @@ def downgrade() -> None:
     op.drop_table("quotation_items")
     op.drop_index(op.f("ix_quotations_project_name"), table_name="quotations")
     op.drop_table("quotations")
-    quotation_status.drop(op.get_bind(), checkfirst=True)
+    op.execute("DROP TYPE IF EXISTS quotationstatus")
