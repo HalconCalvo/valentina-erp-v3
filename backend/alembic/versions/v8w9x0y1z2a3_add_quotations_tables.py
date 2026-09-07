@@ -13,11 +13,6 @@ down_revision: Union[str, Sequence[str], None] = "u7v8w9x0y1z2"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
-quotation_status = sa.Enum(
-    "DRAFT", "SENT", "ACCEPTED", "REJECTED", "EXPIRED", "CANCELLED",
-    name="quotationstatus",
-)
-
 
 def upgrade() -> None:
     op.execute(
@@ -35,7 +30,7 @@ def upgrade() -> None:
         sa.Column("tax_rate_id", sa.Integer(), nullable=False),
         sa.Column("user_id", sa.Integer(), nullable=True),
         sa.Column("project_name", sa.String(), nullable=False),
-        sa.Column("status", quotation_status, nullable=False, server_default="DRAFT"),
+        sa.Column("status", sa.String(), nullable=False, server_default="DRAFT"),
         sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.text("now()")),
         sa.Column("valid_until", sa.DateTime(), nullable=False),
         sa.Column("delivery_date", sa.DateTime(), nullable=True),
