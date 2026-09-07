@@ -250,7 +250,9 @@ class Quotation(SQLModel, table=True):
     user_id: Optional[int] = Field(default=None, foreign_key="users.id")
 
     client: Optional["Client"] = Relationship()
-    user: Optional["User"] = Relationship()
+    user: Optional["User"] = Relationship(
+        sa_relationship_kwargs={"foreign_keys": "[Quotation.user_id]"}
+    )
 
     project_name: str = Field(index=True)
     status: QuotationStatus = Field(default=QuotationStatus.DRAFT)
