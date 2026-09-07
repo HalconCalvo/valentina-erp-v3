@@ -468,6 +468,9 @@ def register_installment(
 
     order = sales_repo.get_sales_order_by_id(session, cxc.sales_order_id)
     abonado_antes = sales_repo.sum_active_installments(session, cxc.id)
+    saldo_factura = float(cxc.amount or 0.0) - abonado_antes
+    if monto > saldo_factura + 0.01:
+        raise HTTPException(status_code=400, detail="El abono supera el saldo pendiente de la factura.")
     is_advance = bool(payload.is_advance) or cxc.payment_type == PaymentType.ADVANCE
     inst = CustomerPaymentInstallment(
         customer_payment_id=cxc.id,
@@ -643,6 +646,11 @@ def emit_advance_invoice(
     order = sales_repo.get_sales_order_by_id(session, order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Orden de venta no encontrada.")
+    if sales_repo.get_advance_payment_by_order(session, order_id):
+        raise HTTPException(
+            status_code=400,
+            detail="Ya existe una factura de anticipo para esta OV.",
+        )
     monto = float(payload.amount or 0.0)
     if monto <= 0:
         raise HTTPException(status_code=422, detail="El monto de la factura de anticipo debe ser mayor a cero.")
@@ -872,6 +880,8 @@ def _persist_order_item(
 
 def create_order(session: Session, order_in: SalesOrderCreate, current_user: User) -> SalesOrder:
     try:
+        if not order_in.items:
+            raise HTTPException(status_code=422, detail="La OV debe incluir al menos una partida.")
         tax_rate = sales_repo.get_tax_rate_by_id(session, order_in.tax_rate_id)
         if not tax_rate:
             raise HTTPException(status_code=400, detail="Tasa de impuestos inválida")
