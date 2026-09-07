@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
     ArrowLeft,
     Landmark,
@@ -19,10 +20,15 @@ import {
 
 import { Card } from '@/components/ui/Card';
 import { toast } from '@/components/ui/VToast';
-import client from '../../../api/axios-client';
-import { financeService } from '../../../api/finance-service';
 import { salesService } from '../../../api/sales-service';
-import { treasuryService } from '../../../api/treasury-service';
+import {
+    useGlobalConfig,
+    useBankAccounts,
+    useManagementData,
+    usePayrollDashboard,
+    usePurchasePendingTasks,
+    managementQueryKeys,
+} from '../../../hooks/useManagement';
 import { BankAccount } from '../../../types/treasury';
 import { ReceivablesModule } from '../../finance/components/ReceivablesModule';
 import { PayablesModule } from '../../finance/components/PayablesModule';
@@ -42,6 +48,7 @@ type AdminV4Root = null | 'PENDING' | 'BANKS' | 'CXC' | 'CXP' | 'PAYROLL' | 'OV_
 const ManagementDashboard: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
 
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase().trim();
     const canSeeBanks = ['DIRECTOR'].includes(userRole);
@@ -70,125 +77,104 @@ const ManagementDashboard: React.FC = () => {
     const [recvResetTok, setRecvResetTok] = useState(0);
     const [payResetTok, setPayResetTok] = useState(0);
 
-    const [accounts, setAccounts] = useState<BankAccount[]>([]);
-    const [totalBankBalance, setTotalBankBalance] = useState(0);
     const [selectedAccountForDetail, setSelectedAccountForDetail] = useState<BankAccount | null>(null);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
     const [transactionType, setTransactionType] = useState<'IN' | 'OUT'>('IN');
 
-    const [alerts, setAlerts] = useState({ pending_requisitions: 0, pending_sales_advances: 0 });
-    const [totalPayables, setTotalPayables] = useState(0);
-    const [payablesCount, setPayablesCount] = useState(0);
-    const [invoicingAdvanceCount, setInvoicingAdvanceCount] = useState(0);
-    const [invoicingProgressCount, setInvoicingProgressCount] = useState(0);
-    const [invoicingAdvanceTotal, setInvoicingAdvanceTotal] = useState(0);
-    const [invoicingProgressTotal, setInvoicingProgressTotal] = useState(0);
-    /** Tarjeta C (Antigüedad): CXC pendientes de cobro (misma base que ReceivablesModule). */
-    const [cxcAgingCount, setCxcAgingCount] = useState(0);
-    const [cxcAgingTotal, setCxcAgingTotal] = useState(0);
+    const [selectedOrderForRayosX, setSelectedOrderForRayosX] = useState<SalesOrder | null>(null);
 
-    const [payrollDash, setPayrollDash] = useState({
+    const { data: config = null } = useGlobalConfig();
+    const { data: accounts = [], refetch: refetchBankAccounts } = useBankAccounts(canSeeBanks);
+    const { data: managementData, isError: managementError } = useManagementData();
+    const { data: payrollDash = {
         commPayableCount: 0,
         instPayableCount: 0,
         commPayableTotal: 0,
         instPayableTotal: 0,
-    });
-    const [selectedOrderForRayosX, setSelectedOrderForRayosX] = useState<SalesOrder | null>(null);
-    const [config, setConfig] = useState<{ company_name?: string; logo_path?: string } | null>(null);
+    } } = usePayrollDashboard();
+    const { data: purchasePendingTasks, isError: purchasePendingError } = usePurchasePendingTasks();
 
-    const loadData = useCallback(async () => {
-        try {
-            try {
-                const cfgRes = await client.get('/foundations/config');
-                const cfgData = Array.isArray(cfgRes.data) ? cfgRes.data[0] : cfgRes.data;
-                setConfig(cfgData);
-            } catch { /* ignore */ }
-            if (canSeeBanks) {
-                const accs = await treasuryService.getAccounts();
-                setAccounts(accs || []);
-                setTotalBankBalance((accs || []).reduce((s, a) => s + (a.current_balance || 0), 0));
-            }
-
-            const [apStats, rights, orders] = await Promise.all([
-                financeService.getPayableDashboardStats(),
-                salesService.getInvoicingRights().catch(() => null),
-                salesService.getOrders().catch(() => [] as SalesOrder[]),
-            ]);
-
-            const debt =
-                (apStats?.overdue_amount || 0) +
-                (apStats?.next_period_amount || 0) +
-                (apStats?.future_amount || 0);
-            setTotalPayables(debt);
-            const cxpDocTotal =
-                (apStats?.overdue_count ?? 0) +
-                (apStats?.next_period_count ?? 0) +
-                (apStats?.future_count ?? 0);
-            setPayablesCount(cxpDocTotal);
-
-            if (rights) {
-                setInvoicingAdvanceCount(rights.advances.length);
-                setInvoicingProgressCount(rights.progress_instances.length);
-                setInvoicingAdvanceTotal(rights.advance_pending_total);
-                setInvoicingProgressTotal(rights.progress_work_total);
-            } else {
-                setInvoicingAdvanceCount(0);
-                setInvoicingProgressCount(0);
-                setInvoicingAdvanceTotal(0);
-                setInvoicingProgressTotal(0);
-            }
-
-            const orderList = Array.isArray(orders) ? orders : [];
-            let agingN = 0;
-            let agingAmt = 0.0;
-            for (const o of orderList) {
-                const pays = (o as SalesOrder).payments;
-                if (!pays?.length) continue;
-                for (const cxc of pays) {
-                    if (String((cxc as { status?: string }).status).toUpperCase() === 'PENDING') {
-                        agingN += 1;
-                        agingAmt += Number((cxc as { amount?: number }).amount) || 0;
-                    }
-                }
-            }
-            setCxcAgingCount(agingN);
-            setCxcAgingTotal(agingAmt);
-
-            try {
-                const [coOv, instOv] = await Promise.all([
-                    salesService.getCommissionsPayrollOverview(),
-                    treasuryService.getInstallerPayrollOverview(),
-                ]);
-                setPayrollDash({
-                    commPayableCount: coOv.payable.length,
-                    instPayableCount: instOv.payable.length,
-                    commPayableTotal: coOv.payable_total,
-                    instPayableTotal: instOv.payable_total,
-                });
-            } catch {
-                /* ignore */
-            }
-
-            try {
-                const notifRes = await client.get('/purchases/notifications/pending-tasks');
-                setAlerts({
-                    pending_requisitions: notifRes.data.orders_to_authorize || 0,
-                    pending_sales_advances: rights?.advances.length ?? 0,
-                });
-            } catch {
-                toast.error('Error al cargar notificaciones de compras.');
-            }
-        } catch {
-            toast.error('Error al cargar el panel de administración.');
-        }
-    }, [canSeeBanks]);
+    const refreshManagement = useCallback(async () => {
+        await Promise.all([
+            queryClient.invalidateQueries({ queryKey: managementQueryKeys.managementData() }),
+            queryClient.invalidateQueries({ queryKey: managementQueryKeys.globalConfig() }),
+            queryClient.invalidateQueries({ queryKey: managementQueryKeys.payrollDashboard() }),
+            queryClient.invalidateQueries({ queryKey: managementQueryKeys.purchasePendingTasks() }),
+            ...(canSeeBanks
+                ? [queryClient.invalidateQueries({ queryKey: managementQueryKeys.bankAccounts() })]
+                : []),
+        ]);
+    }, [canSeeBanks, queryClient]);
 
     useEffect(() => {
-        loadData();
-        const id = setInterval(loadData, 30000);
-        return () => clearInterval(id);
-    }, [loadData]);
+        if (managementError) toast.error('Error al cargar el panel de administración.');
+    }, [managementError]);
+
+    useEffect(() => {
+        if (purchasePendingError) toast.error('Error al cargar notificaciones de compras.');
+    }, [purchasePendingError]);
+
+    const totalBankBalance = useMemo(
+        () => accounts.reduce((sum, account) => sum + (account.current_balance || 0), 0),
+        [accounts],
+    );
+
+    const {
+        totalPayables,
+        payablesCount,
+        invoicingAdvanceCount,
+        invoicingProgressCount,
+        invoicingAdvanceTotal,
+        invoicingProgressTotal,
+        cxcAgingCount,
+        cxcAgingTotal,
+    } = useMemo(() => {
+        const apStats = managementData?.apStats;
+        const rights = managementData?.rights;
+        const orderList = Array.isArray(managementData?.orders) ? managementData.orders : [];
+
+        const debt =
+            (apStats?.overdue_amount || 0) +
+            (apStats?.next_period_amount || 0) +
+            (apStats?.future_amount || 0);
+        const cxpDocTotal =
+            (apStats?.overdue_count ?? 0) +
+            (apStats?.next_period_count ?? 0) +
+            (apStats?.future_count ?? 0);
+
+        let agingN = 0;
+        let agingAmt = 0;
+        for (const order of orderList) {
+            const pays = order.payments;
+            if (!pays?.length) continue;
+            for (const cxc of pays) {
+                if (String(cxc.status).toUpperCase() === 'PENDING') {
+                    agingN += 1;
+                    agingAmt += Number(cxc.amount) || 0;
+                }
+            }
+        }
+
+        return {
+            totalPayables: debt,
+            payablesCount: cxpDocTotal,
+            invoicingAdvanceCount: rights?.advances.length ?? 0,
+            invoicingProgressCount: rights?.progress_instances.length ?? 0,
+            invoicingAdvanceTotal: rights?.advance_pending_total ?? 0,
+            invoicingProgressTotal: rights?.progress_work_total ?? 0,
+            cxcAgingCount: agingN,
+            cxcAgingTotal: agingAmt,
+        };
+    }, [managementData]);
+
+    const alerts = useMemo(
+        () => ({
+            pending_requisitions: purchasePendingTasks?.orders_to_authorize ?? 0,
+            pending_sales_advances: managementData?.rights?.advances.length ?? 0,
+        }),
+        [managementData?.rights?.advances.length, purchasePendingTasks?.orders_to_authorize],
+    );
 
     useEffect(() => {
         if ((location.state as any)?.reset) {
@@ -650,7 +636,7 @@ const ManagementDashboard: React.FC = () => {
                             toast.error('No se pudo cargar el detalle de la orden.');
                         }
                     }}
-                    onRefresh={loadData}
+                    onRefresh={refreshManagement}
                 />
             )}
 
@@ -667,18 +653,18 @@ const ManagementDashboard: React.FC = () => {
                     <CreateAccountModal
                         isOpen={isCreateModalOpen}
                         onClose={() => setIsCreateModalOpen(false)}
-                        onSuccess={loadData}
+                        onSuccess={refreshManagement}
                     />
                     <TransactionModal
                         isOpen={isTransactionModalOpen}
                         onClose={() => setIsTransactionModalOpen(false)}
-                        onSuccess={() => {
-                            loadData();
+                        onSuccess={async () => {
+                            await refreshManagement();
                             if (selectedAccountForDetail) {
-                                treasuryService.getAccounts().then((accs) => {
-                                    const u = accs.find((a) => a.id === selectedAccountForDetail.id);
-                                    if (u) setSelectedAccountForDetail(u);
-                                });
+                                const result = await refetchBankAccounts();
+                                const accs = result.data ?? [];
+                                const updated = accs.find((a) => a.id === selectedAccountForDetail.id);
+                                if (updated) setSelectedAccountForDetail(updated);
                             }
                         }}
                         accounts={accounts}
@@ -693,7 +679,7 @@ const ManagementDashboard: React.FC = () => {
                     isOpen={!!selectedOrderForRayosX}
                     onClose={() => setSelectedOrderForRayosX(null)}
                     order={selectedOrderForRayosX}
-                    onSuccess={loadData}
+                    onSuccess={refreshManagement}
                     readOnly={!canFinanceRayosX}
                 />
             )}
