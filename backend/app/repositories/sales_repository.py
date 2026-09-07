@@ -17,6 +17,7 @@ from app.models.sales import (
     SalesOrderItemInstance,
     SalesOrderStatus,
 )
+from app.models.treasury import BankAccount, BankTransaction
 from app.models.users import User, UserRole
 
 
@@ -157,3 +158,81 @@ def get_cxc_by_id(session: Session, cxc_id: int) -> Optional[CustomerPayment]:
 
 def get_tax_rate_by_id(session: Session, tax_rate_id: int) -> Optional[TaxRate]:
     return session.get(TaxRate, tax_rate_id)
+
+
+def get_installment_by_id(session: Session, installment_id: int) -> Optional[CustomerPaymentInstallment]:
+    return session.get(CustomerPaymentInstallment, installment_id)
+
+
+def get_bank_account_by_id(session: Session, account_id: int) -> Optional[BankAccount]:
+    return session.get(BankAccount, account_id)
+
+
+def get_bank_transaction_by_id(session: Session, transaction_id: int) -> Optional[BankTransaction]:
+    return session.get(BankTransaction, transaction_id)
+
+
+def get_installments_by_cxc(session: Session, cxc_id: int) -> List[CustomerPaymentInstallment]:
+    return list(
+        session.exec(
+            select(CustomerPaymentInstallment)
+            .where(CustomerPaymentInstallment.customer_payment_id == cxc_id)
+            .order_by(CustomerPaymentInstallment.payment_date)
+        ).all()
+    )
+
+
+def get_instances_by_cxc(session: Session, cxc_id: int) -> List[SalesOrderItemInstance]:
+    return list(
+        session.exec(
+            select(SalesOrderItemInstance).where(
+                SalesOrderItemInstance.customer_payment_id == cxc_id
+            )
+        ).all()
+    )
+
+
+def get_full_invoice_by_order(session: Session, order_id: int) -> Optional[CustomerPayment]:
+    return session.exec(
+        select(CustomerPayment).where(
+            CustomerPayment.sales_order_id == order_id,
+            CustomerPayment.payment_type == PaymentType.FULL,
+            CustomerPayment.status != CXCStatus.CANCELLED,
+        )
+    ).first()
+
+
+def get_payment_by_id(session: Session, payment_id: int) -> Optional[CustomerPayment]:
+    return session.get(CustomerPayment, payment_id)
+
+
+def get_instance_by_id(session: Session, instance_id: int) -> Optional[SalesOrderItemInstance]:
+    return session.get(SalesOrderItemInstance, instance_id)
+
+
+def get_item_by_id(session: Session, item_id: int) -> Optional[SalesOrderItem]:
+    return session.get(SalesOrderItem, item_id)
+
+
+def get_instance_for_order(
+    session: Session, instance_id: int, order_id: int
+) -> Optional[SalesOrderItemInstance]:
+    return session.exec(
+        select(SalesOrderItemInstance)
+        .join(SalesOrderItem, SalesOrderItemInstance.sales_order_item_id == SalesOrderItem.id)
+        .where(
+            SalesOrderItemInstance.id == instance_id,
+            SalesOrderItem.sales_order_id == order_id,
+        )
+    ).first()
+
+
+def get_last_active_installment_date(session: Session, cxc_id: int):
+    return session.exec(
+        select(CustomerPaymentInstallment.payment_date)
+        .where(
+            CustomerPaymentInstallment.customer_payment_id == cxc_id,
+            CustomerPaymentInstallment.is_cancelled == False,  # noqa: E712
+        )
+        .order_by(CustomerPaymentInstallment.payment_date.desc())
+    ).first()

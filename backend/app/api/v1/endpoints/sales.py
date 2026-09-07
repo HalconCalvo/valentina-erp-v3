@@ -26,6 +26,7 @@ from app.services.pdf_generator import PDFGenerator
 # --- IMPORTAMOS LOS MOTORES (V3.5) ---
 from app.services.cost_engine import CostEngine
 from app.services import sales_service
+from app.repositories import sales_repository as sales_repo
 
 from app.schemas.sales_schema import (
     SalesOrderCreate, SalesOrderRead, SalesOrderUpdate,
@@ -937,39 +938,7 @@ def confirm_cxc_payment(order_id: int, cxc_id: int, session: Session = Depends(g
 
 
 def _liberar_comision_anticipo(session, order, payment, base_con_iva):
-    """
-    Libera la comisión del anticipo UNA sola vez, al completarse. Se calcula sobre el
-    TOTAL del anticipo (base_con_iva = importe de la factura de anticipo), replicando la
-    misma lógica de comisión vendedor + directores globales de confirm_cxc_payment.
-    """
-    tax_rate_obj = session.get(TaxRate, order.tax_rate_id)
-    tax_multiplier = tax_rate_obj.rate if tax_rate_obj else 0.16
-    base_before_tax = base_con_iva / (1.0 + tax_multiplier)
-
-    seller_commission_rate = normalize_commission(order.applied_commission_percent or 0.0)
-    if order.user_id and seller_commission_rate > 0:
-        session.add(SalesCommission(
-            customer_payment_id=payment.id,
-            user_id=order.user_id,
-            commission_type=CommissionType.SELLER,
-            base_amount=base_before_tax,
-            rate=seller_commission_rate,
-            commission_amount=base_before_tax * seller_commission_rate,
-        ))
-    directors = session.exec(
-        select(User).where(User.role == UserRole.DIRECTOR, User.is_active == True)
-    ).all()
-    for director in directors:
-        dir_rate = normalize_commission(director.global_commission_rate or 0.0)
-        if dir_rate > 0:
-            session.add(SalesCommission(
-                customer_payment_id=payment.id,
-                user_id=director.id,
-                commission_type=CommissionType.DIRECTOR_GLOBAL,
-                base_amount=base_before_tax,
-                rate=dir_rate,
-                commission_amount=base_before_tax * dir_rate,
-            ))
+    sales_service.liberar_comision_anticipo(session, order, payment, base_con_iva)
 
 @router.post("/orders/{order_id}/advance_payments", response_model=SalesOrderRead)
 def register_advance_payment(order_id: int, payload: PaymentPayload,
@@ -1311,304 +1280,37 @@ def register_progress_invoice(
     }
 
 @router.post("/orders/{order_id}/emit_advance_invoice", response_model=dict)
-def emit_advance_invoice(order_id: int, payload: PaymentPayload,
-                         session: Session = Depends(get_session),
-                         current_user: User = Depends(get_current_active_user)):
-    order = session.get(SalesOrder, order_id)
-    if not order:
-        raise HTTPException(404, "Orden de venta no encontrada.")
+def emit_advance_invoice(
+    order_id: int,
+    payload: PaymentPayload,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    return sales_service.emit_advance_invoice(session, order_id, payload, current_user)
 
-    monto = float(payload.amount or 0.0)
-    if monto <= 0:
-        raise HTTPException(422, "El monto de la factura de anticipo debe ser mayor a cero.")
-
-    if not payload.invoice_folio:
-        raise HTTPException(422, "El folio de la factura de anticipo es obligatorio.")
-
-    new_cxc = CustomerPayment(
-        sales_order_id=order.id,
-        payment_type=PaymentType.ADVANCE,
-        invoice_folio=payload.invoice_folio,
-        amount=monto,
-        status=CXCStatus.PENDING,
-        created_by_user_id=current_user.id,
-        invoice_date=payload.invoice_date or datetime.utcnow(),
-    )
-    session.add(new_cxc)
-    session.commit()
-    session.refresh(new_cxc)
-
-    return {
-        "message": "Factura de anticipo emitida.",
-        "cxc_id": new_cxc.id,
-        "payment_type": new_cxc.payment_type,
-        "invoice_folio": new_cxc.invoice_folio,
-        "amount": new_cxc.amount,
-        "status": new_cxc.status,
-    }
 
 @router.post("/orders/{order_id}/emit_full_invoice", response_model=dict)
-def emit_full_invoice(order_id: int, payload: PaymentPayload,
-                      session: Session = Depends(get_session),
-                      current_user: User = Depends(get_current_active_user)):
-    """
-    Emite una factura por el 100% del contrato desde el inicio.
-    Los pagos (anticipo + avances) se van abonando a esta factura
-    conforme avanza la obra. Útil para planificación fiscal.
-    """
-    order = session.get(SalesOrder, order_id)
-    if not order:
-        raise HTTPException(404, "Orden de venta no encontrada.")
-
-    # Validar que no exista ya una factura FULL para esta OV
-    existing = session.exec(
-        select(CustomerPayment).where(
-            CustomerPayment.sales_order_id == order_id,
-            CustomerPayment.payment_type == PaymentType.FULL,
-            CustomerPayment.status != CXCStatus.CANCELLED
-        )
-    ).first()
-    if existing:
-        raise HTTPException(409, f"Ya existe una factura al 100% para esta OV (folio: {existing.invoice_folio}).")
-
-    monto = float(payload.amount or 0.0)
-    if monto <= 0:
-        raise HTTPException(422, "El monto de la factura debe ser mayor a cero.")
-
-    if not payload.invoice_folio:
-        raise HTTPException(422, "El folio de la factura es obligatorio.")
-
-    new_cxc = CustomerPayment(
-        sales_order_id=order.id,
-        payment_type=PaymentType.FULL,
-        invoice_folio=payload.invoice_folio,
-        amount=monto,
-        status=CXCStatus.PENDING,
-        created_by_user_id=current_user.id,
-        invoice_date=payload.invoice_date or datetime.utcnow(),
-    )
-    session.add(new_cxc)
-
-    # Cambiar estado de la OV a SOLD si estaba en WAITING_ADVANCE
-    if order.status == SalesOrderStatus.WAITING_ADVANCE:
-        order.status = SalesOrderStatus.SOLD
-        session.add(order)
-
-    session.commit()
-    session.refresh(new_cxc)
-
-    return {
-        "message": "Factura al 100% emitida.",
-        "cxc_id": new_cxc.id,
-        "payment_type": new_cxc.payment_type,
-        "invoice_folio": new_cxc.invoice_folio,
-        "amount": new_cxc.amount,
-        "status": new_cxc.status,
-    }
-
-_INSTALLMENT_ROLES = {UserRole.DIRECTOR, UserRole.MANAGER}
-
-
-def _assert_installment_manager(user: User) -> None:
-    if user.role not in _INSTALLMENT_ROLES:
-        raise HTTPException(403, "Sin permisos para gestionar abonos.")
+def emit_full_invoice(
+    order_id: int,
+    payload: PaymentPayload,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    return sales_service.emit_full_invoice(session, order_id, payload, current_user)
 
 
 def _sum_active_installments(session: Session, cxc_id: int) -> float:
-    val = session.exec(
-        select(func.coalesce(func.sum(CustomerPaymentInstallment.amount), 0.0)).where(
-            CustomerPaymentInstallment.customer_payment_id == cxc_id,
-            CustomerPaymentInstallment.is_cancelled == False,  # noqa: E712
-        )
-    ).one()
-    return float(val or 0.0)
-
-
-def _recalc_cxc_status(session: Session, cxc: CustomerPayment, order: Optional[SalesOrder]) -> None:
-    total = _sum_active_installments(session, cxc.id)
-    monto = float(cxc.amount or 0.0)
-    if total + 0.01 >= monto:
-        if cxc.status != CXCStatus.PAID:
-            cxc.status = CXCStatus.PAID
-            last_dt = session.exec(
-                select(CustomerPaymentInstallment.payment_date)
-                .where(
-                    CustomerPaymentInstallment.customer_payment_id == cxc.id,
-                    CustomerPaymentInstallment.is_cancelled == False,  # noqa: E712
-                )
-                .order_by(CustomerPaymentInstallment.payment_date.desc())
-            ).first()
-            cxc.payment_date = last_dt or datetime.utcnow()
-    elif cxc.status == CXCStatus.PAID:
-        cxc.status = CXCStatus.PENDING
-        cxc.payment_date = None
-    session.add(cxc)
-    if order:
-        if float(order.outstanding_balance or 0.0) <= 0.1:
-            order.status = SalesOrderStatus.FINISHED
-        elif order.status == SalesOrderStatus.FINISHED and float(order.outstanding_balance or 0.0) > 0.1:
-            order.status = SalesOrderStatus.SOLD
-        session.add(order)
-
-
-def _unlink_cxc_instances(session: Session, cxc_id: int) -> None:
-    rows = session.exec(
-        select(SalesOrderItemInstance).where(
-            SalesOrderItemInstance.customer_payment_id == cxc_id
-        )
-    ).all()
-    for inst in rows:
-        inst.customer_payment_id = None
-        session.add(inst)
-
-
-def _link_cxc_instances(session: Session, cxc_id: int, sales_order_id: int, instance_ids: List[int]) -> None:
-    for iid in instance_ids:
-        inst_obj = session.exec(
-            select(SalesOrderItemInstance)
-            .join(SalesOrderItem, SalesOrderItemInstance.sales_order_item_id == SalesOrderItem.id)
-            .where(
-                SalesOrderItemInstance.id == iid,
-                SalesOrderItem.sales_order_id == sales_order_id,
-            )
-        ).first()
-        if not inst_obj:
-            raise HTTPException(404, f"Instancia {iid} no encontrada en esta orden.")
-        if inst_obj.customer_payment_id is not None and inst_obj.customer_payment_id != cxc_id:
-            raise HTTPException(422, f"La instancia {iid} ya está vinculada a otra factura.")
-        inst_obj.customer_payment_id = cxc_id
-        session.add(inst_obj)
-
-
-def _adjust_bank_for_installment_diff(session: Session, installment: CustomerPaymentInstallment, diff: float) -> None:
-    if not installment.bank_transaction_id or abs(diff) < 0.001:
-        return
-    bank_tx = session.get(BankTransaction, installment.bank_transaction_id)
-    if not bank_tx or bank_tx.is_cancelled:
-        return
-    account = session.get(BankAccount, bank_tx.account_id)
-    if not account:
-        return
-    account.current_balance = float(account.current_balance or 0.0) + diff
-    bank_tx.amount = float(bank_tx.amount or 0.0) + diff
-    session.add(account)
-    session.add(bank_tx)
+    return sales_repo.sum_active_installments(session, cxc_id)
 
 
 @router.post("/invoices/{cxc_id}/installments", response_model=dict)
-def register_installment(cxc_id: int, payload: PaymentPayload,
-                         session: Session = Depends(get_session),
-                         current_user: User = Depends(get_current_active_user)):
-    cxc = session.get(CustomerPayment, cxc_id)
-    if not cxc:
-        raise HTTPException(404, "Factura no encontrada.")
-    if cxc.status == CXCStatus.CANCELLED:
-        raise HTTPException(409, "La factura está cancelada.")
-    if cxc.status == CXCStatus.PAID:
-        raise HTTPException(409, "La factura ya está saldada.")
-
-    monto = float(payload.amount or 0.0)
-    if monto <= 0:
-        raise HTTPException(422, "El monto del abono debe ser mayor a cero.")
-
-    order = session.get(SalesOrder, cxc.sales_order_id)
-
-    # Suma de abonos previos de esta factura (activos)
-    abonado_antes = _sum_active_installments(session, cxc.id)
-
-    # Registrar el abono
-    is_advance = bool(payload.is_advance) or cxc.payment_type == PaymentType.ADVANCE
-    inst = CustomerPaymentInstallment(
-        customer_payment_id=cxc.id,
-        amount=monto,
-        payment_date=payload.payment_date or datetime.utcnow(),
-        reference=payload.reference,
-        notes=payload.notes,
-        created_by_user_id=current_user.id,
-        is_advance=is_advance,
-    )
-    session.add(inst)
-
-    if payload.account_id:
-        account = session.get(BankAccount, payload.account_id)
-        if not account:
-            raise HTTPException(404, "Cuenta bancaria no encontrada.")
-        type_labels = {
-            PaymentType.ADVANCE: "Anticipo",
-            PaymentType.PROGRESS: "Avance de obra",
-            PaymentType.FULL: "Factura 100%",
-        }
-        tipo = type_labels.get(cxc.payment_type, str(cxc.payment_type))
-        proyecto = order.project_name if order else "—"
-        folio = cxc.invoice_folio or "S/F"
-        bank_tx = BankTransaction(
-            account_id=account.id,
-            transaction_type=TransactionType.IN,
-            amount=monto,
-            reference=payload.reference,
-            description=f"Abono {tipo} — {proyecto} — Folio {folio}",
-            transaction_date=payload.payment_date or datetime.utcnow(),
-            related_entity_type="CUSTOMER_PAYMENT",
-            related_entity_id=cxc.id,
-        )
-        session.add(bank_tx)
-        session.flush()
-        inst.bank_transaction_id = bank_tx.id
-        account.current_balance = float(account.current_balance or 0.0) + monto
-        session.add(account)
-        if cxc.treasury_transaction_id is None:
-            session.flush()
-            cxc.treasury_transaction_id = bank_tx.id
-
-    if payload.instance_ids:
-        for iid in payload.instance_ids:
-            inst_obj = session.get(SalesOrderItemInstance, iid)
-            if not inst_obj:
-                raise HTTPException(404, f"Instancia {iid} no encontrada.")
-            if inst_obj.customer_payment_id is not None:
-                continue
-            item_obj = session.get(SalesOrderItem, inst_obj.sales_order_item_id)
-            if not item_obj or item_obj.sales_order_id != cxc.sales_order_id:
-                raise HTTPException(422, f"La instancia {iid} no pertenece a esta orden.")
-            inst_obj.customer_payment_id = cxc.id
-            session.add(inst_obj)
-
-    # Reducir saldo de la OV por el monto abonado
-    if order:
-        order.outstanding_balance = float(order.outstanding_balance or 0.0) - monto
-
-    abonado_despues = abonado_antes + monto
-    factura_saldada = abonado_despues + 0.01 >= float(cxc.amount or 0.0)
-
-    if factura_saldada and cxc.status != CXCStatus.PAID:
-        cxc.status = CXCStatus.PAID
-        cxc.payment_date = payload.payment_date or datetime.utcnow()
-        # Liberar comisión solo si es factura de ANTICIPO y no se ha liberado
-        if cxc.payment_type == PaymentType.ADVANCE and not cxc.commission_paid and order:
-            session.flush()
-            _liberar_comision_anticipo(session, order, cxc, float(cxc.amount or 0.0))
-            cxc.commission_paid = True
-            # Al completar el anticipo, la OV pasa a SOLD (si no está ya en un estado posterior)
-            if order.status == SalesOrderStatus.WAITING_ADVANCE:
-                order.status = SalesOrderStatus.SOLD
-        session.add(cxc)
-
-    if order:
-        if order.outstanding_balance <= 0.1:
-            order.status = SalesOrderStatus.FINISHED
-        session.add(order)
-
-    session.commit()
-    session.refresh(cxc)
-
-    return {
-        "message": "Abono registrado.",
-        "cxc_id": cxc.id,
-        "abonado_total": abonado_despues,
-        "factura_amount": cxc.amount,
-        "factura_status": cxc.status,
-        "saldada": factura_saldada,
-    }
+def register_installment(
+    cxc_id: int,
+    payload: PaymentPayload,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    return sales_service.register_installment(session, cxc_id, payload, current_user)
 
 
 @router.get("/invoices/{cxc_id}/installments", response_model=dict)
@@ -1667,39 +1369,7 @@ def update_installment(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ):
-    _assert_installment_manager(current_user)
-    row = session.get(CustomerPaymentInstallment, installment_id)
-    if not row:
-        raise HTTPException(404, "Abono no encontrado.")
-    if row.is_cancelled:
-        raise HTTPException(409, "El abono está cancelado.")
-    cxc = session.get(CustomerPayment, row.customer_payment_id)
-    if not cxc or cxc.status == CXCStatus.CANCELLED:
-        raise HTTPException(409, "La factura está cancelada.")
-    order = session.get(SalesOrder, cxc.sales_order_id)
-    updates = data.model_dump(exclude_unset=True)
-    instance_ids = updates.pop("instance_ids", None)
-    old_amount = float(row.amount or 0.0)
-    if "amount" in updates:
-        new_amount = float(updates["amount"] or 0.0)
-        if new_amount <= 0:
-            raise HTTPException(422, "El monto debe ser mayor a cero.")
-        diff = new_amount - old_amount
-        if abs(diff) >= 0.001 and order:
-            order.outstanding_balance = float(order.outstanding_balance or 0.0) - diff
-            session.add(order)
-            _adjust_bank_for_installment_diff(session, row, diff)
-    for field, value in updates.items():
-        setattr(row, field, value)
-    session.add(row)
-    if instance_ids is not None:
-        _unlink_cxc_instances(session, cxc.id)
-        if instance_ids:
-            _link_cxc_instances(session, cxc.id, cxc.sales_order_id, instance_ids)
-    _recalc_cxc_status(session, cxc, order)
-    session.commit()
-    session.refresh(row)
-    return {"message": "Abono actualizado.", "installment_id": row.id}
+    return sales_service.update_installment(session, installment_id, data, current_user)
 
 
 @router.patch("/installments/{installment_id}/cancel", response_model=dict)
@@ -1709,42 +1379,7 @@ def cancel_installment(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ):
-    _assert_installment_manager(current_user)
-    reason = (data.cancel_reason or "").strip()
-    if not reason:
-        raise HTTPException(422, "El motivo de cancelación es obligatorio.")
-    row = session.get(CustomerPaymentInstallment, installment_id)
-    if not row:
-        raise HTTPException(404, "Abono no encontrado.")
-    if row.is_cancelled:
-        raise HTTPException(409, "El abono ya está cancelado.")
-    cxc = session.get(CustomerPayment, row.customer_payment_id)
-    if not cxc:
-        raise HTTPException(404, "Factura no encontrada.")
-    order = session.get(SalesOrder, cxc.sales_order_id)
-    amount = float(row.amount or 0.0)
-    row.is_cancelled = True
-    row.cancel_reason = reason
-    row.cancelled_at = datetime.utcnow()
-    session.add(row)
-    if order:
-        order.outstanding_balance = float(order.outstanding_balance or 0.0) + amount
-        session.add(order)
-    if row.bank_transaction_id:
-        bank_tx = session.get(BankTransaction, row.bank_transaction_id)
-        if bank_tx and not bank_tx.is_cancelled:
-            account = session.get(BankAccount, bank_tx.account_id)
-            if account:
-                account.current_balance = float(account.current_balance or 0.0) - amount
-                session.add(account)
-            bank_tx.is_cancelled = True
-            bank_tx.cancel_reason = reason
-            bank_tx.cancelled_at = datetime.utcnow()
-            session.add(bank_tx)
-    _unlink_cxc_instances(session, cxc.id)
-    _recalc_cxc_status(session, cxc, order)
-    session.commit()
-    return {"message": "Abono cancelado.", "installment_id": row.id}
+    return sales_service.cancel_installment(session, installment_id, data, current_user)
 
 
 @router.get("/invoices/pending-cxc", response_model=list)
@@ -1836,64 +1471,7 @@ def update_customer_payment(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ):
-    allowed = {UserRole.DIRECTOR, UserRole.MANAGER, UserRole.ADMIN}
-    if current_user.role not in allowed:
-        raise HTTPException(status_code=403, detail="Sin permisos para editar facturas de cliente.")
-
-    payment = session.get(CustomerPayment, payment_id)
-    if not payment or payment.sales_order_id != order_id:
-        raise HTTPException(status_code=404, detail="Factura no encontrada en esta orden.")
-
-    updates = data.model_dump(exclude_unset=True)
-
-    if payment.treasury_transaction_id is not None:
-        forbidden = set(updates.keys()) - {"notes"}
-        if forbidden:
-            raise HTTPException(
-                status_code=422,
-                detail="This invoice has a registered payment. Only notes can be edited.",
-            )
-        if "notes" in updates:
-            payment.notes = updates["notes"]
-    else:
-        instance_ids = updates.pop("instance_ids", None)
-        for field, value in updates.items():
-            setattr(payment, field, value)
-
-        if instance_ids is not None:
-            current_linked = session.exec(
-                select(SalesOrderItemInstance).where(
-                    SalesOrderItemInstance.customer_payment_id == payment_id
-                )
-            ).all()
-            for inst in current_linked:
-                inst.customer_payment_id = None
-                session.add(inst)
-
-            for iid in instance_ids:
-                inst = session.exec(
-                    select(SalesOrderItemInstance)
-                    .join(
-                        SalesOrderItem,
-                        SalesOrderItemInstance.sales_order_item_id == SalesOrderItem.id,
-                    )
-                    .where(
-                        SalesOrderItemInstance.id == iid,
-                        SalesOrderItem.sales_order_id == order_id,
-                    )
-                ).first()
-                if not inst:
-                    raise HTTPException(
-                        status_code=422,
-                        detail="Instance not found or does not belong to this order.",
-                    )
-                inst.customer_payment_id = payment_id
-                session.add(inst)
-
-    session.add(payment)
-    session.commit()
-    session.refresh(payment)
-    return payment
+    return sales_service.update_customer_payment(session, order_id, payment_id, data, current_user)
 
 
 @router.patch("/orders/{order_id}/payments/{payment_id}/cancel", response_model=CustomerPaymentRead)
@@ -1904,42 +1482,7 @@ def cancel_customer_payment(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ):
-    allowed = {UserRole.DIRECTOR, UserRole.MANAGER}
-    if current_user.role not in allowed:
-        raise HTTPException(status_code=403, detail="Sin permisos para cancelar facturas de cliente.")
-
-    payment = session.get(CustomerPayment, payment_id)
-    if not payment or payment.sales_order_id != order_id:
-        raise HTTPException(status_code=404, detail="Factura no encontrada en esta orden.")
-
-    if payment.status != CXCStatus.PENDING:
-        raise HTTPException(
-            status_code=422,
-            detail="Only pending invoices can be cancelled.",
-        )
-
-    if payment.treasury_transaction_id is not None:
-        raise HTTPException(
-            status_code=422,
-            detail="This invoice has a registered payment. Reverse the bank transaction first.",
-        )
-
-    payment.status = CXCStatus.CANCELLED
-    payment.notes = (payment.notes or "") + f" | CANCELLED: {data.cancel_reason}"
-
-    linked_instances = session.exec(
-        select(SalesOrderItemInstance).where(
-            SalesOrderItemInstance.customer_payment_id == payment_id
-        )
-    ).all()
-    for inst in linked_instances:
-        inst.customer_payment_id = None
-        session.add(inst)
-
-    session.add(payment)
-    session.commit()
-    session.refresh(payment)
-    return payment
+    return sales_service.cancel_customer_payment(session, order_id, payment_id, data, current_user)
 
 
 # ==========================================
