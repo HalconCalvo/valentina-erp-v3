@@ -3,6 +3,7 @@ import time
 
 import structlog
 from jose import JWTError, jwt
+from structlog.contextvars import bind_contextvars, clear_contextvars
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.core.config import settings
@@ -61,6 +62,8 @@ class RequestLoggingMiddleware:
         user_id = _extract_user_id(scope)
         method = scope.get("method", "")
 
+        bind_contextvars(user_id=user_id, path=path)
+
         async def send_wrapper(message: Message) -> None:
             nonlocal status_code
             if message["type"] == "http.response.start":
@@ -95,6 +98,8 @@ class RequestLoggingMiddleware:
                 logger.warning("request_completed", **event)
             else:
                 logger.info("request_completed", **event)
+        finally:
+            clear_contextvars()
 
 
 def add_request_logging_middleware(app) -> None:

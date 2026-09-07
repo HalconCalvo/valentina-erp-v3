@@ -13,6 +13,22 @@ from sqlmodel import Session, select
 
 from app.api.v1.api import api_router
 from app.core.config import settings
+
+if settings.SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+    from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        environment="development" if settings.DEBUG else "production",
+        traces_sample_rate=0.2,
+        integrations=[
+            FastApiIntegration(),
+            SqlalchemyIntegration(),
+        ],
+    )
+
 from app.core.database import create_db_and_tables, engine
 from app.core.logging import configure_logging
 from app.core.middleware import add_request_logging_middleware

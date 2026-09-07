@@ -26,6 +26,8 @@ class Settings(BaseSettings):
 
     DEBUG: bool = True
 
+    SENTRY_DSN: Optional[str] = None
+
     # Google Cloud
     GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = None
     GOOGLE_CLOUD_BUCKET_NAME: Optional[str] = None

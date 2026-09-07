@@ -9,6 +9,43 @@ from app.core.config import settings
 _CONFIGURED = False
 
 
+def _forward_errors_to_sentry(
+    logger: structlog.types.WrappedLogger,
+    method_name: str,
+    event_dict: structlog.types.EventDict,
+) -> structlog.types.EventDict:
+    """Send structlog ERROR/CRITICAL events to Sentry when configured."""
+    if method_name not in ("error", "critical") or not settings.SENTRY_DSN:
+        return event_dict
+
+    import sentry_sdk
+
+    user_id = event_dict.get("user_id")
+    path = event_dict.get("path")
+
+    with sentry_sdk.push_scope() as scope:
+        if user_id is not None:
+            scope.set_user({"id": str(user_id)})
+        if path:
+            scope.set_tag("path", str(path))
+        for key, value in event_dict.items():
+            if key in ("exc_info", "stack_info"):
+                continue
+            scope.set_extra(key, value)
+
+        exc_info = event_dict.get("exc_info")
+        event_name = event_dict.get("event") or event_dict.get("message") or "logged_error"
+
+        if exc_info is True:
+            sentry_sdk.capture_exception()
+        elif exc_info:
+            sentry_sdk.capture_exception(exc_info)
+        else:
+            sentry_sdk.capture_message(str(event_name), level="error")
+
+    return event_dict
+
+
 def configure_logging() -> None:
     """Configure structlog once at application startup."""
     global _CONFIGURED
@@ -25,6 +62,7 @@ def configure_logging() -> None:
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
         structlog.processors.UnicodeDecoder(),
+        _forward_errors_to_sentry,
     ]
 
     if settings.DEBUG:
