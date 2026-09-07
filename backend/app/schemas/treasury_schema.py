@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, date
 from app.models.treasury import TransactionType
 
 # --- ESQUEMAS PARA CUENTAS BANCARIAS ---
@@ -67,3 +67,14 @@ class BankTransactionUpdate(BaseModel):
 class BankTransactionCancel(BaseModel):
     """Payload para cancelar un movimiento bancario."""
     cancel_reason: str
+
+
+class OperationalExpenseCreate(BaseModel):
+    provider_name: Optional[str] = None
+    concept: str
+    overhead_category: str
+    total_amount: float
+    issue_date: date
+    due_date: date
+    notes: Optional[str] = None
+    instance_id: Optional[int] = None

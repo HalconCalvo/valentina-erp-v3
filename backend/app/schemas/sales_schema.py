@@ -239,3 +239,165 @@ class InstallmentUpdate(BaseModel):
 class InstallmentCancel(BaseModel):
     """Payload para cancelar un abono registrado."""
     cancel_reason: str
+
+
+# ==========================================
+# PAYLOADS Y PATCHES DE ENDPOINTS (sales)
+# ==========================================
+
+class PaymentPayload(BaseModel):
+    invoice_folio: Optional[str] = None
+    amount: float = 0.0
+    amortized_advance: float = 0.0
+    instance_ids: List[int] = []
+    payment_date: Optional[datetime] = None
+    invoice_date: Optional[datetime] = None
+    notes: Optional[str] = None
+    reference: Optional[str] = None
+    account_id: Optional[int] = None
+    is_advance: bool = False
+
+
+class ClientPurchaseOrderPayload(BaseModel):
+    """Datos obligatorios de la OC del cliente para generar OV (paso a WAITING_ADVANCE)."""
+    client_po_folio: str
+    client_po_date: datetime
+
+
+class ResaleItemPatch(BaseModel):
+    quantity: Optional[int] = None
+    unit_price: Optional[float] = None
+    resale_sku: Optional[str] = None
+    product_name: Optional[str] = None
+
+
+class ProductionItemPatch(BaseModel):
+    unit_price: float
+
+
+class RegisterProgressPayload(BaseModel):
+    invoice_folio: Optional[str] = None
+    amount: float = 0.0
+    instance_ids: List[int] = []
+    invoice_date: Optional[datetime] = None
+
+
+class InvoicingRightAdvanceRow(BaseModel):
+    order_id: int
+    project_name: Optional[str] = None
+    client_name: str
+    advance_percent: float
+    total_price: float
+    advance_amount: float
+
+
+class InvoicingRightProgressRow(BaseModel):
+    instance_id: int
+    custom_name: str
+    production_status: str
+    line_amount: float
+    signed_received_at: Optional[str] = None
+    order_id: Optional[int] = None
+    order_folio: str
+    project_name: Optional[str] = None
+    client_name: str
+    item_product_name: Optional[str] = None
+
+
+class InvoicingRightsRead(BaseModel):
+    """Derecho a facturación (Tarjeta B): anticipos sin CXC ADVANCE + piezas CLOSED sin factura."""
+
+    advance_pending_total: float
+    progress_work_total: float
+    total_pending_invoice: float
+    advances: List[InvoicingRightAdvanceRow]
+    progress_instances: List[InvoicingRightProgressRow]
+
+
+class PaymentCommissionUpdate(BaseModel):
+    commission_paid: bool
+
+
+class SalesCommissionRead(BaseModel):
+    id: int
+    customer_payment_id: int
+    user_id: int
+    user_name: Optional[str]
+    user_role: Optional[str]
+    commission_type: str
+    base_amount: float
+    rate: float
+    commission_amount: float
+    is_paid: bool
+    created_at: datetime
+
+    sales_order_id: Optional[int] = None
+    project_name: Optional[str] = None
+    payment_amount: Optional[float] = None
+    admin_notes: Optional[str] = None
+    payroll_deferred: bool = False
+
+    class Config:
+        from_attributes = True
+
+
+class PayrollCommissionRow(BaseModel):
+    """Fila de auditoría de nómina de comisiones (totales independientes por bucket)."""
+    kind: str  # PROVISIONAL | ACCRUED
+    id: Optional[int] = None
+    sales_order_id: int
+    project_name: Optional[str] = None
+    seller_name: Optional[str] = None
+    amount: float
+    days_waiting: int
+    reference_label: str
+    customer_payment_id: Optional[int] = None
+    cxc_status: Optional[str] = None
+    admin_notes: Optional[str] = None
+    payroll_deferred: bool = False
+
+
+class CommissionsPayrollOverview(BaseModel):
+    retained_total: float
+    payable_total: float
+    paid_total: float
+    retained: List[PayrollCommissionRow]
+    payable: List[PayrollCommissionRow]
+    paid: List[PayrollCommissionRow]
+
+
+class CommissionPayrollUpdate(BaseModel):
+    admin_notes: Optional[str] = None
+    payroll_deferred: Optional[bool] = None
+
+
+class CommissionPaidUpdate(BaseModel):
+    is_paid: bool
+
+
+class InstanceStatusSummary(BaseModel):
+    id: int
+    product_name: str
+    custom_name: str
+    production_status: str
+    production_batch_id: Optional[int] = None
+    qr_code: Optional[str] = None
+
+
+class HouseStatusSummary(BaseModel):
+    street: str
+    lot: str
+    grouping_key: str
+    total: int
+    by_status: dict
+    instances: List[InstanceStatusSummary]
+
+
+class OrderHousesStatus(BaseModel):
+    order_id: int
+    order_folio: str
+    project_name: str
+    client_name: str
+    status: str
+    houses: List[HouseStatusSummary]
+    unassigned: List[InstanceStatusSummary]

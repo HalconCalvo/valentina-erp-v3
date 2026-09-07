@@ -138,3 +138,34 @@ class PurchaseOrderUpdate(BaseModel):
     provider_id: Optional[int] = None
     exchange_rate: Optional[float] = None
     overhead_category: Optional[str] = None
+
+
+# ==========================================
+# PAYLOADS DE ENDPOINTS (purchases)
+# ==========================================
+
+class ManualOrderItemCreate(BaseModel):
+    sku: Optional[str] = ""
+    name: str
+    qty: float
+    expected_cost: float
+
+
+class ManualOrderCreate(BaseModel):
+    provider_name: str
+    items: List[ManualOrderItemCreate]
+    overhead_category: Optional[str] = None
+
+
+class RequisitionCreate(BaseModel):
+    material_id: int | None = None
+    custom_description: str | None = None
+    requested_quantity: float
+    notes: str | None = None
+    requested_by_user_id: int | None = None
+
+
+class POCreateFromPlanning(BaseModel):
+    provider_id: int | None
+    items: List[dict]
+    overhead_category: Optional[str] = None

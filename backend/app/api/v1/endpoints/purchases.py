@@ -2,7 +2,6 @@ from fastapi import APIRouter, Body, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session, select, text, Field, SQLModel
 from typing import List, Optional
-from pydantic import BaseModel
 from datetime import datetime, timedelta, date
 from sqlalchemy import func, or_
 from types import SimpleNamespace
@@ -17,34 +16,19 @@ from app.services.purchase_manager import PurchaseManager
 from app.services.pdf_generator import PDFGenerator
 from app.services.email_service import send_purchase_order_email
 from app.services.inventory_manager import registrar_movimiento_inventario
-from app.schemas.inventory_schema import PurchaseOrderUpdate, PurchaseOrderItemUpdate, PurchaseOrderItemCancel
+from app.schemas.inventory_schema import (
+    PurchaseOrderUpdate,
+    PurchaseOrderItemUpdate,
+    PurchaseOrderItemCancel,
+    ManualOrderItemCreate,
+    ManualOrderCreate,
+    RequisitionCreate,
+    POCreateFromPlanning,
+)
 from app.schemas.finance_schema import PurchaseInvoiceUpdate, OperationalExpenseUpdate, OperationalExpenseCancel
+from app.schemas.treasury_schema import OperationalExpenseCreate
 
 router = APIRouter()
-
-# --- ESQUEMAS ---
-class ManualOrderItemCreate(BaseModel):
-    sku: Optional[str] = ""
-    name: str
-    qty: float
-    expected_cost: float
-
-class ManualOrderCreate(BaseModel):
-    provider_name: str
-    items: List[ManualOrderItemCreate]
-    overhead_category: Optional[str] = None
-
-class RequisitionCreate(BaseModel):
-    material_id: int | None = None
-    custom_description: str | None = None
-    requested_quantity: float
-    notes: str | None = None
-    requested_by_user_id: int | None = None
-
-class POCreateFromPlanning(BaseModel):
-    provider_id: int | None
-    items: List[dict]
-    overhead_category: Optional[str] = None
 
 @router.post("/requisitions/", response_model=PurchaseRequisition, status_code=status.HTTP_201_CREATED)
 def create_requisition(*, db: Session = Depends(get_session), req_in: RequisitionCreate):
@@ -1205,17 +1189,6 @@ OVERHEAD_CATEGORIES = [
     'MATERIALES', 'PLANTA', 'COMUNICACIONES', 'COMBUSTIBLES', 'TRANSPORTE',
     'INSUMOS', 'MAQUINARIA', 'EXTERNOS', 'MAQUILA', 'OTRO'
 ]
-
-
-class OperationalExpenseCreate(BaseModel):
-    provider_name: Optional[str] = None
-    concept: str
-    overhead_category: str
-    total_amount: float
-    issue_date: date
-    due_date: date
-    notes: Optional[str] = None
-    instance_id: Optional[int] = None
 
 
 @router.post("/operational-expenses")
