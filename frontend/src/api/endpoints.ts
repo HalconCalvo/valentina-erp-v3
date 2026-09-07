@@ -46,6 +46,11 @@ export const API_ROUTES = {
         ORDER_STATUS: (id: number) => `/sales/orders/${id}/status`, 
     },
 
+    QUOTATIONS: {
+        BASE: '/quotations',
+        DETAIL: (id: number) => `/quotations/${id}`,
+    },
+
     // --- PLANEACIÓN ESTRATÉGICA: MATRIZ DE 4 CARRILES ---
     PLANNING: {
         CALENDAR: '/planning/calendar',

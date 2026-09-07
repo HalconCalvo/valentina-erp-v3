@@ -287,6 +287,8 @@ class Quotation(SQLModel, table=True):
     sent_at: Optional[datetime] = Field(default=None)
     accepted_at: Optional[datetime] = Field(default=None)
     rejected_at: Optional[datetime] = Field(default=None)
+    reject_reason: Optional[str] = Field(default=None)
+    rejected_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
     expired_at: Optional[datetime] = Field(default=None)
     cancelled_at: Optional[datetime] = Field(default=None)
     cancel_reason: Optional[str] = Field(default=None)

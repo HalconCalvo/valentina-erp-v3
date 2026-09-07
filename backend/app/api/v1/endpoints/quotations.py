@@ -11,6 +11,7 @@ from app.schemas.quotation_schema import (
     QuotationConvertRead,
     QuotationCreate,
     QuotationRead,
+    QuotationReject,
     QuotationUpdate,
 )
 from app.services import quotation_service
@@ -82,10 +83,11 @@ def accept_quotation(
 @router.post("/{quotation_id}/reject", response_model=QuotationRead)
 def reject_quotation(
     quotation_id: int,
+    data: QuotationReject,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ):
-    return quotation_service.reject_quotation(session, quotation_id, current_user)
+    return quotation_service.reject_quotation(session, quotation_id, data, current_user)
 
 
 @router.post("/{quotation_id}/cancel", response_model=QuotationRead)

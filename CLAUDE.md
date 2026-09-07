@@ -97,6 +97,14 @@ Todo lo que se crea se puede corregir. Todo lo que se corrige se puede cancelar.
 4. **Cancelación** — acuerdo entre partes
 Sin estos 4 caminos definidos por Claude, Cursor NO construye el flujo.
 
+### Todo lo que se crea tiene CRUD completo:
+Todo registro creado en el sistema debe poder:
+- Editarse — mientras no tenga efectos externos irreversibles
+- Cancelarse — siempre, con motivo obligatorio y trazabilidad
+- Nunca eliminarse físicamente — solo cancelación lógica
+
+Sin CRUD completo definido, Cursor NO construye el módulo.
+
 ### Roles:
 - DIRECTOR: acceso total
 - MANAGER: finanzas + autorización OCs

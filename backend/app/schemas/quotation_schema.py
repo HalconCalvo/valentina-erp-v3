@@ -86,6 +86,8 @@ class QuotationRead(QuotationBase):
     sent_at: Optional[datetime] = None
     accepted_at: Optional[datetime] = None
     rejected_at: Optional[datetime] = None
+    reject_reason: Optional[str] = None
+    rejected_by_user_id: Optional[int] = None
     expired_at: Optional[datetime] = None
     cancelled_at: Optional[datetime] = None
     cancel_reason: Optional[str] = None
@@ -96,6 +98,10 @@ class QuotationRead(QuotationBase):
 
 class QuotationCancel(BaseModel):
     cancel_reason: str = Field(..., min_length=1)
+
+
+class QuotationReject(BaseModel):
+    reject_reason: str = Field(..., min_length=1)
 
 
 class QuotationConvertRead(BaseModel):

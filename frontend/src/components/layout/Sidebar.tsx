@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Package, ShoppingCart, Factory, 
   Truck, Settings, LogOut, ChevronRight, Users, Briefcase, 
   UserCog, Percent, ClipboardList, TrendingUp, Shield, User,
-  Ruler, Hammer, PenTool, Landmark, CalendarDays
+  Ruler, Hammer, PenTool, Landmark, CalendarDays, FileText
 } from 'lucide-react';
 
 import { useFoundations } from '../../modules/foundations/hooks/useFoundations';
@@ -25,6 +25,7 @@ const menuItems = [
   { icon: TrendingUp, label: 'Gerencia', path: '/management', allowedRoles: ['DIRECTOR', 'MANAGER'] },
   
   { icon: ShoppingCart, label: 'Ventas', path: '/sales', allowedRoles: ['DIRECTOR', 'MANAGER', 'SALES'] },
+  { icon: FileText, label: 'Cotizaciones', path: '/quotations', allowedRoles: ['DIRECTOR', 'MANAGER', 'SALES'] },
   { icon: Users, label: 'Monitor Clientes', path: '/clients', allowedRoles: ['DIRECTOR', 'MANAGER', 'SALES', 'ADMIN'] },
   
   // 🔒 CANDADO APLICADO: Ventas ya NO puede entrar a Diseño e Ingeniería.
@@ -44,10 +45,10 @@ const menuItems = [
 const rolePriorities: Record<string, string[]> = {
   // Ahora el Director ve su panel estratégico antes que la gerencia
   'DIRECTOR': ['/', '/director', '/planning', '/management', '/treasury'],
-  'MANAGER': ['/', '/management', '/planning', '/treasury', '/production', '/sales'],
+  'MANAGER': ['/', '/management', '/planning', '/treasury', '/production', '/sales', '/quotations'],
   'ADMIN': ['/', '/treasury', '/inventory'],
   // Ventas ya no necesita priorizar /design
-  'SALES': ['/', '/sales', '/planning', '/clients', '/logistics'],
+  'SALES': ['/', '/sales', '/quotations', '/planning', '/clients', '/logistics'],
   'DESIGN': ['/', '/design', '/planning', '/production'],
   'WAREHOUSE': ['/', '/inventory', '/logistics'],
   'PRODUCTION': ['/', '/production', '/planning', '/inventory'],

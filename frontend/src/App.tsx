@@ -28,6 +28,9 @@ import PrintCenterPage from './modules/design/pages/PrintCenterPage';
 // 5. VENTAS
 import SalesDashboardPage from './modules/sales/pages/SalesDashboardPage';
 import CreateQuotePage from './modules/sales/pages/CreateQuotePage';
+import QuotationsDashboardPage from './modules/sales/pages/QuotationsDashboardPage';
+import CreateQuotationPage from './modules/sales/pages/CreateQuotationPage';
+import QuotationDetailPage from './modules/sales/pages/QuotationDetailPage';
 
 // 6. INVENTARIO 
 import InventoryReceptionPage from './modules/foundations/pages/InventoryReceptionPage';
@@ -113,6 +116,12 @@ function AppRoutes() {
         <Route path="/sales" element={<SalesDashboardPage key={key} />} />
         <Route path="/sales/new" element={<CreateQuotePage key={key} />} />
         <Route path="/sales/edit/:id" element={<CreateQuotePage key={key} />} />
+
+        {/* Cotizaciones (Fase 2) */}
+        <Route path="/quotations" element={<QuotationsDashboardPage key={key} />} />
+        <Route path="/quotations/new" element={<CreateQuotationPage key={key} />} />
+        <Route path="/quotations/edit/:id" element={<CreateQuotationPage key={key} />} />
+        <Route path="/quotations/:id" element={<QuotationDetailPage key={key} />} />
 
         {/* --- INVENTARIO / COMPRAS --- */}
         <Route path="/inventory" element={<InventoryDashboardPage key={key} />} />

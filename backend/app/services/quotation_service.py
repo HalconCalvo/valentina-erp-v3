@@ -21,6 +21,7 @@ from app.schemas.quotation_schema import (
     QuotationConvertRead,
     QuotationCreate,
     QuotationItemCreate,
+    QuotationReject,
     QuotationUpdate,
 )
 from app.schemas.sales_schema import SalesOrderItemCreate
@@ -228,15 +229,22 @@ def accept_quotation(session: Session, quotation_id: int, current_user: User) ->
     return _filter_active_items(quotation)
 
 
-def reject_quotation(session: Session, quotation_id: int, current_user: User) -> Quotation:
+def reject_quotation(
+    session: Session, quotation_id: int, data: QuotationReject, current_user: User
+) -> Quotation:
     quotation = quotation_repo.get_quotation_by_id(session, quotation_id)
     if not quotation:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
     _assert_can_edit(current_user, quotation)
     if quotation.status != QuotationStatus.SENT:
         raise HTTPException(status_code=422, detail="Solo se pueden rechazar cotizaciones enviadas")
+    reason = (data.reject_reason or "").strip()
+    if not reason:
+        raise HTTPException(status_code=422, detail="Debes indicar el motivo de rechazo")
     quotation.status = QuotationStatus.REJECTED
     quotation.rejected_at = datetime.utcnow()
+    quotation.reject_reason = reason
+    quotation.rejected_by_user_id = current_user.id
     session.add(quotation)
     session.commit()
     session.refresh(quotation)
