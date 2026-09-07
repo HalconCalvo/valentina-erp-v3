@@ -14,6 +14,9 @@ from app.core.database import create_db_and_tables, engine
 
 from app.api.v1.api import api_router
 from app.core.config import settings
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 # --- PUENTE GOOGLE CLOUD ---
 if settings.GOOGLE_APPLICATION_CREDENTIALS and os.path.exists(settings.GOOGLE_APPLICATION_CREDENTIALS):
@@ -83,6 +86,10 @@ app = FastAPI(
     lifespan=lifespan,
     redirect_slashes=False
 )
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # --- STATIC FILES ---
 app_dir = os.path.dirname(__file__)

@@ -1,10 +1,12 @@
 from datetime import timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select
 from pydantic import BaseModel  # <--- 1. IMPORTAR ESTO
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.core.config import settings
 from app.core.database import get_session
@@ -13,6 +15,8 @@ from app.core.security import create_access_token, get_password_hash, verify_pas
 from app.models.users import User, UserRole  
 
 router = APIRouter()
+
+limiter = Limiter(key_func=get_remote_address)
 
 # --- 2. DEFINIR EL NUEVO MODELO DE RESPUESTA ---
 # Esto le dice al Frontend: "Te voy a dar el token Y ADEMÁS tus datos"
@@ -25,7 +29,9 @@ class TokenResponse(BaseModel):
     email: str
 
 @router.post("/access-token", response_model=TokenResponse) # <--- 3. USAR EL NUEVO MODELO
+@limiter.limit("5/15minutes")
 def login_access_token(
+    request: Request,
     session: Session = Depends(get_session), 
     form_data: OAuth2PasswordRequestForm = Depends()
 ) -> Any:
