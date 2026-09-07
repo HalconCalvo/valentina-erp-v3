@@ -2476,3 +2476,37 @@ Al aceptar una cotización se convierte en OV correctamente.
 ### Siguiente: FASE 3 — React Query
 Eliminar bugs de stale data con @tanstack/react-query.
 Prioridad: OrderStatementModal, ReceivablesModule, PurchaseOrdersModule.
+
+
+---
+## SESIÓN 2026-09-07 — FASE 3 COMPLETADA (React Query)
+
+### Completado:
+- @tanstack/react-query v5 instalado y configurado en main.tsx
+- QueryClient: staleTime 30s, retry 1, refetchOnWindowFocus false
+- ReactQueryDevtools solo en desarrollo
+
+Hooks creados:
+- useQuotations.ts — CRUD completo de cotizaciones
+- useOrderStatement.ts — OrderStatementModal (7 useEffects → hooks)
+- useReceivables.ts — ReceivablesModule (polling 15s)
+- usePurchaseOrders.ts — PurchaseOrdersModule (polling 15s)
+- useSalesDashboard.ts — SalesDashboardPage (polling 15s)
+- useManagement.ts — ManagementDashboard (polling 30s)
+
+Módulos migrados:
+- OrderStatementModal: 7 useEffects → hooks React Query
+- ReceivablesModule: setInterval eliminado → refetchInterval 15s
+- PurchaseOrdersModule: setInterval eliminado → refetchInterval 15s
+- SalesDashboardPage: setInterval eliminado → refetchInterval 15s + fix input/table
+- ManagementDashboard: setInterval eliminado → refetchInterval 30s
+
+Commits: dc0cfa1 → 66cb2fe
+
+### Calificación Fase 3:
+- Bugs de stale data: eliminados en los 5 módulos críticos
+- setInterval manuales: 0 (todos migrados a refetchInterval)
+- useEffect de fetching: reducidos en ~80% en módulos migrados
+
+### Siguiente: FASE 4 — Logging y Tests (paralelo)
+O continuar con mejoras operativas según prioridad de Gabriel.
