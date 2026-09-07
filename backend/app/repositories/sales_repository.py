@@ -3,15 +3,19 @@ from datetime import datetime
 from typing import List, Optional
 
 from sqlalchemy import func
-from sqlmodel import Session, select
+from sqlmodel import Session, select, delete
 from sqlalchemy.orm import selectinload
 
+from app.models.design import ProductVersion
 from app.models.foundations import Client, TaxRate
+from app.models.material import Material
 from app.models.sales import (
     CustomerPayment,
     CustomerPaymentInstallment,
     CXCStatus,
+    CommissionType,
     PaymentType,
+    SalesCommission,
     SalesOrder,
     SalesOrderItem,
     SalesOrderItemInstance,
@@ -236,3 +240,98 @@ def get_last_active_installment_date(session: Session, cxc_id: int):
         )
         .order_by(CustomerPaymentInstallment.payment_date.desc())
     ).first()
+
+
+def get_product_version_with_components(session: Session, version_id: int) -> Optional[ProductVersion]:
+    stmt = (
+        select(ProductVersion)
+        .where(ProductVersion.id == version_id)
+        .options(selectinload(ProductVersion.components))
+    )
+    return session.exec(stmt).first()
+
+
+def get_material_by_id(session: Session, material_id: int) -> Optional[Material]:
+    return session.get(Material, material_id)
+
+
+def get_user_by_id(session: Session, user_id: int) -> Optional[User]:
+    return session.get(User, user_id)
+
+
+def get_commission_by_id(session: Session, commission_id: int) -> Optional[SalesCommission]:
+    return session.get(SalesCommission, commission_id)
+
+
+def get_commissions_by_filters(
+    session: Session,
+    user_id: Optional[int] = None,
+    commission_type: Optional[str] = None,
+    is_paid: Optional[bool] = None,
+) -> List[SalesCommission]:
+    stmt = select(SalesCommission)
+    if user_id is not None:
+        stmt = stmt.where(SalesCommission.user_id == user_id)
+    if commission_type is not None:
+        stmt = stmt.where(SalesCommission.commission_type == commission_type)
+    if is_paid is not None:
+        stmt = stmt.where(SalesCommission.is_paid == is_paid)
+    return list(session.exec(stmt.order_by(SalesCommission.created_at.desc())).all())
+
+
+def get_commissions_payroll_overview_data(session: Session) -> dict:
+    waiting_orders = list(
+        session.exec(
+            select(SalesOrder).where(SalesOrder.status == SalesOrderStatus.WAITING_ADVANCE)
+        ).all()
+    )
+    pending_cxc = list(
+        session.exec(
+            select(SalesCommission, CustomerPayment)
+            .join(CustomerPayment, SalesCommission.customer_payment_id == CustomerPayment.id)
+            .where(
+                SalesCommission.commission_type == CommissionType.SELLER,
+                SalesCommission.is_paid == False,  # noqa: E712
+                CustomerPayment.status == CXCStatus.PENDING,
+            )
+        ).all()
+    )
+    ready = list(
+        session.exec(
+            select(SalesCommission, CustomerPayment)
+            .join(CustomerPayment, SalesCommission.customer_payment_id == CustomerPayment.id)
+            .where(
+                SalesCommission.commission_type == CommissionType.SELLER,
+                SalesCommission.is_paid == False,  # noqa: E712
+                SalesCommission.payroll_deferred == False,  # noqa: E712
+                CustomerPayment.status == CXCStatus.PAID,
+            )
+        ).all()
+    )
+    paid = list(
+        session.exec(
+            select(SalesCommission)
+            .where(
+                SalesCommission.commission_type == CommissionType.SELLER,
+                SalesCommission.is_paid == True,  # noqa: E712
+            )
+            .order_by(SalesCommission.created_at.desc())
+        ).all()
+    )
+    return {
+        "waiting_orders": waiting_orders,
+        "pending_cxc": pending_cxc,
+        "ready": ready,
+        "paid": paid,
+    }
+
+
+def clear_order_items_and_instances(session: Session, order_id: int) -> None:
+    for item in get_items_by_order(session, order_id):
+        session.exec(
+            delete(SalesOrderItemInstance).where(
+                SalesOrderItemInstance.sales_order_item_id == item.id
+            )
+        )
+    session.exec(delete(SalesOrderItem).where(SalesOrderItem.sales_order_id == order_id))
+    session.flush()

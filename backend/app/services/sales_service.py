@@ -1,6 +1,6 @@
 """Sales domain — business logic (no direct HTTP, queries via repository)."""
 from datetime import datetime
-from typing import List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from fastapi import HTTPException
 from sqlmodel import Session
@@ -13,6 +13,7 @@ from app.models.sales import (
     SalesCommission,
     CommissionType,
     SalesOrder,
+    SalesOrderItem,
     SalesOrderItemInstance,
     SalesOrderStatus,
 )
@@ -20,12 +21,21 @@ from app.models.treasury import BankTransaction, TransactionType
 from app.models.users import User, UserRole
 from app.repositories import sales_repository as sales_repo
 from app.schemas.sales_schema import (
+    AddItemsPayload,
     ClientPurchaseOrderPayload,
+    CommissionPaidUpdate,
+    CommissionPayrollUpdate,
+    CommissionsPayrollOverview,
     CustomerPaymentCancel,
     CustomerPaymentUpdate,
     InstallmentCancel,
     InstallmentUpdate,
     PaymentPayload,
+    PayrollCommissionRow,
+    SalesCommissionRead,
+    SalesOrderCreate,
+    SalesOrderItemCreate,
+    SalesOrderUpdate,
 )
 from app.services.cost_engine import CostEngine
 
@@ -775,3 +785,422 @@ def cancel_customer_payment(
     session.commit()
     session.refresh(payment)
     return payment
+
+
+_ORDER_EDIT_ROLES = {UserRole.DIRECTOR, UserRole.MANAGER, UserRole.SALES}
+_AMPLIABLE_STATUSES = {
+    SalesOrderStatus.ACCEPTED,
+    SalesOrderStatus.WAITING_ADVANCE,
+    SalesOrderStatus.SOLD,
+    SalesOrderStatus.IN_PRODUCTION,
+}
+
+
+def _can_edit_client_po_meta(user: User) -> bool:
+    return _normalized_role(user) in ("ADMIN", "MANAGER", "DIRECTOR", "SALES", "DESIGN")
+
+
+def _assert_order_editor(user: User) -> None:
+    if user.role not in _ORDER_EDIT_ROLES:
+        raise HTTPException(status_code=403, detail="No tienes permisos para editar órdenes de venta.")
+
+
+def _days_waiting(reference: Optional[datetime]) -> int:
+    if not reference:
+        return 0
+    now = datetime.utcnow()
+    ref = reference.replace(tzinfo=None) if getattr(reference, "tzinfo", None) else reference
+    return max(0, (now - ref).days)
+
+
+def _build_item_snapshot(session: Session, item_in: SalesOrderItemCreate) -> tuple[dict, float]:
+    snapshot_data: dict = {}
+    calculated_frozen_cost = 0.0
+    if item_in.origin_version_id:
+        version = sales_repo.get_product_version_with_components(session, item_in.origin_version_id)
+        if version:
+            snapshot_data = {
+                "source_version": version.version_name,
+                "captured_at": datetime.now().isoformat(),
+                "ingredients": [],
+            }
+            for component in version.components:
+                mat = sales_repo.get_material_by_id(session, component.material_id)
+                if mat:
+                    factor = float(mat.conversion_factor) if mat.conversion_factor and mat.conversion_factor > 0 else 1.0
+                    current_cost = mat.current_cost / factor
+                    line_cost = component.quantity * current_cost
+                    calculated_frozen_cost += line_cost
+                    snapshot_data["ingredients"].append({
+                        "material_id": mat.id,
+                        "sku": mat.sku,
+                        "name": mat.name,
+                        "qty_recipe": component.quantity,
+                        "frozen_unit_cost": current_cost,
+                        "line_total": line_cost,
+                    })
+    else:
+        snapshot_data = item_in.cost_snapshot or {"type": "MANUAL_ENTRY"}
+        calculated_frozen_cost = float(item_in.frozen_unit_cost or 0.0)
+    return snapshot_data, calculated_frozen_cost
+
+
+def _persist_order_item(
+    session: Session,
+    order_id: int,
+    item_in: SalesOrderItemCreate,
+    snapshot_data: dict,
+    calculated_frozen_cost: float,
+    line_amount: float,
+) -> SalesOrderItem:
+    db_item = SalesOrderItem(
+        sales_order_id=order_id,
+        product_name=item_in.product_name,
+        origin_version_id=item_in.origin_version_id,
+        quantity=item_in.quantity,
+        unit_price=item_in.unit_price,
+        subtotal_price=line_amount,
+        cost_snapshot=snapshot_data,
+        frozen_unit_cost=calculated_frozen_cost,
+        is_resale=getattr(item_in, "is_resale", False),
+        resale_sku=getattr(item_in, "resale_sku", None),
+        commercial_description=getattr(item_in, "commercial_description", None),
+    )
+    session.add(db_item)
+    return db_item
+
+
+def create_order(session: Session, order_in: SalesOrderCreate, current_user: User) -> SalesOrder:
+    try:
+        tax_rate = sales_repo.get_tax_rate_by_id(session, order_in.tax_rate_id)
+        if not tax_rate:
+            raise HTTPException(status_code=400, detail="Tasa de impuestos inválida")
+
+        raw_commission = current_user.commission_rate if current_user.commission_rate is not None else 0.0
+        applied_commission = normalize_commission(raw_commission)
+
+        db_order = SalesOrder(
+            project_name=order_in.project_name,
+            client_id=order_in.client_id,
+            tax_rate_id=order_in.tax_rate_id,
+            user_id=current_user.id,
+            applied_commission_percent=applied_commission,
+            valid_until=order_in.valid_until,
+            delivery_date=order_in.delivery_date,
+            applied_margin_percent=order_in.applied_margin_percent,
+            applied_tolerance_percent=order_in.applied_tolerance_percent,
+            advance_percent=order_in.advance_percent,
+            has_advance_invoice=order_in.has_advance_invoice,
+            currency=order_in.currency,
+            notes=order_in.notes,
+            conditions=order_in.conditions,
+            external_invoice_ref=order_in.external_invoice_ref,
+            is_warranty=order_in.is_warranty,
+            status=SalesOrderStatus.DRAFT,
+            created_at=datetime.utcnow(),
+        )
+        session.add(db_order)
+        session.commit()
+        session.refresh(db_order)
+
+        items_sum = 0.0
+        for item_in in order_in.items:
+            snapshot_data, calculated_frozen_cost = _build_item_snapshot(session, item_in)
+            line_amount = item_in.quantity * item_in.unit_price
+            items_sum += line_amount
+            _persist_order_item(session, db_order.id, item_in, snapshot_data, calculated_frozen_cost, line_amount)
+            session.flush()
+
+        commission_amount = items_sum - (items_sum / (1 + applied_commission)) if applied_commission > 0 else 0.0
+        tax_amount = items_sum * tax_rate.rate
+        total_price = items_sum + tax_amount
+
+        db_order.commission_amount = commission_amount
+        db_order.subtotal = items_sum
+        db_order.tax_amount = tax_amount
+        db_order.total_price = total_price
+        db_order.outstanding_balance = total_price
+
+        session.add(db_order)
+        session.commit()
+        session.refresh(db_order)
+        return db_order
+    except HTTPException:
+        session.rollback()
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+def update_order(
+    session: Session, order_id: int, order_update: SalesOrderUpdate, current_user: User
+) -> SalesOrder:
+    _assert_order_editor(current_user)
+    db_order = sales_repo.get_sales_order_by_id(session, order_id)
+    if not db_order:
+        raise HTTPException(status_code=404, detail="No encontrada")
+    if _is_seller_scoped_role(current_user) and db_order.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Acceso denegado")
+
+    update_data = order_update.model_dump(exclude_unset=True)
+    items_data = update_data.pop("items", None)
+
+    if not _can_edit_client_po_meta(current_user):
+        update_data.pop("client_po_folio", None)
+        update_data.pop("client_po_date", None)
+
+    for key, value in update_data.items():
+        setattr(db_order, key, value)
+    if "applied_commission_percent" in update_data:
+        db_order.applied_commission_percent = normalize_commission(update_data["applied_commission_percent"])
+
+    if items_data is not None:
+        sales_repo.clear_order_items_and_instances(session, order_id)
+        items_sum = 0.0
+        for item_in in order_update.items:
+            snapshot_data, calculated_frozen_cost = _build_item_snapshot(session, item_in)
+            qty = item_in.quantity or 0
+            price = item_in.unit_price or 0
+            line_amount = qty * price
+            items_sum += line_amount
+            _persist_order_item(session, db_order.id, item_in, snapshot_data, calculated_frozen_cost, line_amount)
+            session.flush()
+
+        comm_percent = db_order.applied_commission_percent or 0.0
+        commission_amount = items_sum - (items_sum / (1 + comm_percent)) if comm_percent > 0 else 0.0
+        tax_rate_obj = sales_repo.get_tax_rate_by_id(session, db_order.tax_rate_id)
+        tax_multiplier = tax_rate_obj.rate if tax_rate_obj else 0.16
+        tax_total = items_sum * tax_multiplier
+
+        db_order.subtotal = items_sum
+        db_order.commission_amount = commission_amount
+        db_order.tax_amount = tax_total
+        db_order.total_price = items_sum + tax_total
+        db_order.outstanding_balance = db_order.total_price
+
+    session.add(db_order)
+    session.commit()
+    session.refresh(db_order)
+    return db_order
+
+
+def add_items_to_order(
+    session: Session, order_id: int, payload: AddItemsPayload, current_user: User
+) -> SalesOrder:
+    _assert_order_editor(current_user)
+    order = sales_repo.get_sales_order_by_id(session, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Orden no encontrada.")
+    if _is_seller_scoped_role(current_user) and order.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Acceso denegado.")
+    if order.status not in _AMPLIABLE_STATUSES:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"No se puede ampliar una orden en estado {order.status}. "
+                "Solo órdenes en curso (ACEPTADA, ESPERANDO ANTICIPO, VENDIDA, EN PRODUCCIÓN)."
+            ),
+        )
+    if not payload.items:
+        raise HTTPException(status_code=422, detail="Debes enviar al menos una partida nueva.")
+
+    added_sum = 0.0
+    for item_in in payload.items:
+        snapshot_data, calculated_frozen_cost = _build_item_snapshot(session, item_in)
+        qty = item_in.quantity or 0
+        price = item_in.unit_price or 0
+        line_amount = qty * price
+        added_sum += line_amount
+        _persist_order_item(session, order.id, item_in, snapshot_data, calculated_frozen_cost, line_amount)
+
+    session.flush()
+    order = sales_repo.get_order_by_id(session, order_id)
+    from app.api.v1.endpoints.sales import _create_instances_for_order
+
+    _create_instances_for_order(session, order)
+
+    tax_rate_obj = sales_repo.get_tax_rate_by_id(session, order.tax_rate_id)
+    tax_multiplier = tax_rate_obj.rate if tax_rate_obj else 0.16
+    nuevo_subtotal = (order.subtotal or 0.0) + added_sum
+    comm_percent = order.applied_commission_percent or 0.0
+    nueva_comision = (
+        nuevo_subtotal - (nuevo_subtotal / (1 + comm_percent)) if comm_percent > 0 else 0.0
+    )
+    nuevo_tax = nuevo_subtotal * tax_multiplier
+    nuevo_total = nuevo_subtotal + nuevo_tax
+    incremento_total = nuevo_total - (order.total_price or 0.0)
+
+    order.subtotal = nuevo_subtotal
+    order.commission_amount = nueva_comision
+    order.tax_amount = nuevo_tax
+    order.total_price = nuevo_total
+    order.outstanding_balance = (order.outstanding_balance or 0.0) + incremento_total
+
+    session.add(order)
+    session.commit()
+    session.refresh(order)
+    return order
+
+
+def get_commissions_overview(session: Session) -> CommissionsPayrollOverview:
+    raw = sales_repo.get_commissions_payroll_overview_data(session)
+    retained: List[PayrollCommissionRow] = []
+    payable: List[PayrollCommissionRow] = []
+    paid: List[PayrollCommissionRow] = []
+
+    for o in raw["waiting_orders"]:
+        seller = sales_repo.get_user_by_id(session, o.user_id) if o.user_id else None
+        est = float(o.commission_amount or 0.0)
+        if est <= 0 and o.applied_commission_percent and o.total_price:
+            est = float(o.total_price) * float(o.applied_commission_percent)
+        retained.append(PayrollCommissionRow(
+            kind="PROVISIONAL",
+            id=None,
+            sales_order_id=o.id,
+            project_name=o.project_name,
+            seller_name=seller.full_name if seller else None,
+            amount=est,
+            days_waiting=_days_waiting(o.created_at),
+            reference_label="Anticipo pendiente (OV)",
+            customer_payment_id=None,
+            cxc_status="WAITING_ADVANCE",
+            admin_notes=None,
+            payroll_deferred=False,
+        ))
+
+    for c, cx in raw["pending_cxc"]:
+        user = sales_repo.get_user_by_id(session, c.user_id)
+        order = sales_repo.get_sales_order_by_id(session, cx.sales_order_id)
+        retained.append(PayrollCommissionRow(
+            kind="ACCRUED",
+            id=c.id,
+            sales_order_id=order.id if order else cx.sales_order_id,
+            project_name=order.project_name if order else None,
+            seller_name=user.full_name if user else None,
+            amount=float(c.commission_amount),
+            days_waiting=_days_waiting(cx.created_at),
+            reference_label=f"CXC #{cx.id} pendiente de cobro",
+            customer_payment_id=cx.id,
+            cxc_status=cx.status.value if hasattr(cx.status, "value") else str(cx.status),
+            admin_notes=c.admin_notes,
+            payroll_deferred=bool(c.payroll_deferred),
+        ))
+
+    for c, cx in raw["ready"]:
+        user = sales_repo.get_user_by_id(session, c.user_id)
+        order = sales_repo.get_sales_order_by_id(session, cx.sales_order_id)
+        payable.append(PayrollCommissionRow(
+            kind="ACCRUED",
+            id=c.id,
+            sales_order_id=order.id if order else cx.sales_order_id,
+            project_name=order.project_name if order else None,
+            seller_name=user.full_name if user else None,
+            amount=float(c.commission_amount),
+            days_waiting=_days_waiting(c.created_at),
+            reference_label=f"Cobro #{cx.id} liquidado",
+            customer_payment_id=cx.id,
+            cxc_status=cx.status.value if hasattr(cx.status, "value") else str(cx.status),
+            admin_notes=c.admin_notes,
+            payroll_deferred=bool(c.payroll_deferred),
+        ))
+
+    for c in raw["paid"]:
+        cx = sales_repo.get_cxc_by_id(session, c.customer_payment_id)
+        user = sales_repo.get_user_by_id(session, c.user_id)
+        order = sales_repo.get_sales_order_by_id(session, cx.sales_order_id) if cx else None
+        paid.append(PayrollCommissionRow(
+            kind="ACCRUED",
+            id=c.id,
+            sales_order_id=order.id if order else (cx.sales_order_id if cx else 0),
+            project_name=order.project_name if order else None,
+            seller_name=user.full_name if user else None,
+            amount=float(c.commission_amount),
+            days_waiting=0,
+            reference_label="Comisión pagada",
+            customer_payment_id=c.customer_payment_id,
+            cxc_status=(cx.status.value if cx and hasattr(cx.status, "value") else (str(cx.status) if cx else None)),
+            admin_notes=c.admin_notes,
+            payroll_deferred=False,
+        ))
+
+    return CommissionsPayrollOverview(
+        retained_total=sum(r.amount for r in retained),
+        payable_total=sum(r.amount for r in payable),
+        paid_total=sum(r.amount for r in paid),
+        retained=retained,
+        payable=payable,
+        paid=paid,
+    )
+
+
+def update_commission_payroll(
+    session: Session, commission_id: int, data: CommissionPayrollUpdate, current_user: User
+) -> dict:
+    _ = current_user
+    commission = sales_repo.get_commission_by_id(session, commission_id)
+    if not commission:
+        raise HTTPException(status_code=404, detail="Comisión no encontrada.")
+    if data.admin_notes is not None:
+        commission.admin_notes = data.admin_notes
+    if data.payroll_deferred is not None:
+        if data.payroll_deferred and not (data.admin_notes or commission.admin_notes):
+            raise HTTPException(
+                status_code=422,
+                detail="Debes documentar el motivo en observaciones antes de aplazar u omitir el pago.",
+            )
+        commission.payroll_deferred = data.payroll_deferred
+    session.add(commission)
+    session.commit()
+    session.refresh(commission)
+    return {"ok": True, "commission_id": commission_id}
+
+
+def get_commissions_report(
+    session: Session,
+    current_user: User,
+    user_id: Optional[int] = None,
+    commission_type: Optional[str] = None,
+    is_paid: Optional[bool] = None,
+) -> List[SalesCommissionRead]:
+    _ = current_user
+    commissions = sales_repo.get_commissions_by_filters(
+        session, user_id=user_id, commission_type=commission_type, is_paid=is_paid
+    )
+    results: List[SalesCommissionRead] = []
+    for c in commissions:
+        user = sales_repo.get_user_by_id(session, c.user_id)
+        cxc = sales_repo.get_cxc_by_id(session, c.customer_payment_id)
+        order = sales_repo.get_sales_order_by_id(session, cxc.sales_order_id) if cxc else None
+        results.append(SalesCommissionRead(
+            id=c.id,
+            customer_payment_id=c.customer_payment_id,
+            user_id=c.user_id,
+            user_name=user.full_name if user else None,
+            user_role=user.role if user else None,
+            commission_type=c.commission_type,
+            base_amount=c.base_amount,
+            rate=c.rate,
+            commission_amount=c.commission_amount,
+            is_paid=c.is_paid,
+            created_at=c.created_at,
+            sales_order_id=order.id if order else None,
+            project_name=order.project_name if order else None,
+            payment_amount=cxc.amount if cxc else None,
+            admin_notes=getattr(c, "admin_notes", None),
+            payroll_deferred=bool(getattr(c, "payroll_deferred", False)),
+        ))
+    return results
+
+
+def mark_commission_paid(
+    session: Session, commission_id: int, data: CommissionPaidUpdate, current_user: User
+) -> dict:
+    _ = current_user
+    commission = sales_repo.get_commission_by_id(session, commission_id)
+    if not commission:
+        raise HTTPException(status_code=404, detail="Comisión no encontrada.")
+    commission.is_paid = data.is_paid
+    session.add(commission)
+    session.commit()
+    return {"ok": True, "commission_id": commission_id, "is_paid": commission.is_paid}

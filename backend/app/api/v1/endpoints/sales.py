@@ -176,110 +176,9 @@ def _recalculate_order_totals(session: Session, order: SalesOrder) -> None:
 def create_sales_order(
     order_in: SalesOrderCreate,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
-    try:
-        tax_rate = session.get(TaxRate, order_in.tax_rate_id)
-        if not tax_rate: raise HTTPException(status_code=400, detail="Tasa de impuestos inválida")
-
-        raw_commission = current_user.commission_rate if current_user.commission_rate is not None else 0.0
-        applied_commission = normalize_commission(raw_commission)
-
-        db_order = SalesOrder(
-            project_name=order_in.project_name,
-            client_id=order_in.client_id,
-            tax_rate_id=order_in.tax_rate_id,
-            user_id=current_user.id,
-            applied_commission_percent=applied_commission,
-            valid_until=order_in.valid_until,
-            delivery_date=order_in.delivery_date,
-            applied_margin_percent=order_in.applied_margin_percent,
-            applied_tolerance_percent=order_in.applied_tolerance_percent,
-            advance_percent=order_in.advance_percent,
-            has_advance_invoice=order_in.has_advance_invoice,
-            currency=order_in.currency,
-            notes=order_in.notes,
-            conditions=order_in.conditions,
-            external_invoice_ref=order_in.external_invoice_ref,
-            is_warranty=order_in.is_warranty,
-            status=SalesOrderStatus.DRAFT, 
-            created_at=datetime.utcnow()
-        )
-        session.add(db_order)
-        session.commit()
-        session.refresh(db_order)
-
-        items_sum = 0.0 
-        for item_in in order_in.items:
-            snapshot_data = {}
-            calculated_frozen_cost = 0.0
-
-            if item_in.origin_version_id:
-                version = session.get(ProductVersion, item_in.origin_version_id)
-                if version:
-                    snapshot_data = {
-                        "source_version": version.version_name,
-                        "captured_at": datetime.now().isoformat(),
-                        "ingredients": []
-                    }
-                    for component in version.components:
-                        mat = session.get(Material, component.material_id)
-                        if mat:
-                            factor = float(mat.conversion_factor) if mat.conversion_factor and mat.conversion_factor > 0 else 1.0
-                            current_cost = mat.current_cost / factor
-                            line_cost = component.quantity * current_cost
-                            calculated_frozen_cost += line_cost
-                            snapshot_data["ingredients"].append({
-                                "material_id": mat.id,  # <--- EL DATO FALTANTE
-                                "sku": mat.sku, "name": mat.name, "qty_recipe": component.quantity,
-                                "frozen_unit_cost": current_cost, "line_total": line_cost
-                            })
-            else:
-                snapshot_data = item_in.cost_snapshot or {"type": "MANUAL_ENTRY"}
-                calculated_frozen_cost = item_in.frozen_unit_cost
-
-            line_amount = item_in.quantity * item_in.unit_price
-            items_sum += line_amount
-
-            item_data = item_in.model_dump()
-            commercial_description = item_data.get('commercial_description', None)
-
-            db_item = SalesOrderItem(
-                sales_order_id=db_order.id,
-                product_name=item_in.product_name,
-                origin_version_id=item_in.origin_version_id,
-                quantity=item_in.quantity,
-                unit_price=item_in.unit_price,
-                subtotal_price=line_amount,
-                cost_snapshot=snapshot_data,
-                frozen_unit_cost=calculated_frozen_cost,
-                is_resale=getattr(item_in, 'is_resale', False),
-                resale_sku=getattr(item_in, 'resale_sku', None),
-                commercial_description=commercial_description,
-            )
-            session.add(db_item)
-            session.flush()
-
-        # items_sum YA incluye la comisión en cada precio. NO se vuelve a sumar.
-        # La comisión se extrae de forma informativa.
-        commission_amount = items_sum - (items_sum / (1 + applied_commission)) if applied_commission > 0 else 0.0
-        final_subtotal = items_sum
-        tax_amount = final_subtotal * tax_rate.rate
-        total_price = final_subtotal + tax_amount
-
-        db_order.commission_amount = commission_amount 
-        db_order.subtotal = final_subtotal 
-        db_order.tax_amount = tax_amount
-        db_order.total_price = total_price
-        db_order.outstanding_balance = total_price 
-        
-        session.add(db_order)
-        session.commit()
-        session.refresh(db_order)
-        return db_order
-    except Exception as e:
-        session.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+    return sales_service.create_order(session, order_in, current_user)
 
 # ==========================================
 # 2. LISTAR ORDENES
@@ -346,124 +245,9 @@ def update_sales_order(
     order_id: int,
     order_update: SalesOrderUpdate,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
-    allowed = {UserRole.DIRECTOR, UserRole.MANAGER, UserRole.SALES}
-    if current_user.role not in allowed:
-        raise HTTPException(
-            status_code=403,
-            detail="No tienes permisos para editar órdenes de venta.",
-        )
-
-    db_order = session.get(SalesOrder, order_id)
-    if not db_order: raise HTTPException(404, "No encontrada")
-    if _is_seller_scoped_role(current_user) and db_order.user_id != current_user.id:
-        raise HTTPException(403, "Acceso denegado")
-
-    update_data = order_update.model_dump(exclude_unset=True)
-    items_data = update_data.pop("items", None)
-
-    if not _can_edit_client_po_meta(current_user):
-        update_data.pop("client_po_folio", None)
-        update_data.pop("client_po_date", None)
-    
-    for key, value in update_data.items(): setattr(db_order, key, value)
-    if "applied_commission_percent" in update_data:
-        db_order.applied_commission_percent = normalize_commission(update_data["applied_commission_percent"])
-
-    if items_data is not None:
-        # 1. Limpieza profunda: Borrar instancias primero para evitar registros fantasma
-        old_items = session.exec(select(SalesOrderItem).where(SalesOrderItem.sales_order_id == order_id)).all()
-        for old_item in old_items:
-            session.exec(delete(SalesOrderItemInstance).where(SalesOrderItemInstance.sales_order_item_id == old_item.id))
-            
-        session.exec(delete(SalesOrderItem).where(SalesOrderItem.sales_order_id == order_id))
-        session.flush() 
-        
-        items_sum = 0.0
-
-        for item_in in order_update.items:
-            snapshot_data = {}
-            calculated_frozen_cost = 0.0
-
-            if item_in.origin_version_id:
-                version = session.get(ProductVersion, item_in.origin_version_id)
-                if version:
-                    snapshot_data = {
-                        "source_version": version.version_name,
-                        "captured_at": datetime.now().isoformat(),
-                        "ingredients": []
-                    }
-                    for component in version.components:
-                        mat = session.get(Material, component.material_id)
-                        if mat:
-                            factor = float(mat.conversion_factor) if mat.conversion_factor and mat.conversion_factor > 0 else 1.0
-                            current_cost = mat.current_cost / factor
-                            line_cost = component.quantity * current_cost
-                            calculated_frozen_cost += line_cost
-                            snapshot_data["ingredients"].append({
-                                "material_id": mat.id,
-                                "sku": mat.sku, "name": mat.name, "qty_recipe": component.quantity,
-                                "frozen_unit_cost": current_cost, "line_total": line_cost
-                            })
-            else:
-                snapshot_data = item_in.cost_snapshot or {"type": "MANUAL_ENTRY"}
-                calculated_frozen_cost = item_in.frozen_unit_cost or 0.0
-
-            qty = item_in.quantity or 0
-            price = item_in.unit_price or 0
-            line_amount = qty * price
-            items_sum += line_amount
-
-            # 3. GUARDAMOS EL ITEM
-            db_item = SalesOrderItem(
-                sales_order_id=db_order.id,
-                product_name=item_in.product_name,
-                origin_version_id=item_in.origin_version_id,
-                quantity=qty,
-                unit_price=price,
-                subtotal_price=line_amount,
-                cost_snapshot=snapshot_data,
-                frozen_unit_cost=calculated_frozen_cost,
-                is_resale=getattr(item_in, 'is_resale', False),
-                resale_sku=getattr(item_in, 'resale_sku', None),
-                commercial_description=getattr(item_in, 'commercial_description', None),
-            )
-            session.add(db_item)
-            session.flush()
-            # Las INSTANCIAS ya NO se crean al editar la cotización: nacen al generar la OV
-            # (mark_waiting_advance). El delete de instancias de arriba se conserva.
-
-        # 5. RECALCULAR TOTALES FINANCIEROS (CON COMISIÓN E IVA)
-        
-        # El subtotal es la suma de las partidas, cuyos precios YA incluyen la comisión
-        base_products_sum = items_sum 
-        
-        # Extraemos la comisión de forma informativa (ya está contenida en los precios)
-        comm_percent = db_order.applied_commission_percent or 0.0
-        commission_amount = base_products_sum - (base_products_sum / (1 + comm_percent)) if comm_percent > 0 else 0.0
-        
-        # El subtotal NO suma comisión otra vez (ya está en los precios)
-        real_subtotal = base_products_sum
-        
-        # Obtenemos la tasa de IVA (por defecto 16%)
-        tax_rate_obj = session.get(TaxRate, db_order.tax_rate_id)
-        tax_multiplier = tax_rate_obj.rate if tax_rate_obj else 0.16
-        
-        # Calculamos el IVA sobre el subtotal que ya incluye la comisión
-        tax_total = real_subtotal * tax_multiplier
-        
-        # Seteamos los valores finales en la base de datos
-        db_order.subtotal = real_subtotal
-        db_order.commission_amount = commission_amount
-        db_order.tax_amount = tax_total
-        db_order.total_price = real_subtotal + tax_total
-        db_order.outstanding_balance = db_order.total_price
-        
-    session.add(db_order)
-    session.commit()
-    session.refresh(db_order)
-    return db_order
+    return sales_service.update_order(session, order_id, order_update, current_user)
 
 
 @router.post("/orders/{order_id}/add-items", response_model=SalesOrderRead)
@@ -473,120 +257,7 @@ def add_items_to_order(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ):
-    """
-    Amplía una OV en curso agregando partidas nuevas. NO borra nada existente.
-    Acumula en subtotal/tax/total. Las instancias de los items nuevos nacen aquí.
-    No toca anticipos: el segundo anticipo se emite aparte con el modal de CxC.
-    """
-    allowed = {UserRole.DIRECTOR, UserRole.MANAGER, UserRole.SALES}
-    if current_user.role not in allowed:
-        raise HTTPException(403, "No tienes permisos para ampliar órdenes de venta.")
-
-    order = session.get(SalesOrder, order_id)
-    if not order:
-        raise HTTPException(404, "Orden no encontrada.")
-    if _is_seller_scoped_role(current_user) and order.user_id != current_user.id:
-        raise HTTPException(403, "Acceso denegado.")
-
-    # Solo órdenes vivas (ya generadas, no muertas)
-    ampliables = {
-        SalesOrderStatus.ACCEPTED,
-        SalesOrderStatus.WAITING_ADVANCE,
-        SalesOrderStatus.SOLD,
-        SalesOrderStatus.IN_PRODUCTION,
-    }
-    if order.status not in ampliables:
-        raise HTTPException(
-            409,
-            f"No se puede ampliar una orden en estado {order.status}. "
-            f"Solo órdenes en curso (ACEPTADA, ESPERANDO ANTICIPO, VENDIDA, EN PRODUCCIÓN)."
-        )
-
-    if not payload.items:
-        raise HTTPException(422, "Debes enviar al menos una partida nueva.")
-
-    # Crear SOLO los items nuevos (mismo patrón de snapshot que update_sales_order)
-    added_sum = 0.0
-    for item_in in payload.items:
-        snapshot_data = {}
-        calculated_frozen_cost = 0.0
-        if item_in.origin_version_id:
-            version = session.get(ProductVersion, item_in.origin_version_id)
-            if version:
-                snapshot_data = {
-                    "source_version": version.version_name,
-                    "captured_at": datetime.now().isoformat(),
-                    "ingredients": [],
-                }
-                for component in version.components:
-                    mat = session.get(Material, component.material_id)
-                    if mat:
-                        factor = float(mat.conversion_factor) if mat.conversion_factor and mat.conversion_factor > 0 else 1.0
-                        current_cost = mat.current_cost / factor
-                        line_cost = component.quantity * current_cost
-                        calculated_frozen_cost += line_cost
-                        snapshot_data["ingredients"].append({
-                            "material_id": mat.id, "sku": mat.sku, "name": mat.name,
-                            "qty_recipe": component.quantity,
-                            "frozen_unit_cost": current_cost, "line_total": line_cost,
-                        })
-        else:
-            snapshot_data = item_in.cost_snapshot or {"type": "MANUAL_ENTRY"}
-            calculated_frozen_cost = item_in.frozen_unit_cost or 0.0
-
-        qty = item_in.quantity or 0
-        price = item_in.unit_price or 0
-        line_amount = qty * price
-        added_sum += line_amount
-
-        db_item = SalesOrderItem(
-            sales_order_id=order.id,
-            product_name=item_in.product_name,
-            origin_version_id=item_in.origin_version_id,
-            quantity=qty,
-            unit_price=price,
-            subtotal_price=line_amount,
-            cost_snapshot=snapshot_data,
-            frozen_unit_cost=calculated_frozen_cost,
-            is_resale=getattr(item_in, 'is_resale', False),
-            resale_sku=getattr(item_in, 'resale_sku', None),
-        )
-        session.add(db_item)
-
-    session.flush()  # IDs de los items nuevos para crear instancias
-
-    # Instancias SOLO de los items nuevos (la función es idempotente:
-    # salta los items que ya tienen instancias)
-    session.refresh(order)
-    _create_instances_for_order(session, order)
-
-    tax_rate_obj = session.get(TaxRate, order.tax_rate_id)
-    tax_multiplier = tax_rate_obj.rate if tax_rate_obj else 0.16
-
-    nuevo_subtotal = (order.subtotal or 0.0) + added_sum
-
-    # Comisión informativa: ya está contenida en unit_price, se re-extrae
-    # sobre el subtotal acumulado (misma fórmula que update_sales_order)
-    comm_percent = order.applied_commission_percent or 0.0
-    nueva_comision = (
-        nuevo_subtotal - (nuevo_subtotal / (1 + comm_percent))
-        if comm_percent > 0 else 0.0
-    )
-
-    nuevo_tax = nuevo_subtotal * tax_multiplier
-    nuevo_total = nuevo_subtotal + nuevo_tax
-    incremento_total = nuevo_total - (order.total_price or 0.0)
-
-    order.subtotal = nuevo_subtotal
-    order.commission_amount = nueva_comision
-    order.tax_amount = nuevo_tax
-    order.total_price = nuevo_total
-    order.outstanding_balance = (order.outstanding_balance or 0.0) + incremento_total
-
-    session.add(order)
-    session.commit()
-    session.refresh(order)
-    return order
+    return sales_service.add_items_to_order(session, order_id, payload, current_user)
 
 
 @router.delete("/orders/{order_id}/items/{item_id}/instances/{instance_id}")
@@ -1489,146 +1160,12 @@ def cancel_customer_payment(
 # 8. REPORTE DE COMISIONES
 # ==========================================
 
-def _days_waiting(reference: Optional[datetime]) -> int:
-    if not reference:
-        return 0
-    now = datetime.utcnow()
-    ref = reference.replace(tzinfo=None) if getattr(reference, "tzinfo", None) else reference
-    return max(0, (now - ref).days)
-
-
 @router.get("/commissions/payroll-overview", response_model=CommissionsPayrollOverview)
 def get_commissions_payroll_overview(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ):
-    """
-    Tres bandejas con sumas independientes (sin duplicar montos entre tarjetas):
-    - Retenidas: OV en espera de anticipo (provisional) + comisiones ligadas a CXC aún PENDING.
-    - Por pagar: comisiones de vendedor cobradas (CXC PAID), no pagadas al asesor, no diferidas.
-    - Pagadas: comisiones marcadas is_paid.
-    """
-    retained: List[PayrollCommissionRow] = []
-    payable: List[PayrollCommissionRow] = []
-    paid: List[PayrollCommissionRow] = []
-
-    # --- A) Provisional: órdenes esperando anticipo (sin desglose por cobro aún) ---
-    waiting = session.exec(
-        select(SalesOrder).where(SalesOrder.status == SalesOrderStatus.WAITING_ADVANCE)
-    ).all()
-    for o in waiting:
-        seller = session.get(User, o.user_id) if o.user_id else None
-        est = float(o.commission_amount or 0.0)
-        if est <= 0 and o.applied_commission_percent and o.total_price:
-            est = float(o.total_price) * float(o.applied_commission_percent)
-        retained.append(PayrollCommissionRow(
-            kind="PROVISIONAL",
-            id=None,
-            sales_order_id=o.id,
-            project_name=o.project_name,
-            seller_name=seller.full_name if seller else None,
-            amount=est,
-            days_waiting=_days_waiting(o.created_at),
-            reference_label="Anticipo pendiente (OV)",
-            customer_payment_id=None,
-            cxc_status="WAITING_ADVANCE",
-            admin_notes=None,
-            payroll_deferred=False,
-        ))
-
-    # --- B) Comisiones con CXC aún no liquidado (retenidas) ---
-    pending_cxc = session.exec(
-        select(SalesCommission, CustomerPayment)
-        .join(CustomerPayment, SalesCommission.customer_payment_id == CustomerPayment.id)
-        .where(
-            SalesCommission.commission_type == CommissionType.SELLER,
-            SalesCommission.is_paid == False,  # noqa: E712
-            CustomerPayment.status == CXCStatus.PENDING,
-        )
-    ).all()
-    for c, cx in pending_cxc:
-        user = session.get(User, c.user_id)
-        order = session.get(SalesOrder, cx.sales_order_id)
-        retained.append(PayrollCommissionRow(
-            kind="ACCRUED",
-            id=c.id,
-            sales_order_id=order.id if order else cx.sales_order_id,
-            project_name=order.project_name if order else None,
-            seller_name=user.full_name if user else None,
-            amount=float(c.commission_amount),
-            days_waiting=_days_waiting(cx.created_at),
-            reference_label=f"CXC #{cx.id} pendiente de cobro",
-            customer_payment_id=cx.id,
-            cxc_status=cx.status.value if hasattr(cx.status, "value") else str(cx.status),
-            admin_notes=c.admin_notes,
-            payroll_deferred=bool(c.payroll_deferred),
-        ))
-
-    # --- C) Por pagar: cobro confirmado, comisión aún no liquidada al vendedor ---
-    ready = session.exec(
-        select(SalesCommission, CustomerPayment)
-        .join(CustomerPayment, SalesCommission.customer_payment_id == CustomerPayment.id)
-        .where(
-            SalesCommission.commission_type == CommissionType.SELLER,
-            SalesCommission.is_paid == False,  # noqa: E712
-            SalesCommission.payroll_deferred == False,  # noqa: E712
-            CustomerPayment.status == CXCStatus.PAID,
-        )
-    ).all()
-    for c, cx in ready:
-        user = session.get(User, c.user_id)
-        order = session.get(SalesOrder, cx.sales_order_id)
-        payable.append(PayrollCommissionRow(
-            kind="ACCRUED",
-            id=c.id,
-            sales_order_id=order.id if order else cx.sales_order_id,
-            project_name=order.project_name if order else None,
-            seller_name=user.full_name if user else None,
-            amount=float(c.commission_amount),
-            days_waiting=_days_waiting(c.created_at),
-            reference_label=f"Cobro #{cx.id} liquidado",
-            customer_payment_id=cx.id,
-            cxc_status=cx.status.value if hasattr(cx.status, "value") else str(cx.status),
-            admin_notes=c.admin_notes,
-            payroll_deferred=bool(c.payroll_deferred),
-        ))
-
-    # --- D) Histórico pagado ---
-    done = session.exec(
-        select(SalesCommission)
-        .where(
-            SalesCommission.commission_type == CommissionType.SELLER,
-            SalesCommission.is_paid == True,  # noqa: E712
-        )
-        .order_by(SalesCommission.created_at.desc())
-    ).all()
-    for c in done:
-        cx = session.get(CustomerPayment, c.customer_payment_id)
-        user = session.get(User, c.user_id)
-        order = session.get(SalesOrder, cx.sales_order_id) if cx else None
-        paid.append(PayrollCommissionRow(
-            kind="ACCRUED",
-            id=c.id,
-            sales_order_id=order.id if order else (cx.sales_order_id if cx else 0),
-            project_name=order.project_name if order else None,
-            seller_name=user.full_name if user else None,
-            amount=float(c.commission_amount),
-            days_waiting=0,
-            reference_label="Comisión pagada",
-            customer_payment_id=c.customer_payment_id,
-            cxc_status=(cx.status.value if cx and hasattr(cx.status, "value") else (str(cx.status) if cx else None)),
-            admin_notes=c.admin_notes,
-            payroll_deferred=False,
-        ))
-
-    return CommissionsPayrollOverview(
-        retained_total=sum(r.amount for r in retained),
-        payable_total=sum(r.amount for r in payable),
-        paid_total=sum(r.amount for r in paid),
-        retained=retained,
-        payable=payable,
-        paid=paid,
-    )
+    return sales_service.get_commissions_overview(session)
 
 
 @router.patch("/commissions/{commission_id}/payroll")
@@ -1638,23 +1175,7 @@ def update_commission_payroll_fields(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ):
-    """Observaciones y aplazamiento de pago en bandeja Por Pagar."""
-    commission = session.get(SalesCommission, commission_id)
-    if not commission:
-        raise HTTPException(status_code=404, detail="Comisión no encontrada.")
-    if payload.admin_notes is not None:
-        commission.admin_notes = payload.admin_notes
-    if payload.payroll_deferred is not None:
-        if payload.payroll_deferred and not (payload.admin_notes or commission.admin_notes):
-            raise HTTPException(
-                status_code=422,
-                detail="Debes documentar el motivo en observaciones antes de aplazar u omitir el pago.",
-            )
-        commission.payroll_deferred = payload.payroll_deferred
-    session.add(commission)
-    session.commit()
-    session.refresh(commission)
-    return {"ok": True, "commission_id": commission_id}
+    return sales_service.update_commission_payroll(session, commission_id, payload, current_user)
 
 
 @router.get("/commissions", response_model=List[SalesCommissionRead])
@@ -1663,65 +1184,21 @@ def get_commissions_report(
     commission_type: Optional[str] = None,
     is_paid: Optional[bool] = None,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
-    """
-    Reporte consolidado de comisiones (vendedor + globales de directores).
-    Acepta filtros opcionales por usuario, tipo y estado de pago.
-    """
-    query = select(SalesCommission)
-    if user_id:
-        query = query.where(SalesCommission.user_id == user_id)
-    if commission_type:
-        query = query.where(SalesCommission.commission_type == commission_type)
-    if is_paid is not None:
-        query = query.where(SalesCommission.is_paid == is_paid)
+    return sales_service.get_commissions_report(
+        session, current_user, user_id=user_id, commission_type=commission_type, is_paid=is_paid
+    )
 
-    commissions = session.exec(query.order_by(SalesCommission.created_at.desc())).all()
-
-    results = []
-    for c in commissions:
-        user = session.get(User, c.user_id)
-        cxc = session.get(CustomerPayment, c.customer_payment_id)
-        order = session.get(SalesOrder, cxc.sales_order_id) if cxc else None
-
-        results.append(SalesCommissionRead(
-            id=c.id,
-            customer_payment_id=c.customer_payment_id,
-            user_id=c.user_id,
-            user_name=user.full_name if user else None,
-            user_role=user.role if user else None,
-            commission_type=c.commission_type,
-            base_amount=c.base_amount,
-            rate=c.rate,
-            commission_amount=c.commission_amount,
-            is_paid=c.is_paid,
-            created_at=c.created_at,
-            sales_order_id=order.id if order else None,
-            project_name=order.project_name if order else None,
-            payment_amount=cxc.amount if cxc else None,
-            admin_notes=getattr(c, "admin_notes", None),
-            payroll_deferred=bool(getattr(c, "payroll_deferred", False)),
-        ))
-    return results
 
 @router.patch("/commissions/{commission_id}/mark-paid")
 def mark_commission_paid(
     commission_id: int,
     payload: CommissionPaidUpdate,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
-    """
-    Tesorería marca una comisión como pagada o pendiente.
-    """
-    commission = session.get(SalesCommission, commission_id)
-    if not commission:
-        raise HTTPException(status_code=404, detail="Comisión no encontrada.")
-    commission.is_paid = payload.is_paid
-    session.add(commission)
-    session.commit()
-    return {"ok": True, "commission_id": commission_id, "is_paid": commission.is_paid}
+    return sales_service.mark_commission_paid(session, commission_id, payload, current_user)
 
 
 # ================================================================
