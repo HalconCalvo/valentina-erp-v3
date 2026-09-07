@@ -2,12 +2,12 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, FileText, Lock, Unlock, ChevronDown, BadgeDollarSign, FileSearch, ArrowUpDown, ArrowUp, ArrowDown, Layers, Clock, Wallet } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
-import { salesService } from '../../../api/sales-service';
-import { InvoicingRightsRead, SalesOrder } from '../../../types/sales';
+import { SalesOrder } from '../../../types/sales';
 import { normalizeOrderStatus, STATUS_WAITING_ADVANCE } from '../utils/pendingInvoiceBuckets';
 import { ReceivableChargeModal } from './ReceivableChargeModal';
 import { OrderStatementModal } from './OrderStatementModal';
 import { toast } from '@/components/ui/VToast';
+import { useSalesOrders, useInvoicingRights } from '../../../hooks/useReceivables';
 
 // ---> 1. AGREGAMOS EL FILTRO 'ALL' <---
 type ReceivableFilter = 'ALL' | 'ADVANCES' | null;
@@ -38,10 +38,17 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
     const canViewRayosX = ['ADMIN', 'DIRECTOR', 'MANAGER'].includes(userRole);
     const hasAbsolutePower = ['DIRECTOR', 'MANAGER'].includes(userRole);
 
-    const [orders, setOrders] = useState<SalesOrder[]>([]);
-    const [invoicingRights, setInvoicingRights] = useState<InvoicingRightsRead | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
-    
+    const { data: orders = [], isError: ordersError, refetch: refetchOrders } = useSalesOrders();
+    const { data: invoicingRights = null, refetch: refetchInvoicingRights } = useInvoicingRights();
+
+    const refreshReceivables = useCallback(async () => {
+        await Promise.all([refetchOrders(), refetchInvoicingRights()]);
+    }, [refetchOrders, refetchInvoicingRights]);
+
+    useEffect(() => {
+        if (ordersError) toast.error('No se pudieron cargar las cuentas por cobrar.');
+    }, [ordersError]);
+
     // Inicializamos el estado con la llave de teletransporte si nos la mandaron
     const [activeFilter, setActiveFilter] = useState<ReceivableFilter>(defaultFilter);
     const [expandedOrderIds, setExpandedOrderIds] = useState<number[]>([]);
@@ -67,47 +74,6 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
             setActiveFilter(null);
         }
     }, [resetHubSignal]);
-
-    const loadSalesData = async () => {
-        try {
-            setIsLoading(true);
-            const [response, rights] = await Promise.all([
-                salesService.getOrders(),
-                salesService.getInvoicingRights().catch(() => null),
-            ]);
-            if (rights) {
-                setInvoicingRights(rights);
-            }
-            
-            // ---> EXTRACCIÓN INTELIGENTE A PRUEBA DE FALLOS <---
-            let rawData: any[] = [];
-            if (Array.isArray(response)) {
-                rawData = response;
-            } else if (response && Array.isArray(response.data)) {
-                rawData = response.data;
-            } else if (response && Array.isArray(response.items)) {
-                rawData = response.items;
-            }
-
-            if (rawData.length > 0) {
-                const uniqueOrders = Array.from(new Map(rawData.map((o: any) => [o.id, o])).values());
-                setOrders(uniqueOrders as SalesOrder[]);
-            } else {
-                setOrders([]);
-            }
-        } catch {
-            toast.error('No se pudieron cargar las cuentas por cobrar.');
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    // ---> EL MOTOR DE ARRANQUE <---
-    useEffect(() => {
-        loadSalesData();
-        const intervalId = setInterval(loadSalesData, 15000); 
-        return () => clearInterval(intervalId);
-    }, []);
 
     // ---> EL PUENTE DE COMUNICACIÓN (Sincroniza Rayos X en tiempo real) <---
     // No pisar la OV seleccionada mientras Rayos X está abierto: el detalle fresco
@@ -397,10 +363,10 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
             )}
 
             {selectedOrderForStatement && (
-                <OrderStatementModal isOpen={isStatementModalOpen} onClose={() => setIsStatementModalOpen(false)} order={selectedOrderForStatement} onSuccess={loadSalesData} onOrderPatch={(patch) => { if (selectedOrderForStatement && (patch as SalesOrder).items) setSelectedOrderForStatement(patch as SalesOrder); }} onOpenInvoiceModal={(orderToInvoice) => { setSelectedOrderForCharge(orderToInvoice); setIsChargeModalOpen(true); }} readOnly={!hasAbsolutePower} />
+                <OrderStatementModal isOpen={isStatementModalOpen} onClose={() => setIsStatementModalOpen(false)} order={selectedOrderForStatement} onSuccess={refreshReceivables} onOrderPatch={(patch) => { if (selectedOrderForStatement && (patch as SalesOrder).items) setSelectedOrderForStatement(patch as SalesOrder); }} onOpenInvoiceModal={(orderToInvoice) => { setSelectedOrderForCharge(orderToInvoice); setIsChargeModalOpen(true); }} readOnly={!hasAbsolutePower} />
             )}
             {selectedOrderForCharge && hasAbsolutePower && (
-                <ReceivableChargeModal isOpen={isChargeModalOpen} onClose={() => setIsChargeModalOpen(false)} order={selectedOrderForCharge} onSuccess={() => { loadSalesData(); setIsChargeModalOpen(false); }} />
+                <ReceivableChargeModal isOpen={isChargeModalOpen} onClose={() => setIsChargeModalOpen(false)} order={selectedOrderForCharge} onSuccess={() => { void refreshReceivables(); setIsChargeModalOpen(false); }} />
             )}
         </div>
     );
