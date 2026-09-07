@@ -8,6 +8,9 @@ from sqlmodel import Session, select, text
 from app.models.foundations import Provider
 from app.models.inventory import PurchaseOrder, PurchaseOrderItem, PurchaseRequisition
 from app.models.material import Material
+from app.models.finance import PurchaseInvoice, SupplierPayment
+
+AccountsPayable = SupplierPayment.AccountsPayable
 
 
 def get_requisitions(db: Session, skip: int = 0, limit: int = 100) -> List[dict]:
@@ -159,6 +162,32 @@ def get_pending_tasks_counts(db: Session) -> dict:
 
 def get_purchase_order_by_id(db: Session, po_id: int) -> Optional[PurchaseOrder]:
     return db.get(PurchaseOrder, po_id)
+
+
+def get_po_items(db: Session, po_id: int) -> List[PurchaseOrderItem]:
+    return list(
+        db.exec(select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po_id)).all()
+    )
+
+
+def get_po_item_by_id(db: Session, item_id: int) -> Optional[PurchaseOrderItem]:
+    return db.get(PurchaseOrderItem, item_id)
+
+
+def get_requisition_by_id(db: Session, req_id: int) -> Optional[PurchaseRequisition]:
+    return db.get(PurchaseRequisition, req_id)
+
+
+def get_advance_invoice_by_folio(db: Session, folio: str) -> Optional[PurchaseInvoice]:
+    return db.exec(
+        select(PurchaseInvoice).where(PurchaseInvoice.invoice_number == f"ANT-{folio}")
+    ).first()
+
+
+def get_accounts_payable_by_po(db: Session, po_id: int) -> Optional[AccountsPayable]:
+    return db.exec(
+        select(AccountsPayable).where(AccountsPayable.purchase_order_id == po_id)
+    ).first()
 
 
 def get_material_by_id(db: Session, material_id: int) -> Optional[Material]:

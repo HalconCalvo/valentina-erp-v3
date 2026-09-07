@@ -217,158 +217,45 @@ def emit_bulk_purchase_order(*, db: Session = Depends(get_session), data: POCrea
     return {"status": "success", "po_id": po.id, "folio": new_folio}
 
 @router.put("/orders/{po_id}/authorize")
-def authorize_purchase_order(*, db: Session = Depends(get_session), po_id: int, current_user: CurrentUser):
-    allowed_roles = ["DIRECTOR", "MANAGER"]
-    if current_user.role.upper() not in allowed_roles:
-        raise HTTPException(
-            status_code=403,
-            detail="Solo Dirección y Gerencia pueden autorizar órdenes de compra."
-        )
+def authorize_purchase_order(
+    *, db: Session = Depends(get_session), po_id: int, current_user: CurrentUser
+):
+    return purchase_service.authorize_po(db, po_id, current_user)
 
-    po = db.get(PurchaseOrder, po_id)
-    if not po: raise HTTPException(status_code=404)
-
-    items_count = db.exec(
-        select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po.id)
-    ).all()
-    if not items_count:
-        raise HTTPException(status_code=400, detail="No se puede autorizar una orden de compra sin partidas.")
-
-    user_id = getattr(current_user, 'email', None) or getattr(current_user, 'username', 'USUARIO')
-    po.status = "AUTORIZADA"
-    po.authorized_by = user_id
-    po.authorized_at = datetime.now()
-
-    db.add(po)
-    db.commit() 
-    db.refresh(po)
-    return po
 
 @router.put("/orders/{po_id}/revoke")
-def revoke_purchase_order(*, db: Session = Depends(get_session), po_id: int, current_user: CurrentUser):
-    po = db.get(PurchaseOrder, po_id)
-    if not po: raise HTTPException(status_code=404)
-    if po.status != "AUTORIZADA": raise HTTPException(status_code=400)
+def revoke_purchase_order(
+    *, db: Session = Depends(get_session), po_id: int, current_user: CurrentUser
+):
+    return purchase_service.revoke_po(db, po_id, current_user)
 
-    po.status = "DRAFT"
-    po.authorized_by = None
-    po.authorized_at = None
-    db.add(po)
-    db.commit()
-    return {"status": "success"}
 
 @router.post("/orders/{po_id}/reject")
-def reject_purchase_order(*, db: Session = Depends(get_session), po_id: int, action: str, current_user: CurrentUser):
-    po = db.get(PurchaseOrder, po_id)
-    if not po: raise HTTPException(status_code=404, detail="Orden no encontrada")
-    if po.status != "DRAFT": raise HTTPException(status_code=400, detail="Solo se pueden rechazar órdenes en Borrador")
+def reject_purchase_order(
+    *, db: Session = Depends(get_session), po_id: int, action: str, current_user: CurrentUser
+):
+    return purchase_service.reject_po(db, po_id, action, current_user)
 
-    try:
-        items = db.exec(select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po.id)).all()
-        for item in items:
-            req_id = getattr(item, 'requisition_id', getattr(item, 'purchase_requisition_id', None))
-            if req_id:
-                req = db.get(PurchaseRequisition, req_id)
-                if req:
-                    if action == "RE-COTIZAR":
-                        req.status = "PENDIENTE"; db.add(req)
-                    elif action == "CANCELAR":
-                        notes = req.notes or ''
-                        desc = req.custom_description or ''
-                        if 'Valentina' in notes or '[AUTO]' in notes or desc == 'REPOSICIÓN AUTOMÁTICA':
-                            req.status = "APLAZADA"; db.add(req)
-                        else:
-                            db.delete(req)
-            db.delete(item)
-        db.flush()
-        db.delete(po)
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Error al rechazar la orden: {str(e)}")
-
-    return {"status": "success", "message": f"Orden rechazada. Acción: {action}"}
 
 @router.delete("/orders/{po_id}/items/{item_id}")
-def remove_item_from_purchase_order(*, db: Session = Depends(get_session), po_id: int, item_id: int, current_user: CurrentUser):
-    po = db.get(PurchaseOrder, po_id)
-    if not po: raise HTTPException(status_code=404, detail="Orden de compra no encontrada.")
-    if po.status not in ["DRAFT", "RECHAZADA"]:
-        raise HTTPException(status_code=400, detail="Solo se pueden modificar órdenes en Borrador.")
+def remove_item_from_purchase_order(
+    *, db: Session = Depends(get_session), po_id: int, item_id: int, current_user: CurrentUser
+):
+    return purchase_service.remove_po_item(db, po_id, item_id, current_user)
 
-    po_item = db.get(PurchaseOrderItem, item_id)
-    if not po_item or po_item.purchase_order_id != po.id:
-        raise HTTPException(status_code=404, detail="Partida no encontrada en esta orden.")
-
-    req_id = getattr(po_item, 'requisition_id', getattr(po_item, 'purchase_requisition_id', None))
-    if req_id:
-        requisition = db.get(PurchaseRequisition, req_id)
-        if requisition:
-            requisition.status = "PENDIENTE" 
-            db.add(requisition)
-
-    db.delete(po_item)
-    db.commit()
-
-    remaining_items = db.exec(select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po.id)).all()
-    if not remaining_items:
-        db.delete(po)
-    else:
-        new_total = sum((getattr(it, 'quantity_ordered', 0) or 0) * (getattr(it, 'expected_unit_cost', 0) or 0) for it in remaining_items)
-        po.total_estimated_amount = new_total
-        db.add(po)
-        
-    db.commit()
-    return {"status": "success", "message": "Partida removida exitosamente."}
 
 @router.put("/orders/{po_id}/dispatch")
-def dispatch_purchase_order(*, db: Session = Depends(get_session), po_id: int, current_user: CurrentUser):
-    po = db.get(PurchaseOrder, po_id)
-    if not po: raise HTTPException(status_code=404, detail="Orden no encontrada")
-    if po.status != "AUTORIZADA": raise HTTPException(status_code=400, detail="Solo se pueden enviar órdenes Autorizadas")
+def dispatch_purchase_order(
+    *, db: Session = Depends(get_session), po_id: int, current_user: CurrentUser
+):
+    return purchase_service.dispatch_po(db, po_id, current_user)
 
-    items_count = db.exec(
-        select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po.id)
-    ).all()
-    if not items_count:
-        raise HTTPException(status_code=400, detail="No se puede enviar una orden de compra sin partidas.")
-    
-    po.status = "ENVIADA"
-    db.add(po)
-    db.commit()
-    return {"status": "success", "message": "Orden despachada exitosamente."}
 
-# --- BOTÓN DE PÁNICO Y RESCATE ---
 @router.put("/orders/{po_id}/cancel")
-def cancel_dispatched_order(*, db: Session = Depends(get_session), po_id: int, current_user: CurrentUser):
-    po = db.get(PurchaseOrder, po_id)
-    if not po: raise HTTPException(status_code=404)
-    if po.status != "ENVIADA": raise HTTPException(status_code=400)
-
-    po.status = "CANCELADA"
-    
-    items = db.exec(select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po.id)).all()
-    for item in items:
-        req_id = getattr(item, 'requisition_id', getattr(item, 'purchase_requisition_id', None))
-        if req_id:
-            req = db.get(PurchaseRequisition, req_id)
-            if req:
-                req.status = "PENDIENTE"  
-                db.add(req)
-        else:
-            # Rescate automático si la OC fue directa
-            new_req = PurchaseRequisition(
-                material_id=item.material_id,
-                custom_description=item.custom_description,
-                requested_quantity=item.quantity_ordered,
-                status="PENDIENTE",
-                notes="Rescate automático por Cancelación de OC Directa"
-            )
-            db.add(new_req)
-    
-    db.add(po)
-    db.commit()
-    return {"status": "success", "message": "Orden cancelada y materiales devueltos a Planeación."}
+def cancel_dispatched_order(
+    *, db: Session = Depends(get_session), po_id: int, current_user: CurrentUser
+):
+    return purchase_service.cancel_dispatched_po(db, po_id, current_user)
 
 @router.put("/orders/{po_id}/receive")
 def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, current_user: CurrentUser, data: dict = Body(...)):
@@ -687,96 +574,33 @@ def receive_purchase_order(*, db: Session = Depends(get_session), po_id: int, cu
     return {"status": "success", "message": "Inventario ingresado y finanzas conciliadas."}
 
 @router.put("/orders/{po_id}/items/{item_id}/no-more")
-def mark_item_no_more(*, db: Session = Depends(get_session), po_id: int, item_id: int, current_user: CurrentUser, data: dict = Body(...)):
-    try:
-        po = db.get(PurchaseOrder, po_id)
-        if not po:
-            raise HTTPException(status_code=404, detail="Orden no encontrada")
-        item = db.get(PurchaseOrderItem, item_id)
-        if not item or item.purchase_order_id != po_id:
-            raise HTTPException(status_code=404, detail="Renglón no encontrado en esta orden")
+def mark_item_no_more(
+    *,
+    db: Session = Depends(get_session),
+    po_id: int,
+    item_id: int,
+    current_user: CurrentUser,
+    data: dict = Body(...),
+):
+    return purchase_service.mark_item_no_more(db, po_id, item_id, data, current_user)
 
-        reason = (data.get("reason") or "").strip()
-        if not reason:
-            raise HTTPException(status_code=400, detail="Debe indicar un motivo")
-
-        recibido = float(item.quantity_received or 0)
-
-        # El sistema decide segun lo recibido:
-        if recibido <= 0:
-            # Nunca llego nada -> CANCELADO
-            item.is_cancelled = True
-            item.is_fulfilled = False
-            accion = "cancelado"
-        else:
-            # Llego parte -> SATISFECHO (se cierra el saldo, se respeta lo recibido y su CxP)
-            item.is_fulfilled = True
-            item.is_cancelled = False
-            accion = "satisfecho"
-        item.cancel_reason = reason
-        db.add(item)
-        db.flush()
-
-        # Recalcular estado de la OC.
-        # Un renglon esta "resuelto" si: cancelado, satisfecho, o recibido completo.
-        all_items = db.exec(select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po_id)).all()
-        hay_pendiente = False
-        hay_recibido = False
-        for it in all_items:
-            if it.is_cancelled or it.is_fulfilled:
-                if float(it.quantity_received or 0) > 0:
-                    hay_recibido = True
-                continue
-            recibido_it = float(it.quantity_received or 0)
-            ordenado_it = float(it.quantity_ordered or 0)
-            if recibido_it > 0:
-                hay_recibido = True
-            if ordenado_it > 0 and recibido_it < ordenado_it:
-                hay_pendiente = True
-
-        if not hay_pendiente:
-            po.status = "RECIBIDA_TOTAL" if hay_recibido else "CANCELADA"
-        else:
-            po.status = "RECIBIDA_PARCIAL"
-        db.add(po)
-        db.commit()
-        return {"status": "success", "accion": accion, "po_status": po.status}
-    except HTTPException:
-        db.rollback()
-        raise
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 @router.put("/orders/{po_id}/declare-satisfied")
-def declare_order_satisfied(*, db: Session = Depends(get_session), po_id: int, current_user: CurrentUser):
-    """Declara una OC parcialmente recibida como Satisfecha (cierre manual)."""
-    if current_user.role.upper() not in ["ADMIN", "MANAGER", "DIRECTOR"]:
-        raise HTTPException(status_code=403, detail="Solo Administración, Gerencia o Dirección pueden declarar una OC como satisfecha.")
-    
-    po = db.get(PurchaseOrder, po_id)
-    if not po:
-        raise HTTPException(status_code=404, detail="Orden no encontrada.")
-    if po.status != "RECIBIDA_PARCIAL":
-        raise HTTPException(status_code=400, detail="Solo se pueden declarar como satisfechas las OCs con entregas parciales.")
-    
-    po.status = "RECIBIDA_TOTAL"
-    db.add(po)
-    db.commit()
-    return {"status": "success", "message": f"OC {po.folio} declarada como satisfecha."}
+def declare_order_satisfied(
+    *, db: Session = Depends(get_session), po_id: int, current_user: CurrentUser
+):
+    return purchase_service.declare_po_satisfied(db, po_id, current_user)
 
 
 @router.put("/orders/{po_id}/report-discrepancy")
-def report_cost_discrepancy(*, db: Session = Depends(get_session), po_id: int, data: dict = Body(...), current_user: CurrentUser):
-    po = db.get(PurchaseOrder, po_id)
-    if not po: raise HTTPException(status_code=404)
-
-    po.status = "DISCREPANCIA_COSTO"
-    setattr(po, 'invoice_folio_reported', data.get("reported_folio"))
-    setattr(po, 'invoice_total_reported', data.get("reported_total"))
-    db.add(po)
-    db.commit()
-    return {"status": "warning", "message": "Discrepancia registrada."}
+def report_cost_discrepancy(
+    *,
+    db: Session = Depends(get_session),
+    po_id: int,
+    data: dict = Body(...),
+    current_user: CurrentUser,
+):
+    return purchase_service.report_cost_discrepancy(db, po_id, data, current_user)
 
 @router.get("/planning/consolidated", response_model=List[dict])
 def get_purchase_planning(db: Session = Depends(get_session)):
