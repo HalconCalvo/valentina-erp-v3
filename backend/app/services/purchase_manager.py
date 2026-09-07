@@ -40,9 +40,9 @@ class PurchaseManager:
             
             transit_dict = {}
             if active_po_ids:
-                ids_str = ",".join(active_po_ids)
                 items = db.execute(
-                    text(f"SELECT material_id, quantity_ordered FROM purchase_order_items WHERE purchase_order_id IN ({ids_str})")
+                    text("SELECT material_id, quantity_ordered FROM purchase_order_items WHERE purchase_order_id = ANY(:ids)"),
+                    {"ids": list(active_po_ids)}
                 ).mappings().all()
                 for item in items:
                     m_id = item['material_id']
