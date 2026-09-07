@@ -2420,3 +2420,28 @@ Backdoor eliminado. Rate limiting activo. CORS restringido.
 ### Siguiente: FASE 2 — Separación Cotización / Orden de Venta
 Esta es la corrección arquitectónica más importante del sistema.
 Requiere diseño cuidadoso antes de tocar código.
+
+
+---
+## SESIÓN 2026-09-07 — FASE 2 COMPLETADA (Separación Cotización/OV)
+
+### Completado:
+- Modelos Quotation y QuotationItem en sales.py
+- quotation_id agregado a SalesOrder
+- Migración v8w9x0y1z2a3 — tablas quotations y quotation_items
+- Schemas en quotation_schema.py
+- Repository, Service y Endpoints en 3 capas
+- Router /quotations registrado en api.py
+- Fix: relación ambigua Quotation.user — foreign_keys explícito a user_id
+
+### Bugs corregidos en el camino:
+- quotationstatus enum: conflicto con SQLAlchemy — usar sa.String() en migración
+- Quotation.user ambigüedad: dos FK a users.id — sa_relationship_kwargs con foreign_keys explícito
+
+### Estado actual:
+- /api/v1/quotations/ responde correctamente (lista vacía — no hay cotizaciones aún)
+- Sistema en producción funcionando
+
+### Siguiente: Fase 3 — React Query o Fase 2 frontend
+El backend de Fase 2 está completo. El frontend aún usa /sales/orders para cotizaciones históricas.
+Decisión pendiente: ¿construir el frontend de cotizaciones ahora o avanzar a Fase 3?
