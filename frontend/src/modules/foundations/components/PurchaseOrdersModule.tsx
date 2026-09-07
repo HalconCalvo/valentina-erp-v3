@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
     Search, Ban, Send, PackageCheck, 
     ArrowUpRight, Loader2, ArrowLeft,
@@ -13,6 +13,13 @@ import { VTable } from '@/components/ui/VTable';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 import axiosClient from '../../../api/axios-client';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+    usePurchasePlanning,
+    usePurchaseOrders,
+    useMaterials,
+    purchaseOrdersQueryKeys,
+} from '../../../hooks/usePurchaseOrders';
 import { AllPurchaseOrdersModule } from './AllPurchaseOrdersModule';
 
 type PendingConfirm =
@@ -38,13 +45,30 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     const [activeSubSection, setActiveSubSection] = useState<SubSection>(targetTab as SubSection || null);
     const [allOrdersDetailOpen, setAllOrdersDetailOpen] = useState(false);
     const [allOrdersCloseSignal, setAllOrdersCloseSignal] = useState(0);
-    const [loading, setLoading] = useState(true);
-    const [suggestedOrders, setSuggestedOrders] = useState<any[]>([]);
-    const [brakeOrders, setBrakeOrders] = useState<any[]>([]);
+    const queryClient = useQueryClient();
+    const [actionLoading, setActionLoading] = useState(false);
+    const initialSelectionApplied = useRef(false);
+
+    const {
+        data: suggestedOrders = [],
+        isLoading: planningLoading,
+        isError: planningError,
+        refetch: refetchPlanning,
+    } = usePurchasePlanning();
+    const {
+        data: brakeOrders = [],
+        isLoading: ordersLoading,
+        isError: ordersError,
+        refetch: refetchOrders,
+    } = usePurchaseOrders();
+    const { data: materialsList = [], refetch: refetchMaterials } = useMaterials();
+    const allMaterials = materialsList;
+
+    const loading = actionLoading || planningLoading || ordersLoading;
+
     const [selectedItems, setSelectedItems] = useState<Record<string, boolean>>({});
 
     const [providersList, setProvidersList] = useState<any[]>([]);
-    const [materialsList, setMaterialsList] = useState<any[]>([]);
 
     const [isManualModalOpen, setIsManualModalOpen] = useState(false);
     const [manualOrderForm, setManualOrderForm] = useState({ 
@@ -121,7 +145,6 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     const [cancelItemModal, setCancelItemModal] = useState<{ open: boolean; orderId: number | null; item: any | null }>({ open: false, orderId: null, item: null });
     const [cancelItemReason, setCancelItemReason] = useState<string>('');
 
-    const [allMaterials, setAllMaterials] = useState<any[]>([]);
     const [materialSuggestions, setMaterialSuggestions] = useState<any[]>([]);
     const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
 
@@ -183,84 +206,42 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
 
     const safeStatus = (status: any) => String(status || '').trim().toUpperCase();
 
-    const fetchCatalogs = async () => {
-        try {
-    const [provRes, matRes] = await Promise.all([
-        axiosClient.get('/foundations/providers'),
-        axiosClient.get('/foundations/materials')
-    ]);
-            setProvidersList(extractList(provRes, 'providers'));
-            setMaterialsList(extractList(matRes, 'materials'));
-        } catch {
-            toast.error('Error al cargar catálogos.');
-        }
-    };
+    useEffect(() => {
+        if (planningError) toast.error('Error al cargar planeación.');
+    }, [planningError]);
 
-    const fetchPlanning = async (silent = false) => {
-        if (!silent) setLoading(true);
-        try {
-            const ts = new Date().getTime(); 
-            const response = await axiosClient.get(`/purchases/planning/consolidated?t=${ts}`);
-            const data = extractList({data: response.data}, 'items');
-            const sortedData = [...data].sort((a, b) => {
-                const aHasProject = a.items?.some((it: any) => it.project_name) || false;
-                const bHasProject = b.items?.some((it: any) => it.project_name) || false;
-                return aHasProject === bHasProject ? 0 : aHasProject ? -1 : 1;
+    useEffect(() => {
+        if (ordersError) toast.error('Error al cargar órdenes.');
+    }, [ordersError]);
+
+    useEffect(() => {
+        if (!suggestedOrders.length || initialSelectionApplied.current) return;
+        const initialSelection: Record<string, boolean> = {};
+        suggestedOrders.forEach((group: any) => {
+            group.items?.forEach((item: any) => {
+                initialSelection[`${group.provider_id}-${item.material_id}`] = true;
             });
-            setSuggestedOrders(sortedData);
-            
-            if (!silent) {
-                const initialSelection: Record<string, boolean> = {};
-                sortedData.forEach((group: any) => {
-                    group.items?.forEach((item: any) => {
-                        initialSelection[`${group.provider_id}-${item.material_id}`] = true;
-                    });
-                });
-                setSelectedItems(initialSelection);
-            }
-        } catch {
-            toast.error('Error al cargar planeación.');
-        } finally {
-            if (!silent) setLoading(false);
-        }
-    };
+        });
+        setSelectedItems(initialSelection);
+        initialSelectionApplied.current = true;
+    }, [suggestedOrders]);
 
-    const fetchBrakeOrders = async (silent = false) => {
-        if (!silent) setLoading(true);
-        try {
-            const ts = new Date().getTime();
-            const response = await axiosClient.get(`/purchases/orders/?t=${ts}`);
-            setBrakeOrders(extractList({data: response.data}, 'orders'));
-        } catch {
-            toast.error('Error al cargar órdenes.');
-        } finally {
-            if (!silent) setLoading(false);
-        }
-    };
+    useEffect(() => {
+        const loadProviders = async () => {
+            try {
+                const provRes = await axiosClient.get('/foundations/providers');
+                setProvidersList(extractList(provRes, 'providers'));
+            } catch {
+                toast.error('Error al cargar catálogos.');
+            }
+        };
+        loadProviders();
+    }, []);
 
     const handleForceRefresh = () => {
-        fetchPlanning();
-        fetchBrakeOrders();
+        void refetchPlanning();
+        void refetchOrders();
     };
-
-    useEffect(() => {
-        fetchPlanning();
-        fetchBrakeOrders();
-        fetchCatalogs(); 
-
-        const interval = setInterval(() => {
-            fetchPlanning(true);
-            fetchBrakeOrders(true);
-        }, 15000);
-        
-        return () => clearInterval(interval);
-    }, []); 
-
-    useEffect(() => {
-        axiosClient.get('/foundations/materials')
-            .then(res => setAllMaterials(extractList({ data: res.data }, 'materials')))
-            .catch(() => { /* fail silently */ });
-    }, []);
 
     const handleEmitPurchaseOrder = (group: any) => {
         const itemsToEmit = group.items.filter((item: any) => selectedItems[`${group.provider_id}-${item.material_id}`]);
@@ -278,7 +259,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     const executePendingConfirm = async () => {
         if (!pendingConfirm) return;
 
-        setLoading(true);
+        setActionLoading(true);
         try {
             switch (pendingConfirm.kind) {
                 case 'emit': {
@@ -298,59 +279,59 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                         })),
                     });
                     toast.success('Orden de compra emitida correctamente.');
-                    fetchPlanning(true);
-                    fetchBrakeOrders(true);
+                    void refetchPlanning();
+                    void refetchOrders();
                     break;
                 }
                 case 'authorize':
                     await axiosClient.put(`/purchases/orders/${pendingConfirm.orderId}/authorize`);
                     toast.success('Orden autorizada correctamente.');
-                    fetchBrakeOrders(true);
+                    void refetchOrders();
                     break;
                 case 'removeItem':
                     await axiosClient.delete(
                         `/purchases/orders/${pendingConfirm.orderId}/items/${pendingConfirm.itemId}`,
                     );
                     toast.success('Partida removida de la orden.');
-                    fetchBrakeOrders(true);
-                    fetchPlanning(true);
+                    void refetchOrders();
+                    void refetchPlanning();
                     break;
                 case 'deleteReq':
                     await axiosClient.delete(`/purchases/requisitions/${pendingConfirm.reqId}`);
                     toast.success('Solicitud eliminada correctamente.');
-                    fetchPlanning(true);
+                    void refetchPlanning();
                     break;
                 case 'freeze':
                     await axiosClient.put(
                         `/purchases/requisitions/${pendingConfirm.reqId}/status?status=APLAZADA`,
                     );
                     toast.success('Compra aplazada correctamente.');
-                    fetchPlanning(true);
+                    void refetchPlanning();
                     break;
                 case 'transfer':
                     await axiosClient.put(
                         `/purchases/requisitions/${pendingConfirm.requisitionId}/transfer`,
                     );
                     toast.success('Material transferido a asignación pendiente.');
-                    fetchPlanning(true);
+                    void refetchPlanning();
                     break;
                 case 'reject':
                     await axiosClient.post(
                         `/purchases/orders/${pendingConfirm.orderId}/reject?action=RE-COTIZAR`,
                     );
                     toast.success('Orden enviada a re-cotización.');
-                    fetchBrakeOrders(true);
-                    fetchPlanning(true);
+                    void refetchOrders();
+                    void refetchPlanning();
                     break;
                 case 'dispatch':
                     await axiosClient.put(`/purchases/orders/${pendingConfirm.orderId}/dispatch`);
                     toast.success('Orden marcada como enviada.');
-                    fetchBrakeOrders(true);
+                    void refetchOrders();
                     break;
                 case 'revoke':
                     await axiosClient.put(`/purchases/orders/${pendingConfirm.orderId}/revoke`);
                     toast.success('Autorización revocada. La orden regresó a mesa de control.');
-                    fetchBrakeOrders(true);
+                    void refetchOrders();
                     break;
             }
             setPendingConfirm(null);
@@ -370,7 +351,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
             toast.error(detail || messages[pendingConfirm.kind]);
             throw error;
         } finally {
-            setLoading(false);
+            setActionLoading(false);
         }
     };
 
@@ -458,20 +439,20 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
 
     const handleConfirmDialogCancel = async () => {
         if (pendingConfirm?.kind === 'reject') {
-            setLoading(true);
+            setActionLoading(true);
             try {
                 await axiosClient.post(
                     `/purchases/orders/${pendingConfirm.orderId}/reject?action=CANCELAR`,
                 );
                 toast.success('Orden eliminada correctamente.');
-                fetchBrakeOrders(true);
-                fetchPlanning(true);
+                void refetchOrders();
+                void refetchPlanning();
                 setPendingConfirm(null);
             } catch (error: any) {
                 toast.error(error.response?.data?.detail || 'Error al rechazar.');
                 throw error;
             } finally {
-                setLoading(false);
+                setActionLoading(false);
             }
             return;
         }
@@ -510,7 +491,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
             return;
         }
         
-        setLoading(true);
+        setActionLoading(true);
         try {
             const payload = {
                 provider_name: manualOrderForm.provider_name,
@@ -527,11 +508,11 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
             setIsManualModalOpen(false);
             setManualOrderForm({ provider_name: '', overhead_category: '', items: [{ sku: '', material_name: '', qty: 1, expected_cost: '0.00' }] });
             toast.success('Orden manual creada correctamente.');
-            fetchBrakeOrders(true);
+            void refetchOrders();
         } catch (error: any) {
             toast.error(error.response?.data?.detail || 'Error al crear la orden manual.');
         } finally {
-            setLoading(false);
+            setActionLoading(false);
         }
     };
 
@@ -560,7 +541,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
             toast.warning('Ingresa una cantidad válida.');
             return;
         }
-        setLoading(true);
+        setActionLoading(true);
         try {
             await axiosClient.post('/purchases/requisitions/', {
                 material_id: reqForm.material_id ? parseInt(reqForm.material_id) : null,
@@ -576,11 +557,11 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                 isCatalogItem: false, material_id: '', material_search: ''
             });
             toast.success('Solicitud creada correctamente.');
-            fetchPlanning(true);
+            void refetchPlanning();
         } catch (error: any) {
             toast.error(error.response?.data?.detail || 'Error al crear la solicitud.');
         } finally {
-            setLoading(false);
+            setActionLoading(false);
         }
     };
 
@@ -594,7 +575,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
             toast.warning('Ingresa un precio unitario válido.');
             return;
         }
-        setLoading(true);
+        setActionLoading(true);
         try {
             await axiosClient.put(
                 `/purchases/requisitions/${assignModal.requisitionId}/assign`,
@@ -606,11 +587,11 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
             setAssignModal({ open: false, requisitionId: null, itemName: '', currentQty: 0 });
             setAssignForm({ provider_id: '', provider_search: '', expected_unit_cost: '0.00' });
             toast.success('Proveedor asignado correctamente.');
-            fetchPlanning(true);
+            void refetchPlanning();
         } catch (error: any) {
             toast.error(error.response?.data?.detail || 'Error al asignar proveedor.');
         } finally {
-            setLoading(false);
+            setActionLoading(false);
         }
     };
 
@@ -644,18 +625,18 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
             return;
         }
 
-        setLoading(true);
+        setActionLoading(true);
         try {
             await axiosClient.post(`/purchases/orders/${orderId}/request-advance`, { amount });
             toast.success('Anticipo solicitado correctamente.');
-            fetchBrakeOrders(true); 
+            void refetchOrders(); 
         } catch (error: any) {
             toast.error(
                 error.response?.data?.detail ||
                     'Error: Ya solicitaste este anticipo o hubo un problema de red.',
             );
         } finally {
-            setLoading(false);
+            setActionLoading(false);
         }
     };
 
@@ -668,7 +649,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
             await axiosClient.patch(`/purchases/orders/${orderId}`, { overhead_category: overheadDraft });
             setEditingOverheadId(null);
             toast.success('Categoría actualizada');
-            fetchBrakeOrders(true);
+            void refetchOrders();
         } catch (error: any) {
             toast.error(error.response?.data?.detail || 'Error al actualizar categoría.');
         }
@@ -729,7 +710,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
             await axiosClient.patch(`/purchases/orders/${editItemModal.orderId}/items/${original.id}`, body);
             setEditItemModal({ open: false, orderId: null, item: null });
             toast.success('Partida actualizada');
-            fetchBrakeOrders(true);
+            void refetchOrders();
         } catch (error: any) {
             toast.error(error.response?.data?.detail || 'Error al actualizar la partida.');
         }
@@ -749,7 +730,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
             setCancelItemModal({ open: false, orderId: null, item: null });
             setCancelItemReason('');
             toast.success('Partida cancelada');
-            fetchBrakeOrders(true);
+            void refetchOrders();
         } catch (error: any) {
             toast.error(error.response?.data?.detail || 'Error al cancelar la partida.');
         }
@@ -771,7 +752,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
             );
             toast.success(`OC ${emailModal.folio} enviada por correo a ${email}`);
             setEmailModal({ open: false, orderId: null, folio: '', providerEmail: '' });
-            fetchBrakeOrders(true);
+            void refetchOrders();
         } catch (error: any) {
             toast.error(error.response?.data?.detail || 'Error al enviar el correo.');
         } finally {
@@ -868,9 +849,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                 is_active: true,
             });
             const created = res.data;
-            // Recargar lista de materiales
-            const matRes = await axiosClient.get('/foundations/materials/');
-            setMaterialsList(extractList(matRes, 'materials'));
+            await queryClient.invalidateQueries({ queryKey: purchaseOrdersQueryKeys.materials() });
             // Autocompletar la fila
             if (newMatModal.rowIndex !== null) {
                 handleSelectMaterial(newMatModal.rowIndex, created);
