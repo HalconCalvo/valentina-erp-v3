@@ -13,6 +13,7 @@ from app.models.finance import PurchaseInvoice
 from app.models.users import UserRole
 from app.core.deps import get_session, CurrentUser
 from app.services.purchase_manager import PurchaseManager
+from app.services import purchase_service
 from app.services.pdf_generator import PDFGenerator
 from app.services.email_service import send_purchase_order_email
 from app.services.inventory_manager import registrar_movimiento_inventario
@@ -50,14 +51,7 @@ def create_requisition(*, db: Session = Depends(get_session), req_in: Requisitio
 
 @router.get("/requisitions/", response_model=List[dict])
 def read_requisitions(db: Session = Depends(get_session), skip: int = 0, limit: int = 100):
-    PurchaseManager.evaluate_and_create_automatic_requisitions(db)
-    
-    result = db.execute(
-        text("SELECT * FROM purchase_requisitions LIMIT :limit OFFSET :skip"),
-        {"limit": limit, "skip": skip}
-    ).mappings().all()
-    
-    return [dict(r) for r in result]
+    return purchase_service.list_requisitions(db, skip=skip, limit=limit)
 
 @router.put("/requisitions/{req_id}/cancel")
 def cancel_requisition(
@@ -154,181 +148,30 @@ def assign_requisition_provider(
     return {"ok": True, "req_id": req_id}
 
 @router.get("/orders/", response_model=List[dict])
-def read_purchase_orders(*, db: Session = Depends(get_session), status: str | None = None,
-                         search: str | None = None, date_from: str | None = None,
-                         date_to: str | None = None, skip: int = 0, limit: int = 200):
-    statement = select(PurchaseOrder).order_by(PurchaseOrder.id.desc())
-    
-    if status:
-        search_status = f"%{status.strip()}%"
-        statement = statement.where(PurchaseOrder.status.ilike(search_status))
-
-    # Búsqueda por folio o nombre de proveedor
-    if search and search.strip():
-        _term = f"%{search.strip()}%"
-        _prov_ids = db.exec(
-            select(Provider.id).where(Provider.business_name.ilike(_term))
-        ).all()
-        if _prov_ids:
-            statement = statement.where(
-                or_(PurchaseOrder.folio.ilike(_term), PurchaseOrder.provider_id.in_(_prov_ids))
-            )
-        else:
-            statement = statement.where(PurchaseOrder.folio.ilike(_term))
-
-    # Rango de fechas sobre created_at (formato esperado YYYY-MM-DD)
-    if date_from:
-        try:
-            _df = datetime.fromisoformat(date_from)
-            statement = statement.where(PurchaseOrder.created_at >= _df)
-        except ValueError:
-            pass
-    if date_to:
-        try:
-            _dt = datetime.fromisoformat(date_to)
-            _dt = _dt.replace(hour=23, minute=59, second=59)
-            statement = statement.where(PurchaseOrder.created_at <= _dt)
-        except ValueError:
-            pass
-    
-    orders = db.exec(statement.offset(skip).limit(limit)).all()
-    if not orders:
-        return []
-
-    # --- PRECARGA EN LOTE (elimina N+1) ---
-    provider_ids = {o.provider_id for o in orders if o.provider_id is not None}
-    order_ids = [o.id for o in orders]
-
-    # 1. Proveedores en una sola consulta
-    if provider_ids:
-        providers = db.exec(select(Provider).where(Provider.id.in_(provider_ids))).all()
-    else:
-        providers = []
-    prov_map = {p.id: p for p in providers}
-
-    # 2. Todos los items de esas órdenes en una sola consulta
-    if order_ids:
-        all_items = db.exec(
-            select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id.in_(order_ids))
-        ).all()
-    else:
-        all_items = []
-    items_by_po: dict = {}
-    for it in all_items:
-        items_by_po.setdefault(it.purchase_order_id, []).append(it)
-
-    # 3. Todos los materiales referenciados en una sola consulta
-    material_ids = {it.material_id for it in all_items if it.material_id is not None}
-    if material_ids:
-        materials = db.exec(select(Material).where(Material.id.in_(material_ids))).all()
-    else:
-        materials = []
-    mat_map = {m.id: m for m in materials}
-
-    # 4. Folios de factura (CxP) por OC en una sola consulta
-    folios_by_po = {}
-    if order_ids:
-        _folio_rows = db.exec(text("""
-            SELECT purchase_order_id,
-                   STRING_AGG(invoice_folio, ', ' ORDER BY invoice_folio) AS folios
-            FROM accounts_payable
-            WHERE purchase_order_id = ANY(:ids) AND invoice_folio IS NOT NULL
-            GROUP BY purchase_order_id
-        """).bindparams(ids=order_ids)).all()
-        folios_by_po = {row[0]: row[1] for row in _folio_rows}
-
-    # 5. Anticipos pagados por OC (facturas ANT- con pagos PAID)
-    advance_paid_by_po = {}
-    if order_ids:
-        from app.models.finance import PurchaseInvoice, SupplierPayment, PaymentStatus
-        _ant_rows = db.exec(text("""
-            SELECT po.id as po_id, COALESCE(SUM(sp.amount), 0) as total_paid
-            FROM purchase_orders po
-            JOIN purchase_invoices pi ON pi.invoice_number = 'ANT-' || po.folio
-            JOIN supplier_payments sp ON sp.purchase_invoice_id = pi.id
-            WHERE po.id = ANY(:ids)
-              AND sp.status = 'PAID'
-            GROUP BY po.id
-        """).bindparams(ids=order_ids)).all()
-        advance_paid_by_po = {row[0]: float(row[1]) for row in _ant_rows}
-
-    # --- CONSTRUCCIÓN EN MEMORIA (sin db.get/db.exec dentro de los loops) ---
-    results = []
-    for o in orders:
-        prov = prov_map.get(o.provider_id)
-
-        items_formatted = []
-        for it in items_by_po.get(o.id, []):
-            sku_val = "S/SKU"
-            if it.material_id:
-                mat = mat_map.get(it.material_id)
-                if mat: sku_val = mat.sku
-
-            items_formatted.append({
-                "id": it.id,
-                "material_id": it.material_id, 
-                "sku": sku_val,
-                "name": it.custom_description or "Material",
-                "qty": it.quantity_ordered,
-                "quantity_ordered": it.quantity_ordered,
-                "quantity_received": it.quantity_received or 0,
-                "expected_cost": it.expected_unit_cost,
-                "subtotal": (it.quantity_ordered or 0) * (it.expected_unit_cost or 0)
-            })
-
-        results.append({
-            "id": o.id,
-            "folio": o.folio,
-            "status": o.status,
-            "created_at": o.created_at.isoformat() if getattr(o, 'created_at', None) else None,
-            "provider_name": prov.business_name if prov else "Proveedor Desconocido",
-            "provider_email": getattr(prov, 'contact_email', None) if prov else None,
-            "credit_days": getattr(prov, 'credit_days', 0) if prov else 0,
-            "total_estimated_amount": o.total_estimated_amount or 0,
-            "items": items_formatted,
-            "authorized_by": getattr(o, 'authorized_by', None),
-            "authorized_at": o.authorized_at.isoformat() if getattr(o, 'authorized_at', None) else None,
-            "invoice_folio_reported": getattr(o, 'invoice_folio_reported', None),
-            "invoice_folios": folios_by_po.get(o.id),
-            "is_advance": getattr(o, 'is_advance', False),
-            "invoice_total_reported": getattr(o, 'invoice_total_reported', 0.0),
-            "advance_paid": advance_paid_by_po.get(o.id, 0.0),
-        })
-        
-    return results
+def read_purchase_orders(
+    *,
+    db: Session = Depends(get_session),
+    status: str | None = None,
+    search: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    skip: int = 0,
+    limit: int = 200,
+):
+    return purchase_service.list_purchase_orders(
+        db, status=status, search=search, date_from=date_from,
+        date_to=date_to, skip=skip, limit=limit,
+    )
 
 @router.get("/orders/{po_id}/check-invoice-folio")
-def check_invoice_folio(*, db: Session = Depends(get_session), po_id: int, folio: str, current_user: CurrentUser):
-    """
-    Avisa si el proveedor de esta OC ya tiene una factura registrada con ese folio.
-    NO bloquea: solo informa, porque un proveedor puede reusar folios legítimamente.
-    """
-    po = db.get(PurchaseOrder, po_id)
-    if not po:
-        raise HTTPException(status_code=404, detail="Orden no encontrada")
-    _folio = (folio or "").strip()
-    if not _folio:
-        return {"duplicado": False}
-    rows = db.exec(text("""
-        SELECT id, total_amount, status, created_at, purchase_order_id
-        FROM accounts_payable
-        WHERE provider_id = :prov AND invoice_folio = :folio AND status != 'CANCELADO'
-        ORDER BY id DESC
-    """).bindparams(prov=po.provider_id, folio=_folio)).all()
-    if not rows:
-        return {"duplicado": False}
-    return {
-        "duplicado": True,
-        "coincidencias": [
-            {
-                "ap_id": r[0],
-                "total": float(r[1] or 0),
-                "status": r[2],
-                "fecha": r[3].isoformat() if r[3] else None,
-                "purchase_order_id": r[4],
-            } for r in rows
-        ],
-    }
+def check_invoice_folio(
+    *,
+    db: Session = Depends(get_session),
+    po_id: int,
+    folio: str,
+    current_user: CurrentUser,
+):
+    return purchase_service.check_invoice_folio(db, po_id, folio)
 
 @router.post("/orders/bulk-emit")
 def emit_bulk_purchase_order(*, db: Session = Depends(get_session), data: POCreateFromPlanning, current_user: CurrentUser):
@@ -935,91 +778,14 @@ def report_cost_discrepancy(*, db: Session = Depends(get_session), po_id: int, d
     db.commit()
     return {"status": "warning", "message": "Discrepancia registrada."}
 
-# --- CEREBRO DE PLANEACIÓN (Corregido el error 500) ---
 @router.get("/planning/consolidated", response_model=List[dict])
 def get_purchase_planning(db: Session = Depends(get_session)):
-    PurchaseManager.evaluate_and_create_automatic_requisitions(db)
-    
-    reqs = db.exec(
-        select(PurchaseRequisition)
-        .where(PurchaseRequisition.status.in_(["PENDIENTE", "EN_COMPRA"]))
-    ).all()
+    return purchase_service.get_purchase_planning(db)
 
-    groups = {}
-    for req in reqs:
-        prov_id = 0
-        mat_sku = "S/SKU"
-        mat_name = req.custom_description or "Material"
-        exp_cost = 0.0
 
-        if req.material_id:
-            mat = db.get(Material, req.material_id)
-            if mat:
-                mat_sku = mat.sku
-                mat_name = mat.name
-                mat_cost = getattr(mat, 'current_cost', getattr(mat, 'standard_cost', getattr(mat, 'cost', 0.0))) or 0.0
-                exp_cost = req.expected_unit_cost if req.expected_unit_cost else mat_cost
-                prov_id = req.provider_id if req.provider_id else (getattr(mat, 'provider_id', 0) or 0)
-
-        # Para requisiciones sin material (descripción libre):
-        # usar provider_id y expected_unit_cost de la propia requisición
-        if not req.material_id:
-            prov_id = req.provider_id or 0
-            exp_cost = req.expected_unit_cost or 0.0
-
-        if prov_id not in groups:
-            prov_name = ""
-            if prov_id > 0:
-                prov = db.get(Provider, prov_id)
-                prov_name = prov.business_name if prov else "Proveedor Desconocido"
-            groups[prov_id] = {
-                "provider_id": prov_id if prov_id > 0 else None, 
-                "provider_name": prov_name,
-                "items": []
-            }
-
-        groups[prov_id]["items"].append({
-            "requisition_id": req.id,
-            "material_id": req.material_id,
-            "sku": mat_sku,
-            "name": mat_name,
-            "qty": req.requested_quantity,
-            "expected_cost": exp_cost,
-            "project_name": getattr(req, 'project_name', None),
-            "notes": req.notes,
-            "original_desc": req.custom_description
-        })
-
-    return list(groups.values())
-
-# --- SINCRONIZADOR DE MENÚ LATERAL (Sin Fantasmas) ---
 @router.get("/notifications/pending-tasks")
 def get_admin_pending_tasks(db: Session = Depends(get_session)):
-    PurchaseManager.evaluate_and_create_automatic_requisitions(db)
-    
-    # 1. Cuenta solo las pendientes reales (Card A)
-    reqs_pendientes = db.execute(
-        text("SELECT COUNT(id) FROM purchase_requisitions WHERE UPPER(status) IN ('PENDIENTE', 'EN_COMPRA')")
-    ).scalar() or 0
-    
-    # 2. Cuenta solo las que están en borrador (Card B)
-    orders_to_authorize = db.execute(
-        text("SELECT COUNT(id) FROM purchase_orders WHERE UPPER(status) = 'DRAFT'")
-    ).scalar() or 0
-
-    # 3. Cuenta solo las autorizadas por despachar (Card C)
-    orders_to_dispatch = db.execute(
-        text("SELECT COUNT(id) FROM purchase_orders WHERE UPPER(status) = 'AUTORIZADA'")
-    ).scalar() or 0
-    
-    # Total exacto y transparente
-    total_general = reqs_pendientes + orders_to_authorize + orders_to_dispatch
-    
-    return {
-        "pending_requisitions": reqs_pendientes,
-        "orders_to_authorize": orders_to_authorize,
-        "total_alerts": total_general 
-    }
+    return purchase_service.get_pending_tasks(db)
 
 @router.get("/orders/{po_id}/pdf")
 def download_purchase_order_pdf(po_id: int, db: Session = Depends(get_session)):
