@@ -20,7 +20,15 @@ import {
   formatQuotationFolio,
   QUOTATION_STATUS_LABELS,
 } from '../../../api/quotation-service';
-import { Quotation, QuotationItem, QuotationStatus } from '../../../types/quotations';
+import {
+  useQuotation,
+  useSendQuotation,
+  useAcceptQuotation,
+  useRejectQuotation,
+  useCancelQuotation,
+  useConvertQuotation,
+} from '../../../hooks/useQuotations';
+import { QuotationItem, QuotationStatus } from '../../../types/quotations';
 
 const statusBadgeClass = (status: QuotationStatus): string => {
   switch (status) {
@@ -52,10 +60,14 @@ const QuotationDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const quotationId = Number(id);
 
-  const [quotation, setQuotation] = useState<Quotation | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState(false);
+  const { data: quotation, isLoading, isError } = useQuotation(quotationId);
+  const sendMutation = useSendQuotation();
+  const acceptMutation = useAcceptQuotation();
+  const rejectMutation = useRejectQuotation();
+  const cancelMutation = useCancelQuotation();
+  const convertMutation = useConvertQuotation();
 
+  const [pdfLoading, setPdfLoading] = useState(false);
   const [sendConfirm, setSendConfirm] = useState(false);
   const [acceptConfirm, setAcceptConfirm] = useState(false);
   const [convertConfirm, setConvertConfirm] = useState(false);
@@ -65,26 +77,23 @@ const QuotationDetailPage: React.FC = () => {
   });
   const [reasonText, setReasonText] = useState('');
 
-  const load = async () => {
-    if (!Number.isFinite(quotationId)) {
-      navigate('/quotations');
-      return;
-    }
-    setLoading(true);
-    try {
-      const data = await quotationService.getQuotation(quotationId);
-      setQuotation(data);
-    } catch {
-      toast.error('No se pudo cargar la cotización.');
-      navigate('/quotations');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const processing =
+    sendMutation.isPending ||
+    acceptMutation.isPending ||
+    rejectMutation.isPending ||
+    cancelMutation.isPending ||
+    convertMutation.isPending;
 
   useEffect(() => {
-    load();
-  }, [quotationId]);
+    if (!Number.isFinite(quotationId)) navigate('/quotations');
+  }, [quotationId, navigate]);
+
+  useEffect(() => {
+    if (isError) {
+      toast.error('No se pudo cargar la cotización.');
+      navigate('/quotations');
+    }
+  }, [isError, navigate]);
 
   const activeItems = useMemo(
     () => (quotation?.items ?? []).filter((i) => !i.is_cancelled),
@@ -111,19 +120,6 @@ const QuotationDetailPage: React.FC = () => {
     },
   ], []);
 
-  const runAction = async (action: () => Promise<void>) => {
-    setProcessing(true);
-    try {
-      await action();
-      await load();
-    } catch (err: unknown) {
-      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      toast.error(typeof detail === 'string' ? detail : 'No se pudo completar la acción.');
-    } finally {
-      setProcessing(false);
-    }
-  };
-
   const handleReasonConfirm = async () => {
     if (!quotation) return;
     const reason = reasonText.trim();
@@ -131,48 +127,46 @@ const QuotationDetailPage: React.FC = () => {
       toast.warning('El motivo es obligatorio.');
       return;
     }
-    await runAction(async () => {
+    try {
       if (reasonModal.kind === 'cancel') {
-        await quotationService.cancelQuotation(quotation.id, reason);
+        await cancelMutation.mutateAsync({ id: quotation.id, reason });
         toast.success('Cotización cancelada.');
       } else {
-        await quotationService.rejectQuotation(quotation.id, reason);
+        await rejectMutation.mutateAsync({ id: quotation.id, reason });
         toast.success('Cotización rechazada.');
       }
       setReasonModal({ open: false, kind: 'cancel' });
       setReasonText('');
-    });
+    } catch {
+      /* toast en hook */
+    }
   };
 
   const handleConvert = async () => {
     if (!quotation) return;
-    setProcessing(true);
     try {
-      const result = await quotationService.convertToOrder(quotation.id);
+      const result = await convertMutation.mutateAsync(quotation.id);
       toast.success(result.message || 'Orden de venta creada.');
       setConvertConfirm(false);
       navigate(`/sales/edit/${result.sales_order_id}`);
-    } catch (err: unknown) {
-      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      toast.error(typeof detail === 'string' ? detail : 'No se pudo convertir a OV.');
-    } finally {
-      setProcessing(false);
+    } catch {
+      /* toast en hook */
     }
   };
 
   const handlePdf = async () => {
     if (!quotation) return;
-    setProcessing(true);
+    setPdfLoading(true);
     try {
       await quotationService.openQuotationPdf(quotation.id);
     } catch {
       toast.error('Error al generar el PDF.');
     } finally {
-      setProcessing(false);
+      setPdfLoading(false);
     }
   };
 
-  if (loading || !quotation) {
+  if (isLoading || !quotation) {
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50">
         <Loader className="animate-spin text-indigo-600 mb-4" size={32} />
@@ -206,7 +200,7 @@ const QuotationDetailPage: React.FC = () => {
           </div>
           <p className="text-sm text-slate-500 mt-1">{quotation.project_name}</p>
         </div>
-        <Button variant="outline" onClick={handlePdf} disabled={processing} className="gap-2">
+        <Button variant="outline" onClick={handlePdf} disabled={pdfLoading || processing} className="gap-2">
           <FileDown size={16} /> PDF
         </Button>
       </div>
@@ -408,12 +402,14 @@ const QuotationDetailPage: React.FC = () => {
         title="Enviar cotización"
         message="¿Enviar esta cotización al cliente? No podrá editarse después."
         confirmLabel="Enviar"
-        onConfirm={() => {
+        onConfirm={async () => {
           setSendConfirm(false);
-          runAction(async () => {
-            await quotationService.sendQuotation(quotation.id);
+          try {
+            await sendMutation.mutateAsync(quotation.id);
             toast.success('Cotización enviada.');
-          });
+          } catch {
+            /* toast en hook */
+          }
         }}
         onCancel={() => setSendConfirm(false)}
       />
@@ -423,12 +419,14 @@ const QuotationDetailPage: React.FC = () => {
         title="Aceptar cotización"
         message="¿Confirmar que el cliente aceptó esta cotización?"
         confirmLabel="Aceptar"
-        onConfirm={() => {
+        onConfirm={async () => {
           setAcceptConfirm(false);
-          runAction(async () => {
-            await quotationService.acceptQuotation(quotation.id);
+          try {
+            await acceptMutation.mutateAsync(quotation.id);
             toast.success('Cotización aceptada.');
-          });
+          } catch {
+            /* toast en hook */
+          }
         }}
         onCancel={() => setAcceptConfirm(false)}
       />

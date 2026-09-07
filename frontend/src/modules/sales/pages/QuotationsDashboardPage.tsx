@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus, Pencil, Send, XCircle, CheckCircle, Ban, Eye, ArrowRightCircle,
@@ -16,11 +16,18 @@ import { toast } from '@/components/ui/VToast';
 import Badge from '@/components/ui/Badge';
 
 import {
-  quotationService,
   formatQuotationCurrency,
   formatQuotationFolio,
   QUOTATION_STATUS_LABELS,
 } from '../../../api/quotation-service';
+import {
+  useQuotations,
+  useSendQuotation,
+  useAcceptQuotation,
+  useRejectQuotation,
+  useCancelQuotation,
+  useConvertQuotation,
+} from '../../../hooks/useQuotations';
 import { Quotation, QuotationStatus } from '../../../types/quotations';
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
@@ -58,8 +65,6 @@ type ReasonModalKind = 'cancel' | 'reject';
 
 const QuotationsDashboardPage: React.FC = () => {
   const navigate = useNavigate();
-  const [quotations, setQuotations] = useState<Quotation[]>([]);
-  const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
   const [processingId, setProcessingId] = useState<number | null>(null);
@@ -75,53 +80,48 @@ const QuotationsDashboardPage: React.FC = () => {
   const [acceptConfirm, setAcceptConfirm] = useState<Quotation | null>(null);
   const [convertConfirm, setConvertConfirm] = useState<Quotation | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await quotationService.listQuotations({
-        status: statusFilter ? (statusFilter as QuotationStatus) : undefined,
-        search: search.trim() || undefined,
-      });
-      setQuotations(data);
-    } catch {
-      toast.error('Error al cargar cotizaciones.');
-      setQuotations([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [statusFilter, search]);
+  const filters = useMemo(
+    () => ({
+      status: statusFilter ? (statusFilter as QuotationStatus) : undefined,
+      search: search.trim() || undefined,
+    }),
+    [statusFilter, search],
+  );
+
+  const { data: quotations = [], isLoading, isFetching, isError, refetch } = useQuotations(filters);
+  const sendMutation = useSendQuotation();
+  const acceptMutation = useAcceptQuotation();
+  const rejectMutation = useRejectQuotation();
+  const cancelMutation = useCancelQuotation();
+  const convertMutation = useConvertQuotation();
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (isError) toast.error('Error al cargar cotizaciones.');
+  }, [isError]);
 
   const handleSend = async (q: Quotation) => {
     setProcessingId(q.id);
     try {
-      await quotationService.sendQuotation(q.id);
+      await sendMutation.mutateAsync(q.id);
       toast.success('Cotización enviada.');
-      await load();
-    } catch (err: unknown) {
-      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      toast.error(typeof detail === 'string' ? detail : 'No se pudo enviar la cotización.');
+      setSendConfirm(null);
+    } catch {
+      /* toast en hook */
     } finally {
       setProcessingId(null);
-      setSendConfirm(null);
     }
   };
 
   const handleAccept = async (q: Quotation) => {
     setProcessingId(q.id);
     try {
-      await quotationService.acceptQuotation(q.id);
+      await acceptMutation.mutateAsync(q.id);
       toast.success('Cotización aceptada.');
-      await load();
-    } catch (err: unknown) {
-      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      toast.error(typeof detail === 'string' ? detail : 'No se pudo aceptar la cotización.');
+      setAcceptConfirm(null);
+    } catch {
+      /* toast en hook */
     } finally {
       setProcessingId(null);
-      setAcceptConfirm(null);
     }
   };
 
@@ -135,18 +135,16 @@ const QuotationsDashboardPage: React.FC = () => {
     setProcessingId(reasonModal.quotation.id);
     try {
       if (reasonModal.kind === 'cancel') {
-        await quotationService.cancelQuotation(reasonModal.quotation.id, reason);
+        await cancelMutation.mutateAsync({ id: reasonModal.quotation.id, reason });
         toast.success('Cotización cancelada.');
       } else {
-        await quotationService.rejectQuotation(reasonModal.quotation.id, reason);
+        await rejectMutation.mutateAsync({ id: reasonModal.quotation.id, reason });
         toast.success('Cotización rechazada.');
       }
       setReasonModal({ open: false, kind: 'cancel', quotation: null });
       setReasonText('');
-      await load();
-    } catch (err: unknown) {
-      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      toast.error(typeof detail === 'string' ? detail : 'No se pudo completar la acción.');
+    } catch {
+      /* toast en hook */
     } finally {
       setProcessingId(null);
     }
@@ -155,12 +153,11 @@ const QuotationsDashboardPage: React.FC = () => {
   const handleConvert = async (q: Quotation) => {
     setProcessingId(q.id);
     try {
-      const result = await quotationService.convertToOrder(q.id);
+      const result = await convertMutation.mutateAsync(q.id);
       toast.success(result.message || 'Orden de venta creada.');
       navigate(`/sales/edit/${result.sales_order_id}`);
-    } catch (err: unknown) {
-      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      toast.error(typeof detail === 'string' ? detail : 'No se pudo convertir a OV.');
+    } catch {
+      /* toast en hook */
     } finally {
       setProcessingId(null);
       setConvertConfirm(null);
@@ -213,6 +210,8 @@ const QuotationsDashboardPage: React.FC = () => {
     },
   ], []);
 
+  const loading = isLoading;
+
   return (
     <div className="p-6 max-w-[1400px] mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -245,8 +244,8 @@ const QuotationsDashboardPage: React.FC = () => {
             placeholder="Filtrar estatus"
           />
         </div>
-        <Button variant="outline" onClick={load} disabled={loading} className="gap-2 shrink-0">
-          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} /> Actualizar
+        <Button variant="outline" onClick={() => refetch()} disabled={isFetching} className="gap-2 shrink-0">
+          <RefreshCw size={16} className={isFetching ? 'animate-spin' : ''} /> Actualizar
         </Button>
       </div>
 
