@@ -110,39 +110,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,  # <-- Ahora 'origins' es una lista sólida
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "Origin"],
 )
-
-# ---------------------------------------------------------
-# 🚨 PUERTA TRASERA V2: ASCENSO A DIRECTOR
-# ---------------------------------------------------------
-@app.get("/fix-admin")
-def create_admin_manually():
-    PRE_CALCULATED_HASH = "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxwKc.60MLEfcOdQQ2UEHFpphXeJC"
-    try:
-        with Session(engine) as session:
-            user = session.exec(select(User).where(User.email == "admin@example.com")).first()
-            if user:
-                user.role = "DIRECTOR" 
-                user.is_superuser = True
-                session.add(user)
-                session.commit()
-                return {"status": "updated", "msg": "✅ ROL ACTUALIZADO a DIRECTOR."}
-            
-            admin_user = User(
-                email="admin@example.com",
-                hashed_password=PRE_CALCULATED_HASH,
-                full_name="Director General",
-                is_active=True,
-                is_superuser=True,
-                role="DIRECTOR" 
-            )
-            session.add(admin_user)
-            session.commit()
-            return {"status": "created", "msg": "✅ ÉXITO: Usuario creado."}
-    except Exception as e:
-        return {"status": "error", "msg": f"Fallo: {str(e)}"}
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
