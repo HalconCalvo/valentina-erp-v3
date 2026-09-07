@@ -25,6 +25,7 @@ from app.services.pdf_generator import PDFGenerator
 
 # --- IMPORTAMOS LOS MOTORES (V3.5) ---
 from app.services.cost_engine import CostEngine
+from app.services import sales_service
 
 from app.schemas.sales_schema import (
     SalesOrderCreate, SalesOrderRead, SalesOrderUpdate,
@@ -287,24 +288,10 @@ def read_sales_orders(
     status: SalesOrderStatus | None = None,
     client_id: int | None = None,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
-    """
-    Listado de órdenes: SALES/VENTAS → solo `user_id` del asesor; staff (ADMIN, GERENCIA, DIRECTOR, …)
-    → sin filtro por vendedor (misma amplitud que monitor de administración).
-    """
-    query = select(SalesOrder).options(
-        selectinload(SalesOrder.client),
-        selectinload(SalesOrder.items).selectinload(SalesOrderItem.instances),
-        selectinload(SalesOrder.payments),
-        selectinload(SalesOrder.user)
-    )
-    if _is_seller_scoped_role(current_user):
-        query = query.where(SalesOrder.user_id == current_user.id)
-    if status: query = query.where(SalesOrder.status == status)
-    if client_id: query = query.where(SalesOrder.client_id == client_id)
-    
-    return session.exec(query.order_by(SalesOrder.id.desc())).unique().all()
+    return sales_service.list_orders(session, current_user, status=status, client_id=client_id)
+
 
 # ==========================================
 # 3. DETALLE ORDEN
@@ -313,51 +300,20 @@ def read_sales_orders(
 def read_order_detail(
     order_id: int,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
-    query = select(SalesOrder).where(SalesOrder.id == order_id).options(
-        selectinload(SalesOrder.client),
-        selectinload(SalesOrder.items).selectinload(SalesOrderItem.instances),
-        selectinload(SalesOrder.payments)
-    )
-    order = session.exec(query).unique().first()
-    if not order: raise HTTPException(status_code=404, detail="Orden no encontrada")
-    if _is_seller_scoped_role(current_user) and order.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Acceso denegado")
-    return order
+    return sales_service.get_order(session, order_id, current_user)
 
 
 # ==========================================
 # 3b. CXC — LECTURA V4.4 (Vendedor read-only, filtrado por user_id de la OV)
 # ==========================================
-def _list_customer_payments_query(
-    session: Session,
-    current_user: User,
-    *,
-    status: Optional[CXCStatus] = None,
-) -> List[CustomerPayment]:
-    stmt = select(CustomerPayment).join(
-        SalesOrder,
-        CustomerPayment.sales_order_id == SalesOrder.id,
-    )
-    if _is_seller_scoped_role(current_user):
-        stmt = stmt.where(SalesOrder.user_id == current_user.id)
-    if status is not None:
-        stmt = stmt.where(CustomerPayment.status == status)
-    stmt = stmt.order_by(CustomerPayment.id.desc())
-    return list(session.exec(stmt).all())
-
-
 @router.get("/customer-payments/pending", response_model=List[CustomerPaymentRead])
 def get_my_pending_customer_payments(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ):
-    """
-    Cartera viva (CXC PENDING). Misma noción que Administración C. Antigüedad.
-    Vendedor: solo líneas ligadas a órdenes donde user_id es el asesor.
-    """
-    return _list_customer_payments_query(session, current_user, status=CXCStatus.PENDING)
+    return sales_service.list_customer_payments(session, current_user, status=CXCStatus.PENDING)
 
 
 @router.get("/customer-payments", response_model=List[CustomerPaymentRead])
@@ -369,15 +325,7 @@ def list_customer_payments(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ):
-    if status:
-        try:
-            st = CXCStatus(status.strip().upper())
-        except ValueError:
-            raise HTTPException(status_code=400, detail=f"Estatus CXC inválido: {status}")
-        return _list_customer_payments_query(session, current_user, status=st)
-    if _is_seller_scoped_role(current_user):
-        return _list_customer_payments_query(session, current_user, status=None)
-    return _list_customer_payments_query(session, current_user, status=CXCStatus.PENDING)
+    return sales_service.list_customer_payments(session, current_user, status=status)
 
 
 @router.get("/payments", response_model=List[CustomerPaymentRead])
@@ -386,8 +334,7 @@ def list_sales_payments(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ):
-    """Alias compatible con clientes que llaman GET /sales/payments?status=PENDING."""
-    return list_customer_payments(status=status, session=session, current_user=current_user)
+    return sales_service.list_customer_payments(session, current_user, status=status)
 
 
 # ==========================================
@@ -1980,131 +1927,32 @@ def cancel_installment(
 
 
 @router.get("/invoices/pending-cxc", response_model=list)
-def list_pending_cxc(session: Session = Depends(get_session),
-                     current_user: User = Depends(get_current_active_user)):
-    rows = session.exec(
-        select(CustomerPayment).where(
-            CustomerPayment.status == CXCStatus.PENDING
-        ).order_by(CustomerPayment.id.desc())
-    ).all()
-    result = []
-    for cxc in rows:
-        order = session.get(SalesOrder, cxc.sales_order_id)
-        abonado = _sum_active_installments(session, cxc.id)
-        result.append({
-            "cxc_id": cxc.id,
-            "invoice_folio": cxc.invoice_folio,
-            "payment_type": cxc.payment_type,
-            "monto_factura": cxc.amount,
-            "saldo": max(float(cxc.amount or 0.0) - abonado, 0.0),
-            "project_name": order.project_name if order else None,
-            "sales_order_id": cxc.sales_order_id,
-            "client_id": order.client_id if order else None,
-        })
-    return result
+def list_pending_cxc(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    return sales_service.list_pending_cxc(session)
 
 
 @router.get("/invoices/cxc-report", response_model=list)
 def cxc_report(
     client_id: Optional[int] = Query(None),
-    date_from: Optional[str] = Query(None),   # ISO 'YYYY-MM-DD'
+    date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
     include_paid: bool = Query(False),
     only_cancelled: bool = Query(False),
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ):
-    """
-    Reporte de Cuentas por Cobrar. Lista plana (el front agrupa por cliente).
-    - Normal (default): PENDING (pendientes + parciales, saldo > 0).
-    - include_paid: agrega PAID (histórico).
-    - only_cancelled: SOLO canceladas (ignora los otros estados).
-    Filtros combinables: client_id, rango de fechas (sobre invoice_date).
-    """
-    from datetime import datetime as _dt
-
     if only_cancelled:
         estados = [CXCStatus.CANCELLED]
     elif include_paid:
         estados = [CXCStatus.PENDING, CXCStatus.PAID]
     else:
         estados = [CXCStatus.PENDING]
-
-    stmt = select(CustomerPayment).where(CustomerPayment.status.in_(estados))
-
-    if date_from:
-        try:
-            df = _dt.fromisoformat(date_from)
-            stmt = stmt.where(CustomerPayment.invoice_date >= df)
-        except ValueError:
-            raise HTTPException(400, "date_from inválida (usa YYYY-MM-DD)")
-    if date_to:
-        try:
-            dt_to = _dt.fromisoformat(date_to)
-            stmt = stmt.where(CustomerPayment.invoice_date <= dt_to.replace(hour=23, minute=59, second=59))
-        except ValueError:
-            raise HTTPException(400, "date_to inválida (usa YYYY-MM-DD)")
-
-    stmt = stmt.order_by(CustomerPayment.invoice_date.asc())
-    rows = session.exec(stmt).all()
-
-    result = []
-    ahora = _dt.utcnow()
-    for cxc in rows:
-        order = session.get(SalesOrder, cxc.sales_order_id)
-
-        cli = None
-        if order and order.client_id:
-            cli = session.get(Client, order.client_id)
-        if client_id is not None:
-            if not order or order.client_id != client_id:
-                continue
-
-        abonado = session.exec(
-            select(func.coalesce(func.sum(CustomerPaymentInstallment.amount), 0.0)).where(
-                CustomerPaymentInstallment.customer_payment_id == cxc.id,
-                CustomerPaymentInstallment.is_cancelled == False,  # noqa: E712
-            )
-        ).one()
-        abonado = round(float(abonado or 0.0), 2)
-        monto = round(float(cxc.amount or 0.0), 2)
-        saldo = round(monto - abonado, 2)
-
-        if not include_paid and not only_cancelled and saldo <= 0.01:
-            continue
-
-        if cxc.status == CXCStatus.CANCELLED:
-            estado = "CANCELADA"
-        elif cxc.status == CXCStatus.PAID or saldo <= 0.01:
-            estado = "PAGADA"
-        elif abonado > 0:
-            estado = "PARCIAL"
-        else:
-            estado = "PENDIENTE"
-
-        antiguedad = None
-        if cxc.invoice_date:
-            antiguedad = (ahora - cxc.invoice_date).days
-
-        result.append({
-            "cxc_id": cxc.id,
-            "invoice_folio": cxc.invoice_folio,
-            "invoice_date": cxc.invoice_date.isoformat() if cxc.invoice_date else None,
-            "payment_type": cxc.payment_type,
-            "client_id": order.client_id if order else None,
-            "client_name": cli.full_name if cli else "—",
-            "project_name": order.project_name if order else None,
-            "sales_order_id": cxc.sales_order_id,
-            "monto": monto,
-            "abonado": abonado,
-            "saldo": saldo,
-            "estado": estado,
-            "antiguedad_dias": antiguedad,
-            "payment_date": cxc.payment_date.isoformat() if cxc.payment_date else None,
-            "treasury_transaction_id": getattr(cxc, "treasury_transaction_id", None),
-        })
-
-    return result
+    return sales_service.get_cxc_report(
+        session, current_user, estados, client_id, date_from, date_to,
+    )
 
 
 @router.get("/orders/pending-progress")
