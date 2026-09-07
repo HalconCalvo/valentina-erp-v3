@@ -270,10 +270,13 @@ def reject_po(db: Session, po_id: int, action: str, current_user) -> dict:
                             req.status = "APLAZADA"
                             db.add(req)
                         else:
-                            db.delete(req)
-            db.delete(item)
-        db.flush()
-        db.delete(po)
+                            req.status = "CANCELADA"
+                            db.add(req)
+            item.is_cancelled = True
+            item.cancel_reason = f"Orden rechazada. Acción: {action}"
+            db.add(item)
+        po.status = "CANCELADA"
+        db.add(po)
         db.commit()
     except Exception as e:
         db.rollback()
@@ -297,15 +300,20 @@ def remove_po_item(db: Session, po_id: int, item_id: int, current_user) -> dict:
         if requisition:
             requisition.status = "PENDIENTE"
             db.add(requisition)
-    db.delete(po_item)
+    po_item.is_cancelled = True
+    po_item.cancel_reason = "Partida removida de orden en borrador"
+    db.add(po_item)
     db.commit()
-    remaining_items = purchase_repo.get_po_items(db, po.id)
-    if not remaining_items:
-        db.delete(po)
+    active_items = [
+        it for it in purchase_repo.get_po_items(db, po.id) if not it.is_cancelled
+    ]
+    if not active_items:
+        po.status = "CANCELADA"
+        db.add(po)
     else:
         po.total_estimated_amount = sum(
             (getattr(it, "quantity_ordered", 0) or 0) * (getattr(it, "expected_unit_cost", 0) or 0)
-            for it in remaining_items
+            for it in active_items
         )
         db.add(po)
     db.commit()
@@ -773,3 +781,312 @@ def update_purchase_invoice(
     db.commit()
     db.refresh(invoice)
     return invoice
+
+
+def generate_po_pdf(db: Session, po_id: int):
+    from types import SimpleNamespace
+
+    from fastapi.responses import StreamingResponse
+
+    from app.services.pdf_generator import PDFGenerator
+
+    po = purchase_repo.get_purchase_order_by_id(db, po_id)
+    if not po:
+        raise HTTPException(status_code=404, detail="Orden de Compra no encontrada")
+    provider = purchase_repo.get_provider_by_id(db, po.provider_id)
+    if not provider:
+        raise HTTPException(status_code=404, detail="Proveedor no encontrado")
+
+    items_with_materials = purchase_repo.get_po_items_with_materials(db, po.id)
+    creator = None
+    if getattr(po, "created_by_user_id", None):
+        creator = purchase_repo.get_user_by_id(db, po.created_by_user_id)
+    elaborado_por = "Sistema"
+    if creator:
+        elaborado_por = getattr(
+            creator, "full_name", getattr(creator, "username", getattr(creator, "email", "Sistema"))
+        )
+
+    mock_items = []
+    for row in items_with_materials:
+        it = row["item"]
+        mat = row["material"]
+        mock_items.append(SimpleNamespace(
+            material=mat,
+            custom_description=it.custom_description,
+            quantity_ordered=it.quantity_ordered,
+            expected_unit_cost=it.expected_unit_cost,
+            sku=getattr(it, "sku", None),
+        ))
+
+    mock_po = SimpleNamespace(
+        folio=po.folio,
+        created_at=po.created_at,
+        authorized_by=getattr(po, "authorized_by", None),
+        created_by=elaborado_por,
+        items=mock_items,
+    )
+    config = purchase_repo.get_global_config(db)
+    pdf_buffer = PDFGenerator().generate_po_pdf(order=mock_po, provider=provider, config=config)
+    filename = f"OC_{po.folio}.pdf"
+    return StreamingResponse(
+        pdf_buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
+
+
+def receive_purchase_order(db: Session, po_id: int, data: dict, current_user):
+    from datetime import timedelta
+
+    from app.models.finance import InvoiceStatus, PaymentStatus, PurchaseInvoice, PurchaseInvoiceItem
+    from app.services.inventory_manager import registrar_movimiento_inventario
+
+    _ = current_user
+    po = purchase_repo.get_purchase_order_by_id(db, po_id)
+    if not po:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+
+    po.status = "RECIBIDA_PARCIAL"
+    po.invoice_folio_reported = data.get("invoice_folio")
+    po.invoice_total_reported = data.get("invoice_total")
+    po.is_advance = False
+
+    received_map: dict = {}
+    edited_by_sku: dict = {}
+    edited_by_item_id: dict = {}
+    received_by_item_id: dict = {}
+    for ri in (data.get("received_items") or []):
+        _sku = ri.get("sku", "")
+        _item_id = ri.get("item_id")
+        _rq = ri.get("received_qty")
+        if _rq is None:
+            _rq = ri.get("expected_qty") or 0
+        received_map[_sku] = received_map.get(_sku, 0) + float(_rq)
+        _edit_data = {
+            "sku": ri.get("sku"),
+            "description": ri.get("description"),
+            "unit_cost": ri.get("unit_cost"),
+        }
+        if _item_id:
+            edited_by_item_id[int(_item_id)] = _edit_data
+            received_by_item_id[int(_item_id)] = float(_rq)
+        else:
+            edited_by_sku[_sku] = _edit_data
+
+    for ri in (data.get("received_items") or []):
+        if not ri.get("is_new"):
+            continue
+        _new_mat_id = ri.get("material_id")
+        if not _new_mat_id:
+            continue
+        if purchase_repo.get_po_item_by_po_and_material(db, po.id, _new_mat_id):
+            continue
+        _new_cost = ri.get("unit_cost")
+        db.add(PurchaseOrderItem(
+            purchase_order_id=po.id,
+            material_id=_new_mat_id,
+            quantity_ordered=0,
+            quantity_received=0,
+            expected_unit_cost=float(_new_cost) if _new_cost is not None else 0.0,
+        ))
+    db.flush()
+
+    items_with_materials = purchase_repo.get_po_items_with_materials(db, po.id)
+    all_complete = True
+    invoice_detail_rows: list = []
+    for row in items_with_materials:
+        item = row["item"]
+        mat = row["material"]
+        qty_ordered = float(item.quantity_ordered or 0)
+        qty_this_delivery = 0.0
+
+        if item.material_id:
+            mat = purchase_repo.get_material_by_id(db, item.material_id)
+            if mat:
+                mat_sku = mat.sku or ""
+                route = (getattr(mat, "production_route", "MATERIAL") or "MATERIAL").upper()
+                if item.id in received_by_item_id:
+                    qty_this_delivery = received_by_item_id[item.id]
+                else:
+                    qty_this_delivery = received_map.get(mat_sku, 0)
+                if route == "MATERIAL" and qty_this_delivery > 0:
+                    factor = float(getattr(mat, "conversion_factor", 1) or 1)
+                    qty_in_usage_units = qty_this_delivery * factor
+                    mat.physical_stock = (mat.physical_stock or 0) + qty_in_usage_units
+                    db.add(mat)
+                    _edited = edited_by_item_id.get(item.id) or edited_by_sku.get(mat_sku, {})
+                    _edited_cost = _edited.get("unit_cost")
+                    _costo_kardex = (
+                        float(_edited_cost) if _edited_cost is not None
+                        else float(getattr(item, "expected_unit_cost", 0.0) or 0.0)
+                    )
+                    registrar_movimiento_inventario(
+                        db,
+                        material_id=mat.id,
+                        cantidad=qty_in_usage_units,
+                        tipo="ENTRADA_COMPRA",
+                        costo_unitario=_costo_kardex,
+                        reason_code="RECEPCION_OC",
+                    )
+        else:
+            if item.id in received_by_item_id:
+                qty_this_delivery = received_by_item_id[item.id]
+            else:
+                qty_this_delivery = received_map.get(item.custom_description or "", 0)
+
+        prev_received = float(item.quantity_received or 0)
+        item.quantity_received = prev_received + qty_this_delivery
+        db.add(item)
+
+        if qty_this_delivery > 0:
+            _base_sku = mat.sku if (item.material_id and mat) else None
+            _edited = edited_by_item_id.get(item.id) or edited_by_sku.get(_base_sku or "", {})
+            if item.material_id and mat:
+                _desc_default = mat.name
+                _sku_default = mat.sku
+            else:
+                _desc_default = item.custom_description
+                _sku_default = None
+            _final_sku = _edited.get("sku") or _sku_default
+            _final_desc = _edited.get("description") or _desc_default
+            _final_cost = _edited.get("unit_cost")
+            if _final_cost is None:
+                _final_cost = float(getattr(item, "expected_unit_cost", 0.0) or 0.0)
+            else:
+                _final_cost = float(_final_cost)
+            invoice_detail_rows.append({
+                "purchase_order_item_id": item.id,
+                "material_id": item.material_id,
+                "description": _final_desc,
+                "sku": _final_sku,
+                "quantity_received": qty_this_delivery,
+                "unit_cost": _final_cost,
+            })
+
+        if qty_ordered > 0 and item.quantity_received < qty_ordered:
+            all_complete = False
+
+    po.status = "RECIBIDA_TOTAL" if all_complete else "RECIBIDA_PARCIAL"
+
+    ant_invoices = purchase_repo.get_advance_invoices_by_folio_pattern(db, f"ANT-{po.folio}")
+    total_pagado_anticipos = 0.0
+    paid_status = getattr(PaymentStatus, "PAID", "PAID")
+    for ant in ant_invoices:
+        total_pagado_anticipos += purchase_repo.sum_supplier_payments_by_invoice(
+            db, ant.id, paid_status
+        )
+        ant.status = getattr(InvoiceStatus, "PAID", "PAID")
+        ant.outstanding_balance = 0
+        db.add(ant)
+
+    tax_rate = float(data.get("tax_rate", 0.16) or 0.16)
+    _subtotal_detalle = sum(r["quantity_received"] * r["unit_cost"] for r in invoice_detail_rows)
+    if _subtotal_detalle > 0:
+        total_recibido_con_iva = round(_subtotal_detalle * (1 + tax_rate), 2)
+    else:
+        total_recibido_con_iva = float(data.get("invoice_total", 0))
+    saldo_restante = total_recibido_con_iva - total_pagado_anticipos
+
+    if saldo_restante > 0.01:
+        invoice_folio = data.get("invoice_folio")
+        if invoice_folio:
+            if purchase_repo.find_ap_by_po_folio(db, po.provider_id, invoice_folio, po_id):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"La factura {invoice_folio} ya está registrada para esta OC.",
+                )
+        prov = purchase_repo.get_provider_by_id(db, po.provider_id)
+        credit_days = getattr(prov, "credit_days", 0) or 0 if prov else 0
+        due_date = datetime.now() + timedelta(days=credit_days)
+        tax_rate = float(data.get("tax_rate", 0.16) or 0.16)
+        _subtotal = round(saldo_restante / (1 + tax_rate), 2) if (1 + tax_rate) != 0 else saldo_restante
+        _tax_amount = round(saldo_restante - _subtotal, 2)
+        new_ap_id = purchase_repo.insert_reception_accounts_payable(
+            db,
+            provider_id=po.provider_id,
+            po_id=po.id,
+            folio=data.get("invoice_folio"),
+            total=saldo_restante,
+            subtotal=_subtotal,
+            tax_rate=tax_rate,
+            tax_amount=_tax_amount,
+            due_date=due_date,
+            now=datetime.now(),
+            overhead_category=getattr(po, "overhead_category", None),
+        )
+        for row in invoice_detail_rows:
+            db.add(PurchaseInvoiceItem(
+                accounts_payable_id=new_ap_id,
+                purchase_order_item_id=row["purchase_order_item_id"],
+                material_id=row["material_id"],
+                description=row["description"],
+                sku=row["sku"],
+                quantity_received=row["quantity_received"],
+                unit_cost=row["unit_cost"],
+            ))
+    else:
+        invoice_folio = data.get("invoice_folio")
+        invoice_total = (
+            total_recibido_con_iva if total_recibido_con_iva > 0 else float(data.get("invoice_total", 0))
+        )
+        if invoice_folio and invoice_total > 0:
+            if purchase_repo.find_purchase_invoice_by_number_and_provider(
+                db, invoice_folio, po.provider_id
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"La factura {invoice_folio} ya está registrada para este proveedor.",
+                )
+            tax_rate = float(data.get("tax_rate", 0.16) or 0.16)
+            _subtotal = round(invoice_total / (1 + tax_rate), 2)
+            _tax_amount = round(invoice_total - _subtotal, 2)
+            db.add(PurchaseInvoice(
+                provider_id=po.provider_id,
+                invoice_number=invoice_folio,
+                issue_date=datetime.now().date(),
+                due_date=datetime.now().date(),
+                total_amount=invoice_total,
+                outstanding_balance=0.0,
+                status=getattr(InvoiceStatus, "PAID", "PAID"),
+                subtotal=_subtotal,
+                tax_rate=tax_rate,
+                tax_amount=_tax_amount,
+            ))
+
+    for _item_id in (data.get("items_to_close") or []):
+        _it = purchase_repo.get_po_item_by_id(db, _item_id)
+        if not _it or _it.purchase_order_id != po_id:
+            continue
+        _recibido = float(_it.quantity_received or 0)
+        if _recibido <= 0:
+            _it.is_cancelled = True
+            _it.is_fulfilled = False
+        else:
+            _it.is_fulfilled = True
+            _it.is_cancelled = False
+        _it.cancel_reason = "Cerrado durante recepción"
+        db.add(_it)
+    db.flush()
+
+    _hay_pendiente = False
+    _hay_recibido = False
+    for _it in purchase_repo.get_po_items(db, po_id):
+        _rec = float(_it.quantity_received or 0)
+        if _it.is_cancelled or _it.is_fulfilled:
+            if _rec > 0:
+                _hay_recibido = True
+            continue
+        _ord = float(_it.quantity_ordered or 0)
+        if _rec > 0:
+            _hay_recibido = True
+        if _ord > 0 and _rec < _ord:
+            _hay_pendiente = True
+    if not _hay_pendiente:
+        po.status = "RECIBIDA_TOTAL" if _hay_recibido else "CANCELADA"
+    else:
+        po.status = "RECIBIDA_PARCIAL"
+
+    db.add(po)
+    db.commit()
+    return {"status": "success", "message": "Inventario ingresado y finanzas conciliadas."}

@@ -2,13 +2,14 @@
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlmodel import Session, select, text
 
-from app.models.foundations import Provider
+from app.models.foundations import GlobalConfig, Provider
 from app.models.inventory import PurchaseOrder, PurchaseOrderItem, PurchaseRequisition
 from app.models.material import Material
-from app.models.finance import PurchaseInvoice, SupplierPayment, InvoiceStatus
+from app.models.finance import InvoiceStatus, PaymentStatus, PurchaseInvoice, SupplierPayment
+from app.models.users import User
 
 AccountsPayable = SupplierPayment.AccountsPayable
 OperationalExpense = AccountsPayable
@@ -334,3 +335,113 @@ def cancel_operational_expense_row(db: Session, expense_id: int, notes: str) -> 
         SET status = 'CANCELADO', notes = :notes
         WHERE id = :expense_id AND purchase_order_id IS NULL
     """).bindparams(notes=notes, expense_id=expense_id))
+
+
+def get_global_config(db: Session) -> Optional[GlobalConfig]:
+    return db.exec(select(GlobalConfig)).first()
+
+
+def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
+    return db.get(User, user_id)
+
+
+def get_po_items_with_materials(db: Session, po_id: int) -> List[dict]:
+    items = get_po_items(db, po_id)
+    material_ids = {it.material_id for it in items if it.material_id is not None}
+    mat_map: Dict[int, Material] = {}
+    if material_ids:
+        materials = list(db.exec(select(Material).where(Material.id.in_(material_ids))).all())
+        mat_map = {m.id: m for m in materials}
+    return [{"item": it, "material": mat_map.get(it.material_id)} for it in items]
+
+
+def get_advance_invoices_by_folio_pattern(db: Session, folio_pattern: str) -> List[PurchaseInvoice]:
+    return list(
+        db.exec(
+            select(PurchaseInvoice).where(PurchaseInvoice.invoice_number == folio_pattern)
+        ).all()
+    )
+
+
+def get_po_item_by_po_and_material(
+    db: Session, po_id: int, material_id: int
+) -> Optional[PurchaseOrderItem]:
+    return db.exec(
+        select(PurchaseOrderItem).where(
+            PurchaseOrderItem.purchase_order_id == po_id,
+            PurchaseOrderItem.material_id == material_id,
+        )
+    ).first()
+
+
+def sum_supplier_payments_by_invoice(
+    db: Session, invoice_id: int, payment_status: PaymentStatus
+) -> float:
+    row = db.exec(
+        select(func.sum(SupplierPayment.amount)).where(
+            SupplierPayment.purchase_invoice_id == invoice_id,
+            SupplierPayment.status == payment_status,
+        )
+    ).one()
+    return float(row or 0)
+
+
+def find_ap_by_po_folio(
+    db: Session, provider_id: int, folio: str, po_id: int
+) -> Optional[int]:
+    row = db.exec(text("""
+        SELECT id FROM accounts_payable
+        WHERE provider_id = :prov AND invoice_folio = :folio
+        AND purchase_order_id = :po_id AND status != 'CANCELADO'
+    """).bindparams(prov=provider_id, folio=folio, po_id=po_id)).first()
+    return row[0] if row else None
+
+
+def insert_reception_accounts_payable(
+    db: Session,
+    *,
+    provider_id: int,
+    po_id: int,
+    folio: Optional[str],
+    total: float,
+    subtotal: float,
+    tax_rate: float,
+    tax_amount: float,
+    due_date: datetime,
+    now: datetime,
+    overhead_category: Optional[str],
+) -> int:
+    result_ap = db.exec(text("""
+        INSERT INTO accounts_payable (
+            provider_id, purchase_order_id, invoice_folio,
+            total_amount, subtotal, tax_rate, tax_amount,
+            due_date, status, created_at, overhead_category
+        ) VALUES (
+            :prov_id, :po_id, :folio, :total, :subtotal, :tax_rate, :tax_amount,
+            :due, 'PENDIENTE', :now, :category
+        )
+        RETURNING id
+    """).bindparams(
+        prov_id=provider_id,
+        po_id=po_id,
+        folio=folio,
+        total=total,
+        subtotal=subtotal,
+        tax_rate=tax_rate,
+        tax_amount=tax_amount,
+        due=due_date,
+        now=now,
+        category=overhead_category,
+    ))
+    return result_ap.scalar() if hasattr(result_ap, "scalar") else result_ap.first()[0]
+
+
+def find_purchase_invoice_by_number_and_provider(
+    db: Session, invoice_number: str, provider_id: int
+) -> Optional[PurchaseInvoice]:
+    return db.exec(
+        select(PurchaseInvoice).where(
+            PurchaseInvoice.invoice_number == invoice_number,
+            PurchaseInvoice.provider_id == provider_id,
+        )
+    ).first()
