@@ -2510,3 +2510,143 @@ Commits: dc0cfa1 → 66cb2fe
 
 ### Siguiente: FASE 4 — Logging y Tests (paralelo)
 O continuar con mejoras operativas según prioridad de Gabriel.
+
+
+---
+## BRÚJULA VALENTINA ERP — ESTADO COMPLETO (2026-09-07)
+
+### LO QUE SOMOS HOY
+Un ERP de manufactura a la medida que cubre el ciclo operativo completo de Koloka
+— desde cotización hasta instalación y cobranza. Funciona en producción,
+lo usan todos los días, y tiene una arquitectura que ya comenzó a madurar.
+Calificación actual: B (subimos de C+ al inicio de estas sesiones)
+
+---
+
+### LO QUE YA CONSTRUIMOS
+
+FASE 0 — Seguridad Crítica (COMPLETADA)
+- Backdoor /fix-admin eliminado de producción
+- Rate limiting: 5 intentos de login por 15 minutos por IP
+- CORS restringido con métodos y headers específicos
+- react-signature-canvas alpha → estable 1.0.7
+
+FASE 1 — Arquitectura Backend (COMPLETADA)
+Archivo              | Antes       | Ahora
+sales.py             | 2,613 líneas | 1,302 líneas
+purchases.py         | 1,876 líneas | 703 líneas
+sales_service.py     | no existía   | 1,206 líneas
+purchase_service.py  | no existía   | 1,092 líneas
+quotation_service.py | no existía   | 376 líneas
+sales_repository.py  | no existía   | 337 líneas
+purchase_repository.py| no existía  | 447 líneas
+
+- Arquitectura Router → Service → Repository establecida
+- Cero eliminaciones físicas en endpoints y services
+- Cero schemas inline en endpoints
+- Cero SQL injection
+- _build_item_snapshot elimina duplicación de lógica de costos
+
+FASE 2 — Separación Cotización/OV (COMPLETADA)
+- Modelos Quotation y QuotationItem independientes
+- Ciclo de vida propio: DRAFT → SENT → ACCEPTED | REJECTED | CANCELLED
+- Conversión cotización → OV con un clic
+- 4 caminos cubiertos en cotización y partidas
+- Trazabilidad de rechazo: reject_reason, rejected_by, rejected_at
+- Frontend completo: dashboard, formulario, detalle
+- 45 migraciones Alembic en orden
+
+FASE 3 — React Query (COMPLETADA)
+- @tanstack/react-query v5 instalado y configurado
+- 7 hooks creados: useQuotations, useOrderStatement, useReceivables,
+  usePurchaseOrders, useSalesDashboard, useManagement, useUsers
+- 5 módulos migrados con polling normalizado (15s y 30s)
+- setInterval manuales eliminados — cero bugs de stale data en módulos migrados
+
+---
+
+### LO QUE NOS FALTA (en orden del plan maestro)
+
+FASE 4 — Logging, Monitoreo y Tests
+- structlog en backend — errores en producción hoy son invisibles
+- Sentry para alertas automáticas
+- pytest con BD de prueba — cero cobertura hoy
+- Vitest para frontend
+- Meta: 60% cobertura global
+
+FASE 5 — Inventario Completo
+- Kárdex con trazabilidad completa (existe parcialmente)
+- Valuación Costo Promedio Ponderado
+- Inventario físico con 4 caminos completos
+- Alertas de stock mínimo automáticas
+
+FASE 6 — Recursos Humanos
+- Catálogo de empleados con datos fiscales y bancarios
+- Nómina fija semanal con 4 caminos
+- Control de asistencia
+- Reporte integrado fija + destajo
+
+FASE 7 — Dashboard Director Completo
+- KPIs operativos en tiempo real
+- Rentabilidad por OV, cliente y producto
+- Flujo de caja proyectado a 30, 60 y 90 días
+- Requiere Fases 5 y 6 para datos completos
+
+FASE 8 — Contabilidad y SAT
+- Plan de cuentas estándar SAT México
+- Pólizas contables automáticas por operación
+- CFDI 4.0: facturación en Compaq, solo captura de folio en Valentina
+- Integración con Compaq
+- Requiere Fases 2 y 7
+
+FASE 9 — Seguridad Avanzada
+- httpOnly cookies (reemplazar localStorage)
+- Refresh tokens con rotación
+- 2FA para DIRECTOR y MANAGER
+- Audit log completo con retención 2 años
+- Backups automáticos a Google Cloud Storage
+
+FASE 10 — PWA para Campo
+- App instalable en iOS y Android
+- Funciona offline
+- Flujo instalador: QR, evidencia, firma
+- Flujo jefe de cuadrilla
+
+---
+
+### DEPENDENCIAS
+FASE 4 → puede iniciar ahora (paralelo a todo)
+FASE 5 → puede iniciar ahora
+FASE 6 → puede iniciar ahora
+FASE 7 → requiere FASE 5 y FASE 6
+FASE 8 → requiere FASE 2 (completada) y FASE 7
+FASE 9 → puede iniciar ahora
+FASE 10 → requiere FASE 2 (completada)
+
+---
+
+### ESTIMACIÓN RESTANTE
+Fase 4 (Logging/Tests):     Continuo, paralelo
+Fase 5 (Inventario):        3-4 semanas
+Fase 6 (RH):               3-4 semanas
+Fase 7 (Dashboard):         2-3 semanas
+Fase 8 (Contabilidad/SAT):  4-6 semanas
+Fase 9 (Seguridad):         2-3 semanas
+Fase 10 (PWA):              3-4 semanas
+TOTAL RESTANTE:             ~5-6 meses
+
+---
+
+### CALIFICACIÓN OBJETIVO AL COMPLETAR
+Área                  | Hoy  | Objetivo
+Seguridad             | C+   | A
+Arquitectura backend  | B+   | A
+Modelo de datos       | B    | A
+Frontend              | B+   | A
+Cobertura funcional   | B    | A
+GLOBAL                | B    | A — ERP de clase mundial
+
+### NOTA SOBRE FASE 8:
+Decisión de negocio 2026-09-07: Las facturas se elaboran y timbran en Compaq.
+Valentina solo captura el folio de la factura como referencia.
+No se requiere integración directa con SAT ni timbrado desde Valentina.
