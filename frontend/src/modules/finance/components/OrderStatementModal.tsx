@@ -14,8 +14,18 @@ import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VCurrencyInput } from '@/components/ui/VCurrencyInput';
 import { VToggle } from '@/components/ui/VToggle';
-import { treasuryService } from '../../../api/treasury-service';
-import type { BankAccount } from '../../../types/treasury';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  useOrderDetail,
+  useInstallments,
+  useCommissions,
+  useBankAccounts,
+  useRegisterInstallment,
+  useUpdateInstallment,
+  useCancelInstallment,
+  orderStatementQueryKeys,
+  fetchInstallmentsForCxc,
+} from '../../../hooks/useOrderStatement';
 
 type OrderStatementPendingConfirm =
     | { kind: 'CANCEL_OV' }
@@ -270,27 +280,6 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const [deliverablesTab, setDeliverablesTab] = useState<'instancia' | 'casa'>('instancia');
     const prevIsOpenRef = useRef(false);
 
-    const refreshOrderInPlace = useCallback(async () => {
-        const orderId = order?.id ?? localOrder?.id;
-        if (!orderId) return;
-        try {
-            const fresh = await salesService.getOrderDetail(orderId);
-            setLocalOrder(fresh as SalesOrder);
-            if (onOrderPatch) onOrderPatch(fresh as Partial<SalesOrder>);
-        } catch {
-            // Mantener localOrder actual si falla el detalle
-        }
-    }, [order?.id, localOrder?.id, onOrderPatch]);
-
-    useEffect(() => {
-        const justOpened = isOpen && !prevIsOpenRef.current;
-        if (justOpened && order?.id) {
-            void refreshOrderInPlace();
-        } else if (!justOpened && order?.id != null && order.id !== localOrder?.id) {
-            setLocalOrder(order);
-        }
-        prevIsOpenRef.current = isOpen;
-    }, [isOpen, order, order?.id, localOrder?.id, refreshOrderInPlace]);
     const [editingAdvance, setEditingAdvance] = useState(false);
     const [advanceDraft, setAdvanceDraft] = useState<string>('');
     const [savingAdvance, setSavingAdvance] = useState(false);
@@ -308,14 +297,8 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
 
     // --- Camino A: panel de solo-lectura de abonos por factura (los abonos nacen en Tesorería) ---
     const [expandedInvoiceId, setExpandedInvoiceId] = useState<number | null>(null);
-    const [installmentsByInvoice, setInstallmentsByInvoice] = useState<Record<number, any>>({});
-    const [loadingInstallments, setLoadingInstallments] = useState<number | null>(null);
     /** Remount de inputs OC (defaultValue) tras guardado puntual sin refrescar listados. */
     const [ocEditorEpoch, setOcEditorEpoch] = useState(0);
-    /** customer_payment_id → comisión (tabla sales_commissions) */
-    const [commissionByPaymentId, setCommissionByPaymentId] = useState<
-        Record<number, { id: number; is_paid: boolean }>
-    >({});
 
     const [editPaymentModal, setEditPaymentModal] = useState<{ open: boolean; cxc: any | null }>({ open: false, cxc: null });
     const [editPaymentForm, setEditPaymentForm] = useState<{ invoice_folio: string; invoice_date: string; amount: string; notes: string }>({
@@ -336,8 +319,6 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const [installmentIsAdvance, setInstallmentIsAdvance] = useState(false);
     const [expandedHouses, setExpandedHouses] = useState<Set<string>>(new Set());
     const [expandedEditHouses, setExpandedEditHouses] = useState<Set<string>>(new Set());
-    const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
-    const [loadingBankAccounts, setLoadingBankAccounts] = useState(false);
     const [submittingInstallment, setSubmittingInstallment] = useState(false);
 
     const [editInstallmentModal, setEditInstallmentModal] = useState<{
@@ -363,6 +344,86 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     }>({ open: false, abono: null, cxc: null });
     const [cancelInstallmentReason, setCancelInstallmentReason] = useState('');
     const [cancellingInstallment, setCancellingInstallment] = useState(false);
+
+    const queryClient = useQueryClient();
+    const orderId = order?.id ?? localOrder?.id;
+
+    const { data: orderDetail, refetch: refetchOrderDetail } = useOrderDetail(orderId, isOpen);
+    const { data: commissionsList = [] } = useCommissions(isOpen && !!orderId);
+
+    const expandedInstallmentsQuery = useInstallments(expandedInvoiceId ?? undefined);
+    const installmentModalCxcId = installmentModal.open ? installmentModal.cxc?.id : undefined;
+    const modalInstallmentsQuery = useInstallments(installmentModalCxcId);
+    const editInstallmentCxcId = editInstallmentModal.open ? editInstallmentModal.cxc?.id : undefined;
+    const editInstallmentsQuery = useInstallments(editInstallmentCxcId);
+
+    const { data: bankAccounts = [], isLoading: loadingBankAccounts, isError: bankAccountsError } = useBankAccounts(
+        installmentModal.open && canRegisterInstallment,
+    );
+
+    useEffect(() => {
+        if (installmentModal.open && bankAccountsError) {
+            toast.error('No se pudieron cargar las cuentas bancarias.');
+        }
+    }, [installmentModal.open, bankAccountsError]);
+
+    const registerInstallmentMutation = useRegisterInstallment();
+    const updateInstallmentMutation = useUpdateInstallment();
+    const cancelInstallmentMutation = useCancelInstallment();
+
+    const refreshOrderInPlace = useCallback(async () => {
+        if (!orderId) return;
+        await refetchOrderDetail();
+    }, [orderId, refetchOrderDetail]);
+
+    useEffect(() => {
+        if (orderDetail) {
+            setLocalOrder(orderDetail);
+            if (onOrderPatch) onOrderPatch(orderDetail);
+        }
+    }, [orderDetail, onOrderPatch]);
+
+    useEffect(() => {
+        const justOpened = isOpen && !prevIsOpenRef.current;
+        if (!justOpened && order?.id != null && order.id !== localOrder?.id) {
+            setLocalOrder(order);
+        }
+        prevIsOpenRef.current = isOpen;
+    }, [isOpen, order, localOrder?.id]);
+
+    const installmentsByInvoice = useMemo(() => {
+        const map: Record<number, any> = {};
+        const apply = (cxcId: number | undefined, query: typeof expandedInstallmentsQuery) => {
+            if (cxcId == null) return;
+            if (query.isError) map[cxcId] = null;
+            else if (query.data !== undefined) map[cxcId] = query.data;
+        };
+        apply(expandedInvoiceId ?? undefined, expandedInstallmentsQuery);
+        apply(installmentModalCxcId, modalInstallmentsQuery);
+        apply(editInstallmentCxcId, editInstallmentsQuery);
+        return map;
+    }, [
+        expandedInvoiceId,
+        expandedInstallmentsQuery,
+        installmentModalCxcId,
+        modalInstallmentsQuery,
+        editInstallmentCxcId,
+        editInstallmentsQuery,
+    ]);
+
+    const loadingInstallments =
+        expandedInvoiceId != null && expandedInstallmentsQuery.isFetching ? expandedInvoiceId : null;
+
+    const commissionByPaymentId = useMemo(() => {
+        const m: Record<number, { id: number; is_paid: boolean }> = {};
+        if (!orderId) return m;
+        commissionsList.forEach((c) => {
+            if (c.sales_order_id === orderId) {
+                m[c.customer_payment_id] = { id: c.id, is_paid: c.is_paid };
+            }
+        });
+        return m;
+    }, [commissionsList, orderId]);
 
     // ESCUDO: Aniquilar clones en la lista visual de Rayos X
     const uniqueItems = useMemo(() => {
@@ -470,9 +531,11 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     }, [uniqueItems, linkedInstanceIdsForEditCxc]);
 
     const reloadInstallmentsForCxc = async (cxcId: number) => {
-        const fresh = await salesService.getInstallments(cxcId);
-        setInstallmentsByInvoice((prev) => ({ ...prev, [cxcId]: fresh }));
-        return fresh;
+        await queryClient.invalidateQueries({ queryKey: orderStatementQueryKeys.installments(cxcId) });
+        return queryClient.fetchQuery({
+            queryKey: orderStatementQueryKeys.installments(cxcId),
+            queryFn: () => fetchInstallmentsForCxc(cxcId),
+        });
     };
 
     // Agrupa TODAS las instancias de la OV por casa (street + lot) para la vista "Por Casa".
@@ -530,29 +593,6 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         setDisplayAdvance(Number(order.advance_invoice_amount) || 0);
     }, [order.advance_invoice_amount, order.id]);
 
-    useEffect(() => {
-        if (!isOpen || !order?.id) return;
-        let cancelled = false;
-        (async () => {
-            try {
-                const list = await salesService.getCommissions();
-                if (cancelled) return;
-                const m: Record<number, { id: number; is_paid: boolean }> = {};
-                list.forEach((c) => {
-                    if (c.sales_order_id === order.id) {
-                        m[c.customer_payment_id] = { id: c.id, is_paid: c.is_paid };
-                    }
-                });
-                setCommissionByPaymentId(m);
-            } catch {
-                /* ignore commission load errors */
-            }
-        })();
-        return () => {
-            cancelled = true;
-        };
-    }, [isOpen, order?.id]);
-
     if (!isOpen || !order) return null;
 
     const formatCurrency = (value: number) => {
@@ -578,20 +618,9 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const expectedAdvance = totalOrder * (pct / 100);
     const isWaitingAdvance = order.status === 'WAITING_ADVANCE';
 
-    const toggleInvoicePanel = async (cxcId: number) => {
+    const toggleInvoicePanel = (cxcId: number) => {
         const willExpand = expandedInvoiceId !== cxcId;
         setExpandedInvoiceId(willExpand ? cxcId : null);
-        if (willExpand && installmentsByInvoice[cxcId] === undefined) {
-            setLoadingInstallments(cxcId);
-            try {
-                const data = await salesService.getInstallments(cxcId);
-                setInstallmentsByInvoice((prev) => ({ ...prev, [cxcId]: data }));
-            } catch {
-                setInstallmentsByInvoice((prev) => ({ ...prev, [cxcId]: null }));
-            } finally {
-                setLoadingInstallments(null);
-            }
-        }
     };
 
     const handleOpenInstallmentModal = async (cxc: any) => {
@@ -608,24 +637,15 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
 
         let saldo = Number(cxc.amount || 0);
         try {
-            const data = await salesService.getInstallments(cxc.id);
+            const data = await queryClient.fetchQuery({
+                queryKey: orderStatementQueryKeys.installments(cxc.id),
+                queryFn: () => fetchInstallmentsForCxc(cxc.id),
+            });
             saldo = Number(data.saldo ?? Math.max(Number(data.monto_factura ?? cxc.amount ?? 0) - Number(data.total_abonado ?? 0), 0));
-            setInstallmentsByInvoice((prev) => ({ ...prev, [cxc.id]: data }));
         } catch {
             // keep saldo from invoice amount
         }
         setInstallmentAmount(saldo > 0 ? saldo : Number(cxc.amount || 0));
-
-        setLoadingBankAccounts(true);
-        try {
-            const accounts = await treasuryService.getAccounts();
-            setBankAccounts(accounts);
-        } catch {
-            toast.error('No se pudieron cargar las cuentas bancarias.');
-            setBankAccounts([]);
-        } finally {
-            setLoadingBankAccounts(false);
-        }
     };
 
     const toggleInstallmentInstance = (instanceId: number) => {
@@ -719,18 +739,17 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
             if (!installmentIsAdvance && cxc.payment_type !== 'ADVANCE' && installmentInstanceIds.length > 0) {
                 payload.instance_ids = installmentInstanceIds;
             }
-            await salesService.registerInstallment(cxc.id, payload);
+            await registerInstallmentMutation.mutateAsync({
+                cxcId: cxc.id,
+                orderId: orderId!,
+                payload,
+            });
             toast.success('Abono registrado correctamente.');
             setInstallmentModal({ open: false, cxc: null });
-            setInstallmentsByInvoice((prev) => {
-                const next = { ...prev };
-                delete next[cxc.id];
-                return next;
-            });
             await refreshOrderInPlace();
             await onSuccess();
-        } catch (error: any) {
-            toast.error(error.response?.data?.detail || 'No se pudo registrar el abono.');
+        } catch {
+            /* toast en hook */
         } finally {
             setSubmittingInstallment(false);
         }
@@ -810,7 +829,12 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                     ? []
                     : [...new Set([...preserved, ...editInstallmentInstanceIds])];
             }
-            await salesService.updateInstallment(abono.id, payload);
+            await updateInstallmentMutation.mutateAsync({
+                installmentId: abono.id,
+                cxcId: cxc.id,
+                orderId: orderId!,
+                payload,
+            });
             toast.success('Abono actualizado correctamente.');
             setEditInstallmentModal({
                 open: false,
@@ -819,11 +843,10 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                 linkedInstanceIds: [],
                 preservedCxcLinkedIds: [],
             });
-            await reloadInstallmentsForCxc(cxc.id);
             await refreshOrderInPlace();
             await onSuccess();
-        } catch (error: any) {
-            toast.error(error.response?.data?.detail || 'No se pudo actualizar el abono.');
+        } catch {
+            /* toast en hook */
         } finally {
             setSavingInstallmentEdit(false);
         }
@@ -839,14 +862,18 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         }
         setCancellingInstallment(true);
         try {
-            await salesService.cancelInstallment(abono.id, reason);
+            await cancelInstallmentMutation.mutateAsync({
+                installmentId: abono.id,
+                cxcId: cxc.id,
+                orderId: orderId!,
+                reason,
+            });
             toast.success('Abono cancelado correctamente.');
             setCancelInstallmentModal({ open: false, abono: null, cxc: null });
             setCancelInstallmentReason('');
-            await reloadInstallmentsForCxc(cxc.id);
             await onSuccess();
-        } catch (error: any) {
-            toast.error(error.response?.data?.detail || 'No se pudo cancelar el abono.');
+        } catch {
+            /* toast en hook */
         } finally {
             setCancellingInstallment(false);
         }
@@ -1138,10 +1165,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         setIsUpdatingCommission(true);
         try {
             await salesService.markCommissionPayrollPaid(comm.id, true);
-            setCommissionByPaymentId((prev) => ({
-                ...prev,
-                [customerPaymentId]: { ...comm, is_paid: true },
-            }));
+            await queryClient.invalidateQueries({ queryKey: orderStatementQueryKeys.commissions() });
             onSuccess();
             onClose();
         } catch {
