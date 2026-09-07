@@ -8,9 +8,10 @@ from sqlmodel import Session, select, text
 from app.models.foundations import Provider
 from app.models.inventory import PurchaseOrder, PurchaseOrderItem, PurchaseRequisition
 from app.models.material import Material
-from app.models.finance import PurchaseInvoice, SupplierPayment
+from app.models.finance import PurchaseInvoice, SupplierPayment, InvoiceStatus
 
 AccountsPayable = SupplierPayment.AccountsPayable
+OperationalExpense = AccountsPayable
 
 
 def get_requisitions(db: Session, skip: int = 0, limit: int = 100) -> List[dict]:
@@ -215,3 +216,121 @@ def check_folio_duplicate(db: Session, provider_id: int, folio: str) -> List[dic
         }
         for r in rows
     ]
+
+
+def get_purchase_invoice_by_id(db: Session, invoice_id: int) -> Optional[PurchaseInvoice]:
+    return db.get(PurchaseInvoice, invoice_id)
+
+
+def get_pending_advance_invoice(db: Session, po_folio: str) -> Optional[PurchaseInvoice]:
+    return db.exec(
+        select(PurchaseInvoice).where(
+            PurchaseInvoice.invoice_number == f"ANT-{po_folio}",
+            PurchaseInvoice.status == InvoiceStatus.PENDING,
+        )
+    ).first()
+
+
+def find_provider_by_name_ilike(db: Session, name: str) -> Optional[Provider]:
+    return db.exec(select(Provider).where(Provider.business_name.ilike(name))).first()
+
+
+def get_operational_expense_by_id(db: Session, expense_id: int) -> Optional[dict]:
+    row = db.exec(text("""
+        SELECT ap.id, ap.invoice_folio, ap.total_amount, ap.due_date,
+               ap.status, ap.created_at, ap.overhead_category,
+               ap.instance_id, ap.notes, p.business_name AS provider_name
+        FROM accounts_payable ap
+        LEFT JOIN providers p ON ap.provider_id = p.id
+        WHERE ap.id = :expense_id AND ap.purchase_order_id IS NULL
+    """).bindparams(expense_id=expense_id)).first()
+    return dict(row._mapping) if row else None
+
+
+def get_operational_expenses(db: Session, filters: dict) -> List[dict]:
+    skip = int(filters.get("skip", 0))
+    limit = int(filters.get("limit", 100))
+    rows = db.exec(text("""
+        SELECT ap.id, ap.invoice_folio, ap.total_amount, ap.due_date,
+               ap.status, ap.created_at, ap.overhead_category,
+               ap.instance_id, p.business_name as provider_name
+        FROM accounts_payable ap
+        LEFT JOIN providers p ON ap.provider_id = p.id
+        WHERE ap.purchase_order_id IS NULL
+        ORDER BY ap.created_at DESC
+        LIMIT :limit OFFSET :skip
+    """).bindparams(limit=limit, skip=skip)).all()
+    return [dict(r._mapping) for r in rows]
+
+
+def get_operational_expense_core(db: Session, expense_id: int) -> Optional[dict]:
+    row = db.exec(text("""
+        SELECT id, status, invoice_folio, total_amount, due_date, overhead_category, notes
+        FROM accounts_payable
+        WHERE id = :expense_id AND purchase_order_id IS NULL
+    """).bindparams(expense_id=expense_id)).first()
+    return dict(row._mapping) if row else None
+
+
+def get_operational_expense_payments_sum(db: Session, expense_id: int) -> float:
+    row = db.exec(text("""
+        SELECT COALESCE(SUM(amount), 0)
+        FROM supplier_payments
+        WHERE accounts_payable_id = :expense_id
+    """).bindparams(expense_id=expense_id)).first()
+    return float(row[0] if row else 0)
+
+
+def insert_operational_expense(
+    db: Session,
+    *,
+    provider_id: Optional[int],
+    folio: str,
+    total: float,
+    due_date,
+    overhead_category: str,
+    instance_id: Optional[int],
+    now: datetime,
+) -> None:
+    db.exec(text("""
+        INSERT INTO accounts_payable (
+            provider_id, purchase_order_id, invoice_folio,
+            total_amount, due_date, status, created_at,
+            overhead_category, instance_id
+        ) VALUES (
+            :prov_id, NULL, :folio, :total, :due, 'PENDIENTE', :now,
+            :category, :instance_id
+        )
+    """).bindparams(
+        prov_id=provider_id,
+        folio=folio,
+        total=total,
+        due=due_date,
+        now=now,
+        category=overhead_category,
+        instance_id=instance_id,
+    ))
+
+
+def update_operational_expense_fields(db: Session, expense_id: int, updates: dict) -> None:
+    allowed_fields = ("invoice_folio", "total_amount", "due_date", "overhead_category", "notes")
+    set_clauses = []
+    params: dict = {"expense_id": expense_id}
+    for field in allowed_fields:
+        if field in updates:
+            set_clauses.append(f"{field} = :{field}")
+            params[field] = updates[field]
+    if not set_clauses:
+        return
+    db.exec(text(
+        f"UPDATE accounts_payable SET {', '.join(set_clauses)} "
+        "WHERE id = :expense_id AND purchase_order_id IS NULL"
+    ).bindparams(**params))
+
+
+def cancel_operational_expense_row(db: Session, expense_id: int, notes: str) -> None:
+    db.exec(text("""
+        UPDATE accounts_payable
+        SET status = 'CANCELADO', notes = :notes
+        WHERE id = :expense_id AND purchase_order_id IS NULL
+    """).bindparams(notes=notes, expense_id=expense_id))

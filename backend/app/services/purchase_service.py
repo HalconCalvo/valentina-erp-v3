@@ -5,9 +5,28 @@ from typing import List, Optional
 from fastapi import HTTPException
 from sqlmodel import Session
 
+from app.models.finance import InvoiceStatus, PurchaseInvoice
+from app.models.foundations import Provider
 from app.models.inventory import PurchaseOrder, PurchaseOrderItem, PurchaseRequisition
 from app.repositories import purchase_repository as purchase_repo
+from app.schemas.finance_schema import (
+    OperationalExpenseCancel,
+    OperationalExpenseUpdate,
+    PurchaseInvoiceUpdate,
+)
+from app.schemas.inventory_schema import (
+    PurchaseOrderItemCancel,
+    PurchaseOrderItemUpdate,
+    PurchaseOrderUpdate,
+    RequisitionCreate,
+)
+from app.schemas.treasury_schema import OperationalExpenseCreate
 from app.services.purchase_manager import PurchaseManager
+
+OVERHEAD_CATEGORIES = [
+    "MATERIALES", "PLANTA", "COMUNICACIONES", "COMBUSTIBLES", "TRANSPORTE",
+    "INSUMOS", "MAQUINARIA", "EXTERNOS", "MAQUILA", "OTRO",
+]
 
 
 def list_requisitions(db: Session, skip: int = 0, limit: int = 100) -> List[dict]:
@@ -403,3 +422,354 @@ def mark_item_no_more(db: Session, po_id: int, item_id: int, data: dict, current
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}") from e
+
+
+def _resolve_role(current_user) -> str:
+    role = current_user.role
+    return (role.value if hasattr(role, "value") else str(role)).upper()
+
+
+def _require_roles(current_user, roles: list[str]) -> None:
+    if _resolve_role(current_user) not in roles:
+        raise HTTPException(status_code=403, detail="Sin permisos.")
+
+
+def create_requisition(db: Session, req_in: RequisitionCreate) -> PurchaseRequisition:
+    if not req_in.material_id and not req_in.custom_description:
+        raise HTTPException(status_code=400, detail="Debe indicar un material o una descripción.")
+    requisition = PurchaseRequisition(
+        material_id=req_in.material_id,
+        custom_description=req_in.custom_description,
+        requested_quantity=req_in.requested_quantity,
+        notes=req_in.notes,
+        requested_by_user_id=req_in.requested_by_user_id,
+        status="PENDIENTE",
+    )
+    db.add(requisition)
+    db.commit()
+    db.refresh(requisition)
+    return requisition
+
+
+def cancel_requisition(db: Session, req_id: int, current_user) -> dict:
+    _ = current_user
+    req = purchase_repo.get_requisition_by_id(db, req_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Requisición no encontrada")
+    if req.status == "PROCESADA":
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede cancelar una requisición ya procesada en una OC",
+        )
+    req.status = "CANCELADA"
+    db.add(req)
+    db.commit()
+    db.refresh(req)
+    return {"ok": True, "message": "Requisición cancelada"}
+
+
+def delete_requisition(db: Session, req_id: int, current_user) -> dict:
+    _ = current_user
+    req = purchase_repo.get_requisition_by_id(db, req_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    if req.status == "PROCESADA":
+        raise HTTPException(status_code=400, detail="No se puede eliminar una solicitud procesada.")
+    req.status = "CANCELADA"
+    db.add(req)
+    db.commit()
+    return {"status": "success"}
+
+
+def update_requisition(db: Session, req_id: int, data: dict, current_user) -> PurchaseRequisition:
+    _ = current_user
+    req = purchase_repo.get_requisition_by_id(db, req_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Requisición no encontrada")
+    if req.status in ("PROCESADA", "CANCELADA"):
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede editar una requisición procesada o cancelada",
+        )
+    if "material_id" in data:
+        req.material_id = data["material_id"]
+    if "custom_description" in data:
+        req.custom_description = data["custom_description"]
+    if "requested_quantity" in data:
+        req.requested_quantity = float(data["requested_quantity"])
+    if "notes" in data:
+        req.notes = data["notes"]
+    db.add(req)
+    db.commit()
+    db.refresh(req)
+    return req
+
+
+def transfer_requisition(db: Session, req_id: int, current_user) -> dict:
+    _ = current_user
+    req = purchase_repo.get_requisition_by_id(db, req_id)
+    if not req:
+        raise HTTPException(status_code=404)
+    req.provider_id = None
+    db.add(req)
+    db.commit()
+    return {"status": "success"}
+
+
+def update_requisition_status(db: Session, req_id: int, status: str, current_user) -> PurchaseRequisition:
+    _ = current_user
+    req = purchase_repo.get_requisition_by_id(db, req_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Requisición no encontrada")
+    req.status = status
+    db.add(req)
+    db.commit()
+    db.refresh(req)
+    return req
+
+
+def assign_requisition_provider(
+    db: Session, req_id: int, provider_id: int, expected_unit_cost: float, current_user
+) -> dict:
+    _ = current_user
+    req = purchase_repo.get_requisition_by_id(db, req_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Requisición no encontrada")
+    req.provider_id = provider_id
+    req.expected_unit_cost = expected_unit_cost
+    db.add(req)
+    db.commit()
+    db.refresh(req)
+    return {"ok": True, "req_id": req_id}
+
+
+def request_advance(db: Session, po_id: int, data: dict, current_user) -> dict:
+    _ = current_user
+    po = purchase_repo.get_purchase_order_by_id(db, po_id)
+    if not po:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    if purchase_repo.get_pending_advance_invoice(db, po.folio):
+        raise HTTPException(
+            status_code=400,
+            detail="Ya solicitaste un anticipo para esta OC. Tesorería lo está procesando.",
+        )
+    amount = float(data.get("amount", 0))
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="El monto debe ser mayor a 0")
+    inv = PurchaseInvoice(
+        provider_id=po.provider_id,
+        invoice_number=f"ANT-{po.folio}",
+        issue_date=datetime.now().date(),
+        due_date=datetime.now().date(),
+        total_amount=amount,
+        outstanding_balance=amount,
+        status=InvoiceStatus.PENDING,
+    )
+    db.add(inv)
+    db.commit()
+    return {"status": "success", "message": "Anticipo solicitado a Tesorería"}
+
+
+def create_operational_expense(db: Session, data: OperationalExpenseCreate, current_user) -> dict:
+    _require_roles(current_user, ["DIRECTOR", "MANAGER", "ADMIN"])
+    if data.overhead_category not in OVERHEAD_CATEGORIES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Categoría inválida. Opciones: {OVERHEAD_CATEGORIES}",
+        )
+    if data.total_amount <= 0:
+        raise HTTPException(status_code=400, detail="El monto debe ser mayor a 0.")
+    provider_id = None
+    if data.provider_name:
+        prov = purchase_repo.find_provider_by_name_ilike(db, data.provider_name)
+        if not prov:
+            prov = Provider(business_name=data.provider_name, credit_days=0, is_active=True)
+            db.add(prov)
+            db.flush()
+        provider_id = prov.id
+    folio = f"GASTO-{datetime.now().strftime('%y%m%d%H%M%S')}"
+    purchase_repo.insert_operational_expense(
+        db,
+        provider_id=provider_id,
+        folio=folio,
+        total=data.total_amount,
+        due_date=data.due_date,
+        overhead_category=data.overhead_category,
+        instance_id=data.instance_id,
+        now=datetime.now(),
+    )
+    db.commit()
+    return {"ok": True, "folio": folio, "message": "Gasto operativo registrado en CXP."}
+
+
+def get_operational_expenses(
+    db: Session, current_user, skip: int = 0, limit: int = 100
+) -> List[dict]:
+    _require_roles(current_user, ["DIRECTOR", "MANAGER", "ADMIN"])
+    return purchase_repo.get_operational_expenses(db, {"skip": skip, "limit": limit})
+
+
+def update_operational_expense(
+    db: Session, expense_id: int, data: OperationalExpenseUpdate, current_user
+) -> dict:
+    _require_roles(current_user, ["DIRECTOR", "MANAGER", "ADMIN"])
+    expense_row = purchase_repo.get_operational_expense_core(db, expense_id)
+    if not expense_row:
+        raise HTTPException(status_code=404, detail="Operational expense not found")
+    if expense_row.get("status") == "CANCELADO":
+        raise HTTPException(status_code=422, detail="Cannot edit a cancelled expense")
+    payments_total = purchase_repo.get_operational_expense_payments_sum(db, expense_id)
+    updates = data.model_dump(exclude_unset=True)
+    if not updates:
+        refreshed = purchase_repo.get_operational_expense_by_id(db, expense_id)
+        return refreshed or expense_row
+    if payments_total > 0:
+        forbidden = set(updates.keys()) - {"due_date"}
+        if forbidden:
+            raise HTTPException(
+                status_code=422,
+                detail="This expense has payments applied. Only due_date can be edited.",
+            )
+    purchase_repo.update_operational_expense_fields(db, expense_id, updates)
+    db.commit()
+    refreshed = purchase_repo.get_operational_expense_by_id(db, expense_id)
+    return refreshed or expense_row
+
+
+def cancel_operational_expense(
+    db: Session, expense_id: int, data: OperationalExpenseCancel, current_user
+) -> dict:
+    _require_roles(current_user, ["DIRECTOR", "MANAGER", "ADMIN"])
+    expense_row = purchase_repo.get_operational_expense_core(db, expense_id)
+    if not expense_row:
+        raise HTTPException(status_code=404, detail="Operational expense not found")
+    if expense_row.get("status") == "CANCELADO":
+        raise HTTPException(status_code=422, detail="Expense is already cancelled")
+    if purchase_repo.get_operational_expense_payments_sum(db, expense_id) > 0:
+        raise HTTPException(
+            status_code=422,
+            detail="This expense has payments applied. Cannot cancel.",
+        )
+    existing_notes = expense_row.get("notes")
+    new_notes = (
+        f"{existing_notes}\nCANCELADO: {data.cancel_reason}"
+        if existing_notes
+        else f"CANCELADO: {data.cancel_reason}"
+    )
+    purchase_repo.cancel_operational_expense_row(db, expense_id, new_notes)
+    db.commit()
+    refreshed = purchase_repo.get_operational_expense_by_id(db, expense_id)
+    return refreshed or expense_row
+
+
+def update_purchase_order(
+    db: Session, po_id: int, data: PurchaseOrderUpdate, current_user
+) -> PurchaseOrder:
+    _require_roles(current_user, ["DIRECTOR", "MANAGER", "ADMIN"])
+    po = purchase_repo.get_purchase_order_by_id(db, po_id)
+    if not po:
+        raise HTTPException(status_code=404, detail="Orden de compra no encontrada.")
+    if po.status == "CANCELADA" or "RECIBIDA_TOTAL" in po.status:
+        raise HTTPException(
+            status_code=422,
+            detail="Purchase order cannot be edited in its current status",
+        )
+    if po.status == "AUTORIZADA":
+        po.status = "DRAFT"
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(po, field, value)
+    db.add(po)
+    db.commit()
+    db.refresh(po)
+    return po
+
+
+def update_po_item(
+    db: Session, po_id: int, item_id: int, data: PurchaseOrderItemUpdate, current_user
+) -> PurchaseOrderItem:
+    _require_roles(current_user, ["DIRECTOR", "MANAGER", "ADMIN"])
+    po = purchase_repo.get_purchase_order_by_id(db, po_id)
+    if not po:
+        raise HTTPException(status_code=404, detail="Orden de compra no encontrada.")
+    item = purchase_repo.get_po_item_by_id(db, item_id)
+    if not item or item.purchase_order_id != po_id:
+        raise HTTPException(status_code=404, detail="Partida no encontrada en esta orden.")
+    if item.is_cancelled:
+        raise HTTPException(status_code=422, detail="Cannot edit a cancelled item")
+    incoming = data.model_dump(exclude_unset=True)
+    new_qty = incoming.get("quantity_ordered")
+    if new_qty is not None and new_qty < (item.quantity_received or 0):
+        raise HTTPException(
+            status_code=422,
+            detail="Cannot reduce quantity below already received amount",
+        )
+    if po.status == "AUTORIZADA":
+        po.status = "DRAFT"
+        db.add(po)
+    for field, value in incoming.items():
+        setattr(item, field, value)
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+def cancel_po_item(
+    db: Session, po_id: int, item_id: int, data: PurchaseOrderItemCancel, current_user
+) -> PurchaseOrderItem:
+    _require_roles(current_user, ["DIRECTOR", "MANAGER", "ADMIN"])
+    po = purchase_repo.get_purchase_order_by_id(db, po_id)
+    if not po:
+        raise HTTPException(status_code=404, detail="Orden de compra no encontrada.")
+    item = purchase_repo.get_po_item_by_id(db, item_id)
+    if not item or item.purchase_order_id != po_id:
+        raise HTTPException(status_code=404, detail="Partida no encontrada en esta orden.")
+    if (item.quantity_received or 0) > 0:
+        raise HTTPException(
+            status_code=422,
+            detail="Cannot cancel an item that has already been received",
+        )
+    item.is_cancelled = True
+    item.cancel_reason = data.cancel_reason
+    db.add(item)
+    db.flush()
+    all_items = purchase_repo.get_po_items(db, po_id)
+    if all(it.is_cancelled for it in all_items):
+        po.status = "CANCELADA"
+        db.add(po)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+def update_purchase_invoice(
+    db: Session, invoice_id: int, data: PurchaseInvoiceUpdate, current_user
+) -> PurchaseInvoice:
+    _require_roles(current_user, ["DIRECTOR", "MANAGER", "ADMIN"])
+    invoice = purchase_repo.get_purchase_invoice_by_id(db, invoice_id)
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Factura no encontrada.")
+    updates = data.model_dump(exclude_unset=True)
+    pagos_aplicados = invoice.total_amount - invoice.outstanding_balance
+    if pagos_aplicados >= invoice.total_amount:
+        forbidden = set(updates.keys()) - {"due_date"}
+        if forbidden:
+            raise HTTPException(
+                status_code=422,
+                detail="This invoice is fully paid. Only due_date can be edited.",
+            )
+    elif pagos_aplicados > 0:
+        if "total_amount" in updates:
+            raise HTTPException(
+                status_code=422,
+                detail="This invoice has partial payments. Amount cannot be edited.",
+            )
+    else:
+        if "total_amount" in updates:
+            invoice.outstanding_balance = updates["total_amount"]
+    for field, value in updates.items():
+        setattr(invoice, field, value)
+    db.add(invoice)
+    db.commit()
+    db.refresh(invoice)
+    return invoice
