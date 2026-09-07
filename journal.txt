@@ -2445,3 +2445,34 @@ Requiere diseño cuidadoso antes de tocar código.
 ### Siguiente: Fase 3 — React Query o Fase 2 frontend
 El backend de Fase 2 está completo. El frontend aún usa /sales/orders para cotizaciones históricas.
 Decisión pendiente: ¿construir el frontend de cotizaciones ahora o avanzar a Fase 3?
+
+
+---
+## SESIÓN 2026-09-07 — FASE 2 END-TO-END COMPLETADA
+
+### Completado:
+**Frontend de Cotizaciones (commit 786df53)**
+- quotation-service.ts — servicio completo contra /api/v1/quotations/
+- QuotationsDashboardPage — lista con filtros, búsqueda, acciones por status
+- CreateQuotationPage — crear/editar en DRAFT, partidas catálogo y manual
+- QuotationDetailPage — detalle con panel de acciones según status
+- Rutas: /quotations, /quotations/new, /quotations/:id, /quotations/edit/:id
+- Sidebar: enlace Cotizaciones para DIRECTOR, MANAGER, SALES
+
+**Trazabilidad de rechazo (migración w9x0y1z2a3b4)**
+- reject_reason, rejected_by_user_id, rejected_at en modelo Quotation
+- Schema QuotationReject con motivo obligatorio
+- Service persiste trazabilidad completa al rechazar
+
+**CLAUDE.md actualizado:**
+- Principio: Todo lo que se crea tiene CRUD completo
+
+### FASE 2 COMPLETADA — Resumen:
+Cotización y OV son entidades completamente separadas.
+Los vendedores pueden crear cotizaciones en /quotations con ciclo de vida propio.
+Al aceptar una cotización se convierte en OV correctamente.
+4 caminos cubiertos en cotización y en partidas.
+
+### Siguiente: FASE 3 — React Query
+Eliminar bugs de stale data con @tanstack/react-query.
+Prioridad: OrderStatementModal, ReceivablesModule, PurchaseOrdersModule.
