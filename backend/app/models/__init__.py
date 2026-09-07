@@ -7,7 +7,11 @@ from .users import User, UserCreate, UserUpdate, UserPublic
 from .design import ProductMaster, ProductVersion, VersionComponent, VersionStatus
 
 # Módulo de Ventas (COTIZADOR / ÓRDENES)
-from .sales import SalesOrder, SalesOrderItem, SalesOrderStatus, SalesOrderItemInstance, CustomerPayment, PaymentMethod, InstanceStatus, SalesCommission, CommissionType
+from .sales import (
+    SalesOrder, SalesOrderItem, SalesOrderStatus, SalesOrderItemInstance, CustomerPayment,
+    PaymentMethod, InstanceStatus, SalesCommission, CommissionType,
+    Quotation, QuotationItem, QuotationStatus,
+)
 
 # Módulo de Inventario (OPERACIONES / ALMACÉN / COMPRAS)
 from .inventory import InventoryReception, InventoryTransaction, InventoryReservation, PurchaseRequisition, PurchaseOrder, PurchaseOrderItem
@@ -61,6 +65,9 @@ __all__ = [
     "InstanceStatus",
     "SalesCommission",
     "CommissionType",
+    "Quotation",
+    "QuotationItem",
+    "QuotationStatus",
 
     # Inventario y Compras
     "InventoryReception",

@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 # 1. IMPORTAMOS ANALYTICS, EL NUEVO MÓDULO 'USERS' Y 'PRODUCTION' (V3.5)
-from app.api.v1.endpoints import foundations, auth, users, design, sales, inventory, login, treasury, analytics, production, purchases, logistics, reports
+from app.api.v1.endpoints import foundations, auth, users, design, sales, inventory, login, treasury, analytics, production, purchases, logistics, reports, quotations
 from app.api.v1.endpoints import finance
 from app.api.v1.endpoints import planning
 from app.api.v1.endpoints import petty_cash
@@ -19,6 +19,7 @@ api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(foundations.router, prefix="/foundations", tags=["foundations"])
 api_router.include_router(design.router, prefix="/design", tags=["design"])
 api_router.include_router(sales.router, prefix="/sales", tags=["sales"])
+api_router.include_router(quotations.router, prefix="/quotations", tags=["quotations"])
 api_router.include_router(inventory.router, prefix="/inventory", tags=["inventory"])
 
 # --- PRODUCCIÓN V3.5 (El Candado RTM y Lotes) ---

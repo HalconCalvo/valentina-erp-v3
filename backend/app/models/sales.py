@@ -62,6 +62,15 @@ class InstanceStatus(str, enum.Enum):
     CLOSED = "CLOSED"               # 🟢🟢 Doble Verde: Firma de conformidad capturada
     WARRANTY = "WARRANTY"           # ⚠️ Garantía: Instancia cerrada reabierta para reparación
 
+
+class QuotationStatus(str, enum.Enum):
+    DRAFT = "DRAFT"
+    SENT = "SENT"
+    ACCEPTED = "ACCEPTED"
+    REJECTED = "REJECTED"
+    EXPIRED = "EXPIRED"
+    CANCELLED = "CANCELLED"
+
 # ==========================================
 # 2. MODELO DE COMISIONES (REGISTRO DETALLADO)
 # ==========================================
@@ -207,6 +216,88 @@ class SalesOrderItemInstance(SQLModel, table=True):
     item: Optional["SalesOrderItem"] = Relationship(back_populates="instances")
 
 # ==========================================
+# 3b. COTIZACIÓN (Entidad separada de OV)
+# ==========================================
+class QuotationItem(SQLModel, table=True):
+    __tablename__ = "quotation_items"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    quotation_id: int = Field(foreign_key="quotations.id")
+
+    product_name: str
+    origin_version_id: Optional[int] = Field(default=None)
+    quantity: float
+    unit_price: float
+    subtotal_price: float = Field(default=0.0)
+
+    cost_snapshot: Dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    frozen_unit_cost: float = Field(default=0.0)
+    is_resale: bool = Field(default=False)
+    resale_sku: Optional[str] = Field(default=None)
+    commercial_description: Optional[str] = Field(default=None)
+    is_cancelled: bool = Field(default=False)
+
+    quotation: Optional["Quotation"] = Relationship(back_populates="items")
+
+
+class Quotation(SQLModel, table=True):
+    __tablename__ = "quotations"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    client_id: int = Field(foreign_key="clients_v2.id")
+    tax_rate_id: int = Field(foreign_key="tax_rates.id")
+    user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+
+    client: Optional["Client"] = Relationship()
+    user: Optional["User"] = Relationship()
+
+    project_name: str = Field(index=True)
+    status: QuotationStatus = Field(default=QuotationStatus.DRAFT)
+
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    valid_until: datetime
+    delivery_date: Optional[datetime] = None
+
+    applied_margin_percent: float = Field(default=0.0)
+    applied_tolerance_percent: float = Field(default=0.0)
+    applied_commission_percent: float = Field(default=0.0)
+    commission_amount: float = Field(default=0.0)
+
+    advance_percent: float = Field(default=60.0)
+    has_advance_invoice: bool = Field(default=False)
+    advance_invoice_amount: Optional[float] = Field(default=None)
+    currency: str = Field(default="MXN")
+
+    exchange_rate: Optional[float] = Field(default=1.0)
+    estimated_installation_cost: Optional[float] = Field(default=0.0)
+    estimated_manufacturing_cost: Optional[float] = Field(default=0.0)
+
+    subtotal: float = Field(default=0.0)
+    tax_amount: float = Field(default=0.0)
+    total_price: float = Field(default=0.0)
+
+    notes: Optional[str] = None
+    conditions: Optional[str] = None
+    external_invoice_ref: Optional[str] = None
+    is_warranty: bool = Field(default=False)
+
+    sent_at: Optional[datetime] = Field(default=None)
+    accepted_at: Optional[datetime] = Field(default=None)
+    rejected_at: Optional[datetime] = Field(default=None)
+    expired_at: Optional[datetime] = Field(default=None)
+    cancelled_at: Optional[datetime] = Field(default=None)
+    cancel_reason: Optional[str] = Field(default=None)
+    cancelled_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+
+    sales_order_id: Optional[int] = Field(default=None, foreign_key="sales_orders.id")
+
+    items: List[QuotationItem] = Relationship(
+        back_populates="quotation",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+
+# ==========================================
 # 4. MODELO DE PARTIDAS (NIVEL 2 - LA RECETA)
 # ==========================================
 class SalesOrderItem(SQLModel, table=True):
@@ -246,7 +337,9 @@ class SalesOrder(SQLModel, table=True):
     __tablename__ = "sales_orders"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    
+
+    quotation_id: Optional[int] = Field(default=None, foreign_key="quotations.id")
+
     client_id: int = Field(foreign_key="clients_v2.id")
     tax_rate_id: int = Field(foreign_key="tax_rates.id")
     user_id: Optional[int] = Field(default=None, foreign_key="users.id") 
