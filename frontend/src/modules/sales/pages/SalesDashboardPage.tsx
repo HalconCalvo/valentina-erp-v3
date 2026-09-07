@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { 
     Target, FileText, Coins, Users, Search,
     ArrowLeft, Plus, TrendingUp, Wallet, Clock, 
@@ -11,8 +12,10 @@ import {
 
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
 import Badge from '@/components/ui/Badge';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
 
 import { salesService } from '../../../api/sales-service';
@@ -25,7 +28,9 @@ import { FinancialReviewModal } from '../../management/components/FinancialRevie
 import BaptismModal from '../components/BaptismModal';
 import { AccountsReceivableAgingPanel } from '../../finance/components/AccountsReceivableAgingPanel';
 import { OrderStatementModal } from '../../finance/components/OrderStatementModal';
-import { aggregateCarteraMonitorTotals, loadSalesOrdersWithAdministrationAgingCxc } from '../utils/receivableCxcOrders';
+import { aggregateCarteraMonitorTotals } from '../utils/receivableCxcOrders';
+import { useCurrentUser } from '../../../hooks/useSalesDashboard';
+import { useSalesOrders, receivablesQueryKeys } from '../../../hooks/useReceivables';
 
 type SalesSection = 'GOALS' | 'QUOTES' | 'COLLECTIONS' | 'MONITOR' | null;
 type GoalDetailView = 'COMMISSIONS' | 'CLOSED' | 'STREET' | 'EFFECTIVENESS' | null;
@@ -102,16 +107,15 @@ const ClientOcCaptureModal: React.FC<{
     onConfirm: (orderId: number, folio: string, dateStrYmd: string) => Promise<void>;
     isSubmitting: boolean;
 }> = ({ orderId, onCancel, onConfirm, isSubmitting }) => {
-    const folioRef = useRef<HTMLInputElement>(null);
-    const dateRef = useRef<HTMLInputElement>(null);
+    const [folio, setFolio] = useState('');
+    const [dateStr, setDateStr] = useState(() => new Date().toISOString().slice(0, 10));
 
     const handleSubmit = async () => {
-        const trimmed = folioRef.current?.value?.trim() ?? '';
+        const trimmed = folio.trim();
         if (!trimmed) {
             toast.warning('Ingresa el folio de la OC del cliente.');
             return;
         }
-        const dateStr = dateRef.current?.value ?? '';
         if (!dateStr) {
             toast.warning('Selecciona la fecha de la OC del cliente.');
             return;
@@ -129,10 +133,10 @@ const ClientOcCaptureModal: React.FC<{
                 <div className="space-y-4">
                     <div>
                         <label className="text-xs font-bold text-slate-500 uppercase">Folio de la OC</label>
-                        <input
-                            ref={folioRef}
-                            className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                            defaultValue=""
+                        <Input
+                            className="mt-1"
+                            value={folio}
+                            onChange={(e) => setFolio(e.target.value)}
                             placeholder="Ej. OC-2026-0042"
                             autoFocus
                             disabled={isSubmitting}
@@ -140,11 +144,11 @@ const ClientOcCaptureModal: React.FC<{
                     </div>
                     <div>
                         <label className="text-xs font-bold text-slate-500 uppercase">Fecha de la OC</label>
-                        <input
-                            ref={dateRef}
+                        <Input
+                            className="mt-1"
                             type="date"
-                            className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                            defaultValue={new Date().toISOString().slice(0, 10)}
+                            value={dateStr}
+                            onChange={(e) => setDateStr(e.target.value)}
                             disabled={isSubmitting}
                         />
                     </div>
@@ -176,13 +180,13 @@ const ClientOcCaptureModal: React.FC<{
 const SalesDashboardPage: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
+    const queryClient = useQueryClient();
 
     // Only DIRECTOR / MANAGER can open the Financial Audit modal and see margins/costs
     const userRole  = (localStorage.getItem('user_role') || '').toUpperCase().trim();
     const canAudit  = ['DIRECTOR', 'MANAGER', 'ADMIN', 'ADMINISTRADOR'].includes(userRole);
 
-    const [orders, setOrders] = useState<SalesOrder[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const [actionLoading, setActionLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
 
     // ESTADOS PARA ORDENAMIENTO DE COLUMNAS (AÑADIDOS DATE Y FOLIO)
@@ -242,19 +246,25 @@ const SalesDashboardPage: React.FC = () => {
     const [ocModalOrderId, setOcModalOrderId] = useState<number | null>(null);
     const [pendingConfirm, setPendingConfirm] = useState<SalesPendingConfirm | null>(null);
 
-    useEffect(() => {
-        client.get('/users/me')
-            .then((res) => {
-                const u = res.data;
-                const q = u.monthly_quota ?? u.monthly_sales_target;
-                setMonthlyQuota(typeof q === 'number' ? q : parseFloat(q) || 0);
-            })
-            .catch(() => setMonthlyQuota(0));
-    }, []);
+    const { data: currentUser } = useCurrentUser();
+    const {
+        data: orders = [],
+        isError: ordersError,
+        refetch: refetchOrders,
+    } = useSalesOrders({ pausePolling: ocModalOpen });
 
     useEffect(() => {
-        loadData();
-    }, []);
+        if (!currentUser) {
+            setMonthlyQuota(0);
+            return;
+        }
+        const q = currentUser.monthly_quota ?? currentUser.monthly_sales_target;
+        setMonthlyQuota(typeof q === 'number' ? q : parseFloat(String(q)) || 0);
+    }, [currentUser]);
+
+    useEffect(() => {
+        if (ordersError) toast.error('Error al cargar cotizaciones.');
+    }, [ordersError]);
 
     useEffect(() => {
         if (location.state?.reset) {
@@ -270,25 +280,18 @@ const SalesDashboardPage: React.FC = () => {
         }
     }, [location.state]);
 
-    useEffect(() => {
-        if (ocModalOpen) return;
-        const interval = setInterval(() => {
-            loadData(true);
-        }, 15000);
-        return () => clearInterval(interval);
-    }, [ocModalOpen]);
-
-    const loadData = async (silent = false) => {
-        if (!silent) setIsLoading(true);
-        try {
-            const uniqueOrders = await loadSalesOrdersWithAdministrationAgingCxc();
-            setOrders(uniqueOrders as SalesOrder[]);
-        } catch {
-            toast.error('Error al cargar cotizaciones.');
-        } finally {
-            if (!silent) setIsLoading(false);
-        }
-    };
+    const patchOrderInCache = useCallback((orderId: number, patch: SalesOrder | Partial<SalesOrder>) => {
+        queryClient.setQueryData<SalesOrder[]>(receivablesQueryKeys.salesOrders(), (prev) => {
+            if (!prev) return prev;
+            const index = prev.findIndex((o) => o.id === orderId);
+            if (index === -1) return prev;
+            const next = [...prev];
+            next[index] = typeof patch === 'object' && patch !== null && 'id' in patch
+                ? (patch as SalesOrder)
+                : { ...next[index], ...patch };
+            return next;
+        });
+    }, [queryClient]);
 
     const calculateMetrics = useCallback((allOrders: SalesOrder[]) => {
         let closedSalesMonth = 0;
@@ -384,7 +387,7 @@ const SalesDashboardPage: React.FC = () => {
     }, [orders, calculateMetrics]);
 
     const executeRequestAuth = async (orderId: number) => {
-        setIsLoading(true);
+        setActionLoading(true);
         try {
             const token = localStorage.getItem('token');
             const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
@@ -393,13 +396,11 @@ const SalesDashboardPage: React.FC = () => {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (!response.ok) throw new Error('Error al solicitar autorización');
-            setOrders(prev => prev.map(o =>
-                o.id === orderId ? { ...o, status: 'SENT' as any } : o
-            ));
-            await loadData();
+            patchOrderInCache(orderId, { status: 'SENT' as SalesOrder['status'] });
+            await refetchOrders();
         } catch {
             toast.error('Hubo un problema al enviar la cotización a revisión.');
-            setIsLoading(false);
+            setActionLoading(false);
         }
     };
 
@@ -413,23 +414,23 @@ const SalesDashboardPage: React.FC = () => {
     };
 
     const executeAdvanceRequest = async (orderId: number, folio: string, dateStrYmd: string) => {
-        setIsLoading(true);
+        setActionLoading(true);
         try {
             const client_po_date = `${dateStrYmd}T12:00:00`;
             await salesService.requestAdvance(orderId, { client_po_folio: folio, client_po_date });
             setOcModalOpen(false);
             setOcModalOrderId(null);
             toast.success("SEMÁFORO VERDE: Los costos son estables. La orden ha pasado a 'Esperando Anticipo'.");
-            await loadData();
+            await refetchOrders();
         } catch (error: any) {
             if (error.response?.status === 409) {
                 toast.error(error.response?.data?.detail || 'Alerta financiera: variación de costos superior al umbral.');
-                await loadData();
+                await refetchOrders();
             } else {
                 toast.error(error.response?.data?.detail || 'Error al procesar la orden de venta.');
             }
         } finally {
-            setIsLoading(false);
+            setActionLoading(false);
         }
     };
 
@@ -464,7 +465,7 @@ const SalesDashboardPage: React.FC = () => {
             toast.warning('Tu navegador bloqueó la ventana emergente. Por favor permite las ventanas emergentes para este sitio en la barra de direcciones.');
             return;
         }
-        setIsLoading(true);
+        setActionLoading(true);
         try {
             const response = await client.get(`/sales/orders/${orderId}/pdf`, { responseType: 'blob' });
             const fileURL = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
@@ -473,19 +474,19 @@ const SalesDashboardPage: React.FC = () => {
             pdfWindow.close(); 
             toast.error(error.response?.data?.detail || 'Error al cargar el PDF. Revisa tu conexión o contacta a soporte.');
         } finally {
-            setIsLoading(false);
+            setActionLoading(false);
         }
     };
 
     const executeRequestChanges = async (orderId: number) => {
-        setIsLoading(true);
+        setActionLoading(true);
         try {
             await client.post(`/sales/orders/${orderId}/request_changes`);
             toast.success('Cotización desbloqueada. Búscala en tus Borradores para editarla.');
-            await loadData();
+            await refetchOrders();
         } catch (error: any) {
             toast.error(error.response?.data?.detail || 'Error al desbloquear la cotización.');
-            setIsLoading(false);
+            setActionLoading(false);
         }
     };
 
@@ -494,13 +495,13 @@ const SalesDashboardPage: React.FC = () => {
     };
 
     const executeMarkLost = async (orderId: number) => {
-        setIsLoading(true);
+        setActionLoading(true);
         try {
             await client.post(`/sales/orders/${orderId}/mark_lost`);
-            await loadData();
+            await refetchOrders();
         } catch (error: any) {
             toast.error(error.response?.data?.detail || 'Error al marcar la cotización como perdida.');
-            setIsLoading(false);
+            setActionLoading(false);
         }
     };
 
@@ -509,13 +510,13 @@ const SalesDashboardPage: React.FC = () => {
     };
 
     const executeDeleteDraft = async (orderId: number) => {
-        setIsLoading(true);
+        setActionLoading(true);
         try {
             await client.delete(`/sales/orders/${orderId}`);
-            await loadData();
+            await refetchOrders();
         } catch (error: any) {
             toast.error(error.response?.data?.detail || 'Error al eliminar el borrador.');
-            setIsLoading(false);
+            setActionLoading(false);
         }
     };
 
@@ -659,72 +660,121 @@ const SalesDashboardPage: React.FC = () => {
 
         if (filteredOrders.length === 0) return <div className="text-center py-12 text-slate-500 bg-white rounded-xl border border-slate-200 mt-4 shadow-sm">{emptyMessage}</div>;
 
+        const goalColumns: VTableColumn<Record<string, unknown>>[] = [
+            {
+                key: 'client',
+                label: 'Cliente',
+                render: (row) => (
+                    <span className="font-medium text-slate-600">{getClientName(row as SalesOrder)}</span>
+                ),
+            },
+            {
+                key: 'folio',
+                label: 'Folio / Proyecto',
+                render: (row) => {
+                    const order = row as SalesOrder;
+                    return (
+                        <span className="font-bold text-slate-800">
+                            {getDocumentPrefix(order.status)}-{order.id?.toString().padStart(4, '0')} - {order.project_name}
+                        </span>
+                    );
+                },
+            },
+            {
+                key: 'status',
+                label: 'Estatus',
+                render: (row) => (
+                    <Badge variant="outline" className="bg-white">{getStatusLabel((row as SalesOrder).status)}</Badge>
+                ),
+            },
+        ];
+
+        if (activeGoalView === 'CLOSED') {
+            goalColumns.push(
+                {
+                    key: 'client_po_folio',
+                    label: 'Folio OC',
+                    render: (row) => (
+                        <span className="font-mono text-slate-700">{(row as any).client_po_folio || '—'}</span>
+                    ),
+                },
+                {
+                    key: 'client_po_date',
+                    label: 'Fecha OC',
+                    render: (row) => (
+                        <span className="text-slate-600">
+                            {(row as any).client_po_date
+                                ? new Date((row as any).client_po_date).toLocaleDateString('es-MX')
+                                : '—'}
+                        </span>
+                    ),
+                },
+            );
+        }
+
+        goalColumns.push({
+            key: 'total_price',
+            label: 'Monto de Venta',
+            render: (row) => (
+                <span className="block text-right font-bold text-slate-700">
+                    {formatCurrency((row as SalesOrder).total_price || 0)}
+                </span>
+            ),
+        });
+
+        if (['COMMISSIONS', 'CLOSED', 'STREET'].includes(activeGoalView || '')) {
+            goalColumns.push({
+                key: 'commission_amount',
+                label: 'Tu Comisión',
+                render: (row) => (
+                    <span className="block text-right font-black text-emerald-600">
+                        {formatCurrency((row as SalesOrder).commission_amount || 0)}
+                    </span>
+                ),
+            });
+        }
+
+        if (activeGoalView === 'EFFECTIVENESS') {
+            goalColumns.push({
+                key: 'result',
+                label: 'Resultado',
+                render: (row) => {
+                    const order = row as SalesOrder;
+                    return (
+                        <div className="text-center">
+                            {statusInList(order.status, STATUSES_CLOSED_SALE) ? (
+                                <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200"><CheckCircle size={12} className="mr-1"/> Ganada</Badge>
+                            ) : (
+                                <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200"><XCircle size={12} className="mr-1"/> Perdida</Badge>
+                            )}
+                        </div>
+                    );
+                },
+            });
+        }
+
+        goalColumns.push({
+            key: 'actions',
+            label: 'Acción',
+            render: (row) => {
+                const order = row as SalesOrder;
+                return (
+                    <div className="flex justify-center items-center gap-2">
+                        <Button variant="outline" size="sm" className="text-xs px-3" onClick={() => setViewingOrderIdForFormat(order.id!)}>Ver Formato</Button>
+                        <Button variant="outline" size="sm" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 px-2" onClick={() => handleViewPDF(order.id!)} title="Descargar PDF">
+                            <FileDown size={14} />
+                        </Button>
+                    </div>
+                );
+            },
+        });
+
         return (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mt-6 animate-in slide-in-from-right-4 duration-300">
-                <table className="w-full text-left text-sm">
-                    <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
-                        <tr>
-                            <th className="px-6 py-4 font-bold">Cliente</th>
-                            <th className="px-6 py-4 font-bold">Folio / Proyecto</th>
-                            <th className="px-6 py-4 font-bold">Estatus</th>
-                            {activeGoalView === 'CLOSED' && (
-                                <>
-                                    <th className="px-6 py-4 font-bold">Folio OC</th>
-                                    <th className="px-6 py-4 font-bold">Fecha OC</th>
-                                </>
-                            )}
-                            <th className="px-6 py-4 font-bold text-right">Monto de Venta</th>
-                            {['COMMISSIONS', 'CLOSED', 'STREET'].includes(activeGoalView || '') && (
-                                <th className="px-6 py-4 font-bold text-right text-emerald-600">Tu Comisión</th>
-                            )}
-                            {activeGoalView === 'EFFECTIVENESS' && <th className="px-6 py-4 font-bold text-center">Resultado</th>}
-                            <th className="px-6 py-4 font-bold text-center">Acción</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {filteredOrders.map(order => (
-                            <tr key={order.id} className="hover:bg-slate-50 transition-colors">
-                                <td className="px-6 py-4 font-medium text-slate-600">{getClientName(order)}</td>
-                                <td className="px-6 py-4 font-bold text-slate-800">{getDocumentPrefix(order.status)}-{order.id?.toString().padStart(4,'0')} - {order.project_name}</td>
-                                <td className="px-6 py-4"><Badge variant="outline" className="bg-white">{getStatusLabel(order.status)}</Badge></td>
-                                {activeGoalView === 'CLOSED' && (
-                                    <>
-                                        <td className="px-6 py-4 font-mono text-slate-700">{(order as any).client_po_folio || '—'}</td>
-                                        <td className="px-6 py-4 text-slate-600">
-                                            {(order as any).client_po_date
-                                                ? new Date((order as any).client_po_date).toLocaleDateString('es-MX')
-                                                : '—'}
-                                        </td>
-                                    </>
-                                )}
-                                <td className="px-6 py-4 text-right font-bold text-slate-700">{formatCurrency(order.total_price || 0)}</td>
-                                
-                                {['COMMISSIONS', 'CLOSED', 'STREET'].includes(activeGoalView || '') && (
-                                    <td className="px-6 py-4 text-right font-black text-emerald-600">
-                                        {formatCurrency(order.commission_amount || 0)}
-                                    </td>
-                                )}
-                                
-                                {activeGoalView === 'EFFECTIVENESS' && (
-                                    <td className="px-6 py-4 text-center">
-                                        {statusInList(order.status, STATUSES_CLOSED_SALE) ? (
-                                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200"><CheckCircle size={12} className="mr-1"/> Ganada</Badge>
-                                        ) : (
-                                            <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200"><XCircle size={12} className="mr-1"/> Perdida</Badge>
-                                        )}
-                                    </td>
-                                )}
-                                <td className="px-6 py-4 flex justify-center items-center gap-2">
-                                    <Button variant="outline" size="sm" className="text-xs px-3" onClick={() => setViewingOrderIdForFormat(order.id!)}>Ver Formato</Button>
-                                    <Button variant="outline" size="sm" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 px-2" onClick={() => handleViewPDF(order.id!)} title="Descargar PDF">
-                                        <FileDown size={14} />
-                                    </Button>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+            <VTable
+                className="mt-6 animate-in slide-in-from-right-4 duration-300 shadow-sm"
+                columns={goalColumns}
+                data={filteredOrders as unknown as Record<string, unknown>[]}
+            />
         );
     };
 
@@ -745,50 +795,87 @@ const SalesDashboardPage: React.FC = () => {
 
         if (filteredOrders.length === 0) return <div className="text-center py-12 text-slate-500 bg-white rounded-xl border border-slate-200 mt-4 shadow-sm">{emptyMessage}</div>;
 
-        return (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mt-6 animate-in slide-in-from-right-4 duration-300">
-                <table className="w-full text-left text-sm">
-                    <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
-                        <tr>
-                            <th className="px-6 py-4 font-bold">Cliente</th>
-                            <th className="px-6 py-4 font-bold">Folio / Proyecto</th>
-                            <th className="px-6 py-4 font-bold">Estatus</th>
-                            <th className="px-6 py-4 font-bold text-right">Monto Total</th>
-                            <th className="px-6 py-4 font-bold text-right text-indigo-600">
-                                {['RETAINED', 'PAYABLE'].includes(activeCollectionView || '') ? 'Tu Comisión' : 'Anticipo Requerido'}
-                            </th>
-                            <th className="px-6 py-4 font-bold text-center">Acción</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {filteredOrders.map(order => {
-                            const total = Number(order.total_price) || 0;
-                            const comm = Number(order.commission_amount) || 0;
-                            const advPerc = (order.advance_percent || 60) / 100;
-                            
-                            let highlightValue = 0;
-                            if (activeCollectionView === 'RETAINED' || activeCollectionView === 'PAYABLE') highlightValue = comm;
-                            if (activeCollectionView === 'ADVANCES') highlightValue = total * advPerc;
+        const highlightLabel = ['RETAINED', 'PAYABLE'].includes(activeCollectionView || '')
+            ? 'Tu Comisión'
+            : 'Anticipo Requerido';
 
-                            return (
-                                <tr key={order.id} className="hover:bg-slate-50 transition-colors">
-                                    <td className="px-6 py-4 font-medium text-slate-600">{getClientName(order)}</td>
-                                    <td className="px-6 py-4 font-bold text-slate-800">{getDocumentPrefix(order.status)}-{order.id?.toString().padStart(4,'0')} - {order.project_name}</td>
-                                    <td className="px-6 py-4"><Badge variant="outline" className="bg-white">{getStatusLabel(order.status)}</Badge></td>
-                                    <td className="px-6 py-4 text-right text-slate-500">{formatCurrency(total)}</td>
-                                    <td className="px-6 py-4 text-right font-black text-indigo-600">{formatCurrency(highlightValue)}</td>
-                                    <td className="px-6 py-4 flex justify-center items-center gap-2">
-                                        <Button variant="outline" size="sm" className="text-xs px-3" onClick={() => setViewingOrderIdForFormat(order.id!)}>Ver Formato</Button>
-                                        <Button variant="outline" size="sm" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 px-2" onClick={() => handleViewPDF(order.id!)} title="Descargar PDF">
-                                            <FileDown size={14} />
-                                        </Button>
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
-            </div>
+        const collectionColumns: VTableColumn<Record<string, unknown>>[] = [
+            {
+                key: 'client',
+                label: 'Cliente',
+                render: (row) => (
+                    <span className="font-medium text-slate-600">{getClientName(row as SalesOrder)}</span>
+                ),
+            },
+            {
+                key: 'folio',
+                label: 'Folio / Proyecto',
+                render: (row) => {
+                    const order = row as SalesOrder;
+                    return (
+                        <span className="font-bold text-slate-800">
+                            {getDocumentPrefix(order.status)}-{order.id?.toString().padStart(4, '0')} - {order.project_name}
+                        </span>
+                    );
+                },
+            },
+            {
+                key: 'status',
+                label: 'Estatus',
+                render: (row) => (
+                    <Badge variant="outline" className="bg-white">{getStatusLabel((row as SalesOrder).status)}</Badge>
+                ),
+            },
+            {
+                key: 'total_price',
+                label: 'Monto Total',
+                render: (row) => (
+                    <span className="block text-right text-slate-500">
+                        {formatCurrency(Number((row as SalesOrder).total_price) || 0)}
+                    </span>
+                ),
+            },
+            {
+                key: 'highlight_value',
+                label: highlightLabel,
+                render: (row) => {
+                    const order = row as SalesOrder;
+                    const total = Number(order.total_price) || 0;
+                    const comm = Number(order.commission_amount) || 0;
+                    const advPerc = (order.advance_percent || 60) / 100;
+                    let highlightValue = 0;
+                    if (activeCollectionView === 'RETAINED' || activeCollectionView === 'PAYABLE') highlightValue = comm;
+                    if (activeCollectionView === 'ADVANCES') highlightValue = total * advPerc;
+                    return (
+                        <span className="block text-right font-black text-indigo-600">
+                            {formatCurrency(highlightValue)}
+                        </span>
+                    );
+                },
+            },
+            {
+                key: 'actions',
+                label: 'Acción',
+                render: (row) => {
+                    const order = row as SalesOrder;
+                    return (
+                        <div className="flex justify-center items-center gap-2">
+                            <Button variant="outline" size="sm" className="text-xs px-3" onClick={() => setViewingOrderIdForFormat(order.id!)}>Ver Formato</Button>
+                            <Button variant="outline" size="sm" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 px-2" onClick={() => handleViewPDF(order.id!)} title="Descargar PDF">
+                                <FileDown size={14} />
+                            </Button>
+                        </div>
+                    );
+                },
+            },
+        ];
+
+        return (
+            <VTable
+                className="mt-6 animate-in slide-in-from-right-4 duration-300 shadow-sm"
+                columns={collectionColumns}
+                data={filteredOrders as unknown as Record<string, unknown>[]}
+            />
         );
     };
     
@@ -870,137 +957,179 @@ const SalesDashboardPage: React.FC = () => {
 
         if (filteredOrders.length === 0) return <div className="text-center py-12 text-slate-500 bg-white rounded-xl border border-slate-200 mt-4 shadow-sm">{emptyMessage}</div>;
 
-        return (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mt-6 animate-in slide-in-from-right-4 duration-300">
-                <table className="w-full text-left text-sm">
-                    <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
-                        <tr>
-                            <th className="px-6 py-4 font-bold cursor-pointer hover:bg-slate-200 transition-colors select-none" onClick={() => handleQuoteSort('DATE')}>
-                                Fecha {renderSortIcon('DATE')}
-                            </th>
-                            <th className="px-6 py-4 font-bold cursor-pointer hover:bg-slate-200 transition-colors select-none" onClick={() => handleQuoteSort('FOLIO')}>
-                                Folio / Proyecto {renderSortIcon('FOLIO')}
-                            </th>
-                            <th className="px-6 py-4 font-bold cursor-pointer hover:bg-slate-200 transition-colors select-none" onClick={() => handleQuoteSort('CLIENT')}>
-                                Cliente {renderSortIcon('CLIENT')}
-                            </th>
-                            {activeQuoteView === 'HISTORY' && (
-                                <th className="px-6 py-4 font-bold cursor-pointer hover:bg-slate-200 transition-colors select-none" onClick={() => handleQuoteSort('SELLER')}>
-                                    Vendedor {renderSortIcon('SELLER')}
-                                </th>
-                            )}
-                            <th className="px-6 py-4 font-bold cursor-pointer hover:bg-slate-200 transition-colors select-none" onClick={() => handleQuoteSort('STATUS')}>
-                                Estatus {renderSortIcon('STATUS')}
-                            </th>
-                            <th className="px-6 py-4 font-bold text-right">Monto de Venta</th>
-                            <th className="px-6 py-4 font-bold text-center">Acción</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {filteredOrders.map(order => {
-                            return (
-                                <tr key={order.id} className="hover:bg-slate-50 transition-colors">
-                                    <td className="px-6 py-4">
-                                        <span className="text-slate-600 font-medium whitespace-nowrap">
-                                            {(order as any).created_at ? new Date((order as any).created_at).toLocaleDateString('es-MX') : 'S/F'}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <p className="font-bold text-slate-800 whitespace-nowrap">{getDocumentPrefix(order.status)}-{order.id?.toString().padStart(4,'0')}</p>
-                                        <p className="text-xs text-slate-500 font-medium">{order.project_name}</p>
-                                    </td>
-                                    <td className="px-6 py-4 font-medium text-slate-600">{getClientName(order)}</td>
-                                    
-                                    {activeQuoteView === 'HISTORY' && (
-                                        <td className="px-6 py-4 text-xs font-bold text-indigo-600 bg-indigo-50/50 whitespace-nowrap">
-                                            {getSellerName(order)}
-                                        </td>
-                                    )}
+        const renderQuoteRowActions = (order: SalesOrder) => (
+            <>
+                {activeQuoteView === 'HISTORY' ? (
+                    <>
+                        {canAudit && (
+                            <Button variant="outline" size="sm" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 px-3 shadow-sm flex items-center gap-1" onClick={() => setViewingOrderIdForAudit(order.id!)}>
+                                <Eye size={14} /> Auditar
+                            </Button>
+                        )}
+                        <Button variant="outline" size="sm" className="text-slate-500 border-slate-200 hover:bg-slate-50 px-2" onClick={(e) => { e.preventDefault(); handleViewPDF(order.id!); }} title="Descargar PDF">
+                            <FileDown size={14} />
+                        </Button>
+                    </>
+                ) : ['DRAFT', 'CHANGE_REQUESTED', 'REJECTED'].includes(order.status) ? (
+                    <>
+                        <Button variant="outline" size="sm" className="text-xs px-3" onClick={() => navigate(`/sales/edit/${order.id}`)}>Editar</Button>
+                        <Button variant="outline" size="sm" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 px-2" onClick={(e) => { e.preventDefault(); handleViewPDF(order.id!); }} title="Descargar PDF">
+                            <FileDown size={14} />
+                        </Button>
+                        <Button size="sm" className="bg-amber-500 hover:bg-amber-600 text-white flex items-center gap-1 px-2 shadow-sm" onClick={() => handleRequestAuth(order.id!)}>
+                            <Send size={14} /> Auth.
+                        </Button>
+                        <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50 px-2 shadow-sm" onClick={() => handleDeleteDraft(order.id!)} title="Eliminar Cotización">
+                            <Trash2 size={14} />
+                        </Button>
+                    </>
+                ) : order.status === 'ACCEPTED' ? (
+                    <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200">
+                        <button onClick={() => setViewingOrderIdForFormat(order.id!)} className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-100 rounded transition-colors" title="Revisar Formato">
+                            <FileSearch size={18} />
+                        </button>
+                        <button onClick={(e) => { e.preventDefault(); handleViewPDF(order.id!); }} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-100 rounded transition-colors" title="Descargar PDF">
+                            <FileDown size={18} />
+                        </button>
+                        <button onClick={() => handleRequestChanges(order.id!)} className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-100 rounded transition-colors" title="Desbloquear para Editar (Cliente pide cambios)">
+                            <RefreshCcw size={18} />
+                        </button>
+                        <button onClick={() => handleMarkLost(order.id!)} className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-100 rounded transition-colors" title="Marcar como Perdida (Rechazada)">
+                            <XCircle size={18} />
+                        </button>
+                        <div className="w-px h-5 bg-slate-300 mx-1"></div>
+                        <Button size="sm" className="bg-green-500 hover:bg-green-600 text-white flex items-center gap-1 ml-1 shadow-sm px-2 text-xs" onClick={() => openClientOcModal(order.id!)}>
+                            <CheckCircle size={14} /> Generar OV
+                        </Button>
+                    </div>
+                ) : (
+                    <>
+                        {canAudit && (
+                            <Button variant="outline" size="sm" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 px-3 shadow-sm flex items-center gap-1" onClick={() => setViewingOrderIdForAudit(order.id!)}>
+                                <Eye size={14} /> Auditar
+                            </Button>
+                        )}
+                        <Button variant="outline" size="sm" className="text-slate-500 border-slate-200 hover:bg-slate-50 px-2" onClick={(e) => { e.preventDefault(); handleViewPDF(order.id!); }} title="Descargar PDF">
+                            <FileDown size={14} />
+                        </Button>
+                    </>
+                )}
+            </>
+        );
 
-                                    <td className="px-6 py-4">
-                                        <Badge variant="outline" className={`bg-white whitespace-nowrap ${order.status === 'REJECTED' ? 'text-red-600 border-red-300 bg-red-50' : ''}`}>
-                                            {getStatusLabel(order.status)}
-                                        </Badge>
-                                        {['REJECTED', 'CLIENT_REJECTED'].includes(order.status) && order.notes && (
-                                            <p className="text-[10px] text-red-500 mt-1 max-w-[150px] truncate" title={order.notes}>
-                                                Razón: {order.notes}
-                                            </p>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4 text-right font-bold text-slate-700">{formatCurrency(order.total_price || 0)}</td>
-                                    <td className="px-6 py-4 flex justify-center items-center gap-2">
-                                        
-                                        {/* ACCIONES DEL HISTÓRICO GENERAL (Usa el Modal de Autorización Auditable) */}
-                                        {activeQuoteView === 'HISTORY' ? (
-                                            <>
-                                                {canAudit && (
-                                                    <Button variant="outline" size="sm" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 px-3 shadow-sm flex items-center gap-1" onClick={() => setViewingOrderIdForAudit(order.id!)}>
-                                                        <Eye size={14} /> Auditar
-                                                    </Button>
-                                                )}
-                                                <Button variant="outline" size="sm" className="text-slate-500 border-slate-200 hover:bg-slate-50 px-2" onClick={(e) => { e.preventDefault(); handleViewPDF(order.id!); }} title="Descargar PDF">
-                                                    <FileDown size={14} />
-                                                </Button>
-                                            </>
-                                        ) : 
-                                        
-                                        /* ACCIONES PARA DRAFTS Y RECHAZADOS */
-                                        ['DRAFT', 'CHANGE_REQUESTED', 'REJECTED'].includes(order.status) ? (
-                                            <>
-                                                <Button variant="outline" size="sm" className="text-xs px-3" onClick={() => navigate(`/sales/edit/${order.id}`)}>Editar</Button>
-                                                <Button variant="outline" size="sm" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 px-2" onClick={(e) => { e.preventDefault(); handleViewPDF(order.id!); }} title="Descargar PDF">
-                                                    <FileDown size={14} />
-                                                </Button>
-                                                <Button size="sm" className="bg-amber-500 hover:bg-amber-600 text-white flex items-center gap-1 px-2 shadow-sm" onClick={() => handleRequestAuth(order.id!)}>
-                                                    <Send size={14} /> Auth.
-                                                </Button>
-                                                <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50 px-2 shadow-sm" onClick={() => handleDeleteDraft(order.id!)} title="Eliminar Cotización">
-                                                    <Trash2 size={14} />
-                                                </Button>
-                                            </>
-                                        ) : 
-                                        
-                                        /* ACCIONES PARA AUTORIZADOS Y ESPERANDO ANTICIPO */
-                                        order.status === 'ACCEPTED' ? (
-                                            <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200">
-                                                <button onClick={() => setViewingOrderIdForFormat(order.id!)} className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-100 rounded transition-colors" title="Revisar Formato">
-                                                    <FileSearch size={18} />
-                                                </button>
-                                                <button onClick={(e) => { e.preventDefault(); handleViewPDF(order.id!); }} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-100 rounded transition-colors" title="Descargar PDF">
-                                                    <FileDown size={18} />
-                                                </button>
-                                                <button onClick={() => handleRequestChanges(order.id!)} className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-100 rounded transition-colors" title="Desbloquear para Editar (Cliente pide cambios)">
-                                                    <RefreshCcw size={18} />
-                                                </button>
-                                                <button onClick={() => handleMarkLost(order.id!)} className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-100 rounded transition-colors" title="Marcar como Perdida (Rechazada)">
-                                                    <XCircle size={18} />
-                                                </button>
-                                                <div className="w-px h-5 bg-slate-300 mx-1"></div>
-                                                <Button size="sm" className="bg-green-500 hover:bg-green-600 text-white flex items-center gap-1 ml-1 shadow-sm px-2 text-xs" onClick={() => openClientOcModal(order.id!)}>
-                                                    <CheckCircle size={14} /> Generar OV
-                                                </Button>
-                                            </div>
-                                        ) : 
-                                        
-                                        /* ACCIONES POR DEFECTO (EN BÚSQUEDA LIBRE O REVISIÓN) */
-                                        (
-                                            <>
-                                                {canAudit && (
-                                                    <Button variant="outline" size="sm" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 px-3 shadow-sm flex items-center gap-1" onClick={() => setViewingOrderIdForAudit(order.id!)}>
-                                                        <Eye size={14} /> Auditar
-                                                    </Button>
-                                                )}
-                                                <Button variant="outline" size="sm" className="text-slate-500 border-slate-200 hover:bg-slate-50 px-2" onClick={(e) => { e.preventDefault(); handleViewPDF(order.id!); }} title="Descargar PDF">
-                                                    <FileDown size={14} />
-                                                </Button>
-                                            </>
-                                        )}
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
+        const quoteSortKeys: Array<{ key: 'DATE' | 'FOLIO' | 'CLIENT' | 'SELLER' | 'STATUS'; label: string }> = [
+            { key: 'DATE', label: 'Fecha' },
+            { key: 'FOLIO', label: 'Folio / Proyecto' },
+            { key: 'CLIENT', label: 'Cliente' },
+            ...(activeQuoteView === 'HISTORY' ? [{ key: 'SELLER' as const, label: 'Vendedor' }] : []),
+            { key: 'STATUS', label: 'Estatus' },
+        ];
+
+        const quoteColumns: VTableColumn<Record<string, unknown>>[] = [
+            {
+                key: 'created_at',
+                label: 'Fecha',
+                render: (row) => (
+                    <span className="text-slate-600 font-medium whitespace-nowrap">
+                        {(row as any).created_at ? new Date((row as any).created_at).toLocaleDateString('es-MX') : 'S/F'}
+                    </span>
+                ),
+            },
+            {
+                key: 'folio',
+                label: 'Folio / Proyecto',
+                render: (row) => {
+                    const order = row as SalesOrder;
+                    return (
+                        <>
+                            <p className="font-bold text-slate-800 whitespace-nowrap">{getDocumentPrefix(order.status)}-{order.id?.toString().padStart(4, '0')}</p>
+                            <p className="text-xs text-slate-500 font-medium">{order.project_name}</p>
+                        </>
+                    );
+                },
+            },
+            {
+                key: 'client',
+                label: 'Cliente',
+                render: (row) => (
+                    <span className="font-medium text-slate-600">{getClientName(row as SalesOrder)}</span>
+                ),
+            },
+        ];
+
+        if (activeQuoteView === 'HISTORY') {
+            quoteColumns.push({
+                key: 'seller',
+                label: 'Vendedor',
+                render: (row) => (
+                    <span className="text-xs font-bold text-indigo-600 bg-indigo-50/50 whitespace-nowrap">
+                        {getSellerName(row as SalesOrder)}
+                    </span>
+                ),
+            });
+        }
+
+        quoteColumns.push(
+            {
+                key: 'status',
+                label: 'Estatus',
+                render: (row) => {
+                    const order = row as SalesOrder;
+                    return (
+                        <>
+                            <Badge variant="outline" className={`bg-white whitespace-nowrap ${order.status === 'REJECTED' ? 'text-red-600 border-red-300 bg-red-50' : ''}`}>
+                                {getStatusLabel(order.status)}
+                            </Badge>
+                            {['REJECTED', 'CLIENT_REJECTED'].includes(order.status) && order.notes && (
+                                <p className="text-[10px] text-red-500 mt-1 max-w-[150px] truncate" title={order.notes}>
+                                    Razón: {order.notes}
+                                </p>
+                            )}
+                        </>
+                    );
+                },
+            },
+            {
+                key: 'total_price',
+                label: 'Monto de Venta',
+                render: (row) => (
+                    <span className="block text-right font-bold text-slate-700">
+                        {formatCurrency((row as SalesOrder).total_price || 0)}
+                    </span>
+                ),
+            },
+            {
+                key: 'actions',
+                label: 'Acción',
+                render: (row) => (
+                    <div className="flex justify-center items-center gap-2">
+                        {renderQuoteRowActions(row as SalesOrder)}
+                    </div>
+                ),
+            },
+        );
+
+        return (
+            <div className="mt-6 animate-in slide-in-from-right-4 duration-300">
+                <div className="overflow-hidden rounded-t-xl border border-b-0 border-slate-200 bg-slate-50 shadow-sm">
+                    <div className="flex flex-wrap items-center gap-1 px-4 py-3 text-sm text-slate-500 border-b border-slate-200">
+                        {quoteSortKeys.map(({ key, label }) => (
+                            <button
+                                key={key}
+                                type="button"
+                                className="font-bold cursor-pointer hover:bg-slate-200 transition-colors select-none px-3 py-2 rounded inline-flex items-center"
+                                onClick={() => handleQuoteSort(key)}
+                            >
+                                {label} {renderSortIcon(key)}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                <VTable
+                    className="rounded-t-none border-t-0 shadow-sm"
+                    columns={quoteColumns}
+                    data={filteredOrders as unknown as Record<string, unknown>[]}
+                />
             </div>
         );
     };
@@ -1036,7 +1165,7 @@ const SalesDashboardPage: React.FC = () => {
                 }))
             );
             setSavedOrders(prev => new Set([...prev, orderId]));
-            await loadData(true);
+            await refetchOrders();
         } catch {
             toast.error('Error al guardar los alias. Verifica la conexión.');
         } finally {
@@ -1471,10 +1600,10 @@ const SalesDashboardPage: React.FC = () => {
                             {activeQuoteView === null && (
                                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
                                     <Search className="text-slate-400 shrink-0" />
-                                    <input 
-                                        type="text" 
-                                        placeholder="Buscar por Folio (ej. 12) o Proyecto..." 
-                                        className="w-full outline-none text-slate-700 bg-transparent font-medium"
+                                    <Input
+                                        type="text"
+                                        placeholder="Buscar por Folio (ej. 12) o Proyecto..."
+                                        className="border-0 shadow-none bg-transparent font-medium focus-visible:ring-0"
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                     />
@@ -1712,21 +1841,15 @@ const SalesDashboardPage: React.FC = () => {
                             });
                         }
                         setRayosXOrder(null);
-                        await loadData();
+                        await refetchOrders();
                         // Refresco puntual de la OV afectada y mantenerla expandida
                         if (affectedId != null) {
                             try {
                                 const fresh = await salesService.getOrderDetail(affectedId);
-                                setOrders((prev) => {
-                                    const i = prev.findIndex((o) => o.id === affectedId);
-                                    if (i === -1) return prev;
-                                    const next = [...prev];
-                                    next[i] = fresh as SalesOrder;
-                                    return next;
-                                });
+                                patchOrderInCache(affectedId, fresh as SalesOrder);
                                 setExpandedOrderId(affectedId);
                             } catch {
-                                /* el listado ya se actualizó con loadData */
+                                /* el listado ya se actualizó con refetchOrders */
                             }
                         }
                     }}
@@ -1746,19 +1869,13 @@ const SalesDashboardPage: React.FC = () => {
                     onComplete={async () => {
                         const orderIdToRefresh = baptismOrderId;
                         setBaptismOrderId(null);
-                        await loadData();
+                        await refetchOrders();
                         if (orderIdToRefresh != null) {
                             try {
                                 const fresh = await salesService.getOrderDetail(orderIdToRefresh);
-                                setOrders((prev) => {
-                                    const i = prev.findIndex((o) => o.id === orderIdToRefresh);
-                                    if (i === -1) return prev;
-                                    const next = [...prev];
-                                    next[i] = fresh;
-                                    return next;
-                                });
+                                patchOrderInCache(orderIdToRefresh, fresh);
                             } catch {
-                                /* el listado ya se actualizó con loadData */
+                                /* el listado ya se actualizó con refetchOrders */
                             }
                         }
                     }}
@@ -1769,11 +1886,11 @@ const SalesDashboardPage: React.FC = () => {
                 <ClientOcCaptureModal
                     key={ocModalOrderId}
                     orderId={ocModalOrderId}
-                    isSubmitting={isLoading}
+                    isSubmitting={actionLoading}
                     onCancel={() => {
                         setOcModalOpen(false);
                         setOcModalOrderId(null);
-                        setIsLoading(false);
+                        setActionLoading(false);
                     }}
                     onConfirm={(oid, folio, dateStrYmd) => submitClientOcModal(oid, folio, dateStrYmd)}
                 />
