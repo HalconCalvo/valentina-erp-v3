@@ -2650,3 +2650,26 @@ GLOBAL                | B    | A — ERP de clase mundial
 Decisión de negocio 2026-09-07: Las facturas se elaboran y timbran en Compaq.
 Valentina solo captura el folio de la factura como referencia.
 No se requiere integración directa con SAT ni timbrado desde Valentina.
+
+
+---
+## SESIÓN 2026-09-07 — FASE 4 PARCIAL (Logging, Monitoreo y Tests)
+
+### Completado:
+- structlog==24.4.0 — logging estructurado JSON en producción, consola en desarrollo
+- Middleware de requests — method, path, status_code, duration_ms, user_id por request
+- Cero print() en main.py — reemplazados por logger.info/warning/error
+- sentry-sdk[fastapi]==2.13.0 — alertas automáticas en producción
+- Bridge structlog → Sentry para errores críticos
+- pytest infraestructura — SQLite en memoria, fixtures, 10 tests en verde
+- Vitest infraestructura — jsdom, Testing Library, 4 tests en verde
+- Total: 14 tests automatizados
+
+### Pendiente Fase 4:
+- Configurar SENTRY_DSN en Render (variable de entorno — solo configuración)
+- Agregar tests de sales_service (los flujos financieros más críticos)
+- Agregar tests de purchase_service
+- Meta: 60% de cobertura global
+
+### Próxima sesión:
+Continuar Fase 4 con cobertura de tests, luego Fase 5 — Inventario Completo.
