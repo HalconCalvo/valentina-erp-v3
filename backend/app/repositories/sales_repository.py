@@ -6,15 +6,18 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 from sqlalchemy.orm import selectinload
 
-from app.models.foundations import Client
+from app.models.foundations import Client, TaxRate
 from app.models.sales import (
     CustomerPayment,
     CustomerPaymentInstallment,
     CXCStatus,
+    PaymentType,
     SalesOrder,
     SalesOrderItem,
+    SalesOrderItemInstance,
     SalesOrderStatus,
 )
+from app.models.users import User, UserRole
 
 
 def get_orders(
@@ -112,3 +115,45 @@ def sum_active_installments(session: Session, cxc_id: int) -> float:
         )
     ).one()
     return float(val or 0.0)
+
+
+def get_advance_payment_by_order(session: Session, order_id: int) -> Optional[CustomerPayment]:
+    return session.exec(
+        select(CustomerPayment).where(
+            CustomerPayment.sales_order_id == order_id,
+            CustomerPayment.payment_type == PaymentType.ADVANCE,
+        )
+    ).first()
+
+
+def get_items_by_order(session: Session, order_id: int) -> List[SalesOrderItem]:
+    return list(
+        session.exec(select(SalesOrderItem).where(SalesOrderItem.sales_order_id == order_id)).all()
+    )
+
+
+def get_active_instances_by_item(session: Session, item_id: int) -> List[SalesOrderItemInstance]:
+    return list(
+        session.exec(
+            select(SalesOrderItemInstance).where(
+                SalesOrderItemInstance.sales_order_item_id == item_id,
+                SalesOrderItemInstance.is_cancelled == False,  # noqa: E712
+            )
+        ).all()
+    )
+
+
+def get_directors(session: Session) -> List[User]:
+    return list(
+        session.exec(
+            select(User).where(User.role == UserRole.DIRECTOR, User.is_active == True)  # noqa: E712
+        ).all()
+    )
+
+
+def get_cxc_by_id(session: Session, cxc_id: int) -> Optional[CustomerPayment]:
+    return session.get(CustomerPayment, cxc_id)
+
+
+def get_tax_rate_by_id(session: Session, tax_rate_id: int) -> Optional[TaxRate]:
+    return session.get(TaxRate, tax_rate_id)

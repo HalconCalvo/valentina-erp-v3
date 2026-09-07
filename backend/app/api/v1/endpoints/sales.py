@@ -892,19 +892,13 @@ def add_instance_to_item(
 # ==========================================
 @router.post("/orders/{order_id}/request-auth", response_model=SalesOrderRead)
 def request_order_authorization(order_id: int, session: Session = Depends(get_session)):
-    order = session.get(SalesOrder, order_id)
-    order.status = SalesOrderStatus.SENT
-    session.add(order)
-    session.commit()
-    return order
+    return sales_service.request_authorization(session, order_id)
+
 
 @router.post("/orders/{order_id}/authorize", response_model=SalesOrderRead)
 def authorize_order(order_id: int, session: Session = Depends(get_session)):
-    order = session.get(SalesOrder, order_id)
-    order.status = SalesOrderStatus.ACCEPTED
-    session.add(order)
-    session.commit()
-    return order
+    return sales_service.authorize_order(session, order_id)
+
 
 @router.post("/orders/{order_id}/mark_waiting_advance", response_model=SalesOrderRead)
 def mark_as_waiting_advance(
@@ -913,172 +907,34 @@ def mark_as_waiting_advance(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ):
-    """
-    EL SEMÁFORO DEL 3% (Centralizado en el Motor).
-    V5: requiere folio y fecha de OC del cliente; sin ellos no se genera el paso a OV.
-    """
-    folio = (payload.client_po_folio or "").strip()
-    if not folio:
-        raise HTTPException(status_code=400, detail="El folio de la OC del cliente es obligatorio.")
-    if not payload.client_po_date:
-        raise HTTPException(status_code=400, detail="La fecha de la OC del cliente es obligatoria.")
+    return sales_service.mark_waiting_advance(session, order_id, current_user, payload)
 
-    order = session.get(SalesOrder, order_id)
-    if not order:
-        raise HTTPException(404, "No encontrada")
-    if _is_seller_scoped_role(current_user) and order.user_id != current_user.id:
-        raise HTTPException(403, "Acceso denegado")
-
-    # LLAMADA AL MOTOR DE COSTOS
-    analysis = CostEngine.analyze_order_drift(session, order)
-
-    if not analysis["is_safe"]:
-        order.status = SalesOrderStatus.CHANGE_REQUESTED
-        session.add(order)
-        session.commit()
-        raise HTTPException(
-            status_code=409, 
-            detail=f"SEMÁFORO ROJO: Inflación del {analysis['variation_percent']}%. Supera el {analysis['tolerance_percent']}%. Requiere re-cotizar."
-        )
-
-    order.client_po_folio = folio
-    order.client_po_date = payload.client_po_date
-
-    # GENERAR OV: las instancias (Productos Vendidos) nacen aquí, no al cotizar.
-    _create_instances_for_order(session, order)
-
-    order.status = SalesOrderStatus.WAITING_ADVANCE
-    session.add(order)
-    session.commit()
-    session.refresh(order)
-    return order
 
 @router.post("/orders/{order_id}/cancel_ov", response_model=SalesOrderRead)
-def cancel_ov(order_id: int, session: Session = Depends(get_session),
-              current_user: User = Depends(get_current_active_user)):
-    order = session.get(SalesOrder, order_id)
-    if not order:
-        raise HTTPException(status_code=404, detail="Orden no encontrada")
-
-    # Solo se cancela una OV que esté en WAITING_ADVANCE
-    if order.status != SalesOrderStatus.WAITING_ADVANCE:
-        raise HTTPException(status_code=400,
-            detail="Solo se puede cancelar una OV en espera de anticipo (WAITING_ADVANCE).")
-
-    # No debe tener anticipo pagado
-    advance = session.exec(
-        select(CustomerPayment).where(
-            CustomerPayment.sales_order_id == order.id,
-            CustomerPayment.payment_type == PaymentType.ADVANCE
-        )
-    ).first()
-    if advance:
-        raise HTTPException(status_code=400,
-            detail="Esta OV ya tiene anticipo registrado; no puede cancelarse. "
-                   "Use Modificar OV para ajustar la cantidad.")
-
-    # Cancelar todas las instancias de la orden (histórico, no se borran)
-    items = session.exec(
-        select(SalesOrderItem).where(SalesOrderItem.sales_order_id == order.id)
-    ).all()
-    canceladas = 0
-    for item in items:
-        instances = session.exec(
-            select(SalesOrderItemInstance).where(
-                SalesOrderItemInstance.sales_order_item_id == item.id,
-                SalesOrderItemInstance.is_cancelled == False  # noqa: E712
-            )
-        ).all()
-        for inst in instances:
-            inst.is_cancelled = True
-            session.add(inst)
-            canceladas += 1
-
-    # Cambiar estado de la orden. Los SalesOrderItem se CONSERVAN.
-    order.status = SalesOrderStatus.CANCELLED_OV
-    session.add(order)
-    session.commit()
-    session.refresh(order)
-    return order
+def cancel_ov(
+    order_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    return sales_service.cancel_ov(session, order_id)
 
 # ==========================================
 # 6. PAGOS Y COMISIONES (CÓDIGO HÍBRIDO)
 # ==========================================
 @router.post("/orders/{order_id}/mark_sold", response_model=SalesOrderRead)
-def register_advance(order_id: int, payload: PaymentPayload,
-                     session: Session = Depends(get_session),
-                     current_user: User = Depends(get_current_active_user)):
-    order = session.get(SalesOrder, order_id)
-    if not order:
-        raise HTTPException(404, "Orden no encontrada")
+def register_advance(
+    order_id: int,
+    payload: PaymentPayload,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    return sales_service.mark_sold(session, order_id, payload.amount)
 
-    order.status = SalesOrderStatus.SOLD
-    # Guardar el importe de la factura de anticipo (objetivo). El frontend manda el importe
-    # capturado por Admin (sugerido = total_price * advance_percent/100, editable).
-    # Ya NO se crea el pago aquí: los abonos van por /advance_payments (nacen PAID).
-    if payload.amount and payload.amount > 0:
-        order.advance_invoice_amount = float(payload.amount)
-    session.add(order)
-    session.commit()
-    session.refresh(order)
-    return order
 
 @router.post("/orders/{order_id}/confirm_payment/{cxc_id}", response_model=SalesOrderRead)
 def confirm_cxc_payment(order_id: int, cxc_id: int, session: Session = Depends(get_session)):
-    """
-    AL COBRAR DINERO, LIBERAMOS COMISIÓN AL VENDEDOR Y GENERAMOS
-    COMISIONES GLOBALES PARA TODOS LOS DIRECTORES.
-    """
-    order = session.get(SalesOrder, order_id)
-    cxc = session.get(CustomerPayment, cxc_id)
+    return sales_service.confirm_payment(session, order_id, cxc_id)
 
-    cxc.status = CXCStatus.PAID
-    cxc.payment_date = datetime.utcnow()
-
-    order.outstanding_balance -= cxc.amount
-    cxc.commission_paid = False
-
-    if order.outstanding_balance <= 0.1:
-        order.status = SalesOrderStatus.FINISHED
-
-    # --- BASE ANTES DE IVA ---
-    tax_rate_obj = session.get(TaxRate, order.tax_rate_id)
-    tax_multiplier = tax_rate_obj.rate if tax_rate_obj else 0.16
-    base_before_tax = cxc.amount / (1.0 + tax_multiplier)
-
-    # --- COMISIÓN DEL VENDEDOR ASIGNADO ---
-    seller_commission_rate = normalize_commission(order.applied_commission_percent or 0.0)
-    if order.user_id and seller_commission_rate > 0:
-        seller_commission_amount = base_before_tax * seller_commission_rate
-        session.add(SalesCommission(
-            customer_payment_id=cxc_id,
-            user_id=order.user_id,
-            commission_type=CommissionType.SELLER,
-            base_amount=base_before_tax,
-            rate=seller_commission_rate,
-            commission_amount=seller_commission_amount,
-        ))
-
-    # --- COMISIONES GLOBALES PARA DIRECTORES ---
-    directors = session.exec(
-        select(User).where(User.role == UserRole.DIRECTOR, User.is_active == True)
-    ).all()
-    for director in directors:
-        dir_rate = normalize_commission(director.global_commission_rate or 0.0)
-        if dir_rate > 0:
-            session.add(SalesCommission(
-                customer_payment_id=cxc_id,
-                user_id=director.id,
-                commission_type=CommissionType.DIRECTOR_GLOBAL,
-                base_amount=base_before_tax,
-                rate=dir_rate,
-                commission_amount=base_before_tax * dir_rate,
-            ))
-
-    session.add(cxc)
-    session.add(order)
-    session.commit()
-    return order
 
 def _liberar_comision_anticipo(session, order, payment, base_con_iva):
     """
@@ -1234,39 +1090,15 @@ def download_quote_pdf(order_id: int, session: Session = Depends(get_session)):
 # ==========================================
 @router.post("/orders/{order_id}/request_changes", response_model=SalesOrderRead)
 def request_order_changes(order_id: int, session: Session = Depends(get_session)):
-    """
-    Cuando se rechaza, regresa al estatus DRAFT (Borrador) 
-    para que el Vendedor la edite y vuelva a pedir autorización.
-    """
-    order = session.get(SalesOrder, order_id)
-    if not order:
-        raise HTTPException(status_code=404, detail="Cotización no encontrada")
-    
-    # La devolvemos a la mesa de trabajo
-    order.status = getattr(SalesOrderStatus, "DRAFT", "DRAFT")
-    
-    session.add(order)
-    session.commit()
-    session.refresh(order)
-    return order
+    return sales_service.request_changes(session, order_id)
+
 
 # ==========================================
 # MARCAR COMO PERDIDA (CLIENTE NO ACEPTÓ)
 # ==========================================
 @router.post("/orders/{order_id}/mark_lost", response_model=SalesOrderRead)
 def mark_order_lost(order_id: int, session: Session = Depends(get_session)):
-    """
-    El vendedor marca la cotización como perdida (el cliente no aceptó ni rechazó
-    formalmente, simplemente se cerró la negociación). Equivale a CLIENT_REJECTED.
-    """
-    order = session.get(SalesOrder, order_id)
-    if not order:
-        raise HTTPException(status_code=404, detail="Cotización no encontrada")
-    order.status = SalesOrderStatus.CLIENT_REJECTED
-    session.add(order)
-    session.commit()
-    session.refresh(order)
-    return order
+    return sales_service.mark_lost(session, order_id)
 
 
 # ==========================================
@@ -1274,18 +1106,7 @@ def mark_order_lost(order_id: int, session: Session = Depends(get_session)):
 # ==========================================
 @router.post("/orders/{order_id}/reject", response_model=SalesOrderRead)
 def reject_order(order_id: int, session: Session = Depends(get_session)):
-    """
-    Dirección rechaza formalmente la cotización. Se registra como REJECTED
-    (distinto de CLIENT_REJECTED que es cuando el cliente no acepta).
-    """
-    order = session.get(SalesOrder, order_id)
-    if not order:
-        raise HTTPException(status_code=404, detail="Cotización no encontrada")
-    order.status = SalesOrderStatus.REJECTED
-    session.add(order)
-    session.commit()
-    session.refresh(order)
-    return order
+    return sales_service.reject_order(session, order_id)
 
 
 # ==========================================
