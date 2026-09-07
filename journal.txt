@@ -2317,3 +2317,24 @@ Ahora: Claude lee directo, analiza completo, verifica automatico, Gabriel decide
 Leer journal.txt y CLAUDE.md completos antes de cualquier acción.
 Usar token GitHub para leer estado actual del código antes de instruir a Cursor.
 Fase 0 es primera prioridad — seguridad crítica antes que cualquier feature.
+
+
+---
+## SESIÓN 2026-09-05 — FASE 0 COMPLETADA (Seguridad Crítica)
+
+### Completado:
+0.1 Backdoor /fix-admin eliminado de main.py (commit a1c23d0)
+0.2 Rate limiting en login: slowapi 0.1.9, límite 5 intentos/15min por IP (commit 027aa2e)
+0.3 CORS restringido: allow_methods y allow_headers específicos (commit a1c23d0)
+0.4 xlsx 0.18.5 — riesgo evaluado como bajo (solo exportación, no importación de archivos de usuarios)
+0.5 react-signature-canvas alpha → estable 1.0.7 (commit dcd43f5)
+
+### Calificación de Seguridad: D → C+
+El backdoor más crítico está cerrado. Rate limiting activo. CORS restringido.
+Pendiente para Fase 9: httpOnly cookies, 2FA, audit log completo.
+
+### Siguiente: FASE 1 — Fundamentos de Arquitectura Backend
+Prioridad inmediata:
+1.4 Corregir eliminaciones físicas (delete_provider, delete_client, delete_tax_rate)
+1.5 Corregir SQL injection en PurchaseManager
+1.1 Crear capa de Services (sales_service.py, purchase_service.py)
