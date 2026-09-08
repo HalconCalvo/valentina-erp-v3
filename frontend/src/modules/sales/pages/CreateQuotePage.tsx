@@ -11,7 +11,7 @@ import { useSales } from '../hooks/useSales';
 import { useClients } from '../../foundations/hooks/useClients';
 import { useFoundations } from '../../foundations/hooks/useFoundations';
 import { designService } from '../../../api/design-service';
-import { salesService } from '../../../api/sales-service'; 
+import { quotationService } from '../../../api/quotation-service';
 import client from '../../../api/axios-client'; 
 
 import { Button } from '@/components/ui/Button';
@@ -169,9 +169,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
             setLoadingData(true);
             const loadOrder = async () => {
                 try {
-                    const timestamp = new Date().getTime();
-                    const response = await client.get(`/sales/orders/${id}?t=${timestamp}`);
-                    const data = response.data;
+                    const data = await quotationService.getQuotation(Number(id));
 
                     if (data) {
                         setHeader({
@@ -185,7 +183,20 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                             notes: data.notes || '',
                             conditions: data.conditions || '' 
                         });
-                        setItems(Array.isArray(data.items) ? data.items : []);
+                        setItems(
+                            (Array.isArray(data.items) ? data.items : []).map((item, idx) => ({
+                                id: item.id ?? -idx,
+                                product_name: item.product_name,
+                                origin_version_id: item.origin_version_id ?? null,
+                                quantity: item.quantity,
+                                unit_price: item.unit_price,
+                                frozen_unit_cost: item.frozen_unit_cost ?? 0,
+                                is_resale: item.is_resale ?? false,
+                                resale_sku: item.resale_sku ?? null,
+                                commercial_description: item.commercial_description ?? '',
+                                cost_snapshot: item.cost_snapshot ?? {},
+                            })),
+                        );
                         setCurrentStatus(data.status as SalesOrderStatus);
                         
                         setHasAdvanceInvoice(Boolean(data.has_advance_invoice));
@@ -199,7 +210,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                     }
                 } catch {
                     toast.error('Error al cargar cotización.');
-                    navigate('/sales');
+                    navigate('/quotations');
                 } finally { setLoadingData(false); }
             };
             loadOrder();
@@ -397,37 +408,51 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
         setSaving(true);
         try {
             const cleanItems = items.map((item) => ({
-                product_name: item.product_name, origin_version_id: item.origin_version_id || null, 
-                quantity: Number(item.quantity), unit_price: Number(item.unit_price),
-                frozen_unit_cost: Number(item.frozen_unit_cost || 0), cost_snapshot: item.cost_snapshot || {},
+                product_name: item.product_name,
+                origin_version_id: item.origin_version_id || null, 
+                quantity: Number(item.quantity),
+                unit_price: Number(item.unit_price),
+                frozen_unit_cost: Number(item.frozen_unit_cost || 0),
+                cost_snapshot: item.cost_snapshot || {},
                 is_resale: item.is_resale || false,
                 resale_sku: item.resale_sku || null,
+                commercial_description: item.commercial_description || null,
             }));
-            const payload: any = {
-                client_id: Number(header.client_id), project_name: header.project_name,
-                tax_rate_id: Number(header.tax_rate_id), valid_until: new Date(header.valid_until).toISOString(),
+            const payload = {
+                client_id: Number(header.client_id),
+                project_name: header.project_name,
+                tax_rate_id: Number(header.tax_rate_id),
+                valid_until: new Date(header.valid_until).toISOString(),
                 applied_margin_percent: Number(header.applied_margin_percent), 
                 advance_percent: Number(header.advance_percent),
                 applied_commission_percent: commissionRate * 100, 
-                currency: 'MXN', is_warranty: false, notes: header.notes, conditions: header.conditions, items: cleanItems 
+                currency: 'MXN',
+                is_warranty: false,
+                notes: header.notes,
+                conditions: header.conditions,
+                items: cleanItems,
             };
-            
-            if (targetStatus) payload.status = targetStatus;
-            else if (!isEditMode) payload.status = SalesOrderStatus.DRAFT;
 
             if (isEditMode && id) {
+                const quotationId = Number(id);
                 if (targetStatus === SalesOrderStatus.ACCEPTED) {
-                   await salesService.authorizeOrder(Number(id));
-                   toast.success('Cotización AUTORIZADA correctamente.');
+                    await quotationService.updateQuotation(quotationId, payload);
+                    await quotationService.acceptQuotation(quotationId);
+                    toast.success('Cotización AUTORIZADA correctamente.');
                 } else {
-                   await salesService.updateOrder(Number(id), payload);
-                   toast.success('Cotización actualizada.');
+                    await quotationService.updateQuotation(quotationId, payload);
+                    toast.success('Cotización actualizada.');
                 }
             } else {
-                await salesService.createOrder(payload);
-                toast.success('Cotización creada exitosamente.');
+                const created = await quotationService.createQuotation(payload);
+                if (targetStatus === SalesOrderStatus.ACCEPTED) {
+                    await quotationService.acceptQuotation(created.id);
+                    toast.success('Cotización AUTORIZADA correctamente.');
+                } else {
+                    toast.success('Cotización creada exitosamente.');
+                }
             }
-            navigate('/sales'); 
+            navigate('/quotations'); 
         } catch (error: any) {
             toast.error(error.response?.data?.detail || 'Error al guardar la cotización.');
         } 
