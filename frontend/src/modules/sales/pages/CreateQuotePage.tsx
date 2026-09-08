@@ -11,7 +11,7 @@ import { useSales } from '../hooks/useSales';
 import { useClients } from '../../foundations/hooks/useClients';
 import { useFoundations } from '../../foundations/hooks/useFoundations';
 import { designService } from '../../../api/design-service';
-import { quotationService } from '../../../api/quotation-service';
+import { salesService } from '../../../api/sales-service';
 import client from '../../../api/axios-client'; 
 
 import { Button } from '@/components/ui/Button';
@@ -170,7 +170,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
             setLoadingData(true);
             const loadOrder = async () => {
                 try {
-                    const data = await quotationService.getQuotation(Number(id));
+                    const data = await salesService.getOrderDetail(Number(id));
 
                     if (data) {
                         setHeader({
@@ -212,7 +212,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                     }
                 } catch {
                     toast.error('Error al cargar cotización.');
-                    navigate('/quotations');
+                    navigate('/sales');
                 } finally { setLoadingData(false); }
             };
             loadOrder();
@@ -424,7 +424,9 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                 client_id: Number(header.client_id),
                 project_name: header.project_name,
                 tax_rate_id: Number(header.tax_rate_id),
-                valid_until: new Date(header.valid_until).toISOString(),
+                valid_until: header.valid_until
+                    ? new Date(header.valid_until + 'T12:00:00').toISOString()
+                    : new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
                 applied_margin_percent: Number(header.applied_margin_percent), 
                 advance_percent: Number(header.advance_percent),
                 applied_commission_percent: commissionRate * 100, 
@@ -435,26 +437,24 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                 items: cleanItems,
             };
 
+            const orderPayload = {
+                ...payload,
+                ...(targetStatus ? { status: targetStatus } : !isEditMode ? { status: SalesOrderStatus.DRAFT } : {}),
+            };
+
             if (isEditMode && id) {
-                const quotationId = Number(id);
                 if (targetStatus === SalesOrderStatus.ACCEPTED) {
-                    await quotationService.updateQuotation(quotationId, payload);
-                    await quotationService.acceptQuotation(quotationId);
+                    await salesService.authorizeOrder(Number(id));
                     toast.success('Cotización AUTORIZADA correctamente.');
                 } else {
-                    await quotationService.updateQuotation(quotationId, payload);
+                    await salesService.updateOrder(Number(id), orderPayload);
                     toast.success('Cotización actualizada.');
                 }
             } else {
-                const created = await quotationService.createQuotation(payload);
-                if (targetStatus === SalesOrderStatus.ACCEPTED) {
-                    await quotationService.acceptQuotation(created.id);
-                    toast.success('Cotización AUTORIZADA correctamente.');
-                } else {
-                    toast.success('Cotización creada exitosamente.');
-                }
+                await salesService.createOrder(orderPayload);
+                toast.success('Cotización creada exitosamente.');
             }
-            navigate('/quotations'); 
+            navigate('/sales'); 
         } catch (error: any) {
             toast.error(error.response?.data?.detail || 'Error al guardar la cotización.');
         } 

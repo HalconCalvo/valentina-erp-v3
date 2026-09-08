@@ -26,7 +26,7 @@ const menuItems = [
   
   { icon: ShoppingCart, label: 'Ventas', path: '/sales', allowedRoles: ['DIRECTOR', 'MANAGER', 'SALES'], children: [
     { label: 'Nueva Cotización', path: '/quotations/new' },
-    { label: 'Cotizaciones', path: '/quotations' },
+    { label: 'Cotizaciones', path: '/sales' },
   ] },
   { icon: Users, label: 'Monitor Clientes', path: '/clients', allowedRoles: ['DIRECTOR', 'MANAGER', 'SALES', 'ADMIN'] },
   
@@ -96,8 +96,9 @@ export default function Sidebar() {
     if (childPath === '/quotations/new') {
       return currentPath === '/quotations/new' || currentPath.startsWith('/quotations/edit/');
     }
-    if (childPath === '/quotations') {
-      return currentPath === '/quotations' || /^\/quotations\/\d+/.test(currentPath);
+    if (childPath === '/sales') {
+      if (currentPath === '/quotations/new' || currentPath.startsWith('/quotations/edit/')) return false;
+      return currentPath === '/sales' || currentPath.startsWith('/sales/');
     }
     return currentPath === childPath || currentPath.startsWith(`${childPath}/`);
   };
