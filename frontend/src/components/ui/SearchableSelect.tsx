@@ -57,7 +57,6 @@ export function SearchableSelect<T>({
         const handleClickOutside = (event: MouseEvent) => {
             if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
                 setIsOpen(false);
-                setDraft(value ? selectedLabel : '');
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -66,6 +65,7 @@ export function SearchableSelect<T>({
 
     const handleFocus = () => {
         if (disabled) return;
+        setDraft('');
         setIsOpen(true);
     };
 
@@ -85,7 +85,6 @@ export function SearchableSelect<T>({
     const handleBlur = () => {
         window.setTimeout(() => {
             setIsOpen(false);
-            setDraft(value ? selectedLabel : '');
         }, 150);
     };
 

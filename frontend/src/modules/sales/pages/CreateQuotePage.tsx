@@ -597,7 +597,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                             onChange={(v) => {
                                 if (!v) return;
                                 setIsUserSelectedTax(true);
-                                setHeader({ ...header, tax_rate_id: Number(v) });
+                                setHeader((prev) => ({ ...prev, tax_rate_id: Number(v) }));
                             }}
                             getLabel={(t) => `${t.name} (${t.rate * 100}%)`}
                             getValue={(t) => String(t.id)}
