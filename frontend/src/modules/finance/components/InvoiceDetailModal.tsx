@@ -1,13 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { PackageCheck, X, FileMinus } from 'lucide-react';
 import { PendingInvoice } from '../../../types/finance';
 import client from '../../../api/axios-client';
+import { Input } from '@/components/ui/Input';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
 
 interface InvoiceDetailModalProps {
     invoice: PendingInvoice;
     onClose: () => void;
 }
+
+const NC_TYPE_OPTIONS = [
+    { value: 'PRICE_ADJUSTMENT', label: 'Ajuste de precio' },
+    { value: 'RETURN', label: 'Devolución' },
+    { value: 'DISCOUNT', label: 'Descuento' },
+];
+
+const TAX_RATE_OPTIONS = [
+    { value: '0.16', label: '16%' },
+    { value: '0.08', label: '8%' },
+    { value: '0', label: '0% (Tasa Cero)' },
+];
 
 export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice, onClose }) => {
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase().trim();
@@ -161,6 +176,76 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
     const displaySubtotal = subtotalMostrado;
     const displayIva = ivaMostrado;
 
+    const itemColumns = useMemo((): VTableColumn<Record<string, unknown>>[] => [
+        {
+            key: 'sku',
+            label: 'SKU',
+            width: '8rem',
+            render: (item) => (
+                <span className="font-black text-indigo-600 text-[11px] uppercase">{String(item.sku || 'N/A')}</span>
+            ),
+        },
+        {
+            key: 'description',
+            label: 'Descripción',
+            render: (item) => (
+                <span className="font-bold text-slate-700 text-xs uppercase">
+                    {String(item.name || item.description || item.material_name || 'Articulo')}
+                </span>
+            ),
+        },
+        {
+            key: 'quantity',
+            label: 'Cant.',
+            render: (item) => (
+                <span className="block text-center text-xs font-black text-slate-600">
+                    {String(item.qty || item.quantity || 1)}
+                </span>
+            ),
+        },
+        {
+            key: 'unit_price',
+            label: 'P. Unit',
+            width: '8rem',
+            render: (item) => {
+                const price = Number(item.price || item.unit_price || item.expected_cost || 0);
+                return (
+                    <span className="block text-center text-xs font-bold text-slate-400">
+                        ${price.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                    </span>
+                );
+            },
+        },
+        {
+            key: 'project_name',
+            label: 'Proyecto',
+            render: (item) => (
+                <span className="block text-right text-[10px] font-black text-rose-600 uppercase">
+                    {String(item.project_name || 'GENERAL')}
+                </span>
+            ),
+        },
+        {
+            key: 'importe',
+            label: 'Importe',
+            width: '10rem',
+            render: (item) => {
+                const qty = Number(item.qty || item.quantity || 1);
+                const price = Number(item.price || item.unit_price || item.expected_cost || 0);
+                return (
+                    <span className="block text-right text-xs font-black text-slate-800">
+                        ${(qty * price).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                    </span>
+                );
+            },
+        },
+    ], []);
+
+    const tableItems = useMemo(
+        () => items as unknown as Record<string, unknown>[],
+        [items],
+    );
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
             {/* EL CLON EXACTO DE LA TARJETA "POR ENVIAR" DE COMPRAS */}
@@ -211,36 +296,11 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                             <p className="text-slate-400 font-black uppercase text-[10px] tracking-widest">El detalle de esta orden no está disponible temporalmente.</p>
                         </div>
                     ) : (
-                        <table className="w-full">
-                            <thead>
-                                <tr className="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 sticky top-0">
-                                    <th className="px-8 py-4 text-left w-32">SKU</th>
-                                    <th className="px-4 py-4 text-left">Descripción</th>
-                                    <th className="px-4 py-4 text-center">Cant.</th>
-                                    <th className="px-4 py-4 text-center w-32">P. Unit</th>
-                                    <th className="px-8 py-4 text-right">Proyecto</th>
-                                    <th className="px-8 py-4 text-right w-40">Importe</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50">
-                                {items.map((item, i) => {
-                                    const qty = item.qty || item.quantity || 1;
-                                    const price = item.price || item.unit_price || item.expected_cost || 0;
-                                    const projectName = item.project_name || "GENERAL";
-                                    
-                                    return (
-                                        <tr key={i} className="hover:bg-slate-50/30 transition-colors">
-                                            <td className="px-8 py-3 font-black text-indigo-600 text-[11px] uppercase">{item.sku || 'N/A'}</td>
-                                            <td className="px-4 py-3 font-bold text-slate-700 text-xs uppercase">{item.name || item.description || item.material_name || 'Articulo'}</td>
-                                            <td className="px-4 py-3 text-center text-xs font-black text-slate-600">{qty}</td>
-                                            <td className="px-4 py-3 text-center text-xs font-bold text-slate-400">${price.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
-                                            <td className="px-8 py-3 text-right"><span className="text-[10px] font-black text-rose-600 uppercase">{projectName}</span></td>
-                                            <td className="px-8 py-3 text-right text-xs font-black text-slate-800">${(qty * price).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
+                        <VTable
+                            columns={itemColumns}
+                            data={tableItems}
+                            className="border-0 rounded-none shadow-none"
+                        />
                     )}
                 </div>
 
@@ -252,20 +312,23 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                         <div className="grid grid-cols-2 gap-3">
                             <div>
                                 <label className="text-[10px] font-black uppercase text-slate-500">Tipo</label>
-                                <select value={ncType} onChange={e => { setNcType(e.target.value); setReturnQty({}); }} className="w-full p-2 border border-slate-300 rounded text-sm font-bold">
-                                    <option value="PRICE_ADJUSTMENT">Ajuste de precio</option>
-                                    <option value="RETURN">Devolución</option>
-                                    <option value="DISCOUNT">Descuento</option>
-                                </select>
+                                <SearchableSelect
+                                    items={NC_TYPE_OPTIONS}
+                                    value={ncType}
+                                    onChange={(v) => { setNcType(v); setReturnQty({}); }}
+                                    getLabel={(o) => o.label}
+                                    getValue={(o) => o.value}
+                                    className="text-sm font-bold"
+                                />
                             </div>
                             <div>
                                 <label className="text-[10px] font-black uppercase text-slate-500">Folio de la NC *</label>
-                                <input value={ncFolio} onChange={e => setNcFolio(e.target.value)} className="w-full p-2 border border-slate-300 rounded text-sm font-bold" placeholder="Folio fiscal" />
+                                <Input value={ncFolio} onChange={e => setNcFolio(e.target.value)} className="text-sm font-bold" placeholder="Folio fiscal" />
                             </div>
                             {ncType !== 'RETURN' && (
                                 <div>
                                     <label className="text-[10px] font-black uppercase text-slate-500">Monto total (c/IVA) *</label>
-                                    <input type="number" value={ncAmount} onChange={e => setNcAmount(e.target.value)} className={`w-full p-2 border rounded text-sm font-bold ${ncExcede ? 'border-red-400 bg-red-50' : 'border-slate-300'}`} placeholder="0.00" />
+                                    <Input type="number" value={ncAmount} onChange={e => setNcAmount(e.target.value)} className={`text-sm font-bold ${ncExcede ? 'border-red-400 bg-red-50' : ''}`} placeholder="0.00" />
                                 </div>
                             )}
                             {ncType === 'RETURN' && (
@@ -282,14 +345,14 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                                                 <span className="flex-1 text-xs font-bold text-slate-600 uppercase">{it.description || it.name || 'Material'}</span>
                                                 <span className="text-[10px] text-slate-400">recibido: {recibido}</span>
                                                 <span className="text-[10px] text-slate-400">${precio.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
-                                                <input
+                                                <Input
                                                     type="number" min="0" max={recibido} step="any"
                                                     value={returnQty[idx] ?? ''}
                                                     onChange={e => {
                                                         const v = Number(e.target.value);
                                                         setReturnQty({ ...returnQty, [idx]: v });
                                                     }}
-                                                    className="w-20 p-1 border border-slate-300 rounded text-sm text-center font-bold"
+                                                    className="w-20 text-sm text-center font-bold"
                                                     placeholder="0"
                                                     disabled={!it.material_id}
                                                 />
@@ -303,15 +366,18 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                             )}
                             <div>
                                 <label className="text-[10px] font-black uppercase text-slate-500">Tasa IVA</label>
-                                <select value={ncTaxRate} onChange={e => setNcTaxRate(Number(e.target.value))} className="w-full p-2 border border-slate-300 rounded text-sm font-bold">
-                                    <option value={0.16}>16%</option>
-                                    <option value={0.08}>8%</option>
-                                    <option value={0}>0% (Tasa Cero)</option>
-                                </select>
+                                <SearchableSelect
+                                    items={TAX_RATE_OPTIONS}
+                                    value={String(ncTaxRate)}
+                                    onChange={(v) => setNcTaxRate(Number(v))}
+                                    getLabel={(o) => o.label}
+                                    getValue={(o) => o.value}
+                                    className="text-sm font-bold"
+                                />
                             </div>
                             <div className="col-span-2">
                                 <label className="text-[10px] font-black uppercase text-slate-500">Motivo</label>
-                                <input value={ncReason} onChange={e => setNcReason(e.target.value)} className="w-full p-2 border border-slate-300 rounded text-sm" placeholder="Ej. Ajuste de precio pactado" />
+                                <Input value={ncReason} onChange={e => setNcReason(e.target.value)} className="text-sm" placeholder="Ej. Ajuste de precio pactado" />
                             </div>
                         </div>
                         <div className="flex justify-between items-center mt-4">

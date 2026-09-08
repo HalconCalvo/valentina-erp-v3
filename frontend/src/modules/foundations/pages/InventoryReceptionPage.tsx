@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
     Truck, Package, ArrowLeft, CheckCircle2, 
     Save, PackageCheck, Ban, AlertTriangle, XCircle, Loader2
@@ -6,6 +6,9 @@ import {
 import axiosClient from '../../../api/axios-client';
 import { MaterialForm } from '../components/MaterialForm';
 import { Button } from "@/components/ui/Button";
+import { Input } from '@/components/ui/Input';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 
@@ -14,6 +17,14 @@ type PendingConfirm =
     | { kind: 'declareSatisfied' }
     | { kind: 'submitDuplicateFolio' }
     | { kind: 'submitFinancialMismatch' };
+
+type ReceptionRow = { idx: number; item: any };
+
+const TAX_RATE_OPTIONS = [
+    { value: '0.16', label: '16%' },
+    { value: '0.08', label: '8%' },
+    { value: '0', label: 'Exento (0%)' },
+];
 
 // Utilidades seguras
 const formatCurrency = (amount: any): string => {
@@ -286,6 +297,176 @@ const InventoryReceptionPage: React.FC = () => {
         }
     };
 
+    const receptionRows = useMemo((): ReceptionRow[] => (
+        (selectedPO?.items || []).map((item: any, idx: number) => ({ idx, item }))
+    ), [selectedPO?.items]);
+
+    const receptionColumns = useMemo((): VTableColumn<ReceptionRow>[] => [
+        {
+            key: 'sku',
+            label: 'SKU',
+            width: '8rem',
+            render: ({ item }) => (
+                <span className="font-black text-indigo-600 text-[11px] uppercase">{item.sku || 'S/SKU'}</span>
+            ),
+        },
+        {
+            key: 'description',
+            label: 'Descripción',
+            render: ({ idx, item }) => {
+                const ordered = item.qty || 0;
+                const alreadyReceived = Number(item.quantity_received || 0);
+                const isComplete = alreadyReceived >= ordered;
+                return (
+                    <Input
+                        type="text"
+                        disabled={isComplete}
+                        className="font-bold text-xs uppercase bg-transparent border-b border-transparent hover:border-slate-200 focus-visible:border-indigo-500 disabled:text-slate-400 h-7 shadow-none"
+                        value={editedDescriptions[idx] !== undefined ? editedDescriptions[idx] : (item.name || '')}
+                        onChange={(e) => !isComplete && handleDescriptionChange(idx, e.target.value)}
+                    />
+                );
+            },
+        },
+        {
+            key: 'ordered',
+            label: 'Ordenadas',
+            render: ({ item }) => (
+                <span className="block text-center text-xs font-black text-slate-600">{item.qty || 0}</span>
+            ),
+        },
+        {
+            key: 'already_received',
+            label: 'Ya Recibidas',
+            render: ({ item }) => {
+                const alreadyReceived = Number(item.quantity_received || 0);
+                return (
+                    <span className="block text-center text-xs font-bold text-emerald-600">
+                        {alreadyReceived > 0 ? alreadyReceived : '—'}
+                    </span>
+                );
+            },
+        },
+        {
+            key: 'pending',
+            label: 'Pendientes',
+            render: ({ item }) => {
+                const ordered = item.qty || 0;
+                const alreadyReceived = Number(item.quantity_received || 0);
+                const pending = Math.max(ordered - alreadyReceived, 0);
+                const isComplete = alreadyReceived >= ordered;
+                return (
+                    <span className="block text-center text-xs font-black">
+                        {isComplete
+                            ? <span className="text-emerald-600 font-black">✓ Completo</span>
+                            : <span className="text-amber-600 font-black">{pending}</span>}
+                    </span>
+                );
+            },
+        },
+        {
+            key: 'this_delivery',
+            label: 'Esta Entrega',
+            width: '8rem',
+            render: ({ idx, item }) => {
+                const ordered = item.qty || 0;
+                const alreadyReceived = Number(item.quantity_received || 0);
+                const pending = Math.max(ordered - alreadyReceived, 0);
+                const thisDelivery = Number(receivedItems[idx]) || 0;
+                const isComplete = alreadyReceived >= ordered;
+                const hasDiscrepancy = thisDelivery > pending;
+                return (
+                    <Input
+                        type="number"
+                        min="0"
+                        disabled={isComplete}
+                        className={`h-6 w-14 mx-auto text-center font-black text-xs ${
+                            isComplete
+                                ? 'bg-slate-100 border-slate-200 text-slate-400'
+                                : hasDiscrepancy
+                                ? 'bg-amber-100 border-amber-300 text-amber-800'
+                                : 'border-slate-200 text-emerald-600 focus-visible:ring-emerald-500'
+                        }`}
+                        value={receivedItems[idx] ?? ''}
+                        onChange={(e) => !isComplete && handleReceivedQtyChange(idx, e.target.value)}
+                    />
+                );
+            },
+        },
+        {
+            key: 'unit_price',
+            label: 'P. Unit',
+            width: '8rem',
+            render: ({ idx, item }) => {
+                const price = item.unit_price || item.expected_cost || item.price || 0;
+                const ordered = item.qty || 0;
+                const alreadyReceived = Number(item.quantity_received || 0);
+                const isComplete = alreadyReceived >= ordered;
+                return (
+                    <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        disabled={isComplete}
+                        className="h-6 w-20 mx-auto text-center font-black text-xs text-slate-700 focus-visible:ring-indigo-500 disabled:bg-slate-100 disabled:text-slate-400"
+                        value={editedPrices[idx] !== undefined ? editedPrices[idx] : String(price)}
+                        onChange={(e) => !isComplete && handlePriceChange(idx, e.target.value)}
+                    />
+                );
+            },
+        },
+        {
+            key: 'project',
+            label: 'Proyecto',
+            render: ({ item }) => (
+                <span className="block text-right text-[10px] font-black text-rose-600 uppercase">
+                    {item.project_name || 'GENERAL'}
+                </span>
+            ),
+        },
+        {
+            key: 'close',
+            label: 'Cerrar',
+            width: '6rem',
+            render: ({ idx, item }) => (
+                (item.is_cancelled || item.is_fulfilled) ? (
+                    <span className="text-[9px] font-black uppercase tracking-wide text-slate-400">
+                        {item.is_cancelled ? 'Cancelado' : 'Cerrado'}
+                    </span>
+                ) : (
+                    <label className="inline-flex items-center gap-1.5 cursor-pointer select-none">
+                        <Input
+                            type="checkbox"
+                            checked={!!itemsToClose[idx]}
+                            onChange={(e) => setItemsToClose(prev => ({ ...prev, [idx]: e.target.checked }))}
+                            className="h-4 w-4 accent-rose-600"
+                        />
+                        <span className={`text-[9px] font-black uppercase tracking-wide ${itemsToClose[idx] ? 'text-rose-600' : 'text-slate-400'}`}>
+                            No llegará más
+                        </span>
+                    </label>
+                )
+            ),
+        },
+        {
+            key: 'importe',
+            label: 'Importe',
+            width: '10rem',
+            render: ({ idx, item }) => {
+                const price = item.unit_price || item.expected_cost || item.price || 0;
+                const ordered = item.qty || 0;
+                const thisDelivery = Number(receivedItems[idx]) || 0;
+                const effectivePrice = editedPrices[idx] !== undefined ? Number(editedPrices[idx]) : price;
+                const total = (thisDelivery > 0 ? thisDelivery : ordered) * effectivePrice;
+                return (
+                    <span className="block text-right text-xs font-black text-slate-800">
+                        ${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                    </span>
+                );
+            },
+        },
+    ], [receivedItems, editedPrices, editedDescriptions, itemsToClose]);
+
     if (!selectedPO) {
         return (
             <>
@@ -393,12 +574,12 @@ const InventoryReceptionPage: React.FC = () => {
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Monto del Anticipo (con IVA) *</label>
                                 <div className="flex items-center border border-slate-200 rounded-lg px-3 py-2 focus-within:border-orange-400 transition-colors">
                                     <span className="text-sm font-bold text-slate-400 mr-1">$</span>
-                                    <input
+                                    <Input
                                         type="text"
                                         value={advanceAmount}
                                         onChange={e => setAdvanceAmount(e.target.value)}
                                         placeholder="0.00"
-                                        className="w-full text-sm font-black text-slate-800 outline-none bg-transparent"
+                                        className="border-0 shadow-none focus-visible:ring-0 bg-transparent font-black text-slate-800"
                                     />
                                 </div>
                                 <p className="text-[10px] text-slate-400 font-bold mt-1">
@@ -600,10 +781,10 @@ const InventoryReceptionPage: React.FC = () => {
                     <div className="flex flex-row items-center gap-3">
                         <div className="text-right">
                             <label className="block text-[8px] font-black text-emerald-700 uppercase tracking-widest mb-1 text-left">Factura Chofer *</label>
-                            <input 
-                                className="font-black text-[11px] px-3 py-1.5 w-32 bg-white border border-emerald-200 rounded-lg text-slate-800 focus:ring-2 focus:ring-emerald-500 uppercase outline-none shadow-sm h-8" 
-                                placeholder="Folio" 
-                                value={invoiceFolio} 
+                            <Input
+                                className="font-black text-[11px] px-3 w-32 bg-white border-emerald-200 rounded-lg text-slate-800 uppercase shadow-sm h-8"
+                                placeholder="Folio"
+                                value={invoiceFolio}
                                 onChange={(e) => { setInvoiceFolio(e.target.value); setFolioWarning(null); }}
                                 onBlur={checkFolioDuplicado}
                             />
@@ -624,14 +805,14 @@ const InventoryReceptionPage: React.FC = () => {
                             <label className="block text-[8px] font-black text-emerald-700 uppercase tracking-widest mb-1 text-left">Monto (c/IVA) *</label>
                             <div className="relative">
                                 <span className="absolute left-2 top-1/2 -translate-y-1/2 font-black text-slate-400 text-[10px]">$</span>
-                                <input 
-                                    className={`font-black text-[11px] py-1.5 pl-5 pr-2 w-32 bg-white border rounded-lg focus:outline-none shadow-sm h-8 ${
-                                        isFinancialBlocked 
-                                        ? 'border-rose-400 text-rose-600 focus:ring-2 focus:ring-rose-500' 
-                                        : 'border-emerald-200 text-emerald-700 focus:ring-2 focus:ring-emerald-500'
+                                <Input
+                                    className={`font-black text-[11px] pl-5 pr-2 w-32 rounded-lg shadow-sm h-8 ${
+                                        isFinancialBlocked
+                                        ? 'border-rose-400 text-rose-600 focus-visible:ring-rose-500'
+                                        : 'border-emerald-200 text-emerald-700 focus-visible:ring-emerald-500'
                                     }`}
-                                    placeholder="0.00" 
-                                    value={displayTotal} 
+                                    placeholder="0.00"
+                                    value={displayTotal}
                                     onChange={(e) => handleAmountInput(e.target.value)}
                                     onBlur={handleBlur}
                                     onFocus={() => {
@@ -647,123 +828,22 @@ const InventoryReceptionPage: React.FC = () => {
                     </div>
                 </div>
 
-                <table className="w-full">
-                    <thead>
-                        <tr className="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                            <th className="px-8 py-4 text-left w-32">SKU</th>
-                            <th className="px-4 py-4 text-left">Descripción</th>
-                            <th className="px-4 py-4 text-center">Ordenadas</th>
-                            <th className="px-4 py-4 text-center">Ya Recibidas</th>
-                            <th className="px-4 py-4 text-center">Pendientes</th>
-                            <th className="px-4 py-4 text-center w-32">Esta Entrega</th>
-                            <th className="px-4 py-4 text-center w-32">P. Unit</th>
-                            <th className="px-8 py-4 text-right">Proyecto</th>
-                            <th className="px-4 py-4 text-center w-24">Cerrar</th>
-                            <th className="px-8 py-4 text-right w-40">Importe</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                        {(selectedPO.items || []).map((item: any, idx: number) => {
-                                    const price = item.unit_price || item.expected_cost || item.price || 0;
-                                    const ordered = item.qty || 0;
-                                    const alreadyReceived = Number(item.quantity_received || 0);
-                                    const pending = Math.max(ordered - alreadyReceived, 0);
-                                    const thisDelivery = Number(receivedItems[idx]) || 0;
-                                    const effectivePrice = editedPrices[idx] !== undefined ? Number(editedPrices[idx]) : price;
-                                    const total = (thisDelivery > 0 ? thisDelivery : ordered) * effectivePrice;
-                                    const isComplete = alreadyReceived >= ordered;
-                                    const hasDiscrepancy = thisDelivery > pending;
-
-                            return (
-                                <tr key={idx} className={`hover:bg-slate-50/30 transition-colors ${hasDiscrepancy ? 'bg-amber-50/20' : ''}`}>
-                                    <td className="px-8 py-3 font-black text-indigo-600 text-[11px] uppercase">{item.sku || 'S/SKU'}</td>
-                                    <td className="px-4 py-3">
-                                        <input
-                                            type="text"
-                                            disabled={isComplete}
-                                            className="w-full font-bold text-slate-700 text-xs uppercase bg-transparent border-b border-transparent hover:border-slate-200 focus:border-indigo-500 outline-none disabled:text-slate-400 disabled:cursor-not-allowed px-1 py-0.5"
-                                            value={editedDescriptions[idx] !== undefined ? editedDescriptions[idx] : (item.name || '')}
-                                            onChange={(e) => !isComplete && handleDescriptionChange(idx, e.target.value)}
-                                        />
-                                    </td>
-                                    <td className="px-4 py-3 text-center text-xs font-black text-slate-600">{ordered}</td>
-                                    <td className="px-4 py-3 text-center text-xs font-bold text-emerald-600">{alreadyReceived > 0 ? alreadyReceived : '—'}</td>
-                                    <td className="px-4 py-3 text-center text-xs font-black text-slate-600">
-                                        {isComplete 
-                                            ? <span className="text-emerald-600 font-black">✓ Completo</span>
-                                            : <span className="text-amber-600 font-black">{pending}</span>
-                                        }
-                                    </td>
-                                    <td className="px-4 py-3 text-center align-middle">
-                                        <div className="flex justify-center">
-                                            <input 
-                                                type="number"
-                                                min="0"
-                                                disabled={isComplete}
-                                                className={`h-6 w-14 text-center font-black text-xs border rounded outline-none transition-colors ${
-                                                    isComplete
-                                                    ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed'
-                                                    : hasDiscrepancy 
-                                                    ? 'bg-amber-100 border-amber-300 text-amber-800' 
-                                                    : 'border-slate-200 text-emerald-600 bg-white focus:border-emerald-500'
-                                                }`}
-                                                value={receivedItems[idx]}
-                                                onChange={(e) => !isComplete && handleReceivedQtyChange(idx, e.target.value)}
-                                            />
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-3 text-center align-middle">
-                                        <div className="flex justify-center">
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                step="0.01"
-                                                disabled={isComplete}
-                                                className="h-6 w-20 text-center font-black text-xs border rounded outline-none border-slate-200 text-slate-700 bg-white focus:border-indigo-500 disabled:bg-slate-100 disabled:text-slate-400"
-                                                value={editedPrices[idx] !== undefined ? editedPrices[idx] : String(price)}
-                                                onChange={(e) => !isComplete && handlePriceChange(idx, e.target.value)}
-                                            />
-                                        </div>
-                                    </td>
-                                    <td className="px-8 py-3 text-right">
-                                        <span className="text-[10px] font-black text-rose-600 uppercase">{item.project_name || "GENERAL"}</span>
-                                    </td>
-                                    <td className="px-4 py-3 text-center align-middle">
-                                        {(item.is_cancelled || item.is_fulfilled) ? (
-                                            <span className="text-[9px] font-black uppercase tracking-wide text-slate-400">
-                                                {item.is_cancelled ? 'Cancelado' : 'Cerrado'}
-                                            </span>
-                                        ) : (
-                                            <label className="inline-flex items-center gap-1.5 cursor-pointer select-none">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={!!itemsToClose[idx]}
-                                                    onChange={(e) => setItemsToClose(prev => ({ ...prev, [idx]: e.target.checked }))}
-                                                    className="h-4 w-4 accent-rose-600 cursor-pointer"
-                                                />
-                                                <span className={`text-[9px] font-black uppercase tracking-wide ${itemsToClose[idx] ? 'text-rose-600' : 'text-slate-400'}`}>
-                                                    No llegará más
-                                                </span>
-                                            </label>
-                                        )}
-                                    </td>
-                                    <td className="px-8 py-3 text-right text-xs font-black text-slate-800">${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
+                <VTable
+                    columns={receptionColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+                    data={receptionRows as unknown as Record<string, unknown>[]}
+                    className="border-0 rounded-none shadow-none"
+                />
 
                 <div className="px-8 py-4 border-t border-slate-100">
                     {addedRows.map((row, i) => (
                         <div key={i} className="flex items-center gap-3 mb-2">
                             <div className="relative flex-1">
-                                <input
+                                <Input
                                     type="text"
                                     value={row.search}
                                     onChange={(e) => updateAddedRow(i, { search: e.target.value, material_id: null })}
                                     placeholder="Buscar material por SKU o nombre..."
-                                    className="w-full text-xs border border-slate-200 rounded px-3 py-2 outline-none focus:border-indigo-500"
+                                    className="text-xs"
                                 />
                                 {row.search && !row.material_id && (
                                     <div className="absolute z-20 bg-white border border-slate-200 rounded shadow-lg w-full max-h-48 overflow-auto mt-1">
@@ -793,17 +873,17 @@ const InventoryReceptionPage: React.FC = () => {
                                     </div>
                                 )}
                             </div>
-                            <input
+                            <Input
                                 type="number" min="0" placeholder="Cant."
                                 value={row.received_qty}
                                 onChange={(e) => updateAddedRow(i, { received_qty: e.target.value })}
-                                className="h-8 w-20 text-center text-xs border border-slate-200 rounded outline-none focus:border-emerald-500"
+                                className="h-8 w-20 text-center text-xs"
                             />
-                            <input
+                            <Input
                                 type="number" min="0" step="0.01" placeholder="P. Unit"
                                 value={row.unit_cost}
                                 onChange={(e) => updateAddedRow(i, { unit_cost: e.target.value })}
-                                className="h-8 w-24 text-center text-xs border border-slate-200 rounded outline-none focus:border-indigo-500"
+                                className="h-8 w-24 text-center text-xs"
                             />
                             <button type="button" onClick={() => removeAddedRow(i)} className="text-rose-500 hover:text-rose-700 text-xs font-black px-2">✕</button>
                         </div>
@@ -878,15 +958,14 @@ const InventoryReceptionPage: React.FC = () => {
                         <div className="flex justify-between items-center text-slate-500 border-b border-slate-200 pb-2">
                             <div className="flex items-center gap-2">
                                 <span className="text-[10px] font-black uppercase">Tasa IVA</span>
-                                <select
-                                    value={taxRate}
-                                    onChange={(e) => setTaxRate(Number(e.target.value))}
-                                    className="text-xs font-bold border border-slate-200 rounded px-2 py-1 outline-none focus:border-indigo-500"
-                                >
-                                    <option value={0.16}>16%</option>
-                                    <option value={0.08}>8%</option>
-                                    <option value={0}>Exento (0%)</option>
-                                </select>
+                                <SearchableSelect
+                                    items={TAX_RATE_OPTIONS}
+                                    value={String(taxRate)}
+                                    onChange={(v) => setTaxRate(Number(v))}
+                                    getLabel={(o) => o.label}
+                                    getValue={(o) => o.value}
+                                    className="text-xs font-bold w-32"
+                                />
                             </div>
                             <div className="flex items-center gap-3">
                                 <span className="text-[10px] font-black uppercase">IVA ({(taxRate * 100).toFixed(0)}%)</span>

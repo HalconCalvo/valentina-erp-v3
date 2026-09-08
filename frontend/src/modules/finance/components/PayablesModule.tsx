@@ -16,6 +16,8 @@ import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 import Modal from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { VTable, type VTableColumn } from '@/components/ui/VTable';
 
 type PayableFilter =
  | 'ALL'
@@ -455,22 +457,165 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
         }
     };
 
-    const renderSortableHeader = (label: string, key: SortKey, align: 'left' | 'right' = 'left') => {
+    const providerFilterOptions = useMemo(
+        () => [
+            { value: '', label: 'Todos los proveedores' },
+            ...providerOptions.map((name) => ({ value: name, label: name })),
+        ],
+        [providerOptions],
+    );
+
+    const payableColumns = useMemo((): VTableColumn<PendingInvoice>[] => [
+        {
+            key: 'invoice_number',
+            label: 'Factura',
+            render: (inv) => (
+                <button
+                    onClick={() => setViewingInvoice(inv)}
+                    className="font-mono bg-slate-100 border border-slate-200 px-2 py-1 rounded text-indigo-700 text-xs font-bold hover:bg-indigo-50 hover:border-indigo-200 transition-colors shadow-sm text-left"
+                    title="Ver detalle del documento"
+                >
+                    {inv.invoice_number}
+                </button>
+            ),
+        },
+        {
+            key: 'due_date',
+            label: 'Vencimiento',
+            render: (inv) => (
+                <span className="text-slate-600 font-medium">{formatDate(inv.due_date)}</span>
+            ),
+        },
+        {
+            key: 'antiguedad',
+            label: 'Antigüedad',
+            render: (inv) => {
+                const dueDays = invoiceDueDayDiff(inv);
+                if (dueDays === null) return '—';
+                return dueDays >= 0 ? (
+                    <span className="text-sm font-bold text-emerald-600">vence en {dueDays} d</span>
+                ) : (
+                    <span className="text-sm font-bold text-rose-600">vencida {Math.abs(dueDays)} d</span>
+                );
+            },
+        },
+        {
+            key: 'total_amount',
+            label: 'Importe',
+            render: (inv) => (
+                <span className="block text-right tabular-nums text-slate-700">{formatCurrency(inv.total_amount)}</span>
+            ),
+        },
+        {
+            key: 'abonado',
+            label: 'Abonado',
+            render: (inv) => {
+                const abonado = (inv.total_amount || 0) - (inv.outstanding_balance || 0);
+                return (
+                    <span className="block text-right tabular-nums text-emerald-700">{formatCurrency(abonado)}</span>
+                );
+            },
+        },
+        {
+            key: 'outstanding_balance',
+            label: 'Saldo',
+            render: (inv) => (
+                <span className={`block text-right font-black text-lg ${theme.textTitle}`}>
+                    {formatCurrency(inv.outstanding_balance)}
+                </span>
+            ),
+        },
+        {
+            key: 'action',
+            label: 'Acción',
+            render: (inv) => {
+                const pendingReqForInv = sentRequests.filter(
+                    (req) => req.invoice_folio === inv.invoice_number && req.provider_name === inv.provider_name,
+                );
+                const approvedReqForInv = approvedRequests.filter(
+                    (req) => req.invoice_folio === inv.invoice_number && req.provider_name === inv.provider_name,
+                );
+                const hasActive = pendingReqForInv.length > 0 || approvedReqForInv.length > 0;
+                const hasApproved = approvedReqForInv.length > 0;
+
+                return (
+                    <div className="flex items-center justify-center gap-2">
+                        {hasActive ? (
+                            isChecker ? (
+                                <Button
+                                    size="sm"
+                                    className="bg-amber-500 hover:bg-amber-600 text-white font-bold shadow-sm transition-colors"
+                                    onClick={() => handleUrgentPayment(hasApproved ? approvedReqForInv[0] : pendingReqForInv[0])}
+                                >
+                                    ⚡ Pago Urgente
+                                </Button>
+                            ) : (
+                                <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-200 font-bold py-1.5 border inline-block text-center">
+                                    Se Solicita Pago
+                                </Badge>
+                            )
+                        ) : inv.invoice_number?.startsWith('ANT-') ? (
+                            <Button
+                                size="sm"
+                                className="bg-orange-500 hover:bg-orange-600 text-white font-bold shadow-sm transition-colors"
+                                onClick={() => setSelectedInvoice(inv)}
+                            >
+                                <AlertTriangle size={16} className="mr-1" /> Pago Anticipado
+                            </Button>
+                        ) : (
+                            <Button
+                                size="sm"
+                                className={`${theme.btnAction} font-bold shadow-sm transition-colors`}
+                                onClick={() => setSelectedInvoice(inv)}
+                            >
+                                <CheckCircle2 size={16} className="mr-1" /> {isChecker ? 'Pagar' : 'Se Solicita Pago'}
+                            </Button>
+                        )}
+                        {isChecker
+                            && (inv as any).status !== 'PAID'
+                            && (inv as any).status !== 'CANCELLED' && (
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                                onClick={() => handleOpenEditInvoice(inv)}
+                            >
+                                <Pencil size={14} />
+                            </Button>
+                        )}
+                        {isChecker && (
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={cancellingId === inv.id}
+                                className="border-rose-200 text-rose-500 hover:bg-rose-50 hover:text-rose-700 font-black text-[10px] tracking-widest"
+                                onClick={() => handleCancelInvoice(inv)}
+                            >
+                                <XCircle size={14} className="mr-1" /> CANCELAR
+                            </Button>
+                        )}
+                    </div>
+                );
+            },
+        },
+    ], [theme, sentRequests, approvedRequests, isChecker, cancellingId]);
+
+    const renderSortableHeader = (label: string, key: SortKey, align: 'left' | 'right' = 'left', className = 'flex-1') => {
         const isActive = sortConfig?.key === key;
         return (
-            <th 
-                className={`p-4 cursor-pointer hover:bg-slate-200/50 transition-colors select-none group ${align === 'right' ? 'text-right' : 'text-left'}`} 
+            <div
+                className={`${className} p-4 cursor-pointer hover:bg-slate-200/50 transition-colors select-none group ${align === 'right' ? 'text-right' : 'text-left'}`}
                 onClick={() => handleSort(key)}
             >
                 <div className={`flex items-center gap-1.5 ${align === 'right' ? 'justify-end' : 'justify-start'} ${isActive ? 'text-indigo-800 font-black' : ''}`}>
                     {label}
                     {isActive ? (
-                        sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-indigo-600"/> : <ArrowDown size={14} className="text-indigo-600"/>
+                        sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-indigo-600" /> : <ArrowDown size={14} className="text-indigo-600" />
                     ) : (
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-50 transition-opacity" />
                     )}
                 </div>
-            </th>
+            </div>
         );
     };
 
@@ -633,33 +778,29 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
                                     <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1">Proveedor</label>
-                                    <select
+                                    <SearchableSelect
+                                        items={providerFilterOptions}
                                         value={filterProvider}
-                                        onChange={(e) => setFilterProvider(e.target.value)}
-                                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
-                                    >
-                                        <option value="">Todos los proveedores</option>
-                                        {providerOptions.map((name) => (
-                                            <option key={name} value={name}>{name}</option>
-                                        ))}
-                                    </select>
+                                        onChange={setFilterProvider}
+                                        getLabel={(o) => o.label}
+                                        getValue={(o) => o.value}
+                                        placeholder="Todos los proveedores"
+                                    />
                                 </div>
                                 <div>
                                     <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1">Compras Desde</label>
-                                    <input
+                                    <Input
                                         type="date"
                                         value={filterDateFrom}
                                         onChange={(e) => setFilterDateFrom(e.target.value)}
-                                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
                                     />
                                 </div>
                                 <div>
                                     <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1">Compras Hasta</label>
-                                    <input
+                                    <Input
                                         type="date"
                                         value={filterDateTo}
                                         onChange={(e) => setFilterDateTo(e.target.value)}
-                                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
                                     />
                                 </div>
                             </div>
@@ -683,131 +824,34 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                             </div>
                         </div>
                         <div className="overflow-x-auto">
-                            <table className="w-full text-sm text-left border-collapse">
-                                <thead className={`text-xs text-slate-600 uppercase tracking-wider ${theme.bgLight} border-b ${theme.border} font-black`}>
-                                    <tr>
-                                        {renderSortableHeader('Factura', 'invoice_number')}
-                                        {renderSortableHeader('Vencimiento', 'due_date')}
-                                        <th className="p-4">Antigüedad</th>
-                                        <th className="p-4 text-right">Importe</th>
-                                        <th className="p-4 text-right">Abonado</th>
-                                        {renderSortableHeader('Saldo', 'outstanding_balance', 'right')}
-                                        <th className="p-4 text-center">Acción</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {isFinanceLoading ? (
-                                        <tr><td colSpan={7} className="text-center py-12 text-slate-400 font-bold">Cargando desglose...</td></tr>
-                                    ) : doublyFiltered.length === 0 ? (
-                                        <tr><td colSpan={7} className="text-center py-12 text-slate-400 italic font-medium">No hay facturas pendientes en esta categoría.</td></tr>
-                                    ) : groupedByProvider.map((group) => (
-                                        <React.Fragment key={group.providerName}>
-                                            <tr className="bg-indigo-50">
-                                                <td colSpan={5} className="p-3 font-black text-indigo-800">{group.providerName}</td>
-                                                <td className="p-3 text-right font-black text-indigo-800">{formatCurrency(group.subtotal)}</td>
-                                                <td className="p-3" />
-                                            </tr>
-                                            {group.invoices.map((inv) => {
-                                        // Ahora solo nos interesa saber si hay alguna solicitud activa para cambiar a Ámbar. Nada de verdes.
-                                        const pendingReqForInv = sentRequests.filter(req => req.invoice_folio === inv.invoice_number && req.provider_name === inv.provider_name);
-                                        const approvedReqForInv = approvedRequests.filter(req => req.invoice_folio === inv.invoice_number && req.provider_name === inv.provider_name);
-                                        const hasActive = pendingReqForInv.length > 0 || approvedReqForInv.length > 0;
-                                        const hasApproved = approvedReqForInv.length > 0;
-                                        const dueDays = invoiceDueDayDiff(inv);
-                                        const abonado = (inv.total_amount || 0) - (inv.outstanding_balance || 0);
-                                        
-                                        return (
-                                            <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
-                                                <td className="p-4">
-                                                    <button 
-                                                        onClick={() => setViewingInvoice(inv)}
-                                                        className="font-mono bg-slate-100 border border-slate-200 px-2 py-1 rounded text-indigo-700 text-xs font-bold hover:bg-indigo-50 hover:border-indigo-200 transition-colors shadow-sm text-left"
-                                                        title="Ver detalle del documento"
-                                                    >
-                                                        {inv.invoice_number}
-                                                    </button>
-                                                </td>
-                                                <td className="p-4 text-slate-600 font-medium">{formatDate(inv.due_date)}</td>
-                                                <td className="p-4 text-sm font-bold">
-                                                    {dueDays === null ? (
-                                                        '—'
-                                                    ) : dueDays >= 0 ? (
-                                                        <span className="text-emerald-600">vence en {dueDays} d</span>
-                                                    ) : (
-                                                        <span className="text-rose-600">vencida {Math.abs(dueDays)} d</span>
-                                                    )}
-                                                </td>
-                                                <td className="p-4 text-right tabular-nums text-slate-700">{formatCurrency(inv.total_amount)}</td>
-                                                <td className="p-4 text-right tabular-nums text-emerald-700">{formatCurrency(abonado)}</td>
-                                                <td className={`p-4 text-right font-black text-lg ${theme.textTitle}`}>
-                                                    {formatCurrency(inv.outstanding_balance)}
-                                                </td>
-                                                
-                                                <td className="p-4 text-center">
-                                                    <div className="flex items-center justify-center gap-2">
-                                                        {hasActive ? (
-                                                            isChecker ? (
-                                                                <Button
-                                                                    size="sm"
-                                                                    className="bg-amber-500 hover:bg-amber-600 text-white font-bold shadow-sm transition-colors"
-                                                                    onClick={() => handleUrgentPayment(hasApproved ? approvedReqForInv[0] : pendingReqForInv[0])}
-                                                                >
-                                                                    ⚡ Pago Urgente
-                                                                </Button>
-                                                            ) : (
-                                                                <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-200 font-bold py-1.5 border inline-block text-center">
-                                                                    Se Solicita Pago
-                                                                </Badge>
-                                                            )
-                                                        ) : inv.invoice_number?.startsWith('ANT-') ? (
-                                                            <Button
-                                                                size="sm"
-                                                                className="bg-orange-500 hover:bg-orange-600 text-white font-bold shadow-sm transition-colors"
-                                                                onClick={() => setSelectedInvoice(inv)}
-                                                            >
-                                                                <AlertTriangle size={16} className="mr-1"/> Pago Anticipado
-                                                            </Button>
-                                                        ) : (
-                                                            <Button 
-                                                                size="sm" 
-                                                                className={`${theme.btnAction} font-bold shadow-sm transition-colors`} 
-                                                                onClick={() => setSelectedInvoice(inv)}
-                                                            >
-                                                                <CheckCircle2 size={16} className="mr-1"/> {isChecker ? 'Pagar' : 'Se Solicita Pago'}
-                                                            </Button>
-                                                        )}
-                                                        {isChecker
-                                                            && (inv as any).status !== 'PAID'
-                                                            && (inv as any).status !== 'CANCELLED' && (
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                className="border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
-                                                                onClick={() => handleOpenEditInvoice(inv)}
-                                                            >
-                                                                <Pencil size={14} />
-                                                            </Button>
-                                                        )}
-                                                        {isChecker && (
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                disabled={cancellingId === inv.id}
-                                                                className="border-rose-200 text-rose-500 hover:bg-rose-50 hover:text-rose-700 font-black text-[10px] tracking-widest"
-                                                                onClick={() => handleCancelInvoice(inv)}
-                                                            >
-                                                                <XCircle size={14} className="mr-1"/> CANCELAR
-                                                            </Button>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        )
-                                    })}
-                                        </React.Fragment>
-                                    ))}
-                                </tbody>
-                            </table>
+                            <div className={`flex text-xs text-slate-600 uppercase tracking-wider ${theme.bgLight} border-b ${theme.border} font-black`}>
+                                {renderSortableHeader('Factura', 'invoice_number')}
+                                {renderSortableHeader('Vencimiento', 'due_date')}
+                                <div className="flex-1 p-4">Antigüedad</div>
+                                <div className="flex-1 p-4 text-right">Importe</div>
+                                <div className="flex-1 p-4 text-right">Abonado</div>
+                                {renderSortableHeader('Saldo', 'outstanding_balance', 'right')}
+                                <div className="w-48 p-4 text-center shrink-0">Acción</div>
+                            </div>
+                            {isFinanceLoading ? (
+                                <div className="text-center py-12 text-slate-400 font-bold">Cargando desglose...</div>
+                            ) : doublyFiltered.length === 0 ? (
+                                <div className="text-center py-12 text-slate-400 italic font-medium">No hay facturas pendientes en esta categoría.</div>
+                            ) : (
+                                groupedByProvider.map((group) => (
+                                    <div key={group.providerName}>
+                                        <div className="bg-indigo-50 px-4 py-3 flex justify-between items-center border-b border-indigo-100">
+                                            <span className="font-black text-indigo-800">{group.providerName}</span>
+                                            <span className="font-black text-indigo-800">{formatCurrency(group.subtotal)}</span>
+                                        </div>
+                                        <VTable
+                                            columns={payableColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+                                            data={group.invoices as unknown as Record<string, unknown>[]}
+                                            className="border-0 rounded-none shadow-none [&_thead]:hidden"
+                                        />
+                                    </div>
+                                ))
+                            )}
                         </div>
                     </div>
                 </div>

@@ -1,10 +1,12 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useProviders } from '../hooks/useProviders';
 import { Provider } from '../../../types/foundations';
 import { Plus, Search, Edit, Trash2, X, Phone, Mail, User, Building2, Smartphone, Upload } from 'lucide-react';
 
 // 1. IMPORTAR BOTÓN DE EXPORTACIÓN
 import ExportButton from '@/components/ui/ExportButton';
+import { Input } from '@/components/ui/Input';
+import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 
@@ -87,6 +89,65 @@ export default function ProvidersPage() {
     (p.contact_name && p.contact_name.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
+  const providerColumns = useMemo((): VTableColumn<Provider>[] => [
+    {
+      key: 'business_name',
+      label: 'Empresa & Condiciones',
+      render: (prov) => (
+        <div className="flex flex-col">
+          <span className="font-bold text-slate-800 text-sm">{prov.business_name}</span>
+          <div className="flex items-center gap-2 mt-1">
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${prov.credit_days > 0 ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'}`}>
+              {prov.credit_days > 0 ? `Crédito: ${prov.credit_days} días` : 'Pago de Contado'}
+            </span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'contact_name',
+      label: 'Información de Contacto',
+      render: (prov) => (
+        <div className="grid grid-cols-1 gap-1 text-xs">
+          {prov.contact_name && (
+            <span className="font-bold text-slate-700 flex items-center gap-1.5 mb-1">
+              <User size={12} className="text-slate-400" /> {prov.contact_name}
+            </span>
+          )}
+          {prov.contact_cellphone && (
+            <span className="text-slate-600 flex items-center gap-1.5">
+              <Smartphone size={12} className="text-emerald-500" /> {prov.contact_cellphone}
+            </span>
+          )}
+          {prov.contact_email && (
+            <span className="text-slate-600 flex items-center gap-1.5">
+              <Mail size={12} className="text-blue-500" /> {prov.contact_email}
+            </span>
+          )}
+          {(prov.phone || prov.phone2) && (
+            <div className="mt-2 pt-2 border-t border-slate-100 text-slate-500 flex items-center gap-1.5">
+              <Building2 size={12} />
+              {prov.phone} {prov.phone2 ? ` / ${prov.phone2}` : ''}
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'rfc_tax_id',
+      label: 'RFC',
+      render: (prov) => (
+        prov.rfc_tax_id ? (
+          <span className="font-mono text-xs font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded border border-slate-200">
+            {prov.rfc_tax_id}
+          </span>
+        ) : (
+          <span className="text-xs text-slate-400 italic">No registrado</span>
+        )
+      ),
+    },
+  ], []);
+
   const handleCsvImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -116,7 +177,7 @@ export default function ProvidersPage() {
 
   return (
     <div className="space-y-6 animate-fadeIn pb-24">
-      <input
+      <Input
         type="file"
         ref={csvInputRef}
         className="hidden"
@@ -162,115 +223,43 @@ export default function ProvidersPage() {
       <div className="flex items-center gap-3 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
         <div className="relative flex-1">
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input 
-            type="text" 
-            placeholder="Buscar por Empresa, RFC o Contacto..." 
+          <Input
+            type="text"
+            placeholder="Buscar por Empresa, RFC o Contacto..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 text-sm text-slate-700 placeholder:text-slate-400 outline-none rounded-lg focus:bg-slate-50 transition-colors"
+            className="pl-10 text-sm text-slate-700 placeholder:text-slate-400 border-0 shadow-none focus-visible:ring-0 bg-transparent"
           />
         </div>
       </div>
 
       {/* TABLA DE DATOS */}
-      <div className="bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider w-1/3">Empresa & Condiciones</th>
-                <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider w-1/3">Información de Contacto</th>
-                <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider text-center">RFC</th>
-                <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {loading ? (
-                 <tr><td colSpan={4} className="p-8 text-center text-slate-400 font-medium">Cargando directorio de proveedores...</td></tr>
-              ) : filteredProviders.length === 0 ? (
-                 <tr>
-                    <td colSpan={4} className="p-12 text-center">
-                        <div className="flex flex-col items-center justify-center text-slate-400">
-                            <Building2 size={48} className="mb-4 opacity-20" />
-                            <p className="font-medium">No se encontraron proveedores en el sistema.</p>
-                        </div>
-                    </td>
-                 </tr>
-              ) : (
-                filteredProviders.map((prov) => (
-                  <tr key={prov.id} className="hover:bg-slate-50 transition-colors group">
-                    <td className="px-6 py-4">
-                        <div className="flex flex-col">
-                            <span className="font-bold text-slate-800 text-sm">{prov.business_name}</span>
-                            <div className="flex items-center gap-2 mt-1">
-                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${prov.credit_days > 0 ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'}`}>
-                                    {prov.credit_days > 0 ? `Crédito: ${prov.credit_days} días` : 'Pago de Contado'}
-                                </span>
-                            </div>
-                        </div>
-                    </td>
-                    <td className="px-6 py-4">
-                        <div className="grid grid-cols-1 gap-1 text-xs">
-                            {/* Contacto Directo */}
-                            {prov.contact_name && (
-                                <span className="font-bold text-slate-700 flex items-center gap-1.5 mb-1">
-                                    <User size={12} className="text-slate-400"/> {prov.contact_name}
-                                </span>
-                            )}
-                            {prov.contact_cellphone && (
-                                <span className="text-slate-600 flex items-center gap-1.5">
-                                    <Smartphone size={12} className="text-emerald-500"/> {prov.contact_cellphone}
-                                </span>
-                            )}
-                            {prov.contact_email && (
-                                <span className="text-slate-600 flex items-center gap-1.5">
-                                    <Mail size={12} className="text-blue-500"/> {prov.contact_email}
-                                </span>
-                            )}
-                            
-                            {/* Líneas de la empresa si no hay contacto directo, o como extra */}
-                            {(prov.phone || prov.phone2) && (
-                                <div className="mt-2 pt-2 border-t border-slate-100 text-slate-500 flex items-center gap-1.5">
-                                    <Building2 size={12}/> 
-                                    {prov.phone} {prov.phone2 ? ` / ${prov.phone2}` : ''}
-                                </div>
-                            )}
-                        </div>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                        {prov.rfc_tax_id ? (
-                             <span className="font-mono text-xs font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded border border-slate-200">
-                                {prov.rfc_tax_id}
-                            </span>
-                        ) : (
-                            <span className="text-xs text-slate-400 italic">No registrado</span>
-                        )}
-                    </td>
-                    <td className="px-6 py-4">
-                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button 
-                                onClick={() => handleOpenEdit(prov)} 
-                                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-transparent hover:border-indigo-100"
-                                title="Editar Proveedor"
-                            >
-                                <Edit size={16} />
-                            </button>
-                            <button 
-                                onClick={() => setPendingDelete({ id: prov.id!, name: prov.business_name })} 
-                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
-                                title="Eliminar Proveedor"
-                            >
-                                <Trash2 size={16} />
-                            </button>
-                        </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <VTable
+        columns={providerColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+        data={filteredProviders as unknown as Record<string, unknown>[]}
+        isLoading={loading}
+        emptyState={{
+          icon: <Building2 size={40} strokeWidth={1} className="opacity-20" />,
+          title: 'No se encontraron proveedores en el sistema.',
+        }}
+        className="shadow-xl"
+        actions={(row) => {
+          const prov = row as unknown as Provider;
+          return [
+            {
+              label: '',
+              icon: <Edit size={16} />,
+              onClick: () => handleOpenEdit(prov),
+            },
+            {
+              label: '',
+              icon: <Trash2 size={16} />,
+              variant: 'danger' as const,
+              onClick: () => setPendingDelete({ id: prov.id!, name: prov.business_name }),
+            },
+          ];
+        }}
+      />
 
       {/* MODAL / FORMULARIO */}
       {isModalOpen && (
@@ -294,9 +283,9 @@ export default function ProvidersPage() {
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="md:col-span-2">
                                 <label className="block text-xs font-bold text-slate-700 mb-1">Nombre Comercial o Razón Social *</label>
-                                <input 
+                                <Input
                                     required autoFocus
-                                    type="text" 
+                                    type="text"
                                     className="input-std"
                                     placeholder="Ej. Maderas del Sur S.A. de C.V."
                                     value={formData.business_name}
@@ -306,8 +295,8 @@ export default function ProvidersPage() {
                             
                             <div>
                                 <label className="block text-xs font-bold text-slate-700 mb-1">RFC</label>
-                                <input 
-                                    type="text" 
+                                <Input
+                                    type="text"
                                     className="input-std font-mono uppercase"
                                     placeholder="XAXX010101000"
                                     value={formData.rfc_tax_id}
@@ -316,7 +305,7 @@ export default function ProvidersPage() {
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-slate-700 mb-1">Días de Crédito *</label>
-                                <input 
+                                <Input
                                     type="number" min="0" required
                                     className="input-std"
                                     placeholder="0 para pago de contado"
@@ -326,9 +315,9 @@ export default function ProvidersPage() {
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-slate-700 mb-1">Teléfono Fijo / Conmutador</label>
-                                <input 
-                                    type="tel" 
-                                    className="input-std" 
+                                <Input
+                                    type="tel"
+                                    className="input-std"
                                     placeholder="Ej. 55 1234 5678"
                                     value={formData.phone}
                                     onChange={e => setFormData({...formData, phone: e.target.value})}
@@ -336,9 +325,9 @@ export default function ProvidersPage() {
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-slate-700 mb-1">Teléfono Secundario</label>
-                                <input 
-                                    type="tel" 
-                                    className="input-std" 
+                                <Input
+                                    type="tel"
+                                    className="input-std"
                                     placeholder="Opcional"
                                     value={formData.phone2}
                                     onChange={e => setFormData({...formData, phone2: e.target.value})}
@@ -353,9 +342,9 @@ export default function ProvidersPage() {
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="md:col-span-2">
                                 <label className="block text-xs font-bold text-slate-700 mb-1">Nombre Completo del Contacto</label>
-                                <input 
-                                    type="text" 
-                                    className="input-std" 
+                                <Input
+                                    type="text"
+                                    className="input-std"
                                     placeholder="Ej. Juan Pérez"
                                     value={formData.contact_name}
                                     onChange={e => setFormData({...formData, contact_name: e.target.value})}
@@ -363,9 +352,9 @@ export default function ProvidersPage() {
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-slate-700 mb-1">Celular / WhatsApp</label>
-                                <input 
-                                    type="tel" 
-                                    className="input-std" 
+                                <Input
+                                    type="tel"
+                                    className="input-std"
                                     placeholder="Para enviar cotizaciones..."
                                     value={formData.contact_cellphone}
                                     onChange={e => setFormData({...formData, contact_cellphone: e.target.value})}
@@ -373,9 +362,9 @@ export default function ProvidersPage() {
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-slate-700 mb-1">Correo Electrónico (Email)</label>
-                                <input 
-                                    type="email" 
-                                    className="input-std" 
+                                <Input
+                                    type="email"
+                                    className="input-std"
                                     placeholder="juan@empresa.com"
                                     value={formData.contact_email}
                                     onChange={e => setFormData({...formData, contact_email: e.target.value})}

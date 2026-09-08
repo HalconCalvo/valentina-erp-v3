@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { X, FileText, CheckSquare, DollarSign, Calculator, AlertTriangle } from 'lucide-react';
 import { SalesOrder, PaymentPayload } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
+import { Input } from '@/components/ui/Input';
 import { toast } from '@/components/ui/VToast';
 
 interface ReceivableChargeModalProps {
@@ -310,9 +311,9 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
                         </div>
                         <div className="space-y-1">
                             <label className="text-[11px] font-bold text-slate-500 uppercase">Fecha de emisión</label>
-                            <input
+                            <Input
                                 type="date"
-                                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-bold"
+                                className="font-bold"
                                 value={invoiceDate}
                                 onChange={(e) => setInvoiceDate(e.target.value)}
                             />
@@ -330,12 +331,12 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
                                 ) : (
                                     pendingInstances.map(inst => (
                                         <label key={inst.id} className="flex items-center gap-3 p-3 hover:bg-white cursor-pointer transition-colors">
-                                            <input 
-                                                type="checkbox" 
+                                            <Input
+                                                type="checkbox"
                                                 className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
                                                 checked={selectedInstances.includes(inst.id)}
                                                 onChange={() => {
-                                                    setSelectedInstances(prev => 
+                                                    setSelectedInstances(prev =>
                                                         prev.includes(inst.id) ? prev.filter(i => i !== inst.id) : [...prev, inst.id]
                                                     );
                                                 }}
@@ -365,9 +366,9 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
                                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                                 <FileText size={16} className="text-slate-400" />
                                             </div>
-                                            <input
+                                            <Input
                                                 type="text"
-                                                className="w-full pl-10 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-bold"
+                                                className="pl-10 font-bold"
                                                 placeholder="Ej. F-023"
                                                 value={invoiceFolio}
                                                 onChange={(e) => setInvoiceFolio(e.target.value.toUpperCase())}
@@ -378,9 +379,9 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
                                         <label className="text-[11px] font-bold text-indigo-600 uppercase">Importe del Anticipo MXN</label>
                                         <div className="relative">
                                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none font-black text-indigo-600">$</div>
-                                            <input
+                                            <Input
                                                 type="text"
-                                                className="w-full pl-7 pr-3 py-2 bg-indigo-50 border border-indigo-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-black text-indigo-700"
+                                                className="pl-7 bg-indigo-50 border-indigo-200 font-black text-indigo-700 focus-visible:ring-indigo-500"
                                                 value={displayImporte}
                                                 onChange={(e) => handleCurrencyTyping(e, setImporteFactura, setDisplayImporte)}
                                                 placeholder="0.00"
@@ -419,9 +420,9 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
                                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                                 <FileText size={16} className="text-slate-400" />
                                             </div>
-                                            <input
+                                            <Input
                                                 type="text"
-                                                className="w-full pl-10 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-bold"
+                                                className="pl-10 font-bold focus-visible:ring-emerald-500"
                                                 placeholder="Ej. F-023"
                                                 value={invoiceFolio}
                                                 onChange={(e) => setInvoiceFolio(e.target.value.toUpperCase())}
@@ -432,9 +433,9 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
                                         <label className="text-[11px] font-bold text-emerald-600 uppercase">Importe Total MXN *</label>
                                         <div className="relative">
                                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none font-black text-emerald-600">$</div>
-                                            <input
+                                            <Input
                                                 type="text"
-                                                className="w-full pl-7 pr-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-black text-emerald-700"
+                                                className="pl-7 bg-emerald-50 border-emerald-200 font-black text-emerald-700 focus-visible:ring-emerald-500"
                                                 value={displayImporte}
                                                 onChange={(e) => handleCurrencyTyping(e, setImporteFactura, setDisplayImporte)}
                                                 placeholder="0.00"
@@ -472,9 +473,9 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
                                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                         <FileText size={16} className="text-slate-400" />
                                     </div>
-                                    <input 
-                                        type="text" 
-                                        className="w-full pl-10 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-bold"
+                                    <Input
+                                        type="text"
+                                        className="pl-10 font-bold"
                                         placeholder="Ej. F-023"
                                         value={invoiceFolio}
                                         onChange={(e) => setInvoiceFolio(e.target.value.toUpperCase())}
@@ -486,9 +487,9 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
                                 <label className="text-[11px] font-bold text-emerald-600 uppercase">Efectivo a Cobrar MXN</label>
                                 <div className="relative">
                                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none font-black text-emerald-600">$</div>
-                                    <input 
-                                        type="text" 
-                                        className="w-full pl-7 pr-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-black text-emerald-700"
+                                    <Input
+                                        type="text"
+                                        className="pl-7 bg-emerald-50 border-emerald-200 font-black text-emerald-700 focus-visible:ring-emerald-500"
                                         value={displayAmount}
                                         onChange={(e) => handleCurrencyTyping(e, setAmount, setDisplayAmount)}
                                         placeholder="0.00"
@@ -504,9 +505,9 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
                                     </label>
                                     <div className="relative">
                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none font-black text-amber-600">$</div>
-                                        <input 
-                                            type="text" 
-                                            className="w-full pl-7 pr-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 font-bold text-amber-700"
+                                        <Input
+                                            type="text"
+                                            className="pl-7 bg-amber-50 border-amber-200 font-bold text-amber-700 focus-visible:ring-amber-500"
                                             value={displayAmortized}
                                             onChange={(e) => handleCurrencyTyping(e, setAmortizedAdvance, setDisplayAmortized)}
                                             placeholder="0.00"

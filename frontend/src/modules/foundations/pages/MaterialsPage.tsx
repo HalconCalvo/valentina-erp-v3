@@ -10,6 +10,8 @@ import {
 import client from '@/api/axios-client'; 
 
 import ExportButton from '@/components/ui/ExportButton';
+import { Input } from '@/components/ui/Input';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 
@@ -21,6 +23,13 @@ type PendingConfirm =
   | { kind: 'delete'; id: number }
   | { kind: 'reactivate'; id: number }
   | { kind: 'importCsv'; fileName: string };
+
+const PRODUCTION_ROUTES = [
+  { value: 'MATERIAL', label: 'MATERIAL (Inventariable)' },
+  { value: 'PROCESO', label: 'PROCESO (Interno)' },
+  { value: 'CONSUMIBLE', label: 'CONSUMIBLE (Gasto)' },
+  { value: 'SERVICIO', label: 'SERVICIO (Externo)' },
+];
 
 export default function MaterialsPage() {
   const { materials, loading, fetchMaterials, createMaterial, updateMaterial, deleteMaterial, reactivateMaterial } = useMaterials();
@@ -512,6 +521,11 @@ export default function MaterialsPage() {
       ).slice(0, 8)
     : [];
 
+  const providerSelectItems = useMemo(
+    () => [{ id: 0, business_name: '-- Sin Asignar --' }, ...providers],
+    [providers],
+  );
+
   return (
     <div className="space-y-6 p-6">
       <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".csv" className="hidden" />
@@ -529,11 +543,11 @@ export default function MaterialsPage() {
         
         <div className="flex items-center gap-2">
             <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer select-none px-2 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition-colors">
-                <input
+                <Input
                     type="checkbox"
                     checked={showInactive}
                     onChange={e => setShowInactive(e.target.checked)}
-                    className="accent-indigo-600"
+                    className="accent-indigo-600 w-4 h-4"
                 />
                 Ver inactivos
             </label>
@@ -578,7 +592,7 @@ export default function MaterialsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="md:col-span-1">
                         <label className="text-xs font-bold text-slate-500 uppercase">SKU (Único)</label>
-                        <input
+                        <Input
                             className={`input-std font-mono ${skuExists ? 'border-amber-400 bg-amber-50' : ''}`}
                             placeholder="Ej. TAB-BL-15"
                             value={form.sku}
@@ -602,7 +616,7 @@ export default function MaterialsPage() {
                     </div>
                     <div className="md:col-span-2 relative">
                         <label className="text-xs font-bold text-slate-500 uppercase">Nombre / Descripción</label>
-                        <input
+                        <Input
                             className="input-std"
                             placeholder="Ej. MDF Blanco 15mm"
                             value={form.name}
@@ -632,7 +646,7 @@ export default function MaterialsPage() {
                     <div className="md:col-span-1 relative">
                         <label className="text-xs font-bold text-slate-500 uppercase">Categoría</label>
                         <div className="relative">
-                            <input className="input-std" placeholder="Selecciona..." value={form.category} 
+                            <Input className="input-std" placeholder="Selecciona..." value={form.category}
                                 onChange={e => { setForm({...form, category: e.target.value}); setShowCategorySuggestions(true); }}
                                 onFocus={() => setShowCategorySuggestions(true)}
                                 onBlur={() => setTimeout(() => setShowCategorySuggestions(false), 200)}
@@ -654,21 +668,19 @@ export default function MaterialsPage() {
                             <label className="text-[10px] font-bold text-indigo-500 uppercase flex items-center gap-1 mb-1">
                                 <Building2 size={12}/> Proveedor Principal
                             </label>
-                            <select 
-                                className="input-std bg-slate-50" 
-                                value={form.provider_id || 0} 
-                                onChange={e => setForm({...form, provider_id: Number(e.target.value) || undefined})}
-                            >
-                                <option value={0}>-- Sin Asignar --</option>
-                                {providers.map(p => (
-                                    <option key={p.id} value={p.id}>{p.business_name}</option>
-                                ))}
-                            </select>
+                            <SearchableSelect
+                                items={providerSelectItems}
+                                value={String(form.provider_id || 0)}
+                                onChange={(v) => setForm({ ...form, provider_id: Number(v) || undefined })}
+                                getLabel={(p) => p.business_name}
+                                getValue={(p) => String(p.id)}
+                                className="input-std bg-slate-50"
+                            />
                         </div>
                         <div className="relative">
                             <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Unidad Compra</label>
                             <div className="relative">
-                                <input
+                                <Input
                                     className="input-std bg-slate-50"
                                     placeholder="Ej. Hoja"
                                     value={form.purchase_unit}
@@ -704,14 +716,14 @@ export default function MaterialsPage() {
                             <label className="text-[10px] font-bold text-indigo-500 uppercase w-full text-center block mb-1">Factor Conv.</label>
                             <div className="flex items-center gap-2">
                                 <ArrowRight size={14} className="text-slate-400"/>
-                                <input type="number" step="0.01" className="input-std font-bold text-center text-indigo-700 border-indigo-200" value={form.conversion_factor} onChange={e => setForm({...form, conversion_factor: parseFloat(e.target.value)})} />
+                                <Input type="number" step="0.01" className="input-std font-bold text-center text-indigo-700 border-indigo-200" value={form.conversion_factor} onChange={e => setForm({...form, conversion_factor: parseFloat(e.target.value)})} />
                                 <ArrowRight size={14} className="text-slate-400"/>
                             </div>
                         </div>
                         <div className="relative">
                             <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Unidad Uso</label>
                             <div className="relative">
-                                <input
+                                <Input
                                     className="input-std bg-slate-50"
                                     placeholder="Ej. m2"
                                     value={form.usage_unit}
@@ -750,28 +762,30 @@ export default function MaterialsPage() {
 
                     <div className="md:col-span-1">
                         <label className="text-xs font-bold text-slate-500 uppercase">Ruta Producción</label>
-                        <select className="input-std h-[42px]" value={form.production_route} onChange={e => setForm({...form, production_route: e.target.value as any})}>
-                            <option value="MATERIAL">MATERIAL (Inventariable)</option>
-                            <option value="PROCESO">PROCESO (Interno)</option>
-                            <option value="CONSUMIBLE">CONSUMIBLE (Gasto)</option>
-                            <option value="SERVICIO">SERVICIO (Externo)</option>
-                        </select>
+                        <SearchableSelect
+                            items={PRODUCTION_ROUTES}
+                            value={form.production_route || 'MATERIAL'}
+                            onChange={(v) => setForm({ ...form, production_route: v as Material['production_route'] })}
+                            getLabel={(o) => o.label}
+                            getValue={(o) => o.value}
+                            className="input-std h-[42px]"
+                        />
                     </div>
 
                     <div className="md:col-span-1">
                         <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><Link2 size={12}/> Link SKU</label>
-                        <input className="input-std border-dashed" value={form.associated_element_sku || ''} onChange={e => setForm({...form, associated_element_sku: e.target.value})} />
+                        <Input className="input-std border-dashed" value={form.associated_element_sku || ''} onChange={e => setForm({...form, associated_element_sku: e.target.value})} />
                     </div>
 
                     {/* ---> 🔪 INYECCIÓN: LÍMITES DE STOCK CRÍTICO <--- */}
                     <div className="md:col-span-2 grid grid-cols-2 gap-2 bg-rose-50 p-2 rounded border border-rose-100">
                         <div>
                             <label className="text-[10px] font-bold text-rose-700 uppercase flex items-center gap-1 mb-1"><AlertTriangle size={12}/> Stock Mínimo</label>
-                            <input type="number" step="0.01" className="input-std bg-white border-rose-200 text-rose-900" value={(form as any).min_stock || 0} onChange={e => setForm({...form, min_stock: parseFloat(e.target.value)})} />
+                            <Input type="number" step="0.01" className="input-std bg-white border-rose-200 text-rose-900" value={(form as any).min_stock || 0} onChange={e => setForm({...form, min_stock: parseFloat(e.target.value)})} />
                         </div>
                         <div>
                             <label className="text-[10px] font-bold text-emerald-700 uppercase flex items-center gap-1 mb-1"><ShieldCheck size={12}/> Stock Máximo</label>
-                            <input type="number" step="0.01" className="input-std bg-white border-emerald-200 text-emerald-900" value={(form as any).max_stock || 0} onChange={e => setForm({...form, max_stock: parseFloat(e.target.value)})} />
+                            <Input type="number" step="0.01" className="input-std bg-white border-emerald-200 text-emerald-900" value={(form as any).max_stock || 0} onChange={e => setForm({...form, max_stock: parseFloat(e.target.value)})} />
                         </div>
                     </div>
 
@@ -779,12 +793,12 @@ export default function MaterialsPage() {
                         <div className="md:col-span-4 bg-slate-100 p-2 rounded flex justify-end">
                             <div className="w-1/4">
                                 <label className="text-xs font-bold text-slate-600 uppercase flex items-center gap-1"><DollarSign size={12}/> Costo Compra</label>
-                                <input 
-                                    type="number" 
+                                <Input
+                                    type="number"
                                     step="0.01"
                                     min="0"
-                                    className="input-std font-bold text-slate-800 bg-white" 
-                                    value={form.current_cost} 
+                                    className="input-std font-bold text-slate-800 bg-white"
+                                    value={form.current_cost}
                                     onChange={e => {
                                         const newCost = e.target.value === '' ? 0 : parseFloat(e.target.value);
                                         setForm(f => ({
@@ -808,7 +822,7 @@ export default function MaterialsPage() {
                                     : 'border-slate-200 bg-white hover:border-slate-300'
                             }`}
                         >
-                            <input
+                            <Input
                                 type="checkbox"
                                 className="w-5 h-5 accent-indigo-600"
                                 checked={!!form.is_resale}
@@ -838,7 +852,7 @@ export default function MaterialsPage() {
                             <label className="block text-sm font-medium text-slate-700 mb-1">
                                 Precio de venta
                             </label>
-                            <input
+                            <Input
                                 type="number"
                                 step="0.01"
                                 className="input-std"

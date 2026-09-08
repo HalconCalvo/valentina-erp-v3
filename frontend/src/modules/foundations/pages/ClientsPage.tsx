@@ -1,11 +1,13 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useClients, Client } from '../hooks/useClients';
 import { 
   Plus, User, Mail, Phone, 
-  Smartphone, FileText, X, Pencil, Trash2, Users, Building2, Upload
+  FileText, X, Pencil, Trash2, Users, Building2, Upload
 } from 'lucide-react';
 
 import ExportButton from '@/components/ui/ExportButton';
+import { Input } from '@/components/ui/Input';
+import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 
@@ -127,21 +129,86 @@ export default function ClientsPage() {
               </h4>
               <div className="grid grid-cols-12 gap-2">
                   <div className="col-span-12 md:col-span-4">
-                      <input placeholder="Nombre Completo" className="input-mini" value={getName()} onChange={e => setName(e.target.value)} />
+                      <Input placeholder="Nombre Completo" className="input-mini h-8 text-xs" value={getName()} onChange={e => setName(e.target.value)} />
                   </div>
                   <div className="col-span-6 md:col-span-3">
-                      <input placeholder="Teléfono / Cel." className="input-mini" value={getPhone()} onChange={e => setPhone(e.target.value)} />
+                      <Input placeholder="Teléfono / Cel." className="input-mini h-8 text-xs" value={getPhone()} onChange={e => setPhone(e.target.value)} />
                   </div>
                   <div className="col-span-6 md:col-span-5">
-                      <input placeholder="Correo Electrónico" type="email" className="input-mini" value={getEmail()} onChange={e => setEmail(e.target.value)} />
+                      <Input placeholder="Correo Electrónico" type="email" className="input-mini h-8 text-xs" value={getEmail()} onChange={e => setEmail(e.target.value)} />
                   </div>
                   <div className="col-span-12">
-                      <input placeholder="Departamento o Puesto" className="input-mini" value={getDept()} onChange={e => setDept(e.target.value)} />
+                      <Input placeholder="Departamento o Puesto" className="input-mini h-8 text-xs" value={getDept()} onChange={e => setDept(e.target.value)} />
                   </div>
               </div>
           </div>
       );
   };
+
+  const clientColumns = useMemo((): VTableColumn<Client>[] => [
+    {
+      key: 'full_name',
+      label: 'Cliente / Empresa',
+      render: (c) => (
+        <div>
+          <div className="font-bold text-slate-800">{c.full_name}</div>
+          <div className="text-xs font-mono text-slate-500">{c.rfc_tax_id || 'Sin RFC'}</div>
+        </div>
+      ),
+    },
+    {
+      key: 'contact_name',
+      label: 'Contacto Principal',
+      render: (c) => {
+        const extras = [c.contact2_name, c.contact3_name, c.contact4_name].filter(Boolean).length;
+        return c.contact_name ? (
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-medium text-slate-700 flex items-center gap-1">
+              <User size={12} className="text-indigo-500" /> {c.contact_name}
+            </span>
+            <div className="flex gap-2 text-xs text-slate-500">
+              {c.contact_dept && <span className="bg-slate-100 px-1 rounded">{c.contact_dept}</span>}
+              {c.contact_phone && <span>{c.contact_phone}</span>}
+            </div>
+            {c.contact_email && (
+              <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                <Mail size={10} /> {c.contact_email}
+              </span>
+            )}
+            {extras > 0 && (
+              <span className="text-[10px] text-indigo-600 font-bold bg-indigo-50 w-fit px-1.5 rounded-full mt-1">
+                +{extras} Contactos más
+              </span>
+            )}
+          </div>
+        ) : (
+          <span className="text-xs text-slate-300 italic">No especificado</span>
+        );
+      },
+    },
+    {
+      key: 'email',
+      label: 'Comunicación',
+      render: (c) => (
+        <div className="flex flex-col gap-1 text-sm text-slate-600">
+          <span className="flex items-center gap-2 text-xs"><Building2 size={12} /> {c.email}</span>
+          <span className="flex items-center gap-2 text-xs"><Phone size={12} /> {c.phone}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'notes',
+      label: 'Observaciones',
+      render: (c) => (
+        c.notes ? (
+          <div className="text-xs text-slate-500 max-w-xs truncate" title={c.notes}>
+            <FileText size={10} className="inline mr-1" />
+            {c.notes}
+          </div>
+        ) : '-'
+      ),
+    },
+  ], []);
 
   const handleCsvImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -174,7 +241,7 @@ export default function ClientsPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <input
+      <Input
         type="file"
         ref={csvInputRef}
         className="hidden"
@@ -209,89 +276,29 @@ export default function ClientsPage() {
       </div>
 
       {/* TABLA DE CLIENTES */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <table className="w-full text-left">
-            <thead className="bg-slate-50 border-b border-slate-100">
-                <tr>
-                    <th className="p-4 text-xs font-bold text-slate-500 uppercase">Cliente / Empresa</th>
-                    <th className="p-4 text-xs font-bold text-slate-500 uppercase">Contacto Principal</th>
-                    <th className="p-4 text-xs font-bold text-slate-500 uppercase">Comunicación</th>
-                    <th className="p-4 text-xs font-bold text-slate-500 uppercase">Observaciones</th>
-                    <th className="p-4 text-xs font-bold text-slate-500 uppercase text-right">Acciones</th>
-                </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-                {loading ? <tr><td colSpan={5} className="p-8 text-center text-slate-400">Cargando cartera...</td></tr> : null}
-                
-                {clients.length === 0 && !loading && (
-                    <tr><td colSpan={5} className="p-8 text-center text-slate-400">No hay clientes registrados.</td></tr>
-                )}
-
-                {clients.map(c => {
-                    const extras = [c.contact2_name, c.contact3_name, c.contact4_name].filter(Boolean).length;
-
-                    return (
-                        <tr key={c.id} className="hover:bg-slate-50 transition-colors">
-                            <td className="p-4">
-                                <div className="font-bold text-slate-800">{c.full_name}</div>
-                                <div className="text-xs font-mono text-slate-500">{c.rfc_tax_id || 'Sin RFC'}</div>
-                            </td>
-                            <td className="p-4">
-                                {c.contact_name ? (
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-sm font-medium text-slate-700 flex items-center gap-1">
-                                            <User size={12} className="text-indigo-500"/> {c.contact_name}
-                                        </span>
-                                        <div className="flex gap-2 text-xs text-slate-500">
-                                            {c.contact_dept && <span className="bg-slate-100 px-1 rounded">{c.contact_dept}</span>}
-                                            {c.contact_phone && <span>{c.contact_phone}</span>}
-                                        </div>
-                                        {/* NUEVO: Mostramos el email en la tabla si existe */}
-                                        {c.contact_email && (
-                                            <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                                                <Mail size={10}/> {c.contact_email}
-                                            </span>
-                                        )}
-                                        {extras > 0 && (
-                                            <span className="text-[10px] text-indigo-600 font-bold bg-indigo-50 w-fit px-1.5 rounded-full mt-1">
-                                                +{extras} Contactos más
-                                            </span>
-                                        )}
-                                    </div>
-                                ) : (
-                                    <span className="text-xs text-slate-300 italic">No especificado</span>
-                                )}
-                            </td>
-                            <td className="p-4">
-                                <div className="flex flex-col gap-1 text-sm text-slate-600">
-                                    <span className="flex items-center gap-2 text-xs"><Building2 size={12}/> {c.email}</span>
-                                    <span className="flex items-center gap-2 text-xs"><Phone size={12}/> {c.phone}</span>
-                                </div>
-                            </td>
-                            <td className="p-4">
-                                {c.notes ? (
-                                    <div className="text-xs text-slate-500 max-w-xs truncate" title={c.notes}>
-                                        <FileText size={10} className="inline mr-1"/>
-                                        {c.notes}
-                                    </div>
-                                ) : '-'}
-                            </td>
-                            <td className="p-4 text-right">
-                                <div className="flex justify-end gap-2">
-                                    <button onClick={() => handleEdit(c)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" title="Editar / Ver Contactos">
-                                        <Pencil size={16} />
-                                    </button>
-                                    <button onClick={() => c.id && handleDelete(c.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Eliminar">
-                                        <Trash2 size={16} />
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    );
-                })}
-            </tbody>
-        </table>
-      </div>
+      <VTable
+        columns={clientColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+        data={clients as unknown as Record<string, unknown>[]}
+        isLoading={loading}
+        emptyState={{ title: 'No hay clientes registrados.' }}
+        className="shadow-sm"
+        actions={(row) => {
+          const c = row as unknown as Client;
+          return [
+            {
+              label: '',
+              icon: <Pencil size={16} />,
+              onClick: () => handleEdit(c),
+            },
+            {
+              label: '',
+              icon: <Trash2 size={16} />,
+              variant: 'danger' as const,
+              onClick: () => c.id && handleDelete(c.id),
+            },
+          ];
+        }}
+      />
 
       {/* MODAL AVANZADO CON PESTAÑAS */}
       {showModal && (
@@ -330,28 +337,28 @@ export default function ClientsPage() {
                         <div className="space-y-4 animate-in fade-in duration-300">
                             <div>
                                 <label className="label-std">Razón Social / Nombre Cliente *</label>
-                                <input required className="input-std" value={form.full_name} onChange={e => setForm({...form, full_name: e.target.value})} />
+                                <Input required className="input-std" value={form.full_name} onChange={e => setForm({...form, full_name: e.target.value})} />
                             </div>
                             
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="label-std">RFC</label>
-                                    <input className="input-std" value={form.rfc_tax_id || ''} onChange={e => setForm({...form, rfc_tax_id: e.target.value})} />
+                                    <Input className="input-std" value={form.rfc_tax_id || ''} onChange={e => setForm({...form, rfc_tax_id: e.target.value})} />
                                 </div>
                                 <div>
                                     <label className="label-std">Teléfono Oficina *</label>
-                                    <input required className="input-std" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} />
+                                    <Input required className="input-std" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} />
                                 </div>
                             </div>
 
                             <div>
                                 <label className="label-std">Email Facturación / Empresa *</label>
-                                <input type="email" required className="input-std" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
+                                <Input type="email" required className="input-std" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
                             </div>
 
                             <div>
                                 <label className="label-std">Dirección Fiscal</label>
-                                <input className="input-std" value={form.fiscal_address || ''} onChange={e => setForm({...form, fiscal_address: e.target.value})} />
+                                <Input className="input-std" value={form.fiscal_address || ''} onChange={e => setForm({...form, fiscal_address: e.target.value})} />
                             </div>
 
                             <div>
