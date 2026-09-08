@@ -73,7 +73,6 @@ export function SearchableSelect<T>({
         const next = event.target.value;
         setDraft(next);
         setIsOpen(true);
-        if (value) onChange('');
     };
 
     const handleSelect = (item: T) => {
