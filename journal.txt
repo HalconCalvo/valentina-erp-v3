@@ -2698,3 +2698,41 @@ Continuar Fase 4 con cobertura de tests, luego Fase 5 — Inventario Completo.
 - Meta 60% cobertura: no medida formalmente, flujos críticos cubiertos
 
 ### Siguiente: FASE 5 — Inventario Completo
+
+
+---
+## SESIÓN 2026-09-08 — FASE 5 COMPLETADA (Inventario Completo)
+
+### Completado:
+
+**Kárdex centralizado (commit fd2ad65)**
+- inventory_service.py — única puerta de modificación de stock
+- register_movement() — tipos: PURCHASE_ENTRY, PRODUCTION_EXIT, WASTE,
+  ADJUSTMENT_IN, ADJUSTMENT_OUT, RETURN, TRANSFER_IN, TRANSFER_OUT, OPENING_BALANCE
+- Último costo: current_cost se actualiza solo en PURCHASE_ENTRY
+- Stock negativo bloqueado con 400
+- inventory_repository.py — get_kardex, get_low_stock_materials, get_inventory_valuation
+- Endpoints: GET /materials/{id}/kardex, GET /materials/low-stock
+
+**Inventario físico por sesiones (commits b84f544, 88bd647)**
+- Flujo completo con 4 caminos
+- Conteo ciego: system_quantity nunca expuesto durante captura
+- Aprobación granular por material (no por sesión completa)
+- Items ≤5% diferencia: ajuste automático al enviar
+- Items >5% diferencia: requieren aprobación individual de DIRECTOR/MANAGER
+- Historial de sesiones desde BD (eliminado localStorage)
+
+**Frontend módulo almacén (commit 0d629c2)**
+- inventory-service.ts — 12 métodos contra el nuevo backend
+- PhysicalInventoryModule.tsx — reemplazado con 4 vistas (sin sesión,
+  EN_CAPTURA, ESPERANDO_AUTORIZACION, CERRADA)
+- KardexPage.tsx — historial por material con filtros de fecha y colores
+- InventoryDashboardPage.tsx — tarjeta de alertas de stock mínimo
+- Ruta /inventory/kardex → KardexPage
+
+### Decisiones de negocio registradas:
+- Valuación: Último costo (no CPP)
+- Umbral de excepción: 5% de diferencia
+- Aprobación granular: solo materiales con excepción >5%
+
+### Siguiente: FASE 6 — Recursos Humanos
