@@ -220,13 +220,6 @@ export const InventoryDashboardPage = () => {
                         </h1>
                         <p className="text-slate-500 mt-1 font-medium">Solicitudes, órdenes, recepción, inventario, materiales y proveedores.</p>
                     </div>
-                    <button
-                        type="button"
-                        onClick={() => navigate('/inventory/kardex')}
-                        className="flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-bold text-indigo-700 hover:bg-indigo-100 transition-colors"
-                    >
-                        <BookOpen size={16} /> Kárdex de materiales
-                    </button>
                 </div>
             )}
 
@@ -325,6 +318,20 @@ export const InventoryDashboardPage = () => {
                                 <div className="flex justify-between items-start"><p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">7. Alertas de Stock</p><AlertTriangle size={16} className="text-red-500" /></div>
                                 <div className="mt-4 flex justify-end"><div className="text-2xl font-black text-red-600 tracking-tight">Bajo mínimo</div></div>
                                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100"><p className="text-[10px] text-slate-400 font-bold uppercase">Materiales en nivel crítico</p><ArrowUpRight size={14} className="text-red-400"/></div>
+                            </div>
+                        </Card>
+                    </div>
+
+                    {/* TARJETA 8 — KÁRDEX */}
+                    <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] relative h-40">
+                        <Card onClick={() => navigate('/inventory/kardex')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-indigo-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group">
+                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50 text-indigo-700 border-r border-indigo-100 font-black text-3xl transition-colors group-hover:bg-indigo-100">
+                                <BookOpen size={24} />
+                            </div>
+                            <div className="ml-16 h-full flex flex-col justify-between">
+                                <div className="flex justify-between items-start"><p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">8. Kárdex</p><BookOpen size={16} className="text-indigo-500" /></div>
+                                <div className="mt-4 flex justify-end"><div className="text-2xl font-black text-indigo-600 tracking-tight">Movimientos</div></div>
+                                <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100"><p className="text-[10px] text-slate-400 font-bold uppercase">Historial por material</p><ArrowUpRight size={14} className="text-indigo-400"/></div>
                             </div>
                         </Card>
                     </div>
