@@ -2673,3 +2673,28 @@ No se requiere integración directa con SAT ni timbrado desde Valentina.
 
 ### Próxima sesión:
 Continuar Fase 4 con cobertura de tests, luego Fase 5 — Inventario Completo.
+
+
+---
+## SESIÓN 2026-09-08 — FASE 4 COMPLETADA (Logging, Monitoreo y Tests)
+
+### Completado:
+- structlog==24.4.0 — logging estructurado JSON en producción
+- Middleware de requests — method, path, status_code, duration_ms, user_id
+- sentry-sdk[fastapi]==2.13.0 — alertas automáticas configuradas
+- SENTRY_DSN configurado en Render como variable de entorno
+- pytest: 31 tests backend en verde
+  * test_auth.py: 5 tests
+  * test_quotations.py: 5 tests
+  * test_sales_service.py: 13 tests (+ 3 validaciones de negocio corregidas)
+  * test_purchase_service.py: 8 tests (regla de oro verificada)
+- Vitest: 4 tests frontend en verde
+- TOTAL: 35 tests automatizados
+
+### Estado Fase 4:
+- Logging: A — structlog + Sentry activos en producción
+- Tests backend: B — 31 tests cubriendo flujos críticos
+- Tests frontend: C+ — 4 tests, base establecida
+- Meta 60% cobertura: no medida formalmente, flujos críticos cubiertos
+
+### Siguiente: FASE 5 — Inventario Completo
