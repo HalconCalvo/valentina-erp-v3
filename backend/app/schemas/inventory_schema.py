@@ -194,3 +194,7 @@ class AuditCapturePayload(BaseModel):
 
 class AuditReasonPayload(BaseModel):
     reason: str
+
+
+class AuditItemApprovePayload(BaseModel):
+    notes: Optional[str] = None

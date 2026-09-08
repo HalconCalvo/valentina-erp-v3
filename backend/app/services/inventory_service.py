@@ -412,7 +412,62 @@ def _serialize_audit_item(item: InventoryAuditItem, material: Material | None, b
     if not blind:
         payload["system_quantity"] = item.system_quantity
         payload["variance"] = item.variance
+        payload["requires_approval"] = item.requires_approval
+        payload["approved_by_id"] = item.approved_by_id
+        payload["approved_at"] = item.approved_at
+        payload["approval_notes"] = item.approval_notes
+        payload["resolved"] = _item_is_resolved(item)
     return payload
+
+
+def _item_is_resolved(item: InventoryAuditItem) -> bool:
+    if item.approved_at is not None:
+        return True
+    variance = abs(float(item.variance or 0.0))
+    if variance <= 0.0001:
+        return True
+    return not item.requires_approval
+
+
+def _apply_item_adjustment(
+    session: Session,
+    audit: InventoryAudit,
+    item: InventoryAuditItem,
+    user_id: int,
+    notes: str | None = None,
+) -> None:
+    variance = float(item.variance or 0.0)
+    if abs(variance) <= 0.0001:
+        return
+    movement_type = "ADJUSTMENT_IN" if variance > 0 else "ADJUSTMENT_OUT"
+    register_movement(
+        session,
+        item.material_id,
+        movement_type,
+        abs(variance),
+        reason=notes or f"Inventario físico audit #{audit.id}",
+        commit=False,
+    )
+    item.approved_by_id = user_id
+    item.approved_at = datetime.utcnow()
+    item.approval_notes = notes
+    session.add(item)
+
+
+def _pending_approval_items(items: list[InventoryAuditItem]) -> list[InventoryAuditItem]:
+    return [
+        i for i in items
+        if i.requires_approval and i.approved_at is None and abs(float(i.variance or 0.0)) > 0.0001
+    ]
+
+
+def _maybe_close_audit(session: Session, audit: InventoryAudit, user_id: int) -> None:
+    items = inventory_repo.get_audit_items(session, audit.id)
+    if any(not _item_is_resolved(i) for i in items):
+        return
+    audit.status = "CERRADA"
+    audit.authorized_by_id = user_id
+    session.add(audit)
 
 
 def _serialize_audit(session: Session, audit: InventoryAudit, user, blind: bool | None = None) -> dict:
@@ -433,30 +488,8 @@ def _serialize_audit(session: Session, audit: InventoryAudit, user, blind: bool 
         "items": serialized_items,
         "items_total": len(serialized_items),
         "items_captured": sum(1 for i in items if i.counted_quantity is not None),
+        "items_pending_approval": len(_pending_approval_items(items)),
     }
-
-
-def _apply_audit_adjustments(session: Session, audit: InventoryAudit, user_id: int) -> None:
-    items = inventory_repo.get_audit_items(session, audit.id)
-    reason = f"Inventario físico audit #{audit.id}"
-    for item in items:
-        variance = float(item.variance or 0.0)
-        if abs(variance) <= 0.0001:
-            continue
-        movement_type = "ADJUSTMENT_IN" if variance > 0 else "ADJUSTMENT_OUT"
-        register_movement(
-            session,
-            item.material_id,
-            movement_type,
-            abs(variance),
-            reason=reason,
-            commit=False,
-        )
-    audit.status = "CERRADA"
-    audit.authorized_by_id = user_id
-    session.add(audit)
-    session.commit()
-    session.refresh(audit)
 
 
 def create_audit_session(session: Session, current_user) -> dict:
@@ -495,6 +528,8 @@ def capture_count(
     item = inventory_repo.get_audit_item_by_id(session, item_id)
     if not item or item.audit_id != audit_id:
         raise HTTPException(status_code=404, detail="Línea de conteo no encontrada.")
+    if item.approved_at is not None:
+        raise HTTPException(status_code=409, detail="Esta línea ya fue procesada.")
     counted = float(counted_quantity or 0.0)
     if counted < 0:
         raise HTTPException(status_code=422, detail="La cantidad contada no puede ser negativa.")
@@ -515,24 +550,70 @@ def submit_for_approval(session: Session, audit_id: int, current_user) -> dict:
     if audit.status != "EN_CAPTURA":
         raise HTTPException(status_code=400, detail="Solo se puede enviar una sesión EN_CAPTURA.")
     items = inventory_repo.get_audit_items(session, audit_id)
-    pending = [i for i in items if i.counted_quantity is None]
-    if pending:
+    pending_capture = [i for i in items if i.counted_quantity is None and i.approved_at is None]
+    if pending_capture:
         raise HTTPException(
             status_code=422,
-            detail=f"Faltan {len(pending)} materiales por capturar antes de enviar.",
+            detail=f"Faltan {len(pending_capture)} materiales por capturar antes de enviar.",
         )
-    needs_auth = any(
-        _requires_authorization(float(i.system_quantity or 0.0), float(i.variance or 0.0))
-        for i in items
+    has_pending_approval = False
+    for item in items:
+        if item.approved_at is not None:
+            continue
+        variance = float(item.variance or 0.0)
+        needs = _requires_authorization(float(item.system_quantity or 0.0), variance)
+        if needs:
+            item.requires_approval = True
+            has_pending_approval = True
+            session.add(item)
+            continue
+        item.requires_approval = False
+        _apply_item_adjustment(
+            session,
+            audit,
+            item,
+            current_user.id,
+            notes="Ajuste automático (dentro del umbral)",
+        )
+    audit.status = "ESPERANDO_AUTORIZACION" if has_pending_approval else "CERRADA"
+    if not has_pending_approval:
+        audit.authorized_by_id = current_user.id
+    session.add(audit)
+    session.commit()
+    session.refresh(audit)
+    return _serialize_audit(session, audit, current_user)
+
+
+def approve_audit_item(
+    session: Session,
+    audit_id: int,
+    item_id: int,
+    notes: str | None,
+    current_user,
+) -> dict:
+    _assert_roles(current_user, AUDIT_APPROVE_ROLES)
+    audit = inventory_repo.get_audit_by_id(session, audit_id)
+    if not audit or audit.status != "ESPERANDO_AUTORIZACION":
+        raise HTTPException(status_code=400, detail="La sesión debe estar en ESPERANDO_AUTORIZACION.")
+    item = inventory_repo.get_audit_item_by_id(session, item_id)
+    if not item or item.audit_id != audit_id:
+        raise HTTPException(status_code=404, detail="Línea de conteo no encontrada.")
+    if not item.requires_approval:
+        raise HTTPException(status_code=400, detail="Este material no requiere aprobación.")
+    if item.approved_at is not None:
+        raise HTTPException(status_code=409, detail="Este material ya fue aprobado.")
+    _apply_item_adjustment(
+        session,
+        audit,
+        item,
+        current_user.id,
+        notes=notes or "Aprobación de excepción de inventario",
     )
-    if needs_auth:
-        audit.status = "ESPERANDO_AUTORIZACION"
-        session.add(audit)
-        session.commit()
-        session.refresh(audit)
-        return _serialize_audit(session, audit, current_user)
-    _apply_audit_adjustments(session, audit, current_user.id)
-    return _serialize_audit(session, audit, current_user, blind=False)
+    _maybe_close_audit(session, audit, current_user.id)
+    session.commit()
+    session.refresh(item)
+    material = inventory_repo.get_material_by_id(session, item.material_id)
+    return _serialize_audit_item(item, material, blind=False)
 
 
 def approve_audit(session: Session, audit_id: int, current_user) -> dict:
@@ -542,7 +623,20 @@ def approve_audit(session: Session, audit_id: int, current_user) -> dict:
         raise HTTPException(status_code=404, detail="Sesión de inventario no encontrada.")
     if audit.status != "ESPERANDO_AUTORIZACION":
         raise HTTPException(status_code=400, detail="Solo se pueden aprobar sesiones en ESPERANDO_AUTORIZACION.")
-    _apply_audit_adjustments(session, audit, current_user.id)
+    pending = _pending_approval_items(inventory_repo.get_audit_items(session, audit_id))
+    if not pending:
+        raise HTTPException(status_code=400, detail="No hay materiales pendientes de aprobación.")
+    for item in pending:
+        _apply_item_adjustment(
+            session,
+            audit,
+            item,
+            current_user.id,
+            notes="Aprobación masiva de excepción de inventario",
+        )
+    _maybe_close_audit(session, audit, current_user.id)
+    session.commit()
+    session.refresh(audit)
     return _serialize_audit(session, audit, current_user, blind=False)
 
 
@@ -560,6 +654,12 @@ def reject_audit(session: Session, audit_id: int, reason: str, current_user) -> 
     audit.notes = f"{audit.notes or ''}\n[RECHAZO {stamp}]: {reason_text}".strip()
     audit.status = "EN_CAPTURA"
     audit.authorized_by_id = None
+    for item in inventory_repo.get_audit_items(session, audit_id):
+        if item.requires_approval and item.approved_at is None:
+            item.counted_quantity = None
+            item.variance = None
+            item.requires_approval = False
+            session.add(item)
     session.add(audit)
     session.commit()
     session.refresh(audit)

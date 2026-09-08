@@ -206,6 +206,10 @@ class InventoryAuditItem(SQLModel, table=True):
     system_quantity: float # Lo que dice Valentina que hay (Oculto al usuario)
     counted_quantity: Optional[float] = Field(default=None) # Lo que el humano teclea
     variance: Optional[float] = Field(default=None) # Diferencia calculada (+/-)
+    requires_approval: bool = Field(default=False)
+    approved_by_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    approved_at: Optional[datetime] = Field(default=None)
+    approval_notes: Optional[str] = Field(default=None)
 
 
 # ==========================================

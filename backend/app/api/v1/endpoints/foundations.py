@@ -19,6 +19,7 @@ from app.schemas.inventory_schema import (
     PhysicalCountCreate,
     AuditCapturePayload,
     AuditReasonPayload,
+    AuditItemApprovePayload,
 )
 
 # --- MODELOS ---
@@ -580,6 +581,19 @@ def submit_inventory_audit(audit_id: int, current_user: CurrentUser, session: Se
 @router.post("/inventory/audits/{audit_id}/approve")
 def approve_inventory_audit(audit_id: int, current_user: CurrentUser, session: Session = Depends(get_session)):
     return inventory_service.approve_audit(session, audit_id, current_user)
+
+
+@router.post("/inventory/audits/{audit_id}/items/{item_id}/approve")
+def approve_inventory_audit_item(
+    audit_id: int,
+    item_id: int,
+    payload: AuditItemApprovePayload,
+    current_user: CurrentUser,
+    session: Session = Depends(get_session),
+):
+    return inventory_service.approve_audit_item(
+        session, audit_id, item_id, payload.notes, current_user
+    )
 
 
 @router.post("/inventory/audits/{audit_id}/reject")
