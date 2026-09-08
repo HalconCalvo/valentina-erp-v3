@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Home, RefreshCw, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Input } from '@/components/ui/Input';
 import { salesService } from '../../../api/sales-service';
 
 interface InstanceStatus {
@@ -124,7 +125,7 @@ function HouseCard({ house }: { house: HouseStatus }) {
                         key={stage.key}
                         className="flex items-center gap-1.5 cursor-default select-none"
                       >
-                        <input
+                        <Input
                           type="checkbox"
                           checked={checked}
                           readOnly

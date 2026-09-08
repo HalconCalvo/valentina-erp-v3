@@ -1,8 +1,16 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { Plus, Layers, Square, Package, Activity, Lock, Unlock, Save, EyeOff } from "lucide-react"; 
+import { Input } from "@/components/ui/Input";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { VersionComponent, VersionStatus } from "../../../types/design";
 import { Material } from "../../../types/foundations";
+
+const STATUS_SELECT_ITEMS = [
+    { value: VersionStatus.DRAFT, label: '🔴 Draft (Editable)' },
+    { value: VersionStatus.READY, label: '🟢 LISTO (Bloqueado)' },
+    { value: VersionStatus.OBSOLETE, label: '⚫ OBSOLETO' },
+];
 
 interface Props {
   materials: Material[];
@@ -24,12 +32,12 @@ const InlineSearchableSelect = ({ materials, value, onChange, disabled }: { mate
     const [isOpen, setIsOpen] = useState(false);
     
     const wrapperRef = useRef<HTMLDivElement>(null);
-    const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        if (value === 0 && !disabled && inputRef.current) {
+        if (value === 0 && !disabled && wrapperRef.current) {
             setTimeout(() => {
-                inputRef.current?.focus();
+                const el = wrapperRef.current?.querySelector('[data-slot="input"]') as HTMLInputElement | null;
+                el?.focus();
                 setIsOpen(true);
             }, 50);
         }
@@ -86,12 +94,11 @@ const InlineSearchableSelect = ({ materials, value, onChange, disabled }: { mate
 
     return (
         <div ref={wrapperRef} className="relative w-full">
-            <input 
-                ref={inputRef}
+            <Input 
                 type="text"
                 disabled={disabled}
                 placeholder="Escribe el material a buscar..."
-                className={`w-full text-xs outline-none truncate disabled:cursor-not-allowed text-slate-800 placeholder-slate-400 transition-all ${
+                className={`w-full text-xs outline-none truncate disabled:cursor-not-allowed text-slate-800 placeholder-slate-400 transition-all h-auto ${
                     value === 0 && !disabled
                     ? 'bg-white border border-indigo-300 rounded px-2 py-1.5 shadow-sm focus:ring-2 focus:ring-indigo-100'
                     : 'bg-transparent border-none p-0 focus:bg-white focus:ring-1 focus:ring-indigo-200 focus:rounded focus:px-2 focus:py-1'
@@ -419,17 +426,16 @@ export const VersionRecipeForm = ({
              <div className="flex items-center gap-2 bg-white/50 p-1.5 rounded border border-amber-100">
                 {internalStatus === VersionStatus.READY ? <Unlock size={14} className="text-emerald-600"/> : <Lock size={14} className="text-amber-600"/>}
                 <label className="text-[10px] font-bold text-slate-500 uppercase">Estatus:</label>
-                <select 
+                <SearchableSelect
+                    items={STATUS_SELECT_ITEMS}
+                    value={internalStatus}
+                    onChange={(v) => setInternalStatus(v as VersionStatus)}
+                    getLabel={(item) => item.label}
+                    getValue={(item) => item.value}
                     className={`text-xs font-bold border-none outline-none cursor-pointer rounded px-2 py-1 ${
                         internalStatus === VersionStatus.READY ? 'text-emerald-700 bg-emerald-100' : 'text-amber-700 bg-amber-100'
                     }`}
-                    value={internalStatus}
-                    onChange={(e) => setInternalStatus(e.target.value as VersionStatus)}
-                >
-                    <option value={VersionStatus.DRAFT}>🔴 Draft (Editable)</option>
-                    <option value={VersionStatus.READY}>🟢 LISTO (Bloqueado)</option>
-                    <option value={VersionStatus.OBSOLETE}>⚫ OBSOLETO</option>
-                </select>
+                />
              </div>
          </div>
 
@@ -538,13 +544,13 @@ export const VersionRecipeForm = ({
                             </div>
 
                             <div className="col-span-1">
-                                <input 
+                                <Input 
                                     type="number" 
                                     step="0.01" 
                                     disabled={isReadOnly} 
                                     {...register(`components.${idx}.quantity`)} 
                                     onChange={(e) => handleQuantityChange(idx, e.target.value)} 
-                                    className="w-full text-center text-xs border rounded h-6 disabled:bg-slate-100"
+                                    className="w-full text-center text-xs border rounded disabled:bg-slate-100 h-auto min-h-[24px]"
                                 />
                             </div>
                             <div className="col-span-1 text-center text-[10px] text-slate-400">{mat?.usage_unit || "-"}</div>

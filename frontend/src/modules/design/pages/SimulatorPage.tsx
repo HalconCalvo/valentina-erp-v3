@@ -4,7 +4,8 @@ import { designService, PendingInstance, SimulateBatchResponse } from '../../../
 import { productionService } from '../../../api/production-service';
 import { toast } from '@/components/ui/VToast';
 import { planningService } from '../../../api/planning-service';
-// IMPORTACIÓN CORREGIDA: Se agregaron Calculator y RefreshCw
+import { Input } from '@/components/ui/Input';
+import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { Package, CheckSquare, Square, AlertTriangle, ShieldCheck, Factory, Beaker, ArrowLeft, Calculator, RefreshCw, Pencil, Check, X, Tag } from 'lucide-react';
 
 /** Devuelve el emoji del foco según el color del semáforo. */
@@ -250,6 +251,40 @@ export default function SimulatorPage() {
     return Array.from(groups.values());
   }, [pendingInstances]);
 
+  const materialColumns = useMemo((): VTableColumn<any>[] => [
+    {
+      key: 'name',
+      label: 'Material (SKU)',
+      render: (mat) => (
+        <>
+          <span className="font-bold text-slate-800">{mat.name}</span>
+          <span className="block text-xs text-slate-400 mt-0.5">{mat.sku} • {mat.category}</span>
+        </>
+      ),
+    },
+    {
+      key: 'required_qty',
+      label: 'Requerido',
+      render: (mat) => <span className="font-mono font-medium text-slate-600 text-right block">{mat.required_qty}</span>,
+    },
+    {
+      key: 'available_qty',
+      label: 'Existencia Fís.',
+      render: (mat) => <span className="font-mono font-bold text-slate-800 text-right block">{mat.available_qty}</span>,
+    },
+    {
+      key: 'status',
+      label: 'Estatus',
+      render: (mat) => (
+        <div className="flex justify-center">
+          {mat.status_color === 'RED' && <span className="bg-red-100 text-red-700 text-[10px] font-bold px-2 py-1 rounded border border-red-200 shadow-sm">FALTANTE CRÍTICO</span>}
+          {mat.status_color === 'YELLOW' && <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-1 rounded border border-amber-200 shadow-sm">FALTANTE MENOR</span>}
+          {mat.status_color === 'GREEN' && <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-1 rounded border border-emerald-200 shadow-sm">SUFICIENTE</span>}
+        </div>
+      ),
+    },
+  ], []);
+
   return (
     <div className="p-8 h-full bg-slate-50 flex flex-col max-w-7xl mx-auto animate-in fade-in duration-300">
       
@@ -409,7 +444,7 @@ export default function SimulatorPage() {
                               <div className="flex-1 min-w-0">
                                 {editingId === inst.id ? (
                                   <div className="flex items-center gap-1.5">
-                                    <input
+                                    <Input
                                       autoFocus
                                       type="text"
                                       value={editingName}
@@ -418,7 +453,7 @@ export default function SimulatorPage() {
                                         if (e.key === 'Enter') saveEdit(inst.id);
                                         if (e.key === 'Escape') cancelEdit();
                                       }}
-                                      className="flex-1 text-sm border border-indigo-300 rounded-lg px-2 py-1 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                                      className="flex-1 text-sm border border-indigo-300 rounded-lg px-2 py-1 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 h-auto"
                                     />
                                     <button
                                       onClick={() => saveEdit(inst.id)}
@@ -493,20 +528,30 @@ export default function SimulatorPage() {
               <div className="flex-1">
                 <label className="block text-sm font-bold text-slate-700 mb-2">Línea de Producción:</label>
                 <div className="flex gap-4">
-                  <label className={`flex-1 p-3 border rounded-lg cursor-pointer flex flex-col items-center justify-center gap-1 font-bold transition ${batchType === 'MDF' ? 'bg-slate-800 text-white border-slate-800 shadow-md' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}>
-                    <input type="radio" name="bType" className="hidden" checked={batchType === 'MDF'} onChange={() => {setBatchType('MDF'); setSimulationResult(null);}} />
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => { setBatchType('MDF'); setSimulationResult(null); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setBatchType('MDF'); setSimulationResult(null); } }}
+                    className={`flex-1 p-3 border rounded-lg cursor-pointer flex flex-col items-center justify-center gap-1 font-bold transition ${batchType === 'MDF' ? 'bg-slate-800 text-white border-slate-800 shadow-md' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}
+                  >
                     <span>Lote MDF</span>
                     <span className={`text-[10px] font-normal ${batchType === 'MDF' ? 'text-slate-300' : 'text-slate-400'}`}>
                       Requiere simulación de inventario
                     </span>
-                  </label>
-                  <label className={`flex-1 p-3 border rounded-lg cursor-pointer flex flex-col items-center justify-center gap-1 font-bold transition ${batchType === 'PIEDRA' ? 'bg-slate-800 text-white border-slate-800 shadow-md' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}>
-                    <input type="radio" name="bType" className="hidden" checked={batchType === 'PIEDRA'} onChange={() => {setBatchType('PIEDRA'); setSimulationResult(null);}} />
+                  </div>
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => { setBatchType('PIEDRA'); setSimulationResult(null); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setBatchType('PIEDRA'); setSimulationResult(null); } }}
+                    className={`flex-1 p-3 border rounded-lg cursor-pointer flex flex-col items-center justify-center gap-1 font-bold transition ${batchType === 'PIEDRA' ? 'bg-slate-800 text-white border-slate-800 shadow-md' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}
+                  >
                     <span>Lote Piedra</span>
                     <span className={`text-[10px] font-normal ${batchType === 'PIEDRA' ? 'text-slate-300' : 'text-slate-400'}`}>
                       Creación directa sin simulación
                     </span>
-                  </label>
+                  </div>
                 </div>
               </div>
               
@@ -571,33 +616,11 @@ export default function SimulatorPage() {
 
                 <h4 className="font-bold text-slate-700 mb-3 text-sm flex items-center gap-2"><Beaker size={16} className="text-slate-400"/> Desglose de Receta vs Inventario Físico</h4>
                 <div className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm">
-                  <table className="w-full text-left text-sm">
-                    <thead className="bg-slate-100 text-slate-600">
-                      <tr>
-                        <th className="p-3 font-bold">Material (SKU)</th>
-                        <th className="p-3 font-bold text-right">Requerido</th>
-                        <th className="p-3 font-bold text-right">Existencia Fís.</th>
-                        <th className="p-3 font-bold text-center">Estatus</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {simulationResult.materials.map(mat => (
-                        <tr key={mat.material_id} className={mat.status_color === 'RED' ? 'bg-red-50/50' : mat.status_color === 'YELLOW' ? 'bg-amber-50/50' : ''}>
-                          <td className="p-3">
-                            <span className="font-bold text-slate-800">{mat.name}</span>
-                            <span className="block text-xs text-slate-400 mt-0.5">{mat.sku} • {mat.category}</span>
-                          </td>
-                          <td className="p-3 text-right font-mono font-medium text-slate-600">{mat.required_qty}</td>
-                          <td className="p-3 text-right font-mono font-bold text-slate-800">{mat.available_qty}</td>
-                          <td className="p-3 flex justify-center">
-                            {mat.status_color === 'RED' && <span className="bg-red-100 text-red-700 text-[10px] font-bold px-2 py-1 rounded border border-red-200 shadow-sm">FALTANTE CRÍTICO</span>}
-                            {mat.status_color === 'YELLOW' && <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-1 rounded border border-amber-200 shadow-sm">FALTANTE MENOR</span>}
-                            {mat.status_color === 'GREEN' && <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-1 rounded border border-emerald-200 shadow-sm">SUFICIENTE</span>}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <VTable
+                    columns={materialColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+                    data={(simulationResult.materials || []) as unknown as Record<string, unknown>[]}
+                    className="text-sm [&_tbody_tr]:transition-colors"
+                  />
                 </div>
 
               </div>
@@ -633,12 +656,12 @@ export default function SimulatorPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[10px] text-slate-400 truncate">{inst.product_name} · {inst.order_project_name}</p>
-                      <input
+                      <Input
                         type="text"
                         value={baptismNames[inst.id] ?? inst.custom_name}
                         onChange={e => setBaptismNames(prev => ({ ...prev, [inst.id]: e.target.value }))}
                         placeholder="Alias / Ubicación..."
-                        className="w-full text-sm border border-slate-200 rounded-lg px-3 py-1.5 text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition mt-0.5"
+                        className="w-full text-sm border border-slate-200 rounded-lg px-3 py-1.5 text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition mt-0.5 h-auto"
                       />
                     </div>
                   </div>

@@ -16,6 +16,8 @@ import client from '../../../api/axios-client';
 
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { Card } from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
@@ -435,6 +437,65 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
     const mastersOfClient = useMemo(() => header.client_id ? masters.filter(m => m.client_id === Number(header.client_id)) : [], [masters, header.client_id]);
     const availableCategories = useMemo(() => Array.from(new Set(mastersOfClient.map(m => m.category))), [mastersOfClient]);
     const filteredMasters = useMemo(() => selectedCategory ? mastersOfClient.filter(m => m.category === selectedCategory) : [], [mastersOfClient, selectedCategory]);
+
+    const quoteItemColumns = useMemo((): VTableColumn<any>[] => {
+        const cols: VTableColumn<any>[] = [
+            {
+                key: 'product_name',
+                label: 'Producto',
+                render: (item) => (
+                    <>
+                        <span className="font-bold text-slate-800 text-sm whitespace-normal">{item.product_name}</span>
+                        {item.commercial_description && (
+                            <p className="text-xs text-slate-500 mt-0.5 font-normal whitespace-normal">{item.commercial_description}</p>
+                        )}
+                    </>
+                ),
+            },
+            {
+                key: 'quantity',
+                label: 'Cant.',
+                render: (item) => <span className="font-bold text-slate-700 text-center block">{item.quantity}</span>,
+            },
+        ];
+        if (isDirector) {
+            cols.push({
+                key: 'margin',
+                label: 'Margen',
+                render: (item) => {
+                    const cost = item.frozen_unit_cost || 0;
+                    const margin = cost > 0 ? (((item.unit_price - cost) / cost) * 100) : 0;
+                    return (
+                        <Badge variant="outline" className={`${margin >= 20 ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : 'text-amber-600 bg-amber-50 border-amber-200'} py-0.5 px-1.5 text-[10px]`}>
+                            {margin.toFixed(1)}%
+                        </Badge>
+                    );
+                },
+            });
+            cols.push({
+                key: 'frozen_unit_cost',
+                label: 'Costo U.',
+                render: (item) => (
+                    <span className="font-mono text-slate-500 font-medium text-right block text-xs">{formatCurrency(item.frozen_unit_cost || 0)}</span>
+                ),
+            });
+        }
+        cols.push(
+            {
+                key: 'unit_price',
+                label: 'P. Unitario',
+                render: (item) => <span className="font-mono text-slate-700 text-right block">{formatCurrency(item.unit_price)}</span>,
+            },
+            {
+                key: 'importe',
+                label: 'Importe',
+                render: (item) => (
+                    <span className="font-bold font-mono text-slate-800 text-right block">{formatCurrency(item.quantity * item.unit_price)}</span>
+                ),
+            },
+        );
+        return cols;
+    }, [isDirector]);
     
     let availableVersions: any[] = [];
     if (lineItem.master_id) {
@@ -481,10 +542,16 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                     </div>
                     <div className="col-span-12 md:col-span-4">
                         <label className="block text-xs font-bold text-slate-500 mb-1">CLIENTE *</label>
-                        <select disabled={isFormLocked} className={`w-full p-2 border rounded ${isFormLocked ? lockedInputClass : 'bg-slate-50 border-slate-300 text-slate-900 font-bold'}`} value={header.client_id} onChange={handleClientChange}>
-                            <option value={0}>-- Seleccionar --</option>
-                            {clients?.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
-                        </select>
+                        <SearchableSelect
+                            items={clients ?? []}
+                            value={header.client_id ? String(header.client_id) : ''}
+                            onChange={(v) => handleClientChange({ target: { value: v || '0' } } as React.ChangeEvent<HTMLSelectElement>)}
+                            getLabel={(c) => c.full_name}
+                            getValue={(c) => String(c.id)}
+                            placeholder="-- Seleccionar --"
+                            disabled={isFormLocked}
+                            className={isFormLocked ? lockedInputClass : 'bg-slate-50 border-slate-300 text-slate-900 font-bold'}
+                        />
                     </div>
                     <div className="col-span-12 md:col-span-4">
                         <label className="block text-xs font-bold text-slate-500 mb-1">PROYECTO *</label>
@@ -497,10 +564,16 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                             <span>IMPUESTO *</span>
                             {header.tax_rate_id === 0 && <span className="text-red-500 text-[9px] animate-pulse">REQUERIDO</span>}
                         </label>
-                        <select disabled={isFormLocked} className={`w-full p-2 border rounded text-sm ${header.tax_rate_id === 0 ? 'border-red-300 bg-red-50' : (isFormLocked ? lockedInputClass : 'border-slate-300 text-slate-900 font-bold')}`} value={header.tax_rate_id} onChange={(e) => setHeader({...header, tax_rate_id: Number(e.target.value)})}>
-                            <option value={0}>-- Seleccionar --</option>
-                            {taxRates?.map(t => <option key={t.id} value={t.id}>{t.name} ({t.rate * 100}%)</option>)}
-                        </select>
+                        <SearchableSelect
+                            items={taxRates ?? []}
+                            value={header.tax_rate_id ? String(header.tax_rate_id) : ''}
+                            onChange={(v) => setHeader({...header, tax_rate_id: Number(v)})}
+                            getLabel={(t) => `${t.name} (${t.rate * 100}%)`}
+                            getValue={(t) => String(t.id)}
+                            placeholder="-- Seleccionar --"
+                            disabled={isFormLocked}
+                            className={`text-sm ${header.tax_rate_id === 0 ? 'border-red-300 bg-red-50' : (isFormLocked ? lockedInputClass : 'border-slate-300 text-slate-900 font-bold')}`}
+                        />
                     </div>
 
                     <div className="col-span-12 md:col-span-4">
@@ -596,13 +669,20 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
 
                             {addMode === 'CATALOG' && (
                                 <>
-                                    <div><label className="text-xs font-bold text-slate-500">CATEGORÍA</label><select className="w-full p-2 border rounded text-sm" value={selectedCategory} disabled={!header.client_id} onChange={(e) => { setSelectedCategory(e.target.value); setLineItem({...lineItem, master_id: 0, version_id: 0}); }}><option value="">-- Seleccionar --</option>{availableCategories?.map(cat => <option key={cat} value={cat}>{cat}</option>)}</select></div>
-                                    <div><label className="text-xs font-bold text-slate-500">PRODUCTO</label><select className="w-full p-2 border rounded text-sm" value={lineItem.master_id} disabled={!selectedCategory} onChange={(e) => setLineItem({...lineItem, master_id: Number(e.target.value), version_id: 0})}><option value={0}>-- Seleccionar --</option>{filteredMasters?.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></div>
+                                    <div><label className="text-xs font-bold text-slate-500">CATEGORÍA</label><SearchableSelect items={(availableCategories ?? []).map(cat => ({ value: cat, label: cat }))} value={selectedCategory} onChange={(v) => { setSelectedCategory(v); setLineItem({...lineItem, master_id: 0, version_id: 0}); }} getLabel={(i) => i.label} getValue={(i) => i.value} placeholder="-- Seleccionar --" disabled={!header.client_id} className="text-sm" /></div>
+                                    <div><label className="text-xs font-bold text-slate-500">PRODUCTO</label><SearchableSelect items={filteredMasters ?? []} value={lineItem.master_id ? String(lineItem.master_id) : ''} onChange={(v) => setLineItem({...lineItem, master_id: Number(v), version_id: 0})} getLabel={(m) => m.name} getValue={(m) => String(m.id)} placeholder="-- Seleccionar --" disabled={!selectedCategory} className="text-sm" /></div>
                                     <div>
                                         <label className="text-xs font-bold text-slate-500">VERSIÓN</label>
-                                        <select className="w-full p-2 border rounded text-sm" disabled={!lineItem.master_id} value={lineItem.version_id} onChange={handleVersionChange}> 
-                                            <option value={0}>-- Seleccionar --</option>{availableVersions?.map((v:any) => <option key={v.id} value={v.id}>{v.version_name}</option>)}
-                                        </select>
+                                        <SearchableSelect
+                                            items={availableVersions ?? []}
+                                            value={lineItem.version_id ? String(lineItem.version_id) : ''}
+                                            onChange={(v) => handleVersionChange({ target: { value: v } } as React.ChangeEvent<HTMLSelectElement>)}
+                                            getLabel={(v: any) => v.version_name}
+                                            getValue={(v: any) => String(v.id)}
+                                            placeholder="-- Seleccionar --"
+                                            disabled={!lineItem.master_id}
+                                            className="text-sm"
+                                        />
                                     </div>
                                     <div>
                                         <label className="text-xs font-bold text-slate-500">DESCRIPCIÓN COMERCIAL</label>
@@ -628,9 +708,9 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                             {addMode === 'RESALE' && (
                                 <div>
                                     <label className="text-xs font-bold text-slate-500">BUSCAR ACCESORIO</label>
-                                    <input
+                                    <Input
                                         type="text"
-                                        className="w-full p-2 border rounded text-sm mb-2"
+                                        className="w-full p-2 border rounded text-sm mb-2 h-auto"
                                         placeholder="Escribe para filtrar (ej. Tarja, Monomando)..."
                                         value={resaleSearch}
                                         onChange={(e) => setResaleSearch(e.target.value)}
@@ -712,65 +792,28 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
 
                 <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
                     <div className="flex-1 overflow-x-auto min-h-[300px] p-0">
-                        <table className="w-full text-sm text-left whitespace-nowrap">
-                            <thead className="bg-slate-100 border-b text-[11px] text-slate-500 uppercase font-black tracking-wider">
-                                <tr>
-                                    <th className="px-4 py-3">Producto</th>
-                                    <th className="text-center px-2 py-3">Cant.</th>
-                                    {isDirector && <th className="text-center px-2 py-3">Margen</th>}
-                                    {isDirector && <th className="text-right px-2 py-3">Costo U.</th>}
-                                    <th className="text-right px-2 py-3">P. Unitario</th>
-                                    <th className="text-right px-4 py-3">Importe</th>
-                                    {!isFormLocked && <th className="text-center px-2 py-3"></th>}
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {items.map((item, idx) => {
-                                    const cost = item.frozen_unit_cost || 0;
-                                    const margin = cost > 0 ? (((item.unit_price - cost) / cost) * 100) : 0;
-                                    
-                                    return (
-                                        <tr key={idx} className={editingIndex === idx ? 'bg-amber-50' : 'hover:bg-slate-50 transition-colors'}>
-                                            <td className="px-4 py-3">
-                                                <span className="font-bold text-slate-800 text-sm">
-                                                    {item.product_name}
-                                                </span>
-                                                {item.commercial_description && (
-                                                    <p className="text-xs text-slate-500 mt-0.5 font-normal">
-                                                        {item.commercial_description}
-                                                    </p>
-                                                )}
-                                            </td>
-                                            <td className="text-center font-bold text-slate-700 px-2 py-3">{item.quantity}</td>
-                                            
-                                            {isDirector && (
-                                                <td className="text-center px-2 py-3 font-black">
-                                                    <Badge variant="outline" className={`${margin >= 20 ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : 'text-amber-600 bg-amber-50 border-amber-200'} py-0.5 px-1.5 text-[10px]`}>
-                                                        {margin.toFixed(1)}%
-                                                    </Badge>
-                                                </td>
-                                            )}
-                                            
-                                            {isDirector && (
-                                                <td className="text-right font-mono text-slate-500 font-medium px-2 py-3 text-xs">{formatCurrency(cost)}</td>
-                                            )}
-
-                                            <td className="text-right font-mono text-slate-700 px-2 py-3">{formatCurrency(item.unit_price)}</td>
-                                            <td className="text-right px-4 font-bold font-mono text-slate-800 py-3">{formatCurrency(item.quantity * item.unit_price)}</td>
-                                            
-                                            {!isFormLocked && (
-                                                <td className="text-center px-2 py-3">
-                                                    <div className="flex justify-center gap-1">
-                                                        <button onClick={() => handleEditItem(idx)} className="text-indigo-500 hover:bg-indigo-100 p-1.5 rounded transition-colors"><Pencil size={14}/></button>
-                                                        <button onClick={() => handleRemoveItem(item.id)} className="text-red-500 hover:bg-red-100 p-1.5 rounded transition-colors"><Trash2 size={14}/></button>
-                                                    </div>
-                                                </td>
-                                            )}
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
+                        <VTable
+                            columns={quoteItemColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+                            data={items as unknown as Record<string, unknown>[]}
+                            emptyState={{ title: 'Sin partidas en la cotización.' }}
+                            className="text-sm whitespace-nowrap"
+                            actions={!isFormLocked ? (row) => {
+                                const idx = items.indexOf(row as SalesOrderItem);
+                                return [
+                                    {
+                                        label: '',
+                                        icon: <Pencil size={14} />,
+                                        onClick: () => handleEditItem(idx),
+                                    },
+                                    {
+                                        label: '',
+                                        icon: <Trash2 size={14} />,
+                                        variant: 'danger' as const,
+                                        onClick: () => handleRemoveItem((row as SalesOrderItem).id),
+                                    },
+                                ];
+                            } : undefined}
+                        />
                     </div>
 
                     <div className="p-6 bg-slate-50 border-t border-slate-200 text-right space-y-2">

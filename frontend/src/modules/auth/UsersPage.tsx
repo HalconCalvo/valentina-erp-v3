@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useUsers } from '../../hooks/useUsers'; 
 import { 
   Plus, UserCog, Shield, Mail, Key, X, 
@@ -6,6 +6,9 @@ import {
   Percent, Briefcase, PenTool, Package, Hammer, User,
   TrendingUp, Truck, Target
 } from 'lucide-react';
+import { Input } from '@/components/ui/Input';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 
@@ -20,6 +23,8 @@ const ROLE_OPTIONS = {
     'PRODUCTION': 'PRODUCCIÓN',    // Azul
     'LOGISTICS': 'INSTALADOR / CUADRILLA', // <--- ¡LA MAGIA ESTÁ AQUÍ!
 };
+
+const ROLE_SELECT_ITEMS = Object.entries(ROLE_OPTIONS).map(([value, label]) => ({ value, label }));
 
 export default function UsersPage() {
   const { users, loading, createUser, updateUser, deleteUser, fetchUsers } = useUsers();
@@ -154,6 +159,60 @@ export default function UsersPage() {
   const showGlobalCommission = form.role === 'DIRECTOR';
   const showMonthlyQuota = form.role === 'SALES' || form.role === 'VENTAS';
 
+  const userColumns = useMemo((): VTableColumn<any>[] => [
+    {
+      key: 'id',
+      label: 'ID',
+      render: (user) => <span className="text-slate-400 text-xs font-mono">#{user.id}</span>,
+    },
+    {
+      key: 'full_name',
+      label: 'Usuario',
+      render: (user) => (
+        <div className="flex flex-col">
+          <span className="font-semibold text-slate-900 text-sm flex items-center gap-1.5 flex-wrap">
+            {user.full_name}
+            {(user.role === 'SALES' || user.role === 'DIRECTOR') && (user.commission_rate ?? 0) > 0 && (
+              <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200 font-bold font-mono flex items-center gap-0.5" title="Comisión de Venta">
+                <Percent size={8}/> {user.commission_rate}%
+              </span>
+            )}
+            {user.role === 'DIRECTOR' && (user.global_commission_rate ?? 0) > 0 && (
+              <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-300 font-bold font-mono flex items-center gap-0.5" title="Comisión Global por Recaudo">
+                <Shield size={8}/> {user.global_commission_rate}%
+              </span>
+            )}
+          </span>
+          <span className="text-xs text-slate-500">{user.email}</span>
+          {user.phone && <span className="text-xs text-slate-400">{user.phone}</span>}
+        </div>
+      ),
+    },
+    {
+      key: 'role',
+      label: 'Rol',
+      render: (user) => (
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded border text-[10px] font-bold uppercase tracking-wide ${getRoleBadgeClasses(user.role)}`}>
+          {getRoleIcon(user.role)}
+          {ROLE_OPTIONS[user.role as keyof typeof ROLE_OPTIONS] || user.role}
+        </span>
+      ),
+    },
+    {
+      key: 'is_active',
+      label: 'Estado',
+      render: (user) => (
+        user.is_active ? (
+          <span className="inline-flex items-center gap-1 text-green-600 text-[10px] font-bold bg-green-50 px-2 py-0.5 rounded-full border border-green-100">
+            <CheckCircle size={10}/> ACTIVO
+          </span>
+        ) : (
+          <span className="text-slate-400 text-[10px] font-medium bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100">INACTIVO</span>
+        )
+      ),
+    },
+  ], []);
+
   return (
     <div className="space-y-6 p-6 pb-24 animate-in fade-in duration-500">
       
@@ -201,9 +260,9 @@ export default function UsersPage() {
                     <div>
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Nombre Completo</label>
                         <div className="relative mt-1">
-                            <UserCog size={18} className="absolute left-3 top-2.5 text-slate-400"/>
-                            <input 
-                                className="w-full pl-10 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" 
+                            <UserCog size={18} className="absolute left-3 top-2.5 text-slate-400 z-10 pointer-events-none"/>
+                            <Input 
+                                className="w-full pl-10 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none h-auto" 
                                 placeholder="Ej. Juan Pérez"
                                 value={form.full_name}
                                 onChange={e => setForm({...form, full_name: e.target.value})}
@@ -216,10 +275,10 @@ export default function UsersPage() {
                     <div>
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Correo Electrónico</label>
                         <div className="relative mt-1">
-                            <Mail size={18} className="absolute left-3 top-2.5 text-slate-400"/>
-                            <input 
+                            <Mail size={18} className="absolute left-3 top-2.5 text-slate-400 z-10 pointer-events-none"/>
+                            <Input 
                                 type="email"
-                                className="w-full pl-10 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" 
+                                className="w-full pl-10 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none h-auto" 
                                 placeholder="usuario@empresa.com"
                                 value={form.email}
                                 onChange={e => setForm({...form, email: e.target.value})}
@@ -233,16 +292,16 @@ export default function UsersPage() {
                         <div className={showCommission ? '' : 'col-span-2'}>
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Rol</label>
                             <div className="relative mt-1">
-                                <Shield size={18} className="absolute left-3 top-2.5 text-slate-400"/>
-                                <select 
-                                    className="w-full pl-10 p-2.5 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                <Shield size={18} className="absolute left-3 top-2.5 text-slate-400 z-10 pointer-events-none"/>
+                                <SearchableSelect
+                                    items={ROLE_SELECT_ITEMS}
                                     value={form.role}
-                                    onChange={e => setForm({...form, role: e.target.value})}
-                                >
-                                    {Object.entries(ROLE_OPTIONS).map(([key, label]) => (
-                                        <option key={key} value={key}>{label}</option>
-                                    ))}
-                                </select>
+                                    onChange={(v) => setForm({ ...form, role: v })}
+                                    getLabel={(item) => item.label}
+                                    getValue={(item) => item.value}
+                                    placeholder="Seleccionar rol..."
+                                    className="pl-10"
+                                />
                             </div>
                         </div>
 
@@ -251,13 +310,13 @@ export default function UsersPage() {
                             <div className="animate-in fade-in slide-in-from-left-4 duration-300">
                                 <label className="text-xs font-bold text-emerald-600 uppercase tracking-wide">Comisión Venta (%)</label>
                                 <div className="relative mt-1">
-                                    <Percent size={18} className="absolute left-3 top-2.5 text-emerald-500"/>
-                                    <input 
+                                    <Percent size={18} className="absolute left-3 top-2.5 text-emerald-500 z-10 pointer-events-none"/>
+                                    <Input 
                                         type="number"
                                         step="0.1"
                                         min="0"
                                         max="100"
-                                        className="w-full pl-10 p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all outline-none font-bold text-emerald-700" 
+                                        className="w-full pl-10 p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all outline-none font-bold text-emerald-700 h-auto" 
                                         placeholder="0.0"
                                         value={form.commission_rate}
                                         onChange={e => setForm({...form, commission_rate: parseFloat(e.target.value) || 0})}
@@ -273,12 +332,12 @@ export default function UsersPage() {
                             <label className="text-xs font-bold text-sky-700 uppercase tracking-wide flex items-center gap-1">
                                 <Target size={14} /> Meta mensual (Venta cerrada mes)
                             </label>
-                            <input
+                            <Input
                                 type="number"
                                 step="0.01"
                                 min="0"
                                 disabled={!canEditMonthlyQuota}
-                                className={`w-full mt-1 p-2.5 border rounded-lg outline-none ${canEditMonthlyQuota ? 'border-sky-200 bg-sky-50 focus:ring-2 focus:ring-sky-500' : 'border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed'}`}
+                                className={`w-full mt-1 p-2.5 border rounded-lg outline-none h-auto ${canEditMonthlyQuota ? 'border-sky-200 bg-sky-50 focus:ring-2 focus:ring-sky-500' : 'border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed'}`}
                                 placeholder="Ej. 2000000"
                                 value={form.monthly_quota === '' ? '' : form.monthly_quota}
                                 onChange={(e) => setForm({ ...form, monthly_quota: e.target.value === '' ? '' : e.target.value })}
@@ -294,13 +353,13 @@ export default function UsersPage() {
                         <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Comisión Global (%)</label>
                             <div className="relative mt-1">
-                                <Percent size={18} className="absolute left-3 top-2.5 text-slate-400"/>
-                                <input
+                                <Percent size={18} className="absolute left-3 top-2.5 text-slate-400 z-10 pointer-events-none"/>
+                                <Input
                                     type="number"
                                     step="0.01"
                                     min="0"
                                     max="100"
-                                    className="w-full pl-10 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                                    className="w-full pl-10 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none h-auto"
                                     placeholder="0.00"
                                     value={form.global_commission_rate}
                                     onChange={e => setForm({...form, global_commission_rate: parseFloat(e.target.value) || 0})}
@@ -312,9 +371,9 @@ export default function UsersPage() {
                     {/* Contraseña */}
                     <div>
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Teléfono / Celular</label>
-                            <input
+                            <Input
                                 type="tel"
-                                className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-300 outline-none"
+                                className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-300 outline-none h-auto"
                                 placeholder="Ej. 999-123-4567"
                                 value={form.phone}
                                 onChange={e => setForm({...form, phone: e.target.value})}
@@ -324,9 +383,9 @@ export default function UsersPage() {
                         <label className="text-xs font-bold text-orange-800 uppercase tracking-wide flex items-center gap-1">
                             <Key size={14}/> {isEditing ? 'Cambiar Contraseña' : 'Contraseña Inicial'}
                         </label>
-                        <input 
+                        <Input 
                             type="text" 
-                            className="w-full mt-2 p-2.5 border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-200 outline-none bg-white" 
+                            className="w-full mt-2 p-2.5 border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-200 outline-none bg-white h-auto" 
                             placeholder={isEditing ? "Dejar vacío para mantener" : "Mínimo 4 caracteres"}
                             value={form.password}
                             onChange={e => setForm({...form, password: e.target.value})}
@@ -347,90 +406,31 @@ export default function UsersPage() {
       )}
 
       {/* LISTADO */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <table className="w-full text-left">
-            <thead className="bg-slate-50 border-b border-slate-100">
-                <tr>
-                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">ID</th>
-                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Usuario</th>
-                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Rol</th>
-                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-center">Estado</th>
-                    <th className="px-6 py-4 text-right">Acciones</th>
-                </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-                {loading ? (
-                    <tr><td colSpan={5} className="p-8 text-center text-slate-400">Cargando usuarios...</td></tr>
-                ) : Array.isArray(users) && users.length > 0 ? (
-                    users.map(user => (
-                    <tr key={user.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-6 py-4 text-slate-400 text-xs font-mono">#{user.id}</td>
-                        <td className="px-6 py-4">
-                            <div className="flex flex-col">
-                                <span className="font-semibold text-slate-900 text-sm flex items-center gap-1.5 flex-wrap">
-                                    {user.full_name}
-                                    {(user.role === 'SALES' || user.role === 'DIRECTOR') && (user.commission_rate ?? 0) > 0 && (
-                                        <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200 font-bold font-mono flex items-center gap-0.5" title="Comisión de Venta">
-                                            <Percent size={8}/> {user.commission_rate}%
-                                        </span>
-                                    )}
-                                    {user.role === 'DIRECTOR' && (user.global_commission_rate ?? 0) > 0 && (
-                                        <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-300 font-bold font-mono flex items-center gap-0.5" title="Comisión Global por Recaudo">
-                                            <Shield size={8}/> {user.global_commission_rate}%
-                                        </span>
-                                    )}
-                                </span>
-                                <span className="text-xs text-slate-500">{user.email}</span>
-                                {user.phone && (
-                                    <span className="text-xs text-slate-400">{user.phone}</span>
-                                )}
-                            </div>
-                        </td>
-                        
-                        <td className="px-6 py-4">
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded border text-[10px] font-bold uppercase tracking-wide ${getRoleBadgeClasses(user.role)}`}>
-                                {getRoleIcon(user.role)}
-                                {ROLE_OPTIONS[user.role as keyof typeof ROLE_OPTIONS] || user.role}
-                            </span>
-                        </td>
-                        
-                        <td className="px-6 py-4 text-center">
-                            {user.is_active ? 
-                                <span className="inline-flex items-center gap-1 text-green-600 text-[10px] font-bold bg-green-50 px-2 py-0.5 rounded-full border border-green-100">
-                                    <CheckCircle size={10}/> ACTIVO
-                                </span> 
-                                : 
-                                <span className="text-slate-400 text-[10px] font-medium bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100">INACTIVO</span>
-                            }
-                        </td>
-                        <td className="px-6 py-4 text-right flex justify-end gap-2">
-                            <button 
-                                onClick={() => handleEditClick(user)} 
-                                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                                title="Editar"
-                            >
-                                <Pencil size={16}/>
-                            </button>
-                            <button 
-                                onClick={() => user.id && handleDelete(user.id)} 
-                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                title="Eliminar"
-                            >
-                                <Trash2 size={16}/>
-                            </button>
-                        </td>
-                    </tr>
-                ))) : (
-                    <tr>
-                        <td colSpan={5} className="p-12 text-center text-slate-400 flex flex-col items-center justify-center">
-                            <UserCog size={48} className="mb-2 opacity-20"/>
-                            <span className="text-sm font-medium">No hay usuarios registrados aún.</span>
-                        </td>
-                    </tr>
-                )}
-            </tbody>
-        </table>
-      </div>
+      <VTable
+        columns={userColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+        data={(Array.isArray(users) ? users : []) as unknown as Record<string, unknown>[]}
+        isLoading={loading}
+        emptyState={{
+          title: 'No hay usuarios registrados aún.',
+        }}
+        className="shadow-sm border-0"
+        actions={(row) => {
+          const user = row as any;
+          return [
+            {
+              label: '',
+              icon: <Pencil size={16} />,
+              onClick: () => handleEditClick(user),
+            },
+            {
+              label: '',
+              icon: <Trash2 size={16} />,
+              variant: 'danger' as const,
+              onClick: () => user.id && handleDelete(user.id),
+            },
+          ];
+        }}
+      />
 
       {pendingDeleteId !== null && (
         <VConfirmDialog
