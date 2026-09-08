@@ -39,12 +39,6 @@ export function SearchableSelect<T>({
 
     const selectedLabel = selectedItem ? getLabel(selectedItem) : '';
 
-    useEffect(() => {
-        if (!isOpen) {
-            setDraft(value ? selectedLabel : '');
-        }
-    }, [value, selectedLabel, isOpen]);
-
     const filteredItems = useMemo(() => {
         const normalizedDraft = normalizeText(draft);
         if (!normalizedDraft) return items;
@@ -61,23 +55,21 @@ export function SearchableSelect<T>({
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [value, selectedLabel]);
+    }, []);
 
-    const handleFocus = () => {
+    const openDropdown = () => {
         if (disabled) return;
         setDraft('');
         setIsOpen(true);
     };
 
     const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const next = event.target.value;
-        setDraft(next);
-        setIsOpen(true);
+        setDraft(event.target.value);
+        if (!isOpen) setIsOpen(true);
     };
 
     const handleSelect = (item: T) => {
         onChange(getValue(item));
-        setDraft(getLabel(item));
         setIsOpen(false);
     };
 
@@ -96,13 +88,16 @@ export function SearchableSelect<T>({
         .filter(Boolean)
         .join(' ');
 
+    const displayValue = isOpen ? draft : selectedLabel;
+
     return (
         <div ref={containerRef} className="relative w-full">
             <input
                 type="text"
-                value={draft}
+                value={displayValue}
                 onChange={handleInputChange}
-                onFocus={handleFocus}
+                onFocus={openDropdown}
+                onClick={openDropdown}
                 onBlur={handleBlur}
                 disabled={disabled}
                 placeholder={placeholder}
