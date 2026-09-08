@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { GlobalConfig } from '../../../types/foundations';
 import { toast } from '@/components/ui/VToast';
+import { Input } from '@/components/ui/Input';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 
 export default function ConfigPage() {
   
@@ -199,12 +201,12 @@ export default function ConfigPage() {
                         </button>
                     </div>
                 </div>
-                <div><label className="label-std">Nombre Empresa</label><input className="input-std" value={companyName} onChange={e => setCompanyName(e.target.value)} /></div>
-                <div><label className="label-std">RFC / Tax ID</label><input className="input-std" value={companyRfc} onChange={e => setCompanyRfc(e.target.value)} /></div>
+                <div><label className="label-std">Nombre Empresa</label><Input className="input-std" value={companyName} onChange={e => setCompanyName(e.target.value)} /></div>
+                <div><label className="label-std">RFC / Tax ID</label><Input className="input-std" value={companyRfc} onChange={e => setCompanyRfc(e.target.value)} /></div>
                 <div><label className="label-std">Dirección</label><textarea className="input-std h-20 resize-none" value={companyAddress} onChange={e => setCompanyAddress(e.target.value)} /></div>
-                <div><label className="label-std">Teléfono</label><input className="input-std" value={companyPhone} onChange={e => setCompanyPhone(e.target.value)} /></div>
-                <div><label className="label-std">Email</label><input className="input-std" value={companyEmail} onChange={e => setCompanyEmail(e.target.value)} /></div>
-                <div><label className="label-std">Sitio Web</label><input className="input-std" value={companyWebsite} onChange={e => setCompanyWebsite(e.target.value)} /></div>
+                <div><label className="label-std">Teléfono</label><Input className="input-std" value={companyPhone} onChange={e => setCompanyPhone(e.target.value)} /></div>
+                <div><label className="label-std">Email</label><Input className="input-std" value={companyEmail} onChange={e => setCompanyEmail(e.target.value)} /></div>
+                <div><label className="label-std">Sitio Web</label><Input className="input-std" value={companyWebsite} onChange={e => setCompanyWebsite(e.target.value)} /></div>
             </div>
         </div>
 
@@ -214,27 +216,32 @@ export default function ConfigPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="card-std">
                     <div className="flex items-start justify-between mb-4"><h2 className="text-base font-bold text-slate-700">Margen</h2><span className="badge-blue">Finanzas</span></div>
-                    <div className="relative"><input type="number" value={marginInput} onChange={(e) => setMarginInput(e.target.value)} className="input-large border-blue-200 focus:border-blue-500" /><span className="unit-label">%</span></div>
+                    <div className="relative"><Input type="number" value={marginInput} onChange={(e) => setMarginInput(e.target.value)} className="input-large border-blue-200 focus:border-blue-500" /><span className="unit-label">%</span></div>
                 </div>
                 <div className="card-std">
                     <div className="flex items-start justify-between mb-4"><h2 className="text-base font-bold text-slate-700">Tolerancia</h2><span className="badge-orange">Seguridad</span></div>
-                    <div className="relative"><input type="number" value={toleranceInput} onChange={(e) => setToleranceInput(e.target.value)} className="input-large border-orange-200 focus:border-orange-500" /><span className="unit-label">%</span></div>
+                    <div className="relative"><Input type="number" value={toleranceInput} onChange={(e) => setToleranceInput(e.target.value)} className="input-large border-orange-200 focus:border-orange-500" /><span className="unit-label">%</span></div>
                 </div>
                 <div className="card-std">
                     <div className="flex items-start justify-between mb-4"><h2 className="text-base font-bold text-slate-700">Vigencia</h2><Calendar size={18} className="text-slate-400"/></div>
-                    <div className="relative"><input type="number" value={daysInput} onChange={(e) => setDaysInput(e.target.value)} className="input-large border-indigo-200 focus:border-indigo-500" /><span className="absolute right-0 top-4 text-sm font-bold text-slate-400">Días</span></div>
+                    <div className="relative"><Input type="number" value={daysInput} onChange={(e) => setDaysInput(e.target.value)} className="input-large border-indigo-200 focus:border-indigo-500" /><span className="absolute right-0 top-4 text-sm font-bold text-slate-400">Días</span></div>
                 </div>
                 <div className="card-std">
                      <div className="flex items-start justify-between mb-4"><h2 className="text-base font-bold text-slate-700">IVA Default</h2><span className="badge-blue">Fiscal</span></div>
-                    <select value={selectedTax} onChange={(e) => setSelectedTax(Number(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded h-12 outline-none">
-                        <option value={0} disabled>-- Selecciona --</option>
-                        {taxRates && taxRates.map(tax => (<option key={tax.id} value={tax.id}>{tax.name} ({(tax.rate * 100).toFixed(0)}%)</option>))}
-                    </select>
+                    <SearchableSelect
+                        items={taxRates || []}
+                        value={selectedTax ? String(selectedTax) : ''}
+                        onChange={(v) => setSelectedTax(Number(v))}
+                        getLabel={(tax) => `${tax.name} (${(tax.rate * 100).toFixed(0)}%)`}
+                        getValue={(tax) => String(tax.id)}
+                        placeholder="-- Selecciona --"
+                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded h-12 outline-none"
+                    />
                 </div>
                 <div className="card-std md:col-span-2 border-l-4 border-l-purple-500">
                     <div className="flex items-start justify-between">
                         <div><h2 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Ruler size={18} className="text-purple-600"/> Factor Tapacanto</h2><p className="helper-text mt-1">Metros lineales promedio por Hoja.</p></div>
-                        <div className="relative w-32"><input type="number" value={edgeFactorInput} onChange={(e) => setEdgeFactorInput(e.target.value)} className="input-large border-purple-200 focus:border-purple-500 text-right" /><span className="absolute right-0 -bottom-5 text-xs font-bold text-slate-400">ml / Hoja</span></div>
+                        <div className="relative w-32"><Input type="number" value={edgeFactorInput} onChange={(e) => setEdgeFactorInput(e.target.value)} className="input-large border-purple-200 focus:border-purple-500 text-right" /><span className="absolute right-0 -bottom-5 text-xs font-bold text-slate-400">ml / Hoja</span></div>
                     </div>
                 </div>
             </div>
@@ -249,7 +256,7 @@ export default function ConfigPage() {
                     <label className="block text-xs font-bold text-purple-800 uppercase mb-2">Meta Ventas {new Date().getFullYear()}</label>
                     <div className="relative">
                         <DollarSign size={20} className="absolute left-0 top-3 text-purple-400"/>
-                        <input 
+                        <Input 
                             type="text" 
                             className="w-full pl-6 bg-transparent text-3xl font-bold text-purple-900 border-b-2 border-purple-200 focus:border-purple-500 outline-none" 
                             value={annualTarget} 
@@ -266,7 +273,7 @@ export default function ConfigPage() {
                     <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Ventas Año Anterior</label>
                     <div className="relative">
                         <DollarSign size={20} className="absolute left-0 top-3 text-slate-400"/>
-                        <input 
+                        <Input 
                             type="text" 
                             className="w-full pl-6 bg-transparent text-3xl font-bold text-slate-700 border-b-2 border-slate-300 focus:border-slate-500 outline-none" 
                             value={lastYearSales} 
@@ -291,7 +298,7 @@ export default function ConfigPage() {
                     <label className="block text-xs font-bold text-cyan-800 uppercase mb-2">Tarifa Líder / día</label>
                     <div className="relative">
                         <DollarSign size={20} className="absolute left-0 top-3 text-cyan-400"/>
-                        <input
+                        <Input
                             type="text"
                             placeholder="0.00"
                             className="w-full pl-6 bg-transparent text-3xl font-bold text-cyan-900 border-b-2 border-cyan-200 focus:border-cyan-500 outline-none"
@@ -309,7 +316,7 @@ export default function ConfigPage() {
                     <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Tarifa Ayudante / día</label>
                     <div className="relative">
                         <DollarSign size={20} className="absolute left-0 top-3 text-slate-400"/>
-                        <input
+                        <Input
                             type="text"
                             placeholder="0.00"
                             className="w-full pl-6 bg-transparent text-3xl font-bold text-slate-700 border-b-2 border-slate-300 focus:border-slate-500 outline-none"

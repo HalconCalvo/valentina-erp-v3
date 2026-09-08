@@ -1,7 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { pettyCashService } from '../../../api/petty-cash-service';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
+import { Input } from '@/components/ui/Input';
+import { VTable, type VTableColumn } from '@/components/ui/VTable';
+import SearchableSelect from '@/components/ui/SearchableSelect';
 import {
   PettyCashFund,
   PettyCashMovement,
@@ -203,6 +206,67 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
     setShowConfigModal(true);
   };
 
+  const movementColumns = useMemo((): VTableColumn<PettyCashMovement>[] => [
+    {
+      key: 'movement_date',
+      label: 'Fecha',
+      render: (m) => <span className="text-slate-600 whitespace-nowrap">{formatDate(m.movement_date)}</span>,
+    },
+    {
+      key: 'movement_type',
+      label: 'Tipo',
+      render: (m) => (
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${
+          m.movement_type === 'EGRESO' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
+        }`}>
+          {m.movement_type}
+        </span>
+      ),
+    },
+    {
+      key: 'category',
+      label: 'Categoría',
+      render: (m) => <span className="text-slate-500">{m.category || '—'}</span>,
+    },
+    {
+      key: 'concept',
+      label: 'Concepto',
+      render: (m) => <span className="text-slate-800 font-medium max-w-xs truncate block">{m.concept}</span>,
+    },
+    {
+      key: 'amount',
+      label: 'Monto',
+      render: (m) => (
+        <span className={`text-right font-bold block ${m.movement_type === 'EGRESO' ? 'text-red-600' : 'text-emerald-600'}`}>
+          {m.movement_type === 'EGRESO' ? '−' : '+'}{fmt(m.amount)}
+        </span>
+      ),
+    },
+    {
+      key: 'created_by_name',
+      label: 'Registrado por',
+      render: (m) => <span className="text-slate-500">{m.created_by_name || '—'}</span>,
+    },
+    {
+      key: 'receipt_url',
+      label: 'Comprobante',
+      render: (m) => (
+        m.receipt_url ? (
+          <a href={m.receipt_url} target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-xs font-semibold transition-colors">
+            📎 Ver
+          </a>
+        ) : (
+          <button
+            onClick={() => { setUploadTarget(m.id); receiptRef.current?.click(); }}
+            className="inline-flex items-center gap-1 px-2 py-1 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded text-xs font-semibold transition-colors">
+            📤 Subir
+          </button>
+        )
+      ),
+    },
+  ], []);
+
   // ── RENDER ─────────────────────────────────────────────────────────────────
 
   if (loading) {
@@ -269,89 +333,37 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
         <div className="px-6 py-4 border-b border-slate-100">
           <h2 className="text-base font-bold text-slate-700">Historial de Movimientos</h2>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
-              <tr>
-                <th className="px-4 py-3 text-left">Fecha</th>
-                <th className="px-4 py-3 text-left">Tipo</th>
-                <th className="px-4 py-3 text-left">Categoría</th>
-                <th className="px-4 py-3 text-left">Concepto</th>
-                <th className="px-4 py-3 text-right">Monto</th>
-                <th className="px-4 py-3 text-left">Registrado por</th>
-                <th className="px-4 py-3 text-center">Comprobante</th>
-                {isManager && <th className="px-4 py-3 text-center">Acciones</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {movements.length === 0 && (
-                <tr>
-                  <td colSpan={isManager ? 8 : 7} className="px-4 py-8 text-center text-slate-400">
-                    No hay movimientos registrados.
-                  </td>
-                </tr>
-              )}
-              {movements.map((m) => (
-                <tr key={m.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{formatDate(m.movement_date)}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                      m.movement_type === 'EGRESO' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
-                    }`}>
-                      {m.movement_type}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-slate-500">{m.category || '—'}</td>
-                  <td className="px-4 py-3 text-slate-800 font-medium max-w-xs truncate">{m.concept}</td>
-                  <td className={`px-4 py-3 text-right font-bold ${m.movement_type === 'EGRESO' ? 'text-red-600' : 'text-emerald-600'}`}>
-                    {m.movement_type === 'EGRESO' ? '−' : '+'}{fmt(m.amount)}
-                  </td>
-                  <td className="px-4 py-3 text-slate-500">{m.created_by_name || '—'}</td>
-                  <td className="px-4 py-3 text-center">
-                    {m.receipt_url ? (
-                      <a href={m.receipt_url} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-xs font-semibold transition-colors">
-                        📎 Ver
-                      </a>
-                    ) : (
-                      <button
-                        onClick={() => { setUploadTarget(m.id); receiptRef.current?.click(); }}
-                        className="inline-flex items-center gap-1 px-2 py-1 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded text-xs font-semibold transition-colors">
-                        📤 Subir
-                      </button>
-                    )}
-                  </td>
-                  {isManager && (
-                    <td className="px-4 py-3 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          onClick={() => {
-                            setEditingMovement(m);
-                            setEditForm({
-                              amount: m.amount,
-                              concept: m.concept,
-                              category: m.category ?? undefined,
-                              notes: m.notes ?? undefined,
-                              movement_date: m.movement_date?.slice(0, 10),
-                            });
-                          }}
-                          className="p-1.5 bg-amber-50 text-amber-600 rounded-lg border border-amber-100 hover:bg-amber-100 transition-colors"
-                          title="Editar movimiento"
-                        >
-                          ✏️
-                        </button>
-                        <button onClick={() => handleDelete(m.id)}
-                          className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Eliminar">
-                          🗑️
-                        </button>
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <VTable
+          columns={movementColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+          data={movements as unknown as Record<string, unknown>[]}
+          emptyState={{ title: 'No hay movimientos registrados.' }}
+          actions={isManager ? (row) => {
+            const m = row as unknown as PettyCashMovement;
+            return [
+              {
+                label: '',
+                icon: <span title="Editar movimiento">✏️</span>,
+                onClick: () => {
+                  setEditingMovement(m);
+                  setEditForm({
+                    amount: m.amount,
+                    concept: m.concept,
+                    category: m.category ?? undefined,
+                    notes: m.notes ?? undefined,
+                    movement_date: m.movement_date?.slice(0, 10),
+                  });
+                },
+              },
+              {
+                label: '',
+                icon: <span title="Eliminar">🗑️</span>,
+                variant: 'danger' as const,
+                onClick: () => handleDelete(m.id),
+              },
+            ];
+          } : undefined}
+          className="border-0 shadow-none rounded-none"
+        />
       </div>
 
       {/* ── MODAL CONFIGURAR FONDO ────────────────────────────────────────── */}
@@ -360,15 +372,13 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Monto del Fondo ($)</label>
-              <input type="number" min={0} step={100} value={configForm.fund_amount}
-                onChange={e => setConfigForm(f => ({ ...f, fund_amount: parseFloat(e.target.value) || 0 }))}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+              <Input type="number" min={0} step={100} value={configForm.fund_amount}
+                onChange={e => setConfigForm(f => ({ ...f, fund_amount: parseFloat(e.target.value) || 0 }))} />
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Mínimo para Reponer ($)</label>
-              <input type="number" min={0} step={100} value={configForm.minimum_balance}
-                onChange={e => setConfigForm(f => ({ ...f, minimum_balance: parseFloat(e.target.value) || 0 }))}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+              <Input type="number" min={0} step={100} value={configForm.minimum_balance}
+                onChange={e => setConfigForm(f => ({ ...f, minimum_balance: parseFloat(e.target.value) || 0 }))} />
             </div>
             {formError && <p className="text-red-600 text-sm">{formError}</p>}
             <div className="flex gap-3 pt-2">
@@ -391,32 +401,31 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Concepto *</label>
-              <input type="text" value={egresoForm.concept}
+              <Input type="text" value={egresoForm.concept}
                 onChange={e => setEgresoForm(f => ({ ...f, concept: e.target.value }))}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
                 placeholder="Ej. Gasolina para entrega" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Monto ($) *</label>
-                <input type="number" min={0.01} step={0.01} value={egresoForm.amount || ''}
-                  onChange={e => setEgresoForm(f => ({ ...f, amount: parseFloat(e.target.value) || 0 }))}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400" />
+                <Input type="number" min={0.01} step={0.01} value={egresoForm.amount || ''}
+                  onChange={e => setEgresoForm(f => ({ ...f, amount: parseFloat(e.target.value) || 0 }))} />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Categoría</label>
-                <select value={egresoForm.category || 'OTRO'}
-                  onChange={e => setEgresoForm(f => ({ ...f, category: e.target.value as PettyCashCategory }))}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400">
-                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <SearchableSelect
+                  items={CATEGORIES}
+                  value={egresoForm.category || 'OTRO'}
+                  onChange={(value) => setEgresoForm(f => ({ ...f, category: value as PettyCashCategory }))}
+                  getLabel={(c) => c}
+                  getValue={(c) => c}
+                />
               </div>
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Fecha</label>
-              <input type="datetime-local" value={egresoForm.movement_date || todayIso()}
-                onChange={e => setEgresoForm(f => ({ ...f, movement_date: e.target.value }))}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400" />
+              <Input type="datetime-local" value={egresoForm.movement_date || todayIso()}
+                onChange={e => setEgresoForm(f => ({ ...f, movement_date: e.target.value }))} />
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Notas</label>
@@ -426,7 +435,7 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Comprobante (opcional)</label>
-              <input type="file" accept="image/*,.pdf" onChange={e => setEgresoFile(e.target.files?.[0] || null)}
+              <Input type="file" accept="image/*,.pdf" onChange={e => setEgresoFile(e.target.files?.[0] || null)}
                 className="w-full text-sm text-slate-600 file:mr-3 file:py-1 file:px-3 file:border-0 file:rounded file:bg-slate-100 file:text-slate-700 file:font-semibold" />
               {egresoFile && <p className="text-xs text-slate-400 mt-1">📎 {egresoFile.name}</p>}
             </div>
@@ -452,21 +461,18 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Concepto *</label>
-              <input type="text" value={reposForm.concept}
-                onChange={e => setReposForm(f => ({ ...f, concept: e.target.value }))}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+              <Input type="text" value={reposForm.concept}
+                onChange={e => setReposForm(f => ({ ...f, concept: e.target.value }))} />
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Monto ($) *</label>
-              <input type="number" min={0.01} step={0.01} value={reposForm.amount || ''}
-                onChange={e => setReposForm(f => ({ ...f, amount: parseFloat(e.target.value) || 0 }))}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+              <Input type="number" min={0.01} step={0.01} value={reposForm.amount || ''}
+                onChange={e => setReposForm(f => ({ ...f, amount: parseFloat(e.target.value) || 0 }))} />
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Fecha</label>
-              <input type="datetime-local" value={reposForm.movement_date || todayIso()}
-                onChange={e => setReposForm(f => ({ ...f, movement_date: e.target.value }))}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+              <Input type="datetime-local" value={reposForm.movement_date || todayIso()}
+                onChange={e => setReposForm(f => ({ ...f, movement_date: e.target.value }))} />
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Notas</label>
@@ -499,45 +505,44 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
           <div className="space-y-3">
             <div>
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Concepto</label>
-              <input
+              <Input
                 type="text"
                 value={editForm.concept ?? ''}
                 onChange={e => setEditForm(f => ({ ...f, concept: e.target.value }))}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-amber-400"
+                className="font-bold text-slate-700 focus-visible:border-amber-400"
               />
             </div>
             <div>
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Monto</label>
-              <input
+              <Input
                 type="number"
                 min="0"
                 step="0.01"
                 value={editForm.amount ?? ''}
                 onChange={e => setEditForm(f => ({ ...f, amount: parseFloat(e.target.value) }))}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-amber-400"
+                className="font-bold text-slate-700 focus-visible:border-amber-400"
               />
             </div>
             {editingMovement.movement_type === 'EGRESO' && (
               <div>
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Categoría</label>
-                <select
+                <SearchableSelect
+                  items={CATEGORIES}
                   value={editForm.category ?? 'OTRO'}
-                  onChange={e => setEditForm(f => ({ ...f, category: e.target.value as PettyCashCategory }))}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-amber-400"
-                >
-                  {CATEGORIES.map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
+                  onChange={(value) => setEditForm(f => ({ ...f, category: value as PettyCashCategory }))}
+                  getLabel={(c) => c}
+                  getValue={(c) => c}
+                  className="font-bold text-slate-700 focus:ring-amber-400 focus:border-amber-400"
+                />
               </div>
             )}
             <div>
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Fecha</label>
-              <input
+              <Input
                 type="date"
                 value={editForm.movement_date ?? ''}
                 onChange={e => setEditForm(f => ({ ...f, movement_date: e.target.value }))}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-amber-400"
+                className="font-bold text-slate-700 focus-visible:border-amber-400"
               />
             </div>
             <div>

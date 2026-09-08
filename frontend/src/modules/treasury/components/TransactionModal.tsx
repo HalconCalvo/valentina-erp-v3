@@ -6,6 +6,8 @@ import { treasuryService } from '../../../api/treasury-service';
 import { salesService } from '../../../api/sales-service';
 import axiosClient from '../../../api/axios-client';
 import { toast } from '@/components/ui/VToast';
+import { Input } from '@/components/ui/Input';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 
 interface Props {
   isOpen: boolean;
@@ -154,38 +156,36 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
 
         <form onSubmit={handleSubmit(onSubmit)} className="p-8">
           
-          <input type="hidden" {...register('transaction_type')} />
+          <Input type="hidden" {...register('transaction_type')} />
 
           {!selectedAccountId && (
             <div className="mb-6 w-full md:w-1/3">
               <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Cuenta Bancaria *</label>
-              <select 
-                {...register('account_id', { required: true, valueAsNumber: true })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-              >
-                <option value="">Selecciona una cuenta...</option>
-                {accounts?.map(acc => (
-                  <option key={acc.id} value={acc.id}>{acc.name}</option>
-                ))}
-              </select>
+              <Input type="hidden" {...register('account_id', { required: true, valueAsNumber: true })} />
+              <SearchableSelect
+                items={accounts ?? []}
+                value={watch('account_id') ? String(watch('account_id')) : ''}
+                onChange={(v) => setValue('account_id', v ? Number(v) : undefined, { shouldValidate: true })}
+                getLabel={(acc) => acc.name}
+                getValue={(acc) => String(acc.id)}
+                placeholder="Selecciona una cuenta..."
+              />
             </div>
           )}
 
           {watchType === 'IN' && (
             <div className="mb-6 w-full md:w-2/3">
               <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">¿Afecta una factura de cliente? (opcional)</label>
-              <select
-                value={selectedCxcId}
-                onChange={e => setSelectedCxcId(e.target.value ? Number(e.target.value) : '')}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-              >
-                <option value="">— Ninguna (ingreso general) —</option>
-                {pendingInvoices.map(inv => (
-                  <option key={inv.cxc_id} value={inv.cxc_id}>
-                    {inv.project_name} — {inv.invoice_folio} — Saldo ${Number(inv.saldo || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })} ({inv.payment_type})
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                items={pendingInvoices}
+                value={selectedCxcId === '' ? '' : String(selectedCxcId)}
+                onChange={(v) => setSelectedCxcId(v ? Number(v) : '')}
+                getLabel={(inv) =>
+                  `${inv.project_name} — ${inv.invoice_folio} — Saldo $${Number(inv.saldo || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })} (${inv.payment_type})`
+                }
+                getValue={(inv) => String(inv.cxc_id)}
+                placeholder="— Ninguna (ingreso general) —"
+              />
             </div>
           )}
 
@@ -215,37 +215,33 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
                 return (
                   <div key={idx} className="bg-indigo-50 rounded-xl p-4 border border-indigo-200 flex items-start gap-3">
                     <div className="flex-1 space-y-2">
-                      <select
-                        value={item.cxc_id}
-                        onChange={e => {
+                      <SearchableSelect
+                        items={pendingInvoices.filter(i =>
+                          i.cxc_id !== Number(selectedCxcId) &&
+                          !extraCxcItems.some((ex, j) => j !== idx && ex.cxc_id === i.cxc_id) &&
+                          (selectedInvoice?.client_id == null || i.client_id === selectedInvoice.client_id)
+                        )}
+                        value={item.cxc_id === '' ? '' : String(item.cxc_id)}
+                        onChange={(v) => {
                           const updated = [...extraCxcItems];
-                          const cxcId = e.target.value ? Number(e.target.value) : '';
+                          const cxcId = v ? Number(v) : '';
                           const invSaldo = pendingInvoices.find(i => i.cxc_id === Number(cxcId))?.saldo || 0;
                           updated[idx] = { cxc_id: cxcId, amount: String(Number(invSaldo).toFixed(2)) };
                           setExtraCxcItems(updated);
                         }}
-                        className="w-full px-3 py-2 border border-indigo-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                      >
-                        <option value="">— Selecciona factura —</option>
-                        {pendingInvoices
-                          .filter(i => 
-                            i.cxc_id !== Number(selectedCxcId) && 
-                            !extraCxcItems.some((ex, j) => j !== idx && ex.cxc_id === i.cxc_id) &&
-                            (selectedInvoice?.client_id == null || i.client_id === selectedInvoice.client_id)
-                          )
-                          .map(i => (
-                            <option key={i.cxc_id} value={i.cxc_id}>
-                              {i.project_name} — {i.invoice_folio} — Saldo ${Number(i.saldo || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                            </option>
-                          ))
+                        getLabel={(i) =>
+                          `${i.project_name} — ${i.invoice_folio} — Saldo $${Number(i.saldo || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
                         }
-                      </select>
+                        getValue={(i) => String(i.cxc_id)}
+                        placeholder="— Selecciona factura —"
+                        className="border-indigo-200 focus:ring-indigo-400"
+                      />
                       {inv && (
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-indigo-600 font-medium">Abono:</span>
                           <div className="relative">
                             <span className="absolute left-2 top-1/2 -translate-y-1/2 text-indigo-500 text-xs font-bold">$</span>
-                            <input
+                            <Input
                               type="text"
                               value={item.amount}
                               onChange={e => {
@@ -253,7 +249,7 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
                                 updated[idx] = { ...updated[idx], amount: e.target.value.replace(/[^0-9.]/g, '') };
                                 setExtraCxcItems(updated);
                               }}
-                              className="pl-5 pr-3 py-1.5 border border-indigo-200 rounded-lg text-sm font-bold text-indigo-700 w-36 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                              className="pl-5 pr-3 py-1.5 border-indigo-200 text-sm font-bold text-indigo-700 w-36 focus-visible:ring-indigo-400"
                             />
                           </div>
                           <span className="text-[11px] text-indigo-500">de ${Number(inv.saldo || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
@@ -296,21 +292,21 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
             {!selectedInvoice && (
             <div className="w-full md:flex-[2]">
               <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Concepto *</label>
-              <input 
+              <Input
                 {...register('description')}
                 placeholder="Ej. Pago de cliente..."
                 autoFocus
-                className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 placeholder:text-slate-400"
+                className="w-full px-4 py-3 rounded-xl focus-visible:ring-blue-500 text-slate-900 placeholder:text-slate-400"
               />
             </div>
             )}
 
             <div className="w-full md:flex-[1]">
               <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Ref / Folio</label>
-              <input 
+              <Input
                 {...register('reference')}
                 placeholder="Opcional"
-                className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 placeholder:text-slate-400"
+                className="w-full px-4 py-3 rounded-xl focus-visible:ring-blue-500 text-slate-900 placeholder:text-slate-400"
               />
             </div>
 
@@ -323,10 +319,10 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
                 <span className={`absolute left-4 top-3 font-medium text-lg ${watchType === 'IN' ? 'text-green-600' : 'text-red-600'}`}>$</span>
                 
                 {/* El campo oculto que guarda el número real para la base de datos */}
-                <input type="hidden" {...register('amount', { required: true, min: 0.01 })} />
+                <Input type="hidden" {...register('amount', { required: true, min: 0.01 })} />
                 
                 {/* El campo visible de tipo texto que va pintando las comas */}
-                <input 
+                <Input
                   type="text"
                   placeholder="0.00"
                   value={displayAmount}
@@ -351,10 +347,10 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
                       setValue('amount', 0, { shouldValidate: true });
                     }
                   }}
-                  className={`w-full pl-8 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 font-bold text-lg text-right 
+                  className={`w-full pl-8 pr-4 py-3 rounded-xl font-bold text-lg text-right 
                     ${watchType === 'IN' 
-                      ? 'border-slate-300 focus:ring-green-500 text-green-700' 
-                      : 'border-slate-300 focus:ring-red-500 text-red-700'
+                      ? 'focus-visible:ring-green-500 text-green-700' 
+                      : 'focus-visible:ring-red-500 text-red-700'
                     }`}
                 />
               </div>

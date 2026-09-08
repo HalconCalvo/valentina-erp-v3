@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
     TrendingUp, Factory, DollarSign, Scale, Activity,
@@ -11,6 +11,7 @@ import {
 import { Card } from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { VTable, type VTableColumn } from '@/components/ui/VTable';
 
 // --- SERVICIOS ---
 import { FinancialReviewModal } from '../../management/components/FinancialReviewModal';
@@ -25,6 +26,17 @@ type DirectorSection = 'SALES' | 'OPERATIONS' | 'LIQUIDITY' | 'PROFITABILITY' | 
 
 // Posibles vistas de detalle para VENTAS (Nivel 2 -> 3)
 type SalesDetailView = 'PENDING_AUTH' | 'SENT_CLIENT' | 'RED_LIGHT' | 'BATTING_RATE' | null;
+
+type HealthInstance = {
+    id: number;
+    order_folio?: string;
+    project_name?: string;
+    client_name?: string;
+    custom_name?: string;
+    delivery_deadline?: string;
+    semaphore?: string;
+    semaphore_label?: string;
+};
 
 const DirectorDashboard: React.FC = () => {
     const navigate = useNavigate();
@@ -287,6 +299,134 @@ const DirectorDashboard: React.FC = () => {
 
     const formatCurrency = (amount: number) => amount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 
+    const salesDetailColumns: VTableColumn<SalesOrder>[] = useMemo(
+        () => [
+            {
+                key: 'folio',
+                label: 'Folio / Proyecto',
+                render: (order) => (
+                    <span className="font-bold text-slate-800">
+                        OV-{order.id!.toString().padStart(4, '0')} - {order.project_name}
+                    </span>
+                ),
+            },
+            {
+                key: 'seller',
+                label: 'Vendedor',
+                render: () => <span className="text-slate-600">Comercial</span>,
+            },
+            {
+                key: 'valid_until',
+                label: 'Fecha Límite',
+                render: (order) => (
+                    <span className="text-slate-600">
+                        {order.valid_until ? new Date(order.valid_until).toLocaleDateString() : 'N/A'}
+                    </span>
+                ),
+            },
+            {
+                key: 'total_price',
+                label: 'Monto Total',
+                render: (order) => (
+                    <span className="block text-right font-bold text-indigo-700">
+                        {formatCurrency(order.total_price || 0)}
+                    </span>
+                ),
+            },
+            {
+                key: 'action',
+                label: 'Acción',
+                render: (order) => (
+                    <div className="flex items-center justify-center gap-2">
+                        {activeSalesView === 'PENDING_AUTH' ? (
+                            <Button
+                                size="sm"
+                                className="bg-indigo-600 text-white shadow-sm hover:bg-indigo-700"
+                                onClick={() => setReviewOrderId(order.id!)}
+                            >
+                                <FileSearch size={14} className="mr-1" /> Revisar / Autorizar
+                            </Button>
+                        ) : (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="bg-white shadow-sm"
+                                onClick={() => setReviewOrderId(order.id!)}
+                            >
+                                <FileSearch size={14} className="mr-1" /> Auditar Detalle
+                            </Button>
+                        )}
+                    </div>
+                ),
+            },
+        ],
+        [activeSalesView],
+    );
+
+    const healthInstanceColumns: VTableColumn<HealthInstance>[] = useMemo(
+        () => [
+            {
+                key: 'order_folio',
+                label: 'OV',
+                render: (inst) => (
+                    <span className="text-xs font-black text-indigo-600">
+                        {inst.order_folio || '—'}
+                    </span>
+                ),
+            },
+            {
+                key: 'project_name',
+                label: 'Proyecto / Cliente',
+                render: (inst) => (
+                    <div>
+                        <p className="text-xs font-bold text-slate-800">{inst.project_name || '—'}</p>
+                        <p className="text-[10px] text-slate-500">{inst.client_name || '—'}</p>
+                    </div>
+                ),
+            },
+            {
+                key: 'custom_name',
+                label: 'Instancia',
+                render: (inst) => (
+                    <span className="text-xs font-bold text-slate-700">
+                        {inst.custom_name || `Instancia ${inst.id}`}
+                    </span>
+                ),
+            },
+            {
+                key: 'delivery_deadline',
+                label: 'Fecha Límite',
+                render: (inst) => (
+                    <span className="text-xs text-slate-500">
+                        {inst.delivery_deadline
+                            ? new Date(inst.delivery_deadline).toLocaleDateString('es-MX')
+                            : '—'}
+                    </span>
+                ),
+            },
+            {
+                key: 'semaphore',
+                label: 'Semáforo',
+                render: (inst) => (
+                    <span
+                        className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase ${
+                            inst.semaphore === 'RED'
+                                ? 'border-red-200 bg-red-50 text-red-700'
+                                : inst.semaphore === 'YELLOW'
+                                  ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                  : inst.semaphore === 'BLUE'
+                                    ? 'border-blue-200 bg-blue-50 text-blue-700'
+                                    : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                        }`}
+                    >
+                        {inst.semaphore_label || inst.semaphore}
+                    </span>
+                ),
+            },
+        ],
+        [],
+    );
+
     const openMainSection = (section: DirectorSection) => {
         setActiveSection(section);
         setActiveSalesView(null);
@@ -340,40 +480,11 @@ const DirectorDashboard: React.FC = () => {
         }
 
         return (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mt-6 animate-in slide-in-from-right-4 duration-300">
-                <table className="w-full text-left text-sm">
-                    <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
-                        <tr>
-                            <th className="px-6 py-4 font-bold">Folio / Proyecto</th>
-                            <th className="px-6 py-4 font-bold">Vendedor</th>
-                            <th className="px-6 py-4 font-bold">Fecha Límite</th>
-                            <th className="px-6 py-4 font-bold text-right">Monto Total</th>
-                            <th className="px-6 py-4 font-bold text-center">Acción</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {filteredOrders.map(order => (
-                            <tr key={order.id} className="hover:bg-slate-50 transition-colors">
-                                <td className="px-6 py-4 font-bold text-slate-800">OV-{order.id.toString().padStart(4,'0')} - {order.project_name}</td>
-                                <td className="px-6 py-4 text-slate-600">Comercial</td>
-                                <td className="px-6 py-4 text-slate-600">{order.valid_until ? new Date(order.valid_until).toLocaleDateString() : 'N/A'}</td>
-                                <td className="px-6 py-4 text-right font-bold text-indigo-700">{formatCurrency(order.total_price || 0)}</td>
-                                <td className="px-6 py-4 flex justify-center items-center gap-2">
-                                    {activeSalesView === 'PENDING_AUTH' ? (
-                                        <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm" onClick={() => setReviewOrderId(order.id!)}>
-                                            <FileSearch size={14} className="mr-1" /> Revisar / Autorizar
-                                        </Button>
-                                    ) : (
-                                        <Button variant="outline" size="sm" className="shadow-sm bg-white" onClick={() => setReviewOrderId(order.id!)}>
-                                            <FileSearch size={14} className="mr-1" /> Auditar Detalle
-                                        </Button>
-                                    )}
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+            <VTable
+                columns={salesDetailColumns}
+                data={filteredOrders}
+                className="mt-6 animate-in slide-in-from-right-4 duration-300 shadow-sm"
+            />
         );
     };
 
@@ -1080,51 +1191,10 @@ const DirectorDashboard: React.FC = () => {
                                     Sin instancias en este grupo
                                 </div>
                             ) : (
-                                <table className="w-full text-sm text-left">
-                                    <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
-                                        <tr>
-                                            <th className="px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">OV</th>
-                                            <th className="px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">Proyecto / Cliente</th>
-                                            <th className="px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">Instancia</th>
-                                            <th className="px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">Fecha Límite</th>
-                                            <th className="px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">Semáforo</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {selectedHealthGroup.instances.map((inst: any) => (
-                                            <tr key={inst.id} className="hover:bg-slate-50 transition-colors">
-                                                <td className="px-4 py-3 font-black text-indigo-600 text-xs">
-                                                    {inst.order_folio || '—'}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <p className="font-bold text-slate-800 text-xs">{inst.project_name || '—'}</p>
-                                                    <p className="text-[10px] text-slate-500">{inst.client_name || '—'}</p>
-                                                </td>
-                                                <td className="px-4 py-3 font-bold text-slate-700 text-xs">
-                                                    {inst.custom_name || `Instancia ${inst.id}`}
-                                                </td>
-                                                <td className="px-4 py-3 text-xs text-slate-500">
-                                                    {inst.delivery_deadline
-                                                        ? new Date(inst.delivery_deadline).toLocaleDateString('es-MX')
-                                                        : '—'}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border uppercase ${
-                                                        inst.semaphore === 'RED'
-                                                            ? 'bg-red-50 text-red-700 border-red-200'
-                                                            : inst.semaphore === 'YELLOW'
-                                                                ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                                                : inst.semaphore === 'BLUE'
-                                                                    ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                                    }`}>
-                                                        {inst.semaphore_label || inst.semaphore}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                <VTable
+                                    columns={healthInstanceColumns}
+                                    data={selectedHealthGroup.instances as HealthInstance[]}
+                                />
                             )}
                         </div>
                     </div>

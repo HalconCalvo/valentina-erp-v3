@@ -2,6 +2,9 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, FileText, RefreshCw } from 'lucide-react';
 import { salesService } from '../../../api/sales-service';
+import { Input } from '@/components/ui/Input';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
 
 export interface CxcReportRow {
@@ -91,6 +94,14 @@ const CxcReportPage: React.FC = () => {
             .sort((a, b) => a.name.localeCompare(b.name, 'es'));
     }, [rows]);
 
+    const clientSelectOptions = useMemo(
+        () => [
+            { value: '', label: 'Todos los clientes' },
+            ...clientOptions.map((c) => ({ value: String(c.id), label: c.name })),
+        ],
+        [clientOptions],
+    );
+
     const metrics = useMemo(() => {
         const vivas = rows.filter((r) => r.saldo > 0.01 && r.estado !== 'CANCELADA').length;
         const totalFacturado = rows.reduce((s, r) => s + (r.monto || 0), 0);
@@ -135,6 +146,85 @@ const CxcReportPage: React.FC = () => {
 
     const canCobrar = (row: CxcReportRow) =>
         row.saldo > 0.01 && row.estado !== 'CANCELADA' && row.estado !== 'PAGADA';
+
+    const cxcColumns = useMemo((): VTableColumn<CxcReportRow>[] => [
+        {
+            key: 'invoice_folio',
+            label: 'Folio',
+            render: (row) => <span className="font-semibold text-slate-800">{row.invoice_folio || '—'}</span>,
+        },
+        {
+            key: 'invoice_date',
+            label: 'Emisión',
+            render: (row) => <span className="text-slate-600">{formatInvoiceDate(row.invoice_date)}</span>,
+        },
+        {
+            key: 'project_name',
+            label: 'Proyecto',
+            render: (row) => (
+                <span className="text-slate-700 max-w-[180px] truncate block" title={row.project_name || ''}>
+                    {row.project_name || '—'}
+                </span>
+            ),
+        },
+        {
+            key: 'sales_order_id',
+            label: 'OV',
+            render: (row) => <span className="font-mono text-xs text-slate-600">{formatOv(row.sales_order_id)}</span>,
+        },
+        {
+            key: 'payment_type',
+            label: 'Tipo',
+            render: (row) => <span className="text-slate-600">{row.payment_type || '—'}</span>,
+        },
+        {
+            key: 'monto',
+            label: 'Monto',
+            render: (row) => <span className="block text-right tabular-nums">{formatCurrency(row.monto)}</span>,
+        },
+        {
+            key: 'abonado',
+            label: 'Abonado',
+            render: (row) => <span className="block text-right tabular-nums text-emerald-700">{formatCurrency(row.abonado)}</span>,
+        },
+        {
+            key: 'saldo',
+            label: 'Saldo',
+            render: (row) => <span className="block text-right tabular-nums font-bold text-slate-800">{formatCurrency(row.saldo)}</span>,
+        },
+        {
+            key: 'antiguedad_dias',
+            label: 'Antig.',
+            render: (row) => (
+                <span
+                    className={`block text-right tabular-nums font-bold ${
+                        (row.antiguedad_dias ?? 0) > 30 ? 'text-amber-600' : 'text-slate-500'
+                    }`}
+                >
+                    {row.antiguedad_dias != null ? `${row.antiguedad_dias}d` : '—'}
+                </span>
+            ),
+        },
+        {
+            key: 'cobrar',
+            label: 'Cobrar',
+            render: (row) => (
+                <div className="text-center">
+                    {canCharge && canCobrar(row) ? (
+                        <button
+                            type="button"
+                            onClick={() => handleCobrar(row)}
+                            className="text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                            Cobrar
+                        </button>
+                    ) : (
+                        <span className="text-xs text-slate-400">—</span>
+                    )}
+                </div>
+            ),
+        },
+    ], [canCharge]);
 
     return (
         <div className="p-8 max-w-7xl mx-auto pb-24 space-y-6 animate-fadeIn">
@@ -194,58 +284,52 @@ const CxcReportPage: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Cliente</label>
-                        <select
+                        <SearchableSelect
+                            items={clientSelectOptions}
                             value={clientId === '' ? '' : String(clientId)}
-                            onChange={(e) => setClientId(e.target.value === '' ? '' : Number(e.target.value))}
-                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                        >
-                            <option value="">Todos los clientes</option>
-                            {clientOptions.map((c) => (
-                                <option key={c.id} value={c.id}>
-                                    {c.name}
-                                </option>
-                            ))}
-                        </select>
+                            onChange={(v) => setClientId(v === '' ? '' : Number(v))}
+                            getLabel={(o) => o.label}
+                            getValue={(o) => o.value}
+                            placeholder="Todos los clientes"
+                        />
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Desde</label>
-                        <input
+                        <Input
                             type="date"
                             value={dateFrom}
                             onChange={(e) => setDateFrom(e.target.value)}
-                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
                         />
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Hasta</label>
-                        <input
+                        <Input
                             type="date"
                             value={dateTo}
                             onChange={(e) => setDateTo(e.target.value)}
-                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
                         />
                     </div>
                 </div>
                 <div className="flex flex-wrap gap-6 pt-1 border-t border-slate-100">
                     <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                        <input
+                        <Input
                             type="checkbox"
                             checked={includePaid}
                             disabled={onlyCancelled}
                             onChange={(e) => setIncludePaid(e.target.checked)}
-                            className="rounded border-slate-300"
+                            className="h-4 w-4 rounded border-slate-300"
                         />
                         Incluir pagadas (histórico)
                     </label>
                     <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                        <input
+                        <Input
                             type="checkbox"
                             checked={onlyCancelled}
                             onChange={(e) => {
                                 setOnlyCancelled(e.target.checked);
                                 if (e.target.checked) setIncludePaid(false);
                             }}
-                            className="rounded border-slate-300"
+                            className="h-4 w-4 rounded border-slate-300"
                         />
                         Ver solo canceladas
                     </label>
@@ -254,97 +338,57 @@ const CxcReportPage: React.FC = () => {
 
             <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="bg-slate-50 border-b border-slate-200 text-left">
-                                <th className="p-3 font-bold text-slate-600">Folio</th>
-                                <th className="p-3 font-bold text-slate-600">Emisión</th>
-                                <th className="p-3 font-bold text-slate-600">Proyecto</th>
-                                <th className="p-3 font-bold text-slate-600">OV</th>
-                                <th className="p-3 font-bold text-slate-600">Tipo</th>
-                                <th className="p-3 font-bold text-slate-600 text-right">Monto</th>
-                                <th className="p-3 font-bold text-slate-600 text-right">Abonado</th>
-                                <th className="p-3 font-bold text-slate-600 text-right">Saldo</th>
-                                <th className="p-3 font-bold text-slate-600 text-right">Antig.</th>
-                                <th className="p-3 font-bold text-slate-600 text-center">Cobrar</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {loading && rows.length === 0 ? (
-                                <tr>
-                                    <td colSpan={10} className="p-8 text-center text-slate-400">
-                                        Cargando reporte...
-                                    </td>
-                                </tr>
-                            ) : grouped.length === 0 ? (
-                                <tr>
-                                    <td colSpan={10} className="p-8 text-center text-slate-400">
-                                        No hay facturas con los filtros seleccionados.
-                                    </td>
-                                </tr>
-                            ) : (
-                                grouped.map((group) => (
-                                    <React.Fragment key={`${group.clientId ?? 'x'}-${group.clientName}`}>
-                                        <tr className="bg-indigo-50 border-y border-indigo-100">
-                                            <td colSpan={7} className="p-3 font-black text-indigo-900">
-                                                {group.clientName}
-                                            </td>
-                                            <td colSpan={3} className="p-3 text-right font-black text-indigo-800 tabular-nums">
-                                                Debe: {formatCurrency(group.debe)}
-                                            </td>
-                                        </tr>
-                                        {group.rows.map((row) => (
-                                            <tr key={row.cxc_id} className="border-b border-slate-50 hover:bg-slate-50/60">
-                                                <td className="p-3 font-semibold text-slate-800">{row.invoice_folio || '—'}</td>
-                                                <td className="p-3 text-slate-600">{formatInvoiceDate(row.invoice_date)}</td>
-                                                <td className="p-3 text-slate-700 max-w-[180px] truncate" title={row.project_name || ''}>
-                                                    {row.project_name || '—'}
-                                                </td>
-                                                <td className="p-3 font-mono text-xs text-slate-600">{formatOv(row.sales_order_id)}</td>
-                                                <td className="p-3 text-slate-600">{row.payment_type || '—'}</td>
-                                                <td className="p-3 text-right tabular-nums">{formatCurrency(row.monto)}</td>
-                                                <td className="p-3 text-right tabular-nums text-emerald-700">{formatCurrency(row.abonado)}</td>
-                                                <td className="p-3 text-right tabular-nums font-bold text-slate-800">{formatCurrency(row.saldo)}</td>
-                                                <td
-                                                    className={`p-3 text-right tabular-nums font-bold ${
-                                                        (row.antiguedad_dias ?? 0) > 30 ? 'text-amber-600' : 'text-slate-500'
-                                                    }`}
-                                                >
-                                                    {row.antiguedad_dias != null ? `${row.antiguedad_dias}d` : '—'}
-                                                </td>
-                                                <td className="p-3 text-center">
-                                                    {canCharge && canCobrar(row) ? (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleCobrar(row)}
-                                                            className="text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg transition-colors"
-                                                        >
-                                                            Cobrar
-                                                        </button>
-                                                    ) : (
-                                                        <span className="text-xs text-slate-400">—</span>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </React.Fragment>
-                                ))
-                            )}
-                        </tbody>
-                        {rows.length > 0 && (
-                            <tfoot>
-                                <tr className="bg-slate-100 border-t-2 border-slate-300 font-black">
-                                    <td colSpan={5} className="p-3 text-slate-700 uppercase text-xs tracking-wide">
+                    {loading && rows.length === 0 ? (
+                        <VTable
+                            columns={cxcColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+                            data={[]}
+                            isLoading
+                            className="border-0 rounded-none shadow-none"
+                        />
+                    ) : grouped.length === 0 ? (
+                        <VTable
+                            columns={cxcColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+                            data={[]}
+                            emptyState={{ title: 'No hay facturas con los filtros seleccionados.' }}
+                            className="border-0 rounded-none shadow-none"
+                        />
+                    ) : (
+                        <>
+                            <div className="flex w-full text-sm bg-slate-50 border-b border-slate-200 text-left">
+                                {cxcColumns.map((col) => (
+                                    <div key={col.key} className="flex-1 p-3 font-bold text-slate-600 min-w-0">
+                                        {col.label}
+                                    </div>
+                                ))}
+                            </div>
+                            {grouped.map((group) => (
+                                <div key={`${group.clientId ?? 'x'}-${group.clientName}`}>
+                                    <div className="bg-indigo-50 border-y border-indigo-100 px-3 py-3 flex justify-between items-center">
+                                        <span className="font-black text-indigo-900">{group.clientName}</span>
+                                        <span className="font-black text-indigo-800 tabular-nums">
+                                            Debe: {formatCurrency(group.debe)}
+                                        </span>
+                                    </div>
+                                    <VTable
+                                        columns={cxcColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+                                        data={group.rows as unknown as Record<string, unknown>[]}
+                                        className="border-0 rounded-none shadow-none [&_thead]:hidden"
+                                    />
+                                </div>
+                            ))}
+                            {rows.length > 0 && (
+                                <div className="flex w-full text-sm bg-slate-100 border-t-2 border-slate-300 font-black">
+                                    <div className="flex-[5] p-3 text-slate-700 uppercase text-xs tracking-wide min-w-0">
                                         Totales ({rows.length} facturas)
-                                    </td>
-                                    <td className="p-3 text-right tabular-nums">{formatCurrency(metrics.totalFacturado)}</td>
-                                    <td className="p-3 text-right tabular-nums text-emerald-800">{formatCurrency(metrics.totalAbonado)}</td>
-                                    <td className="p-3 text-right tabular-nums text-amber-800">{formatCurrency(metrics.totalSaldo)}</td>
-                                    <td colSpan={2} />
-                                </tr>
-                            </tfoot>
-                        )}
-                    </table>
+                                    </div>
+                                    <div className="flex-1 p-3 text-right tabular-nums min-w-0">{formatCurrency(metrics.totalFacturado)}</div>
+                                    <div className="flex-1 p-3 text-right tabular-nums text-emerald-800 min-w-0">{formatCurrency(metrics.totalAbonado)}</div>
+                                    <div className="flex-1 p-3 text-right tabular-nums text-amber-800 min-w-0">{formatCurrency(metrics.totalSaldo)}</div>
+                                    <div className="flex-[2] min-w-0" />
+                                </div>
+                            )}
+                        </>
+                    )}
                 </div>
             </div>
         </div>

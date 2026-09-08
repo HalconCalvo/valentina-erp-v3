@@ -9,6 +9,8 @@ import axiosClient from '../../../api/axios-client';
 import { SalesOrder, SalesOrderStatus } from '../../../types/sales';
 import { useFoundations } from '../../foundations/hooks/useFoundations';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 
@@ -17,6 +19,12 @@ interface FinancialReviewModalProps {
     onClose: () => void;
     onOrderUpdated?: () => void;
     readOnly?: boolean; // <-- NUEVO: Forzar modo solo lectura desde afuera
+}
+
+interface CostIngredient {
+    name: string;
+    qty_recipe: number;
+    frozen_unit_cost: number;
 }
 
 export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orderId, onClose, onOrderUpdated, readOnly = false }) => {
@@ -435,6 +443,34 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
         });
     };
 
+    const ingredientColumns = useMemo((): VTableColumn<CostIngredient>[] => [
+        {
+            key: 'name',
+            label: 'Concepto',
+            width: '40%',
+            render: (ing) => <span className="text-slate-600 font-medium">{ing.name}</span>,
+        },
+        {
+            key: 'qty_recipe',
+            label: 'Cant.',
+            render: (ing) => <span className="text-center text-slate-500 block">{ing.qty_recipe}</span>,
+        },
+        {
+            key: 'frozen_unit_cost',
+            label: 'Costo Unit.',
+            render: (ing) => <span className="text-right font-mono text-slate-400 block">{formatCurrency(ing.frozen_unit_cost)}</span>,
+        },
+        {
+            key: 'importe',
+            label: 'Importe',
+            render: (ing) => (
+                <span className="text-right font-mono font-bold text-slate-700 bg-slate-50 block">
+                    {formatCurrency(ing.frozen_unit_cost * ing.qty_recipe)}
+                </span>
+            ),
+        },
+    ], []);
+
     if (!orderId) return null;
 
     if (loading || !order || !simulation || taxRates.length === 0) {
@@ -504,13 +540,13 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                         <div className="flex flex-col items-center px-2 border-l border-slate-100">
                                             <label className="text-[9px] font-bold text-slate-400 mb-1">MARGEN %</label>
                                             <div className="relative w-20">
-                                                <input 
+                                                <Input 
                                                     type="number" 
                                                     step="0.01" 
                                                     disabled={isReadOnly || processing}
                                                     value={itemMargins[index] === undefined ? 0 : itemMargins[index]}
                                                     onChange={(e) => handleItemMarginChange(index, parseFloat(e.target.value))}
-                                                    className={`w-full text-center font-bold text-sm border rounded py-1 outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-100 disabled:text-slate-500 ${
+                                                    className={`w-full text-center font-bold text-sm py-1 focus-visible:ring-indigo-500 disabled:bg-slate-100 disabled:text-slate-500 ${
                                                         !isReadOnly && (itemMargins[index] || 0) < 30 ? 'text-red-600 bg-red-50 border-red-200' : 'text-indigo-700 border-indigo-200'
                                                     }`}
                                                 />
@@ -527,7 +563,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                         <div className="flex flex-col items-center px-2 border-l border-slate-100 w-28">
                                             <label className="text-[9px] font-bold text-slate-400 mb-1 uppercase">P. Venta</label>
                                             <div className="relative w-24">
-                                                <input
+                                                <Input
                                                     type="text"
                                                     disabled={isReadOnly || processing}
                                                     value={editingPrice?.index === index ? editingPrice.value : formatCurrency(item.newUnitPrice)}
@@ -539,7 +575,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                                         handleItemPriceChange(index, numeric);
                                                     }}
                                                     onBlur={() => setEditingPrice(null)}
-                                                    className="w-full text-center font-mono font-bold text-sm border rounded py-1 outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100 disabled:text-slate-500 text-emerald-700 border-emerald-200"
+                                                    className="w-full text-center font-mono font-bold text-sm py-1 focus-visible:ring-emerald-500 disabled:bg-slate-100 disabled:text-slate-500 text-emerald-700 border-emerald-200"
                                                 />
                                             </div>
                                         </div>
@@ -549,28 +585,11 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                         <div className="bg-slate-50 p-3 shadow-inner text-xs">
                                             {item.cost_snapshot?.ingredients ? (
                                                 <div className="max-h-40 overflow-y-auto">
-                                                    <table className="w-full">
-                                                        <thead className="text-slate-400 text-left bg-slate-100 border-b border-slate-200">
-                                                            <tr>
-                                                                <th className="pb-1 pl-2 py-1 w-[40%]">Concepto</th>
-                                                                <th className="pb-1 text-center py-1">Cant.</th>
-                                                                <th className="pb-1 text-right py-1">Costo Unit.</th>
-                                                                <th className="pb-1 text-right pr-2 py-1 bg-slate-200/50">Importe</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y divide-slate-200">
-                                                            {item.cost_snapshot.ingredients.map((ing: any, i: number) => (
-                                                                <tr key={i}>
-                                                                    <td className="py-1 pl-2 text-slate-600 font-medium">{ing.name}</td>
-                                                                    <td className="py-1 text-center text-slate-500">{ing.qty_recipe}</td>
-                                                                    <td className="py-1 text-right font-mono text-slate-400">{formatCurrency(ing.frozen_unit_cost)}</td>
-                                                                    <td className="py-1 text-right font-mono font-bold text-slate-700 pr-2 bg-slate-50">
-                                                                        {formatCurrency(ing.frozen_unit_cost * ing.qty_recipe)}
-                                                                    </td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
+                                                    <VTable
+                                                        columns={ingredientColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+                                                        data={(item.cost_snapshot.ingredients as CostIngredient[]) as unknown as Record<string, unknown>[]}
+                                                        className="border-0 shadow-none rounded-none text-xs"
+                                                    />
                                                 </div>
                                             ) : (
                                                 <div className="text-amber-600 flex items-center gap-2"><AlertTriangle size={12}/> Sin receta vinculada.</div>
@@ -602,7 +621,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                         </label>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <input 
+                                        <Input 
                                             type="range" min="0" max="100" 
                                             step="0.01" 
                                             disabled={isReadOnly || processing}
@@ -610,13 +629,13 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                             onChange={(e) => handleGlobalMarginChange(parseFloat(e.target.value))}
                                             className="flex-1 h-2 bg-indigo-100 rounded-lg appearance-none cursor-pointer accent-indigo-600"
                                         />
-                                        <input 
+                                        <Input 
                                             type="number" 
                                             step="0.01" 
                                             disabled={isReadOnly || processing}
                                             value={globalMargin}
                                             onChange={(e) => handleGlobalMarginChange(parseFloat(e.target.value))}
-                                            className="w-16 p-1 text-right text-xs font-bold border rounded border-indigo-200 text-indigo-700 outline-none"
+                                            className="w-16 p-1 text-right text-xs font-bold border-indigo-200 text-indigo-700"
                                         />
                                     </div>
                                 </div>
@@ -626,7 +645,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                         <label className="text-xs font-bold text-slate-600">Comisión Vendedor (incluida en precio)</label>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <input 
+                                        <Input 
                                             type="range" min="0" max="50" step="0.5"
                                             disabled={isReadOnly || processing}
                                             value={commissionPercent}
@@ -636,7 +655,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                             }}
                                             className="flex-1 h-2 bg-amber-100 rounded-lg appearance-none cursor-pointer accent-amber-500"
                                         />
-                                        <input 
+                                        <Input 
                                             type="number" step="0.1"
                                             disabled={isReadOnly || processing}
                                             value={commissionPercent}
@@ -644,7 +663,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                                 setCommissionPercent(Number(e.target.value));
                                                 setItemPriceOverrides(prev => prev.map(() => null));
                                             }}
-                                            className="w-16 p-1 text-right text-xs font-bold border rounded border-amber-200 text-amber-700 outline-none"
+                                            className="w-16 p-1 text-right text-xs font-bold border-amber-200 text-amber-700"
                                         />
                                     </div>
                                 </div>
@@ -657,30 +676,30 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                         </label>
                                         <div className="flex items-center gap-1 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
                                             <span className="text-xs font-mono text-blue-600 font-bold">$</span>
-                                            <input
+                                            <Input
                                                 type="number"
                                                 step="0.01"
                                                 disabled={isReadOnly || processing}
                                                 value={advanceAmount}
                                                 onChange={(e) => handleAdvanceAmountChange(e.target.value)}
-                                                className="w-24 text-right text-sm font-mono text-blue-600 font-bold bg-transparent outline-none disabled:text-slate-400"
+                                                className="w-24 text-right text-sm font-mono text-blue-600 font-bold bg-transparent border-0 shadow-none focus-visible:ring-0 disabled:text-slate-400"
                                             />
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <input 
+                                        <Input 
                                             type="range" min="0" max="100" step="5"
                                             disabled={isReadOnly || processing}
                                             value={advancePercentDerived}
                                             onChange={(e) => handleAdvancePercentChange(Number(e.target.value))}
                                             className="flex-1 h-2 bg-blue-100 rounded-lg appearance-none cursor-pointer accent-blue-600"
                                         />
-                                        <input 
+                                        <Input 
                                             type="number" step="0.01"
                                             disabled={isReadOnly || processing}
                                             value={Number(advancePercentDerived.toFixed(2))}
                                             onChange={(e) => handleAdvancePercentChange(Number(e.target.value))}
-                                            className="w-16 p-1 text-right text-sm font-bold border rounded border-blue-200 text-blue-700 outline-none"
+                                            className="w-16 p-1 text-right text-sm font-bold border-blue-200 text-blue-700"
                                         />
                                     </div>
                                 </div>

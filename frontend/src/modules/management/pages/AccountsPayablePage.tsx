@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { 
     TrendingDown, AlertTriangle, Calendar, 
     Filter, Search, DollarSign, ArrowRight, XCircle, CheckCircle
 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { financeService } from '../../../api/finance-service';
 import { AccountsPayableStats, PendingInvoice, PaymentRequestPayload } from '../../../types/finance';
 import { PaymentRequestModal } from '../../finance/components/PaymentRequestModal';
@@ -140,6 +142,73 @@ const AccountsPayablePage: React.FC = () => {
         }
     };
 
+    const invoiceColumns = useMemo((): VTableColumn<PendingInvoice>[] => [
+        {
+            key: 'provider_name',
+            label: 'Proveedor',
+            render: (inv) => <span className="font-bold text-slate-800">{inv.provider_name}</span>,
+        },
+        {
+            key: 'invoice_number',
+            label: 'Factura / Folio',
+            render: (inv) => <span className="font-mono text-slate-600">{inv.invoice_number}</span>,
+        },
+        {
+            key: 'due_date',
+            label: 'Vencimiento',
+            render: (inv) => (
+                <div className="flex flex-col items-start gap-1">
+                    <span className="font-medium text-slate-700">{formatDate(inv.due_date)}</span>
+                    {renderDueBadge(getDaysRemaining(inv.due_date))}
+                </div>
+            ),
+        },
+        {
+            key: 'outstanding_balance',
+            label: 'Saldo Pendiente',
+            render: (inv) => (
+                <div className="text-right">
+                    <div className="font-bold text-slate-800 text-base">{formatCurrency(inv.outstanding_balance)}</div>
+                    <div className="text-[10px] text-slate-400">Total: {formatCurrency(inv.total_amount)}</div>
+                </div>
+            ),
+        },
+        {
+            key: 'action',
+            label: 'Acción',
+            render: (inv) => (
+                <div className="flex items-center justify-center gap-2">
+                    {inv.invoice_number.startsWith('ANT-') ? (
+                        <Button
+                            size="sm"
+                            className="bg-orange-500 hover:bg-orange-600 text-white shadow-sm hover:scale-105 transition-transform font-black text-[10px] tracking-widest"
+                            onClick={() => setSelectedInvoice(inv)}
+                        >
+                            <AlertTriangle size={14} className="mr-1" /> PAGO ANTICIPADO
+                        </Button>
+                    ) : (
+                        <Button
+                            size="sm"
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm hover:scale-105 transition-transform font-black text-[10px] tracking-widest"
+                            onClick={() => setSelectedInvoice(inv)}
+                        >
+                            <DollarSign size={14} className="mr-1" /> SE SOLICITA PAGO
+                        </Button>
+                    )}
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={cancellingId === inv.id}
+                        className="border-rose-200 text-rose-500 hover:bg-rose-50 hover:text-rose-700 font-black text-[10px] tracking-widest"
+                        onClick={() => handleCancelInvoice(inv)}
+                    >
+                        <XCircle size={14} className="mr-1" /> CANCELAR
+                    </Button>
+                </div>
+            ),
+        },
+    ], [cancellingId]);
+
     return (
         <div className="p-6 max-w-7xl mx-auto space-y-6 pb-24 animate-fadeIn">
             
@@ -227,84 +296,28 @@ const AccountsPayablePage: React.FC = () => {
             )}
 
             <div className="flex gap-4 items-center bg-white p-2 rounded-lg border border-slate-200 shadow-sm mt-4">
-                <Search className="text-slate-400 ml-2" size={20}/>
-                <input 
-                    type="text" 
-                    placeholder="Buscar proveedor o folio..." 
-                    className="flex-1 outline-none text-sm font-medium text-slate-600"
+                <Search className="text-slate-400 ml-2 shrink-0" size={20}/>
+                <Input
+                    type="text"
+                    placeholder="Buscar proveedor o folio..."
+                    className="flex-1 border-0 shadow-none focus-visible:ring-0 text-sm font-medium text-slate-600"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
             </div>
 
             <Card className="overflow-hidden bg-white shadow-sm border border-slate-200 min-h-[400px]">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                        <thead className="bg-slate-50 text-slate-500 font-bold text-xs uppercase border-b border-slate-200">
-                            <tr>
-                                <th className="px-6 py-4">Proveedor</th>
-                                <th className="px-6 py-4">Factura / Folio</th>
-                                <th className="px-6 py-4">Vencimiento</th>
-                                <th className="px-6 py-4 text-right">Saldo Pendiente</th>
-                                <th className="px-6 py-4 text-center">Acción</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {loading ? (
-                                <tr><td colSpan={5} className="p-12 text-center text-slate-400">Cargando cuentas...</td></tr>
-                            ) : filteredInvoices.length === 0 ? (
-                                <tr><td colSpan={5} className="p-12 text-center text-slate-400 italic">
-                                    {activeFilter !== 'ALL' ? 'No hay facturas con este filtro.' : 'No hay facturas pendientes. ¡Al día! 🎉'}
-                                </td></tr>
-                            ) : filteredInvoices.map((inv) => (
-                                <tr key={inv.id} className="hover:bg-slate-50 transition-colors group">
-                                    <td className="px-6 py-4 font-bold text-slate-800">{inv.provider_name}</td>
-                                    <td className="px-6 py-4 font-mono text-slate-600">{inv.invoice_number}</td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex flex-col items-start gap-1">
-                                            <span className="font-medium text-slate-700">{formatDate(inv.due_date)}</span>
-                                            {renderDueBadge(getDaysRemaining(inv.due_date))}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <div className="font-bold text-slate-800 text-base">{formatCurrency(inv.outstanding_balance)}</div>
-                                        <div className="text-[10px] text-slate-400">Total: {formatCurrency(inv.total_amount)}</div>
-                                    </td>
-                                    <td className="px-6 py-4 text-center">
-                                        <div className="flex items-center justify-center gap-2">
-                                            {inv.invoice_number.startsWith('ANT-') ? (
-                                                <Button 
-                                                    size="sm" 
-                                                    className="bg-orange-500 hover:bg-orange-600 text-white shadow-sm hover:scale-105 transition-transform font-black text-[10px] tracking-widest"
-                                                    onClick={() => setSelectedInvoice(inv)}
-                                                >
-                                                    <AlertTriangle size={14} className="mr-1"/> PAGO ANTICIPADO
-                                                </Button>
-                                            ) : (
-                                                <Button 
-                                                    size="sm" 
-                                                    className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm hover:scale-105 transition-transform font-black text-[10px] tracking-widest"
-                                                    onClick={() => setSelectedInvoice(inv)}
-                                                >
-                                                    <DollarSign size={14} className="mr-1"/> SE SOLICITA PAGO
-                                                </Button>
-                                            )}
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                disabled={cancellingId === inv.id}
-                                                className="border-rose-200 text-rose-500 hover:bg-rose-50 hover:text-rose-700 font-black text-[10px] tracking-widest"
-                                                onClick={() => handleCancelInvoice(inv)}
-                                            >
-                                                <XCircle size={14} className="mr-1"/> CANCELAR
-                                            </Button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                <VTable
+                    columns={invoiceColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+                    data={filteredInvoices as unknown as Record<string, unknown>[]}
+                    isLoading={loading}
+                    className="border-0 rounded-none shadow-none min-h-[400px]"
+                    emptyState={{
+                        title: activeFilter !== 'ALL'
+                            ? 'No hay facturas con este filtro.'
+                            : 'No hay facturas pendientes. ¡Al día! 🎉',
+                    }}
+                />
             </Card>
 
             {selectedInvoice && (
