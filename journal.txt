@@ -2916,3 +2916,38 @@ Modelo de datos:       A
 Frontend:              A
 Cobertura funcional:   A
 GLOBAL:                A — ERP de clase mundial listo para producción
+
+
+---
+## SESIÓN 2026-09-08 — ETAPA 1 COMPLETADA + BUGS CORREGIDOS
+
+### Etapa 1 — Limpieza completa (COMPLETADA)
+- Grupos A, B, C y D corregidos — 25 archivos
+- Cero <input>, <table>, <select> directos en todo el frontend
+  (excepciones justificadas: file inputs ocultos, LoginPage, select nativo en VersionRecipeForm)
+- SearchableSelect reescrito con displayValue pattern y position:fixed
+- Input.tsx con forwardRef para react-hook-form
+- Verificado en producción via Claude in Chrome
+
+### Bugs corregidos en camino:
+- VersionRecipeForm: recetas bloqueadas — select nativo para estatus (excepción justificada)
+- Input.tsx: forwardRef agregado — cantidades visibles en recetas
+- SearchableSelect: dropdown con position:fixed — visible en cualquier contenedor
+- SearchableSelect: onChange('') eliminado — filtrado no limpia valor seleccionado
+- CreateQuotePage: isUserSelectedTax flag — IVA seleccionable (8%, 0%, 16%)
+- Cotizaciones integradas bajo Ventas en el sidebar
+- Botón Nueva Cotización en SalesDashboardPage
+- CreateQuotePage conectada al backend de quotations
+
+### Estado actual del sistema:
+- Etapa 1: COMPLETA
+- Etapa 2: EN PROGRESO — Fase 7 Dashboard Director es el siguiente paso
+- Etapa 3: Pendiente (herramienta de migración)
+- Etapa 4: Pendiente (arranque)
+
+### Próxima sesión:
+Fase 7 — Dashboard Director Completo
+- Costo real = costo receta + imprevistos producción/instalación
+- Flujo de caja proyectado = CxC + CxP + nóminas + gastos operativos
+- Reorganizar y clarificar KPIs existentes
+- Agregar: rentabilidad por OV, antigüedad CxC, top clientes
