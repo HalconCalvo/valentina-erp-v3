@@ -13,7 +13,13 @@ from app.core.database import get_session
 from app.core.deps import CurrentUser, SessionDep
 from app.services.cloud_storage import upload_to_gcs  # <--- LA TUBERÍA BLINDADA
 from app.services import inventory_service
-from app.schemas.inventory_schema import ManualAdjustDelta, ManualAdjustStock, PhysicalCountCreate
+from app.schemas.inventory_schema import (
+    ManualAdjustDelta,
+    ManualAdjustStock,
+    PhysicalCountCreate,
+    AuditCapturePayload,
+    AuditReasonPayload,
+)
 
 # --- MODELOS ---
 from app.models.foundations import GlobalConfig, Provider, Client, TaxRate
@@ -534,6 +540,66 @@ def get_inventory_valuation(current_user: CurrentUser, session: Session = Depend
 @router.post("/materials/seed-kardex-opening")
 def seed_kardex_opening(current_user: CurrentUser, session: SessionDep):
     return inventory_service.seed_opening_balance_entries(session, current_user)
+
+
+# ==========================================
+# INVENTARIO FÍSICO — CONTEO CIEGO
+# ==========================================
+@router.post("/inventory/audits")
+def create_inventory_audit(current_user: CurrentUser, session: Session = Depends(get_session)):
+    return inventory_service.create_audit_session(session, current_user)
+
+
+@router.get("/inventory/audits/active")
+def get_active_inventory_audit(current_user: CurrentUser, session: Session = Depends(get_session)):
+    return inventory_service.get_active_audit(session, current_user)
+
+
+@router.get("/inventory/audits/{audit_id}")
+def get_inventory_audit(audit_id: int, current_user: CurrentUser, session: Session = Depends(get_session)):
+    return inventory_service.get_audit_detail(session, audit_id, current_user)
+
+
+@router.post("/inventory/audits/{audit_id}/capture")
+def capture_inventory_count(
+    audit_id: int,
+    payload: AuditCapturePayload,
+    current_user: CurrentUser,
+    session: Session = Depends(get_session),
+):
+    return inventory_service.capture_count(
+        session, audit_id, payload.item_id, payload.counted_quantity, current_user
+    )
+
+
+@router.post("/inventory/audits/{audit_id}/submit")
+def submit_inventory_audit(audit_id: int, current_user: CurrentUser, session: Session = Depends(get_session)):
+    return inventory_service.submit_for_approval(session, audit_id, current_user)
+
+
+@router.post("/inventory/audits/{audit_id}/approve")
+def approve_inventory_audit(audit_id: int, current_user: CurrentUser, session: Session = Depends(get_session)):
+    return inventory_service.approve_audit(session, audit_id, current_user)
+
+
+@router.post("/inventory/audits/{audit_id}/reject")
+def reject_inventory_audit(
+    audit_id: int,
+    payload: AuditReasonPayload,
+    current_user: CurrentUser,
+    session: Session = Depends(get_session),
+):
+    return inventory_service.reject_audit(session, audit_id, payload.reason, current_user)
+
+
+@router.post("/inventory/audits/{audit_id}/cancel")
+def cancel_inventory_audit(
+    audit_id: int,
+    payload: AuditReasonPayload,
+    current_user: CurrentUser,
+    session: Session = Depends(get_session),
+):
+    return inventory_service.cancel_audit(session, audit_id, payload.reason, current_user)
 
 
 @router.get("/materials")

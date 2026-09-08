@@ -4,7 +4,7 @@ from typing import List, Optional
 from sqlalchemy import func
 from sqlmodel import Session, select
 
-from app.models.inventory import InventoryTransaction, PurchaseOrder, PurchaseOrderItem
+from app.models.inventory import InventoryTransaction, PurchaseOrder, PurchaseOrderItem, InventoryAudit, InventoryAuditItem
 from app.models.material import Material
 
 
@@ -83,3 +83,31 @@ def get_inventory_valuation(db: Session) -> float:
         float(m.physical_stock or 0.0) * (float(m.current_cost or 0.0) / (float(m.conversion_factor or 1.0) or 1.0))
         for m in materials
     )
+
+
+def get_active_audit_session(db: Session) -> Optional[InventoryAudit]:
+    return db.exec(
+        select(InventoryAudit).where(
+            InventoryAudit.status.in_(["EN_CAPTURA", "ESPERANDO_AUTORIZACION"])
+        )
+    ).first()
+
+
+def get_audit_by_id(db: Session, audit_id: int) -> Optional[InventoryAudit]:
+    return db.get(InventoryAudit, audit_id)
+
+
+def get_audit_items(db: Session, audit_id: int) -> List[InventoryAuditItem]:
+    return list(
+        db.exec(
+            select(InventoryAuditItem).where(InventoryAuditItem.audit_id == audit_id)
+        ).all()
+    )
+
+
+def get_audit_item_by_id(db: Session, item_id: int) -> Optional[InventoryAuditItem]:
+    return db.get(InventoryAuditItem, item_id)
+
+
+def get_all_active_materials(db: Session) -> List[Material]:
+    return list(db.exec(select(Material).where(Material.is_active == True)).all())  # noqa: E712

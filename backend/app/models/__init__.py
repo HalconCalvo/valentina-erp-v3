@@ -14,7 +14,16 @@ from .sales import (
 )
 
 # Módulo de Inventario (OPERACIONES / ALMACÉN / COMPRAS)
-from .inventory import InventoryReception, InventoryTransaction, InventoryReservation, PurchaseRequisition, PurchaseOrder, PurchaseOrderItem
+from .inventory import (
+    InventoryReception,
+    InventoryTransaction,
+    InventoryReservation,
+    PurchaseRequisition,
+    PurchaseOrder,
+    PurchaseOrderItem,
+    InventoryAudit,
+    InventoryAuditItem,
+)
 
 # --- Módulo de Finanzas (NUEVO) ---
 # ¡Esto es lo que faltaba para que Alembic cree las tablas!
@@ -76,6 +85,8 @@ __all__ = [
     "PurchaseRequisition",
     "PurchaseOrder",
     "PurchaseOrderItem",
+    "InventoryAudit",
+    "InventoryAuditItem",
 
     # Finanzas y Tesorería
     "PurchaseInvoice",
