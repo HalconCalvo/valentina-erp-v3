@@ -2982,3 +2982,44 @@ El backend nuevo de /quotations queda para una fase futura.
 La separación Cotización/OV está en el modelo de datos (tabla quotations existe)
 y en el backend. El frontend la implementará completamente en una fase posterior.
 Por ahora la separación visual en SalesDashboardPage es suficiente para operar.
+
+
+---
+## SESIÓN 2026-09-08 — DECISIONES PENDIENTES (pausa)
+
+### Situación actual del módulo de Cotizaciones:
+
+PROBLEMA IDENTIFICADO:
+Al conectar CreateQuotePage al nuevo backend de /quotations (Fase 2),
+las cotizaciones nuevas van a un cajón diferente al que leen las tarjetas
+(Borradores, En Revisión, Autorizadas). Resultado: cotizaciones nuevas
+no aparecen en las tarjetas existentes.
+
+DECISIÓN APROBADA POR GABRIEL:
+- Revertir CreateQuotePage para que guarde en salesService (/sales/orders/)
+- Las tarjetas existentes (Borradores, En Revisión, Autorizadas) siguen
+  leyendo del mismo cajón de siempre
+- La separación visual Cotización/OV ya existe por estados:
+  DRAFT/SENT/ACCEPTED = Cotizaciones
+  WAITING_ADVANCE/SOLD/IN_PRODUCTION = OVs
+- El backend nuevo de /quotations queda para fase futura de separación completa
+- CreateQuotePage = mismo formulario visual, mismo cajón, misma lógica
+
+PENDIENTE ANTES DE CONTINUAR:
+1. Revertir CreateQuotePage.tsx → salesService (no quotationService)
+2. /quotations → Navigate to="/sales" en App.tsx
+3. Corregir bug de guardado (valid_until con T12:00:00)
+4. Continuar con Fase 7 — Dashboard Director
+
+### Bugs corregidos en esta sesión:
+- Input.tsx: forwardRef para react-hook-form
+- SearchableSelect: position:fixed, displayValue pattern, sin onChange('')
+- VersionRecipeForm: select nativo para estatus (excepción justificada)
+- CreateQuotePage: isUserSelectedTax para IVA seleccionable
+- Cotizaciones integradas bajo Ventas en sidebar
+- Etapa 1 limpieza completa: cero violaciones en todo el frontend
+
+### Próxima sesión:
+1. Revertir CreateQuotePage a salesService
+2. Corregir valid_until bug
+3. Fase 7 — Dashboard Director Completo
