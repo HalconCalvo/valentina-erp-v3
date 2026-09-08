@@ -96,6 +96,9 @@ export interface SalesOrder {
     client_po_folio?: string | null;
     /** V5 — Fecha de OC del cliente (ISO) */
     client_po_date?: string | null;
+
+    default_retention_percent?: number;
+    default_retention_days?: number;
     
     // Lista de Partidas
     items: SalesOrderItem[];
@@ -124,6 +127,13 @@ export interface CustomerPayment {
     commission_paid?: boolean;
     notes?: string | null;
     reference?: string | null;
+    retention_percent?: number;
+    retention_amount?: number;
+    retention_days?: number;
+    retention_due_date?: string | null;
+    retention_status?: 'PENDING' | 'INVOICED' | 'COLLECTED' | 'WAIVED' | null;
+    retention_invoice_folio?: string | null;
+    retention_notes?: string | null;
 }
 
 // El paquete (payload) que React le enviará a FastAPI
@@ -213,4 +223,26 @@ export interface InvoicingRightsRead {
     total_pending_invoice: number;
     advances: InvoicingRightAdvanceRow[];
     progress_instances: InvoicingRightProgressRow[];
+}
+
+export interface RetentionAlertRead {
+    payment_id: number;
+    sales_order_id: number;
+    order_folio: string;
+    project_name: string;
+    client_name: string;
+    invoice_folio?: string | null;
+    retention_amount: number;
+    retention_due_date?: string | null;
+    retention_status?: string | null;
+    days_until_due: number;
+    is_overdue: boolean;
+}
+
+export interface RetentionUpdatePayload {
+    retention_percent?: number;
+    retention_days?: number;
+    retention_amount?: number;
+    retention_due_date?: string | null;
+    retention_notes?: string | null;
 }

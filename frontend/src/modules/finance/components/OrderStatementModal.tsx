@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Receipt, CheckCircle, Clock, FileText, Package, AlertCircle, PieChart, Users, Coins, Pencil, Plus, PlusCircle, Trash2, Check, XCircle, ChevronDown, ChevronRight } from 'lucide-react';
-import { SalesOrder } from '../../../types/sales';
+import { X, Receipt, CheckCircle, Clock, FileText, Package, AlertCircle, PieChart, Users, Coins, Pencil, Plus, PlusCircle, Trash2, Check, XCircle, ChevronDown, ChevronRight, Shield } from 'lucide-react';
+import { SalesOrder, CustomerPayment, RetentionAlertRead } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
 import axiosClient from '../../../api/axios-client';
 import { AddItemsModal } from '../../sales/components/AddItemsModal';
@@ -47,6 +47,33 @@ function daysOpenForCxc(cxc: {
     if (!inv) return null;
     const d0 = new Date(inv);
     return Math.max(0, Math.ceil((Date.now() - d0.getTime()) / (1000 * 60 * 60 * 24)));
+}
+
+const RETENTION_BADGE: Record<string, { label: string; cls: string }> = {
+    PENDING: { label: 'Pendiente', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+    INVOICED: { label: 'Facturado', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
+    COLLECTED: { label: 'Cobrado', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    WAIVED: { label: 'Liberado', cls: 'bg-slate-100 text-slate-600 border-slate-200' },
+};
+
+function RetentionStatusBadge({ status }: { status?: string | null }) {
+    const key = String(status ?? '').toUpperCase();
+    const meta = RETENTION_BADGE[key];
+    if (!meta) return null;
+    return (
+        <span className={`inline-flex text-[10px] font-bold px-2 py-0.5 rounded border ${meta.cls}`}>
+            {meta.label}
+        </span>
+    );
+}
+
+function isRetentionOverdue(dueDate?: string | null): boolean {
+    if (!dueDate) return false;
+    const due = new Date(dueDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    due.setHours(0, 0, 0, 0);
+    return due.getTime() < today.getTime();
 }
 
 type UnlinkedInstanceRow = {
@@ -263,6 +290,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const canEditProjectName = ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'MANAGER', 'SALES', 'VENTAS'].includes(userRole);
     const canEditAdvance = ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'MANAGER'].includes(userRole);
     const canRegisterInstallment = ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'MANAGER'].includes(userRole);
+    const canManageRetention = ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'MANAGER'].includes(userRole);
     const canExpandOrder =
         ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'MANAGER', 'SALES', 'VENTAS', 'ADMIN', 'ADMINISTRADOR'].includes(userRole)
         && ['ACCEPTED', 'WAITING_ADVANCE', 'SOLD', 'IN_PRODUCTION'].includes((order as any).status);
@@ -345,6 +373,23 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const [cancelInstallmentReason, setCancelInstallmentReason] = useState('');
     const [cancellingInstallment, setCancellingInstallment] = useState(false);
 
+    const [retentionAlerts, setRetentionAlerts] = useState<RetentionAlertRead[]>([]);
+    const [retentionConfigDraft, setRetentionConfigDraft] = useState({ percent: '', days: '' });
+    const [savingRetentionConfig, setSavingRetentionConfig] = useState(false);
+    const [invoiceRetentionModal, setInvoiceRetentionModal] = useState<{ open: boolean; cxc: CustomerPayment | null }>({
+        open: false,
+        cxc: null,
+    });
+    const [retentionInvoiceFolio, setRetentionInvoiceFolio] = useState('');
+    const [invoicingRetention, setInvoicingRetention] = useState(false);
+    const [collectingRetentionId, setCollectingRetentionId] = useState<number | null>(null);
+    const [waiveRetentionModal, setWaiveRetentionModal] = useState<{ open: boolean; cxc: CustomerPayment | null }>({
+        open: false,
+        cxc: null,
+    });
+    const [waiveRetentionReason, setWaiveRetentionReason] = useState('');
+    const [waivingRetention, setWaivingRetention] = useState(false);
+
     const queryClient = useQueryClient();
     const orderId = order?.id ?? localOrder?.id;
 
@@ -366,6 +411,43 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
             toast.error('No se pudieron cargar las cuentas bancarias.');
         }
     }, [installmentModal.open, bankAccountsError]);
+
+    useEffect(() => {
+        if (!isOpen || !canManageRetention) {
+            setRetentionAlerts([]);
+            return;
+        }
+        salesService.getRetentionAlerts()
+            .then((rows) => setRetentionAlerts(Array.isArray(rows) ? rows : []))
+            .catch(() => setRetentionAlerts([]));
+    }, [isOpen, canManageRetention, orderId]);
+
+    useEffect(() => {
+        if (expandedInvoiceId == null) return;
+        const cxc = (localOrder.payments ?? order.payments)?.find((p) => p.id === expandedInvoiceId);
+        if (!cxc) return;
+        setRetentionConfigDraft({
+            percent: String(Number(cxc.retention_percent) || 0),
+            days: String(Number(cxc.retention_days) || 90),
+        });
+    }, [expandedInvoiceId, localOrder.payments, order.payments]);
+
+    const paymentsList = localOrder.payments ?? order.payments ?? [];
+
+    const orderRetentionAlerts = useMemo(
+        () => retentionAlerts.filter((a) => a.sales_order_id === orderId),
+        [retentionAlerts, orderId],
+    );
+
+    const refreshRetentionAlerts = useCallback(async () => {
+        if (!canManageRetention) return;
+        try {
+            const rows = await salesService.getRetentionAlerts();
+            setRetentionAlerts(Array.isArray(rows) ? rows : []);
+        } catch {
+            setRetentionAlerts([]);
+        }
+    }, [canManageRetention]);
 
     const registerInstallmentMutation = useRegisterInstallment();
     const updateInstallmentMutation = useUpdateInstallment();
@@ -968,6 +1050,97 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         }
     };
 
+    const handleConfigureRetention = async (cxcId: number) => {
+        const pct = Number(retentionConfigDraft.percent);
+        const days = Number(retentionConfigDraft.days);
+        if (Number.isNaN(pct) || pct < 0 || pct > 100) {
+            toast.warning('Porcentaje de retención inválido.');
+            return;
+        }
+        if (Number.isNaN(days) || days < 1) {
+            toast.warning('Días de retención inválidos.');
+            return;
+        }
+        setSavingRetentionConfig(true);
+        try {
+            await salesService.updatePaymentRetention(cxcId, {
+                retention_percent: pct,
+                retention_days: days,
+            });
+            toast.success('Fondo de garantía configurado.');
+            await refreshOrderInPlace();
+            await refreshRetentionAlerts();
+            await onSuccess();
+        } catch (error: any) {
+            toast.error(error?.response?.data?.detail || 'Error al configurar el fondo.');
+        } finally {
+            setSavingRetentionConfig(false);
+        }
+    };
+
+    const handleInvoiceRetention = async () => {
+        const cxc = invoiceRetentionModal.cxc;
+        if (!cxc) return;
+        const folio = retentionInvoiceFolio.trim();
+        if (!folio) {
+            toast.warning('Ingresa el folio de factura.');
+            return;
+        }
+        setInvoicingRetention(true);
+        try {
+            await salesService.invoiceRetention(cxc.id, folio);
+            toast.success('Fondo de garantía facturado.');
+            setInvoiceRetentionModal({ open: false, cxc: null });
+            setRetentionInvoiceFolio('');
+            await refreshOrderInPlace();
+            await refreshRetentionAlerts();
+            await onSuccess();
+        } catch (error: any) {
+            toast.error(error?.response?.data?.detail || 'Error al facturar el fondo.');
+        } finally {
+            setInvoicingRetention(false);
+        }
+    };
+
+    const handleCollectRetention = async (cxcId: number) => {
+        setCollectingRetentionId(cxcId);
+        try {
+            await salesService.collectRetention(cxcId);
+            toast.success('Cobro de fondo registrado.');
+            await refreshOrderInPlace();
+            await refreshRetentionAlerts();
+            await onSuccess();
+        } catch (error: any) {
+            toast.error(error?.response?.data?.detail || 'Error al registrar el cobro.');
+        } finally {
+            setCollectingRetentionId(null);
+        }
+    };
+
+    const handleWaiveRetention = async () => {
+        const cxc = waiveRetentionModal.cxc;
+        if (!cxc) return;
+        const reason = waiveRetentionReason.trim();
+        if (!reason) {
+            toast.warning('Debes ingresar un motivo.');
+            return;
+        }
+        setWaivingRetention(true);
+        try {
+            await salesService.waiveRetention(cxc.id, reason);
+            toast.success('Fondo de garantía liberado.');
+            setWaiveRetentionModal({ open: false, cxc: null });
+            setWaiveRetentionReason('');
+            await refreshOrderInPlace();
+            await refreshRetentionAlerts();
+            await onSuccess();
+        } catch (error: any) {
+            toast.error(error?.response?.data?.detail || 'Error al liberar el fondo.');
+        } finally {
+            setWaivingRetention(false);
+        }
+    };
+
     const handleQuickSaveOc = async (folio: string, dateYmd: string) => {
         if (!canEditOcInRayos || !order.id) return;
         setOcSaving(true);
@@ -1265,6 +1438,37 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
 
                 <div className="p-6 overflow-y-auto flex-1 space-y-6 bg-slate-50/50">
 
+                    {orderRetentionAlerts.length > 0 && (
+                        <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 shadow-sm space-y-2">
+                            <p className="text-xs font-black text-amber-800 uppercase tracking-wider flex items-center gap-2">
+                                <Shield size={14} />
+                                Alertas de Fondo de Garantía
+                            </p>
+                            <ul className="space-y-1.5">
+                                {orderRetentionAlerts.map((alert) => (
+                                    <li key={alert.payment_id} className="text-sm text-amber-900 flex flex-wrap items-center gap-x-2 gap-y-1">
+                                        <span className="font-bold">{alert.invoice_folio || `CxC #${alert.payment_id}`}</span>
+                                        <span>— {formatCurrency(Number(alert.retention_amount))}</span>
+                                        {alert.retention_due_date && (
+                                            <span className="text-xs text-amber-700">
+                                                vence {formatDate(alert.retention_due_date)}
+                                                {alert.is_overdue ? (
+                                                    <span className="ml-1 inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded border bg-red-100 text-red-700 border-red-200">
+                                                        VENCIDO
+                                                    </span>
+                                                ) : (
+                                                    <span className="ml-1 text-[10px] font-bold">
+                                                        ({alert.days_until_due} días)
+                                                    </span>
+                                                )}
+                                            </span>
+                                        )}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+
                     {!canEditOcInRayos && (
                         <div className="bg-slate-100 border border-slate-200 rounded-xl p-4 space-y-2">
                             <p className="text-xs font-black text-slate-700 uppercase tracking-wider">OC del cliente (solo lectura)</p>
@@ -1400,7 +1604,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                 </button>
                             )}
                         </div>
-                        <div className="overflow-x-auto min-w-[720px]">
+                        <div className="overflow-x-auto min-w-[860px]">
                             <VTable
                                 columns={[
                                     {
@@ -1471,6 +1675,34 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                         <span className="text-slate-400 font-medium">—</span>
                                                     )}
                                                 </span>
+                                            );
+                                        },
+                                    },
+                                    {
+                                        key: 'retention',
+                                        label: 'Fondo de Garantía',
+                                        width: '150px',
+                                        render: (cxc: CustomerPayment) => {
+                                            const pct = Number(cxc.retention_percent) || 0;
+                                            if (pct <= 0) {
+                                                return <span className="text-slate-300 text-xs">—</span>;
+                                            }
+                                            const overdue = isRetentionOverdue(cxc.retention_due_date)
+                                                && !['COLLECTED', 'WAIVED'].includes(String(cxc.retention_status ?? '').toUpperCase());
+                                            return (
+                                                <div className="flex flex-col items-start gap-1">
+                                                    <span className="text-xs font-bold text-slate-800">
+                                                        {formatCurrency(Number(cxc.retention_amount) || 0)}
+                                                    </span>
+                                                    <div className="flex flex-wrap items-center gap-1">
+                                                        <RetentionStatusBadge status={cxc.retention_status} />
+                                                        {overdue && (
+                                                            <span className="inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded border bg-red-100 text-red-700 border-red-200">
+                                                                VENCIDO
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             );
                                         },
                                     },
@@ -1609,7 +1841,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                         },
                                     },
                                 ]}
-                                data={(order.payments ?? []) as unknown as Record<string, unknown>[]}
+                                data={paymentsList as unknown as Record<string, unknown>[]}
                                 emptyState={{
                                     icon: <AlertCircle size={24} className="text-slate-300" />,
                                     title: 'No se ha emitido ninguna factura para este proyecto aún.',
@@ -1617,8 +1849,22 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                 className="border-0 shadow-none rounded-none"
                             />
                             {expandedInvoiceId != null && (() => {
-                                const cxc = order.payments?.find((p) => p.id === expandedInvoiceId);
+                                const cxc = paymentsList.find((p) => p.id === expandedInvoiceId);
                                 if (!cxc) return null;
+                                const installmentData = installmentsByInvoice[cxc.id];
+                                const abonosList: any[] = Array.isArray(installmentData?.abonos) ? installmentData.abonos : [];
+                                const activeAbonos = abonosList.filter((ab) => !ab.is_cancelled);
+                                const totalAbonado = Number(installmentData?.total_abonado ?? 0);
+                                const hasAbonos = activeAbonos.length > 0 || totalAbonado > 0;
+                                const retentionStatus = String(cxc.retention_status ?? '').toUpperCase();
+                                const retentionAmount = Number(cxc.retention_amount) || 0;
+                                const canConfigureRetention = canManageRetention
+                                    && cxc.status !== 'CANCELLED'
+                                    && !hasAbonos
+                                    && (!retentionStatus || retentionStatus === 'PENDING');
+                                const showRetentionState = retentionAmount > 0;
+                                const retentionOverdue = isRetentionOverdue(cxc.retention_due_date)
+                                    && !['COLLECTED', 'WAIVED'].includes(retentionStatus);
                                 return (
                                     <div className="bg-slate-50/70 p-4 border-t border-slate-100">
                                         <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 shadow-sm">
@@ -1745,6 +1991,128 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                     </>
                                                 );
                                             })()}
+
+                                            {(canConfigureRetention || showRetentionState) && (
+                                                <div className="border-t border-slate-100 pt-4 space-y-3">
+                                                    <p className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                                        <Shield size={14} className="text-slate-400" /> Fondo de Garantía
+                                                    </p>
+
+                                                    {canConfigureRetention && (
+                                                        <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-3 space-y-3">
+                                                            <p className="text-[11px] font-bold text-slate-600">
+                                                                Configura el porcentaje y plazo antes de registrar abonos.
+                                                            </p>
+                                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                                <div>
+                                                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                                                        Porcentaje (%)
+                                                                    </label>
+                                                                    <Input
+                                                                        type="number"
+                                                                        min={0}
+                                                                        max={100}
+                                                                        step="0.01"
+                                                                        value={retentionConfigDraft.percent}
+                                                                        onChange={(e) => setRetentionConfigDraft((d) => ({ ...d, percent: e.target.value }))}
+                                                                    />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                                                        Días
+                                                                    </label>
+                                                                    <Input
+                                                                        type="number"
+                                                                        min={1}
+                                                                        step={1}
+                                                                        value={retentionConfigDraft.days}
+                                                                        onChange={(e) => setRetentionConfigDraft((d) => ({ ...d, days: e.target.value }))}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                            <Button
+                                                                type="button"
+                                                                onClick={() => void handleConfigureRetention(cxc.id)}
+                                                                disabled={savingRetentionConfig}
+                                                                className="text-xs"
+                                                            >
+                                                                {savingRetentionConfig ? 'Configurando…' : 'Configurar'}
+                                                            </Button>
+                                                        </div>
+                                                    )}
+
+                                                    {showRetentionState && (
+                                                        <div className="rounded-lg border border-indigo-100 bg-indigo-50/40 p-3 space-y-3">
+                                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                                                                <div>
+                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase">Monto retenido</span>
+                                                                    <p className="font-black text-slate-800 mt-0.5">{formatCurrency(retentionAmount)}</p>
+                                                                </div>
+                                                                <div>
+                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase">Vencimiento</span>
+                                                                    <p className="font-medium text-slate-800 mt-0.5 flex flex-wrap items-center gap-1">
+                                                                        {cxc.retention_due_date ? formatDate(cxc.retention_due_date) : '—'}
+                                                                        {retentionOverdue && (
+                                                                            <span className="inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded border bg-red-100 text-red-700 border-red-200">
+                                                                                VENCIDO
+                                                                            </span>
+                                                                        )}
+                                                                    </p>
+                                                                </div>
+                                                                <div>
+                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase">Estado</span>
+                                                                    <p className="mt-0.5 flex flex-wrap items-center gap-1">
+                                                                        <RetentionStatusBadge status={cxc.retention_status} />
+                                                                        {cxc.retention_invoice_folio && (
+                                                                            <span className="text-[10px] font-mono text-slate-600">
+                                                                                Folio: {cxc.retention_invoice_folio}
+                                                                            </span>
+                                                                        )}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+
+                                                            {canManageRetention && retentionStatus === 'PENDING' && (
+                                                                <div className="flex flex-wrap gap-2">
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="secondary"
+                                                                        onClick={() => {
+                                                                            setRetentionInvoiceFolio('');
+                                                                            setInvoiceRetentionModal({ open: true, cxc });
+                                                                        }}
+                                                                        className="text-xs"
+                                                                    >
+                                                                        Facturar Fondo
+                                                                    </Button>
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="destructive"
+                                                                        onClick={() => {
+                                                                            setWaiveRetentionReason('');
+                                                                            setWaiveRetentionModal({ open: true, cxc });
+                                                                        }}
+                                                                        className="text-xs"
+                                                                    >
+                                                                        Liberar
+                                                                    </Button>
+                                                                </div>
+                                                            )}
+
+                                                            {canManageRetention && retentionStatus === 'INVOICED' && (
+                                                                <Button
+                                                                    type="button"
+                                                                    onClick={() => void handleCollectRetention(cxc.id)}
+                                                                    disabled={collectingRetentionId === cxc.id}
+                                                                    className="text-xs"
+                                                                >
+                                                                    {collectingRetentionId === cxc.id ? 'Registrando…' : 'Registrar Cobro'}
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 );
@@ -2598,6 +2966,111 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                             className="px-5 py-2 font-bold rounded-lg transition-colors disabled:opacity-50 bg-red-600 hover:bg-red-700 text-white"
                         >
                             {cancellingPayment ? 'Procesando…' : 'Confirmar cancelación'}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+        )}
+        {invoiceRetentionModal.open && invoiceRetentionModal.cxc && (
+            <Modal
+                isOpen={invoiceRetentionModal.open}
+                onClose={() => {
+                    if (invoicingRetention) return;
+                    setInvoiceRetentionModal({ open: false, cxc: null });
+                    setRetentionInvoiceFolio('');
+                }}
+                title="Facturar Fondo de Garantía"
+                size="sm"
+            >
+                <div className="flex flex-col gap-4">
+                    <p className="text-sm text-slate-600 leading-relaxed">
+                        Registra el folio de la factura del fondo retenido ({formatCurrency(Number(invoiceRetentionModal.cxc.retention_amount) || 0)}).
+                    </p>
+                    <div>
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                            Folio de factura *
+                        </label>
+                        <Input
+                            type="text"
+                            autoFocus
+                            placeholder="Ej. FG-00123"
+                            value={retentionInvoiceFolio}
+                            onChange={(e) => setRetentionInvoiceFolio(e.target.value)}
+                        />
+                    </div>
+                    <div className="flex items-center justify-between gap-4 pt-2">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setInvoiceRetentionModal({ open: false, cxc: null });
+                                setRetentionInvoiceFolio('');
+                            }}
+                            disabled={invoicingRetention}
+                            className="px-6 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-black rounded-lg transition-colors disabled:opacity-50"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => void handleInvoiceRetention()}
+                            disabled={invoicingRetention}
+                            className="px-5 py-2 font-bold rounded-lg transition-colors disabled:opacity-50 bg-indigo-600 hover:bg-indigo-700 text-white"
+                        >
+                            {invoicingRetention ? 'Procesando…' : 'Facturar'}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+        )}
+        {waiveRetentionModal.open && waiveRetentionModal.cxc && (
+            <Modal
+                isOpen={waiveRetentionModal.open}
+                onClose={() => {
+                    if (waivingRetention) return;
+                    setWaiveRetentionModal({ open: false, cxc: null });
+                    setWaiveRetentionReason('');
+                }}
+                title="Liberar Fondo de Garantía"
+                size="sm"
+            >
+                <div className="flex flex-col gap-4">
+                    <p className="text-sm text-slate-600 leading-relaxed">
+                        El cliente no deberá pagar el fondo retenido de {formatCurrency(Number(waiveRetentionModal.cxc.retention_amount) || 0)}.
+                    </p>
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        Esta acción libera el fondo de forma definitiva. No se podrá facturar ni cobrar después.
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                            Motivo de liberación *
+                        </label>
+                        <Input
+                            type="text"
+                            autoFocus
+                            placeholder="Describe el motivo..."
+                            value={waiveRetentionReason}
+                            onChange={(e) => setWaiveRetentionReason(e.target.value)}
+                        />
+                    </div>
+                    <div className="flex items-center justify-between gap-4 pt-2">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setWaiveRetentionModal({ open: false, cxc: null });
+                                setWaiveRetentionReason('');
+                            }}
+                            disabled={waivingRetention}
+                            className="px-6 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-black rounded-lg transition-colors disabled:opacity-50"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => void handleWaiveRetention()}
+                            disabled={waivingRetention}
+                            className="px-5 py-2 font-bold rounded-lg transition-colors disabled:opacity-50 bg-red-600 hover:bg-red-700 text-white"
+                        >
+                            {waivingRetention ? 'Procesando…' : 'Confirmar liberación'}
                         </button>
                     </div>
                 </div>

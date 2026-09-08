@@ -10,6 +10,8 @@ import {
   CommissionsPayrollOverview,
   CustomerPayment,
   PaymentType,
+  RetentionAlertRead,
+  RetentionUpdatePayload,
 } from '../types/sales';
 
 function pickArrayPayload(payload: unknown): unknown[] {
@@ -479,6 +481,31 @@ export const salesService = {
     getHousesStatus: async (orderId?: number): Promise<any[]> => {
         const params = orderId ? { order_id: orderId } : {};
         const response = await axiosClient.get('/sales/houses-status', { params });
+        return response.data;
+    },
+
+    updatePaymentRetention: async (paymentId: number, payload: RetentionUpdatePayload) => {
+        const response = await axiosClient.patch(`/sales/payments/${paymentId}/retention`, payload);
+        return response.data;
+    },
+
+    invoiceRetention: async (paymentId: number, folio: string) => {
+        const response = await axiosClient.post(`/sales/payments/${paymentId}/retention/invoice`, { folio });
+        return response.data;
+    },
+
+    collectRetention: async (paymentId: number) => {
+        const response = await axiosClient.post(`/sales/payments/${paymentId}/retention/collect`);
+        return response.data;
+    },
+
+    waiveRetention: async (paymentId: number, reason: string) => {
+        const response = await axiosClient.post(`/sales/payments/${paymentId}/retention/waive`, { reason });
+        return response.data;
+    },
+
+    getRetentionAlerts: async (): Promise<RetentionAlertRead[]> => {
+        const response = await axiosClient.get('/sales/retentions/alerts');
         return response.data;
     },
 };
