@@ -7,6 +7,8 @@ import { useState, useEffect } from 'react';
 import { planningService, InstanceSchedule, CalendarPill } from '../../../api/planning-service';
 import { getSemaphoreConfig } from '../hooks/usePlanning';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import { Input } from '@/components/ui/Input';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 
 interface Installer {
   id: number;
@@ -526,13 +528,13 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
               Alias / Nombre de Instancia
             </label>
-            <input
+            <Input
               type="text"
               value={name}
               onChange={e => !readOnly && setName(e.target.value)}
               readOnly={readOnly}
               placeholder="Ej: Casa 123, Calle 98 – Cocina Integral"
-              className={`w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition ${readOnly ? 'bg-slate-50 text-slate-500 cursor-not-allowed' : ''}`}
+              className={`rounded-xl py-2.5 ${readOnly ? 'bg-slate-50 text-slate-500 cursor-not-allowed' : ''}`}
             />
           </div>
 
@@ -732,66 +734,47 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
                     <label className="text-xs text-slate-500 mb-1 block">
                       👷 Líder (obligatorio)
                     </label>
-                    <select
-                      value={imLeaderId}
-                      onChange={(e) =>
-                        setImLeaderId(e.target.value ? Number(e.target.value) : '')
-                      }
-                      className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-300 transition"
-                    >
-                      <option value="">— Seleccionar líder —</option>
-                      {installers.map((i) => (
-                        <option key={i.id} value={i.id}>
-                          {i.full_name}
-                        </option>
-                      ))}
-                    </select>
+                    <SearchableSelect
+                      items={installers}
+                      value={imLeaderId === '' ? '' : String(imLeaderId)}
+                      onChange={(v) => setImLeaderId(v ? Number(v) : '')}
+                      getLabel={(i) => i.full_name}
+                      getValue={(i) => String(i.id)}
+                      placeholder="— Seleccionar líder —"
+                      className="rounded-xl py-2.5"
+                    />
                   </div>
                   <div>
                     <label className="text-xs text-slate-500 mb-1 block">
                       🔧 Ayudante 1 (opcional)
                     </label>
-                    <select
-                      value={imHelper1Id}
-                      onChange={(e) =>
-                        setImHelper1Id(e.target.value ? Number(e.target.value) : '')
-                      }
-                      className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-300 transition"
-                    >
-                      <option value="">— Sin ayudante 1 —</option>
-                      {installers
-                        .filter((i) => i.id !== Number(imLeaderId))
-                        .map((i) => (
-                          <option key={i.id} value={i.id}>
-                            {i.full_name}
-                          </option>
-                        ))}
-                    </select>
+                    <SearchableSelect
+                      items={installers.filter((i) => i.id !== Number(imLeaderId))}
+                      value={imHelper1Id === '' ? '' : String(imHelper1Id)}
+                      onChange={(v) => setImHelper1Id(v ? Number(v) : '')}
+                      getLabel={(i) => i.full_name}
+                      getValue={(i) => String(i.id)}
+                      placeholder="— Sin ayudante 1 —"
+                      className="rounded-xl py-2.5"
+                    />
                   </div>
                   <div>
                     <label className="text-xs text-slate-500 mb-1 block">
                       🔧 Ayudante 2 (opcional)
                     </label>
-                    <select
-                      value={imHelper2Id}
-                      onChange={(e) =>
-                        setImHelper2Id(e.target.value ? Number(e.target.value) : '')
-                      }
-                      className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-300 transition"
-                    >
-                      <option value="">— Sin ayudante 2 —</option>
-                      {installers
-                        .filter(
-                          (i) =>
-                            i.id !== Number(imLeaderId) &&
-                            i.id !== Number(imHelper1Id)
-                        )
-                        .map((i) => (
-                          <option key={i.id} value={i.id}>
-                            {i.full_name}
-                          </option>
-                        ))}
-                    </select>
+                    <SearchableSelect
+                      items={installers.filter(
+                        (i) =>
+                          i.id !== Number(imLeaderId) &&
+                          i.id !== Number(imHelper1Id),
+                      )}
+                      value={imHelper2Id === '' ? '' : String(imHelper2Id)}
+                      onChange={(v) => setImHelper2Id(v ? Number(v) : '')}
+                      getLabel={(i) => i.full_name}
+                      getValue={(i) => String(i.id)}
+                      placeholder="— Sin ayudante 2 —"
+                      className="rounded-xl py-2.5"
+                    />
                   </div>
                   {imError && (
                     <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
@@ -832,66 +815,47 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
                     <label className="text-xs text-slate-500 mb-1 block">
                       👷 Líder (obligatorio)
                     </label>
-                    <select
-                      value={ipLeaderId}
-                      onChange={(e) =>
-                        setIpLeaderId(e.target.value ? Number(e.target.value) : '')
-                      }
-                      className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-300 transition"
-                    >
-                      <option value="">— Seleccionar líder —</option>
-                      {installers.map((i) => (
-                        <option key={i.id} value={i.id}>
-                          {i.full_name}
-                        </option>
-                      ))}
-                    </select>
+                    <SearchableSelect
+                      items={installers}
+                      value={ipLeaderId === '' ? '' : String(ipLeaderId)}
+                      onChange={(v) => setIpLeaderId(v ? Number(v) : '')}
+                      getLabel={(i) => i.full_name}
+                      getValue={(i) => String(i.id)}
+                      placeholder="— Seleccionar líder —"
+                      className="rounded-xl py-2.5"
+                    />
                   </div>
                   <div>
                     <label className="text-xs text-slate-500 mb-1 block">
                       🔧 Ayudante 1 (opcional)
                     </label>
-                    <select
-                      value={ipHelper1Id}
-                      onChange={(e) =>
-                        setIpHelper1Id(e.target.value ? Number(e.target.value) : '')
-                      }
-                      className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-300 transition"
-                    >
-                      <option value="">— Sin ayudante 1 —</option>
-                      {installers
-                        .filter((i) => i.id !== Number(ipLeaderId))
-                        .map((i) => (
-                          <option key={i.id} value={i.id}>
-                            {i.full_name}
-                          </option>
-                        ))}
-                    </select>
+                    <SearchableSelect
+                      items={installers.filter((i) => i.id !== Number(ipLeaderId))}
+                      value={ipHelper1Id === '' ? '' : String(ipHelper1Id)}
+                      onChange={(v) => setIpHelper1Id(v ? Number(v) : '')}
+                      getLabel={(i) => i.full_name}
+                      getValue={(i) => String(i.id)}
+                      placeholder="— Sin ayudante 1 —"
+                      className="rounded-xl py-2.5"
+                    />
                   </div>
                   <div>
                     <label className="text-xs text-slate-500 mb-1 block">
                       🔧 Ayudante 2 (opcional)
                     </label>
-                    <select
-                      value={ipHelper2Id}
-                      onChange={(e) =>
-                        setIpHelper2Id(e.target.value ? Number(e.target.value) : '')
-                      }
-                      className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-300 transition"
-                    >
-                      <option value="">— Sin ayudante 2 —</option>
-                      {installers
-                        .filter(
-                          (i) =>
-                            i.id !== Number(ipLeaderId) &&
-                            i.id !== Number(ipHelper1Id)
-                        )
-                        .map((i) => (
-                          <option key={i.id} value={i.id}>
-                            {i.full_name}
-                          </option>
-                        ))}
-                    </select>
+                    <SearchableSelect
+                      items={installers.filter(
+                        (i) =>
+                          i.id !== Number(ipLeaderId) &&
+                          i.id !== Number(ipHelper1Id),
+                      )}
+                      value={ipHelper2Id === '' ? '' : String(ipHelper2Id)}
+                      onChange={(v) => setIpHelper2Id(v ? Number(v) : '')}
+                      getLabel={(i) => i.full_name}
+                      getValue={(i) => String(i.id)}
+                      placeholder="— Sin ayudante 2 —"
+                      className="rounded-xl py-2.5"
+                    />
                   </div>
                   {ipError && (
                     <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">

@@ -7,6 +7,9 @@ import { Lock, Package, AlertCircle, ArrowRight, CheckCircle2, Boxes } from 'luc
 import { jsPDF } from 'jspdf';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
+import { Input } from '@/components/ui/Input';
+import { VTable, VTableColumn } from '@/components/ui/VTable';
+import { VToggle } from '@/components/ui/VToggle';
 
 const STATUS_READY_TO_INSTALL = 'READY_TO_INSTALL';
 const STATUS_PACKING = 'PACKING';
@@ -884,11 +887,10 @@ export default function ProductionKanbanPage() {
               >
                 {/* Checkbox + Info */}
                 <div className="flex items-start gap-2 mb-3">
-                  <input
-                    type="checkbox"
+                  <VToggle
                     checked={isSelected}
-                    onChange={() => togglePackingSelection(instance.id)}
-                    className="mt-1 shrink-0 cursor-pointer accent-emerald-600"
+                    onCheckedChange={() => togglePackingSelection(instance.id)}
+                    className="mt-1 shrink-0 w-auto"
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 mb-0.5">
@@ -917,18 +919,22 @@ export default function ProductionKanbanPage() {
                   <div className="grid grid-cols-2 gap-2 mb-3">
                     <label className="flex flex-col gap-1">
                       <span className="text-[10px] font-bold text-gray-500 uppercase">Bultos MDF</span>
-                      <input
-                        type="number" min={0} step={1}
-                        className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm"
+                      <Input
+                        type="number"
+                        min={0}
+                        step={1}
+                        className="w-full"
                         value={mdf || ''}
                         onChange={(e) => setBultosField(instance.id, 'mdf', e.target.value)}
                       />
                     </label>
                     <label className="flex flex-col gap-1">
                       <span className="text-[10px] font-bold text-gray-500 uppercase">Bultos Herrajes</span>
-                      <input
-                        type="number" min={0} step={1}
-                        className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm"
+                      <Input
+                        type="number"
+                        min={0}
+                        step={1}
+                        className="w-full"
                         value={herrajes || ''}
                         onChange={(e) => setBultosField(instance.id, 'herrajes', e.target.value)}
                       />
@@ -942,9 +948,11 @@ export default function ProductionKanbanPage() {
                     <label className="flex flex-col gap-1">
                       <span className="text-[10px] font-bold text-gray-500 uppercase">Piezas de Piedra</span>
                       <div className="flex gap-2">
-                        <input
-                          type="number" min={1} step={1}
-                          className="flex-1 border border-gray-200 rounded-md px-2 py-1.5 text-sm"
+                        <Input
+                          type="number"
+                          min={1}
+                          step={1}
+                          className="flex-1"
                           value={stoneByInstanceId[instance.id] || ''}
                           onChange={(e) => setStonePieces(instance.id, e.target.value)}
                         />
@@ -1435,26 +1443,40 @@ export default function ProductionKanbanPage() {
                   Sin herrajes en la receta de esta instancia.
                 </p>
               ) : (
-                <table className="w-full text-left text-sm border-collapse">
-                  <thead>
-                    <tr className="bg-slate-100 text-slate-600 text-xs uppercase tracking-wider">
-                      <th className="px-3 py-2 font-bold">SKU</th>
-                      <th className="px-3 py-2 font-bold">Material</th>
-                      <th className="px-3 py-2 font-bold text-right">Cantidad</th>
-                      <th className="px-3 py-2 font-bold">Unidad</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {herrajesPreview.herrajes.map((h: any, i: number) => (
-                      <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                        <td className="px-3 py-2 font-mono text-xs text-slate-500">{h.sku}</td>
-                        <td className="px-3 py-2 font-medium text-slate-800">{h.name}</td>
-                        <td className="px-3 py-2 text-right font-bold text-slate-800">{h.quantity}</td>
-                        <td className="px-3 py-2 text-slate-500">{h.usage_unit}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <VTable
+                  columns={[
+                    {
+                      key: 'sku',
+                      label: 'SKU',
+                      render: (row) => (
+                        <span className="font-mono text-xs text-slate-500">{String(row.sku ?? '')}</span>
+                      ),
+                    },
+                    {
+                      key: 'name',
+                      label: 'Material',
+                      render: (row) => (
+                        <span className="font-medium text-slate-800">{String(row.name ?? '')}</span>
+                      ),
+                    },
+                    {
+                      key: 'quantity',
+                      label: 'Cantidad',
+                      render: (row) => (
+                        <span className="block text-right font-bold text-slate-800">{String(row.quantity ?? '')}</span>
+                      ),
+                    },
+                    {
+                      key: 'usage_unit',
+                      label: 'Unidad',
+                      render: (row) => <span className="text-slate-500">{String(row.usage_unit ?? '')}</span>,
+                    },
+                  ] satisfies VTableColumn<Record<string, unknown>>[]}
+                  data={herrajesPreview.herrajes.map((h: Record<string, unknown>, i: number) => ({
+                    ...h,
+                    id: i,
+                  }))}
+                />
               )}
             </div>
 
