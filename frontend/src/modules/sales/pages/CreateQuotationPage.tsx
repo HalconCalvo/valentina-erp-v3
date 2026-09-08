@@ -85,6 +85,7 @@ const CreateQuotationPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [editingTempId, setEditingTempId] = useState<number | null>(null);
   const [commissionRate, setCommissionRate] = useState(0);
+  const [isUserSelectedTax, setIsUserSelectedTax] = useState(false);
 
   useEffect(() => {
     const loadCatalogs = async () => {
@@ -113,7 +114,7 @@ const CreateQuotationPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!isEditMode && config) {
+    if (!isEditMode && config && !isUserSelectedTax) {
       const defaultMargin = Number(config.target_profit_margin) || 0;
       if (header.applied_margin_percent === 0 && defaultMargin > 0) {
         setHeader((prev) => ({ ...prev, applied_margin_percent: defaultMargin }));
@@ -123,7 +124,7 @@ const CreateQuotationPage: React.FC = () => {
         setHeader((prev) => ({ ...prev, tax_rate_id: Number(defaultTaxId) }));
       }
     }
-  }, [config, taxRates, isEditMode]);
+  }, [config, taxRates, isEditMode, isUserSelectedTax, header.tax_rate_id]);
 
   useEffect(() => {
     if (cloneFrom && !isEditMode) {
@@ -168,6 +169,7 @@ const CreateQuotationPage: React.FC = () => {
             return;
           }
           setCurrentStatus(data.status);
+          setIsUserSelectedTax(true);
           setHeader({
             client_id: data.client_id,
             project_name: data.project_name,
@@ -488,7 +490,11 @@ const CreateQuotationPage: React.FC = () => {
             <SearchableSelect
               items={taxRates}
               value={header.tax_rate_id ? String(header.tax_rate_id) : ''}
-              onChange={(v) => setHeader({ ...header, tax_rate_id: Number(v) })}
+              onChange={(v) => {
+                if (!v) return;
+                setIsUserSelectedTax(true);
+                setHeader({ ...header, tax_rate_id: Number(v) });
+              }}
               getLabel={(t) => `${t.name} (${(Number(t.rate) * 100).toFixed(0)}%)`}
               getValue={(t) => String(t.id)}
               placeholder="Seleccionar IVA"
