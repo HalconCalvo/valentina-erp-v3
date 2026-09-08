@@ -3097,3 +3097,68 @@ Requiere: Fase 9 (Seguridad) completada primero.
 ### Por ahora:
 Continuar con el plan actual. Al momento del arranque en ceros,
 ejecutar la transformación a multi-tenant antes de reiniciar.
+
+
+---
+## SESIÓN 2026-09-08 (cierre) — FASES 7 Y 8 COMPLETADAS
+
+### FASE 7 — Dashboard Director (COMPLETADA)
+Backend:
+- analytics_service.py — 4 endpoints nuevos solo DIRECTOR
+- GET /analytics/cxc-aging — antigüedad CxC por rangos
+- GET /analytics/order-profitability — top 20 OVs por margen
+- GET /analytics/cash-flow-projection — flujo a 30/60/90 días
+- GET /analytics/top-clients — top 10 clientes año en curso
+- analytics_schema.py con tipos de respuesta
+
+Frontend:
+- analytics-service.ts — 4 métodos
+- DirectorDashboard.tsx — 2 tarjetas nuevas (Cartera Pendiente, Top Clientes)
+- Secciones CXC_AGING y TOP_CLIENTS implementadas
+- LIQUIDITY actualizada con proyecciones reales
+- PROFITABILITY con datos reales de rentabilidad
+
+### FASE 8 — Contabilidad (COMPLETADA PARCIALMENTE)
+
+Fondo de Garantía (backend):
+- SalesOrder: default_retention_percent, default_retention_days
+- CustomerPayment: retention_percent, retention_amount, retention_days,
+  retention_due_date, retention_status, retention_invoice_folio, retention_notes
+- Migración z4a5b6c7d8e9
+- Funciones: update_retention, invoice_retention, collect_retention,
+  waive_retention, get_retention_alerts
+- collect_retention genera comisiones al cobrar el FG
+- Endpoints: PATCH/POST /sales/payments/{id}/retention/*
+
+Fondo de Garantía (frontend):
+- OrderStatementModal: columna FG en tabla, sección configurar/facturar/cobrar/liberar
+- Alertas de vencimiento por OV
+
+Notas de Crédito:
+- CustomerPayment: nc_advance_folio, nc_advance_amount, nc_retention_folio, nc_retention_amount
+- Migración a5b6c7d8e9f0
+- ReceivableChargeModal: sección NC solo en PROGRESS
+  NC Anticipo: folio + monto editable
+  NC FG: folio + monto precargado editable
+
+### Decisión estratégica registrada:
+Valentina se desarrollará como producto SaaS multi-tenant.
+Fase 11 agregada al plan. Se implementa al arranque en ceros.
+
+### Bugs corregidos en sesión:
+- SearchableSelect: position:fixed para escape de overflow:hidden
+- SearchableSelect: eliminado onChange('') al filtrar
+- Input.tsx: forwardRef para react-hook-form
+- VersionRecipeForm: select nativo para estatus (excepción justificada)
+- CreateQuotePage: isUserSelectedTax flag para IVA
+- Cotizaciones integradas bajo Ventas en sidebar
+- CreateQuotePage revertida a salesService (backend quotations para arranque en ceros)
+
+### Pendientes Fase 8:
+- Verificar que folio Compaq se captura correctamente en instancias
+- Reporte de facturas por período
+
+### Siguiente sesión:
+- Continuar Fase 8 (reporte de facturas)
+- Fase 9 — Seguridad Avanzada
+- Etapa 3 — Herramienta de migración de OVs legacy
