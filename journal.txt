@@ -3052,3 +3052,48 @@ Cuando Valentina reinicie en ceros, ejecutar la migración completa:
 - quotation_service.py, quotation_repository.py
 - quotation_schema.py
 - Solo falta conectar el frontend al nuevo backend
+
+
+---
+## DECISIÓN ESTRATÉGICA — VALENTINA COMO PRODUCTO SaaS (2026-09-08)
+
+### Decisión de Gabriel:
+Valentina se desarrollará para venderse como producto SaaS a otras empresas
+de manufactura a la medida (cocinas, closets, etc.)
+
+### Implicaciones arquitectónicas:
+Para convertir Valentina en un producto SaaS multi-tenant se requiere:
+
+1. company_id en todos los modelos de datos
+   Cada tabla necesita un campo company_id para separar datos entre empresas.
+   Esto afecta: clients, sales_orders, purchase_orders, materials,
+   users, quotations, inventory, treasury, etc.
+
+2. Sistema de autenticación por empresa
+   - Registro de empresas (tenants)
+   - Login que identifica a qué empresa pertenece el usuario
+   - Tokens JWT con company_id embebido
+
+3. Middleware de aislamiento
+   Cada query automáticamente filtra por company_id del usuario autenticado.
+   Ninguna empresa puede ver datos de otra.
+
+4. Panel de administración central (super-admin)
+   Para gestionar empresas, suscripciones, límites de uso.
+
+5. Configuración por empresa
+   GlobalConfig, tax_rates, roles, etc. — uno por empresa.
+
+### Estrategia recomendada:
+NO hacer el cambio ahora — hacerlo al momento del arranque en ceros.
+Cuando Valentina reinicie limpia, implementar multi-tenancy desde el día 1.
+Koloka será el primer tenant (empresa #1).
+
+### Fase nueva — FASE 11: Multi-Tenancy SaaS
+Agregar al plan maestro después de la Fase 10.
+Estimación: 6-8 semanas de trabajo adicional.
+Requiere: Fase 9 (Seguridad) completada primero.
+
+### Por ahora:
+Continuar con el plan actual. Al momento del arranque en ceros,
+ejecutar la transformación a multi-tenant antes de reiniciar.
