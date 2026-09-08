@@ -1,79 +1,67 @@
 from datetime import date
 from typing import Any, Dict
-from fastapi import APIRouter, Depends
+
+from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import SQLModel, select
 
-from app.core.database import get_session
-# --- CORRECCIÓN 1: Importar desde FINANCE ---
-from app.models.finance import PurchaseInvoice, InvoiceStatus
+from app.core.deps import CurrentUser, SessionDep
+from app.models.finance import InvoiceStatus, PurchaseInvoice
+from app.models.users import UserRole
+from app.schemas.analytics_schema import (
+    CashFlowProjection,
+    CxcAgingStats,
+    OrderProfitabilityItem,
+    TopClientItem,
+)
+from app.services import analytics_service
 
-# Definimos el Schema de respuesta localmente (o podrías importarlo de schemas)
+
 class AccountsPayableStats(SQLModel):
     total_payable: float
     overdue_amount: float
     upcoming_amount: float
     breakdown_by_age: Dict[str, float]
 
+
 router = APIRouter()
 
+
+def _require_director(current_user: CurrentUser) -> None:
+    role = (
+        current_user.role.value
+        if hasattr(current_user.role, "value")
+        else str(current_user.role)
+    ).upper()
+    if role != UserRole.DIRECTOR.value:
+        raise HTTPException(status_code=403, detail="Acceso restringido al Director.")
+
+
 @router.get("/accounts-payable-summary", response_model=AccountsPayableStats)
-def get_accounts_payable_summary(session: Any = Depends(get_session)) -> Any:
-    """
-    Reporte Financiero de Cuentas por Pagar (Pasivos).
-    Calcula la deuda total y la desglosa por antigüedad de saldos (vencimiento).
-    """
-    # 1. Consultar facturas vivas (No Pagadas y No Canceladas)
-    # --- CORRECCIÓN 2: Usar el Enum InvoiceStatus y el campo 'status' ---
+def get_accounts_payable_summary(session: SessionDep) -> Any:
     statement = select(PurchaseInvoice).where(
         PurchaseInvoice.status != InvoiceStatus.PAID,
-        PurchaseInvoice.status != InvoiceStatus.CANCELLED
+        PurchaseInvoice.status != InvoiceStatus.CANCELLED,
     )
     invoices = session.exec(statement).all()
-
-    # 2. Inicializar contadores
     total_payable = 0.0
-    overdue_amount = 0.0 
-    upcoming_amount = 0.0 
-    
-    breakdown = {
-        "current": 0.0, 
-        "1-30": 0.0,    
-        "31-60": 0.0,
-        "61-90": 0.0,
-        "+90": 0.0      
-    }
-
-    # --- CORRECCIÓN 3: Usar date.today() para ser compatible con el modelo ---
+    overdue_amount = 0.0
+    upcoming_amount = 0.0
+    breakdown = {"current": 0.0, "1-30": 0.0, "31-60": 0.0, "61-90": 0.0, "+90": 0.0}
     today = date.today()
-
-    # 3. Procesar lógica de antigüedad
     for inv in invoices:
-        # Usamos el campo directo, ya sabemos que existe
         balance = inv.outstanding_balance
-        
-        # Si el saldo es 0 o negativo (error de datos), lo ignoramos
         if balance <= 0:
             continue
-
         total_payable += balance
-
-        # Calcular días de vencimiento
-        # El modelo garantiza due_date, pero por seguridad validamos
         if inv.due_date:
-            # Ambos son 'date', la resta es segura
-            delta = today - inv.due_date
-            days_overdue = delta.days
+            days_overdue = (today - inv.due_date).days
         else:
             days_overdue = 0
-
         if days_overdue <= 0:
-            # CUENTA CORRIENTE (Aún no vence)
             upcoming_amount += balance
             breakdown["current"] += balance
         else:
-            # CARTERA VENCIDA
             overdue_amount += balance
-            
             if days_overdue <= 30:
                 breakdown["1-30"] += balance
             elif days_overdue <= 60:
@@ -82,11 +70,33 @@ def get_accounts_payable_summary(session: Any = Depends(get_session)) -> Any:
                 breakdown["61-90"] += balance
             else:
                 breakdown["+90"] += balance
-
-    # 4. Retornar DTO lleno
     return AccountsPayableStats(
         total_payable=total_payable,
         overdue_amount=overdue_amount,
         upcoming_amount=upcoming_amount,
-        breakdown_by_age=breakdown
+        breakdown_by_age=breakdown,
     )
+
+
+@router.get("/cxc-aging", response_model=CxcAgingStats)
+def get_cxc_aging(session: SessionDep, current_user: CurrentUser) -> Any:
+    _require_director(current_user)
+    return analytics_service.get_cxc_aging(session)
+
+
+@router.get("/order-profitability", response_model=list[OrderProfitabilityItem])
+def get_order_profitability(session: SessionDep, current_user: CurrentUser) -> Any:
+    _require_director(current_user)
+    return analytics_service.get_order_profitability(session)
+
+
+@router.get("/cash-flow-projection", response_model=CashFlowProjection)
+def get_cash_flow_projection(session: SessionDep, current_user: CurrentUser) -> Any:
+    _require_director(current_user)
+    return analytics_service.get_cash_flow_projection(session)
+
+
+@router.get("/top-clients", response_model=list[TopClientItem])
+def get_top_clients(session: SessionDep, current_user: CurrentUser) -> Any:
+    _require_director(current_user)
+    return analytics_service.get_top_clients(session)
