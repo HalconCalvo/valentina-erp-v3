@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { designService, LabelRequestItem } from '../../../api/design-service';
 import { toast } from '@/components/ui/VToast';
+import { VTable, type VTableColumn } from '@/components/ui/VTable';
 
 export default function PrintCenterPage() {
   const navigate = useNavigate();
@@ -96,6 +97,77 @@ export default function PrintCenterPage() {
     }
   };
 
+  const tableData = useMemo(
+    () => rows.map((row) => ({ ...row, id: row.instance_id })),
+    [rows],
+  );
+
+  const labelColumns = useMemo((): VTableColumn<LabelRequestItem & { id: number }>[] => [
+    {
+      key: 'client_name',
+      label: 'Cliente',
+      render: (row) => (
+        <span className="font-medium text-slate-800">{row.client_name}</span>
+      ),
+    },
+    {
+      key: 'project_name',
+      label: 'Proyecto',
+    },
+    {
+      key: 'custom_name',
+      label: 'Instancia',
+      render: (row) => (
+        <span className="text-slate-800">{row.custom_name}</span>
+      ),
+    },
+    {
+      key: 'is_stone',
+      label: 'Tipo',
+      render: (row) => (
+        <span className="block text-center">
+          {row.is_stone ? '🪨 Piedra' : '🪵 MDF'}
+        </span>
+      ),
+    },
+    {
+      key: 'declared_bundles',
+      label: 'Total bultos',
+      render: (row) => (
+        <span className="block text-right tabular-nums text-slate-700">
+          {row.declared_bundles}
+        </span>
+      ),
+    },
+    {
+      key: 'action',
+      label: 'Acción',
+      width: '12rem',
+      render: (row) => (
+        <div className="flex items-center justify-center gap-2">
+          {row.is_stone ? (
+            <button
+              type="button"
+              onClick={() => handleDownloadManifest(row.instance_id)}
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-blue-600 bg-blue-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700"
+            >
+              🪨 Descargar Manifiesto
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => handleGenerateLabels(row.instance_id)}
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
+            >
+              <Printer size={14} />
+              🖨️ Descargar Etiquetas
+            </button>
+          )}
+        </div>
+      ),
+    },
+  ], [handleDownloadManifest, handleGenerateLabels]);
+
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-8 pb-24 animate-in fade-in duration-300">
       <div className="flex justify-end mb-6">
@@ -135,69 +207,14 @@ export default function PrintCenterPage() {
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>
         )}
 
-        {loading ? (
-          <p className="text-slate-500 text-sm py-8">Cargando…</p>
-        ) : (
-          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
-                <tr>
-                  <th className="px-4 py-3 font-semibold">Cliente</th>
-                  <th className="px-4 py-3 font-semibold">Proyecto</th>
-                  <th className="px-4 py-3 font-semibold">Instancia</th>
-                  <th className="px-4 py-3 font-semibold">Tipo</th>
-                  <th className="px-4 py-3 font-semibold text-right">Total bultos</th>
-                  <th className="px-4 py-3 font-semibold text-center w-48">Acción</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {rows.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
-                      No hay solicitudes pendientes
-                    </td>
-                  </tr>
-                ) : (
-                  rows.map((row) => (
-                    <tr key={row.instance_id} className="hover:bg-slate-50/80">
-                      <td className="px-4 py-3 font-medium text-slate-800">{row.client_name}</td>
-                      <td className="px-4 py-3 text-slate-700">{row.project_name}</td>
-                      <td className="px-4 py-3 text-slate-800">{row.custom_name}</td>
-                      <td className="px-4 py-3 text-center">
-                        {row.is_stone ? '🪨 Piedra' : '🪵 MDF'}
-                      </td>
-                      <td className="px-4 py-3 text-right tabular-nums text-slate-700">
-                        {row.declared_bundles}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          {row.is_stone ? (
-                            <button
-                              type="button"
-                              onClick={() => handleDownloadManifest(row.instance_id)}
-                              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-blue-600 bg-blue-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700"
-                            >
-                              🪨 Descargar Manifiesto
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => handleGenerateLabels(row.instance_id)}
-                              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
-                            >
-                              <Printer size={14} />
-                              🖨️ Descargar Etiquetas
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <VTable
+          columns={labelColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+          data={tableData as unknown as Record<string, unknown>[]}
+          isLoading={loading}
+          emptyState={{
+            title: 'No hay solicitudes pendientes',
+          }}
+        />
       </section>
     </div>
   );

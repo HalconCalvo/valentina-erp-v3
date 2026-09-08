@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { designService } from '../../../api/design-service';
+import { Input } from '@/components/ui/Input';
 
 export default function ProductionBlueprintsPage() {
   const navigate = useNavigate();
@@ -65,15 +66,12 @@ export default function ProductionBlueprintsPage() {
       </div>
 
       <div className="mb-4">
-        <input
+        <Input
           type="text"
           placeholder="Buscar producto, versión o categoría..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="w-full border border-slate-200 rounded-xl
-                     px-4 py-2.5 text-sm text-slate-700
-                     focus:outline-none focus:ring-2
-                     focus:ring-indigo-300 transition"
+          className="rounded-xl py-2.5"
         />
       </div>
 

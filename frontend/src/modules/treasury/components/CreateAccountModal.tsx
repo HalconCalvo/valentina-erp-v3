@@ -3,7 +3,15 @@ import { useForm } from 'react-hook-form';
 import { X } from 'lucide-react';
 import { BankAccountCreate } from '../../../types/treasury';
 import { treasuryService } from '../../../api/treasury-service';
+import { Input } from '@/components/ui/Input';
+import SearchableSelect from '@/components/ui/SearchableSelect';
 import { toast } from '@/components/ui/VToast';
+
+const CURRENCY_OPTIONS = [
+  { value: 'MXN', label: 'MXN - Pesos' },
+  { value: 'USD', label: 'USD - Dólares' },
+  { value: 'EUR', label: 'EUR - Euros' },
+];
 
 interface Props {
   isOpen: boolean;
@@ -12,7 +20,7 @@ interface Props {
 }
 
 export const CreateAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<BankAccountCreate>({
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<BankAccountCreate>({
     defaultValues: {
       currency: 'MXN',
       initial_balance: 0
@@ -49,20 +57,18 @@ export const CreateAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess
           
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Nombre de la Cuenta *</label>
-            <input 
+            <Input
               {...register('name', { required: 'El nombre es obligatorio' })}
               placeholder="Ej. Banorte Fiscal MXN"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             />
             {errors.name && <span className="text-xs text-red-500">{errors.name.message}</span>}
           </div>
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Número de Cuenta *</label>
-            <input 
+            <Input
               {...register('account_number', { required: 'El número de cuenta es obligatorio' })}
               placeholder="Ej. 0987654321"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             />
             {errors.account_number && <span className="text-xs text-red-500">{errors.account_number.message}</span>}
           </div>
@@ -70,25 +76,25 @@ export const CreateAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Moneda</label>
-              <select 
-                {...register('currency')}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
-              >
-                <option value="MXN">MXN - Pesos</option>
-                <option value="USD">USD - Dólares</option>
-                <option value="EUR">EUR - Euros</option>
-              </select>
+              <SearchableSelect
+                items={CURRENCY_OPTIONS}
+                value={watch('currency') || 'MXN'}
+                onChange={(value) => setValue('currency', value)}
+                getLabel={(option) => option.label}
+                getValue={(option) => option.value}
+                placeholder="Seleccionar moneda"
+              />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Saldo Inicial</label>
               <div className="relative">
                 <span className="absolute left-3 top-2 text-slate-500">$</span>
-                <input 
+                <Input
                   type="number"
                   step="0.01"
                   {...register('initial_balance', { valueAsNumber: true })}
-                  className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="pl-7"
                 />
               </div>
             </div>

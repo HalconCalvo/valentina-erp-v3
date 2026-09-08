@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileText, ArrowLeft } from 'lucide-react';
 import client from '../../../api/axios-client';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { Input } from '@/components/ui/Input';
+import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
 import type { Provider } from '../../foundations/hooks/useProviders';
 
@@ -140,6 +142,51 @@ const ProviderStatementPage: React.FC = () => {
         return { text: 'Pendiente', className: 'text-slate-600 bg-slate-50' };
     };
 
+    const invoiceColumns = useMemo((): VTableColumn<ProviderInvoice>[] => [
+        {
+            key: 'invoice_number',
+            label: 'Folio',
+            render: (inv) => <span className="text-sm font-medium text-slate-800">{inv.invoice_number}</span>,
+        },
+        {
+            key: 'issue_date',
+            label: 'Fecha factura',
+            render: (inv) => <span className="text-sm text-slate-700">{inv.issue_date ? formatDate(inv.issue_date) : '—'}</span>,
+        },
+        {
+            key: 'due_date',
+            label: 'Vencimiento',
+            render: (inv) => {
+                const statusDisplay = getStatusDisplay(inv);
+                return (
+                    <div className="flex flex-col gap-1">
+                        <span className={`text-xs font-bold px-2 py-1 rounded w-fit ${statusDisplay.className}`}>
+                            {statusDisplay.text}
+                        </span>
+                        {inv.due_date && (
+                            <span className="text-xs text-slate-500">{formatDate(inv.due_date)}</span>
+                        )}
+                    </div>
+                );
+            },
+        },
+        {
+            key: 'total_amount',
+            label: 'Total',
+            render: (inv) => <span className="block text-right text-sm tabular-nums text-slate-700">{formatCurrency(inv.total_amount)}</span>,
+        },
+        {
+            key: 'paid_amount',
+            label: 'Abonado',
+            render: (inv) => <span className="block text-right text-sm tabular-nums text-slate-700">{formatCurrency(inv.paid_amount)}</span>,
+        },
+        {
+            key: 'outstanding',
+            label: 'Por pagar',
+            render: (inv) => <span className="block text-right font-bold text-indigo-700 tabular-nums">{formatCurrency(inv.outstanding)}</span>,
+        },
+    ], []);
+
     return (
         <div className="p-8 max-w-7xl mx-auto pb-24 space-y-6 animate-fadeIn">
             <div className="border-b border-slate-200 pb-4">
@@ -211,20 +258,18 @@ const ProviderStatementPage: React.FC = () => {
                         <>
                             <div className="flex flex-col gap-1">
                                 <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">Desde</label>
-                                <input
+                                <Input
                                     type="date"
                                     value={dateFrom}
                                     onChange={(e) => setDateFrom(e.target.value)}
-                                    className="border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                                 />
                             </div>
                             <div className="flex flex-col gap-1">
                                 <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">Hasta</label>
-                                <input
+                                <Input
                                     type="date"
                                     value={dateTo}
                                     onChange={(e) => setDateTo(e.target.value)}
-                                    className="border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                                 />
                             </div>
                         </>
@@ -267,68 +312,25 @@ const ProviderStatementPage: React.FC = () => {
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500 font-bold">
-                                        <th className="p-4">Folio</th>
-                                        <th className="p-4">Fecha factura</th>
-                                        <th className="p-4">Vencimiento</th>
-                                        <th className="p-4 text-right">Total</th>
-                                        <th className="p-4 text-right">Abonado</th>
-                                        <th className="p-4 text-right">Por pagar</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {report.invoices.map((inv, idx) => {
-                                        const statusDisplay = getStatusDisplay(inv);
-                                        return (
-                                            <tr key={`${inv.invoice_number}-${idx}`} className="hover:bg-indigo-50/40">
-                                                <td className="p-4 text-sm font-medium text-slate-800">
-                                                    {inv.invoice_number}
-                                                </td>
-                                                <td className="p-4 text-sm text-slate-700">
-                                                    {inv.issue_date ? formatDate(inv.issue_date) : '—'}
-                                                </td>
-                                                <td className="p-4">
-                                                    <div className="flex flex-col gap-1">
-                                                        <span className={`text-xs font-bold px-2 py-1 rounded w-fit ${statusDisplay.className}`}>
-                                                            {statusDisplay.text}
-                                                        </span>
-                                                        {inv.due_date && (
-                                                            <span className="text-xs text-slate-500">
-                                                                {formatDate(inv.due_date)}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                                <td className="p-4 text-right text-sm tabular-nums text-slate-700">
-                                                    {formatCurrency(inv.total_amount)}
-                                                </td>
-                                                <td className="p-4 text-right text-sm tabular-nums text-slate-700">
-                                                    {formatCurrency(inv.paid_amount)}
-                                                </td>
-                                                <td className="p-4 text-right font-bold text-indigo-700 tabular-nums">
-                                                    {formatCurrency(inv.outstanding)}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                    <tr className="bg-slate-50 border-t-2 border-slate-200">
-                                        <td colSpan={3} className="p-4 font-black text-slate-800">
-                                            Totales ({report.count} factura{report.count === 1 ? '' : 's'})
-                                        </td>
-                                        <td className="p-4 text-right font-black text-slate-800 tabular-nums">
-                                            {formatCurrency(report.total_facturado)}
-                                        </td>
-                                        <td className="p-4 text-right font-black text-slate-800 tabular-nums">
-                                            {formatCurrency(report.total_abonado)}
-                                        </td>
-                                        <td className="p-4 text-right font-black text-indigo-900 text-lg tabular-nums">
-                                            {formatCurrency(report.total_por_pagar)}
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                            <VTable
+                                columns={invoiceColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+                                data={report.invoices as unknown as Record<string, unknown>[]}
+                                className="border-0 shadow-none rounded-none"
+                            />
+                            <div className="flex w-full text-sm bg-slate-50 border-t-2 border-slate-200 font-black">
+                                <div className="flex-[3] p-4 text-slate-800 min-w-0">
+                                    Totales ({report.count} factura{report.count === 1 ? '' : 's'})
+                                </div>
+                                <div className="flex-1 p-4 text-right text-slate-800 tabular-nums min-w-0">
+                                    {formatCurrency(report.total_facturado)}
+                                </div>
+                                <div className="flex-1 p-4 text-right text-slate-800 tabular-nums min-w-0">
+                                    {formatCurrency(report.total_abonado)}
+                                </div>
+                                <div className="flex-1 p-4 text-right text-indigo-900 text-lg tabular-nums min-w-0">
+                                    {formatCurrency(report.total_por_pagar)}
+                                </div>
+                            </div>
                         </div>
                     )}
                 </section>

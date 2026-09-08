@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileText, RefreshCw, Download, ArrowLeft } from 'lucide-react';
 import client from '../../../api/axios-client';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { Input } from '@/components/ui/Input';
+import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
 import type { Provider } from '../../foundations/hooks/useProviders';
 
@@ -196,6 +198,79 @@ const SupplierPaymentsReportPage: React.FC = () => {
         return { text: row.status, className: 'text-slate-600 bg-slate-50' };
     };
 
+    const paymentColumns = useMemo((): VTableColumn<ReportPayment>[] => [
+        {
+            key: 'invoice_number',
+            label: 'Folio',
+            render: (row) => (
+                <span className="text-sm font-medium text-slate-800">
+                    <span className="inline-block mr-2 text-indigo-400">{expandedFolio === row.invoice_number ? '▾' : '▸'}</span>
+                    {row.invoice_number}
+                </span>
+            ),
+        },
+        {
+            key: 'amount',
+            label: 'Importe',
+            render: (row) => <span className="block text-right font-black text-indigo-700 tabular-nums">{formatCurrency(row.amount)}</span>,
+        },
+        {
+            key: 'payment_date',
+            label: 'Fecha de pago',
+            render: (row) => <span className="text-sm text-slate-700">{formatDate(row.payment_date)}</span>,
+        },
+        {
+            key: 'payment_method',
+            label: 'Método',
+            render: (row) => <span className="text-sm text-slate-600">{row.payment_method}</span>,
+        },
+        {
+            key: 'reference',
+            label: 'Referencia',
+            render: (row) => <span className="text-sm text-slate-500">{row.reference || '—'}</span>,
+        },
+        {
+            key: 'status',
+            label: 'Estatus',
+            render: (row) => {
+                const statusDisplay = getStatusDisplay(row);
+                return (
+                    <span className={`text-xs font-bold px-2 py-1 rounded ${statusDisplay.className}`}>
+                        {statusDisplay.text}
+                    </span>
+                );
+            },
+        },
+    ], [expandedFolio]);
+
+    const detailColumns = useMemo((): VTableColumn<Record<string, unknown>>[] => [
+        {
+            key: 'sku',
+            label: 'SKU',
+            render: (item) => <span className="text-slate-700 font-medium">{String(item.sku || '—')}</span>,
+        },
+        {
+            key: 'description',
+            label: 'Descripción',
+            render: (item) => <span className="text-slate-600">{String(item.description || '—')}</span>,
+        },
+        {
+            key: 'quantity',
+            label: 'Cantidad',
+            render: (item) => <span className="block text-right tabular-nums">{String(item.quantity ?? '—')}</span>,
+        },
+        {
+            key: 'unit_cost',
+            label: 'Precio Unit.',
+            render: (item) => <span className="block text-right tabular-nums">{formatCurrency(Number(item.unit_cost) || 0)}</span>,
+        },
+        {
+            key: 'amount',
+            label: 'Importe',
+            render: (item) => <span className="block text-right font-semibold tabular-nums">{formatCurrency(Number(item.amount) || 0)}</span>,
+        },
+    ], []);
+
     return (
         <div className="p-8 max-w-7xl mx-auto pb-24 space-y-6 animate-fadeIn">
             <div className="border-b border-slate-200 pb-4">
@@ -238,20 +313,18 @@ const SupplierPaymentsReportPage: React.FC = () => {
                     </div>
                     <div className="flex flex-col gap-1">
                         <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">Desde</label>
-                        <input
+                        <Input
                             type="date"
                             value={dateFrom}
                             onChange={(e) => setDateFrom(e.target.value)}
-                            className="border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                         />
                     </div>
                     <div className="flex flex-col gap-1">
                         <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">Hasta</label>
-                        <input
+                        <Input
                             type="date"
                             value={dateTo}
                             onChange={(e) => setDateTo(e.target.value)}
-                            className="border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                         />
                     </div>
                 </div>
@@ -316,89 +389,53 @@ const SupplierPaymentsReportPage: React.FC = () => {
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500 font-bold">
-                                        <th className="p-4">Folio</th>
-                                        <th className="p-4 text-right">Importe</th>
-                                        <th className="p-4">Fecha de pago</th>
-                                        <th className="p-4">Método</th>
-                                        <th className="p-4">Referencia</th>
-                                        <th className="p-4">Estatus</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {report.payments.map((row, idx) => {
-                                        const statusDisplay = getStatusDisplay(row);
-                                        return (
-                                        <React.Fragment key={`${row.invoice_number}-${row.payment_date}-${idx}`}>
-                                            <tr className="hover:bg-indigo-50/40 cursor-pointer" onClick={() => void toggleRow(row.invoice_number)}>
-                                                <td className="p-4 text-sm font-medium text-slate-800">
-                                                    <span className="inline-block mr-2 text-indigo-400">{expandedFolio === row.invoice_number ? '▾' : '▸'}</span>
-                                                    {row.invoice_number}
-                                                </td>
-                                                <td className="p-4 text-right font-black text-indigo-700 tabular-nums">{formatCurrency(row.amount)}</td>
-                                                <td className="p-4 text-sm text-slate-700">{formatDate(row.payment_date)}</td>
-                                                <td className="p-4 text-sm text-slate-600">{row.payment_method}</td>
-                                                <td className="p-4 text-sm text-slate-500">{row.reference || '—'}</td>
-                                                <td className="p-4">
-                                                    <span className={`text-xs font-bold px-2 py-1 rounded ${statusDisplay.className}`}>{statusDisplay.text}</span>
-                                                </td>
-                                            </tr>
-                                            {expandedFolio === row.invoice_number && (
-                                                <tr className="bg-slate-50/70">
-                                                    <td colSpan={6} className="p-4">
-                                                        {loadingDetail ? (
-                                                            <p className="text-sm text-slate-400">Cargando detalle…</p>
-                                                        ) : detailItems.length === 0 ? (
-                                                            <p className="text-sm text-slate-400 italic">Sin detalle de artículos capturado para esta factura.</p>
-                                                        ) : (
-                                                            <div className="overflow-x-auto">
-                                                                <table className="w-full text-xs">
-                                                                    <thead>
-                                                                        <tr className="text-slate-500 uppercase tracking-wide border-b border-slate-200">
-                                                                            <th className="p-2 text-left font-bold">SKU</th>
-                                                                            <th className="p-2 text-left font-bold">Descripción</th>
-                                                                            <th className="p-2 text-right font-bold">Cantidad</th>
-                                                                            <th className="p-2 text-right font-bold">Precio Unit.</th>
-                                                                            <th className="p-2 text-right font-bold">Importe</th>
-                                                                        </tr>
-                                                                    </thead>
-                                                                    <tbody className="divide-y divide-slate-100">
-                                                                        {detailItems.map((it, i) => (
-                                                                            <tr key={i}>
-                                                                                <td className="p-2 text-slate-700 font-medium">{it.sku || '—'}</td>
-                                                                                <td className="p-2 text-slate-600">{it.description || '—'}</td>
-                                                                                <td className="p-2 text-right tabular-nums">{it.quantity}</td>
-                                                                                <td className="p-2 text-right tabular-nums">{formatCurrency(it.unit_cost)}</td>
-                                                                                <td className="p-2 text-right font-semibold tabular-nums">{formatCurrency(it.amount)}</td>
-                                                                            </tr>
-                                                                        ))}
-                                                                        <tr className="border-t border-slate-200 font-bold">
-                                                                            <td colSpan={4} className="p-2 text-right">Total detalle:</td>
-                                                                            <td className="p-2 text-right tabular-nums text-indigo-800">{formatCurrency(detailTotal)}</td>
-                                                                        </tr>
-                                                                    </tbody>
-                                                                </table>
-                                                            </div>
-                                                        )}
-                                                    </td>
-                                                </tr>
+                            <div className="flex text-xs uppercase tracking-wider text-slate-500 font-bold bg-slate-50 border-b border-slate-200">
+                                <div className="flex-1 p-4 min-w-0">Folio</div>
+                                <div className="w-36 shrink-0 p-4 text-right">Importe</div>
+                                <div className="w-40 shrink-0 p-4">Fecha de pago</div>
+                                <div className="w-32 shrink-0 p-4">Método</div>
+                                <div className="flex-1 p-4 min-w-0">Referencia</div>
+                                <div className="w-40 shrink-0 p-4">Estatus</div>
+                            </div>
+                            {report.payments.map((row, idx) => (
+                                <React.Fragment key={`${row.invoice_number}-${row.payment_date}-${idx}`}>
+                                    <VTable
+                                        columns={paymentColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+                                        data={[row] as unknown as Record<string, unknown>[]}
+                                        onRowClick={() => void toggleRow(row.invoice_number)}
+                                        className="border-0 rounded-none shadow-none [&_thead]:hidden [&>div]:border-0"
+                                    />
+                                    {expandedFolio === row.invoice_number && (
+                                        <div className="bg-slate-50/70 px-4 py-4 border-b border-slate-100">
+                                            {loadingDetail ? (
+                                                <p className="text-sm text-slate-400">Cargando detalle…</p>
+                                            ) : detailItems.length === 0 ? (
+                                                <p className="text-sm text-slate-400 italic">Sin detalle de artículos capturado para esta factura.</p>
+                                            ) : (
+                                                <div className="space-y-3">
+                                                    <VTable
+                                                        columns={detailColumns}
+                                                        data={detailItems as Record<string, unknown>[]}
+                                                        className="border border-slate-200 text-xs"
+                                                    />
+                                                    <div className="flex justify-end text-xs font-bold text-indigo-800 tabular-nums">
+                                                        Total detalle: {formatCurrency(detailTotal)}
+                                                    </div>
+                                                </div>
                                             )}
-                                        </React.Fragment>
-                                        );
-                                    })}
-                                    <tr className="bg-slate-50 border-t-2 border-slate-200">
-                                        <td className="p-4 font-black text-slate-800">
-                                            Total ({report.count} pagos):
-                                        </td>
-                                        <td className="p-4 text-right font-black text-indigo-900 text-lg tabular-nums">
-                                            {formatCurrency(report.total_amount)}
-                                        </td>
-                                        <td colSpan={4} />
-                                    </tr>
-                                </tbody>
-                            </table>
+                                        </div>
+                                    )}
+                                </React.Fragment>
+                            ))}
+                            <div className="flex w-full text-sm bg-slate-50 border-t-2 border-slate-200 font-black">
+                                <div className="flex-1 p-4 text-slate-800 min-w-0">
+                                    Total ({report.count} pagos):
+                                </div>
+                                <div className="w-36 shrink-0 p-4 text-right text-indigo-900 text-lg tabular-nums">
+                                    {formatCurrency(report.total_amount)}
+                                </div>
+                                <div className="flex-[3] min-w-0" />
+                            </div>
                         </div>
                     )}
                 </section>

@@ -8,6 +8,8 @@ import {
 import Modal from '@/components/ui/Modal'; 
 import { Button } from '@/components/ui/Button';
 import { toast } from '@/components/ui/VToast';
+import { Input } from '@/components/ui/Input';
+import { VTable, type VTableColumn } from '@/components/ui/VTable';
 
 import { CustomerPayment, SalesOrder } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
@@ -27,6 +29,9 @@ function daysOpenForCxc(cxc: CustomerPayment): number | null {
     const d0 = new Date(inv);
     return Math.max(0, Math.ceil((Date.now() - d0.getTime()) / (1000 * 60 * 60 * 24)));
 }
+
+const fmtCurrency = (amount: number) =>
+    amount.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => {
     const [order, setOrder] = useState<SalesOrder | null>(null);
@@ -181,7 +186,75 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
     };
 
     // Helper formato moneda
-    const fmt = (amount: number) => amount.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmt = fmtCurrency;
+
+    const paymentColumns = useMemo((): VTableColumn<CustomerPayment>[] => [
+        {
+            key: 'invoice_folio',
+            label: 'Folio',
+            render: (cxc) => (
+                <span className="font-mono font-bold">{cxc.invoice_folio || '—'}</span>
+            ),
+        },
+        {
+            key: 'invoice_date',
+            label: 'Fecha factura',
+            render: (cxc) => (
+                <span className="text-slate-600">
+                    {cxc.invoice_date
+                        ? new Date(cxc.invoice_date).toLocaleDateString('es-MX')
+                        : '—'}
+                </span>
+            ),
+        },
+        {
+            key: 'amount',
+            label: 'Importe',
+            render: (cxc) => (
+                <span className="text-right font-bold block">
+                    ${fmt(Number(cxc.amount) || 0)}
+                </span>
+            ),
+        },
+        {
+            key: 'days',
+            label: 'Días',
+            render: (cxc) => {
+                const d = daysOpenForCxc(cxc);
+                return (
+                    <span className="text-center font-bold block">
+                        {d != null ? (
+                            <span
+                                className={
+                                    d > 30
+                                        ? 'text-red-600'
+                                        : d > 15
+                                          ? 'text-amber-600'
+                                          : 'text-emerald-600'
+                                }
+                            >
+                                {d}
+                            </span>
+                        ) : (
+                            <span className="text-slate-400">—</span>
+                        )}
+                    </span>
+                );
+            },
+        },
+        {
+            key: 'status',
+            label: 'Estado',
+            render: (cxc) => {
+                const st = String(cxc.status ?? '').toUpperCase();
+                return st === 'PAID' ? (
+                    <span className="text-emerald-700 font-bold">Pagada</span>
+                ) : (
+                    <span className="text-amber-700 font-bold">Pendiente</span>
+                );
+            },
+        },
+    ], []);
 
     const canExpand =
         ['DIRECTOR', 'MANAGER', 'SALES', 'ADMIN', 'ADMINISTRADOR', 'DIRECCION'].includes(userRole)
@@ -221,17 +294,17 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                             </span>
                             <div className="flex flex-col">
                                 <label className="text-[10px] font-bold text-amber-800 uppercase">Folio OC</label>
-                                <input
-                                    className="w-40 mt-0.5 px-2 py-1 text-sm border border-amber-200 rounded-lg bg-white"
+                                <Input
+                                    className="w-40 mt-0.5 px-2 py-1 text-sm border border-amber-200 rounded-lg bg-white h-auto"
                                     value={clientPoFolio}
                                     onChange={(e) => setClientPoFolio(e.target.value)}
                                 />
                             </div>
                             <div className="flex flex-col">
                                 <label className="text-[10px] font-bold text-amber-800 uppercase">Fecha OC</label>
-                                <input
+                                <Input
                                     type="date"
-                                    className="w-40 mt-0.5 px-2 py-1 text-sm border border-amber-200 rounded-lg bg-white"
+                                    className="w-40 mt-0.5 px-2 py-1 text-sm border border-amber-200 rounded-lg bg-white h-auto"
                                     value={clientPoDate}
                                     onChange={(e) => setClientPoDate(e.target.value)}
                                 />
@@ -250,8 +323,8 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                             </h3>
                             {editingName ? (
                                 <div className="flex items-center gap-2">
-                                    <input
-                                        className="text-lg font-black text-slate-800 border-b-2 border-indigo-400 outline-none bg-transparent flex-1"
+                                    <Input
+                                        className="text-lg font-black text-slate-800 border-b-2 border-indigo-400 outline-none bg-transparent flex-1 h-auto"
                                         value={nameDraft}
                                         onChange={e => setNameDraft(e.target.value)}
                                         autoFocus
@@ -307,61 +380,12 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                             <div className="bg-slate-100 px-4 py-2 font-bold text-xs text-slate-700 uppercase tracking-wider">
                                 Facturación / Pagos (CXC)
                             </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-xs min-w-[640px]">
-                                    <thead>
-                                        <tr className="border-b border-slate-200 text-[10px] text-slate-500 uppercase">
-                                            <th className="text-left p-2">Folio</th>
-                                            <th className="text-left p-2">Fecha factura</th>
-                                            <th className="text-right p-2">Importe</th>
-                                            <th className="text-center p-2">Días</th>
-                                            <th className="text-left p-2">Estado</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {order.payments.map((cxc) => {
-                                            const d = daysOpenForCxc(cxc);
-                                            const st = String(cxc.status ?? '').toUpperCase();
-                                            return (
-                                                <tr key={cxc.id} className="border-b border-slate-50 hover:bg-slate-50">
-                                                    <td className="p-2 font-mono font-bold">{cxc.invoice_folio || '—'}</td>
-                                                    <td className="p-2 text-slate-600">
-                                                        {cxc.invoice_date
-                                                            ? new Date(cxc.invoice_date).toLocaleDateString('es-MX')
-                                                            : '—'}
-                                                    </td>
-                                                    <td className="p-2 text-right font-bold">
-                                                        ${fmt(Number(cxc.amount) || 0)}
-                                                    </td>
-                                                    <td className="p-2 text-center font-bold">
-                                                        {d != null ? (
-                                                            <span
-                                                                className={
-                                                                    d > 30
-                                                                        ? 'text-red-600'
-                                                                        : d > 15
-                                                                          ? 'text-amber-600'
-                                                                          : 'text-emerald-600'
-                                                                }
-                                                            >
-                                                                {d}
-                                                            </span>
-                                                        ) : (
-                                                            <span className="text-slate-400">—</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="p-2">
-                                                        {st === 'PAID' ? (
-                                                            <span className="text-emerald-700 font-bold">Pagada</span>
-                                                        ) : (
-                                                            <span className="text-amber-700 font-bold">Pendiente</span>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
+                            <div className="overflow-x-auto p-2">
+                                <VTable
+                                    columns={paymentColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+                                    data={(order.payments ?? []) as unknown as Record<string, unknown>[]}
+                                    className="text-xs min-w-[640px]"
+                                />
                             </div>
                         </div>
                     )}
@@ -394,9 +418,9 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                                             
                                             {isEditingAdvance ? (
                                                 <div className="flex items-center gap-2 mt-1">
-                                                    <input 
+                                                    <Input 
                                                         type="number" 
-                                                        className="w-20 px-2 py-1 text-sm border border-indigo-300 rounded font-bold text-indigo-800 text-center shadow-inner"
+                                                        className="w-20 px-2 py-1 text-sm border border-indigo-300 rounded font-bold text-indigo-800 text-center shadow-inner h-auto"
                                                         value={advancePercent}
                                                         onChange={(e) => setAdvancePercent(Number(e.target.value))}
                                                     /> %

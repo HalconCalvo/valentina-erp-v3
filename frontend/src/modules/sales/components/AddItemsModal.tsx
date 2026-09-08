@@ -6,6 +6,8 @@ import { designService } from '../../../api/design-service';
 import axiosClient from '../../../api/axios-client';
 import { useFoundations } from '../../foundations/hooks/useFoundations';
 import { toast } from '@/components/ui/VToast';
+import { Input } from '@/components/ui/Input';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 
 interface AddItemsModalProps {
     isOpen: boolean;
@@ -300,51 +302,48 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
                             <>
                                 <div className="space-y-1">
                                     <label className="text-[11px] font-bold text-slate-500 uppercase">Categoría</label>
-                                    <select
-                                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                                    <SearchableSelect
+                                        items={(availableCategories ?? []).map((cat) => ({ value: cat, label: cat }))}
                                         value={selectedCategory}
-                                        onChange={(e) => {
-                                            setSelectedCategory(e.target.value);
+                                        onChange={(v) => {
+                                            setSelectedCategory(v);
                                             setLineItem({ ...lineItem, master_id: 0, version_id: 0, unit_price: 0, frozen_cost: 0 });
                                             setPriceManual(false);
                                         }}
-                                    >
-                                        <option value="">-- Seleccionar --</option>
-                                        {availableCategories.map((cat) => (
-                                            <option key={cat} value={cat}>{cat}</option>
-                                        ))}
-                                    </select>
+                                        getLabel={(i) => i.label}
+                                        getValue={(i) => i.value}
+                                        placeholder="-- Seleccionar --"
+                                        className="text-sm"
+                                    />
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-[11px] font-bold text-slate-500 uppercase">Producto</label>
-                                    <select
-                                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
-                                        value={lineItem.master_id}
+                                    <SearchableSelect
+                                        items={filteredMasters ?? []}
+                                        value={lineItem.master_id ? String(lineItem.master_id) : ''}
                                         disabled={!selectedCategory}
-                                        onChange={(e) => {
-                                            setLineItem({ ...lineItem, master_id: Number(e.target.value), version_id: 0, unit_price: 0, frozen_cost: 0 });
+                                        onChange={(v) => {
+                                            setLineItem({ ...lineItem, master_id: Number(v), version_id: 0, unit_price: 0, frozen_cost: 0 });
                                             setPriceManual(false);
                                         }}
-                                    >
-                                        <option value={0}>-- Seleccionar --</option>
-                                        {filteredMasters.map((m) => (
-                                            <option key={m.id} value={m.id}>{m.name}</option>
-                                        ))}
-                                    </select>
+                                        getLabel={(m) => m.name}
+                                        getValue={(m) => String(m.id)}
+                                        placeholder="-- Seleccionar --"
+                                        className="text-sm"
+                                    />
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-[11px] font-bold text-slate-500 uppercase">Versión</label>
-                                    <select
-                                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                                    <SearchableSelect
+                                        items={availableVersions ?? []}
+                                        value={lineItem.version_id ? String(lineItem.version_id) : ''}
                                         disabled={!lineItem.master_id}
-                                        value={lineItem.version_id}
-                                        onChange={handleVersionChange}
-                                    >
-                                        <option value={0}>-- Seleccionar --</option>
-                                        {availableVersions.map((v: any) => (
-                                            <option key={v.id} value={v.id}>{v.version_name}</option>
-                                        ))}
-                                    </select>
+                                        onChange={(v) => handleVersionChange({ target: { value: v } } as React.ChangeEvent<HTMLSelectElement>)}
+                                        getLabel={(v: any) => v.version_name}
+                                        getValue={(v: any) => String(v.id)}
+                                        placeholder="-- Seleccionar --"
+                                        className="text-sm"
+                                    />
                                 </div>
                             </>
                         )}
@@ -352,9 +351,9 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
                         {addMode === 'MANUAL' && (
                             <div className="space-y-1">
                                 <label className="text-[11px] font-bold text-slate-500 uppercase">Nombre del producto</label>
-                                <input
+                                <Input
                                     type="text"
-                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 font-bold"
+                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 font-bold h-auto"
                                     placeholder="Descripción de la partida"
                                     value={lineItem.manual_name}
                                     onChange={(e) => setLineItem({ ...lineItem, manual_name: e.target.value })}
@@ -365,9 +364,9 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
                         {addMode === 'RESALE' && (
                             <div className="space-y-1">
                                 <label className="text-[11px] font-bold text-slate-500 uppercase">Buscar accesorio</label>
-                                <input
+                                <Input
                                     type="text"
-                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 mb-2"
+                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 mb-2 h-auto"
                                     placeholder="Escribe para filtrar (ej. Tarja)..."
                                     value={resaleSearch}
                                     onChange={(e) => setResaleSearch(e.target.value)}
@@ -434,10 +433,10 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1">
                                 <label className="text-[11px] font-bold text-slate-500 uppercase">Cantidad</label>
-                                <input
+                                <Input
                                     type="number"
                                     min={1}
-                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 font-bold"
+                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 font-bold h-auto"
                                     value={lineItem.quantity}
                                     onChange={(e) => setLineItem({ ...lineItem, quantity: Number(e.target.value) })}
                                 />
@@ -449,11 +448,11 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
                                         <span className="text-amber-600 normal-case ml-1">(editable)</span>
                                     )}
                                 </label>
-                                <input
+                                <Input
                                     type="number"
                                     step="0.01"
                                     min={0}
-                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 font-black text-right"
+                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 font-black text-right h-auto"
                                     value={lineItem.unit_price === 0 ? '' : lineItem.unit_price}
                                     disabled={addMode === 'CATALOG' && !priceManual && lineItem.version_id > 0}
                                     onChange={(e) => setLineItem({ ...lineItem, unit_price: Number(e.target.value) })}

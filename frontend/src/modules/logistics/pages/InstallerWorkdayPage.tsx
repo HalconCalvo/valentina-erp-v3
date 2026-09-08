@@ -11,6 +11,7 @@ import {
 import QRScanner from '../components/QRScanner';
 import SignaturePad from '../components/SignaturePad';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import { Input } from '@/components/ui/Input';
 
 type View = 'list' | 'detail' | 'qr' | 'confirm' | 'photos' | 'signature';
 
@@ -496,7 +497,7 @@ export default function InstallerWorkdayPage() {
             title="Evidencia fotográfica"
             onBack={() => setView('detail')}
           />
-          <input
+          <Input
             ref={fileInputRef}
             type="file"
             accept="image/*"

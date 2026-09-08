@@ -16,6 +16,8 @@ import { Button } from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import ExportButton from '@/components/ui/ExportButton';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
@@ -33,6 +35,35 @@ type CatalogPendingConfirm =
     | { kind: 'IMPORT_RECIPES'; data: { products: unknown[]; client_name?: string; client_id?: number }; clientId: number | null }
     | { kind: 'DELETE_VERSION'; versionId: number; versionName: string; productName: string }
     | { kind: 'DELETE_BATCH'; batchId: number; folio: string };
+
+type CatalogTableRow = Record<string, unknown> & {
+    id: string;
+    product: any;
+    version: any | null;
+    versionIdx: number;
+    esUnicaVersion: boolean;
+    productName: string;
+};
+
+const flattenCatalogRows = (products: any[]): CatalogTableRow[] =>
+    products.flatMap((product: any) => {
+        const versions = product.versions && product.versions.length > 0
+            ? [...product.versions].sort((a: any, b: any) => {
+                const fa = a?.created_at ? new Date(a.created_at).getTime() : 0;
+                const fb = b?.created_at ? new Date(b.created_at).getTime() : 0;
+                return fa - fb;
+            })
+            : [null];
+        const esUnicaVersion = (product.versions?.length ?? 0) <= 1;
+        return versions.map((v: any, idx: number) => ({
+            id: `${product.id}-${v ? v.id : 'empty'}`,
+            product,
+            version: v,
+            versionIdx: idx,
+            esUnicaVersion,
+            productName: product.name,
+        }));
+    });
 
 const DesignCatalogPage: React.FC = () => {
     const navigate = useNavigate();
@@ -596,6 +627,108 @@ const DesignCatalogPage: React.FC = () => {
         }
     }, [location.state]);
 
+    const clientSelectItems = useMemo(
+        () => [{ id: 0, full_name: '-- Catálogo Interno (Stock) --' }, ...clients],
+        [clients],
+    );
+
+    const catalogTableColumns = useMemo((): VTableColumn<CatalogTableRow>[] => [
+        {
+            key: 'productName',
+            label: `Nombre${sortDir === 'asc' ? ' ▲' : sortDir === 'desc' ? ' ▼' : ''}`,
+            width: '40%',
+            render: (row) => {
+                const { product, version } = row;
+                return (
+                    <>
+                        <div
+                            className={`font-bold text-slate-800 flex items-center gap-2 ${isSales ? 'cursor-default' : 'hover:text-indigo-600 cursor-pointer'}`}
+                            onClick={() => handleOpenProduct(product.id, version ? [version] : [])}
+                        >
+                            {product.name}
+                        </div>
+                        <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-500 text-xs mt-1 inline-block">
+                            SKU: PRD-{product.id.toString().padStart(4, '0')} {version ? `- ${version.version_name}` : ''}
+                        </span>
+                        {version?.commercial_description && (
+                            <span className="text-[10px] text-indigo-500 font-medium mt-1 flex items-center gap-1 inline-flex">
+                                <FileText size={10} /> Con descripción
+                            </span>
+                        )}
+                    </>
+                );
+            },
+        },
+        {
+            key: 'status',
+            label: 'Estado',
+            width: '15%',
+            render: (row) => {
+                const v = row.version;
+                const isReady = v?.status === VersionStatus.READY;
+                return (
+                    <div className="text-center">
+                        {v ? (
+                            isReady
+                                ? <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100"><CheckCircle2 size={10} className="inline mr-1"/>Listo</span>
+                                : <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded-full border border-orange-100"><AlertCircle size={10} className="inline mr-1"/>Borrador</span>
+                        ) : (
+                            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-full border border-slate-200">Vacío</span>
+                        )}
+                    </div>
+                );
+            },
+        },
+        {
+            key: 'versionName',
+            label: 'Versión Activa',
+            width: '20%',
+            render: (row) => {
+                const v = row.version;
+                const isReady = v?.status === VersionStatus.READY;
+                return v
+                    ? <span className={`font-mono px-2 py-1 rounded text-xs border ${isReady ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{v.version_name}</span>
+                    : <span className="text-xs text-slate-400 italic">Pendiente</span>;
+            },
+        },
+        {
+            key: 'actions',
+            label: 'Acciones',
+            width: '25%',
+            render: (row) => {
+                const { product, version: v, versionIdx: idx, esUnicaVersion } = row;
+                return (
+                    <div className="flex items-center justify-center gap-2">
+                        {v?.blueprint_path ? (
+                            <>
+                                <button onClick={(e) => { e.stopPropagation(); handleViewBlueprint(v.blueprint_path!); }} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded" title="Ver Plano"><FileText size={16}/></button>
+                                {!isSales && <button onClick={(e) => { e.stopPropagation(); handleDeleteVersionBlueprint(e, v.id!); }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded" title="Quitar Plano"><FileMinus size={16}/></button>}
+                            </>
+                        ) : (
+                            !isSales && v ? <button onClick={(e) => { e.stopPropagation(); handleUploadClick(v.id!); }} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="Adjuntar Plano a esta versión"><Paperclip size={16}/></button> : null
+                        )}
+                        {!isSales && (
+                            <>
+                                <div className="w-px h-4 bg-slate-200 mx-1"></div>
+                                <button onClick={(e) => openEditModal(e, product)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="Editar Nombre"><Edit size={16}/></button>
+                                {v && !esUnicaVersion && <button onClick={(e) => handleDeleteVersion(e, product, v)} className="p-1.5 text-orange-500 hover:text-orange-600 hover:bg-orange-50 rounded" title="Eliminar esta versión"><Trash2 size={16}/></button>}
+                                {idx === 0 && <button onClick={(e) => handleDelete(e, product.id, product.name)} className="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded" title="ELIMINAR PRODUCTO Y TODAS SUS VERSIONES"><Trash2 size={16}/></button>}
+                            </>
+                        )}
+                    </div>
+                );
+            },
+        },
+    ], [isSales, sortDir]);
+
+    const handleCatalogTableHeaderClick = (e: React.MouseEvent<HTMLDivElement>) => {
+        const th = (e.target as HTMLElement).closest('thead th');
+        if (!th?.parentElement) return;
+        if (Array.from(th.parentElement.children).indexOf(th) === 0) {
+            handleSort();
+        }
+    };
+
     return (
         <div className="p-8 max-w-7xl mx-auto space-y-6 pb-24 animate-in fade-in duration-300">
             <input type="file" ref={fileInputRef} className="hidden" accept=".pdf,image/*" onChange={handleFileChange} />
@@ -943,8 +1076,14 @@ const DesignCatalogPage: React.FC = () => {
                                         </button>
                                     )}
                                     <div className="relative">
-                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                        <input type="text" placeholder="Buscar producto..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm w-64 focus:ring-2 focus:ring-indigo-500 shadow-sm"/>
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" size={16} />
+                                        <Input
+                                            type="text"
+                                            placeholder="Buscar producto..."
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                            className="pl-9 w-64 shadow-sm"
+                                        />
                                     </div>
                                     {!isSales && (
                                         <Button onClick={openCreateModal} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm">
@@ -1039,90 +1178,13 @@ const DesignCatalogPage: React.FC = () => {
                                                             </span>
                                                         </div>
                                                         {isCatExpanded && (
-                                                        <table className="w-full text-sm text-left">
-                                                            <thead className="text-xs text-slate-500 uppercase bg-white border-b border-slate-200">
-                                                                <tr>
-                                                                    <th
-                                                                        className="px-6 py-3 w-[40%] cursor-pointer select-none hover:text-indigo-600 transition-colors"
-                                                                        onClick={handleSort}
-                                                                        title="Ordenar productos por nombre"
-                                                                    >
-                                                                        <span className="flex items-center gap-2">
-                                                                            Nombre
-                                                                            <span className="text-slate-400">{sortDir === 'asc' ? '▲' : sortDir === 'desc' ? '▼' : ''}</span>
-                                                                        </span>
-                                                                    </th>
-                                                                    <th className="px-6 py-3 text-center w-[15%]">Estado</th>
-                                                                    <th className="px-6 py-3 w-[20%]">Versión Activa</th>
-                                                                    <th className="px-6 py-3 text-center w-[25%]">Acciones</th>
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody className="divide-y divide-slate-100">
-                                                                {productosOrdenados.flatMap((product: any) => {
-                                                                    const versions = product.versions && product.versions.length > 0
-                                                                        ? [...product.versions].sort((a: any, b: any) => {
-                                                                            const fa = a?.created_at ? new Date(a.created_at).getTime() : 0;
-                                                                            const fb = b?.created_at ? new Date(b.created_at).getTime() : 0;
-                                                                            return fa - fb;  // ascendente: más antigua primero
-                                                                          })
-                                                                        : [null];
-                                                                    return versions.map((v: any, idx: number) => {
-                                                                        const isReady = v?.status === VersionStatus.READY;
-                                                                        const rowKey = `${product.id}-${v ? v.id : 'empty'}`;
-                                                                        const esUnicaVersion = (product.versions?.length ?? 0) <= 1;
-
-                                                                        return (
-                                                                            <tr key={rowKey} className="bg-white hover:bg-slate-50 transition-colors">
-                                                                                <td className="px-6 py-4">
-                                                                                    <div className={`font-bold text-slate-800 flex items-center gap-2 ${isSales ? 'cursor-default' : 'hover:text-indigo-600 cursor-pointer'}`} onClick={() => handleOpenProduct(product.id, v ? [v] : [])}>
-                                                                                        {product.name}
-                                                                                    </div>
-                                                                                    <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-500 text-xs mt-1 inline-block">
-                                                                                        SKU: PRD-{product.id.toString().padStart(4, '0')} {v ? `- ${v.version_name}` : ''}
-                                                                                    </span>
-                                                                                    {v?.commercial_description && (
-                                                                                        <span className="text-[10px] text-indigo-500 font-medium mt-1 flex items-center gap-1 inline-flex">
-                                                                                            <FileText size={10} /> Con descripción
-                                                                                        </span>
-                                                                                    )}
-                                                                                </td>
-                                                                                <td className="px-6 py-4 text-center">
-                                                                                    {v ? (
-                                                                                        isReady ? <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100"><CheckCircle2 size={10} className="inline mr-1"/>Listo</span> : 
-                                                                                                  <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded-full border border-orange-100"><AlertCircle size={10} className="inline mr-1"/>Borrador</span>
-                                                                                    ) : (<span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-full border border-slate-200">Vacío</span>)}
-                                                                                </td>
-                                                                                <td className="px-6 py-4 text-slate-500">
-                                                                                    {v ? <span className={`font-mono px-2 py-1 rounded text-xs border ${isReady ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{v.version_name}</span> : <span className="text-xs text-slate-400 italic">Pendiente</span>}
-                                                                                </td>
-                                                                                <td className="px-6 py-4 text-center">
-                                                                    <div className="flex items-center justify-center gap-2">
-                                                                        {v?.blueprint_path ? (
-                                                                            <>
-                                                                                <button onClick={(e) => { e.stopPropagation(); handleViewBlueprint(v.blueprint_path!); }} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded" title="Ver Plano"><FileText size={16}/></button>
-                                                                                {!isSales && <button onClick={(e) => { e.stopPropagation(); handleDeleteVersionBlueprint(e, v.id!); }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded" title="Quitar Plano"><FileMinus size={16}/></button>}
-                                                                            </>
-                                                                        ) : (
-                                                                            !isSales && v ? <button onClick={(e) => { e.stopPropagation(); handleUploadClick(v.id!); }} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="Adjuntar Plano a esta versión"><Paperclip size={16}/></button> : null
-                                                                        )}
-                                                                                        {!isSales && (
-                                                                                            <>
-                                                                                                <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                                                                                                <button onClick={(e) => openEditModal(e, product)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="Editar Nombre"><Edit size={16}/></button>
-                                                                                                {/* BASURERO NARANJA: borra SOLO esta versión (solo si el producto tiene 2+ versiones) */}
-                                                                                                {v && !esUnicaVersion && <button onClick={(e) => handleDeleteVersion(e, product, v)} className="p-1.5 text-orange-500 hover:text-orange-600 hover:bg-orange-50 rounded" title="Eliminar esta versión"><Trash2 size={16}/></button>}
-                                                                                                {/* BASURERO ROJO: borra el PRODUCTO COMPLETO y todas sus versiones (una vez por producto) */}
-                                                                                                {!isSales && idx === 0 && <button onClick={(e) => handleDelete(e, product.id, product.name)} className="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded" title="ELIMINAR PRODUCTO Y TODAS SUS VERSIONES"><Trash2 size={16}/></button>}
-                                                                                            </>
-                                                                                        )}
-                                                                                    </div>
-                                                                                </td>
-                                                                            </tr>
-                                                                        );
-                                                                    });
-                                                                })}
-                                                            </tbody>
-                                                        </table>
+                                                        <div onClick={handleCatalogTableHeaderClick}>
+                                                            <VTable
+                                                                columns={catalogTableColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+                                                                data={flattenCatalogRows(productosOrdenados) as unknown as Record<string, unknown>[]}
+                                                                className="border-0 rounded-none shadow-none text-sm [&>div]:border-0 [&_thead]:bg-white [&_thead_th]:px-6 [&_thead_th]:py-3 [&_thead_th:first-child]:cursor-pointer [&_thead_th:first-child]:select-none [&_thead_th:first-child]:hover:text-indigo-600 [&_tbody_td]:px-6 [&_tbody_td]:py-4"
+                                                            />
+                                                        </div>
                                                         )}
                                                     </div>
                                                     );
@@ -1302,13 +1364,18 @@ const DesignCatalogPage: React.FC = () => {
                  <div className="space-y-5 py-2">
                     <div>
                         <label className="block text-sm font-semibold text-slate-700 mb-1.5">Cliente Asignado</label>
-                        <select className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none shadow-sm" value={formState.client_id} onChange={(e) => {
-                                        setFormState({...formState, client_id: Number(e.target.value), name: ''});
-                                        setShowProductSuggestions(false);
-                                    }}>
-                            <option value={0}>-- Catálogo Interno (Stock) --</option>
-                            {clients.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
-                        </select>
+                        <SearchableSelect
+                            items={clientSelectItems}
+                            value={String(formState.client_id)}
+                            onChange={(v) => {
+                                setFormState({ ...formState, client_id: Number(v), name: '' });
+                                setShowProductSuggestions(false);
+                            }}
+                            getLabel={(c) => c.full_name}
+                            getValue={(c) => String(c.id)}
+                            placeholder="-- Catálogo Interno (Stock) --"
+                            className="shadow-sm"
+                        />
                     </div>
                     <div>
                         <label className="block text-sm font-semibold text-slate-700 mb-1.5">Proyecto</label>

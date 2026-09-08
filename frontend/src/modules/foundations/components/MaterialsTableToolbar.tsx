@@ -1,6 +1,8 @@
 import React, { useMemo } from "react"
 import { Table } from "@tanstack/react-table"
 import { X, Search } from "lucide-react"
+import { Input } from "@/components/ui/Input"
+import { SearchableSelect } from "@/components/ui/SearchableSelect"
 
 interface MaterialsTableToolbarProps<TData> {
   table: Table<TData>
@@ -25,6 +27,14 @@ export function MaterialsTableToolbar<TData>({
     return Array.from(categories).sort();
   }, [table.getPreFilteredRowModel().rows]);
 
+  const categoryOptions = useMemo(
+    () => [
+      { value: "ALL", label: "Todas las Categorías" },
+      ...uniqueCategories.map((cat) => ({ value: cat, label: cat })),
+    ],
+    [uniqueCategories],
+  );
+
   return (
     <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 py-4 bg-white p-4 rounded-lg border border-slate-200 shadow-sm mb-4">
       <div className="flex flex-1 flex-wrap items-center gap-3 w-full">
@@ -32,7 +42,7 @@ export function MaterialsTableToolbar<TData>({
         {/* BUSCADOR POR SKU (NUEVO) */}
         <div className="relative w-full md:w-auto">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
-            <input
+            <Input
             placeholder="Buscar por SKU..."
             value={(table.getColumn("sku")?.getFilterValue() as string) ?? ""}
             onChange={(event) =>
@@ -45,7 +55,7 @@ export function MaterialsTableToolbar<TData>({
         {/* BUSCADOR POR NOMBRE */}
         <div className="relative w-full md:w-auto">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
-            <input
+            <Input
             placeholder="Buscar por Nombre..."
             value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
             onChange={(event) =>
@@ -58,32 +68,28 @@ export function MaterialsTableToolbar<TData>({
         {/* FILTRO DE CATEGORÍA (CONTROLADO) */}
         {table.getColumn("category") && (
             <div className="relative">
-                <select
-                    value={currentCategory} 
+                <SearchableSelect
+                    items={categoryOptions}
+                    value={currentCategory}
+                    getLabel={(item) => item.label}
+                    getValue={(item) => item.value}
+                    placeholder="Todas las Categorías"
                     className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                    onChange={(event) => {
-                        const value = event.target.value
+                    onChange={(value) => {
                         if (value === "ALL") {
                             table.getColumn("category")?.setFilterValue(undefined)
                         } else {
                             table.getColumn("category")?.setFilterValue(value)
                         }
                     }}
-                >
-                    <option value="ALL">Todas las Categorías</option>
-                    {uniqueCategories.map((cat) => (
-                        <option key={cat} value={cat}>
-                            {cat}
-                        </option>
-                    ))}
-                </select>
+                />
             </div>
         )}
 
         {/* SWITCH STOCK */}
         {table.getColumn("physical_stock") && (
              <label className="flex items-center space-x-2 rounded-md border border-slate-200 px-3 py-1.5 hover:bg-slate-50 cursor-pointer bg-slate-50/50">
-                <input 
+                <Input 
                     type="checkbox"
                     checked={(table.getColumn("physical_stock")?.getFilterValue() as any)?.[0] === 0.01}
                     className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"

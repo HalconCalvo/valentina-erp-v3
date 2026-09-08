@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Calendar, CreditCard, Hash, FileText, Landmark } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import SearchableSelect from '@/components/ui/SearchableSelect';
 import { toast } from '@/components/ui/VToast';
 import { PaymentMethod, PaymentRequestPayload, SupplierPayment, PendingInvoice } from '../../../types/finance';
 import { treasuryService } from '../../../api/treasury-service';
@@ -14,6 +15,14 @@ interface PaymentRequestModalProps {
     onSubmit: (data: PaymentRequestPayload) => Promise<void>;
     isChecker?: boolean; // <--- LA CREDENCIAL DE GERENCIA
 }
+
+const PAYMENT_METHOD_OPTIONS: { value: PaymentMethod; label: string }[] = [
+    { value: 'TRANSFER', label: 'Transferencia' },
+    { value: 'CHECK', label: 'Cheque' },
+    { value: 'CASH', label: 'Efectivo' },
+    { value: 'CREDIT_CARD', label: 'Tarjeta' },
+    { value: 'OTHER', label: 'Otro' },
+];
 
 export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoice, existingRequest, onClose, onSubmit, isChecker }) => {
     const [amount, setAmount] = useState<number>(existingRequest ? existingRequest.amount : 0);
@@ -158,9 +167,9 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
                             <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-2xl text-slate-800 pointer-events-none">
                                 $
                             </span>
-                            <input 
-                                type="text" 
-                                className="w-full pl-10 pr-4 py-2 border-2 border-slate-300 rounded-lg focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none font-black text-2xl text-slate-800 transition-all"
+                            <Input
+                                type="text"
+                                className="w-full pl-10 pr-4 py-2 border-2 border-slate-300 rounded-lg focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 font-black text-2xl text-slate-800 transition-all"
                                 value={displayAmount}
                                 onChange={handleAmountChange}
                                 onBlur={handleBlur}
@@ -179,9 +188,9 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
                             <label className="block text-xs font-bold text-slate-500 mb-1">Fecha de Pago</label>
                             <div className="relative">
                                 <Calendar size={16} className="absolute left-3 top-2.5 text-slate-400" />
-                                <input 
+                                <Input
                                     type="date"
-                                    className="w-full pl-9 pr-2 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-indigo-500 font-medium text-slate-700"
+                                    className="pl-9 text-sm font-medium text-slate-700"
                                     value={date}
                                     onChange={(e) => setDate(e.target.value)}
                                 />
@@ -191,17 +200,15 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
                             <label className="block text-xs font-bold text-slate-500 mb-1">Método</label>
                             <div className="relative">
                                 <CreditCard size={16} className="absolute left-3 top-2.5 text-slate-400" />
-                                <select 
-                                    className="w-full pl-9 pr-2 py-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-indigo-500 font-medium text-slate-700"
+                                <SearchableSelect
+                                    items={PAYMENT_METHOD_OPTIONS}
                                     value={method}
-                                    onChange={(e) => setMethod(e.target.value as PaymentMethod)}
-                                >
-    <option value="TRANSFER">Transferencia</option>
-    <option value="CHECK">Cheque</option>
-    <option value="CASH">Efectivo</option>
-    <option value="CREDIT_CARD">Tarjeta</option>
-    <option value="OTHER">Otro</option>
-                                </select>
+                                    onChange={(value) => setMethod(value as PaymentMethod)}
+                                    getLabel={(option) => option.label}
+                                    getValue={(option) => option.value}
+                                    placeholder="Seleccionar método"
+                                    className="pl-9 text-sm font-medium text-slate-700"
+                                />
                             </div>
                         </div>
                     </div>
@@ -213,18 +220,15 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
                         </label>
                         <div className="relative">
                             <Landmark size={16} className="absolute left-3 top-2.5 text-slate-400" />
-                            <select 
-                                className="w-full pl-9 pr-2 py-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-indigo-500 font-medium text-slate-700"
-                                value={suggestedAccount}
-                                onChange={(e) => setSuggestedAccount(e.target.value ? Number(e.target.value) : '')}
-                            >
-                                <option value="">{isChecker ? 'Selecciona una cuenta...' : 'Dejar que Dirección decida...'}</option>
-                                {accounts.map(acc => (
-                                    <option key={acc.id} value={acc.id}>
-                                        {acc.name} ({acc.currency}) - Saldo: ${acc.current_balance.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                                    </option>
-                                ))}
-                            </select>
+                            <SearchableSelect
+                                items={accounts}
+                                value={suggestedAccount ? String(suggestedAccount) : ''}
+                                onChange={(value) => setSuggestedAccount(value ? Number(value) : '')}
+                                getLabel={(acc) => `${acc.name} (${acc.currency}) - Saldo: $${acc.current_balance.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`}
+                                getValue={(acc) => String(acc.id)}
+                                placeholder={isChecker ? 'Selecciona una cuenta...' : 'Dejar que Dirección decida...'}
+                                className="pl-9 text-sm font-medium text-slate-700"
+                            />
                         </div>
                     </div>
 

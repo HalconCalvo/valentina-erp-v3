@@ -345,14 +345,14 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
               ? `$${tx.amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
               : '-';
           const saldo = `$${(tx.running_balance || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
-          return `<tr>
-              <td style="padding:6px 8px;border:1px solid #e2e8f0;font-size:11px">${fecha}</td>
-              <td style="padding:6px 8px;border:1px solid #e2e8f0;font-size:11px">${concepto}</td>
-              <td style="padding:6px 8px;border:1px solid #e2e8f0;font-size:11px">${ref}</td>
-              <td style="padding:6px 8px;border:1px solid #e2e8f0;font-size:11px;text-align:right;color:#dc2626">${egreso}</td>
-              <td style="padding:6px 8px;border:1px solid #e2e8f0;font-size:11px;text-align:right;color:#16a34a">${ingreso}</td>
-              <td style="padding:6px 8px;border:1px solid #e2e8f0;font-size:11px;text-align:right;font-weight:bold">${saldo}</td>
-          </tr>`;
+          return `<div class="print-row">
+              <div class="print-cell">${fecha}</div>
+              <div class="print-cell">${concepto}</div>
+              <div class="print-cell">${ref}</div>
+              <div class="print-cell print-cell-right print-cell-red">${egreso}</div>
+              <div class="print-cell print-cell-right print-cell-green">${ingreso}</div>
+              <div class="print-cell print-cell-right print-cell-bold">${saldo}</div>
+          </div>`;
       }).join('');
 
       const html = `<html><head><title>Estado de Cuenta — ${account.name}</title>
@@ -370,9 +370,15 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
               .saldo { text-align: right; }
               .saldo p { margin: 0; font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: bold; }
               .saldo h2 { font-size: 24px; font-weight: 900; color: #1d4ed8; margin: 4px 0 0 0; }
-              table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-              thead { background: #f1f5f9; }
-              th { padding: 8px; border: 1px solid #e2e8f0; font-size: 10px; text-transform: uppercase; text-align: left; color: #475569; }
+              .print-table { width: 100%; margin-top: 8px; border: 1px solid #e2e8f0; }
+              .print-row { display: grid; grid-template-columns: 1fr 2fr 1fr 1fr 1fr 1fr; }
+              .print-row.print-header { background: #f1f5f9; }
+              .print-cell { padding: 8px; border: 1px solid #e2e8f0; font-size: 11px; }
+              .print-header .print-cell { font-size: 10px; text-transform: uppercase; color: #475569; font-weight: bold; }
+              .print-cell-right { text-align: right; }
+              .print-cell-red { color: #dc2626; }
+              .print-cell-green { color: #16a34a; }
+              .print-cell-bold { font-weight: bold; }
               .footer { margin-top: 20px; font-size: 10px; color: #94a3b8; text-align: right; border-top: 1px solid #e2e8f0; padding-top: 8px; }
           </style>
       </head><body>
@@ -405,19 +411,17 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
           </div>
 
           <!-- TABLA DE MOVIMIENTOS -->
-          <table>
-              <thead>
-                  <tr>
-                      <th>Fecha</th>
-                      <th>Concepto</th>
-                      <th>Referencia</th>
-                      <th style="text-align:right;color:#dc2626">Egreso (-)</th>
-                      <th style="text-align:right;color:#16a34a">Ingreso (+)</th>
-                      <th style="text-align:right">Saldo</th>
-                  </tr>
-              </thead>
-              <tbody>${rows}</tbody>
-          </table>
+          <div class="print-table">
+              <div class="print-row print-header">
+                  <div class="print-cell">Fecha</div>
+                  <div class="print-cell">Concepto</div>
+                  <div class="print-cell">Referencia</div>
+                  <div class="print-cell print-cell-right print-cell-red">Egreso (-)</div>
+                  <div class="print-cell print-cell-right print-cell-green">Ingreso (+)</div>
+                  <div class="print-cell print-cell-right">Saldo</div>
+              </div>
+              ${rows}
+          </div>
 
           <div class="footer">
               Impreso el ${new Date().toLocaleString('es-MX')} · Documento generado por Valentina ERP v3.8.41

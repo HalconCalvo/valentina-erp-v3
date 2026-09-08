@@ -17,6 +17,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import Modal from '@/components/ui/Modal';
+import { Input } from '@/components/ui/Input';
 import { salesService } from '../../../api/sales-service';
 import { planningService, BaptismEntry } from '../../../api/planning-service';
 import { SalesOrder } from '../../../types/sales';
@@ -234,22 +235,22 @@ export default function BaptismModal({ orderId, order: orderProp, onClose, onCom
             <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
               <div>
                 <label className="text-[11px] text-slate-500 block mb-1">Calle</label>
-                <input
+                <Input
                   type="text"
                   value={newStreet}
                   onChange={e => setNewStreet(e.target.value)}
                   placeholder="Ej. Calle 98"
-                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 h-auto"
                 />
               </div>
               <div>
                 <label className="text-[11px] text-slate-500 block mb-1">Lote</label>
-                <input
+                <Input
                   type="text"
                   value={newLot}
                   onChange={e => setNewLot(e.target.value)}
                   placeholder="Ej. E-195"
-                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 h-auto"
                 />
               </div>
               <button
@@ -277,7 +278,7 @@ export default function BaptismModal({ orderId, order: orderProp, onClose, onCom
                       key={row.id}
                       className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer ${on ? 'bg-indigo-50' : 'hover:bg-slate-50'}`}
                     >
-                      <input
+                      <Input
                         type="checkbox"
                         checked={on}
                         onChange={() => toggleSelect(row.id)}

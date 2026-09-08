@@ -6,6 +6,7 @@ import { SupplierPayment } from '../../../types/finance';
 import { BankAccount } from '../../../types/treasury';
 import { Button } from '@/components/ui/Button';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import SearchableSelect from '@/components/ui/SearchableSelect';
 import { toast } from '@/components/ui/VToast';
 
 interface PaymentApprovalModalProps {
@@ -154,18 +155,15 @@ export const PaymentApprovalModal: React.FC<PaymentApprovalModalProps> = ({ onCl
                                         {/* Selector de Cuenta Dictaminada */}
                                         <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-200">
                                             <Landmark size={16} className="text-slate-500 shrink-0"/>
-                                            <select 
-                                                className="bg-transparent outline-none text-sm font-medium text-slate-700 w-full"
-                                                value={selectedAccounts[req.id] || ''}
-                                                onChange={(e) => handleAccountChange(req.id, e.target.value ? Number(e.target.value) : '')}
-                                            >
-                                                <option value="">-- Asignar cuenta para el pago --</option>
-                                                {accounts.map(acc => (
-                                                    <option key={acc.id} value={acc.id}>
-                                                        {acc.name} - Saldo: ${acc.current_balance.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                                                    </option>
-                                                ))}
-                                            </select>
+                                            <SearchableSelect
+                                                items={accounts}
+                                                value={selectedAccounts[req.id] ? String(selectedAccounts[req.id]) : ''}
+                                                onChange={(value) => handleAccountChange(req.id, value ? Number(value) : '')}
+                                                getLabel={(acc) => `${acc.name} - Saldo: $${acc.current_balance.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`}
+                                                getValue={(acc) => String(acc.id)}
+                                                placeholder="-- Asignar cuenta para el pago --"
+                                                className="bg-transparent text-sm font-medium text-slate-700 w-full border-0 shadow-none"
+                                            />
                                         </div>
 
                                         {req.notes && (

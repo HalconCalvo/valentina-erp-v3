@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { Input } from '@/components/ui/Input';
 import { HealthPanel, InstanceSchedule } from '../../../api/planning-service';
 import { getSemaphoreConfig, formatInstanceLabel } from '../hooks/usePlanning';
 
@@ -340,7 +341,7 @@ export default function HealthSidebar({ data, loading, onInstanceClick, onInstan
           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-300 text-xs pointer-events-none">
             🔍
           </span>
-          <input
+          <Input
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}

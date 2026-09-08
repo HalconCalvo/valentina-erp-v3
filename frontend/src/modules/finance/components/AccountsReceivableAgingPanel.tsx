@@ -6,6 +6,8 @@ import { CustomerPayment, PaymentType, SalesOrder, SalesOrderStatus } from '../.
 import { enrichSalesOrdersWithPaymentsWhenMissing } from '../../sales/utils/enrichOrdersPayments';
 import { OrderStatementModal } from './OrderStatementModal';
 import { ReceivableChargeModal } from './ReceivableChargeModal';
+import { Input } from '@/components/ui/Input';
+import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
 
 // =============================================================================
@@ -332,13 +334,16 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
         return sortableItems;
     }, [filteredInvoices, sortField, sortDirection]);
 
-    const SortableHeader = ({ field, label, align = 'left' }: { field: SortField; label: string; align?: 'left' | 'right' | 'center' }) => {
+    const SortableHeader = ({ field, label, align = 'left', className = 'flex-1' }: { field: SortField; label: string; align?: 'left' | 'right' | 'center'; className?: string }) => {
         const isActive = sortField === field;
         const alignClass = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left';
         return (
-            <th className={`p-4 ${alignClass} cursor-pointer hover:bg-slate-200 transition-colors select-none`} onClick={() => handleSort(field)}>
+            <div
+                className={`${className} p-4 ${alignClass} cursor-pointer hover:bg-slate-200 transition-colors select-none`}
+                onClick={() => handleSort(field)}
+            >
                 <div
-                    className={`flex items-center gap-1 inline-flex ${align === 'right' ? 'flex-row-reverse' : ''} ${align === 'center' ? 'justify-center' : ''}`}
+                    className={`flex items-center gap-1 ${align === 'right' ? 'flex-row-reverse justify-end' : ''} ${align === 'center' ? 'justify-center' : ''} ${align === 'left' ? 'inline-flex' : 'inline-flex'}`}
                 >
                     <span className={isActive ? 'text-emerald-800' : 'text-slate-600 font-bold'}>{label}</span>
                     {isActive ? (
@@ -351,9 +356,96 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
                         <ArrowUpDown size={16} className="text-slate-400 hover:text-slate-600" />
                     )}
                 </div>
-            </th>
+            </div>
         );
     };
+
+    const carteraColumns = useMemo((): VTableColumn<CarteraMonitorRow>[] => [
+        {
+            key: 'clientName',
+            label: 'Cliente / Proyecto',
+            render: (inv) => (
+                <>
+                    <p className="font-bold text-slate-800 text-sm">{inv.clientName}</p>
+                    <p className="text-xs text-slate-500">{inv.order.project_name}</p>
+                    {!inv.isBalanceSummary && (
+                        <p className="text-[10px] text-slate-400 mt-0.5">
+                            <span
+                                className={`inline-block px-1.5 py-0.5 rounded border text-[10px] font-bold ${
+                                    inv.payment_type === 'ADVANCE'
+                                        ? 'bg-orange-50 text-orange-700 border-orange-200'
+                                        : 'bg-blue-50 text-blue-700 border-blue-200'
+                                }`}
+                            >
+                                {inv.payment_type === 'ADVANCE' ? 'Anticipo' : 'Avance'} · {inv.invoice_folio || 'S/F'}
+                            </span>
+                        </p>
+                    )}
+                    {inv.isBalanceSummary && (
+                        <p className="text-[10px] text-slate-500 mt-0.5">Resumen (sin factura CXC pendiente)</p>
+                    )}
+                </>
+            ),
+        },
+        {
+            key: 'ovDateYmd',
+            label: 'Fecha OV',
+            render: (inv) => (
+                <span className="text-sm text-slate-600 font-medium whitespace-nowrap">
+                    {new Date(inv.ovDateYmd).toLocaleDateString('es-MX')}
+                </span>
+            ),
+        },
+        {
+            key: 'orderTotal',
+            label: 'Importe OV',
+            render: (inv) => <span className="block text-right font-bold text-slate-800">{formatCurrency(inv.orderTotal)}</span>,
+        },
+        {
+            key: 'amount',
+            label: 'Saldo pendiente',
+            render: (inv) => <span className="block text-right font-black text-slate-900">{formatCurrency(Number(inv.amount))}</span>,
+        },
+        {
+            key: 'daysOverdue',
+            label: 'Vencido',
+            render: (inv) => {
+                const ven = vencidoLabel(inv.daysOverdue);
+                return (
+                    <div className="text-center">
+                        <span
+                            className={`inline-flex items-center justify-center gap-1 font-bold text-xs px-2 py-1 rounded border ${ven.className}`}
+                            title={`Antigüedad referencia: ${inv.daysOverdue} d`}
+                        >
+                            {inv.daysOverdue > 30 && <AlertTriangle size={14} />}
+                            {ven.text}
+                        </span>
+                    </div>
+                );
+            },
+        },
+        {
+            key: 'action',
+            label: 'Acción',
+            render: (inv) => (
+                <div className="text-center">
+                    <button
+                        onClick={() => {
+                            setSelectedOrderForStatement(inv.order);
+                            setIsStatementModalOpen(true);
+                        }}
+                        className={`px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm ${
+                            allowFinanceActions
+                                ? 'text-emerald-600 hover:text-white bg-emerald-50 hover:bg-emerald-600 border border-emerald-200'
+                                : 'text-indigo-600 hover:text-white bg-indigo-50 hover:bg-indigo-600 border border-indigo-200'
+                        }`}
+                    >
+                        {allowFinanceActions ? 'Abrir / Pagar' : 'Rayos X'}
+                    </button>
+                </div>
+            ),
+        },
+    ], [allowFinanceActions]);
 
     const handleGoBack = () => {
         if (variant === 'embedded') {
@@ -417,9 +509,9 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <Search size={18} className="text-slate-400" />
                         </div>
-                        <input
+                        <Input
                             type="text"
-                            className="w-full pl-10 pr-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-medium transition-all shadow-sm"
+                            className="pl-10 text-sm font-medium shadow-sm"
                             placeholder="Buscar cliente, proyecto o factura..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
@@ -428,86 +520,25 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
                 </div>
 
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500 font-bold">
-                                <SortableHeader field="CLIENT" label="Cliente / Proyecto" />
-                                <SortableHeader field="OV_DATE" label="Fecha OV" />
-                                <SortableHeader field="ORDER_TOTAL" label="Importe OV" align="right" />
-                                <SortableHeader field="BALANCE" label="Saldo pendiente" align="right" />
-                                <SortableHeader field="OVERDUE" label="Vencido" align="center" />
-                                <th className="p-4 text-center">Acción</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {sortedInvoices.length === 0 ? (
-                                <tr>
-                                    <td colSpan={6} className="p-12 text-center text-slate-500 italic text-lg">
-                                        {carteraRows.length === 0
-                                            ? 'No hay órdenes en cartera para tu perfil. Cuando tengas OVs activas aparecerán aquí con saldo o facturas pendientes.'
-                                            : 'No hay resultados para tu búsqueda.'}
-                                    </td>
-                                </tr>
-                            ) : (
-                                sortedInvoices.map((inv) => {
-                                    const ven = vencidoLabel(inv.daysOverdue);
-                                    return (
-                                        <tr key={inv.rowKey} className="hover:bg-slate-50 transition-colors">
-                                            <td className="p-4">
-                                                <p className="font-bold text-slate-800 text-sm">{inv.clientName}</p>
-                                                <p className="text-xs text-slate-500">{inv.order.project_name}</p>
-                                                {!inv.isBalanceSummary && (
-                                                    <p className="text-[10px] text-slate-400 mt-0.5">
-                                                        <span
-                                                            className={`inline-block px-1.5 py-0.5 rounded border text-[10px] font-bold ${
-                                                                inv.payment_type === 'ADVANCE'
-                                                                    ? 'bg-orange-50 text-orange-700 border-orange-200'
-                                                                    : 'bg-blue-50 text-blue-700 border-blue-200'
-                                                            }`}
-                                                        >
-                                                            {inv.payment_type === 'ADVANCE' ? 'Anticipo' : 'Avance'} · {inv.invoice_folio || 'S/F'}
-                                                        </span>
-                                                    </p>
-                                                )}
-                                                {inv.isBalanceSummary && (
-                                                    <p className="text-[10px] text-slate-500 mt-0.5">Resumen (sin factura CXC pendiente)</p>
-                                                )}
-                                            </td>
-                                            <td className="p-4 text-sm text-slate-600 font-medium whitespace-nowrap">
-                                                {new Date(inv.ovDateYmd).toLocaleDateString('es-MX')}
-                                            </td>
-                                            <td className="p-4 text-right font-bold text-slate-800">{formatCurrency(inv.orderTotal)}</td>
-                                            <td className="p-4 text-right font-black text-slate-900">{formatCurrency(Number(inv.amount))}</td>
-                                            <td className="p-4 text-center">
-                                                <span
-                                                    className={`inline-flex items-center justify-center gap-1 font-bold text-xs px-2 py-1 rounded border ${ven.className}`}
-                                                    title={`Antigüedad referencia: ${inv.daysOverdue} d`}
-                                                >
-                                                    {inv.daysOverdue > 30 && <AlertTriangle size={14} />}
-                                                    {ven.text}
-                                                </span>
-                                            </td>
-                                            <td className="p-4 text-center">
-                                                <button
-                                                    onClick={() => {
-                                                        setSelectedOrderForStatement(inv.order);
-                                                        setIsStatementModalOpen(true);
-                                                    }}
-                                                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm ${
-                                                        allowFinanceActions
-                                                            ? 'text-emerald-600 hover:text-white bg-emerald-50 hover:bg-emerald-600 border border-emerald-200'
-                                                            : 'text-indigo-600 hover:text-white bg-indigo-50 hover:bg-indigo-600 border border-indigo-200'
-                                                    }`}
-                                                >
-                                                    {allowFinanceActions ? 'Abrir / Pagar' : 'Rayos X'}
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    );
-                                })
-                            )}
-                        </tbody>
-                    </table>
+                    <div className="flex text-xs uppercase tracking-wider text-slate-500 font-bold bg-slate-50 border-b border-slate-200">
+                        <SortableHeader field="CLIENT" label="Cliente / Proyecto" />
+                        <SortableHeader field="OV_DATE" label="Fecha OV" className="w-32 shrink-0" />
+                        <SortableHeader field="ORDER_TOTAL" label="Importe OV" align="right" className="w-36 shrink-0" />
+                        <SortableHeader field="BALANCE" label="Saldo pendiente" align="right" className="w-40 shrink-0" />
+                        <SortableHeader field="OVERDUE" label="Vencido" align="center" className="w-32 shrink-0" />
+                        <div className="w-36 shrink-0 p-4 text-center">Acción</div>
+                    </div>
+                    <VTable
+                        columns={carteraColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+                        data={sortedInvoices as unknown as Record<string, unknown>[]}
+                        isLoading={isLoading && carteraRows.length === 0}
+                        emptyState={{
+                            title: carteraRows.length === 0
+                                ? 'No hay órdenes en cartera para tu perfil. Cuando tengas OVs activas aparecerán aquí con saldo o facturas pendientes.'
+                                : 'No hay resultados para tu búsqueda.',
+                        }}
+                        className="border-0 shadow-none rounded-none [&_thead]:hidden"
+                    />
                 </div>
             </div>
 

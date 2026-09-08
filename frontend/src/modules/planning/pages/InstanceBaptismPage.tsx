@@ -13,6 +13,7 @@
 
 import { useState } from 'react';
 import { planningService, BaptismEntry } from '../../../api/planning-service';
+import { Input } from '@/components/ui/Input';
 
 interface RawInstance {
   id: number;
@@ -104,12 +105,12 @@ export default function InstanceBaptismPage({
                   </p>
                   <p className="text-xs text-slate-400">Instancia #{idx + 1}</p>
                 </div>
-                <input
+                <Input
                   type="text"
                   value={names[inst.id] ?? ''}
                   onChange={e => handleChange(inst.id, e.target.value)}
                   placeholder={`Alias instancia #${idx + 1}`}
-                  className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent transition"
+                  className="rounded-xl"
                 />
               </div>
             ))}
