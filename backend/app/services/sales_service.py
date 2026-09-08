@@ -144,6 +144,45 @@ def collect_retention(session: Session, payment_id: int, current_user: User) -> 
         raise HTTPException(status_code=400, detail="Solo se puede cobrar retención en estatus INVOICED.")
     payment.retention_status = "COLLECTED"
     session.add(payment)
+
+    order = sales_repo.get_sales_order_by_id(session, payment.sales_order_id)
+    retention_amt = float(payment.retention_amount or 0.0)
+    if order and retention_amt > 0:
+        tax_rate_obj = sales_repo.get_tax_rate_by_id(session, order.tax_rate_id)
+        tax_multiplier = tax_rate_obj.rate if tax_rate_obj else 0.16
+        base_before_tax = retention_amt / (1.0 + tax_multiplier)
+        now = datetime.utcnow()
+        ref = f"Fondo de Garantía — {payment.invoice_folio or payment.id}"
+        seller_rate = normalize_commission(order.applied_commission_percent or 0.0)
+        if order.user_id and seller_rate > 0:
+            session.add(SalesCommission(
+                customer_payment_id=payment.id,
+                user_id=order.user_id,
+                commission_type=CommissionType.SELLER,
+                base_amount=base_before_tax,
+                rate=seller_rate,
+                commission_amount=base_before_tax * seller_rate,
+                is_advance=False,
+                is_released=True,
+                released_at=now,
+                admin_notes=ref,
+            ))
+        for director in sales_repo.get_directors(session):
+            dir_rate = normalize_commission(director.global_commission_rate or 0.0)
+            if dir_rate > 0:
+                session.add(SalesCommission(
+                    customer_payment_id=payment.id,
+                    user_id=director.id,
+                    commission_type=CommissionType.DIRECTOR_GLOBAL,
+                    base_amount=base_before_tax,
+                    rate=dir_rate,
+                    commission_amount=base_before_tax * dir_rate,
+                    is_advance=False,
+                    is_released=True,
+                    released_at=now,
+                    admin_notes=ref,
+                ))
+
     session.commit()
     session.refresh(payment)
     return payment
