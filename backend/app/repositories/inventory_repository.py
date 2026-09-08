@@ -6,6 +6,7 @@ from sqlmodel import Session, select
 
 from app.models.inventory import InventoryTransaction, PurchaseOrder, PurchaseOrderItem, InventoryAudit, InventoryAuditItem
 from app.models.material import Material
+from app.models.users import User
 
 
 def get_material_by_id(db: Session, material_id: int) -> Optional[Material]:
@@ -27,9 +28,10 @@ def get_kardex(
     material_id: int,
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
-) -> List[InventoryTransaction]:
+) -> List[tuple]:
     query = (
-        select(InventoryTransaction)
+        select(InventoryTransaction, User.full_name)
+        .outerjoin(User, User.email == InventoryTransaction.operator_badge)
         .where(InventoryTransaction.material_id == material_id)
         .order_by(InventoryTransaction.created_at, InventoryTransaction.id)
     )
@@ -111,3 +113,10 @@ def get_audit_item_by_id(db: Session, item_id: int) -> Optional[InventoryAuditIt
 
 def get_all_active_materials(db: Session) -> List[Material]:
     return list(db.exec(select(Material).where(Material.is_active == True)).all())  # noqa: E712
+
+
+def get_all_audits(db: Session, status: Optional[str] = None) -> List[InventoryAudit]:
+    query = select(InventoryAudit).order_by(InventoryAudit.created_at.desc())
+    if status is not None:
+        query = query.where(InventoryAudit.status == status)
+    return list(db.exec(query).all())

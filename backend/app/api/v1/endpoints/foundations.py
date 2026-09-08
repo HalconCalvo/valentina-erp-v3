@@ -551,6 +551,15 @@ def create_inventory_audit(current_user: CurrentUser, session: Session = Depends
     return inventory_service.create_audit_session(session, current_user)
 
 
+@router.get("/inventory/audits")
+def list_inventory_audits(
+    current_user: CurrentUser,
+    session: Session = Depends(get_session),
+    status: Optional[str] = None,
+):
+    return inventory_service.list_audit_sessions(session, current_user, status)
+
+
 @router.get("/inventory/audits/active")
 def get_active_inventory_audit(current_user: CurrentUser, session: Session = Depends(get_session)):
     return inventory_service.get_active_audit(session, current_user)

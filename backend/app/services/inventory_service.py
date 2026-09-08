@@ -28,6 +28,7 @@ REQUIRES_REASON = {"WASTE", "ADJUSTMENT_IN", "ADJUSTMENT_OUT"}
 KARDEX_VIEW_ROLES = {"DIRECTOR", "MANAGER", "ADMIN", "WAREHOUSE"}
 ADJUST_ROLES = {"DIRECTOR", "MANAGER", "ADMIN"}
 AUDIT_CAPTURE_ROLES = {"DIRECTOR", "MANAGER", "ADMIN"}
+AUDIT_LIST_ROLES = {"DIRECTOR", "MANAGER", "ADMIN"}
 AUDIT_APPROVE_ROLES = {"DIRECTOR", "MANAGER"}
 AUDIT_CANCEL_ROLES = {"DIRECTOR", "MANAGER", "ADMIN"}
 VARIANCE_THRESHOLD = 0.05
@@ -296,7 +297,7 @@ def get_material_kardex(
     rows = inventory_repo.get_kardex(session, material_id, date_from, date_to)
     saldo = 0.0
     entries = []
-    for row in rows:
+    for row, operator_name in rows:
         saldo += float(row.quantity or 0.0)
         entries.append(
             {
@@ -311,6 +312,7 @@ def get_material_kardex(
                 "reception_id": row.reception_id,
                 "created_at": row.created_at,
                 "saldo_acumulado": round(saldo, 4),
+                "operator_name": operator_name,
             }
         )
     return {
@@ -699,3 +701,24 @@ def get_audit_detail(session: Session, audit_id: int, current_user) -> dict:
     if not audit:
         raise HTTPException(status_code=404, detail="Sesión de inventario no encontrada.")
     return _serialize_audit(session, audit, current_user)
+
+
+def _serialize_audit_list_item(session: Session, audit: InventoryAudit) -> dict:
+    items = inventory_repo.get_audit_items(session, audit.id)
+    return {
+        "id": audit.id,
+        "status": audit.status,
+        "created_at": audit.created_at,
+        "scheduled_date": audit.scheduled_date,
+        "auditor_id": audit.auditor_id,
+        "authorized_by_id": audit.authorized_by_id,
+        "notes": audit.notes,
+        "items_total": len(items),
+        "items_captured": sum(1 for i in items if i.counted_quantity is not None),
+    }
+
+
+def list_audit_sessions(session: Session, current_user, status: Optional[str] = None) -> list[dict]:
+    _assert_roles(current_user, AUDIT_LIST_ROLES)
+    audits = inventory_repo.get_all_audits(session, status)
+    return [_serialize_audit_list_item(session, audit) for audit in audits]

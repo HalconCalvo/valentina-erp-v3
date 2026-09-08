@@ -1,24 +1,33 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import axiosClient from '../../../api/axios-client';
-import { ClipboardList, DollarSign, Printer, ClipboardCheck } from 'lucide-react';
-import { Card } from '@/components/ui/Card';
-import { MaterialForm } from './MaterialForm';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ClipboardCheck,
+  Play,
+  Send,
+  XCircle,
+  CheckCircle2,
+  Check,
+  History,
+  Loader2,
+  Search,
+  RefreshCw,
+} from 'lucide-react';
+import axiosClient from '@/api/axios-client';
+import {
+  AuditItemRead,
+  AuditSessionRead,
+  AuditSessionSummary,
+  inventoryService,
+} from '@/api/inventory-service';
+import { useCurrentUser } from '@/hooks/useSalesDashboard';
+import { Input } from '@/components/ui/Input';
+import Modal from '@/components/ui/Modal';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import { VEmptyState } from '@/components/ui/VEmptyState';
+import { VTable, VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
 
-type SubSection = 'CONTEO' | 'AJUSTES' | 'COSTEO' | null;
-type Tab = 'REPORTE' | 'CAPTURA';
-
-interface Material {
-  id: number;
-  sku: string;
-  name: string;
-  category: string;
-  usage_unit: string;
-  physical_stock: number;
-  current_cost: number;
-  conversion_factor: number;
-  provider_name: string | null;
+interface MaterialUnitMap {
+  [materialId: number]: string;
 }
 
 interface PhysicalInventoryModuleProps {
@@ -26,803 +35,782 @@ interface PhysicalInventoryModuleProps {
   onSubSectionChange?: (section: string | null) => void;
 }
 
-const AjustesInventario: React.FC<{ materials: any[]; onSaved: () => void }> = ({ materials, onSaved }) => {
-    const [matSearch, setMatSearch] = useState('');
-    const [selectedMat, setSelectedMat] = useState<any | null>(null);
-    const [showDropdown, setShowDropdown] = useState(false);
-    const [qty, setQty] = useState('');
-    const [motivo, setMotivo] = useState('');
-    const [saving, setSaving] = useState(false);
-    const [historial, setHistorial] = useState<any[]>([]);
+type ReasonModalKind = 'cancel' | 'reject';
 
-    const filtered = materials.filter(m =>
-        m.name.toLowerCase().includes(matSearch.toLowerCase()) ||
-        m.sku.toLowerCase().includes(matSearch.toLowerCase())
-    );
-
-    const handleSave = async () => {
-        if (!selectedMat || !qty || !motivo.trim()) {
-            toast.warning('Completa todos los campos.');
-            return;
-        }
-        setSaving(true);
-        try {
-            await axiosClient.post(`/foundations/materials/${selectedMat.id}/adjust`, {
-                quantity_adjustment: parseFloat(qty),
-                reason: motivo.trim(),
-            });
-            setSelectedMat(null);
-            setMatSearch('');
-            setQty('');
-            setMotivo('');
-            onSaved();
-            toast.success('Ajuste aplicado correctamente.');
-        } catch (e: any) {
-            toast.error(e.response?.data?.detail || 'Error al aplicar ajuste.');
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    return (
-        <div className="space-y-6 max-w-xl">
-            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6 space-y-4">
-                <p className="text-xs font-black text-blue-700 uppercase tracking-widest">Nuevo Ajuste</p>
-                <div className="relative">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">Material</label>
-                    <input
-                        type="text"
-                        placeholder="Buscar por SKU o descripción..."
-                        value={matSearch}
-                        onChange={e => { setMatSearch(e.target.value); setSelectedMat(null); setShowDropdown(true); }}
-                        onFocus={() => setShowDropdown(true)}
-                        className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400"
-                    />
-                    {showDropdown && matSearch && filtered.length > 0 && (
-                        <div className="absolute z-20 w-full bg-white border border-slate-200 rounded-xl shadow-xl mt-1 max-h-48 overflow-y-auto">
-                            {filtered.slice(0, 8).map(m => (
-                                <div key={m.id}
-                                    onClick={() => { setSelectedMat(m); setMatSearch(`[${m.sku}] ${m.name}`); setShowDropdown(false); }}
-                                    className="px-4 py-2.5 hover:bg-blue-50 cursor-pointer text-sm font-medium text-slate-700">
-                                    <span className="font-mono text-xs text-blue-600 mr-2">{m.sku}</span>{m.name}
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-                <div>
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">Cantidad a ajustar (positiva o negativa)</label>
-                    <input
-                        type="number"
-                        step="0.01"
-                        placeholder="Ej. -5 o +10"
-                        value={qty}
-                        onChange={e => setQty(e.target.value)}
-                        className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400"
-                    />
-                </div>
-                <div>
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">Motivo (obligatorio)</label>
-                    <textarea
-                        placeholder="Ej. Error detectado en conteo de julio..."
-                        value={motivo}
-                        onChange={e => setMotivo(e.target.value)}
-                        rows={3}
-                        className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400 resize-none"
-                    />
-                </div>
-                <button
-                    onClick={handleSave}
-                    disabled={saving || !selectedMat || !qty || !motivo.trim()}
-                    className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl transition-colors disabled:opacity-50"
-                >
-                    {saving ? 'Aplicando...' : 'Aplicar Ajuste'}
-                </button>
-            </div>
-        </div>
-    );
+const STATUS_LABELS: Record<string, string> = {
+  EN_CAPTURA: 'En captura',
+  ESPERANDO_AUTORIZACION: 'Esperando autorización',
+  CERRADA: 'Cerrada',
+  CANCELADA: 'Cancelada',
 };
 
-export const PhysicalInventoryModule = ({ activeSubSection, onSubSectionChange }: PhysicalInventoryModuleProps = {}) => {
-  const [internalSection, setInternalSection] = useState<SubSection>(null);
-  const activeSection = (activeSubSection !== undefined ? activeSubSection : internalSection) as SubSection;
-  const setActiveSection = (s: SubSection) => {
-    if (onSubSectionChange) onSubSectionChange(s);
-    else setInternalSection(s);
-  };
-  const [materials, setMaterials] = useState<Material[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [categoryFilter, setCategoryFilter] = useState('ALL');
-  const [categories, setCategories] = useState<string[]>([]);
-  const [countEntries, setCountEntries] = useState<Record<number, string>>({});
-  const [saving, setSaving] = useState(false);
-  const [savedIds, setSavedIds] = useState<number[]>([]);
-  const [activeTab, setActiveTab] = useState<Tab>('REPORTE');
-  const [sortKey, setSortKey] = useState<'sku' | 'name' | 'category'>('sku');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-  const [skuInput, setSkuInput] = useState('');
-  const [quickMaterial, setQuickMaterial] = useState<Material | null>(null);
-  const [quickQty, setQuickQty] = useState('');
-  const [quickSaved, setQuickSaved] = useState(false);
-  const [skuNotFound, setSkuNotFound] = useState(false);
-  const [showMaterialFormInCount, setShowMaterialFormInCount] = useState(false);
-  const [pendingConfirm, setPendingConfirm] = useState<{ kind: 'adjustAll'; count: number } | null>(null);
-  const [fechaConteo, setFechaConteo] = useState<string>(
-    new Date().toISOString().split('T')[0]   // hoy en formato YYYY-MM-DD
-  );
-  const skuInputRef = useRef<HTMLInputElement>(null);
-  const qtyInputRef = useRef<HTMLInputElement>(null);
+const formatQty = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || Number.isNaN(value)) return '—';
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+};
 
-  const loadMaterials = useCallback(async () => {
+const variancePercent = (systemQty: number, variance: number): number => {
+  if (Math.abs(systemQty) < 0.0001) {
+    return Math.abs(variance) > 0.0001 ? 100 : 0;
+  }
+  return (variance / systemQty) * 100;
+};
+
+export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = () => {
+  const { data: currentUser } = useCurrentUser();
+  const userRole = String(currentUser?.role ?? '').toUpperCase().trim();
+  const canApprove = userRole === 'DIRECTOR' || userRole === 'MANAGER';
+
+  const [loading, setLoading] = useState(true);
+  const [audit, setAudit] = useState<AuditSessionRead | null>(null);
+  const [history, setHistory] = useState<AuditSessionSummary[]>([]);
+  const [viewingClosedId, setViewingClosedId] = useState<number | null>(null);
+  const [closedAudit, setClosedAudit] = useState<AuditSessionRead | null>(null);
+
+  const [search, setSearch] = useState('');
+  const [draftQty, setDraftQty] = useState<Record<number, string>>({});
+  const [savingItemId, setSavingItemId] = useState<number | null>(null);
+  const [processing, setProcessing] = useState(false);
+  const [unitMap, setUnitMap] = useState<MaterialUnitMap>({});
+
+  const [reasonModal, setReasonModal] = useState<{ open: boolean; kind: ReasonModalKind }>({
+    open: false,
+    kind: 'cancel',
+  });
+  const [reasonText, setReasonText] = useState('');
+  const [submitConfirm, setSubmitConfirm] = useState(false);
+  const [approveAllConfirm, setApproveAllConfirm] = useState(false);
+
+  const loadUnits = useCallback(async () => {
+    try {
+      const response = await axiosClient.get('/foundations/materials');
+      const materials = Array.isArray(response.data) ? response.data : [];
+      const map: MaterialUnitMap = {};
+      materials.forEach((m: { id: number; usage_unit?: string }) => {
+        map[m.id] = m.usage_unit || '—';
+      });
+      setUnitMap(map);
+    } catch {
+      setUnitMap({});
+    }
+  }, []);
+
+  const loadHistory = useCallback(async () => {
+    try {
+      const sessions = await inventoryService.listAuditSessions();
+      setHistory(
+        sessions.filter((s) => s.status === 'CERRADA' || s.status === 'CANCELADA'),
+      );
+    } catch {
+      setHistory([]);
+    }
+  }, []);
+
+  const refreshActive = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await axiosClient.get('/foundations/materials');
-      setMaterials(res.data);
-      const cats = [...new Set(res.data.map((m: Material) => m.category))].sort() as string[];
-      setCategories(cats);
+      const active = await inventoryService.getActiveAudit();
+      setAudit(active);
+      if (active) {
+        const drafts: Record<number, string> = {};
+        active.items.forEach((item) => {
+          if (item.counted_quantity !== null && item.counted_quantity !== undefined) {
+            drafts[item.id] = String(item.counted_quantity);
+          }
+        });
+        setDraftQty(drafts);
+        setViewingClosedId(null);
+        setClosedAudit(null);
+      }
+    } catch (e: unknown) {
+      const detail =
+        e && typeof e === 'object' && 'response' in e
+          ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
+      toast.error(typeof detail === 'string' ? detail : 'Error al cargar sesión activa.');
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { loadMaterials(); }, [loadMaterials]);
+  useEffect(() => {
+    void loadUnits();
+    void refreshActive();
+    void loadHistory();
+  }, [loadUnits, refreshActive, loadHistory]);
 
-  const filtered = categoryFilter === 'ALL'
-    ? materials
-    : materials.filter(m => m.category === categoryFilter);
-
-  const totalValuation = filtered.reduce((sum, m) => {
-    const costPerUse = m.current_cost / (m.conversion_factor || 1);
-    return sum + m.physical_stock * costPerUse;
-  }, 0);
-
-  const sorted = [...filtered].sort((a, b) => {
-    const valA = a[sortKey].toLowerCase();
-    const valB = b[sortKey].toLowerCase();
-    return sortDir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
-  });
-
-  const SortHeader = ({ col, label }: { col: 'sku' | 'name' | 'category'; label: string }) => {
-    const active = sortKey === col;
-    const arrow = active ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ' ↕';
-    return (
-      <th
-        className="px-4 py-3 text-left font-bold cursor-pointer select-none hover:bg-slate-200 transition-colors"
-        onClick={() => {
-          if (active) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-          else { setSortKey(col); setSortDir('asc'); }
-        }}
-      >
-        {label}<span className="text-slate-400 text-xs">{arrow}</span>
-      </th>
-    );
-  };
-
-  const handlePrint = () => {
-    const rows = sorted.map(m =>
-      `<tr>
-        <td style="padding:6px 8px;border:1px solid #ddd;font-family:monospace;font-size:11px">${m.sku}</td>
-        <td style="padding:6px 8px;border:1px solid #ddd;font-size:12px">${m.name}</td>
-        <td style="padding:6px 8px;border:1px solid #ddd;font-size:12px">${m.category}</td>
-        <td style="padding:6px 8px;border:1px solid #ddd;font-size:12px;text-align:center">${m.usage_unit}</td>
-        <td style="padding:6px 8px;border:1px solid #ddd;min-width:80px">&nbsp;</td>
-      </tr>`
-    ).join('');
-    const html = `<html><head><title>Inventario Físico</title>
-      <style>body{font-family:Arial,sans-serif;padding:20px}h2{font-size:16px}table{width:100%;border-collapse:collapse}th{background:#f1f5f9;padding:6px 8px;border:1px solid #ddd;font-size:11px;text-align:left}</style>
-      </head><body>
-      <h2>📋 Reporte de Inventario Físico — ${new Date().toLocaleDateString('es-MX', { day:'2-digit', month:'long', year:'numeric' })}</h2>
-      <p style="font-size:11px;color:#666">Categoría: ${categoryFilter === 'ALL' ? 'Todas' : categoryFilter} · Total materiales: ${sorted.length}</p>
-      <table><thead><tr>
-        <th>SKU</th><th>Material</th><th>Categoría</th><th>Unidad de Uso</th><th>Cantidad Física</th>
-      </tr></thead><tbody>${rows}</tbody></table>
-      </body></html>`;
-    const w = window.open('', '_blank');
-    if (w) { w.document.write(html); w.document.close(); w.print(); }
-  };
-
-  const handleAdjust = async (material: Material) => {
-    const val = countEntries[material.id];
-    if (val === undefined || val === '') return;
-    setSaving(true);
+  const handleStartSession = async () => {
+    setProcessing(true);
     try {
-      await axiosClient.post(`/foundations/materials/${material.id}/physical-count`, {
-        counted_quantity: parseFloat(val),
-        fecha_conteo: fechaConteo,
-        notes: `Inventario físico ${fechaConteo}`,
-      });
-      setSavedIds(prev => [...prev, material.id]);
-      await loadMaterials();
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Error al guardar ajuste.');
-    }
-    finally { setSaving(false); }
-  };
-
-  const executeAdjustAll = async () => {
-    const entries = Object.entries(countEntries).filter(([, v]) => v !== '');
-    setSaving(true);
-    try {
-      for (const [id, val] of entries) {
-        await axiosClient.post(`/foundations/materials/${id}/physical-count`, {
-          counted_quantity: parseFloat(val),
-          fecha_conteo: fechaConteo,
-          notes: `Inventario físico ${fechaConteo}`,
-        });
-        setSavedIds(prev => [...prev, parseInt(id)]);
-      }
-      await loadMaterials();
-      setCountEntries({});
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Error al guardar ajustes.');
+      const session = await inventoryService.createAuditSession();
+      setAudit(session);
+      setDraftQty({});
+      toast.success('Sesión de conteo iniciada.');
+    } catch (e: unknown) {
+      const detail =
+        e && typeof e === 'object' && 'response' in e
+          ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
+      toast.error(typeof detail === 'string' ? detail : 'No se pudo iniciar la sesión.');
     } finally {
-      setSaving(false);
+      setProcessing(false);
     }
   };
 
-  const handleAdjustAll = () => {
-    const entries = Object.entries(countEntries).filter(([, v]) => v !== '');
-    if (entries.length === 0) {
-      toast.warning('No hay cantidades capturadas.');
+  const handleSaveItem = async (item: AuditItemRead, quantityStr?: string) => {
+    if (!audit) return;
+    const raw = quantityStr ?? draftQty[item.id] ?? '';
+    const qty = parseFloat(raw);
+    if (Number.isNaN(qty) || qty < 0) {
+      toast.warning('Captura una cantidad válida.');
       return;
     }
-    setPendingConfirm({ kind: 'adjustAll', count: entries.length });
+    setSavingItemId(item.id);
+    try {
+      await inventoryService.captureCount(audit.id, item.id, qty);
+      const updated = await inventoryService.getAuditDetail(audit.id);
+      setAudit(updated);
+      toast.success(`${item.material_sku || item.material_name} guardado.`);
+    } catch (e: unknown) {
+      const detail =
+        e && typeof e === 'object' && 'response' in e
+          ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
+      toast.error(typeof detail === 'string' ? detail : 'Error al guardar captura.');
+    } finally {
+      setSavingItemId(null);
+    }
   };
 
-  const handleSkuSearch = (sku: string) => {
-      if (!sku.trim()) return;
-      const found = materials.find(
-          m => m.sku.trim().toUpperCase() === sku.trim().toUpperCase()
-      );
-      if (found) {
-          setQuickMaterial(found);
-          setSkuNotFound(false);
-          setQuickQty('');
-          setQuickSaved(false);
-          setTimeout(() => qtyInputRef.current?.focus(), 50);
+  const handleSubmit = async () => {
+    if (!audit) return;
+    setProcessing(true);
+    try {
+      const result = await inventoryService.submitAudit(audit.id);
+      setAudit(result.status === 'CERRADA' ? null : result);
+      if (result.status === 'CERRADA') {
+        setClosedAudit(result);
+        setViewingClosedId(result.id);
+        await loadHistory();
+        toast.success('Conteo enviado. Todos los ajustes se aplicaron automáticamente.');
       } else {
-          setQuickMaterial(null);
-          setSkuNotFound(true);
+        toast.success('Conteo enviado. Hay materiales pendientes de aprobación.');
       }
+    } catch (e: unknown) {
+      const detail =
+        e && typeof e === 'object' && 'response' in e
+          ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
+      toast.error(typeof detail === 'string' ? detail : 'Error al enviar conteo.');
+    } finally {
+      setProcessing(false);
+      setSubmitConfirm(false);
+    }
   };
 
-  const handleQuickSave = async () => {
-      if (!quickMaterial || quickQty === '' || saving) return;
-      setSaving(true);
-      try {
-          await axiosClient.post(
-              `/foundations/materials/${quickMaterial.id}/physical-count`,
-              {
-                  counted_quantity: parseFloat(quickQty),
-                  fecha_conteo: fechaConteo,
-                  notes: `Inventario físico ${fechaConteo}`,
+  const handleApproveItem = async (item: AuditItemRead) => {
+    if (!audit) return;
+    setSavingItemId(item.id);
+    try {
+      await inventoryService.approveAuditItem(audit.id, item.id);
+      const updated = await inventoryService.getAuditDetail(audit.id);
+      if (updated.status === 'CERRADA') {
+        setAudit(null);
+        setClosedAudit(updated);
+        setViewingClosedId(updated.id);
+        await loadHistory();
+        toast.success('Material aprobado. Sesión cerrada.');
+      } else {
+        setAudit(updated);
+        toast.success('Material aprobado.');
+      }
+    } catch (e: unknown) {
+      const detail =
+        e && typeof e === 'object' && 'response' in e
+          ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
+      toast.error(typeof detail === 'string' ? detail : 'Error al aprobar material.');
+    } finally {
+      setSavingItemId(null);
+    }
+  };
+
+  const handleApproveAll = async () => {
+    if (!audit) return;
+    setProcessing(true);
+    try {
+      const updated = await inventoryService.approveAllAudit(audit.id);
+      setAudit(null);
+      setClosedAudit(updated);
+      setViewingClosedId(updated.id);
+      await loadHistory();
+      toast.success('Todos los materiales aprobados. Sesión cerrada.');
+    } catch (e: unknown) {
+      const detail =
+        e && typeof e === 'object' && 'response' in e
+          ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
+      toast.error(typeof detail === 'string' ? detail : 'Error al aprobar sesión.');
+    } finally {
+      setProcessing(false);
+      setApproveAllConfirm(false);
+    }
+  };
+
+  const handleReasonConfirm = async () => {
+    if (!audit || !reasonText.trim()) {
+      toast.warning('El motivo es obligatorio.');
+      return;
+    }
+    setProcessing(true);
+    try {
+      if (reasonModal.kind === 'cancel') {
+        await inventoryService.cancelAudit(audit.id, reasonText.trim());
+        setAudit(null);
+        await loadHistory();
+        toast.success('Sesión cancelada.');
+      } else {
+        const updated = await inventoryService.rejectAudit(audit.id, reasonText.trim());
+        setAudit(updated);
+        toast.success('Sesión rechazada. Regresó a captura.');
+      }
+      setReasonModal({ open: false, kind: 'cancel' });
+      setReasonText('');
+    } catch (e: unknown) {
+      const detail =
+        e && typeof e === 'object' && 'response' in e
+          ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
+      toast.error(typeof detail === 'string' ? detail : 'Error al procesar la acción.');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const openHistorySession = async (entry: AuditSessionSummary) => {
+    setProcessing(true);
+    try {
+      const detail = await inventoryService.getAuditDetail(entry.id);
+      setClosedAudit(detail);
+      setViewingClosedId(entry.id);
+    } catch {
+      toast.error('No se pudo cargar el detalle de la sesión.');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const filteredCaptureItems = useMemo(() => {
+    if (!audit) return [];
+    const term = search.trim().toLowerCase();
+    return audit.items.filter((item) => {
+      if (!term) return true;
+      const name = (item.material_name || '').toLowerCase();
+      const sku = (item.material_sku || '').toLowerCase();
+      return name.includes(term) || sku.includes(term);
+    });
+  }, [audit, search]);
+
+  const pendingApprovalItems = useMemo(() => {
+    if (!audit) return [];
+    return audit.items.filter(
+      (item) =>
+        item.requires_approval &&
+        !item.approved_at &&
+        Math.abs(item.variance ?? 0) > 0.0001,
+    );
+  }, [audit]);
+
+  const allCaptured =
+    audit != null &&
+    audit.items.length > 0 &&
+    audit.items.every((item) => item.captured || item.counted_quantity !== null);
+
+  const captureColumns: VTableColumn<AuditItemRead>[] = [
+    {
+      key: 'material_sku',
+      label: 'SKU',
+      sortable: true,
+      width: '120px',
+      render: (row) => <span className="font-mono text-xs">{row.material_sku || '—'}</span>,
+    },
+    {
+      key: 'material_name',
+      label: 'Material',
+      sortable: true,
+      render: (row) => <span className="font-medium">{row.material_name || '—'}</span>,
+    },
+    {
+      key: 'usage_unit',
+      label: 'Unidad',
+      width: '90px',
+      render: (row) => unitMap[row.material_id] || '—',
+    },
+    {
+      key: 'counted_quantity',
+      label: 'Cantidad contada',
+      width: '220px',
+      render: (row) => (
+        <div className="flex items-center gap-2">
+          <Input
+            type="number"
+            min={0}
+            step="any"
+            value={draftQty[row.id] ?? ''}
+            onChange={(e) => setDraftQty((prev) => ({ ...prev, [row.id]: e.target.value }))}
+            onBlur={() => {
+              const val = draftQty[row.id];
+              if (val !== undefined && val !== '') {
+                void handleSaveItem(row, val);
               }
-          );
-          setCountEntries(prev => ({
-              ...prev,
-              [quickMaterial.id]: quickQty
-          }));
-          setSavedIds(prev => [...prev, quickMaterial.id]);
-          setQuickSaved(true);
-          await loadMaterials();
-          setTimeout(() => {
-              setSkuInput('');
-              setQuickMaterial(null);
-              setQuickQty('');
-              setQuickSaved(false);
-              setSkuNotFound(false);
-              skuInputRef.current?.focus();
-          }, 800);
-      } catch (error: any) {
-          toast.error(error.response?.data?.detail || 'Error al guardar ajuste.');
-      } finally {
-          setSaving(false);
-      }
-  };
-
-  const FilterBar = () => (
-    <div className="flex items-center gap-3">
-      <label className="text-xs font-bold text-slate-500 uppercase">Categoría:</label>
-      <select
-        value={categoryFilter}
-        onChange={e => setCategoryFilter(e.target.value)}
-        className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 font-medium text-slate-700 bg-white"
-      >
-        <option value="ALL">Todas</option>
-        {categories.map(c => <option key={c} value={c}>{c}</option>)}
-      </select>
-      <span className="text-xs text-slate-400">{filtered.length} materiales</span>
-    </div>
-  );
-
-  // ─── DASHBOARD DE SUB-TARJETAS ───────────────────────────────────────────
-  if (!activeSection) return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap gap-6 mt-2">
-
-        {/* SUB-TARJETA 1 — CONTEO */}
-        <div className="w-full md:w-[calc(33.333%-16px)] relative h-40">
-          <Card
-            onClick={() => { setActiveSection('CONTEO'); setActiveTab('REPORTE'); setSavedIds([]); setCountEntries({}); }}
-            className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-orange-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group"
+            }}
+            placeholder="0.00"
+            className="max-w-[120px]"
+            disabled={savingItemId === row.id || processing}
+          />
+          <button
+            type="button"
+            title="Guardar captura"
+            disabled={savingItemId === row.id || processing}
+            onClick={() => void handleSaveItem(row)}
+            className="rounded-lg p-2 text-indigo-600 hover:bg-indigo-50 disabled:opacity-50"
           >
-            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-orange-50 text-orange-600 border-r border-orange-100 transition-colors group-hover:bg-orange-100">
-              <ClipboardList size={28} />
-            </div>
-            <div className="ml-16 h-full flex flex-col justify-between">
-              <div className="flex justify-between items-start">
-                <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">1. Conteo de Inventario</p>
-                <ClipboardList size={16} className="text-orange-400" />
-              </div>
-              <div className="mt-2">
-                <div className="text-2xl font-black text-orange-600 tracking-tight">Conteo Físico</div>
-                <p className="text-xs text-slate-400 mt-1">Reporte ciego e captura de ajustes</p>
-              </div>
-              <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
-                <p className="text-[10px] text-slate-400 font-bold uppercase">Imprimir · Capturar · Ajustar</p>
-              </div>
-            </div>
-          </Card>
+            {savingItemId === row.id ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+          </button>
+        </div>
+      ),
+    },
+  ];
+
+  const approvalColumns: VTableColumn<AuditItemRead>[] = [
+    {
+      key: 'material_name',
+      label: 'Material',
+      sortable: true,
+      render: (row) => (
+        <div>
+          <div className="font-medium">{row.material_name}</div>
+          <div className="font-mono text-xs text-slate-400">{row.material_sku}</div>
+        </div>
+      ),
+    },
+    {
+      key: 'counted_quantity',
+      label: 'Contado',
+      render: (row) => formatQty(row.counted_quantity),
+    },
+    {
+      key: 'system_quantity',
+      label: 'Sistema',
+      render: (row) => formatQty(row.system_quantity),
+    },
+    {
+      key: 'variance',
+      label: 'Diferencia',
+      render: (row) => {
+        const v = row.variance ?? 0;
+        const color = v > 0 ? 'text-emerald-600' : v < 0 ? 'text-red-600' : 'text-slate-500';
+        return <span className={`font-bold ${color}`}>{formatQty(v)}</span>;
+      },
+    },
+    {
+      key: 'variance_pct',
+      label: '% Dif.',
+      render: (row) => {
+        const pct = variancePercent(row.system_quantity ?? 0, row.variance ?? 0);
+        return <span className="font-bold text-amber-700">{formatQty(pct)}%</span>;
+      },
+    },
+  ];
+
+  const closedColumns: VTableColumn<AuditItemRead>[] = [
+    {
+      key: 'material_sku',
+      label: 'SKU',
+      render: (row) => <span className="font-mono text-xs">{row.material_sku}</span>,
+    },
+    {
+      key: 'material_name',
+      label: 'Material',
+      render: (row) => row.material_name,
+    },
+    {
+      key: 'system_quantity',
+      label: 'Sistema',
+      render: (row) => formatQty(row.system_quantity),
+    },
+    {
+      key: 'counted_quantity',
+      label: 'Contado',
+      render: (row) => formatQty(row.counted_quantity),
+    },
+    {
+      key: 'variance',
+      label: 'Ajuste',
+      render: (row) => {
+        const v = row.variance ?? 0;
+        if (Math.abs(v) <= 0.0001) return '—';
+        const color = v > 0 ? 'text-emerald-600' : 'text-red-600';
+        return <span className={`font-bold ${color}`}>{formatQty(v)}</span>;
+      },
+    },
+    {
+      key: 'resolved',
+      label: 'Estado',
+      render: (row) =>
+        row.resolved ? (
+          <span className="text-emerald-600 font-bold text-xs uppercase">Aplicado</span>
+        ) : (
+          <span className="text-slate-400 text-xs uppercase">Sin ajuste</span>
+        ),
+    },
+  ];
+
+  if (loading) {
+    return (
+      <VEmptyState
+        icon={<Loader2 className="animate-spin text-slate-300" size={48} />}
+        title="Cargando inventario físico..."
+      />
+    );
+  }
+
+  if (viewingClosedId && closedAudit) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h3 className="text-xl font-black text-slate-800">
+              Sesión #{closedAudit.id} — {STATUS_LABELS[closedAudit.status] || closedAudit.status}
+            </h3>
+            <p className="text-sm text-slate-500 mt-1">
+              {closedAudit.items_captured} de {closedAudit.items_total} materiales capturados
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setViewingClosedId(null);
+              setClosedAudit(null);
+              void refreshActive();
+            }}
+            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700"
+          >
+            <Play size={16} /> Nueva sesión
+          </button>
         </div>
 
-        {/* SUB-TARJETA 2 — COSTEO */}
-        <div className="w-full md:w-[calc(33.333%-16px)] relative h-40">
-          <Card
-            onClick={() => setActiveSection('COSTEO')}
-            className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-emerald-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group"
-          >
-            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-emerald-50 text-emerald-600 border-r border-emerald-100 transition-colors group-hover:bg-emerald-100">
-              <DollarSign size={28} />
-            </div>
-            <div className="ml-16 h-full flex flex-col justify-between">
-              <div className="flex justify-between items-start">
-                <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">2. Costeo de Inventario</p>
-                <DollarSign size={16} className="text-emerald-400" />
-              </div>
-              <div className="mt-2">
-                <div className="text-2xl font-black text-emerald-600 tracking-tight">Valuación</div>
-                <p className="text-xs text-slate-400 mt-1">Stock × último precio de compra</p>
-              </div>
-              <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
-                <p className="text-[10px] text-slate-400 font-bold uppercase">El dinero dormido en almacén</p>
-              </div>
-            </div>
-          </Card>
-        </div>
-
-        <div className="w-full md:w-[calc(33.333%-16px)] relative h-40">
-          <Card
-            onClick={() => setActiveSection('AJUSTES')}
-            className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-blue-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group"
-          >
-            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-blue-50 text-blue-600 border-r border-blue-100 transition-colors group-hover:bg-blue-100">
-              <ClipboardCheck size={28} />
-            </div>
-            <div className="ml-16 h-full flex flex-col justify-between">
-              <div className="flex justify-between items-start">
-                <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">3. Ajustes</p>
-                <ClipboardCheck size={16} className="text-blue-400" />
-              </div>
-              <div className="mt-2">
-                <div className="text-2xl font-black text-blue-600 tracking-tight">Ajustar</div>
-                <p className="text-xs text-slate-400 mt-1">Corregir diferencias de inventario</p>
-              </div>
-              <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
-                <p className="text-[10px] text-slate-400 font-bold uppercase">Material · Cantidad · Motivo</p>
-              </div>
-            </div>
-          </Card>
-        </div>
+        {closedAudit.status === 'CERRADA' ? (
+          <VTable columns={closedColumns} data={closedAudit.items as AuditItemRead[]} />
+        ) : (
+          <VEmptyState
+            icon={<XCircle className="text-red-300" size={48} />}
+            title="Sesión cancelada"
+            description={closedAudit.notes || 'Esta sesión fue cancelada y no generó ajustes.'}
+          />
+        )}
       </div>
-    </div>
-  );
+    );
+  }
 
-  // ─── SECCIÓN CONTEO ──────────────────────────────────────────────────────
-  if (activeSection === 'CONTEO') return (
-    <div className="space-y-6">
-      {/* Tabs */}
-      <div className="flex gap-2 border-b border-slate-200">
-        {([['REPORTE', '📋 Reporte de Conteo'], ['CAPTURA', '✏️ Captura de Inventario']] as [Tab, string][]).map(([key, label]) => (
-          <button key={key} onClick={() => setActiveTab(key)}
-            className={`px-4 py-2.5 text-sm font-bold rounded-t-lg border-b-2 transition-all ${
-              activeTab === key
-                ? 'border-orange-500 text-orange-700 bg-orange-50'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-            }`}>{label}</button>
-        ))}
-      </div>
-
-      <FilterBar />
-
-      {/* TAB REPORTE */}
-      {activeTab === 'REPORTE' && (
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <p className="text-sm text-slate-500">Imprime este reporte para el conteo físico. <strong>No muestra cantidades del sistema.</strong></p>
-            <button onClick={handlePrint}
-              className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold rounded-lg transition">
-              <Printer size={15}/> Imprimir Reporte
+  if (audit?.status === 'EN_CAPTURA') {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-orange-200 bg-orange-50 p-4">
+          <div>
+            <p className="text-xs font-black uppercase tracking-widest text-orange-700">Sesión #{audit.id}</p>
+            <p className="text-sm text-orange-800 font-medium mt-1">
+              Conteo ciego — {audit.items_captured} / {audit.items_total} capturados
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={!allCaptured || processing}
+              onClick={() => setSubmitConfirm(true)}
+              className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+            >
+              <Send size={16} /> Enviar para aprobación
+            </button>
+            <button
+              type="button"
+              disabled={processing}
+              onClick={() => setReasonModal({ open: true, kind: 'cancel' })}
+              className="flex items-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
+            >
+              <XCircle size={16} /> Cancelar sesión
             </button>
           </div>
-          {loading ? <div className="text-center py-12 text-slate-400">Cargando...</div> : (
-            <div className="border border-slate-200 rounded-xl overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-100 text-slate-600 text-xs uppercase tracking-wider">
-                  <tr>
-                    <SortHeader col="sku" label="SKU" />
-                    <SortHeader col="name" label="Material" />
-                    <SortHeader col="category" label="Categoría" />
-                    <th className="px-4 py-3 text-center font-bold">Unidad de Uso</th>
-                    <th className="px-4 py-3 text-center font-bold">Cantidad Física</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {sorted.map((m, i) => (
-                    <tr key={m.id} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                      <td className="px-4 py-2.5 font-mono text-xs text-slate-500">{m.sku}</td>
-                      <td className="px-4 py-2.5 font-medium text-slate-800">{m.name}</td>
-                      <td className="px-4 py-2.5 text-slate-500">{m.category}</td>
-                      <td className="px-4 py-2.5 text-center text-slate-600">{m.usage_unit}</td>
-                      <td className="px-4 py-2.5 text-center"><div className="w-24 mx-auto border-b-2 border-slate-300 h-6"/></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        </div>
+
+        <div className="relative max-w-md">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nombre o SKU..."
+            className="pl-9"
+          />
+        </div>
+
+        <VTable
+          columns={captureColumns}
+          data={filteredCaptureItems as AuditItemRead[]}
+          emptyState={{
+            title: 'Sin materiales',
+            description: 'No hay materiales activos para contar.',
+          }}
+        />
+
+        <VConfirmDialog
+          isOpen={submitConfirm}
+          title="Enviar conteo"
+          message="¿Enviar el conteo para procesamiento?"
+          consequence="Diferencias ≤5% se ajustarán automáticamente. Diferencias mayores requerirán aprobación de Dirección o Gerencia."
+          confirmLabel="Enviar"
+          onConfirm={() => void handleSubmit()}
+          onCancel={() => setSubmitConfirm(false)}
+        />
+
+        {reasonModal.open && (
+          <Modal
+            isOpen
+            onClose={() => {
+              if (processing) return;
+              setReasonModal({ open: false, kind: 'cancel' });
+              setReasonText('');
+            }}
+            title="Cancelar sesión de conteo"
+            size="sm"
+          >
+            <div className="space-y-4">
+              <p className="text-sm text-slate-600">Indica el motivo de la cancelación.</p>
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                La sesión quedará cancelada con trazabilidad. No se aplicarán ajustes.
+              </div>
+              <Input
+                value={reasonText}
+                onChange={(e) => setReasonText(e.target.value)}
+                placeholder="Motivo obligatorio..."
+              />
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  disabled={processing}
+                  onClick={() => {
+                    setReasonModal({ open: false, kind: 'cancel' });
+                    setReasonText('');
+                  }}
+                  className="rounded-lg bg-slate-200 px-5 py-2.5 text-sm font-bold text-slate-800 hover:bg-slate-300 disabled:opacity-50"
+                >
+                  Volver
+                </button>
+                <button
+                  type="button"
+                  disabled={processing || !reasonText.trim()}
+                  onClick={() => void handleReasonConfirm()}
+                  className="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50"
+                >
+                  {processing ? 'Procesando...' : 'Confirmar cancelación'}
+                </button>
+              </div>
+            </div>
+          </Modal>
+        )}
+      </div>
+    );
+  }
+
+  if (audit?.status === 'ESPERANDO_AUTORIZACION') {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <div>
+            <p className="text-xs font-black uppercase tracking-widest text-amber-700">Sesión #{audit.id}</p>
+            <p className="text-sm text-amber-900 font-medium mt-1">
+              {audit.items_pending_approval} material(es) con diferencia &gt;5% pendientes de aprobación
+            </p>
+          </div>
+          {canApprove && (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={processing || pendingApprovalItems.length === 0}
+                onClick={() => setApproveAllConfirm(true)}
+                className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                <CheckCircle2 size={16} /> Aprobar todos
+              </button>
+              <button
+                type="button"
+                disabled={processing}
+                onClick={() => setReasonModal({ open: true, kind: 'reject' })}
+                className="flex items-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
+              >
+                <XCircle size={16} /> Rechazar
+              </button>
             </div>
           )}
         </div>
-      )}
 
-      {/* TAB CAPTURA */}
-      {activeTab === 'CAPTURA' && (
-          <div className="space-y-6">
-
-              {/* ── FECHA DEL CONTEO FÍSICO ── */}
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center gap-4">
-                  <div className="flex flex-col gap-1.5">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
-                          Fecha del conteo físico
-                      </label>
-                      <input
-                          type="date"
-                          value={fechaConteo}
-                          max={new Date().toISOString().split('T')[0]}
-                          onChange={e => setFechaConteo(e.target.value)}
-                          className="w-48 border-2 border-slate-300 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-800 focus:outline-none focus:border-orange-500 bg-white"
-                      />
-                  </div>
-                  <p className="text-xs text-slate-500 sm:flex-1 leading-snug">
-                      Todo lo que captures se registrará con esta fecha. Cámbiala si el conteo
-                      se hizo otro día.
-                  </p>
-              </div>
-
-              {/* ── CAPTURA RÁPIDA POR SKU ── */}
-              <div className="bg-orange-50 border-2 border-orange-200 rounded-2xl p-6">
-                  <p className="text-xs font-black text-orange-700 uppercase tracking-widest mb-4">
-                      ⚡ Captura Rápida — SKU → Cantidad → Enter
-                  </p>
-
-                  <div className="flex items-end gap-4 flex-wrap">
-
-                      {/* SKU */}
-                      <div className="flex flex-col gap-1.5">
-                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
-                              SKU
-                          </label>
-                          <input
-                              ref={skuInputRef}
-                              type="text"
-                              autoFocus
-                              placeholder="Escanea o escribe..."
-                              value={skuInput}
-                              onChange={e => {
-                                  setSkuInput(e.target.value.toUpperCase());
-                                  setQuickMaterial(null);
-                                  setSkuNotFound(false);
-                                  setQuickSaved(false);
-                              }}
-                              onKeyDown={e => {
-                                  if (e.key === 'Enter') handleSkuSearch(skuInput);
-                              }}
-                              className="w-44 border-2 border-orange-300 rounded-xl px-3 py-2.5 text-sm font-mono font-black focus:outline-none focus:border-orange-500 bg-white uppercase tracking-wider"
-                          />
-                      </div>
-
-                      {/* DESCRIPCIÓN */}
-                      <div className="flex flex-col gap-1.5 flex-1 min-w-[240px]">
-                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
-                              Material
-                          </label>
-                          <div className={`h-11 flex items-center px-4 rounded-xl border-2 text-sm font-bold truncate transition-colors ${
-                              quickSaved
-                                  ? 'bg-emerald-50 border-emerald-400 text-emerald-700'
-                                  : quickMaterial
-                                  ? 'bg-white border-emerald-300 text-slate-800'
-                                  : skuNotFound
-                                  ? 'bg-red-50 border-red-300 text-red-600'
-                                  : 'bg-white border-slate-200 text-slate-400 italic'
-                          }`}>
-                              {quickSaved
-                                  ? `✅ Guardado — ${quickMaterial?.name}`
-                                  : quickMaterial
-                                  ? quickMaterial.name
-                                  : skuNotFound
-                                  ? '⚠️ SKU no encontrado en catálogo'
-                                  : 'Ingresa el SKU y presiona Enter...'}
-                          </div>
-                      </div>
-
-                      {skuNotFound && (
-                          <div className="flex flex-col gap-1.5">
-                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider opacity-0">Alta</label>
-                              <button
-                                  type="button"
-                                  onClick={() => setShowMaterialFormInCount(true)}
-                                  className="h-11 px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl transition-colors whitespace-nowrap"
-                              >
-                                  + Dar de alta
-                              </button>
-                          </div>
-                      )}
-
-                      {/* CANTIDAD */}
-                      <div className="flex flex-col gap-1.5">
-                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
-                              Cantidad {quickMaterial ? `(${quickMaterial.usage_unit})` : ''}
-                          </label>
-                          <input
-                              ref={qtyInputRef}
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              placeholder="0"
-                              value={quickQty}
-                              disabled={!quickMaterial || quickSaved}
-                              onChange={e => setQuickQty(e.target.value)}
-                              onKeyDown={e => {
-                                  if (e.key === 'Enter') handleQuickSave();
-                              }}
-                              className="w-32 border-2 border-orange-300 rounded-xl px-3 py-2.5 text-sm font-black text-center focus:outline-none focus:border-orange-500 bg-white disabled:bg-slate-100 disabled:border-slate-200 disabled:text-slate-400"
-                          />
-                      </div>
-
-                      {/* BOTÓN */}
-                      <button
-                          onClick={handleQuickSave}
-                          disabled={!quickMaterial || quickQty === '' || saving || quickSaved}
-                          className={`h-11 px-6 rounded-xl text-sm font-black uppercase tracking-widest transition-all ${
-                              quickSaved
-                                  ? 'bg-emerald-500 text-white cursor-default'
-                                  : 'bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-30 disabled:cursor-not-allowed'
-                          }`}
-                      >
-                          {quickSaved ? '✅ OK' : saving ? '...' : 'Guardar'}
-                      </button>
-                  </div>
-
-                  {/* Info stock sistema */}
-                  {quickMaterial && !quickSaved && (
-                      <div className="mt-3 flex items-center gap-6 text-xs text-slate-500">
-                          <span>
-                              Stock sistema:
-                              <strong className="text-slate-800 ml-1">
-                                  {quickMaterial.physical_stock} {quickMaterial.usage_unit}
-                              </strong>
-                          </span>
-                          {quickQty !== '' && !isNaN(parseFloat(quickQty)) && (
-                              <span>
-                                  Diferencia:
-                                  <strong className={`ml-1 ${
-                                      parseFloat(quickQty) - quickMaterial.physical_stock >= 0
-                                          ? 'text-emerald-600'
-                                          : 'text-red-600'
-                                  }`}>
-                                      {parseFloat(quickQty) - quickMaterial.physical_stock >= 0 ? '+' : ''}
-                                      {(parseFloat(quickQty) - quickMaterial.physical_stock).toFixed(2)}
-                                  </strong>
-                              </span>
-                          )}
-                      </div>
-                  )}
-              </div>
-
-              {/* ── TABLA DE CAPTURA COMPLETA ── */}
-              <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                      <p className="text-sm text-slate-500">
-                          También puedes capturar directamente en la tabla.
-                          <span className="ml-2 text-xs font-bold text-orange-600">
-                              {savedIds.length > 0 ? `${savedIds.length} ajuste(s) aplicado(s)` : ''}
-                          </span>
-                      </p>
-                      <button
-                          onClick={handleAdjustAll}
-                          disabled={saving}
-                          className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg transition disabled:opacity-50"
-                      >
-                          <ClipboardCheck size={15}/> Aplicar Todos
-                      </button>
-                  </div>
-
-                  {loading ? (
-                      <div className="text-center py-12 text-slate-400">Cargando...</div>
-                  ) : (
-                      <div className="border border-slate-200 rounded-xl overflow-hidden">
-                          <table className="w-full text-sm">
-                              <thead className="bg-slate-100 text-slate-600 text-xs uppercase tracking-wider">
-                                  <tr>
-                                      <SortHeader col="sku" label="SKU" />
-                                      <SortHeader col="name" label="Material" />
-                                      <th className="px-4 py-3 text-center font-bold">Unidad</th>
-                                      <th className="px-4 py-3 text-center font-bold">Stock Sistema</th>
-                                      <th className="px-4 py-3 text-center font-bold">Cantidad Contada</th>
-                                      <th className="px-4 py-3 text-center font-bold">Diferencia</th>
-                                      <th className="px-4 py-3 text-center font-bold">Acción</th>
-                                  </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100">
-                                  {sorted.map((m, i) => {
-                                      const counted = countEntries[m.id];
-                                      const diff = counted !== undefined && counted !== ''
-                                          ? parseFloat(counted) - m.physical_stock
-                                          : null;
-                                      const isSaved = savedIds.includes(m.id);
-                                      return (
-                                          <tr key={m.id} className={`
-                                              ${i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}
-                                              ${isSaved ? 'opacity-50' : ''}
-                                          `}>
-                                              <td className="px-4 py-2 font-mono text-xs text-slate-500">{m.sku}</td>
-                                              <td className="px-4 py-2 font-medium text-slate-800 text-xs">{m.name}</td>
-                                              <td className="px-4 py-2 text-center text-slate-500 text-xs">{m.usage_unit}</td>
-                                              <td className="px-4 py-2 text-center font-bold text-slate-700">{m.physical_stock}</td>
-                                              <td className="px-4 py-2 text-center">
-                                                  <input
-                                                      type="number" min="0" step="0.01"
-                                                      disabled={isSaved}
-                                                      value={counted ?? ''}
-                                                      onChange={e => setCountEntries(prev => ({
-                                                          ...prev,
-                                                          [m.id]: e.target.value
-                                                      }))}
-                                                      className="w-24 text-center border border-slate-300 rounded-lg px-2 py-1 text-sm font-bold focus:outline-none focus:border-orange-400 disabled:bg-slate-100"
-                                                      placeholder="0"
-                                                  />
-                                              </td>
-                                              <td className="px-4 py-2 text-center">
-                                                  {diff !== null
-                                                      ? <span className={`font-bold text-sm ${
-                                                          diff > 0 ? 'text-emerald-600'
-                                                          : diff < 0 ? 'text-red-600'
-                                                          : 'text-slate-400'
-                                                      }`}>
-                                                          {diff > 0 ? '+' : ''}{diff.toFixed(2)}
-                                                      </span>
-                                                      : <span className="text-slate-300">—</span>
-                                                  }
-                                              </td>
-                                              <td className="px-4 py-2 text-center">
-                                                  {isSaved
-                                                      ? <span className="text-xs font-bold text-emerald-600">✅</span>
-                                                      : <button
-                                                          onClick={() => handleAdjust(m)}
-                                                          disabled={saving || counted === undefined || counted === ''}
-                                                          className="px-3 py-1 text-xs font-bold bg-orange-500 hover:bg-orange-600 text-white rounded-lg disabled:opacity-30 transition"
-                                                      >
-                                                          Ajustar
-                                                      </button>
-                                                  }
-                                              </td>
-                                          </tr>
-                                      );
-                                  })}
-                              </tbody>
-                          </table>
-                      </div>
-                  )}
-              </div>
+        {!canApprove && (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            Esperando aprobación de Dirección o Gerencia.
           </div>
-      )}
+        )}
 
-      {showMaterialFormInCount && (
-          <MaterialForm
-              initialSku={skuInput}
-              onCancel={() => setShowMaterialFormInCount(false)}
-              onCreated={(mat) => {
-                  setMaterials(prev => [mat, ...prev]);
-                  setQuickMaterial(mat);
-                  setSkuInput(mat.sku);
-                  setSkuNotFound(false);
-                  setShowMaterialFormInCount(false);
-                  setTimeout(() => qtyInputRef.current?.focus(), 50);
-              }}
-          />
-      )}
+        <VTable
+          columns={approvalColumns}
+          data={pendingApprovalItems as AuditItemRead[]}
+          actions={
+            canApprove
+              ? (row) => [
+                  {
+                    label: 'Aprobar material',
+                    icon: <Check size={16} />,
+                    onClick: () => void handleApproveItem(row),
+                    hidden: savingItemId === row.id,
+                  },
+                ]
+              : undefined
+          }
+          emptyState={{
+            icon: <CheckCircle2 className="text-emerald-300" size={48} />,
+            title: 'Sin excepciones pendientes',
+            description: 'Todos los materiales fueron procesados.',
+          }}
+        />
 
-      <VConfirmDialog
-        isOpen={pendingConfirm?.kind === 'adjustAll'}
-        title="Confirmar ajustes de inventario"
-        message={`¿Confirmas aplicar ${pendingConfirm?.count ?? 0} ajuste(s) de inventario?`}
-        consequence="Se actualizará el stock físico de los materiales capturados según las cantidades contadas."
-        variant="warning"
-        confirmLabel="Aplicar ajustes"
-        onConfirm={async () => {
-          await executeAdjustAll();
-          setPendingConfirm(null);
-        }}
-        onCancel={() => setPendingConfirm(null)}
-      />
-    </div>
-  );
+        <VConfirmDialog
+          isOpen={approveAllConfirm}
+          title="Aprobar todos los materiales"
+          message="¿Aprobar todos los ajustes pendientes?"
+          consequence="Se aplicarán los ajustes de inventario y la sesión se cerrará."
+          confirmLabel="Aprobar todos"
+          onConfirm={() => void handleApproveAll()}
+          onCancel={() => setApproveAllConfirm(false)}
+        />
 
-  if (activeSection === 'AJUSTES') return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center border-b border-slate-200 pb-4">
-        <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
-          <ClipboardCheck className="text-blue-500"/> Ajustes de Inventario
-        </h3>
-        <button onClick={() => setActiveSection(null)} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 font-bold rounded-lg hover:bg-slate-50 transition-all shadow-sm text-sm">
-          ← Regresar
+        {reasonModal.open && reasonModal.kind === 'reject' && (
+          <Modal
+            isOpen
+            onClose={() => {
+              if (processing) return;
+              setReasonModal({ open: false, kind: 'cancel' });
+              setReasonText('');
+            }}
+            title="Rechazar conteo"
+            size="sm"
+          >
+            <div className="space-y-4">
+              <p className="text-sm text-slate-600">Indica el motivo del rechazo.</p>
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                La sesión regresará a captura para corrección.
+              </div>
+              <Input
+                value={reasonText}
+                onChange={(e) => setReasonText(e.target.value)}
+                placeholder="Motivo obligatorio..."
+              />
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  disabled={processing}
+                  onClick={() => {
+                    setReasonModal({ open: false, kind: 'cancel' });
+                    setReasonText('');
+                  }}
+                  className="rounded-lg bg-slate-200 px-5 py-2.5 text-sm font-bold text-slate-800 hover:bg-slate-300 disabled:opacity-50"
+                >
+                  Volver
+                </button>
+                <button
+                  type="button"
+                  disabled={processing || !reasonText.trim()}
+                  onClick={() => void handleReasonConfirm()}
+                  className="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50"
+                >
+                  {processing ? 'Procesando...' : 'Confirmar rechazo'}
+                </button>
+              </div>
+            </div>
+          </Modal>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
+        <ClipboardCheck size={48} className="mx-auto text-orange-400 mb-4" />
+        <h3 className="text-xl font-black text-slate-800">Inventario Físico por Sesiones</h3>
+        <p className="text-sm text-slate-500 mt-2 max-w-lg mx-auto">
+          Inicia una sesión de conteo ciego. Captura las cantidades físicas de todos los materiales
+          y envía para procesamiento automático o aprobación.
+        </p>
+        <button
+          type="button"
+          disabled={processing}
+          onClick={() => void handleStartSession()}
+          className="mt-6 inline-flex items-center gap-2 rounded-lg bg-orange-600 px-6 py-3 text-sm font-black text-white hover:bg-orange-700 disabled:opacity-50"
+        >
+          {processing ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} />}
+          Iniciar conteo físico
         </button>
       </div>
-      <AjustesInventario materials={materials} onSaved={() => {}} />
-    </div>
-  );
 
-  // ─── SECCIÓN COSTEO ──────────────────────────────────────────────────────
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <FilterBar />
-        <div className="text-right">
-          <p className="text-xs text-slate-400 uppercase font-bold">Valuación Total</p>
-          <p className="text-2xl font-black text-emerald-600">
-            ${totalValuation.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-          </p>
+      <div>
+        <div className="flex items-center gap-2 mb-4">
+          <History size={18} className="text-slate-500" />
+          <h4 className="text-sm font-black uppercase tracking-widest text-slate-600">
+            Historial de sesiones
+          </h4>
+          <button
+            type="button"
+            title="Actualizar"
+            onClick={() => void loadHistory()}
+            className="ml-auto rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+          >
+            <RefreshCw size={14} />
+          </button>
         </div>
+
+        {history.length === 0 ? (
+          <VEmptyState
+            title="Sin historial"
+            description="Las sesiones cerradas o canceladas aparecerán aquí."
+          />
+        ) : (
+          <div className="space-y-2">
+            {history.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                onClick={() => void openHistorySession(entry)}
+                className="w-full flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-left hover:border-indigo-300 hover:bg-indigo-50/30 transition-colors"
+              >
+                <div>
+                  <span className="font-bold text-slate-800">Sesión #{entry.id}</span>
+                  <span
+                    className={`ml-3 text-xs font-bold uppercase ${
+                      entry.status === 'CERRADA' ? 'text-emerald-600' : 'text-red-600'
+                    }`}
+                  >
+                    {STATUS_LABELS[entry.status] || entry.status}
+                  </span>
+                </div>
+                <div className="text-xs text-slate-400">
+                  {entry.items_captured}/{entry.items_total} capturados
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
-
-      {loading ? <div className="text-center py-12 text-slate-400">Cargando...</div> : (
-        <div className="border border-slate-200 rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-100 text-slate-600 text-xs uppercase tracking-wider">
-              <tr>
-                <SortHeader col="sku" label="SKU" />
-                <SortHeader col="name" label="Material" />
-                <SortHeader col="category" label="Categoría" />
-                <th className="px-4 py-3 text-center font-bold">Unidad de Uso</th>
-                <th className="px-4 py-3 text-right font-bold">Stock</th>
-                <th className="px-4 py-3 text-right font-bold">Costo x Unidad Uso</th>
-                <th className="px-4 py-3 text-right font-bold">Importe</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {sorted.map((m, i) => (
-                <tr key={m.id} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                  <td className="px-4 py-2.5 font-mono text-xs text-slate-500">{m.sku}</td>
-                  <td className="px-4 py-2.5 font-medium text-slate-800">{m.name}</td>
-                  <td className="px-4 py-2.5 text-slate-500">{m.category}</td>
-                  <td className="px-4 py-2.5 text-center text-slate-600">{m.usage_unit}</td>
-                  <td className="px-4 py-2.5 text-right font-bold text-slate-700">{m.physical_stock}</td>
-                  <td className="px-4 py-2.5 text-right text-slate-600">${(m.current_cost / (m.conversion_factor || 1)).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
-                  <td className="px-4 py-2.5 text-right font-black text-emerald-700">
-                    ${(m.physical_stock * (m.current_cost / (m.conversion_factor || 1))).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot className="bg-emerald-50 border-t-2 border-emerald-200">
-              <tr>
-                <td colSpan={6} className="px-4 py-3 font-black text-emerald-800 text-right uppercase text-xs tracking-wider">Total Valuación</td>
-                <td className="px-4 py-3 font-black text-emerald-700 text-right text-base">
-                  ${totalValuation.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      )}
     </div>
   );
 };

@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { ClipboardList, ShoppingCart, Truck, Package, ArrowLeft, ArrowUpRight, Wrench, Target } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
+import React, { useState, useEffect, useMemo } from 'react';
+import { ClipboardList, ShoppingCart, Truck, Package, ArrowLeft, ArrowUpRight, Wrench, Target, AlertTriangle, BookOpen } from 'lucide-react';
+import { Card } from "@/components/ui/Card";
 import axiosClient from '../../../api/axios-client';
+import { inventoryService, LowStockMaterialRead } from '@/api/inventory-service';
+import { VEmptyState } from '@/components/ui/VEmptyState';
+import { VTable, VTableColumn } from '@/components/ui/VTable';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 // ---> INYECCIÓN DE LOS MÓDULOS <---
@@ -12,7 +15,7 @@ import { PhysicalInventoryModule } from '../components/PhysicalInventoryModule';
 import MaterialsPage from './MaterialsPage';
 import ProvidersPage from './ProvidersPage';
 
-type InventorySection = 'REQUISITIONS' | 'PURCHASE_ORDERS' | 'RECEPTIONS' | 'PHYSICAL_INVENTORY' | 'MATERIALS' | 'PROVIDERS' | null;
+type InventorySection = 'REQUISITIONS' | 'PURCHASE_ORDERS' | 'RECEPTIONS' | 'PHYSICAL_INVENTORY' | 'MATERIALS' | 'PROVIDERS' | 'LOW_STOCK' | null;
 
 export const InventoryDashboardPage = () => {
     const navigate = useNavigate();
@@ -46,6 +49,8 @@ export const InventoryDashboardPage = () => {
     }, [location.state]);
     
     const [inventoryValuation, setInventoryValuation] = useState<number>(0);
+    const [lowStockItems, setLowStockItems] = useState<LowStockMaterialRead[]>([]);
+    const [lowStockCount, setLowStockCount] = useState<number | string>('...');
 
     // ---> ESTADOS PARA LAS ALERTAS REALES DEL SERVIDOR <---
     const [pendingTasksCount, setPendingTasksCount] = useState<number | string>('...');
@@ -90,10 +95,19 @@ export const InventoryDashboardPage = () => {
             }
 
             try {
-                const valRes = await axiosClient.get('/foundations/materials/valuation');
-                setInventoryValuation(valRes.data.total_valuation || 0);
+                const valRes = await inventoryService.getInventoryValuation();
+                setInventoryValuation(valRes.total_valuation || 0);
             } catch {
                 // silencioso
+            }
+
+            try {
+                const lowStock = await inventoryService.getLowStock();
+                setLowStockItems(lowStock);
+                setLowStockCount(lowStock.length);
+            } catch {
+                setLowStockCount('!');
+                setLowStockItems([]);
             }
         };
 
@@ -101,6 +115,59 @@ export const InventoryDashboardPage = () => {
         const intervalId = setInterval(fetchDashboardStats, 15000);
         return () => clearInterval(intervalId);
     }, []);
+
+    const lowStockColumns: VTableColumn<LowStockMaterialRead>[] = useMemo(
+        () => [
+            {
+                key: 'name',
+                label: 'Material',
+                sortable: true,
+                render: (row) => (
+                    <div>
+                        <div className="font-medium">{row.name}</div>
+                        <div className="font-mono text-xs text-slate-400">{row.sku}</div>
+                    </div>
+                ),
+            },
+            {
+                key: 'physical_stock',
+                label: 'Stock actual',
+                sortable: true,
+                render: (row) =>
+                    new Intl.NumberFormat('en-US', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                    }).format(row.physical_stock),
+            },
+            {
+                key: 'min_stock',
+                label: 'Mínimo',
+                sortable: true,
+                render: (row) =>
+                    new Intl.NumberFormat('en-US', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                    }).format(row.min_stock),
+            },
+            {
+                key: 'difference',
+                label: 'Diferencia',
+                sortable: true,
+                render: (row) => {
+                    const diff = row.physical_stock - row.min_stock;
+                    return (
+                        <span className="font-bold text-red-600">
+                            {new Intl.NumberFormat('en-US', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                            }).format(diff)}
+                        </span>
+                    );
+                },
+            },
+        ],
+        [],
+    );
 
     const renderActiveSection = (title: string, component: React.ReactNode) => {
         const isPhysicalWithSub = activeSection === 'PHYSICAL_INVENTORY' && physicalInventorySubSection !== null;
@@ -153,6 +220,13 @@ export const InventoryDashboardPage = () => {
                         </h1>
                         <p className="text-slate-500 mt-1 font-medium">Solicitudes, órdenes, recepción, inventario, materiales y proveedores.</p>
                     </div>
+                    <button
+                        type="button"
+                        onClick={() => navigate('/inventory/kardex')}
+                        className="flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-bold text-indigo-700 hover:bg-indigo-100 transition-colors"
+                    >
+                        <BookOpen size={16} /> Kárdex de materiales
+                    </button>
                 </div>
             )}
 
@@ -243,6 +317,18 @@ export const InventoryDashboardPage = () => {
                         </Card>
                     </div>
 
+                    {/* TARJETA 7 — ALERTAS DE STOCK */}
+                    <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] relative h-40">
+                        <Card onClick={() => setActiveSection('LOW_STOCK')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-red-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group">
+                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-red-50 text-red-700 border-r border-red-100 font-black text-3xl transition-colors group-hover:bg-red-100">{lowStockCount}</div>
+                            <div className="ml-16 h-full flex flex-col justify-between">
+                                <div className="flex justify-between items-start"><p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">7. Alertas de Stock</p><AlertTriangle size={16} className="text-red-500" /></div>
+                                <div className="mt-4 flex justify-end"><div className="text-2xl font-black text-red-600 tracking-tight">Bajo mínimo</div></div>
+                                <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100"><p className="text-[10px] text-slate-400 font-bold uppercase">Materiales en nivel crítico</p><ArrowUpRight size={14} className="text-red-400"/></div>
+                            </div>
+                        </Card>
+                    </div>
+
                 </div>
             ) : (
                 <div className="animate-in fade-in slide-in-from-right-8 duration-500 mt-2">
@@ -280,6 +366,17 @@ export const InventoryDashboardPage = () => {
                     )}
                     {activeSection === 'PROVIDERS' && renderActiveSection('Proveedores',
                         <ProvidersPage />
+                    )}
+                    {activeSection === 'LOW_STOCK' && renderActiveSection('Alertas de Stock',
+                        lowStockItems.length === 0 ? (
+                            <VEmptyState
+                                icon={<Package className="text-emerald-300" size={48} />}
+                                title="Inventario en nivel correcto"
+                                description="Todos los materiales están por encima de su stock mínimo."
+                            />
+                        ) : (
+                            <VTable columns={lowStockColumns} data={lowStockItems as LowStockMaterialRead[]} />
+                        )
                     )}
                 </div>
             )}
