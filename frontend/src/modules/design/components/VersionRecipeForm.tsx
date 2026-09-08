@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { Plus, Layers, Square, Package, Activity, Lock, Unlock, Save, EyeOff } from "lucide-react"; 
 import { Input } from "@/components/ui/Input";
-import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { VersionComponent, VersionStatus } from "../../../types/design";
 import { Material } from "../../../types/foundations";
 
@@ -426,16 +425,18 @@ export const VersionRecipeForm = ({
              <div className="flex items-center gap-2 bg-white/50 p-1.5 rounded border border-amber-100">
                 {internalStatus === VersionStatus.READY ? <Unlock size={14} className="text-emerald-600"/> : <Lock size={14} className="text-amber-600"/>}
                 <label className="text-[10px] font-bold text-slate-500 uppercase">Estatus:</label>
-                <SearchableSelect
-                    items={STATUS_SELECT_ITEMS}
-                    value={internalStatus}
-                    onChange={(v) => setInternalStatus(v as VersionStatus)}
-                    getLabel={(item) => item.label}
-                    getValue={(item) => item.value}
+                {/* Estado del formulario — select nativo justificado */}
+                <select
                     className={`text-xs font-bold border-none outline-none cursor-pointer rounded px-2 py-1 ${
                         internalStatus === VersionStatus.READY ? 'text-emerald-700 bg-emerald-100' : 'text-amber-700 bg-amber-100'
                     }`}
-                />
+                    value={internalStatus}
+                    onChange={(e) => setInternalStatus(e.target.value as VersionStatus)}
+                >
+                    {STATUS_SELECT_ITEMS.map((item) => (
+                        <option key={item.value} value={item.value}>{item.label}</option>
+                    ))}
+                </select>
              </div>
          </div>
 
