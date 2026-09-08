@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Package, ShoppingCart, Factory, 
   Truck, Settings, LogOut, ChevronRight, Users, Briefcase, 
   UserCog, Percent, ClipboardList, TrendingUp, Shield, User,
-  Ruler, Hammer, PenTool, Landmark, CalendarDays, FileText, Plus
+  Ruler, Hammer, PenTool, Landmark, CalendarDays, FileText
 } from 'lucide-react';
 
 import { useFoundations } from '../../modules/foundations/hooks/useFoundations';
@@ -25,7 +25,6 @@ const menuItems = [
   { icon: TrendingUp, label: 'Gerencia', path: '/management', allowedRoles: ['DIRECTOR', 'MANAGER'] },
   
   { icon: ShoppingCart, label: 'Ventas', path: '/sales', allowedRoles: ['DIRECTOR', 'MANAGER', 'SALES'], children: [
-    { label: 'Nueva Cotización', path: '/quotations/new' },
     { label: 'Cotizaciones', path: '/sales' },
   ] },
   { icon: Users, label: 'Monitor Clientes', path: '/clients', allowedRoles: ['DIRECTOR', 'MANAGER', 'SALES', 'ADMIN'] },
@@ -93,12 +92,10 @@ export default function Sidebar() {
   };
   
   const isChildActive = (childPath: string) => {
-    if (childPath === '/quotations/new') {
-      return currentPath === '/quotations/new' || currentPath.startsWith('/quotations/edit/');
-    }
     if (childPath === '/sales') {
-      if (currentPath === '/quotations/new' || currentPath.startsWith('/quotations/edit/')) return false;
-      return currentPath === '/sales' || currentPath.startsWith('/sales/');
+      return currentPath === '/sales'
+        || currentPath.startsWith('/sales/')
+        || currentPath.startsWith('/quotations');
     }
     return currentPath === childPath || currentPath.startsWith(`${childPath}/`);
   };
@@ -218,7 +215,7 @@ export default function Sidebar() {
             </button>
             {item.children?.map((child) => {
               const subActive = isChildActive(child.path);
-              const ChildIcon = child.path === '/quotations/new' ? Plus : FileText;
+              const ChildIcon = FileText;
               return (
                 <button
                   key={child.path}
