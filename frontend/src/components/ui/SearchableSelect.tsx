@@ -29,8 +29,10 @@ export function SearchableSelect<T>({
     className = '',
 }: SearchableSelectProps<T>) {
     const containerRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
     const [draft, setDraft] = useState('');
     const [isOpen, setIsOpen] = useState(false);
+    const [dropdownStyle, setDropdownStyle] = useState({ top: 0, left: 0, width: 0 });
 
     const selectedItem = useMemo(
         () => items.find((item) => getValue(item) === value) ?? null,
@@ -47,6 +49,17 @@ export function SearchableSelect<T>({
         );
     }, [items, draft, getLabel]);
 
+    const updateDropdownPosition = () => {
+        const rect = inputRef.current?.getBoundingClientRect();
+        if (rect) {
+            setDropdownStyle({
+                top: rect.bottom,
+                left: rect.left,
+                width: rect.width,
+            });
+        }
+    };
+
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
@@ -57,15 +70,31 @@ export function SearchableSelect<T>({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    useEffect(() => {
+        if (!isOpen) return;
+        updateDropdownPosition();
+        const handleReposition = () => updateDropdownPosition();
+        window.addEventListener('scroll', handleReposition, true);
+        window.addEventListener('resize', handleReposition);
+        return () => {
+            window.removeEventListener('scroll', handleReposition, true);
+            window.removeEventListener('resize', handleReposition);
+        };
+    }, [isOpen]);
+
     const openDropdown = () => {
         if (disabled) return;
         setDraft('');
+        updateDropdownPosition();
         setIsOpen(true);
     };
 
     const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         setDraft(event.target.value);
-        if (!isOpen) setIsOpen(true);
+        if (!isOpen) {
+            updateDropdownPosition();
+            setIsOpen(true);
+        }
     };
 
     const handleSelect = (item: T) => {
@@ -93,6 +122,7 @@ export function SearchableSelect<T>({
     return (
         <div ref={containerRef} className="relative w-full">
             <input
+                ref={inputRef}
                 type="text"
                 value={displayValue}
                 onChange={handleInputChange}
@@ -109,7 +139,14 @@ export function SearchableSelect<T>({
             />
             {isOpen && !disabled && (
                 <ul
-                    className="absolute z-50 mt-1 w-full max-h-[13rem] overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg py-1"
+                    style={{
+                        position: 'fixed',
+                        top: dropdownStyle.top + 4,
+                        left: dropdownStyle.left,
+                        width: dropdownStyle.width,
+                        zIndex: 9999,
+                    }}
+                    className="max-h-[13rem] overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg py-1"
                     role="listbox"
                 >
                     {filteredItems.length === 0 ? (
