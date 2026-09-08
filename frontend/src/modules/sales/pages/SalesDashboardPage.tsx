@@ -1382,6 +1382,7 @@ const SalesDashboardPage: React.FC = () => {
                     </p>
                 </div>
                 <div className="flex gap-3">
+                    <Button onClick={() => navigate('/quotations/new')} className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-2"><Plus size={18} /> Nueva Cotización</Button>
                     {activeSection !== null && (
                         <button onClick={handleBack} className="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-bold hover:bg-slate-50 hover:text-emerald-600 transition-all shadow-sm">
                             <ArrowLeft size={18} /> {(activeGoalView || activeQuoteView || activeCollectionView) ? 'Regresar a Tarjetas' : 'Regresar al Tablero'}

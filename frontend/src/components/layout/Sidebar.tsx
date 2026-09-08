@@ -24,9 +24,9 @@ const menuItems = [
   // ---> INTACTO COMO ESTABA <---
   { icon: TrendingUp, label: 'Gerencia', path: '/management', allowedRoles: ['DIRECTOR', 'MANAGER'] },
   
-  { icon: ShoppingCart, label: 'Ventas', path: '/sales', allowedRoles: ['DIRECTOR', 'MANAGER', 'SALES'] },
-  { icon: FileText, label: 'Cotizaciones', path: '/quotations', allowedRoles: ['DIRECTOR', 'MANAGER', 'SALES'], children: [
+  { icon: ShoppingCart, label: 'Ventas', path: '/sales', allowedRoles: ['DIRECTOR', 'MANAGER', 'SALES'], children: [
     { label: 'Nueva Cotización', path: '/quotations/new' },
+    { label: 'Cotizaciones', path: '/quotations' },
   ] },
   { icon: Users, label: 'Monitor Clientes', path: '/clients', allowedRoles: ['DIRECTOR', 'MANAGER', 'SALES', 'ADMIN'] },
   
@@ -47,10 +47,10 @@ const menuItems = [
 const rolePriorities: Record<string, string[]> = {
   // Ahora el Director ve su panel estratégico antes que la gerencia
   'DIRECTOR': ['/', '/director', '/planning', '/management', '/treasury'],
-  'MANAGER': ['/', '/management', '/planning', '/treasury', '/production', '/sales', '/quotations'],
+  'MANAGER': ['/', '/management', '/planning', '/treasury', '/production', '/sales'],
   'ADMIN': ['/', '/treasury', '/inventory'],
   // Ventas ya no necesita priorizar /design
-  'SALES': ['/', '/sales', '/quotations', '/planning', '/clients', '/logistics'],
+  'SALES': ['/', '/sales', '/planning', '/clients', '/logistics'],
   'DESIGN': ['/', '/design', '/planning', '/production'],
   'WAREHOUSE': ['/', '/inventory', '/logistics'],
   'PRODUCTION': ['/', '/production', '/planning', '/inventory'],
@@ -76,6 +76,8 @@ export default function Sidebar() {
 
   const isActive = (path: string) => {
     if (path === '/') return currentPath === '/';
+
+    if (path === '/sales' && currentPath.startsWith('/quotations')) return true;
     
     // ---> LA LLAVE MAESTRA UNIVERSAL <---
     // Si estamos dentro de cualquier reporte financiero (/finance/...)
@@ -90,6 +92,16 @@ export default function Sidebar() {
     return currentPath.startsWith(path);
   };
   
+  const isChildActive = (childPath: string) => {
+    if (childPath === '/quotations/new') {
+      return currentPath === '/quotations/new' || currentPath.startsWith('/quotations/edit/');
+    }
+    if (childPath === '/quotations') {
+      return currentPath === '/quotations' || /^\/quotations\/\d+/.test(currentPath);
+    }
+    return currentPath === childPath || currentPath.startsWith(`${childPath}/`);
+  };
+
   const getLogoUrl = (path: string) => {
     if (!path) return '';
     if (path.startsWith('http')) return path;
@@ -178,7 +190,7 @@ export default function Sidebar() {
         
         {sortedMenu.map((item) => {
           const active = isActive(item.path);
-          const childActive = item.children?.some((child) => currentPath === child.path || currentPath.startsWith(`${child.path}/`));
+          const childActive = item.children?.some((child) => isChildActive(child.path));
           return (
             <div key={item.path} className="space-y-1">
             <button
@@ -204,7 +216,8 @@ export default function Sidebar() {
               <ChevronRight size={14} className={`transition-opacity ${active || childActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'}`} />
             </button>
             {item.children?.map((child) => {
-              const subActive = currentPath === child.path || currentPath.startsWith(`${child.path}/`);
+              const subActive = isChildActive(child.path);
+              const ChildIcon = child.path === '/quotations/new' ? Plus : FileText;
               return (
                 <button
                   key={child.path}
@@ -220,7 +233,7 @@ export default function Sidebar() {
                     }
                   `}
                 >
-                  <Plus size={14} className={subActive ? 'stroke-[2px]' : 'stroke-[1.5px]'} />
+                  <ChildIcon size={14} className={subActive ? 'stroke-[2px]' : 'stroke-[1.5px]'} />
                   <span>{child.label}</span>
                 </button>
               );
