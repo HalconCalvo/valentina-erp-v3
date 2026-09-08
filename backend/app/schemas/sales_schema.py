@@ -50,6 +50,14 @@ class CustomerPaymentRead(CustomerPaymentBase):
     created_by_user_id: int
     commission_paid: bool = False
 
+    retention_percent: float = 0.0
+    retention_amount: float = 0.0
+    retention_days: int = 90
+    retention_due_date: Optional[datetime] = None
+    retention_status: Optional[str] = None
+    retention_invoice_folio: Optional[str] = None
+    retention_notes: Optional[str] = None
+
 # ==========================================
 # 2. INSTANCIAS DE PRODUCCIÓN (Nivel 3)
 # ==========================================
@@ -142,6 +150,9 @@ class SalesOrderBase(SQLModel):
     conditions: Optional[str] = None 
     external_invoice_ref: Optional[str] = None
     is_warranty: bool = False
+
+    default_retention_percent: float = 0.0
+    default_retention_days: int = 90
 
 # INPUT: Creación inicial
 class SalesOrderCreate(SalesOrderBase):
@@ -405,3 +416,38 @@ class OrderHousesStatus(BaseModel):
     status: str
     houses: List[HouseStatusSummary]
     unassigned: List[InstanceStatusSummary]
+
+
+class RetentionUpdate(SQLModel):
+    retention_percent: Optional[float] = None
+    retention_amount: Optional[float] = None
+    retention_days: Optional[int] = None
+    retention_due_date: Optional[datetime] = None
+    retention_notes: Optional[str] = None
+
+
+class RetentionInvoicePayload(BaseModel):
+    folio: str
+
+
+class RetentionWaivePayload(BaseModel):
+    reason: str
+
+
+class RetentionDefaultsUpdate(SQLModel):
+    default_retention_percent: float
+    default_retention_days: int
+
+
+class RetentionAlertRead(SQLModel):
+    payment_id: int
+    sales_order_id: int
+    order_folio: str
+    project_name: str
+    client_name: str
+    invoice_folio: Optional[str] = None
+    retention_amount: float
+    retention_due_date: Optional[datetime] = None
+    retention_status: Optional[str] = None
+    days_until_due: int
+    is_overdue: bool

@@ -1,5 +1,5 @@
 """Sales domain — business logic (no direct HTTP, queries via repository)."""
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Union
 
 from fastapi import HTTPException
@@ -36,6 +36,9 @@ from app.schemas.sales_schema import (
     SalesOrderCreate,
     SalesOrderItemCreate,
     SalesOrderUpdate,
+    RetentionUpdate,
+    RetentionDefaultsUpdate,
+    RetentionAlertRead,
 )
 from app.services.cost_engine import CostEngine
 
@@ -54,6 +57,159 @@ def _is_seller_scoped_role(user: User) -> bool:
 
 
 _COMMISSION_RELEASE_ROLES = {UserRole.DIRECTOR, UserRole.MANAGER}
+_RETENTION_LOCKED = frozenset({"INVOICED", "COLLECTED", "WAIVED"})
+
+
+def _require_manager_or_director(user: User) -> None:
+    role = _normalized_role(user)
+    if role not in {UserRole.DIRECTOR.value, UserRole.MANAGER.value}:
+        raise HTTPException(status_code=403, detail="Acceso restringido a Dirección o Gerencia.")
+
+
+def _get_payment_or_404(session: Session, payment_id: int) -> CustomerPayment:
+    payment = sales_repo.get_cxc_by_id(session, payment_id)
+    if not payment:
+        raise HTTPException(status_code=404, detail="Cobro no encontrado.")
+    return payment
+
+
+def _assert_retention_editable(payment: CustomerPayment) -> None:
+    status = (payment.retention_status or "").upper()
+    if status in _RETENTION_LOCKED:
+        raise HTTPException(
+            status_code=400,
+            detail="La retención ya fue facturada, cobrada o liberada; no se puede modificar.",
+        )
+
+
+def _calc_retention_due(invoice_date: Optional[datetime], days: int) -> datetime:
+    base = invoice_date or datetime.utcnow()
+    return base + timedelta(days=int(days))
+
+
+def update_retention(
+    session: Session, payment_id: int, data: RetentionUpdate, current_user: User
+) -> CustomerPayment:
+    _require_manager_or_director(current_user)
+    payment = _get_payment_or_404(session, payment_id)
+    _assert_retention_editable(payment)
+    payload = data.model_dump(exclude_unset=True)
+    if "retention_percent" in payload and payload["retention_percent"] is not None:
+        payment.retention_percent = float(payload["retention_percent"])
+        payment.retention_amount = round(
+            float(payment.amount or 0.0) * payment.retention_percent / 100.0, 2
+        )
+    if "retention_amount" in payload and payload["retention_amount"] is not None:
+        payment.retention_amount = float(payload["retention_amount"])
+    if "retention_days" in payload and payload["retention_days"] is not None:
+        payment.retention_days = int(payload["retention_days"])
+    if "retention_notes" in payload:
+        payment.retention_notes = payload["retention_notes"]
+    if "retention_due_date" in payload:
+        payment.retention_due_date = payload["retention_due_date"]
+    elif "retention_days" in payload and payment.invoice_date:
+        payment.retention_due_date = _calc_retention_due(
+            payment.invoice_date, payment.retention_days
+        )
+    if float(payment.retention_amount or 0.0) > 0 and not payment.retention_status:
+        payment.retention_status = "PENDING"
+    session.add(payment)
+    session.commit()
+    session.refresh(payment)
+    return payment
+
+
+def invoice_retention(
+    session: Session, payment_id: int, folio: str, current_user: User
+) -> CustomerPayment:
+    _require_manager_or_director(current_user)
+    payment = _get_payment_or_404(session, payment_id)
+    if (payment.retention_status or "").upper() != "PENDING":
+        raise HTTPException(status_code=400, detail="Solo se puede facturar retención en estatus PENDING.")
+    clean_folio = (folio or "").strip()
+    if not clean_folio:
+        raise HTTPException(status_code=422, detail="El folio de la factura de retención es obligatorio.")
+    payment.retention_invoice_folio = clean_folio
+    payment.retention_status = "INVOICED"
+    session.add(payment)
+    session.commit()
+    session.refresh(payment)
+    return payment
+
+
+def collect_retention(session: Session, payment_id: int, current_user: User) -> CustomerPayment:
+    _require_manager_or_director(current_user)
+    payment = _get_payment_or_404(session, payment_id)
+    if (payment.retention_status or "").upper() != "INVOICED":
+        raise HTTPException(status_code=400, detail="Solo se puede cobrar retención en estatus INVOICED.")
+    payment.retention_status = "COLLECTED"
+    session.add(payment)
+    session.commit()
+    session.refresh(payment)
+    return payment
+
+
+def waive_retention(
+    session: Session, payment_id: int, reason: str, current_user: User
+) -> CustomerPayment:
+    _require_manager_or_director(current_user)
+    payment = _get_payment_or_404(session, payment_id)
+    clean_reason = (reason or "").strip()
+    if not clean_reason:
+        raise HTTPException(status_code=422, detail="El motivo de liberación es obligatorio.")
+    status = (payment.retention_status or "").upper()
+    if status in {"COLLECTED", "WAIVED"}:
+        raise HTTPException(status_code=400, detail="La retención ya fue cobrada o liberada.")
+    payment.retention_status = "WAIVED"
+    payment.retention_notes = clean_reason
+    session.add(payment)
+    session.commit()
+    session.refresh(payment)
+    return payment
+
+
+def get_retention_alerts(session: Session, current_user: User) -> List[RetentionAlertRead]:
+    _require_manager_or_director(current_user)
+    today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    horizon = today + timedelta(days=7)
+    rows = sales_repo.get_retention_alert_payments(session, horizon)
+    alerts: List[RetentionAlertRead] = []
+    for payment in rows:
+        order = sales_repo.get_sales_order_by_id(session, payment.sales_order_id)
+        client = sales_repo.get_client_by_id(session, order.client_id) if order else None
+        due = payment.retention_due_date
+        days_until = (due.date() - today.date()).days if due else 0
+        alerts.append(
+            RetentionAlertRead(
+                payment_id=int(payment.id),
+                sales_order_id=int(payment.sales_order_id),
+                order_folio=f"OV-{str(payment.sales_order_id).zfill(4)}",
+                project_name=order.project_name if order else "—",
+                client_name=client.full_name if client else "—",
+                invoice_folio=payment.invoice_folio,
+                retention_amount=float(payment.retention_amount or 0.0),
+                retention_due_date=due,
+                retention_status=payment.retention_status,
+                days_until_due=days_until,
+                is_overdue=days_until < 0,
+            )
+        )
+    return alerts
+
+
+def update_retention_defaults(
+    session: Session, order_id: int, data: RetentionDefaultsUpdate, current_user: User
+) -> SalesOrder:
+    _require_manager_or_director(current_user)
+    order = sales_repo.get_sales_order_by_id(session, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Orden no encontrada.")
+    order.default_retention_percent = float(data.default_retention_percent)
+    order.default_retention_days = int(data.default_retention_days)
+    session.add(order)
+    session.commit()
+    session.refresh(order)
+    return order
 
 
 def _parse_cxc_status(status: Union[str, CXCStatus, None]) -> Optional[CXCStatus]:

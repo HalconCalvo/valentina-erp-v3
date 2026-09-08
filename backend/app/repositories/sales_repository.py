@@ -160,6 +160,21 @@ def get_cxc_by_id(session: Session, cxc_id: int) -> Optional[CustomerPayment]:
     return session.get(CustomerPayment, cxc_id)
 
 
+def get_retention_alert_payments(
+    session: Session, horizon: datetime
+) -> List[CustomerPayment]:
+    stmt = (
+        select(CustomerPayment)
+        .where(
+            CustomerPayment.retention_status == "PENDING",
+            CustomerPayment.retention_due_date.isnot(None),
+            CustomerPayment.retention_due_date <= horizon,
+        )
+        .order_by(CustomerPayment.retention_due_date.asc())
+    )
+    return list(session.exec(stmt).all())
+
+
 def get_tax_rate_by_id(session: Session, tax_rate_id: int) -> Optional[TaxRate]:
     return session.get(TaxRate, tax_rate_id)
 

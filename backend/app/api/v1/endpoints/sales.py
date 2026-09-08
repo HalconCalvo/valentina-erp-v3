@@ -56,6 +56,11 @@ from app.schemas.sales_schema import (
     InstanceStatusSummary,
     HouseStatusSummary,
     OrderHousesStatus,
+    RetentionUpdate,
+    RetentionInvoicePayload,
+    RetentionWaivePayload,
+    RetentionDefaultsUpdate,
+    RetentionAlertRead,
 )
 
 router = APIRouter()
@@ -1157,6 +1162,63 @@ def cancel_customer_payment(
     current_user: User = Depends(get_current_active_user),
 ):
     return sales_service.cancel_customer_payment(session, order_id, payment_id, data, current_user)
+
+
+@router.patch("/payments/{payment_id}/retention", response_model=CustomerPaymentRead)
+def patch_payment_retention(
+    payment_id: int,
+    data: RetentionUpdate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    return sales_service.update_retention(session, payment_id, data, current_user)
+
+
+@router.post("/payments/{payment_id}/retention/invoice", response_model=CustomerPaymentRead)
+def post_retention_invoice(
+    payment_id: int,
+    payload: RetentionInvoicePayload,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    return sales_service.invoice_retention(session, payment_id, payload.folio, current_user)
+
+
+@router.post("/payments/{payment_id}/retention/collect", response_model=CustomerPaymentRead)
+def post_retention_collect(
+    payment_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    return sales_service.collect_retention(session, payment_id, current_user)
+
+
+@router.post("/payments/{payment_id}/retention/waive", response_model=CustomerPaymentRead)
+def post_retention_waive(
+    payment_id: int,
+    payload: RetentionWaivePayload,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    return sales_service.waive_retention(session, payment_id, payload.reason, current_user)
+
+
+@router.get("/retentions/alerts", response_model=List[RetentionAlertRead])
+def get_retention_alerts(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    return sales_service.get_retention_alerts(session, current_user)
+
+
+@router.patch("/orders/{order_id}/retention-defaults", response_model=SalesOrderRead)
+def patch_order_retention_defaults(
+    order_id: int,
+    data: RetentionDefaultsUpdate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    return sales_service.update_retention_defaults(session, order_id, data, current_user)
 
 
 # ==========================================

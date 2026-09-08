@@ -126,7 +126,16 @@ class CustomerPayment(SQLModel, table=True):
     exchange_rate: Optional[float] = Field(default=1.0)
     
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    created_by_user_id: int 
+    created_by_user_id: int
+
+    # Fondo de garantía (retención por factura)
+    retention_percent: float = Field(default=0.0)
+    retention_amount: float = Field(default=0.0)
+    retention_days: int = Field(default=90)
+    retention_due_date: Optional[datetime] = Field(default=None)
+    retention_status: Optional[str] = Field(default=None)
+    retention_invoice_folio: Optional[str] = Field(default=None)
+    retention_notes: Optional[str] = Field(default=None)
     
     order: Optional["SalesOrder"] = Relationship(back_populates="payments")
     instances_paid: List["SalesOrderItemInstance"] = Relationship(back_populates="payment")
@@ -399,6 +408,9 @@ class SalesOrder(SQLModel, table=True):
     # V5: Orden de compra del cliente (obligatoria al cerrar venta → WAITING_ADVANCE)
     client_po_folio: Optional[str] = Field(default=None, index=True)
     client_po_date: Optional[datetime] = Field(default=None)
+
+    default_retention_percent: float = Field(default=0.0)
+    default_retention_days: int = Field(default=90)
 
     items: List[SalesOrderItem] = Relationship(
         back_populates="order", 
