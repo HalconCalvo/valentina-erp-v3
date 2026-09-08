@@ -2736,3 +2736,183 @@ Continuar Fase 4 con cobertura de tests, luego Fase 5 — Inventario Completo.
 - Aprobación granular: solo materiales con excepción >5%
 
 ### Siguiente: FASE 6 — Recursos Humanos
+
+
+---
+## PLAN DE TÉRMINO Y LIMPIEZA — VALENTINA ERP
+## Fecha: 2026-09-08
+## Versión: 1.0
+
+---
+
+### OBJETIVO
+Llevar Valentina a calificación A en todas las áreas y al arranque operativo
+en producción con saldos reales de Koloka.
+
+---
+
+### ETAPA 1 — LIMPIEZA DE DEUDA TÉCNICA (2-3 semanas)
+
+Corregir violaciones de principios en módulos existentes.
+Orden por impacto operativo diario.
+
+GRUPO A — CRÍTICO (uso diario en producción):
+1. ProductionKanbanPage.tsx — Kanban de producción
+2. InstanceEditModal.tsx — edición de instancias
+3. AllPurchaseOrdersModule.tsx — módulo de compras
+4. MaterialForm.tsx — formulario de materiales
+5. PayrollAuditPanel.tsx — nómina y comisiones
+
+GRUPO B — IMPORTANTE (uso frecuente):
+6. ClientsPage.tsx — catálogo de clientes
+7. ProvidersPage.tsx — catálogo de proveedores
+8. ReceivableChargeModal.tsx — modal de cobro
+9. PayablesModule.tsx — cuentas por pagar
+10. InvoiceDetailModal.tsx — detalle de facturas
+11. InventoryReceptionPage.tsx — recepción de inventario
+12. MaterialsPage.tsx — catálogo de materiales
+
+GRUPO C — MODERADO (uso ocasional):
+13. DirectorDashboard.tsx
+14. AccountsPayablePage.tsx
+15. CxcReportPage.tsx
+16. FinancialReviewModal.tsx
+17. PettyCashPanel.tsx
+18. TransactionModal.tsx
+19. ConfigPage.tsx
+
+GRUPO D — BAJO IMPACTO (admin):
+20. UsersPage.tsx
+21. TaxRatesPage.tsx
+22. SimulatorPage.tsx
+23. VersionRecipeForm.tsx
+24. OVTrackingPage.tsx
+25. CreateQuotePage.tsx (flujo legacy — será reemplazado por CreateQuotationPage)
+
+Criterio de éxito Etapa 1:
+- Cero <input> directos fuera de componentes V
+- Cero <table> directos fuera de componentes V
+- Cero <select> directos fuera de componentes V
+- Cero console.log en producción
+
+---
+
+### ETAPA 2 — FASES PENDIENTES DEL PLAN MAESTRO (4-6 semanas)
+
+FASE 7 — Dashboard Director Completo
+Depende de: Fases 5 y 6 (ambas completadas)
+Contenido:
+- KPIs operativos en tiempo real (OVs activas, instancias por estado)
+- KPIs financieros (rentabilidad por OV, antigüedad CxC/CxP)
+- KPIs de producción (eficiencia fábrica, merma, destajo semanal)
+- Análisis de rentabilidad (top OVs, top clientes, margen por producto)
+- Flujo de caja proyectado a 30, 60 y 90 días
+Criterio de éxito: Dashboard carga en < 3 segundos con datos reales
+
+FASE 8 — Contabilidad (simplificada por decisión de negocio)
+Decisión: Facturas se timbran en Compaq, Valentina solo captura folio
+Contenido reducido:
+- Verificar que administration_invoice_folio se captura correctamente
+- Reporte de facturas emitidas por período
+- Conciliación de folios Valentina vs Compaq
+- Fondo de garantía por OV (campo + flujo de cobro a 90 días)
+Criterio de éxito: Folio de factura ligado a instancia y a CxC correctamente
+
+FASE 9 — Seguridad Avanzada
+Contenido:
+- httpOnly cookies (reemplazar localStorage para tokens)
+- Refresh tokens con rotación automática
+- 2FA opcional para DIRECTOR y MANAGER
+- Audit log completo: quién hizo qué y cuándo en operaciones críticas
+- Backups automáticos diarios a Google Cloud Storage
+Criterio de éxito: Tokens fuera de localStorage, audit log activo
+
+FASE 10 — PWA para Campo
+Contenido:
+- App instalable en iOS y Android
+- Funciona offline con sincronización automática
+- Flujo instalador: ver asignaciones, escanear QR, subir evidencia, capturar firma
+- Flujo jefe de cuadrilla: reasignar, reportar incidencias
+Criterio de éxito: PWA instalable, flujo completo en < 5 toques
+
+---
+
+### ETAPA 3 — HERRAMIENTA DE MIGRACIÓN (1-2 semanas)
+
+Modo de registro simplificado para OVs con saldos abiertos al momento del corte.
+
+TIPO A — OV reciente (proceso completo):
+Las últimas 2-3 semanas de OVs se registran con el flujo completo:
+cotización → OV → instancias → producción → instalación → firma → factura → cobro
+
+TIPO B — OV legacy (solo saldos):
+OVs con mucho avance se registran con datos mínimos:
+- Datos de la OV (cliente, monto total, anticipo recibido)
+- Por cada factura abierta: folio, monto, cobrado, pendiente
+- Saldo pendiente de cobro
+- Sin instancias, sin lotes, sin historial de producción
+- El sistema calcula comisiones y KPIs desde el saldo registrado
+
+IMPLEMENTACIÓN:
+- Endpoint POST /sales/orders/legacy — crear OV en modo legacy
+- El endpoint salta el flujo de instancias y lotes
+- Crea directamente las CxC con sus folios reales
+- Registra abonos recibidos hasta la fecha de corte
+- La OV queda en estado SOLD con saldo correcto
+
+Criterio de éxito:
+- OV legacy registrada en < 5 minutos
+- Saldo correcto en CxC
+- KPIs del dashboard reflejan OVs legacy correctamente
+
+---
+
+### ETAPA 4 — ARRANQUE EN PRODUCCIÓN
+
+PRE-ARRANQUE (1 semana antes):
+- Saldo de apertura de inventario capturado en Kárdex
+- OVs legacy registradas con saldos correctos
+- OVs recientes registradas con proceso completo
+- Nómina semanal del período actual capturada
+- Comisiones históricas revisadas y liberadas manualmente por Gabriel
+- Backups verificados
+
+DÍA DEL CORTE:
+- Valentina anterior se congela (solo lectura)
+- Valentina nueva es el sistema oficial
+- Todas las operaciones nuevas entran en Valentina
+
+POST-ARRANQUE (primeras 2 semanas):
+- Monitoreo diario de Sentry para detectar errores
+- Corrección inmediata de cualquier bug operativo
+- Capacitación del equipo por módulo
+
+---
+
+### ORDEN DE EJECUCIÓN
+
+Etapa 1 (Limpieza) → puede iniciar ahora, paralelo a todo
+Etapa 2 (Fases 7-10) → inicia después del Grupo A de limpieza
+Etapa 3 (Migración) → inicia 2 semanas antes del arranque
+Etapa 4 (Arranque) → cuando Etapas 1, 2 y 3 están completas
+
+---
+
+### ESTIMACIÓN TOTAL
+
+Etapa 1 — Limpieza:        2-3 semanas
+Etapa 2 — Fases 7-10:      6-8 semanas
+Etapa 3 — Migración:       1-2 semanas
+Etapa 4 — Arranque:        1 semana
+TOTAL ESTIMADO:            10-14 semanas (~3 meses)
+
+---
+
+### CALIFICACIÓN OBJETIVO AL COMPLETAR
+
+Seguridad:             A
+Arquitectura backend:  A
+Modelo de datos:       A
+Frontend:              A
+Cobertura funcional:   A
+GLOBAL:                A — ERP de clase mundial listo para producción
