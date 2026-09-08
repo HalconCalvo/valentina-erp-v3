@@ -3023,3 +3023,32 @@ PENDIENTE ANTES DE CONTINUAR:
 1. Revertir CreateQuotePage a salesService
 2. Corregir valid_until bug
 3. Fase 7 — Dashboard Director Completo
+
+
+---
+## DECISIÓN ARQUITECTÓNICA — SEPARACIÓN COTIZACIÓN/OV (2026-09-08)
+
+### Estado actual:
+- CreateQuotePage guarda en sales_orders (restaurado)
+- Backend /quotations existe y está listo (tablas, endpoints, migraciones)
+- La separación visual ya existe en SalesDashboardPage (tarjetas distintas)
+- Las 88 cotizaciones históricas viven en sales_orders
+
+### Pendiente para el arranque en ceros:
+Cuando Valentina reinicie en ceros, ejecutar la migración completa:
+- Opción B: las tarjetas leen de sales_orders Y de quotations simultáneamente
+- Las cotizaciones nuevas van al backend /quotations
+- Las históricas quedan en sales_orders hasta que se liquiden
+- Al arranque en ceros no hay históricas — todo va a /quotations desde el día 1
+
+### Por qué esperar al arranque:
+- Hoy hay 88 cotizaciones en sales_orders que no deben tocarse
+- Migrarlas ahora tiene riesgo de pérdida de datos
+- Al arrancar en ceros el cajón está vacío — migración trivial y sin riesgo
+
+### Lo que queda listo para ese momento:
+- Backend /quotations con todos sus endpoints
+- Modelos Quotation y QuotationItem en la BD
+- quotation_service.py, quotation_repository.py
+- quotation_schema.py
+- Solo falta conectar el frontend al nuevo backend
