@@ -244,6 +244,9 @@ def trigger_double_green(
     instance.warranty_started_at = now
     session.add(instance)
 
+    from app.services import sales_service
+    sales_service.check_and_release_commissions(session, instance.id)
+
     return {
         "instance_id": instance.id,
         "custom_name": instance.custom_name,

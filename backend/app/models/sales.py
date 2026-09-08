@@ -89,6 +89,10 @@ class SalesCommission(SQLModel, table=True):
     is_paid: bool = Field(default=False)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
+    is_advance: bool = Field(default=False)
+    is_released: bool = Field(default=False)
+    released_at: Optional[datetime] = Field(default=None)
+
     # Tesorería / nómina: observaciones y aplazamiento de pago de comisión
     admin_notes: Optional[str] = Field(default=None)
     payroll_deferred: bool = Field(default=False)

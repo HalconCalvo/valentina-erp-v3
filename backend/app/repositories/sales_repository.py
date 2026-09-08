@@ -279,20 +279,28 @@ def get_commissions_by_filters(
     return list(session.exec(stmt.order_by(SalesCommission.created_at.desc())).all())
 
 
+def get_commissions_by_cxc(session: Session, cxc_id: int) -> List[SalesCommission]:
+    return list(
+        session.exec(
+            select(SalesCommission).where(SalesCommission.customer_payment_id == cxc_id)
+        ).all()
+    )
+
+
 def get_commissions_payroll_overview_data(session: Session) -> dict:
     waiting_orders = list(
         session.exec(
             select(SalesOrder).where(SalesOrder.status == SalesOrderStatus.WAITING_ADVANCE)
         ).all()
     )
-    pending_cxc = list(
+    retained = list(
         session.exec(
             select(SalesCommission, CustomerPayment)
             .join(CustomerPayment, SalesCommission.customer_payment_id == CustomerPayment.id)
             .where(
                 SalesCommission.commission_type == CommissionType.SELLER,
                 SalesCommission.is_paid == False,  # noqa: E712
-                CustomerPayment.status == CXCStatus.PENDING,
+                SalesCommission.is_released == False,  # noqa: E712
             )
         ).all()
     )
@@ -303,8 +311,8 @@ def get_commissions_payroll_overview_data(session: Session) -> dict:
             .where(
                 SalesCommission.commission_type == CommissionType.SELLER,
                 SalesCommission.is_paid == False,  # noqa: E712
+                SalesCommission.is_released == True,  # noqa: E712
                 SalesCommission.payroll_deferred == False,  # noqa: E712
-                CustomerPayment.status == CXCStatus.PAID,
             )
         ).all()
     )
@@ -320,7 +328,7 @@ def get_commissions_payroll_overview_data(session: Session) -> dict:
     )
     return {
         "waiting_orders": waiting_orders,
-        "pending_cxc": pending_cxc,
+        "retained": retained,
         "ready": ready,
         "paid": paid,
     }

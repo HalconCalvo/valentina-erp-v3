@@ -328,6 +328,9 @@ def update_sales_order_instance(
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(instance, field, value)
 
+    if data.administration_invoice_folio is not None:
+        sales_service.check_and_release_commissions(session, instance.id)
+
     session.add(instance)
     session.commit()
     session.refresh(instance)
@@ -1199,6 +1202,15 @@ def mark_commission_paid(
     current_user: User = Depends(get_current_active_user),
 ):
     return sales_service.mark_commission_paid(session, commission_id, payload, current_user)
+
+
+@router.post("/commissions/{commission_id}/release")
+def release_commission(
+    commission_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    return sales_service.release_commission(session, commission_id, current_user)
 
 
 # ================================================================

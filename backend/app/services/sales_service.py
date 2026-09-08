@@ -53,6 +53,9 @@ def _is_seller_scoped_role(user: User) -> bool:
     return _normalized_role(user) in ("SALES",)
 
 
+_COMMISSION_RELEASE_ROLES = {UserRole.DIRECTOR, UserRole.MANAGER}
+
+
 def _parse_cxc_status(status: Union[str, CXCStatus, None]) -> Optional[CXCStatus]:
     if status is None:
         return None
@@ -306,10 +309,43 @@ def mark_sold(session: Session, order_id: int, amount: float) -> SalesOrder:
     return order
 
 
-def _add_cxc_commissions(session: Session, order: SalesOrder, cxc_id: int, cxc_amount: float) -> None:
+def _instance_meets_release_conditions(inst: SalesOrderItemInstance) -> bool:
+    if inst.is_cancelled:
+        return True
+    folio = (inst.administration_invoice_folio or "").strip()
+    return inst.signed_received_at is not None and bool(folio)
+
+
+def _cxc_all_instances_ready(session: Session, cxc_id: int) -> bool:
+    instances = sales_repo.get_instances_by_cxc(session, cxc_id)
+    active = [i for i in instances if not i.is_cancelled]
+    if not active:
+        return False
+    return all(_instance_meets_release_conditions(i) for i in active)
+
+
+def _resolve_commission_release(
+    session: Session, cxc_id: int, *, is_advance: bool
+) -> tuple[bool, Optional[datetime]]:
+    if is_advance:
+        return False, None
+    if _cxc_all_instances_ready(session, cxc_id):
+        return True, datetime.utcnow()
+    return False, None
+
+
+def _add_cxc_commissions(
+    session: Session,
+    order: SalesOrder,
+    cxc_id: int,
+    cxc_amount: float,
+    *,
+    is_advance: bool = False,
+) -> None:
     tax_rate_obj = sales_repo.get_tax_rate_by_id(session, order.tax_rate_id)
     tax_multiplier = tax_rate_obj.rate if tax_rate_obj else 0.16
     base_before_tax = cxc_amount / (1.0 + tax_multiplier)
+    is_released, released_at = _resolve_commission_release(session, cxc_id, is_advance=is_advance)
     seller_rate = normalize_commission(order.applied_commission_percent or 0.0)
     if order.user_id and seller_rate > 0:
         session.add(SalesCommission(
@@ -319,6 +355,9 @@ def _add_cxc_commissions(session: Session, order: SalesOrder, cxc_id: int, cxc_a
             base_amount=base_before_tax,
             rate=seller_rate,
             commission_amount=base_before_tax * seller_rate,
+            is_advance=is_advance,
+            is_released=is_released,
+            released_at=released_at,
         ))
     for director in sales_repo.get_directors(session):
         dir_rate = normalize_commission(director.global_commission_rate or 0.0)
@@ -330,7 +369,49 @@ def _add_cxc_commissions(session: Session, order: SalesOrder, cxc_id: int, cxc_a
                 base_amount=base_before_tax,
                 rate=dir_rate,
                 commission_amount=base_before_tax * dir_rate,
+                is_advance=is_advance,
+                is_released=is_released,
+                released_at=released_at,
             ))
+
+
+def check_and_release_commissions(session: Session, instance_id: int) -> None:
+    inst = sales_repo.get_instance_by_id(session, instance_id)
+    if not inst or inst.is_cancelled or not inst.customer_payment_id:
+        return
+    cxc_id = inst.customer_payment_id
+    if not _cxc_all_instances_ready(session, cxc_id):
+        return
+    now = datetime.utcnow()
+    for commission in sales_repo.get_commissions_by_cxc(session, cxc_id):
+        if commission.is_advance or commission.is_released or commission.is_paid:
+            continue
+        commission.is_released = True
+        commission.released_at = now
+        session.add(commission)
+
+
+def release_commission(session: Session, commission_id: int, current_user: User) -> dict:
+    if _normalized_role(current_user) not in {r.value for r in _COMMISSION_RELEASE_ROLES}:
+        raise HTTPException(status_code=403, detail="Sin permisos para liberar comisiones.")
+    commission = sales_repo.get_commission_by_id(session, commission_id)
+    if not commission:
+        raise HTTPException(status_code=404, detail="Comisión no encontrada.")
+    if commission.is_paid:
+        raise HTTPException(status_code=400, detail="La comisión ya está pagada.")
+    if not commission.is_advance:
+        raise HTTPException(
+            status_code=400,
+            detail="Solo las comisiones de anticipo requieren liberación manual.",
+        )
+    if commission.is_released:
+        return {"ok": True, "commission_id": commission_id, "is_released": True}
+    commission.is_released = True
+    commission.released_at = datetime.utcnow()
+    session.add(commission)
+    session.commit()
+    session.refresh(commission)
+    return {"ok": True, "commission_id": commission_id, "is_released": commission.is_released}
 
 
 def confirm_payment(session: Session, order_id: int, cxc_id: int) -> SalesOrder:
@@ -346,7 +427,12 @@ def confirm_payment(session: Session, order_id: int, cxc_id: int) -> SalesOrder:
     if order.outstanding_balance <= 0.1:
         order.status = SalesOrderStatus.FINISHED
 
-    _add_cxc_commissions(session, order, cxc_id, float(cxc.amount or 0.0))
+    is_advance = cxc.payment_type == PaymentType.ADVANCE
+    if not cxc.commission_paid:
+        _add_cxc_commissions(
+            session, order, cxc_id, float(cxc.amount or 0.0), is_advance=is_advance
+        )
+        cxc.commission_paid = True
     session.add(cxc)
     session.add(order)
     session.commit()
@@ -448,7 +534,7 @@ def _adjust_bank_for_installment_diff(
 def liberar_comision_anticipo(
     session: Session, order: SalesOrder, payment: CustomerPayment, base_con_iva: float
 ) -> None:
-    _add_cxc_commissions(session, order, payment.id, base_con_iva)
+    _add_cxc_commissions(session, order, payment.id, base_con_iva, is_advance=True)
 
 
 def register_installment(
@@ -536,11 +622,14 @@ def register_installment(
     if factura_saldada and cxc.status != CXCStatus.PAID:
         cxc.status = CXCStatus.PAID
         cxc.payment_date = payload.payment_date or datetime.utcnow()
-        if cxc.payment_type == PaymentType.ADVANCE and not cxc.commission_paid and order:
+        if not cxc.commission_paid and order:
             session.flush()
-            liberar_comision_anticipo(session, order, cxc, float(cxc.amount or 0.0))
+            is_advance = cxc.payment_type == PaymentType.ADVANCE
+            _add_cxc_commissions(
+                session, order, cxc.id, float(cxc.amount or 0.0), is_advance=is_advance
+            )
             cxc.commission_paid = True
-            if order.status == SalesOrderStatus.WAITING_ADVANCE:
+            if is_advance and order.status == SalesOrderStatus.WAITING_ADVANCE:
                 order.status = SalesOrderStatus.SOLD
         session.add(cxc)
 
@@ -1079,9 +1168,14 @@ def get_commissions_overview(session: Session) -> CommissionsPayrollOverview:
             payroll_deferred=False,
         ))
 
-    for c, cx in raw["pending_cxc"]:
+    for c, cx in raw["retained"]:
         user = sales_repo.get_user_by_id(session, c.user_id)
         order = sales_repo.get_sales_order_by_id(session, cx.sales_order_id)
+        label = (
+            f"Anticipo retenido — Cobro #{cx.id}"
+            if c.is_advance
+            else f"Progreso retenido — Cobro #{cx.id}"
+        )
         retained.append(PayrollCommissionRow(
             kind="ACCRUED",
             id=c.id,
@@ -1089,8 +1183,8 @@ def get_commissions_overview(session: Session) -> CommissionsPayrollOverview:
             project_name=order.project_name if order else None,
             seller_name=user.full_name if user else None,
             amount=float(c.commission_amount),
-            days_waiting=_days_waiting(cx.created_at),
-            reference_label=f"CXC #{cx.id} pendiente de cobro",
+            days_waiting=_days_waiting(c.created_at),
+            reference_label=label,
             customer_payment_id=cx.id,
             cxc_status=cx.status.value if hasattr(cx.status, "value") else str(cx.status),
             admin_notes=c.admin_notes,
@@ -1194,6 +1288,9 @@ def get_commissions_report(
             commission_amount=c.commission_amount,
             is_paid=c.is_paid,
             created_at=c.created_at,
+            is_advance=bool(getattr(c, "is_advance", False)),
+            is_released=bool(getattr(c, "is_released", False)),
+            released_at=getattr(c, "released_at", None),
             sales_order_id=order.id if order else None,
             project_name=order.project_name if order else None,
             payment_amount=cxc.amount if cxc else None,
@@ -1210,6 +1307,8 @@ def mark_commission_paid(
     commission = sales_repo.get_commission_by_id(session, commission_id)
     if not commission:
         raise HTTPException(status_code=404, detail="Comisión no encontrada.")
+    if data.is_paid and not commission.is_released:
+        raise HTTPException(status_code=400, detail="Comisión no liberada aún")
     commission.is_paid = data.is_paid
     session.add(commission)
     session.commit()

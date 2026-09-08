@@ -77,6 +77,7 @@ class SalesOrderItemInstanceUpdate(SQLModel):
     is_cancelled: Optional[bool] = None
     current_location: Optional[str] = None
     customer_payment_id: Optional[int] = None
+    administration_invoice_folio: Optional[str] = None
 
 # ==========================================
 # 3. PARTIDAS / RECETAS (Nivel 2)
@@ -330,6 +331,9 @@ class SalesCommissionRead(BaseModel):
     commission_amount: float
     is_paid: bool
     created_at: datetime
+    is_advance: bool = False
+    is_released: bool = False
+    released_at: Optional[datetime] = None
 
     sales_order_id: Optional[int] = None
     project_name: Optional[str] = None
