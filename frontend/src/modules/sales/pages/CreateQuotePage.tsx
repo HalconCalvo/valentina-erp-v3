@@ -76,6 +76,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
     const [currentStatus, setCurrentStatus] = useState<SalesOrderStatus | null>(null);
 
     const [hasAdvanceInvoice, setHasAdvanceInvoice] = useState(false);
+    const [isUserSelectedTax, setIsUserSelectedTax] = useState(false);
 
     const [commissionRate, setCommissionRate] = useState<number>(0);
     const [loadingCommission, setLoadingCommission] = useState(false);
@@ -152,7 +153,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
     };
 
     useEffect(() => {
-        if (!isEditMode && config) {
+        if (!isEditMode && config && !isUserSelectedTax) {
             const defaultMargin = Number(config.target_profit_margin) || 0;
             if (header.applied_margin_percent === 0 && defaultMargin > 0) {
                 setHeader(prev => ({ ...prev, applied_margin_percent: defaultMargin }));
@@ -162,7 +163,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                 setHeader(prev => ({ ...prev, tax_rate_id: Number(defaultTaxId) }));
             }
         }
-    }, [config, taxRates, isEditMode]);
+    }, [config, taxRates, isEditMode, isUserSelectedTax, header.tax_rate_id]);
 
     useEffect(() => {
         if (isEditMode && id) {
@@ -198,6 +199,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                             })),
                         );
                         setCurrentStatus(data.status as SalesOrderStatus);
+                        setIsUserSelectedTax(true);
                         
                         setHasAdvanceInvoice(Boolean(data.has_advance_invoice));
                         
@@ -592,7 +594,11 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                         <SearchableSelect
                             items={taxRates ?? []}
                             value={header.tax_rate_id ? String(header.tax_rate_id) : ''}
-                            onChange={(v) => setHeader({...header, tax_rate_id: Number(v)})}
+                            onChange={(v) => {
+                                if (!v) return;
+                                setIsUserSelectedTax(true);
+                                setHeader({ ...header, tax_rate_id: Number(v) });
+                            }}
                             getLabel={(t) => `${t.name} (${t.rate * 100}%)`}
                             getValue={(t) => String(t.id)}
                             placeholder="-- Seleccionar --"

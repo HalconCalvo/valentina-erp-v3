@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Package, ShoppingCart, Factory, 
   Truck, Settings, LogOut, ChevronRight, Users, Briefcase, 
   UserCog, Percent, ClipboardList, TrendingUp, Shield, User,
-  Ruler, Hammer, PenTool, Landmark, CalendarDays, FileText
+  Ruler, Hammer, PenTool, Landmark, CalendarDays, FileText, Plus
 } from 'lucide-react';
 
 import { useFoundations } from '../../modules/foundations/hooks/useFoundations';
@@ -25,7 +25,9 @@ const menuItems = [
   { icon: TrendingUp, label: 'Gerencia', path: '/management', allowedRoles: ['DIRECTOR', 'MANAGER'] },
   
   { icon: ShoppingCart, label: 'Ventas', path: '/sales', allowedRoles: ['DIRECTOR', 'MANAGER', 'SALES'] },
-  { icon: FileText, label: 'Cotizaciones', path: '/quotations', allowedRoles: ['DIRECTOR', 'MANAGER', 'SALES'] },
+  { icon: FileText, label: 'Cotizaciones', path: '/quotations', allowedRoles: ['DIRECTOR', 'MANAGER', 'SALES'], children: [
+    { label: 'Nueva Cotización', path: '/quotations/new' },
+  ] },
   { icon: Users, label: 'Monitor Clientes', path: '/clients', allowedRoles: ['DIRECTOR', 'MANAGER', 'SALES', 'ADMIN'] },
   
   // 🔒 CANDADO APLICADO: Ventas ya NO puede entrar a Diseño e Ingeniería.
@@ -176,9 +178,10 @@ export default function Sidebar() {
         
         {sortedMenu.map((item) => {
           const active = isActive(item.path);
+          const childActive = item.children?.some((child) => currentPath === child.path || currentPath.startsWith(`${child.path}/`));
           return (
+            <div key={item.path} className="space-y-1">
             <button
-              key={item.path}
               onClick={() => {
                 // Limpiar sessionStorage de secciones activas
                 sessionStorage.removeItem('treasury_activeSection');
@@ -188,18 +191,41 @@ export default function Sidebar() {
               }}
               className={`
                 w-full group flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200
-                ${active 
+                ${active || childActive
                   ? 'bg-indigo-50 text-indigo-700'
                   : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
                 }
               `}
             >
               <div className="flex items-center gap-3">
-                <item.icon size={18} className={active ? 'stroke-[2px]' : 'stroke-[1.5px]'} />
+                <item.icon size={18} className={active || childActive ? 'stroke-[2px]' : 'stroke-[1.5px]'} />
                 <span>{item.label}</span>
               </div>
-              <ChevronRight size={14} className={`transition-opacity ${active ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'}`} />
+              <ChevronRight size={14} className={`transition-opacity ${active || childActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'}`} />
             </button>
+            {item.children?.map((child) => {
+              const subActive = currentPath === child.path || currentPath.startsWith(`${child.path}/`);
+              return (
+                <button
+                  key={child.path}
+                  onClick={() => {
+                    sessionStorage.removeItem('treasury_activeSection');
+                    navigate(child.path, { state: { reset: true, ts: Date.now() } });
+                  }}
+                  className={`
+                    w-full group flex items-center gap-2 pl-9 pr-3 py-2 rounded-lg text-xs font-medium transition-all duration-200
+                    ${subActive
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                    }
+                  `}
+                >
+                  <Plus size={14} className={subActive ? 'stroke-[2px]' : 'stroke-[1.5px]'} />
+                  <span>{child.label}</span>
+                </button>
+              );
+            })}
+            </div>
           );
         })}
       </nav>
