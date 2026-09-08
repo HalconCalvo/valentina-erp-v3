@@ -5,7 +5,7 @@ import {
     ArrowLeft, AlertTriangle, Clock, CheckCircle,
     BarChart3, Target, AlertCircle, PieChart, ShieldAlert,
     ThumbsUp, ThumbsDown, Package, Layers, ArrowLeftCircle,
-    FileSearch, RefreshCw, Lock, XCircle
+    FileSearch, RefreshCw, Lock, XCircle, Wallet, Users
 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
@@ -18,11 +18,18 @@ import { FinancialReviewModal } from '../../management/components/FinancialRevie
 import { salesService } from '../../../api/sales-service';
 import { treasuryService } from '../../../api/treasury-service';
 import { financeService } from '../../../api/finance-service';
+import {
+    analyticsService,
+    type CxcAgingStats,
+    type CashFlowProjection,
+    type OrderProfitabilityItem,
+    type TopClientItem,
+} from '../../../api/analytics-service';
 import { SalesOrder } from '../../../types/sales';
 import { BankAccount } from '../../../types/treasury';
 
 // Posibles vistas desplegables (Nivel 1)
-type DirectorSection = 'SALES' | 'OPERATIONS' | 'LIQUIDITY' | 'PROFITABILITY' | 'EFFICIENCY' | null;
+type DirectorSection = 'SALES' | 'OPERATIONS' | 'LIQUIDITY' | 'PROFITABILITY' | 'EFFICIENCY' | 'CXC_AGING' | 'TOP_CLIENTS' | null;
 
 // Posibles vistas de detalle para VENTAS (Nivel 2 -> 3)
 type SalesDetailView = 'PENDING_AUTH' | 'SENT_CLIENT' | 'RED_LIGHT' | 'BATTING_RATE' | null;
@@ -128,6 +135,11 @@ const DirectorDashboard: React.FC = () => {
     const [totalCXC, setTotalCXC] = useState(0);
     const [totalCXP, setTotalCXP] = useState(0);
     const [liquidityNet, setLiquidityNet] = useState(0);
+
+    const [cxcAging, setCxcAging] = useState<CxcAgingStats | null>(null);
+    const [cashFlow, setCashFlow] = useState<CashFlowProjection | null>(null);
+    const [profitability, setProfitability] = useState<OrderProfitabilityItem[]>([]);
+    const [topClients, setTopClients] = useState<TopClientItem[]>([]);
 
     useEffect(() => {
         loadData(); 
@@ -264,6 +276,21 @@ const DirectorDashboard: React.FC = () => {
                 /* ignore health errors */
             }
 
+            try {
+                const [aging, flow, profit, clients] = await Promise.all([
+                    analyticsService.getCxcAging().catch(() => null),
+                    analyticsService.getCashFlowProjection().catch(() => null),
+                    analyticsService.getOrderProfitability().catch(() => []),
+                    analyticsService.getTopClients().catch(() => []),
+                ]);
+                setCxcAging(aging);
+                setCashFlow(flow);
+                setProfitability(Array.isArray(profit) ? profit : []);
+                setTopClients(Array.isArray(clients) ? clients : []);
+            } catch {
+                /* ignore analytics fetch errors */
+            }
+
         } catch {
             /* ignore dashboard load errors */
         } finally {
@@ -298,6 +325,33 @@ const DirectorDashboard: React.FC = () => {
     };
 
     const formatCurrency = (amount: number) => amount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+    const formatPercent = (value: number) =>
+        new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+
+    const topProfitableOrders = useMemo(() => {
+        if (!profitability.length) return [];
+        return [...profitability].sort((a, b) => b.margin_percent - a.margin_percent).slice(0, 5);
+    }, [profitability]);
+
+    const leastProfitableOrders = useMemo(() => {
+        if (!profitability.length) return [];
+        return [...profitability].sort((a, b) => a.margin_percent - b.margin_percent).slice(0, 5);
+    }, [profitability]);
+
+    const topClientsWithPosition = useMemo(
+        () => topClients.map((client, index) => ({ ...client, position: index + 1 })),
+        [topClients],
+    );
+
+    const cxcAgingRanges = useMemo(() => {
+        const total = cxcAging?.total_pending ?? 0;
+        const keys = ['0-30', '31-60', '61-90', '+90'] as const;
+        return keys.map((key) => {
+            const amount = cxcAging?.breakdown?.[key] ?? 0;
+            const percent = total > 0 ? (amount / total) * 100 : 0;
+            return { key, amount, percent };
+        });
+    }, [cxcAging]);
 
     const salesDetailColumns: VTableColumn<SalesOrder>[] = useMemo(
         () => [
@@ -361,6 +415,92 @@ const DirectorDashboard: React.FC = () => {
             },
         ],
         [activeSalesView],
+    );
+
+    const profitabilityColumns: VTableColumn<OrderProfitabilityItem>[] = useMemo(
+        () => [
+            {
+                key: 'folio',
+                label: 'OV',
+                render: (row) => <span className="font-bold text-slate-800">{row.folio}</span>,
+            },
+            {
+                key: 'client_name',
+                label: 'Cliente',
+                render: (row) => <span className="text-slate-600">{row.client_name}</span>,
+            },
+            {
+                key: 'total_price',
+                label: 'Venta',
+                render: (row) => (
+                    <span className="block text-right font-bold text-slate-800">
+                        {formatCurrency(row.total_price)}
+                    </span>
+                ),
+            },
+            {
+                key: 'estimated_cost',
+                label: 'Costo',
+                render: (row) => (
+                    <span className="block text-right text-slate-600">
+                        {formatCurrency(row.estimated_cost)}
+                    </span>
+                ),
+            },
+            {
+                key: 'margin_percent',
+                label: 'Margen',
+                render: (row) => (
+                    <span className={`block text-right font-black ${row.margin_percent >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {formatPercent(row.margin_percent)}%
+                    </span>
+                ),
+            },
+        ],
+        [],
+    );
+
+    type TopClientRow = TopClientItem & { position: number };
+
+    const topClientsColumns: VTableColumn<TopClientRow>[] = useMemo(
+        () => [
+            {
+                key: 'position',
+                label: 'Posición',
+                render: (row) => (
+                    <span className="font-black text-indigo-600">#{row.position}</span>
+                ),
+            },
+            {
+                key: 'client_name',
+                label: 'Cliente',
+                render: (row) => <span className="font-bold text-slate-800">{row.client_name}</span>,
+            },
+            {
+                key: 'total_orders',
+                label: 'OVs',
+                render: (row) => <span className="text-slate-600">{row.total_orders}</span>,
+            },
+            {
+                key: 'total_revenue',
+                label: 'Revenue',
+                render: (row) => (
+                    <span className="block text-right font-bold text-emerald-700">
+                        {formatCurrency(row.total_revenue)}
+                    </span>
+                ),
+            },
+            {
+                key: 'avg_margin_percent',
+                label: 'Margen Promedio',
+                render: (row) => (
+                    <span className="block text-right font-bold text-amber-700">
+                        {formatPercent(row.avg_margin_percent)}%
+                    </span>
+                ),
+            },
+        ],
+        [],
     );
 
     const healthInstanceColumns: VTableColumn<HealthInstance>[] = useMemo(
@@ -453,6 +593,8 @@ const DirectorDashboard: React.FC = () => {
             case 'LIQUIDITY': return 'Liquidez y Flujo Maestro';
             case 'PROFITABILITY': return 'Auditoría de Rentabilidad';
             case 'EFFICIENCY': return 'Eficiencia de Fábrica';
+            case 'CXC_AGING': return 'Cartera Pendiente — Antigüedad CxC';
+            case 'TOP_CLIENTS': return 'Top Clientes — Volumen Anual';
             default: return 'Dirección Estratégica';
         }
     };
@@ -732,6 +874,62 @@ const DirectorDashboard: React.FC = () => {
                         </Card>
                     </div>
 
+                    {/* 8. CARTERA PENDIENTE */}
+                    <div className="w-full relative h-40">
+                        <Card
+                            onClick={() => openMainSection('CXC_AGING')}
+                            className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-purple-500 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white relative overflow-hidden group"
+                        >
+                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-purple-50 text-purple-700 border-r border-purple-100 font-black text-3xl transition-colors group-hover:bg-purple-100">
+                                {cxcAging?.count ?? 0}
+                            </div>
+                            <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                                <div className="flex justify-between items-start">
+                                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">6. Cartera Pendiente</p>
+                                    <Wallet size={16} className="text-purple-500" />
+                                </div>
+                                <div className="flex justify-end">
+                                    <div className="text-xl font-black text-purple-600 tracking-tight leading-none truncate">
+                                        {formatCurrency(cxcAging?.total_pending ?? 0)}
+                                    </div>
+                                </div>
+                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">Antigüedad de cuentas por cobrar</p>
+                                    <Wallet size={14} className="text-purple-400" />
+                                </div>
+                            </div>
+                        </Card>
+                    </div>
+
+                    {/* 9. TOP CLIENTES */}
+                    <div className="w-full relative h-40">
+                        <Card
+                            onClick={() => openMainSection('TOP_CLIENTS')}
+                            className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-cyan-500 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white relative overflow-hidden group"
+                        >
+                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-cyan-50 text-cyan-700 border-r border-cyan-100 font-black text-3xl transition-colors group-hover:bg-cyan-100">
+                                {topClients.length}
+                            </div>
+                            <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                                <div className="flex justify-between items-start">
+                                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">7. Top Clientes</p>
+                                    <Users size={16} className="text-cyan-500" />
+                                </div>
+                                <div className="flex justify-end">
+                                    <div className="text-xl font-black text-cyan-600 tracking-tight leading-none truncate">
+                                        {topClients.length > 0
+                                            ? formatCurrency(topClients[0].total_revenue)
+                                            : formatCurrency(0)}
+                                    </div>
+                                </div>
+                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">Por volumen de ventas año en curso</p>
+                                    <Users size={14} className="text-cyan-400" />
+                                </div>
+                            </div>
+                        </Card>
+                    </div>
+
                 </div>
             )}
 
@@ -967,6 +1165,40 @@ const DirectorDashboard: React.FC = () => {
                                     </p>
                                 </Card>
                             </div>
+
+                            <div className="md:col-span-3">
+                                <Card className="p-6 border-l-4 border-l-indigo-500 bg-white">
+                                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-4">
+                                        Proyección de Flujo de Caja
+                                    </p>
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                        <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Saldo Actual</p>
+                                            <p className="text-2xl font-black text-slate-800 mt-1">
+                                                {formatCurrency(cashFlow?.current_balance ?? totalBankBalance)}
+                                            </p>
+                                        </div>
+                                        <div className="bg-indigo-50 rounded-xl p-4 border border-indigo-100">
+                                            <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">30 Días</p>
+                                            <p className={`text-2xl font-black mt-1 ${(cashFlow?.projection_30 ?? 0) < 0 ? 'text-red-600' : 'text-indigo-700'}`}>
+                                                {formatCurrency(cashFlow?.projection_30 ?? 0)}
+                                            </p>
+                                        </div>
+                                        <div className="bg-indigo-50 rounded-xl p-4 border border-indigo-100">
+                                            <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">60 Días</p>
+                                            <p className={`text-2xl font-black mt-1 ${(cashFlow?.projection_60 ?? 0) < 0 ? 'text-red-600' : 'text-indigo-700'}`}>
+                                                {formatCurrency(cashFlow?.projection_60 ?? 0)}
+                                            </p>
+                                        </div>
+                                        <div className="bg-indigo-50 rounded-xl p-4 border border-indigo-100">
+                                            <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">90 Días</p>
+                                            <p className={`text-2xl font-black mt-1 ${(cashFlow?.projection_90 ?? 0) < 0 ? 'text-red-600' : 'text-indigo-700'}`}>
+                                                {formatCurrency(cashFlow?.projection_90 ?? 0)}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </Card>
+                            </div>
                         </div>
                     )}
 
@@ -1107,6 +1339,98 @@ const DirectorDashboard: React.FC = () => {
                                     </div>
                                 </Card>
                             </div>
+                            )}
+
+                            <div className="md:col-span-3">
+                                <Card className="p-6 border-l-4 border-l-emerald-600 bg-white">
+                                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-4">
+                                        Top 5 OVs Más Rentables
+                                    </p>
+                                    {topProfitableOrders.length === 0 ? (
+                                        <p className="text-xs text-slate-400 text-center py-6">Sin datos de rentabilidad disponibles</p>
+                                    ) : (
+                                        <VTable columns={profitabilityColumns} data={topProfitableOrders} />
+                                    )}
+                                </Card>
+                            </div>
+
+                            <div className="md:col-span-3">
+                                <Card className="p-6 border-l-4 border-l-red-500 bg-white">
+                                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-4">
+                                        Top 5 OVs Menos Rentables
+                                    </p>
+                                    {leastProfitableOrders.length === 0 ? (
+                                        <p className="text-xs text-slate-400 text-center py-6">Sin datos de rentabilidad disponibles</p>
+                                    ) : (
+                                        <VTable columns={profitabilityColumns} data={leastProfitableOrders} />
+                                    )}
+                                </Card>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 6. DESGLOSE CARTERA CxC */}
+                    {activeSection === 'CXC_AGING' && (
+                        <div className="space-y-6">
+                            <Card className="p-6 border-l-4 border-l-purple-600 bg-white">
+                                <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2">
+                                    Total Pendiente por Cobrar
+                                </p>
+                                <p className="text-4xl font-black text-purple-700">
+                                    {formatCurrency(cxcAging?.total_pending ?? 0)}
+                                </p>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase mt-2">
+                                    {cxcAging?.count ?? 0} facturas / abonos pendientes
+                                </p>
+                            </Card>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {cxcAgingRanges.map(({ key, amount, percent }) => {
+                                    const styles = {
+                                        '0-30': { border: 'border-l-emerald-500', bg: 'bg-emerald-50', text: 'text-emerald-700', bar: 'bg-emerald-500' },
+                                        '31-60': { border: 'border-l-amber-500', bg: 'bg-amber-50', text: 'text-amber-700', bar: 'bg-amber-500' },
+                                        '61-90': { border: 'border-l-orange-500', bg: 'bg-orange-50', text: 'text-orange-700', bar: 'bg-orange-500' },
+                                        '+90': { border: 'border-l-red-500', bg: 'bg-red-50', text: 'text-red-700', bar: 'bg-red-500' },
+                                    }[key];
+                                    return (
+                                        <Card key={key} className={`p-6 border-l-4 ${styles.border} bg-white`}>
+                                            <div className="flex justify-between items-start mb-3">
+                                                <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">
+                                                    {key} días
+                                                </p>
+                                                <p className={`text-xl font-black ${styles.text}`}>
+                                                    {formatPercent(percent)}%
+                                                </p>
+                                            </div>
+                                            <p className={`text-2xl font-black ${styles.text} mb-3`}>
+                                                {formatCurrency(amount)}
+                                            </p>
+                                            <div className={`h-3 rounded-full ${styles.bg} overflow-hidden`}>
+                                                <div
+                                                    className={`h-full rounded-full ${styles.bar}`}
+                                                    style={{ width: `${Math.min(percent, 100)}%` }}
+                                                />
+                                            </div>
+                                        </Card>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 7. DESGLOSE TOP CLIENTES */}
+                    {activeSection === 'TOP_CLIENTS' && (
+                        <div>
+                            {topClientsWithPosition.length === 0 ? (
+                                <div className="text-center py-12 text-slate-500 bg-white rounded-xl border border-slate-200 shadow-sm">
+                                    Sin clientes con OVs completadas en el año en curso.
+                                </div>
+                            ) : (
+                                <VTable
+                                    columns={topClientsColumns}
+                                    data={topClientsWithPosition}
+                                    className="shadow-sm"
+                                />
                             )}
                         </div>
                     )}
