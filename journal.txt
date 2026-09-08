@@ -2951,3 +2951,34 @@ Fase 7 — Dashboard Director Completo
 - Flujo de caja proyectado = CxC + CxP + nóminas + gastos operativos
 - Reorganizar y clarificar KPIs existentes
 - Agregar: rentabilidad por OV, antigüedad CxC, top clientes
+
+
+---
+## SESIÓN 2026-09-08 (tarde) — DECISIONES SOBRE COTIZACIONES
+
+### Situación actual:
+- CreateQuotePage está conectada al backend nuevo (/quotations)
+- Las tarjetas Borradores/En Revisión/Autorizadas leen del backend antiguo (sales_orders)
+- Las cotizaciones nuevas no aparecen en las tarjetas existentes
+- QuotationsDashboardPage duplica el flujo visual existente
+
+### Decisión aprobada por Gabriel:
+Revertir CreateQuotePage para que guarde en sales_orders (backend antiguo).
+La separación visual ya existe en SalesDashboardPage — cotizaciones y OVs
+son tarjetas distintas con estados distintos.
+El backend nuevo de /quotations queda para una fase futura.
+
+### Pendiente al regresar:
+1. Revertir CreateQuotePage → salesService (no quotationService)
+2. /quotations → redirect a /sales
+3. Corregir bug de valid_until al guardar cotización en edición
+4. Continuar con Fase 7 — Dashboard Director
+
+### Bugs pendientes de resolver:
+- Al modificar una cotización no deja guardar (valid_until inválido)
+- Este bug puede desaparecer al revertir a salesService
+
+### Nota arquitectónica:
+La separación Cotización/OV está en el modelo de datos (tabla quotations existe)
+y en el backend. El frontend la implementará completamente en una fase posterior.
+Por ahora la separación visual en SalesDashboardPage es suficiente para operar.
