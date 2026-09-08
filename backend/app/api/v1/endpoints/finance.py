@@ -18,7 +18,7 @@ from app.models.finance import (
 )
 from app.models.foundations import Provider
 from app.models.treasury import BankAccount, BankTransaction, TransactionType
-from app.models.inventory import PurchaseOrder, InventoryTransaction
+from app.models.inventory import PurchaseOrder
 from app.models.material import Material
 
 from app.schemas.finance_schema import (
@@ -782,21 +782,18 @@ def create_credit_note(
     returned_detail = []
     if data.credit_type == CreditNoteType.RETURN and return_lines:
         session.flush()  # para obtener nc.id
+        from app.services import inventory_service
+
         for material, qty, unit_cost in return_lines:
-            # Bajar stock físico
-            material.physical_stock = float(material.physical_stock or 0) - qty
-            session.add(material)
-            # Kárdex negativo (el current_cost NO se toca)
-            mov = InventoryTransaction(
-                material_id=material.id,
-                quantity=-qty,
+            inventory_service.register_movement(
+                session,
+                material.id,
+                "RETURN",
+                qty,
                 unit_cost=unit_cost,
-                subtotal=round(-qty * unit_cost, 2),
-                transaction_type="CREDIT_NOTE_RETURN",
-                created_at=datetime.utcnow(),
+                reason=data.reason,
+                commit=False,
             )
-            session.add(mov)
-            # Guardar la línea de la NC
             nc_item = CreditNoteItem(
                 credit_note_id=nc.id,
                 material_id=material.id,

@@ -169,3 +169,19 @@ class POCreateFromPlanning(BaseModel):
     provider_id: int | None
     items: List[dict]
     overhead_category: Optional[str] = None
+
+
+class ManualAdjustDelta(BaseModel):
+    quantity_adjustment: float
+    reason: str = "Ajuste manual"
+
+
+class ManualAdjustStock(BaseModel):
+    counted_quantity: float
+    notes: str = "Inventario físico"
+
+
+class PhysicalCountCreate(BaseModel):
+    counted_quantity: float
+    fecha_conteo: str
+    notes: Optional[str] = None

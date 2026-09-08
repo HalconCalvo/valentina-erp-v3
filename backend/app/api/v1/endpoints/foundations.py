@@ -12,12 +12,12 @@ from sqlalchemy.exc import IntegrityError
 from app.core.database import get_session
 from app.core.deps import CurrentUser, SessionDep
 from app.services.cloud_storage import upload_to_gcs  # <--- LA TUBERÍA BLINDADA
-from app.services.inventory_manager import registrar_movimiento_inventario, calcular_saldo_a_fecha
+from app.services import inventory_service
+from app.schemas.inventory_schema import ManualAdjustDelta, ManualAdjustStock, PhysicalCountCreate
 
 # --- MODELOS ---
 from app.models.foundations import GlobalConfig, Provider, Client, TaxRate
 from app.models.material import Material
-from app.models.inventory import InventoryTransaction
 
 router = APIRouter()
 
@@ -472,258 +472,68 @@ def toggle_tax_rate(tax_id: int, session: Session = Depends(get_session)):
 @router.post("/materials/{material_id}/adjust")
 def adjust_material_by_delta(
     material_id: int,
-    body: dict,
+    body: ManualAdjustDelta,
     current_user: CurrentUser,
     session: Session = Depends(get_session),
 ):
-    """
-    Ajusta el stock físico de un material por delta (+/-).
-    body: { "quantity_adjustment": float, "reason": str }
-    """
-    material = session.get(Material, material_id)
-    if not material:
-        raise HTTPException(status_code=404, detail="Material no encontrado")
+    return inventory_service.register_manual_adjustment_by_delta(
+        session, material_id, body.quantity_adjustment, body.reason, current_user
+    )
 
-    delta = float(body.get("quantity_adjustment", 0))
-    reason = body.get("reason", "Ajuste manual")
-
-    if delta == 0:
-        return {"ok": True, "message": "Sin diferencia, stock no modificado"}
-
-    material.physical_stock = (material.physical_stock or 0) + delta
-    session.add(material)
-    session.commit()
-    session.refresh(material)
-
-    return {
-        "ok": True,
-        "material_id": material_id,
-        "movement_type": "AJUSTE_POSITIVO" if delta > 0 else "AJUSTE_NEGATIVO",
-        "delta": delta,
-        "new_stock": material.physical_stock,
-    }
 
 @router.patch("/materials/{material_id}/adjust-stock")
 def adjust_material_stock(
     material_id: int,
-    body: dict,
+    body: ManualAdjustStock,
     current_user: CurrentUser,
     session: Session = Depends(get_session),
 ):
-    """
-    Ajusta el stock físico de un material.
-    body: { "counted_quantity": float, "notes": str }
-    Genera AJUSTE_POSITIVO o AJUSTE_NEGATIVO según la diferencia.
-    """
-    material = session.get(Material, material_id)
-    if not material:
-        raise HTTPException(status_code=404, detail="Material no encontrado")
-
-    counted = float(body.get("counted_quantity", 0))
-    notes = body.get("notes", f"Inventario físico")
-    difference = counted - material.physical_stock
-
-    if difference == 0:
-        return {"ok": True, "message": "Sin diferencia, stock no modificado"}
-
-    movement_type = "AJUSTE_POSITIVO" if difference > 0 else "AJUSTE_NEGATIVO"
-    material.physical_stock = counted
-    session.add(material)
-    session.commit()
-    session.refresh(material)
-
-    return {
-        "ok": True,
-        "material_id": material_id,
-        "movement_type": movement_type,
-        "difference": difference,
-        "new_stock": material.physical_stock,
-    }
+    return inventory_service.register_manual_adjustment_to_count(
+        session, material_id, body.counted_quantity, body.notes, current_user
+    )
 
 
 @router.post("/materials/{material_id}/physical-count")
 def physical_count_with_date(
     material_id: int,
-    body: dict,
+    body: PhysicalCountCreate,
     current_user: CurrentUser,
     session: Session = Depends(get_session),
 ):
-    """
-    CAPTURA DE INVENTARIO FÍSICO CON FECHA ANCLADA (Fase 3B-1).
-
-    body: { "counted_quantity": float, "fecha_conteo": "YYYY-MM-DD", "notes": str (opcional) }
-
-    El conteo se ancla a su fecha real: se compara contra el saldo del Kárdex A ESA FECHA
-    y la diferencia se registra como movimiento fechado en fecha_conteo, ajustando
-    physical_stock por SUMA de la diferencia (NO sobrescribe), para preservar los
-    movimientos posteriores a la fecha del conteo.
-    """
-    role = current_user.role.value if hasattr(current_user.role, "value") \
-        else str(current_user.role)
-    if role.upper() not in ["DIRECTOR", "ADMIN", "MANAGER"]:
-        raise HTTPException(
-            status_code=403,
-            detail="Solo Dirección, Administración o Gerencia pueden capturar inventario físico."
-        )
-
-    material = session.get(Material, material_id)
-    if not material:
-        raise HTTPException(status_code=404, detail="Material no encontrado")
-
-    counted = float(body.get("counted_quantity", 0))
-
-    fecha_str = body.get("fecha_conteo")
-    if not fecha_str:
-        raise HTTPException(status_code=400, detail="Debe indicar fecha_conteo (YYYY-MM-DD).")
-    try:
-        fecha_base = datetime.strptime(str(fecha_str)[:10], "%Y-%m-%d")
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Formato de fecha inválido. Use YYYY-MM-DD.")
-
-    # Sin hora => hasta el final de ese día, para incluir movimientos del mismo día.
-    fecha_fin_dia = fecha_base.replace(hour=23, minute=59, second=59, microsecond=999999)
-
-    # IDEMPOTENCIA POR (material, fecha): un material solo puede tener UN conteo físico
-    # por fecha. Si ya existe(n) conteo(s) para este material en esta misma fecha anclada,
-    # se REVIERTE su efecto en el stock y se borran ANTES de recalcular el saldo, para que
-    # el nuevo conteo reemplace al anterior en vez de acumularse.
-    # Solo afecta AJUSTE_CONTEO_FISICO; otros tipos de movimiento no se tocan.
-    conteos_previos = session.exec(
-        select(InventoryTransaction).where(
-            InventoryTransaction.material_id == material_id,
-            InventoryTransaction.transaction_type == "AJUSTE_CONTEO_FISICO",
-            InventoryTransaction.created_at == fecha_fin_dia,
-        )
-    ).all()
-
-    for viejo in conteos_previos:
-        material.physical_stock = (material.physical_stock or 0.0) - (viejo.quantity or 0.0)
-        session.delete(viejo)
-
-    # Asegura que los borrados se materialicen antes de recalcular el saldo agregado,
-    # para que calcular_saldo_a_fecha ya NO incluya los conteos que estamos reemplazando.
-    session.flush()
-
-    saldo_a_fecha = calcular_saldo_a_fecha(session, material_id, fecha_fin_dia)
-    diferencia = counted - saldo_a_fecha
-
-    if diferencia == 0:
-        # No se registra movimiento nuevo, pero sí persistimos la posible reversión/borrado
-        # de conteos previos de esta misma fecha (idempotencia), si los hubo.
-        session.add(material)
-        session.commit()
-        session.refresh(material)
-        return {
-            "ok": True,
-            "message": "Sin diferencia, no se registró movimiento.",
-            "material_id": material_id,
-            "saldo_a_fecha": saldo_a_fecha,
-            "counted_quantity": counted,
-            "diferencia": 0.0,
-            "nuevo_physical_stock": material.physical_stock,
-        }
-
-    registrar_movimiento_inventario(
+    return inventory_service.register_physical_count(
         session,
-        material_id=material_id,
-        cantidad=diferencia,
-        tipo="AJUSTE_CONTEO_FISICO",
-        costo_unitario=float(getattr(material, 'current_cost', 0.0) or 0.0),
-        reason_code="CONTEO_FISICO",
-        created_at=fecha_fin_dia,
+        material_id,
+        body.counted_quantity,
+        body.fecha_conteo,
+        current_user,
+        body.notes,
     )
 
-    # Ajuste por SUMA de la diferencia (preserva movimientos posteriores al conteo).
-    material.physical_stock = (material.physical_stock or 0.0) + diferencia
-    session.add(material)
-    session.commit()
-    session.refresh(material)
 
-    return {
-        "ok": True,
-        "material_id": material_id,
-        "saldo_a_fecha": saldo_a_fecha,
-        "counted_quantity": counted,
-        "diferencia": diferencia,
-        "nuevo_physical_stock": material.physical_stock,
-    }
+@router.get("/materials/low-stock")
+def read_low_stock_materials(current_user: CurrentUser, session: Session = Depends(get_session)):
+    return inventory_service.list_low_stock_materials(session, current_user)
+
+
+@router.get("/materials/{material_id}/kardex")
+def read_material_kardex(
+    material_id: int,
+    current_user: CurrentUser,
+    session: Session = Depends(get_session),
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None,
+):
+    return inventory_service.get_material_kardex(session, material_id, current_user, date_from, date_to)
 
 
 @router.get("/materials/valuation")
-def get_inventory_valuation(session: Session = Depends(get_session)):
-    """Retorna la valuación total del inventario en unidades de uso."""
-    materials = session.exec(
-        select(Material).where(Material.is_active == True)
-    ).all()
-    
-    total = sum(
-        m.physical_stock * (m.current_cost / (m.conversion_factor or 1.0))
-        for m in materials
-    )
-    return {"total_valuation": round(total, 2)}
+def get_inventory_valuation(current_user: CurrentUser, session: Session = Depends(get_session)):
+    return inventory_service.get_inventory_valuation(session, current_user)
 
 
 @router.post("/materials/seed-kardex-opening")
 def seed_kardex_opening(current_user: CurrentUser, session: SessionDep):
-    """
-    SIEMBRA DE SALDO DE APERTURA DEL KÁRDEX (Fase 3A) — uso administrativo, una sola vez.
-
-    Por cada material con stock, registra un movimiento AJUSTE_INICIAL fechado en
-    inventory_transactions que representa "lo que había al encender el Kárdex".
-
-    IDEMPOTENTE: si un material ya tiene un AJUSTE_INICIAL, se salta (no duplica).
-    NO modifica physical_stock de ningún material: solo deja el rastro histórico.
-    """
-    role = current_user.role.value if hasattr(current_user.role, "value") \
-        else str(current_user.role)
-    if role.upper() not in ["DIRECTOR", "ADMIN", "MANAGER"]:
-        raise HTTPException(
-            status_code=403,
-            detail="Solo Dirección, Administración o Gerencia pueden sembrar el saldo de apertura."
-        )
-
-    materials = session.exec(select(Material)).all()
-
-    sembrados = 0
-    saltados_existente = 0
-    saltados_stock_cero = 0
-
-    for material in materials:
-        ya_existe = session.exec(
-            select(InventoryTransaction).where(
-                InventoryTransaction.material_id == material.id,
-                InventoryTransaction.transaction_type == "AJUSTE_INICIAL",
-            )
-        ).first()
-
-        if ya_existe:
-            saltados_existente += 1
-            continue
-
-        stock_actual = float(material.physical_stock or 0.0)
-        if stock_actual <= 0:
-            saltados_stock_cero += 1
-            continue
-
-        registrar_movimiento_inventario(
-            session,
-            material_id=material.id,
-            cantidad=stock_actual,
-            tipo="AJUSTE_INICIAL",
-            costo_unitario=float(getattr(material, 'current_cost', 0.0) or 0.0),
-            reason_code="SALDO_APERTURA",
-        )
-        sembrados += 1
-
-    session.commit()
-
-    return {
-        "ok": True,
-        "sembrados": sembrados,
-        "saltados_por_existir": saltados_existente,
-        "saltados_por_stock_cero": saltados_stock_cero,
-        "total_materiales": len(materials),
-    }
+    return inventory_service.seed_opening_balance_entries(session, current_user)
 
 
 @router.get("/materials")

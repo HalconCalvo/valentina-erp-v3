@@ -840,7 +840,6 @@ def receive_purchase_order(db: Session, po_id: int, data: dict, current_user):
     from datetime import timedelta
 
     from app.models.finance import InvoiceStatus, PaymentStatus, PurchaseInvoice, PurchaseInvoiceItem
-    from app.services.inventory_manager import registrar_movimiento_inventario
 
     _ = current_user
     po = purchase_repo.get_purchase_order_by_id(db, po_id)
@@ -913,21 +912,22 @@ def receive_purchase_order(db: Session, po_id: int, data: dict, current_user):
                 if route == "MATERIAL" and qty_this_delivery > 0:
                     factor = float(getattr(mat, "conversion_factor", 1) or 1)
                     qty_in_usage_units = qty_this_delivery * factor
-                    mat.physical_stock = (mat.physical_stock or 0) + qty_in_usage_units
-                    db.add(mat)
                     _edited = edited_by_item_id.get(item.id) or edited_by_sku.get(mat_sku, {})
                     _edited_cost = _edited.get("unit_cost")
                     _costo_kardex = (
                         float(_edited_cost) if _edited_cost is not None
                         else float(getattr(item, "expected_unit_cost", 0.0) or 0.0)
                     )
-                    registrar_movimiento_inventario(
+                    from app.services import inventory_service
+
+                    inventory_service.register_movement(
                         db,
-                        material_id=mat.id,
-                        cantidad=qty_in_usage_units,
-                        tipo="ENTRADA_COMPRA",
-                        costo_unitario=_costo_kardex,
-                        reason_code="RECEPCION_OC",
+                        mat.id,
+                        "PURCHASE_ENTRY",
+                        qty_in_usage_units,
+                        unit_cost=_costo_kardex,
+                        reason="RECEPCION_OC",
+                        commit=False,
                     )
         else:
             if item.id in received_by_item_id:

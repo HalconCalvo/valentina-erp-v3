@@ -495,7 +495,6 @@ def correct_reception_item(*, db: Session = Depends(get_session), po_id: int, it
            con pagos aplicados -> SOLO GERENCIA.
     """
     from app.models.finance import PurchaseInvoice, SupplierPayment, PurchaseInvoiceItem
-    from app.services.inventory_manager import registrar_movimiento_inventario
     try:
         po = db.get(PurchaseOrder, po_id)
         if not po:
@@ -551,15 +550,16 @@ def correct_reception_item(*, db: Session = Depends(get_session), po_id: int, it
         if mat and (getattr(mat, 'production_route', 'MATERIAL') or 'MATERIAL').upper() == 'MATERIAL':
             factor = float(getattr(mat, 'conversion_factor', 1) or 1)
             qty_units = delta * factor
-            mat.physical_stock = (mat.physical_stock or 0) - qty_units
-            db.add(mat)
-            registrar_movimiento_inventario(
+            from app.services import inventory_service
+
+            inventory_service.register_movement(
                 db,
-                material_id=mat.id,
-                cantidad=-qty_units,
-                tipo="AJUSTE_CORRECCION",
-                costo_unitario=costo,
-                reason_code="CORRECCION_RECEPCION",
+                mat.id,
+                "ADJUSTMENT_OUT",
+                abs(qty_units),
+                unit_cost=costo,
+                reason="CORRECCION_RECEPCION",
+                commit=False,
             )
 
         # --- 2) Ajustar la CxP (y su gemela) por el monto revertido ---

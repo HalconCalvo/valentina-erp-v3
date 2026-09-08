@@ -16,7 +16,7 @@ from app.schemas.inventory_schema import (
     ProductRead,
     StockMovementCreate,
 )
-from app.services.inventory_manager import InventoryManager  # <--- EL MOTOR
+from app.services import inventory_service
 
 router = APIRouter()
 
@@ -52,18 +52,15 @@ def create_inventory_reception(
         # - Sumar stock físico
         # - Crear la transacción en el Kárdex
         
-        success = InventoryManager.update_stock_and_cost(
+        inventory_service.register_movement(
             session=session,
             material_id=item.material_id,
-            quantity_usage_units=item.quantity, # El motor aplicará el factor internamente
-            total_line_cost=item.line_total_cost,
-            transaction_type="PURCHASE_ENTRY",
-            reception_id=db_reception.id
+            movement_type="PURCHASE_ENTRY",
+            quantity=item.quantity,
+            unit_cost=item.line_total_cost / item.quantity if item.quantity > 0 else 0.0,
+            reception_id=db_reception.id,
+            commit=False,
         )
-        
-        if not success:
-            session.rollback()
-            raise HTTPException(status_code=404, detail=f"Material ID {item.material_id} no encontrado")
 
     # 4. TRIGGER FINANCIERO (Tu lógica de Cuentas por Pagar)
     due_date = reception_in.due_date or reception_in.invoice_date
