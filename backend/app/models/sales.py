@@ -136,6 +136,12 @@ class CustomerPayment(SQLModel, table=True):
     retention_status: Optional[str] = Field(default=None)
     retention_invoice_folio: Optional[str] = Field(default=None)
     retention_notes: Optional[str] = Field(default=None)
+
+    # Notas de crédito asociadas (Compaq)
+    nc_advance_folio: Optional[str] = Field(default=None)
+    nc_advance_amount: float = Field(default=0.0)
+    nc_retention_folio: Optional[str] = Field(default=None)
+    nc_retention_amount: float = Field(default=0.0)
     
     order: Optional["SalesOrder"] = Relationship(back_populates="payments")
     instances_paid: List["SalesOrderItemInstance"] = Relationship(back_populates="payment")

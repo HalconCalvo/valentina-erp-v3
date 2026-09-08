@@ -3,6 +3,7 @@ import { X, FileText, CheckSquare, DollarSign, Calculator, AlertTriangle } from 
 import { SalesOrder, PaymentPayload } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
 import { Input } from '@/components/ui/Input';
+import { VCurrencyInput } from '@/components/ui/VCurrencyInput';
 import { toast } from '@/components/ui/VToast';
 
 interface ReceivableChargeModalProps {
@@ -31,6 +32,14 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
     const [selectedInstances, setSelectedInstances] = useState<number[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
+    const [ncAdvanceFolio, setNcAdvanceFolio] = useState('');
+    const [ncAdvanceAmount, setNcAdvanceAmount] = useState(0);
+    const [ncRetentionFolio, setNcRetentionFolio] = useState('');
+    const [ncRetentionAmount, setNcRetentionAmount] = useState(0);
+
+    const defaultRetentionPercent = Number(order.default_retention_percent) || 0;
+    const showRetentionNc = defaultRetentionPercent > 0;
+
     // --- Estado modo anticipo (Camino A: emitir factura de anticipo) ---
     const [importeFactura, setImporteFactura] = useState<number>(0);
     const [displayImporte, setDisplayImporte] = useState<string>('');
@@ -55,6 +64,10 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
             // Modo anticipo: prellenar el importe objetivo (guardado o sugerido).
             setImporteFactura(Number(objetivo.toFixed(2)));
             setDisplayImporte(new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(objetivo.toFixed(2))));
+            setNcAdvanceFolio('');
+            setNcAdvanceAmount(0);
+            setNcRetentionFolio('');
+            setNcRetentionAmount(0);
         }
     }, [isOpen, objetivo, order.status]);
 
@@ -147,6 +160,14 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
         }
     }, [selectedInstances, isAdvance, pendingInstances, totalOrder, pct, uniqueItems, isOpen, order.has_advance_invoice, order.advance_invoice_amount]);
 
+    useEffect(() => {
+        if (!isOpen || isAdvance || isFull) return;
+        setNcAdvanceAmount(Number(amortizedAdvance.toFixed(2)));
+        const invoiceGross = Number((amount + amortizedAdvance).toFixed(2));
+        const suggestedRetentionNc = invoiceGross * (defaultRetentionPercent / 100);
+        setNcRetentionAmount(Number(suggestedRetentionNc.toFixed(2)));
+    }, [isOpen, isAdvance, isFull, amortizedAdvance, amount, defaultRetentionPercent]);
+
     const handleCurrencyTyping = (
         e: React.ChangeEvent<HTMLInputElement>, 
         setMathValue: React.Dispatch<React.SetStateAction<number>>, 
@@ -189,6 +210,10 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
                 amortized_advance: Number(amortizedAdvance),
                 instance_ids: selectedInstances,
                 invoice_date: invoiceDate || null,
+                nc_advance_folio: ncAdvanceFolio.trim() === '' ? null : ncAdvanceFolio.trim(),
+                nc_advance_amount: Number(ncAdvanceAmount) || 0,
+                nc_retention_folio: ncRetentionFolio.trim() === '' ? null : ncRetentionFolio.trim(),
+                nc_retention_amount: Number(ncRetentionAmount) || 0,
             };
 
             await salesService.registerProgressPayment(order.id!, payload);
@@ -515,6 +540,60 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
                                     </div>
                                     <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
                                         <AlertTriangle size={10}/> Puedes editar este monto en acuerdos especiales.
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="space-y-4 pt-2 border-t border-slate-100">
+                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                <FileText size={14}/> 3. Notas de Crédito Asociadas (Opcional)
+                            </h3>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <label className="text-[11px] font-bold text-slate-500 uppercase">
+                                        Folio NC Anticipo
+                                    </label>
+                                    <Input
+                                        type="text"
+                                        className="font-bold uppercase"
+                                        placeholder="Ej. NC-001"
+                                        value={ncAdvanceFolio}
+                                        onChange={(e) => setNcAdvanceFolio(e.target.value.toUpperCase())}
+                                    />
+                                </div>
+                                <VCurrencyInput
+                                    label="Monto NC Anticipo"
+                                    value={ncAdvanceAmount}
+                                    onChange={setNcAdvanceAmount}
+                                    min={0}
+                                />
+                            </div>
+
+                            {showRetentionNc && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-[11px] font-bold text-slate-500 uppercase">
+                                            Folio NC Fondo de Garantía
+                                        </label>
+                                        <Input
+                                            type="text"
+                                            className="font-bold uppercase"
+                                            placeholder="Ej. NC-002"
+                                            value={ncRetentionFolio}
+                                            onChange={(e) => setNcRetentionFolio(e.target.value.toUpperCase())}
+                                        />
+                                    </div>
+                                    <VCurrencyInput
+                                        label="Monto NC Fondo de Garantía"
+                                        value={ncRetentionAmount}
+                                        onChange={setNcRetentionAmount}
+                                        min={0}
+                                    />
+                                    <p className="text-[10px] text-slate-400 md:col-span-2 flex items-center gap-1">
+                                        <Calculator size={10}/>
+                                        Sugerido: {defaultRetentionPercent}% del importe de factura ({formatCurrency(amount + amortizedAdvance)}).
                                     </p>
                                 </div>
                             )}

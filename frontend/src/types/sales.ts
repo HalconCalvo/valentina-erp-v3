@@ -134,6 +134,10 @@ export interface CustomerPayment {
     retention_status?: 'PENDING' | 'INVOICED' | 'COLLECTED' | 'WAIVED' | null;
     retention_invoice_folio?: string | null;
     retention_notes?: string | null;
+    nc_advance_folio?: string | null;
+    nc_advance_amount?: number;
+    nc_retention_folio?: string | null;
+    nc_retention_amount?: number;
 }
 
 // El paquete (payload) que React le enviará a FastAPI
@@ -146,6 +150,10 @@ export interface PaymentPayload {
     invoice_date?: string | null;
     notes?: string | null;
     reference?: string | null;
+    nc_advance_folio?: string | null;
+    nc_advance_amount?: number;
+    nc_retention_folio?: string | null;
+    nc_retention_amount?: number;
 }
 
 export interface PayrollCommissionRow {

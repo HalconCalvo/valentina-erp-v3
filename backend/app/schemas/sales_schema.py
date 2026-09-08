@@ -58,6 +58,11 @@ class CustomerPaymentRead(CustomerPaymentBase):
     retention_invoice_folio: Optional[str] = None
     retention_notes: Optional[str] = None
 
+    nc_advance_folio: Optional[str] = None
+    nc_advance_amount: float = 0.0
+    nc_retention_folio: Optional[str] = None
+    nc_retention_amount: float = 0.0
+
 # ==========================================
 # 2. INSTANCIAS DE PRODUCCIÓN (Nivel 3)
 # ==========================================
@@ -268,6 +273,10 @@ class PaymentPayload(BaseModel):
     reference: Optional[str] = None
     account_id: Optional[int] = None
     is_advance: bool = False
+    nc_advance_folio: Optional[str] = None
+    nc_advance_amount: float = 0.0
+    nc_retention_folio: Optional[str] = None
+    nc_retention_amount: float = 0.0
 
 
 class ClientPurchaseOrderPayload(BaseModel):
@@ -290,8 +299,13 @@ class ProductionItemPatch(BaseModel):
 class RegisterProgressPayload(BaseModel):
     invoice_folio: Optional[str] = None
     amount: float = 0.0
+    amortized_advance: float = 0.0
     instance_ids: List[int] = []
     invoice_date: Optional[datetime] = None
+    nc_advance_folio: Optional[str] = None
+    nc_advance_amount: float = 0.0
+    nc_retention_folio: Optional[str] = None
+    nc_retention_amount: float = 0.0
 
 
 class InvoicingRightAdvanceRow(BaseModel):

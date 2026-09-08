@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Union
 
 from fastapi import HTTPException
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.models.sales import (
     CustomerPayment,
@@ -31,6 +31,7 @@ from app.schemas.sales_schema import (
     InstallmentCancel,
     InstallmentUpdate,
     PaymentPayload,
+    RegisterProgressPayload,
     PayrollCommissionRow,
     SalesCommissionRead,
     SalesOrderCreate,
@@ -959,6 +960,109 @@ def emit_advance_invoice(
         "invoice_folio": new_cxc.invoice_folio,
         "amount": new_cxc.amount,
         "status": new_cxc.status,
+    }
+
+
+def register_progress_invoice(
+    session: Session,
+    order_id: int,
+    payload: RegisterProgressPayload,
+    current_user: User,
+) -> dict:
+    order = sales_repo.get_sales_order_by_id(session, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Orden de venta no encontrada.")
+
+    all_instances: List[SalesOrderItemInstance] = []
+    for item in order.items or []:
+        all_instances.extend(item.instances or [])
+
+    if payload.instance_ids:
+        candidates = [
+            inst for inst in all_instances
+            if inst.id in payload.instance_ids
+            and inst.customer_payment_id is None
+            and inst.administration_invoice_folio is None
+        ]
+    else:
+        candidates = [
+            inst for inst in all_instances
+            if inst.customer_payment_id is None
+            and inst.administration_invoice_folio is None
+        ]
+
+    if not candidates:
+        raise HTTPException(
+            status_code=422,
+            detail="No hay instancias pendientes de facturación para esta orden.",
+        )
+
+    invoice_dt = payload.invoice_date or datetime.utcnow()
+    nc_advance_folio = (payload.nc_advance_folio or "").strip() or None
+    nc_retention_folio = (payload.nc_retention_folio or "").strip() or None
+
+    new_cxc = CustomerPayment(
+        sales_order_id=order.id,
+        payment_type=PaymentType.PROGRESS,
+        invoice_folio=payload.invoice_folio,
+        amount=float(payload.amount or 0.0),
+        amortized_advance=float(payload.amortized_advance or 0.0),
+        status=CXCStatus.PENDING,
+        created_by_user_id=current_user.id,
+        invoice_date=invoice_dt,
+        nc_advance_folio=nc_advance_folio,
+        nc_advance_amount=float(payload.nc_advance_amount or 0.0),
+        nc_retention_folio=nc_retention_folio,
+        nc_retention_amount=float(payload.nc_retention_amount or 0.0),
+    )
+
+    if nc_retention_folio and float(payload.nc_retention_amount or 0.0) > 0:
+        retention_days = int(getattr(order, "default_retention_days", None) or 90)
+        new_cxc.retention_amount = float(payload.nc_retention_amount)
+        new_cxc.retention_status = "PENDING"
+        new_cxc.retention_percent = float(getattr(order, "default_retention_percent", None) or 0.0)
+        new_cxc.retention_days = retention_days
+        new_cxc.retention_due_date = _calc_retention_due(invoice_dt, retention_days)
+
+    session.add(new_cxc)
+    session.flush()
+
+    from app.models.production import PayrollPayment, PayrollStatus, InstallationAssignment
+
+    linked = []
+    for inst in candidates:
+        inst.customer_payment_id = new_cxc.id
+        session.add(inst)
+        payroll_stmt = (
+            select(PayrollPayment)
+            .join(
+                InstallationAssignment,
+                PayrollPayment.installation_assignment_id == InstallationAssignment.id,
+            )
+            .where(InstallationAssignment.instance_id == inst.id)
+            .where(PayrollPayment.status == PayrollStatus.PENDING_SIGNATURE)
+        )
+        payroll_rows = session.exec(payroll_stmt).all()
+        for pp in payroll_rows:
+            pp.status = PayrollStatus.READY_TO_PAY
+            session.add(pp)
+        linked.append({
+            "instance_id": inst.id,
+            "custom_name": inst.custom_name,
+            "production_status": inst.production_status,
+        })
+
+    session.commit()
+    session.refresh(new_cxc)
+
+    return {
+        "message": f"Factura de avance registrada. {len(linked)} instancia(s) vinculada(s).",
+        "cxc_id": new_cxc.id,
+        "payment_type": new_cxc.payment_type,
+        "invoice_folio": new_cxc.invoice_folio,
+        "amount": new_cxc.amount,
+        "status": new_cxc.status,
+        "instances_linked": linked,
     }
 
 

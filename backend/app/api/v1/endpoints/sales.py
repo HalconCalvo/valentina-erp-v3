@@ -865,98 +865,11 @@ def register_progress_invoice(
     current_user: User = Depends(get_current_active_user),
 ):
     """
-    Registra una Factura de Avance para las instancias en estado 🟢🟢 CLOSED.
-
-    - Si payload.instance_ids está vacío, toma TODAS las instancias CLOSED sin cobro.
-    - Crea un CustomerPayment de tipo PROGRESS.
-    - Vincula las instancias a ese cobro (instance.customer_payment_id).
-    - Retorna el cobro creado y las instancias vinculadas.
+    Registra una Factura de Avance para las instancias seleccionadas.
+    Delega la lógica de negocio a sales_service.register_progress_invoice.
     """
-    order = session.exec(
-        select(SalesOrder)
-        .where(SalesOrder.id == order_id)
-        .options(
-            selectinload(SalesOrder.items).selectinload(SalesOrderItem.instances)
-        )
-    ).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Orden de venta no encontrada.")
+    return sales_service.register_progress_invoice(session, order_id, payload, current_user)
 
-    # Reunir instancias candidatas: CLOSED y sin cobro asignado
-    all_instances: list[SalesOrderItemInstance] = []
-    for item in order.items:
-        all_instances.extend(item.instances or [])
-
-    if payload.instance_ids:
-        candidates = [
-            i for i in all_instances
-            if i.id in payload.instance_ids
-            and i.customer_payment_id is None
-            and i.administration_invoice_folio is None
-        ]
-    else:
-        candidates = [
-            i for i in all_instances
-            if i.customer_payment_id is None
-            and i.administration_invoice_folio is None
-        ]
-
-    if not candidates:
-        raise HTTPException(
-            status_code=422,
-            detail="No hay instancias pendientes de facturación para esta orden."
-        )
-
-    # Crear el CXC de avance
-    new_cxc = CustomerPayment(
-        sales_order_id=order.id,
-        payment_type=PaymentType.PROGRESS,
-        invoice_folio=payload.invoice_folio,
-        amount=payload.amount,
-        status=CXCStatus.PENDING,
-        created_by_user_id=current_user.id,
-        invoice_date=payload.invoice_date or datetime.utcnow(),
-    )
-    session.add(new_cxc)
-    session.flush()  # Obtener el ID del CXC
-
-    # Vincular instancias al cobro de avance
-    linked = []
-    for inst in candidates:
-        inst.customer_payment_id = new_cxc.id
-        session.add(inst)
-        # Liberar nómina a READY_TO_PAY al facturar
-        from app.models.production import PayrollPayment, PayrollStatus
-        from app.models.production import InstallationAssignment
-        payroll_stmt = (
-            select(PayrollPayment)
-            .join(InstallationAssignment,
-                  PayrollPayment.installation_assignment_id == InstallationAssignment.id)
-            .where(InstallationAssignment.instance_id == inst.id)
-            .where(PayrollPayment.status == PayrollStatus.PENDING_SIGNATURE)
-        )
-        payroll_rows = session.exec(payroll_stmt).all()
-        for pp in payroll_rows:
-            pp.status = PayrollStatus.READY_TO_PAY
-            session.add(pp)
-        linked.append({
-            "instance_id": inst.id,
-            "custom_name": inst.custom_name,
-            "production_status": inst.production_status,
-        })
-
-    session.commit()
-    session.refresh(new_cxc)
-
-    return {
-        "message": f"Factura de avance registrada. {len(linked)} instancia(s) vinculada(s).",
-        "cxc_id": new_cxc.id,
-        "payment_type": new_cxc.payment_type,
-        "invoice_folio": new_cxc.invoice_folio,
-        "amount": new_cxc.amount,
-        "status": new_cxc.status,
-        "instances_linked": linked,
-    }
 
 @router.post("/orders/{order_id}/emit_advance_invoice", response_model=dict)
 def emit_advance_invoice(
