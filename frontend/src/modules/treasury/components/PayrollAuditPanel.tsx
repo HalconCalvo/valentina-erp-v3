@@ -22,6 +22,9 @@ import {
 import { BankAccount, WeeklyFixedCostPayload, WeeklyFixedCostRecord } from '../../../types/treasury';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
 
 export type PayrollLevel1 = 'COMMISSIONS' | 'INSTALLATIONS' | 'WEEKLY' | null;
@@ -290,106 +293,346 @@ export const PayrollAuditPanel: React.FC<Props> = ({
 
   const fmtMoney = (n: number) => (n || 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 
+  const historyColumns = useMemo((): VTableColumn<WeeklyFixedCostRecord>[] => [
+    {
+      key: 'week_reference_date',
+      label: 'Semana (jueves)',
+      render: (row) => (
+        <span className="font-medium text-slate-700">{row.week_reference_date.slice(0, 10)}</span>
+      ),
+    },
+    {
+      key: 'admin_payroll',
+      label: 'Administración',
+      render: (row) => {
+        const isEd = editingId === row.id;
+        return isEd ? (
+          <Input
+            type="number"
+            step="0.01"
+            value={editVals.admin_payroll || ''}
+            onChange={(e) =>
+              setEditVals((v) => ({ ...v, admin_payroll: parseFloat(e.target.value) || 0 }))
+            }
+            className="w-28 text-right ml-auto"
+          />
+        ) : (
+          <span className="block text-right">{fmtMoney(row.admin_payroll)}</span>
+        );
+      },
+    },
+    {
+      key: 'design_sales_payroll',
+      label: 'Diseño/Ventas',
+      render: (row) => {
+        const isEd = editingId === row.id;
+        return isEd ? (
+          <Input
+            type="number"
+            step="0.01"
+            value={editVals.design_sales_payroll || ''}
+            onChange={(e) =>
+              setEditVals((v) => ({ ...v, design_sales_payroll: parseFloat(e.target.value) || 0 }))
+            }
+            className="w-28 text-right ml-auto"
+          />
+        ) : (
+          <span className="block text-right">{fmtMoney(row.design_sales_payroll)}</span>
+        );
+      },
+    },
+    {
+      key: 'production_plant_payroll',
+      label: 'Producción',
+      render: (row) => {
+        const isEd = editingId === row.id;
+        return isEd ? (
+          <Input
+            type="number"
+            step="0.01"
+            value={editVals.production_plant_payroll || ''}
+            onChange={(e) =>
+              setEditVals((v) => ({ ...v, production_plant_payroll: parseFloat(e.target.value) || 0 }))
+            }
+            className="w-28 text-right ml-auto"
+          />
+        ) : (
+          <span className="block text-right">{fmtMoney(row.production_plant_payroll)}</span>
+        );
+      },
+    },
+    {
+      key: 'total',
+      label: 'Total',
+      render: (row) => {
+        const isEd = editingId === row.id;
+        const total = isEd
+          ? editVals.admin_payroll + editVals.design_sales_payroll + editVals.production_plant_payroll
+          : row.admin_payroll + row.design_sales_payroll + row.production_plant_payroll;
+        return <span className="block text-right font-bold text-slate-800">{fmtMoney(total)}</span>;
+      },
+    },
+    {
+      key: 'action',
+      label: 'Acción',
+      render: (row) => {
+        const isEd = editingId === row.id;
+        return (
+          <div className="text-center whitespace-nowrap">
+            {isEd ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => saveEdit(row)}
+                  disabled={savingEdit}
+                  className="text-emerald-700 font-bold text-xs px-2 py-1 hover:bg-emerald-50 rounded"
+                >
+                  {savingEdit ? 'Guardando…' : 'Guardar'}
+                </button>
+                <button
+                  type="button"
+                  onClick={cancelEdit}
+                  className="text-slate-500 font-bold text-xs px-2 py-1 hover:bg-slate-100 rounded"
+                >
+                  Cancelar
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => startEdit(row)}
+                className="text-indigo-600 font-bold text-xs px-2 py-1 hover:bg-indigo-50 rounded"
+              >
+                Editar
+              </button>
+            )}
+          </div>
+        );
+      },
+    },
+  ], [editingId, editVals, savingEdit]);
+
   const renderCommissionTable = (view: SubView) => {
     const rows = commissionRows[view];
-    const payableCols = 4;
-    return (
-      <div className="overflow-x-auto bg-white rounded-xl border border-slate-200 shadow-sm">
-        <table className="w-full text-left border-collapse text-sm">
-          <thead>
-            <tr className="bg-slate-50 border-b text-[10px] uppercase text-slate-500 font-bold">
-              <th className="p-3">OV / Referencia</th>
-              <th className="p-3">Asesor</th>
-              <th className="p-3 text-right">Monto</th>
-              {view === 'RETAINED' && <th className="p-3 text-center">Días espera</th>}
-              <th className="p-3 text-center">Acción</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {rows.map((row, idx) => (
-              <React.Fragment key={`${row.kind}-${row.id ?? idx}`}>
-                <tr className="hover:bg-slate-50">
-                  <td className="p-3">
-                    <p className="font-bold text-slate-800">
-                      OV-{String(row.sales_order_id).padStart(4, '0')} · {row.project_name || '—'}
-                    </p>
-                    <p className="text-xs text-slate-500">{row.reference_label}</p>
-                  </td>
-                  <td className="p-3">{row.seller_name || '—'}</td>
-                  <td className="p-3 text-right font-black text-slate-800">{fmt(row.amount)}</td>
-                  {view === 'RETAINED' && (
-                    <td className={`p-3 text-center ${daysWaitingClass(row.days_waiting)}`}>
-                      {row.days_waiting} d
-                    </td>
-                  )}
-                  <td className="p-3 text-center">
+    const columns: VTableColumn<PayrollCommissionRow>[] = [
+      {
+        key: 'reference',
+        label: 'OV / Referencia',
+        render: (row) => (
+          <div>
+            <p className="font-bold text-slate-800">
+              OV-{String(row.sales_order_id).padStart(4, '0')} · {row.project_name || '—'}
+            </p>
+            <p className="text-xs text-slate-500">{row.reference_label}</p>
+          </div>
+        ),
+      },
+      {
+        key: 'seller',
+        label: 'Asesor',
+        render: (row) => row.seller_name || '—',
+      },
+      {
+        key: 'amount',
+        label: 'Monto',
+        render: (row) => (
+          <span className="block text-right font-black text-slate-800">{fmt(row.amount)}</span>
+        ),
+      },
+    ];
+    if (view === 'RETAINED') {
+      columns.push({
+        key: 'days_waiting',
+        label: 'Días espera',
+        render: (row) => (
+          <span className={`block text-center ${daysWaitingClass(row.days_waiting)}`}>
+            {row.days_waiting} d
+          </span>
+        ),
+      });
+    }
+    columns.push({
+      key: 'action',
+      label: 'Acción',
+      render: (row) => (
+        <div className="text-center">
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-xs"
+            onClick={() => onOrderInspect(row.sales_order_id)}
+          >
+            Rayos X
+          </Button>
+          {view === 'PAYABLE' && row.id != null && (
+            <>
+              <button
+                type="button"
+                className="ml-2 text-xs text-orange-700 font-bold inline-flex items-center gap-1"
+                onClick={() => openCommDefer(row)}
+              >
+                <SkipForward size={12} /> Diferir / Omitir
+              </button>
+              {expandedCommDeferKey === commKey(row) && (
+                <div className="mt-3 text-left bg-orange-50/50 p-3 rounded-lg border border-orange-100">
+                  <p className="text-xs font-bold text-orange-900 mb-2">
+                    Motivo del diferimiento u omisión (obligatorio)
+                  </p>
+                  <textarea
+                    className="w-full border border-orange-200 rounded-lg px-3 py-2 text-sm mb-3"
+                    rows={3}
+                    placeholder="Describe la razón para auditoría…"
+                    value={commDeferReason[commKey(row)] ?? ''}
+                    onChange={(e) =>
+                      setCommDeferReason((m) => ({ ...m, [commKey(row)]: e.target.value }))
+                    }
+                  />
+                  <div className="flex flex-wrap gap-2">
                     <Button
-                      variant="outline"
                       size="sm"
-                      className="text-xs"
-                      onClick={() => onOrderInspect(row.sales_order_id)}
+                      className="bg-orange-700 hover:bg-orange-800"
+                      onClick={() => handleDeferCommission(row)}
                     >
-                      Rayos X
+                      Confirmar omisión
                     </Button>
-                    {view === 'PAYABLE' && row.id != null && (
-                      <button
-                        type="button"
-                        className="ml-2 text-xs text-orange-700 font-bold inline-flex items-center gap-1"
-                        onClick={() => openCommDefer(row)}
-                      >
-                        <SkipForward size={12} /> Diferir / Omitir
-                      </button>
-                    )}
-                  </td>
-                </tr>
-                {view === 'PAYABLE' && row.id != null && expandedCommDeferKey === commKey(row) && (
-                  <tr className="bg-orange-50/50">
-                    <td colSpan={payableCols} className="p-4 border-t border-orange-100">
-                      <p className="text-xs font-bold text-orange-900 mb-2">
-                        Motivo del diferimiento u omisión (obligatorio)
-                      </p>
-                      <textarea
-                        className="w-full border border-orange-200 rounded-lg px-3 py-2 text-sm mb-3"
-                        rows={3}
-                        placeholder="Describe la razón para auditoría…"
-                        value={commDeferReason[commKey(row)] ?? ''}
-                        onChange={(e) =>
-                          setCommDeferReason((m) => ({ ...m, [commKey(row)]: e.target.value }))
-                        }
-                      />
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          size="sm"
-                          className="bg-orange-700 hover:bg-orange-800"
-                          onClick={() => handleDeferCommission(row)}
-                        >
-                          Confirmar omisión
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setExpandedCommDeferKey(null)}
-                        >
-                          Cancelar
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </React.Fragment>
-            ))}
-          </tbody>
-        </table>
-        {rows.length === 0 && (
-          <div className="p-8 text-center text-slate-500 italic">Sin registros en esta bandeja.</div>
-        )}
-      </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setExpandedCommDeferKey(null)}
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      ),
+    });
+
+    return (
+      <VTable
+        columns={columns as unknown as VTableColumn<Record<string, unknown>>[]}
+        data={rows as unknown as Record<string, unknown>[]}
+        emptyState={{ title: 'Sin registros en esta bandeja.' }}
+        className="shadow-sm"
+      />
     );
+  };
+
+  const buildInstallationColumns = (view: SubView): VTableColumn<PayrollPaymentRecord>[] => {
+    const cols: VTableColumn<PayrollPaymentRecord>[] = [
+      {
+        key: 'instance',
+        label: 'Instancia',
+        render: (r) => r.instance_name || '—',
+      },
+      {
+        key: 'total',
+        label: 'Total',
+        render: (r) => (
+          <span className="block text-right font-bold text-emerald-800">{fmt(r.total_amount)}</span>
+        ),
+      },
+    ];
+    if (view === 'RETAINED') {
+      cols.push({
+        key: 'days_waiting',
+        label: 'Días espera',
+        render: (r) => (
+          <span className={`block text-center ${daysWaitingClass(r.days_waiting ?? 0)}`}>
+            {r.days_waiting ?? 0} d
+          </span>
+        ),
+      });
+    }
+    if (view === 'PAYABLE') {
+      cols.push({
+        key: 'payment',
+        label: 'Pago',
+        render: (r) => (
+          <div className="text-center flex flex-wrap gap-1 justify-center items-center">
+            <SearchableSelect
+              items={accounts}
+              value={instBankPick[r.id] != null ? String(instBankPick[r.id]) : ''}
+              onChange={(v) => {
+                setInstBankPick((m) => {
+                  const n = { ...m };
+                  if (!v) delete n[r.id];
+                  else n[r.id] = Number(v);
+                  return n;
+                });
+              }}
+              getLabel={(a) => a.name}
+              getValue={(a) => String(a.id)}
+              placeholder="Cuenta banco"
+              className="text-xs max-w-[140px]"
+            />
+            <button
+              type="button"
+              className="px-2 py-1 bg-emerald-600 text-white text-xs font-bold rounded"
+              onClick={() => handlePayInstall(r)}
+            >
+              Pagar
+            </button>
+            <button
+              type="button"
+              className="text-xs text-orange-700 font-bold"
+              onClick={() => openInstDefer(r)}
+            >
+              Diferir / Omitir
+            </button>
+            {expandedInstDeferId === r.id && (
+              <div className="w-full mt-3 text-left bg-orange-50/50 p-3 rounded-lg border border-orange-100">
+                <p className="text-xs font-bold text-orange-900 mb-2">
+                  Motivo del diferimiento u omisión (obligatorio)
+                </p>
+                <textarea
+                  className="w-full border border-orange-200 rounded-lg px-3 py-2 text-sm mb-3"
+                  rows={3}
+                  placeholder="Describe la razón para auditoría…"
+                  value={instDeferReason[r.id] ?? ''}
+                  onChange={(e) =>
+                    setInstDeferReason((m) => ({ ...m, [r.id]: e.target.value }))
+                  }
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    className="bg-orange-700 hover:bg-orange-800"
+                    onClick={() => handleDeferInstall(r)}
+                  >
+                    Confirmar omisión
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setExpandedInstDeferId(null)}>
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        ),
+      });
+    }
+    if (view === 'PAID') {
+      cols.push({
+        key: 'paid_at',
+        label: 'Pagado',
+        render: (r) => (
+          <span className="text-xs text-slate-500">
+            {r.paid_at ? new Date(r.paid_at).toLocaleString('es-MX') : '—'}
+          </span>
+        ),
+      });
+    }
+    return cols;
   };
 
   const renderInstallationGrouped = (view: SubView) => {
     const rows = installationRows[view];
     const grouped = groupByInstaller(rows);
+    const columns = buildInstallationColumns(view);
     return (
       <div className="space-y-8">
         {rows.length === 0 && (
@@ -408,105 +651,11 @@ export const PayrollAuditPanel: React.FC<Props> = ({
                 {fmt(list.reduce((s, r) => s + r.total_amount, 0))}
               </span>
             </div>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-[10px] uppercase text-slate-500 border-b">
-                  <th className="p-2 text-left">Instancia</th>
-                  <th className="p-2 text-right">Total</th>
-                  {view === 'RETAINED' && <th className="p-2 text-center">Días espera</th>}
-                  {view === 'PAYABLE' && <th className="p-2 text-center">Pago</th>}
-                  {view === 'PAID' && <th className="p-2 text-left text-xs">Pagado</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {list.map((r) => (
-                  <React.Fragment key={r.id}>
-                    <tr>
-                      <td className="p-2">{r.instance_name || '—'}</td>
-                      <td className="p-2 text-right font-bold text-emerald-800">{fmt(r.total_amount)}</td>
-                      {view === 'RETAINED' && (
-                        <td className={`p-2 text-center ${daysWaitingClass(r.days_waiting ?? 0)}`}>
-                          {r.days_waiting ?? 0} d
-                        </td>
-                      )}
-                      {view === 'PAYABLE' && (
-                        <td className="p-2 text-center flex flex-wrap gap-1 justify-center items-center">
-                          <select
-                            className="text-xs border rounded px-1 py-1 max-w-[140px]"
-                            value={instBankPick[r.id] != null ? String(instBankPick[r.id]) : ''}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              setInstBankPick((m) => {
-                                const n = { ...m };
-                                if (!v) delete n[r.id];
-                                else n[r.id] = Number(v);
-                                return n;
-                              });
-                            }}
-                          >
-                            <option value="">Cuenta banco</option>
-                            {accounts.map((a) => (
-                              <option key={a.id} value={a.id}>
-                                {a.name}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            className="px-2 py-1 bg-emerald-600 text-white text-xs font-bold rounded"
-                            onClick={() => handlePayInstall(r)}
-                          >
-                            Pagar
-                          </button>
-                          <button
-                            type="button"
-                            className="text-xs text-orange-700 font-bold"
-                            onClick={() => openInstDefer(r)}
-                          >
-                            Diferir / Omitir
-                          </button>
-                        </td>
-                      )}
-                      {view === 'PAID' && (
-                        <td className="p-2 text-xs text-slate-500">
-                          {r.paid_at ? new Date(r.paid_at).toLocaleString('es-MX') : '—'}
-                        </td>
-                      )}
-                    </tr>
-                    {view === 'PAYABLE' && expandedInstDeferId === r.id && (
-                      <tr className="bg-orange-50/50">
-                        <td colSpan={view === 'RETAINED' ? 3 : 3} className="p-4 border-t border-orange-100">
-                          <p className="text-xs font-bold text-orange-900 mb-2">
-                            Motivo del diferimiento u omisión (obligatorio)
-                          </p>
-                          <textarea
-                            className="w-full border border-orange-200 rounded-lg px-3 py-2 text-sm mb-3"
-                            rows={3}
-                            placeholder="Describe la razón para auditoría…"
-                            value={instDeferReason[r.id] ?? ''}
-                            onChange={(e) =>
-                              setInstDeferReason((m) => ({ ...m, [r.id]: e.target.value }))
-                            }
-                          />
-                          <div className="flex flex-wrap gap-2">
-                            <Button
-                              size="sm"
-                              className="bg-orange-700 hover:bg-orange-800"
-                              onClick={() => handleDeferInstall(r)}
-                            >
-                              Confirmar omisión
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={() => setExpandedInstDeferId(null)}>
-                              Cancelar
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                ))}
-              </tbody>
-            </table>
+            <VTable
+              columns={columns as unknown as VTableColumn<Record<string, unknown>>[]}
+              data={list as unknown as Record<string, unknown>[]}
+              className="border-0 rounded-none shadow-none"
+            />
           </div>
         ))}
       </div>
@@ -796,18 +945,18 @@ export const PayrollAuditPanel: React.FC<Props> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <label className="block text-sm font-bold text-slate-700">
               Fecha referencia (jueves)
-              <input
+              <Input
                 type="date"
-                className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2"
+                className="mt-1"
                 value={weekly.week_reference_date}
                 onChange={(e) => setWeekly((w) => ({ ...w, week_reference_date: e.target.value }))}
               />
             </label>
             <label className="block text-sm font-bold text-slate-700">
               Nómina Administración
-              <input
+              <Input
                 type="number"
-                className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2"
+                className="mt-1"
                 value={weekly.admin_payroll || ''}
                 onChange={(e) =>
                   setWeekly((w) => ({ ...w, admin_payroll: parseFloat(e.target.value) || 0 }))
@@ -816,9 +965,9 @@ export const PayrollAuditPanel: React.FC<Props> = ({
             </label>
             <label className="block text-sm font-bold text-slate-700">
               Nómina Diseño / Ventas
-              <input
+              <Input
                 type="number"
-                className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2"
+                className="mt-1"
                 value={weekly.design_sales_payroll || ''}
                 onChange={(e) =>
                   setWeekly((w) => ({
@@ -830,9 +979,9 @@ export const PayrollAuditPanel: React.FC<Props> = ({
             </label>
             <label className="block text-sm font-bold text-slate-700">
               Nómina Producción (Planta)
-              <input
+              <Input
                 type="number"
-                className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2"
+                className="mt-1"
                 value={weekly.production_plant_payroll || ''}
                 onChange={(e) =>
                   setWeekly((w) => ({
@@ -864,13 +1013,21 @@ export const PayrollAuditPanel: React.FC<Props> = ({
           <div className="flex flex-wrap items-end gap-3 mb-4">
             <div className="flex flex-col gap-1">
               <label className="text-xs font-bold text-slate-600 uppercase">Desde</label>
-              <input type="date" value={histFrom} onChange={(e) => setHistFrom(e.target.value)}
-                className="border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+              <Input
+                type="date"
+                value={histFrom}
+                onChange={(e) => setHistFrom(e.target.value)}
+                className="text-sm"
+              />
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs font-bold text-slate-600 uppercase">Hasta</label>
-              <input type="date" value={histTo} onChange={(e) => setHistTo(e.target.value)}
-                className="border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+              <Input
+                type="date"
+                value={histTo}
+                onChange={(e) => setHistTo(e.target.value)}
+                className="text-sm"
+              />
             </div>
             <Button onClick={loadHistory} disabled={!histFrom || !histTo || loadingHistory}
               className="bg-indigo-600 hover:bg-indigo-700">
@@ -881,70 +1038,10 @@ export const PayrollAuditPanel: React.FC<Props> = ({
           {history.length === 0 ? (
             <p className="text-sm text-slate-400">Selecciona un rango y consulta el histórico.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-100 text-slate-600">
-                  <tr>
-                    <th className="p-2 text-left font-bold">Semana (jueves)</th>
-                    <th className="p-2 text-right font-bold">Administración</th>
-                    <th className="p-2 text-right font-bold">Diseño/Ventas</th>
-                    <th className="p-2 text-right font-bold">Producción</th>
-                    <th className="p-2 text-right font-bold">Total</th>
-                    <th className="p-2 text-center font-bold">Acción</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {history.map((row) => {
-                    const isEd = editingId === row.id;
-                    const total = isEd
-                      ? editVals.admin_payroll + editVals.design_sales_payroll + editVals.production_plant_payroll
-                      : row.admin_payroll + row.design_sales_payroll + row.production_plant_payroll;
-                    return (
-                      <tr key={row.id} className={isEd ? 'bg-indigo-50/40' : ''}>
-                        <td className="p-2 font-medium text-slate-700">{row.week_reference_date.slice(0, 10)}</td>
-                        <td className="p-2 text-right">
-                          {isEd ? (
-                            <input type="number" step="0.01" value={editVals.admin_payroll || ''}
-                              onChange={(e) => setEditVals(v => ({ ...v, admin_payroll: parseFloat(e.target.value) || 0 }))}
-                              className="w-28 border border-slate-300 rounded px-2 py-1 text-right" />
-                          ) : fmtMoney(row.admin_payroll)}
-                        </td>
-                        <td className="p-2 text-right">
-                          {isEd ? (
-                            <input type="number" step="0.01" value={editVals.design_sales_payroll || ''}
-                              onChange={(e) => setEditVals(v => ({ ...v, design_sales_payroll: parseFloat(e.target.value) || 0 }))}
-                              className="w-28 border border-slate-300 rounded px-2 py-1 text-right" />
-                          ) : fmtMoney(row.design_sales_payroll)}
-                        </td>
-                        <td className="p-2 text-right">
-                          {isEd ? (
-                            <input type="number" step="0.01" value={editVals.production_plant_payroll || ''}
-                              onChange={(e) => setEditVals(v => ({ ...v, production_plant_payroll: parseFloat(e.target.value) || 0 }))}
-                              className="w-28 border border-slate-300 rounded px-2 py-1 text-right" />
-                          ) : fmtMoney(row.production_plant_payroll)}
-                        </td>
-                        <td className="p-2 text-right font-bold text-slate-800">{fmtMoney(total)}</td>
-                        <td className="p-2 text-center whitespace-nowrap">
-                          {isEd ? (
-                            <>
-                              <button type="button" onClick={() => saveEdit(row)} disabled={savingEdit}
-                                className="text-emerald-700 font-bold text-xs px-2 py-1 hover:bg-emerald-50 rounded">
-                                {savingEdit ? 'Guardando…' : 'Guardar'}
-                              </button>
-                              <button type="button" onClick={cancelEdit}
-                                className="text-slate-500 font-bold text-xs px-2 py-1 hover:bg-slate-100 rounded">Cancelar</button>
-                            </>
-                          ) : (
-                            <button type="button" onClick={() => startEdit(row)}
-                              className="text-indigo-600 font-bold text-xs px-2 py-1 hover:bg-indigo-50 rounded">Editar</button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <VTable
+              columns={historyColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+              data={history as unknown as Record<string, unknown>[]}
+            />
           )}
         </Card>
       )}

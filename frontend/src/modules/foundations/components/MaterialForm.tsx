@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import axiosClient from '../../../api/axios-client';
+import { Input } from '@/components/ui/Input';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { VToggle } from '@/components/ui/VToggle';
 
 interface MaterialFormProps {
     initialSku?: string;
@@ -78,53 +81,55 @@ export const MaterialForm: React.FC<MaterialFormProps> = ({ initialSku = '', ini
                 <div className="grid grid-cols-2 gap-3">
                     <div>
                         <label className={labelCls}>SKU (único) *</label>
-                        <input className={inputCls} value={form.sku} onChange={e => upd({ sku: e.target.value })} placeholder="Ej. TAB-BL-15" />
+                        <Input className={inputCls} value={form.sku} onChange={e => upd({ sku: e.target.value })} placeholder="Ej. TAB-BL-15" />
                     </div>
                     <div>
                         <label className={labelCls}>Nombre / Descripción *</label>
-                        <input className={inputCls} value={form.name} onChange={e => upd({ name: e.target.value })} placeholder="Ej. MDF Blanco 15mm" />
+                        <Input className={inputCls} value={form.name} onChange={e => upd({ name: e.target.value })} placeholder="Ej. MDF Blanco 15mm" />
                     </div>
                     <div>
                         <label className={labelCls}>Categoría *</label>
-                        <input className={inputCls} value={form.category} onChange={e => upd({ category: e.target.value })} placeholder="Ej. Tableros" />
+                        <Input className={inputCls} value={form.category} onChange={e => upd({ category: e.target.value })} placeholder="Ej. Tableros" />
                     </div>
                     <div>
                         <label className={labelCls}>Ruta Producción *</label>
-                        <select className={inputCls} value={form.production_route} onChange={e => upd({ production_route: e.target.value })}>
-                            {ROUTES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                        </select>
+                        <SearchableSelect
+                            items={ROUTES}
+                            value={form.production_route}
+                            onChange={(v) => upd({ production_route: v })}
+                            getLabel={(r) => r.label}
+                            getValue={(r) => r.value}
+                            placeholder="Seleccionar ruta..."
+                            className={inputCls}
+                        />
                     </div>
                     <div>
                         <label className={labelCls}>Unidad Compra *</label>
-                        <input className={inputCls} value={form.purchase_unit} onChange={e => upd({ purchase_unit: e.target.value, usage_unit: form.usage_unit || e.target.value })} placeholder="Ej. Hoja" />
+                        <Input className={inputCls} value={form.purchase_unit} onChange={e => upd({ purchase_unit: e.target.value, usage_unit: form.usage_unit || e.target.value })} placeholder="Ej. Hoja" />
                     </div>
                     <div>
                         <label className={labelCls}>Unidad Uso *</label>
-                        <input className={inputCls} value={form.usage_unit} onChange={e => upd({ usage_unit: e.target.value })} placeholder="Ej. m2" />
+                        <Input className={inputCls} value={form.usage_unit} onChange={e => upd({ usage_unit: e.target.value })} placeholder="Ej. m2" />
                     </div>
                     <div>
                         <label className={labelCls}>Factor Conversión</label>
-                        <input type="number" step="0.01" className={inputCls} value={form.conversion_factor} onChange={e => upd({ conversion_factor: parseFloat(e.target.value) || 1 })} />
+                        <Input type="number" step="0.01" className={inputCls} value={form.conversion_factor} onChange={e => upd({ conversion_factor: parseFloat(e.target.value) || 1 })} />
                     </div>
                     <div>
                         <label className={labelCls}>Costo Unitario</label>
-                        <input type="number" step="0.01" className={inputCls} value={form.current_cost} onChange={e => upd({ current_cost: parseFloat(e.target.value) || 0 })} />
+                        <Input type="number" step="0.01" className={inputCls} value={form.current_cost} onChange={e => upd({ current_cost: parseFloat(e.target.value) || 0 })} />
                     </div>
                     <div className="col-span-2">
-                        <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={Boolean(form.is_resale)}
-                                onChange={e => upd({ is_resale: e.target.checked })}
-                                className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
-                            />
-                            Es producto de reventa (se vende directo, sin receta)
-                        </label>
+                        <VToggle
+                            checked={Boolean(form.is_resale)}
+                            onCheckedChange={(checked) => upd({ is_resale: checked })}
+                            label="Es producto de reventa (se vende directo, sin receta)"
+                        />
                     </div>
                     {form.is_resale && (
                         <div>
                             <label className={labelCls}>Precio de venta</label>
-                            <input
+                            <Input
                                 type="number"
                                 step="0.01"
                                 className={inputCls}
