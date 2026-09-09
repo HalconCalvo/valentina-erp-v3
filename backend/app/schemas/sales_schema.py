@@ -1,5 +1,5 @@
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlmodel import SQLModel
 from datetime import datetime
 
@@ -37,6 +37,18 @@ class CustomerPaymentCreate(CustomerPaymentBase):
     sales_order_id: int
     created_by_user_id: int
 
+class CustomerPaymentInstallmentRead(SQLModel):
+    id: int
+    amount: float
+    payment_date: datetime
+    is_cancelled: bool = False
+    reference: Optional[str] = None
+    concept: Optional[str] = Field(default=None, validation_alias="notes")
+
+    class Config:
+        from_attributes = True
+        populate_by_name = True
+
 class CustomerPaymentRead(CustomerPaymentBase):
     id: int
     sales_order_id: int
@@ -62,6 +74,8 @@ class CustomerPaymentRead(CustomerPaymentBase):
     nc_advance_amount: float = 0.0
     nc_retention_folio: Optional[str] = None
     nc_retention_amount: float = 0.0
+
+    installments: List[CustomerPaymentInstallmentRead] = []
 
 # ==========================================
 # 2. INSTANCIAS DE PRODUCCIÓN (Nivel 3)

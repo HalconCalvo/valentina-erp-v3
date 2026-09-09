@@ -145,6 +145,10 @@ class CustomerPayment(SQLModel, table=True):
     
     order: Optional["SalesOrder"] = Relationship(back_populates="payments")
     instances_paid: List["SalesOrderItemInstance"] = Relationship(back_populates="payment")
+    installments: List["CustomerPaymentInstallment"] = Relationship(
+        back_populates="customer_payment",
+        sa_relationship_kwargs={"lazy": "noload"},
+    )
 
 
 class CustomerPaymentInstallment(SQLModel, table=True):
@@ -164,6 +168,8 @@ class CustomerPaymentInstallment(SQLModel, table=True):
     cancelled_at: Optional[datetime] = None
     bank_transaction_id: Optional[int] = Field(default=None, foreign_key="bank_transactions.id")
     is_advance: bool = Field(default=False)
+
+    customer_payment: Optional["CustomerPayment"] = Relationship(back_populates="installments")
 
 # ==========================================
 # 3. MODELO DE INSTANCIAS (NIVEL 3 - EL ÁTOMO)

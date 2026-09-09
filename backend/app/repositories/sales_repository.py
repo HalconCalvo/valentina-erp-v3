@@ -34,7 +34,9 @@ def get_orders(
     stmt = select(SalesOrder).options(
         selectinload(SalesOrder.client),
         selectinload(SalesOrder.items).selectinload(SalesOrderItem.instances),
-        selectinload(SalesOrder.payments),
+        selectinload(SalesOrder.payments).selectinload(
+            CustomerPayment.installments
+        ),
         selectinload(SalesOrder.user),
     )
     if status is not None:
@@ -53,7 +55,9 @@ def get_order_by_id(session: Session, order_id: int) -> Optional[SalesOrder]:
         .options(
             selectinload(SalesOrder.client),
             selectinload(SalesOrder.items).selectinload(SalesOrderItem.instances),
-            selectinload(SalesOrder.payments),
+            selectinload(SalesOrder.payments).selectinload(
+                CustomerPayment.installments
+            ),
         )
     )
     return session.exec(stmt).unique().first()
