@@ -347,7 +347,7 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
                                                         </div>
                                                         {canViewRayosX && (
                                                             <button onClick={(e) => { e.stopPropagation(); setSelectedOrderForStatement(order); setIsStatementModalOpen(true); }} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 text-sm font-black rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2 transform hover:-translate-y-0.5">
-                                                                <FileSearch size={18} /> Ver Rayos X y Cobrar
+                                                                <FileSearch size={18} /> Ver Rayos X y Facturar
                                                             </button>
                                                         )}
                                                     </div>
