@@ -138,6 +138,7 @@ export interface CustomerPayment {
     nc_advance_amount?: number;
     nc_retention_folio?: string | null;
     nc_retention_amount?: number;
+    installments?: Array<{ amount?: number; is_cancelled?: boolean }>;
 }
 
 // El paquete (payload) que React le enviará a FastAPI

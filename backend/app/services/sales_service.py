@@ -1000,11 +1000,12 @@ def register_progress_invoice(
     invoice_dt = payload.invoice_date or datetime.utcnow()
     nc_advance_folio = (payload.nc_advance_folio or "").strip() or None
     nc_retention_folio = (payload.nc_retention_folio or "").strip() or None
+    invoice_folio = (payload.invoice_folio or "").strip() or None
 
     new_cxc = CustomerPayment(
         sales_order_id=order.id,
         payment_type=PaymentType.PROGRESS,
-        invoice_folio=payload.invoice_folio,
+        invoice_folio=invoice_folio,
         amount=float(payload.amount or 0.0),
         amortized_advance=float(payload.amortized_advance or 0.0),
         status=CXCStatus.PENDING,
@@ -1032,6 +1033,8 @@ def register_progress_invoice(
     linked = []
     for inst in candidates:
         inst.customer_payment_id = new_cxc.id
+        if invoice_folio:
+            inst.administration_invoice_folio = invoice_folio
         session.add(inst)
         payroll_stmt = (
             select(PayrollPayment)

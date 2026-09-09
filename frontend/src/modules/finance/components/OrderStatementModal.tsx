@@ -689,9 +689,15 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
 
     const totalOrder = order.total_price || 0;
     const totalInvoiced = order.payments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
-    const totalPaidInBank = order.payments?.filter(p => p.status === 'PAID').reduce((sum, p) => sum + Number(p.amount), 0) || 0;
-    const pendingToCollect = order.payments?.filter(p => p.status === 'PENDING').reduce((sum, p) => sum + Number(p.amount), 0) || 0;
+    const totalPaidInBank = order.payments?.reduce((sum, p) => {
+        if (p.status === 'CANCELLED') return sum;
+        const installmentsTotal = (p.installments || [])
+            .filter((inst) => !inst.is_cancelled)
+            .reduce((s, inst) => s + (inst.amount || 0), 0);
+        return sum + installmentsTotal;
+    }, 0) ?? 0;
     const pendingToInvoice = totalOrder - totalInvoiced;
+    const balanceDue = totalInvoiced - totalPaidInBank;
     const advanceInvoiced = order.payments
         ?.filter(p => p.payment_type === 'ADVANCE')
         .reduce((sum, p) => sum + Number(p.amount), 0) || 0;
@@ -1568,23 +1574,26 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Valor del Proyecto c/IVA</p>
                             <p className="text-lg font-black text-slate-800">{formatCurrency(totalOrder)}</p>
                         </div>
-                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
                             <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-1">Total Facturado</p>
                             <p className="text-lg font-black text-blue-700">{formatCurrency(totalInvoiced)}</p>
-                            <p className="text-[10px] text-slate-400 mt-1">Falta Facturar: {formatCurrency(pendingToInvoice)}</p>
                         </div>
-                        <div className="bg-white p-4 rounded-xl border border-amber-200 shadow-sm bg-amber-50">
-                            <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1 flex items-center gap-1"><Clock size={12}/> Por Cobrar (Vivo)</p>
-                            <p className="text-lg font-black text-amber-700">{formatCurrency(pendingToCollect)}</p>
+                        <div className="bg-white p-3 rounded-xl border border-indigo-200 shadow-sm bg-indigo-50">
+                            <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider mb-1">Pendiente de Facturar</p>
+                            <p className="text-lg font-black text-indigo-700">{formatCurrency(pendingToInvoice)}</p>
                         </div>
-                        <div className="bg-white p-4 rounded-xl border border-emerald-200 shadow-sm bg-emerald-50">
-                            <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-1 flex items-center gap-1"><CheckCircle size={12}/> Cobrado (En Banco)</p>
+                        <div className="bg-white p-3 rounded-xl border border-emerald-200 shadow-sm bg-emerald-50">
+                            <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-1 flex items-center gap-1"><CheckCircle size={12}/> Total Cobrado</p>
                             <p className="text-lg font-black text-emerald-700">{formatCurrency(totalPaidInBank)}</p>
+                        </div>
+                        <div className="bg-white p-3 rounded-xl border border-amber-200 shadow-sm bg-amber-50">
+                            <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1 flex items-center gap-1"><Clock size={12}/> Saldo por Cobrar</p>
+                            <p className="text-lg font-black text-amber-700">{formatCurrency(balanceDue)}</p>
                         </div>
                     </div>
 
