@@ -163,7 +163,7 @@ export default function InventoryValuationPage() {
         </div>
         <button
           type="button"
-          onClick={() => navigate(-1)}
+          onClick={() => navigate('/inventory')}
           className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 font-bold rounded-lg hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm"
         >
           <ArrowLeft size={18} /> Regresar
