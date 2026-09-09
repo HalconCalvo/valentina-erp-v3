@@ -71,6 +71,17 @@ const formatMoney = (amount: number) =>
         Number.isFinite(amount) ? amount : 0,
     );
 
+const PAYMENT_TYPE_LABELS: Record<string, string> = {
+    ADVANCE: 'Anticipo',
+    PROGRESS: 'Avance',
+    FULL: '100% Contrato',
+};
+
+const formatPaymentTypeLabel = (type: string | null | undefined): string => {
+    const key = String(type ?? '').toUpperCase();
+    return PAYMENT_TYPE_LABELS[key] ?? (type || '—');
+};
+
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
 const formatCurrency = (amount: number) =>
@@ -251,11 +262,11 @@ const CxcReportPage: React.FC = () => {
         {
             key: 'payment_type',
             label: 'Tipo',
-            render: (row) => <span className="text-slate-600">{row.payment_type || '—'}</span>,
+            render: (row) => <span className="text-slate-600">{formatPaymentTypeLabel(row.payment_type)}</span>,
         },
         {
             key: 'nc_advance',
-            label: 'NC Anticipo',
+            label: 'NC Ant.',
             render: (row) => {
                 if (!row.nc_advance_folio) {
                     return <span className="text-slate-300 text-xs">—</span>;
@@ -270,7 +281,7 @@ const CxcReportPage: React.FC = () => {
         },
         {
             key: 'nc_retention',
-            label: 'NC Fondo de Garantía',
+            label: 'NC F.G.',
             render: (row) => {
                 if (!row.nc_retention_folio) {
                     return <span className="text-slate-300 text-xs">—</span>;
@@ -342,7 +353,7 @@ const CxcReportPage: React.FC = () => {
     ], [canCharge]);
 
     return (
-        <div className="p-8 max-w-7xl mx-auto pb-24 space-y-6 animate-fadeIn">
+        <div className="p-8 w-full pb-24 space-y-6 animate-fadeIn">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 pb-4">
                 <div>
                     <h1 className="text-3xl font-black tracking-tight flex items-center gap-3 text-indigo-800">
