@@ -3162,3 +3162,30 @@ Fase 11 agregada al plan. Se implementa al arranque en ceros.
 - Continuar Fase 8 (reporte de facturas)
 - Fase 9 — Seguridad Avanzada
 - Etapa 3 — Herramienta de migración de OVs legacy
+
+
+---
+## SESIÓN 2026-09-09 — FASE 8 COMPLETADA
+
+### Completado:
+- administration_invoice_folio escrito en instancias al registrar factura de avance
+- Relación installments en CustomerPayment + selectinload en repository
+- CustomerPaymentInstallmentRead schema creado
+- 5 KPIs en OrderStatementModal: Valor Proyecto, Total Facturado,
+  Pendiente de Facturar, Total Cobrado, Saldo por Cobrar
+- KPI Total Cobrado corregido (suma abonos activos, no solo facturas PAID)
+- Botón renombrado "Rayos X y Facturar" en ReceivablesModule
+- CxcReportPage: 2 columnas NC (anticipo y fondo de garantía) + filtro por tipo
+
+### FASE 8 — COMPLETADA
+Todos los pendientes resueltos:
+✓ Fondo de Garantía backend + frontend
+✓ Notas de Crédito en modal de facturación
+✓ Folio Compaq en instancias al facturar
+✓ Reporte CxC con columnas NC y filtro por tipo
+
+### Siguiente: FASE 9 — Seguridad Avanzada
+- httpOnly cookies (tokens fuera de localStorage)
+- 2FA para DIRECTOR
+- Audit log completo
+- Backups automáticos a GCS
