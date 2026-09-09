@@ -3189,3 +3189,26 @@ Todos los pendientes resueltos:
 - 2FA para DIRECTOR
 - Audit log completo
 - Backups automáticos a GCS
+
+
+---
+## SESIÓN 2026-09-09 (cierre) — PENDIENTES ACTIVOS
+
+### Completado en sesión:
+- AuditPage frontend (Director) — filtros, tabla con badges, paginación
+- InventoryValuationPage — valuación por artículo con editar material
+- PhysicalInventoryModule — botón imprimir lista de conteo ciego
+- Editar material desde Kárdex, Inventario Físico y Valuación
+- Tarjeta 4 INVENTARIO → hub con sub-tarjetas 4a (Valuación) y 4b (Conteo Físico)
+
+### BUG PENDIENTE — PRIORIDAD ALTA:
+El botón "Regresar" en InventoryValuationPage no regresa a /inventory
+sino a Compras y Almacén (raíz). Se intentó navigate(-1) y navigate('/inventory')
+pero el deploy no aplicó el cambio correctamente. Verificar en próxima sesión
+que el archivo en producción tiene el cambio y que Render terminó el deploy.
+
+### Lista de pendientes en orden:
+1. Corregir botón Regresar en InventoryValuationPage → /inventory
+2. httpOnly cookies (Fase 9)
+3. Backups automáticos a GCS (Fase 9)
+4. Herramienta de migración OVs legacy (Etapa 3)
