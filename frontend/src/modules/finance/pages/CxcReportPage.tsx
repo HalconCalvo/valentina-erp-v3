@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, FileText, RefreshCw } from 'lucide-react';
 import { salesService } from '../../../api/sales-service';
+import { SalesOrder } from '../../../types/sales';
+import { OrderStatementModal } from '../components/OrderStatementModal';
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
@@ -116,6 +118,8 @@ const CxcReportPage: React.FC = () => {
     const [includePaid, setIncludePaid] = useState(false);
     const [onlyCancelled, setOnlyCancelled] = useState(false);
     const [paymentTypeFilter, setPaymentTypeFilter] = useState('');
+    const [selectedOrder, setSelectedOrder] = useState<SalesOrder | null>(null);
+    const [isRayosXOpen, setIsRayosXOpen] = useState(false);
 
     const mapReportRow = (r: Record<string, unknown>): CxcReportRow => ({
         cxc_id: Number(r.cxc_id),
@@ -231,6 +235,16 @@ const CxcReportPage: React.FC = () => {
         navigate('/treasury', { state: { cobrarCxcId: row.cxc_id, cxcInfo: row } });
     };
 
+    const handleFolioClick = useCallback(async (orderId: number) => {
+        try {
+            const order = await salesService.getOrderDetail(orderId);
+            setSelectedOrder(order);
+            setIsRayosXOpen(true);
+        } catch {
+            toast.error('No se pudo cargar la orden');
+        }
+    }, []);
+
     const canCobrar = (row: CxcReportRow) =>
         row.saldo > 0.01 && row.estado !== 'CANCELADA' && row.estado !== 'PAGADA';
 
@@ -238,7 +252,15 @@ const CxcReportPage: React.FC = () => {
         {
             key: 'invoice_folio',
             label: 'Folio',
-            render: (row) => <span className="font-semibold text-slate-800">{row.invoice_folio || '—'}</span>,
+            render: (row) => (
+                <button
+                    type="button"
+                    onClick={() => void handleFolioClick(row.sales_order_id)}
+                    className="font-semibold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
+                >
+                    {row.invoice_folio || '—'}
+                </button>
+            ),
         },
         {
             key: 'invoice_date',
@@ -350,7 +372,7 @@ const CxcReportPage: React.FC = () => {
                 </div>
             ),
         },
-    ], [canCharge]);
+    ], [canCharge, handleFolioClick]);
 
     return (
         <div className="p-8 w-full pb-24 space-y-6 animate-fadeIn">
@@ -528,6 +550,17 @@ const CxcReportPage: React.FC = () => {
                     )}
                 </div>
             </div>
+            {selectedOrder && (
+                <OrderStatementModal
+                    isOpen={isRayosXOpen}
+                    onClose={() => {
+                        setIsRayosXOpen(false);
+                        setSelectedOrder(null);
+                    }}
+                    order={selectedOrder}
+                    onSuccess={loadReport}
+                />
+            )}
         </div>
     );
 };
