@@ -35,6 +35,7 @@ import InventoryReceptionPage from './modules/foundations/pages/InventoryRecepti
 // ---> NUEVO TABLERO MAESTRO DE COMPRAS Y ALMACÉN <---
 import InventoryDashboardPage from './modules/foundations/pages/InventoryDashboardPage';
 import KardexPage from './modules/foundations/pages/KardexPage';
+import InventoryValuationPage from './modules/foundations/pages/InventoryValuationPage';
 
 // 7. DIRECCIÓN Y GERENCIA (La División Estratégica vs Operativa)
 import DirectorDashboard from './modules/director/pages/DirectorDashboard';
@@ -126,6 +127,7 @@ function AppRoutes() {
         {/* --- INVENTARIO / COMPRAS --- */}
         <Route path="/inventory" element={<InventoryDashboardPage key={key} />} />
         <Route path="/inventory/kardex" element={<KardexPage key={key} />} />
+        <Route path="/inventory/valuation" element={<InventoryValuationPage key={key} />} />
         <Route path="/inventory/history" element={<Navigate to="/inventory" replace />} />
         <Route path="/inventory/reception" element={<InventoryReceptionPage key={key} />} />
 

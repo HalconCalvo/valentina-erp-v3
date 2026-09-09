@@ -10,6 +10,8 @@ import {
   Loader2,
   Search,
   RefreshCw,
+  Pencil,
+  Printer,
 } from 'lucide-react';
 import axiosClient from '@/api/axios-client';
 import {
@@ -25,6 +27,7 @@ import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { VEmptyState } from '@/components/ui/VEmptyState';
 import { VTable, VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
+import { MaterialForm } from './MaterialForm';
 
 interface MaterialUnitMap {
   [materialId: number]: string;
@@ -83,6 +86,7 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
   const [reasonText, setReasonText] = useState('');
   const [submitConfirm, setSubmitConfirm] = useState(false);
   const [approveAllConfirm, setApproveAllConfirm] = useState(false);
+  const [editingMaterialId, setEditingMaterialId] = useState<number | null>(null);
 
   const loadUnits = useCallback(async () => {
     try {
@@ -329,6 +333,10 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
     audit.items.length > 0 &&
     audit.items.every((item) => item.captured || item.counted_quantity !== null);
 
+  const handlePrintBlindList = () => {
+    window.print();
+  };
+
   const captureColumns: VTableColumn<AuditItemRead>[] = [
     {
       key: 'material_sku',
@@ -381,6 +389,22 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
             {savingItemId === row.id ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
           </button>
         </div>
+      ),
+    },
+    {
+      key: 'edit_material',
+      label: '',
+      width: '48px',
+      render: (row) => (
+        <button
+          type="button"
+          title="Editar material"
+          disabled={processing}
+          onClick={() => setEditingMaterialId(row.material_id)}
+          className="rounded-lg p-2 text-indigo-600 hover:bg-indigo-50 disabled:opacity-50"
+        >
+          <Pencil size={16} />
+        </button>
       ),
     },
   ];
@@ -529,6 +553,14 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
+              disabled={processing}
+              onClick={handlePrintBlindList}
+              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              <Printer size={16} /> Imprimir lista
+            </button>
+            <button
+              type="button"
               disabled={!allCaptured || processing}
               onClick={() => setSubmitConfirm(true)}
               className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
@@ -619,6 +651,76 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
               </div>
             </div>
           </Modal>
+        )}
+
+        <style>{`
+          @media print {
+            body * { visibility: hidden; }
+            #physical-inventory-print, #physical-inventory-print * { visibility: visible; }
+            #physical-inventory-print {
+              position: absolute;
+              left: 0;
+              top: 0;
+              width: 100%;
+              display: block !important;
+            }
+          }
+        `}</style>
+
+        <div id="physical-inventory-print" className="hidden print:block">
+          <div className="p-8">
+            <h1 className="text-xl font-black text-slate-900 mb-1">
+              Inventario Físico — Sesión #{audit.id} —{' '}
+              {new Date().toLocaleDateString('es-MX', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              })}
+            </h1>
+            <p className="text-sm text-slate-600 mb-6">Conteo ciego — anotar cantidades físicas</p>
+            {/* Excepción justificada: tabla nativa requerida para impresión física.
+                VTable no es compatible con @media print. Solo visible al imprimir. */}
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr>
+                  <th className="border border-slate-400 px-3 py-2 text-left font-bold">SKU</th>
+                  <th className="border border-slate-400 px-3 py-2 text-left font-bold">Material</th>
+                  <th className="border border-slate-400 px-3 py-2 text-left font-bold">Unidad</th>
+                  <th className="border border-slate-400 px-3 py-2 text-left font-bold w-32">Cantidad</th>
+                </tr>
+              </thead>
+              <tbody>
+                {audit.items.map((item) => (
+                  <tr key={item.id}>
+                    <td className="border border-slate-300 px-3 py-2 font-mono text-xs">
+                      {item.material_sku || '—'}
+                    </td>
+                    <td className="border border-slate-300 px-3 py-2">{item.material_name || '—'}</td>
+                    <td className="border border-slate-300 px-3 py-2">
+                      {unitMap[item.material_id] || '—'}
+                    </td>
+                    <td className="border border-slate-300 px-3 py-2 h-8" />
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="mt-12 pt-4 border-t border-slate-400">
+              <p className="text-sm font-bold text-slate-800">Firma del contador:</p>
+              <div className="mt-8 border-b border-slate-800 w-64" />
+            </div>
+          </div>
+        </div>
+
+        {editingMaterialId != null && (
+          <MaterialForm
+            materialId={editingMaterialId}
+            onCancel={() => setEditingMaterialId(null)}
+            onCreated={() => {
+              setEditingMaterialId(null);
+              void loadUnits();
+              toast.success('Material actualizado.');
+            }}
+          />
         )}
       </div>
     );

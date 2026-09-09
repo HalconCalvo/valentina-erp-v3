@@ -263,7 +263,7 @@ export const InventoryDashboardPage = () => {
 
                     {/* TARJETA 4 */}
                     <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] relative h-40">
-                        <Card onClick={() => setActiveSection('PHYSICAL_INVENTORY')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-orange-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group">
+                        <Card onClick={() => navigate('/inventory/valuation')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-orange-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group">
                             <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-orange-50 text-orange-700 border-r border-orange-100 font-black text-3xl transition-colors group-hover:bg-orange-100">$</div>
                             <div className="ml-16 h-full flex flex-col justify-between">
                                 <div className="flex justify-between items-start"><p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">4. Inventario</p><Package size={16} className="text-orange-500" /></div>

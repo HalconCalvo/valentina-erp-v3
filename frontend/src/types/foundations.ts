@@ -18,7 +18,9 @@ export interface Material {
 
     // Stocks (Backend siempre los envía, aunque sean 0)
     physical_stock: number;
-    committed_stock: number; 
+    committed_stock: number;
+    min_stock?: number;
+    max_stock?: number;
 
     // Control
     is_active: boolean;

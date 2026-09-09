@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, BookOpen, Loader2 } from 'lucide-react';
+import { ArrowLeft, BookOpen, Loader2, Pencil } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axiosClient from '@/api/axios-client';
 import {
@@ -12,6 +12,7 @@ import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VEmptyState } from '@/components/ui/VEmptyState';
 import { VTable, VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
+import { MaterialForm } from '../components/MaterialForm';
 
 interface MaterialOption {
   id: number;
@@ -75,6 +76,7 @@ export default function KardexPage() {
   const [loadingKardex, setLoadingKardex] = useState(false);
   const [entries, setEntries] = useState<KardexEntryRead[]>([]);
   const [materialLabel, setMaterialLabel] = useState('');
+  const [editingMaterialId, setEditingMaterialId] = useState<number | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -248,8 +250,17 @@ export default function KardexPage() {
       </div>
 
       {selectedMaterialId && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-bold text-slate-600">{materialLabel}</p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-sm font-bold text-slate-600">{materialLabel}</p>
+            <button
+              type="button"
+              onClick={() => setEditingMaterialId(parseInt(selectedMaterialId, 10))}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-indigo-600 hover:bg-indigo-50"
+            >
+              <Pencil size={14} /> Editar material
+            </button>
+          </div>
           <button
             type="button"
             onClick={() => void loadKardex()}
@@ -279,6 +290,24 @@ export default function KardexPage() {
         />
       ) : (
         <VTable columns={columns} data={entries as KardexEntryRead[]} />
+      )}
+
+      {editingMaterialId != null && (
+        <MaterialForm
+          materialId={editingMaterialId}
+          onCancel={() => setEditingMaterialId(null)}
+          onCreated={(mat) => {
+            setEditingMaterialId(null);
+            setMaterials((prev) =>
+              prev.map((m) =>
+                m.id === mat.id ? { ...m, sku: mat.sku, name: mat.name } : m,
+              ),
+            );
+            setMaterialLabel(`${mat.sku} — ${mat.name}`);
+            toast.success('Material actualizado.');
+            void loadKardex();
+          }}
+        />
       )}
     </div>
   );
