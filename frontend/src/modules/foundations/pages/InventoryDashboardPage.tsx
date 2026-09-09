@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ClipboardList, ShoppingCart, Truck, Package, ArrowLeft, ArrowUpRight, Wrench, Target, AlertTriangle, BookOpen } from 'lucide-react';
+import { ClipboardList, ShoppingCart, Truck, Package, ArrowLeft, ArrowUpRight, Wrench, Target, AlertTriangle, BookOpen, ClipboardCheck, DollarSign } from 'lucide-react';
 import { Card } from "@/components/ui/Card";
 import axiosClient from '../../../api/axios-client';
 import { inventoryService, LowStockMaterialRead } from '@/api/inventory-service';
@@ -15,13 +15,14 @@ import { PhysicalInventoryModule } from '../components/PhysicalInventoryModule';
 import MaterialsPage from './MaterialsPage';
 import ProvidersPage from './ProvidersPage';
 
-type InventorySection = 'REQUISITIONS' | 'PURCHASE_ORDERS' | 'RECEPTIONS' | 'PHYSICAL_INVENTORY' | 'MATERIALS' | 'PROVIDERS' | 'LOW_STOCK' | null;
+type InventorySection = 'REQUISITIONS' | 'PURCHASE_ORDERS' | 'RECEPTIONS' | 'INVENTORY_HUB' | 'PHYSICAL_INVENTORY' | 'MATERIALS' | 'PROVIDERS' | 'LOW_STOCK' | null;
 
 export const InventoryDashboardPage = () => {
     const navigate = useNavigate();
     const [activeSection, setActiveSection] = useState<InventorySection>(null);
     const [isSubSectionActive, setIsSubSectionActive] = useState(false);
     const [physicalInventorySubSection, setPhysicalInventorySubSection] = useState<string | null>(null);
+    const [inventoryEntryFromHub, setInventoryEntryFromHub] = useState(false);
     
     // ---> NUEVO: MEMORIA PARA LA SUB-PESTAÑA (EL "FRENO") <---
     const [targetTab, setTargetTab] = useState<string | null>(null);
@@ -34,6 +35,7 @@ export const InventoryDashboardPage = () => {
         if (location.state?.reset) {
             setActiveSection(null);
             setPhysicalInventorySubSection(null);
+            setInventoryEntryFromHub(false);
             setTargetTab(null);
             setReturnToPath(null);
             window.history.replaceState({}, document.title);
@@ -176,6 +178,11 @@ export const InventoryDashboardPage = () => {
                 setPhysicalInventorySubSection(null);
                 return;
             }
+            if (activeSection === 'PHYSICAL_INVENTORY' && inventoryEntryFromHub) {
+                setInventoryEntryFromHub(false);
+                setActiveSection('INVENTORY_HUB');
+                return;
+            }
             if (returnToPath && activeSection != null) {
                 navigate(returnToPath);
                 setReturnToPath(null);
@@ -263,7 +270,7 @@ export const InventoryDashboardPage = () => {
 
                     {/* TARJETA 4 */}
                     <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] relative h-40">
-                        <Card onClick={() => navigate('/inventory/valuation')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-orange-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group">
+                        <Card onClick={() => setActiveSection('INVENTORY_HUB')} className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-orange-500 transform hover:-translate-y-1 h-full bg-white overflow-hidden group">
                             <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-orange-50 text-orange-700 border-r border-orange-100 font-black text-3xl transition-colors group-hover:bg-orange-100">$</div>
                             <div className="ml-16 h-full flex flex-col justify-between">
                                 <div className="flex justify-between items-start"><p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">4. Inventario</p><Package size={16} className="text-orange-500" /></div>
@@ -360,6 +367,68 @@ export const InventoryDashboardPage = () => {
                     
                     {activeSection === 'RECEPTIONS' && renderActiveSection('Recepción y Match a 3 Vías', 
                         <InventoryReceptionPage />
+                    )}
+
+                    {activeSection === 'INVENTORY_HUB' && renderActiveSection('Inventario',
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in duration-300">
+                            <div className="w-full relative h-40">
+                                <Card
+                                    onClick={() => navigate('/inventory/valuation')}
+                                    className="p-6 cursor-pointer transition-all border-l-4 border-l-orange-500 transform hover:-translate-y-1 h-full bg-white shadow-sm hover:shadow-xl"
+                                >
+                                    <div className="absolute top-0 left-0 bottom-0 w-20 flex items-center justify-center border-r font-black text-3xl bg-orange-50 text-orange-600 border-orange-100">
+                                        {inventoryValuation >= 1000000
+                                            ? `$${(inventoryValuation / 1000000).toFixed(1)}M`
+                                            : inventoryValuation >= 1000
+                                            ? `$${(inventoryValuation / 1000).toFixed(0)}K`
+                                            : `$${Math.round(inventoryValuation)}`}
+                                    </div>
+                                    <div className="ml-20 h-full flex flex-col justify-between">
+                                        <div className="flex justify-between items-start">
+                                            <p className="text-[11px] font-black uppercase tracking-widest text-slate-800">4a. Valuación</p>
+                                            <DollarSign size={18} className="text-orange-500" />
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-lg font-black leading-none tracking-tighter text-orange-600">
+                                                Valor del inventario por artículo
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-tight">Detalle por material</p>
+                                            <ArrowUpRight size={16} className="text-slate-300" />
+                                        </div>
+                                    </div>
+                                </Card>
+                            </div>
+                            <div className="w-full relative h-40">
+                                <Card
+                                    onClick={() => {
+                                        setInventoryEntryFromHub(true);
+                                        setActiveSection('PHYSICAL_INVENTORY');
+                                    }}
+                                    className="p-6 cursor-pointer transition-all border-l-4 border-l-orange-500 transform hover:-translate-y-1 h-full bg-white shadow-sm hover:shadow-xl"
+                                >
+                                    <div className="absolute top-0 left-0 bottom-0 w-20 flex items-center justify-center border-r font-black text-3xl bg-orange-50 text-orange-600 border-orange-100">
+                                        <ClipboardCheck size={28} />
+                                    </div>
+                                    <div className="ml-20 h-full flex flex-col justify-between">
+                                        <div className="flex justify-between items-start">
+                                            <p className="text-[11px] font-black uppercase tracking-widest text-slate-800">4b. Conteo Físico</p>
+                                            <ClipboardCheck size={18} className="text-orange-500" />
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-lg font-black leading-none tracking-tighter text-orange-600">
+                                                Sesiones de conteo ciego
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-tight">Inventario físico</p>
+                                            <ArrowUpRight size={16} className="text-slate-300" />
+                                        </div>
+                                    </div>
+                                </Card>
+                            </div>
+                        </div>
                     )}
                     
                     {activeSection === 'PHYSICAL_INVENTORY' && renderActiveSection('Inventario Físico', 
