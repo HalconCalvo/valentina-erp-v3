@@ -37,7 +37,8 @@ import InventoryDashboardPage from './modules/foundations/pages/InventoryDashboa
 import KardexPage from './modules/foundations/pages/KardexPage';
 
 // 7. DIRECCIÓN Y GERENCIA (La División Estratégica vs Operativa)
-import DirectorDashboard from './modules/director/pages/DirectorDashboard'; 
+import DirectorDashboard from './modules/director/pages/DirectorDashboard';
+import AuditPage from './modules/director/pages/AuditPage'; 
 import ManagementDashboard from './modules/management/pages/ManagementDashboard';
 
 // 8. Tesorería
@@ -139,6 +140,7 @@ function AppRoutes() {
 
         {/* ---> DIRECCIÓN Y GERENCIA <--- */}
         <Route path="/director" element={<DirectorDashboard key={key} />} />
+        <Route path="/director/audit" element={<AuditPage key={key} />} />
         <Route path="/management" element={<ManagementDashboard key={key} />} />
 
         {/* --- PRODUCCIÓN V3.5 --- */}
