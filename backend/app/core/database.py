@@ -3,7 +3,7 @@ from sqlmodel import SQLModel, create_engine, Session, select
 from passlib.context import CryptContext
 
 # --- IMPORTANTE: Registramos todos los modelos ---
-from app.models import users, auth, foundations, inventory, sales, design, finance
+from app.models import users, auth, foundations, inventory, sales, design, finance, audit
 from app.models.users import User 
 
 # --- CONFIGURACIÓN DE CONEXIÓN ---

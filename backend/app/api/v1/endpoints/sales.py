@@ -612,8 +612,13 @@ def register_advance(
 
 
 @router.post("/orders/{order_id}/confirm_payment/{cxc_id}", response_model=SalesOrderRead)
-def confirm_cxc_payment(order_id: int, cxc_id: int, session: Session = Depends(get_session)):
-    return sales_service.confirm_payment(session, order_id, cxc_id)
+def confirm_cxc_payment(
+    order_id: int,
+    cxc_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    return sales_service.confirm_payment(session, order_id, cxc_id, current_user)
 
 
 def _liberar_comision_anticipo(session, order, payment, base_con_iva):

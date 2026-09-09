@@ -42,6 +42,7 @@ from app.schemas.sales_schema import (
     RetentionAlertRead,
 )
 from app.services.cost_engine import CostEngine
+from app.services import audit_service
 
 
 def _normalized_role(user: User) -> str:
@@ -65,6 +66,10 @@ def _require_manager_or_director(user: User) -> None:
     role = _normalized_role(user)
     if role not in {UserRole.DIRECTOR.value, UserRole.MANAGER.value}:
         raise HTTPException(status_code=403, detail="Acceso restringido a Dirección o Gerencia.")
+
+
+def _order_reference(order_id: int) -> str:
+    return f"OV-{str(order_id).zfill(4)}"
 
 
 def _get_payment_or_404(session: Session, payment_id: int) -> CustomerPayment:
@@ -184,6 +189,18 @@ def collect_retention(session: Session, payment_id: int, current_user: User) -> 
                     admin_notes=ref,
                 ))
 
+    order_ref = _order_reference(payment.sales_order_id)
+    audit_service.log_action(
+        session,
+        current_user,
+        audit_service.COLLECT,
+        audit_service.RETENTION,
+        payment.id,
+        order_ref,
+        f"Cobró Fondo de Garantía ${retention_amt:,.2f} en {order_ref}",
+        old_values={"retention_status": "INVOICED", "retention_amount": retention_amt},
+        new_values={"retention_status": "COLLECTED", "retention_amount": retention_amt},
+    )
     session.commit()
     session.refresh(payment)
     return payment
@@ -200,9 +217,22 @@ def waive_retention(
     status = (payment.retention_status or "").upper()
     if status in {"COLLECTED", "WAIVED"}:
         raise HTTPException(status_code=400, detail="La retención ya fue cobrada o liberada.")
+    old_notes = payment.retention_notes
     payment.retention_status = "WAIVED"
     payment.retention_notes = clean_reason
     session.add(payment)
+    order_ref = _order_reference(payment.sales_order_id)
+    audit_service.log_action(
+        session,
+        current_user,
+        audit_service.CANCEL,
+        audit_service.RETENTION,
+        payment.id,
+        order_ref,
+        f"Liberó Fondo de Garantía en {order_ref}",
+        old_values={"retention_status": status, "retention_notes": old_notes},
+        new_values={"retention_status": "WAIVED", "retention_notes": clean_reason},
+    )
     session.commit()
     session.refresh(payment)
     return payment
@@ -611,17 +641,33 @@ def release_commission(session: Session, commission_id: int, current_user: User)
     commission.is_released = True
     commission.released_at = datetime.utcnow()
     session.add(commission)
+    amount = float(commission.commission_amount or 0.0)
+    audit_service.log_action(
+        session,
+        current_user,
+        audit_service.RELEASE,
+        audit_service.COMMISSION,
+        commission.id,
+        None,
+        f"Liberó comisión de anticipo ${amount:,.2f}",
+        old_values={"is_released": False},
+        new_values={"is_released": True, "commission_amount": amount},
+    )
     session.commit()
     session.refresh(commission)
     return {"ok": True, "commission_id": commission_id, "is_released": commission.is_released}
 
 
-def confirm_payment(session: Session, order_id: int, cxc_id: int) -> SalesOrder:
+def confirm_payment(
+    session: Session, order_id: int, cxc_id: int, current_user: Optional[User] = None
+) -> SalesOrder:
     order = _require_order(session, order_id)
     cxc = sales_repo.get_cxc_by_id(session, cxc_id)
     if not cxc:
         raise HTTPException(status_code=404, detail="CxC no encontrada")
 
+    cxc_amount = float(cxc.amount or 0.0)
+    order_ref = _order_reference(order_id)
     cxc.status = CXCStatus.PAID
     cxc.payment_date = datetime.utcnow()
     order.outstanding_balance -= cxc.amount
@@ -637,6 +683,17 @@ def confirm_payment(session: Session, order_id: int, cxc_id: int) -> SalesOrder:
         cxc.commission_paid = True
     session.add(cxc)
     session.add(order)
+    audit_service.log_action(
+        session,
+        current_user,
+        audit_service.COLLECT,
+        audit_service.CUSTOMER_PAYMENT,
+        cxc.id,
+        order_ref,
+        f"Registró cobro de CxC ${cxc_amount:,.2f} en {order_ref}",
+        old_values={"status": "PENDING", "amount": cxc_amount},
+        new_values={"status": "PAID", "amount": cxc_amount},
+    )
     session.commit()
     session.refresh(order)
     return order
@@ -927,6 +984,18 @@ def cancel_installment(
             session.add(bank_tx)
     _unlink_cxc_instances(session, cxc.id)
     _recalc_cxc_status(session, cxc, order)
+    order_ref = _order_reference(order.id) if order else None
+    audit_service.log_action(
+        session,
+        current_user,
+        audit_service.CANCEL,
+        audit_service.INSTALLMENT,
+        row.id,
+        order_ref,
+        f"Canceló abono de ${amount:,.2f} en {order_ref}" if order_ref else f"Canceló abono de ${amount:,.2f}",
+        old_values={"amount": amount, "is_cancelled": False},
+        new_values={"amount": amount, "is_cancelled": True, "cancel_reason": reason},
+    )
     session.commit()
     return {"message": "Abono cancelado.", "installment_id": row.id}
 
@@ -1619,5 +1688,20 @@ def mark_commission_paid(
         raise HTTPException(status_code=400, detail="Comisión no liberada aún")
     commission.is_paid = data.is_paid
     session.add(commission)
+    if data.is_paid:
+        seller = sales_repo.get_user_by_id(session, commission.user_id)
+        seller_name = seller.full_name if seller else "—"
+        amount = float(commission.commission_amount or 0.0)
+        audit_service.log_action(
+            session,
+            current_user,
+            audit_service.PAY,
+            audit_service.COMMISSION,
+            commission.id,
+            None,
+            f"Pagó comisión ${amount:,.2f} a {seller_name}",
+            old_values={"is_paid": False},
+            new_values={"is_paid": True, "commission_amount": amount},
+        )
     session.commit()
     return {"ok": True, "commission_id": commission_id, "is_paid": commission.is_paid}

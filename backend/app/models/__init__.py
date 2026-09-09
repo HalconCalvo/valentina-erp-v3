@@ -45,6 +45,9 @@ from .production import (
 # --- Módulo de Caja Chica ---
 from .petty_cash import PettyCashFund, PettyCashMovement
 
+# --- Audit Log ---
+from .audit import AuditLog
+
 # Exportación explícita para Alembic/SQLModel
 __all__ = [
     # Cimientos
@@ -108,4 +111,7 @@ __all__ = [
     # Caja Chica
     "PettyCashFund",
     "PettyCashMovement",
+
+    # Audit
+    "AuditLog",
 ]
