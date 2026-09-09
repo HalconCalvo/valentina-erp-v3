@@ -381,6 +381,12 @@ def get_cxc_report(
             "antiguedad_dias": antiguedad,
             "payment_date": cxc.payment_date.isoformat() if cxc.payment_date else None,
             "treasury_transaction_id": getattr(cxc, "treasury_transaction_id", None),
+            "nc_advance_folio": cxc.nc_advance_folio,
+            "nc_advance_amount": round(float(cxc.nc_advance_amount or 0.0), 2),
+            "nc_retention_folio": cxc.nc_retention_folio,
+            "nc_retention_amount": round(float(cxc.nc_retention_amount or 0.0), 2),
+            "retention_status": cxc.retention_status,
+            "retention_due_date": cxc.retention_due_date.isoformat() if cxc.retention_due_date else None,
         })
     return result
 

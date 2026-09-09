@@ -23,7 +23,53 @@ export interface CxcReportRow {
     antiguedad_dias: number | null;
     payment_date?: string | null;
     treasury_transaction_id?: number | null;
+    nc_advance_folio: string | null;
+    nc_advance_amount: number;
+    nc_retention_folio: string | null;
+    nc_retention_amount: number;
+    retention_status: string | null;
+    retention_due_date: string | null;
 }
+
+const RETENTION_BADGE: Record<string, { label: string; cls: string }> = {
+    PENDING: { label: 'Pendiente', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+    INVOICED: { label: 'Facturado', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
+    COLLECTED: { label: 'Cobrado', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    WAIVED: { label: 'Liberado', cls: 'bg-slate-100 text-slate-600 border-slate-200' },
+};
+
+const PAYMENT_TYPE_FILTER_OPTIONS = [
+    { value: '', label: 'Todos' },
+    { value: 'ADVANCE', label: 'Anticipo' },
+    { value: 'PROGRESS', label: 'Avance de Obra' },
+    { value: 'FULL', label: '100% Contrato' },
+];
+
+function RetentionStatusBadge({ status }: { status?: string | null }) {
+    const key = String(status ?? '').toUpperCase();
+    const meta = RETENTION_BADGE[key];
+    if (!meta) return null;
+    return (
+        <span className={`inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded border ${meta.cls}`}>
+            {meta.label}
+        </span>
+    );
+}
+
+function isRetentionOverdue(dueDate?: string | null, status?: string | null): boolean {
+    if (!dueDate) return false;
+    if (['COLLECTED', 'WAIVED'].includes(String(status ?? '').toUpperCase())) return false;
+    const due = new Date(dueDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    due.setHours(0, 0, 0, 0);
+    return due.getTime() < today.getTime();
+}
+
+const formatMoney = (amount: number) =>
+    new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
+        Number.isFinite(amount) ? amount : 0,
+    );
 
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
@@ -58,6 +104,31 @@ const CxcReportPage: React.FC = () => {
     const [dateTo, setDateTo] = useState('');
     const [includePaid, setIncludePaid] = useState(false);
     const [onlyCancelled, setOnlyCancelled] = useState(false);
+    const [paymentTypeFilter, setPaymentTypeFilter] = useState('');
+
+    const mapReportRow = (r: Record<string, unknown>): CxcReportRow => ({
+        cxc_id: Number(r.cxc_id),
+        invoice_folio: (r.invoice_folio as string | null) ?? null,
+        invoice_date: (r.invoice_date as string | null) ?? null,
+        payment_type: (r.payment_type as string | null) ?? null,
+        client_id: r.client_id != null ? Number(r.client_id) : null,
+        client_name: String(r.client_name ?? '—'),
+        project_name: (r.project_name as string | null) ?? null,
+        sales_order_id: Number(r.sales_order_id),
+        monto: Number(r.monto) || 0,
+        abonado: Number(r.abonado) || 0,
+        saldo: Number(r.saldo) || 0,
+        estado: String(r.estado ?? ''),
+        antiguedad_dias: r.antiguedad_dias != null ? Number(r.antiguedad_dias) : null,
+        payment_date: (r.payment_date as string | null) ?? null,
+        treasury_transaction_id: r.treasury_transaction_id != null ? Number(r.treasury_transaction_id) : null,
+        nc_advance_folio: (r.nc_advance_folio as string | null) ?? null,
+        nc_advance_amount: Number(r.nc_advance_amount) || 0,
+        nc_retention_folio: (r.nc_retention_folio as string | null) ?? null,
+        nc_retention_amount: Number(r.nc_retention_amount) || 0,
+        retention_status: (r.retention_status as string | null) ?? null,
+        retention_due_date: (r.retention_due_date as string | null) ?? null,
+    });
 
     const loadReport = useCallback(async () => {
         setLoading(true);
@@ -69,7 +140,7 @@ const CxcReportPage: React.FC = () => {
                 include_paid: includePaid,
                 only_cancelled: onlyCancelled,
             });
-            setRows(Array.isArray(data) ? data : []);
+            setRows(Array.isArray(data) ? data.map((r) => mapReportRow(r as Record<string, unknown>)) : []);
         } catch {
             toast.error('No se pudo cargar el reporte de CxC.');
             setRows([]);
@@ -82,9 +153,14 @@ const CxcReportPage: React.FC = () => {
         loadReport();
     }, [loadReport]);
 
+    const filteredRows = useMemo(() => {
+        if (!paymentTypeFilter) return rows;
+        return rows.filter((r) => String(r.payment_type ?? '').toUpperCase() === paymentTypeFilter);
+    }, [rows, paymentTypeFilter]);
+
     const clientOptions = useMemo(() => {
         const map = new Map<number, string>();
-        for (const row of rows) {
+        for (const row of filteredRows) {
             if (row.client_id != null && row.client_name) {
                 map.set(row.client_id, row.client_name);
             }
@@ -92,7 +168,7 @@ const CxcReportPage: React.FC = () => {
         return Array.from(map.entries())
             .map(([id, name]) => ({ id, name }))
             .sort((a, b) => a.name.localeCompare(b.name, 'es'));
-    }, [rows]);
+    }, [filteredRows]);
 
     const clientSelectOptions = useMemo(
         () => [
@@ -103,16 +179,16 @@ const CxcReportPage: React.FC = () => {
     );
 
     const metrics = useMemo(() => {
-        const vivas = rows.filter((r) => r.saldo > 0.01 && r.estado !== 'CANCELADA').length;
-        const totalFacturado = rows.reduce((s, r) => s + (r.monto || 0), 0);
-        const totalAbonado = rows.reduce((s, r) => s + (r.abonado || 0), 0);
-        const totalSaldo = rows.reduce((s, r) => s + (r.saldo || 0), 0);
+        const vivas = filteredRows.filter((r) => r.saldo > 0.01 && r.estado !== 'CANCELADA').length;
+        const totalFacturado = filteredRows.reduce((s, r) => s + (r.monto || 0), 0);
+        const totalAbonado = filteredRows.reduce((s, r) => s + (r.abonado || 0), 0);
+        const totalSaldo = filteredRows.reduce((s, r) => s + (r.saldo || 0), 0);
         return { vivas, totalFacturado, totalAbonado, totalSaldo };
-    }, [rows]);
+    }, [filteredRows]);
 
     const grouped = useMemo(() => {
         const map = new Map<string, { clientId: number | null; clientName: string; rows: CxcReportRow[]; debe: number }>();
-        for (const row of rows) {
+        for (const row of filteredRows) {
             const key = row.client_id != null ? String(row.client_id) : `__none__${row.client_name}`;
             const existing = map.get(key);
             if (existing) {
@@ -128,7 +204,7 @@ const CxcReportPage: React.FC = () => {
             }
         }
         return Array.from(map.values()).sort((a, b) => a.clientName.localeCompare(b.clientName, 'es'));
-    }, [rows]);
+    }, [filteredRows]);
 
     const handleGoBack = () => {
         if (returnTo === '/sales') {
@@ -176,6 +252,45 @@ const CxcReportPage: React.FC = () => {
             key: 'payment_type',
             label: 'Tipo',
             render: (row) => <span className="text-slate-600">{row.payment_type || '—'}</span>,
+        },
+        {
+            key: 'nc_advance',
+            label: 'NC Anticipo',
+            render: (row) => {
+                if (!row.nc_advance_folio) {
+                    return <span className="text-slate-300 text-xs">—</span>;
+                }
+                return (
+                    <div className="flex flex-col gap-0.5 min-w-[88px]">
+                        <span className="text-[10px] font-bold text-slate-600 uppercase">{row.nc_advance_folio}</span>
+                        <span className="text-xs font-bold text-red-600 tabular-nums">${formatMoney(row.nc_advance_amount)}</span>
+                    </div>
+                );
+            },
+        },
+        {
+            key: 'nc_retention',
+            label: 'NC Fondo de Garantía',
+            render: (row) => {
+                if (!row.nc_retention_folio) {
+                    return <span className="text-slate-300 text-xs">—</span>;
+                }
+                const overdue = isRetentionOverdue(row.retention_due_date, row.retention_status);
+                return (
+                    <div className="flex flex-col gap-1 min-w-[120px]">
+                        <span className="text-[10px] font-bold text-slate-600 uppercase">{row.nc_retention_folio}</span>
+                        <span className="text-xs font-bold text-slate-800 tabular-nums">${formatMoney(row.nc_retention_amount)}</span>
+                        <div className="flex flex-wrap items-center gap-1">
+                            <RetentionStatusBadge status={row.retention_status} />
+                            {overdue && (
+                                <span className="inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded border bg-red-100 text-red-700 border-red-200">
+                                    VENCIDO
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                );
+            },
         },
         {
             key: 'monto',
@@ -281,7 +396,7 @@ const CxcReportPage: React.FC = () => {
             </div>
 
             <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Cliente</label>
                         <SearchableSelect
@@ -291,6 +406,17 @@ const CxcReportPage: React.FC = () => {
                             getLabel={(o) => o.label}
                             getValue={(o) => o.value}
                             placeholder="Todos los clientes"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo de factura</label>
+                        <SearchableSelect
+                            items={PAYMENT_TYPE_FILTER_OPTIONS}
+                            value={paymentTypeFilter}
+                            onChange={setPaymentTypeFilter}
+                            getLabel={(o) => o.label}
+                            getValue={(o) => o.value}
+                            placeholder="Todos"
                         />
                     </div>
                     <div>
@@ -338,7 +464,7 @@ const CxcReportPage: React.FC = () => {
 
             <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                 <div className="overflow-x-auto">
-                    {loading && rows.length === 0 ? (
+                    {loading && filteredRows.length === 0 ? (
                         <VTable
                             columns={cxcColumns as unknown as VTableColumn<Record<string, unknown>>[]}
                             data={[]}
@@ -376,10 +502,10 @@ const CxcReportPage: React.FC = () => {
                                     />
                                 </div>
                             ))}
-                            {rows.length > 0 && (
+                            {filteredRows.length > 0 && (
                                 <div className="flex w-full text-sm bg-slate-100 border-t-2 border-slate-300 font-black">
-                                    <div className="flex-[5] p-3 text-slate-700 uppercase text-xs tracking-wide min-w-0">
-                                        Totales ({rows.length} facturas)
+                                    <div className="flex-[7] p-3 text-slate-700 uppercase text-xs tracking-wide min-w-0">
+                                        Totales ({filteredRows.length} facturas)
                                     </div>
                                     <div className="flex-1 p-3 text-right tabular-nums min-w-0">{formatCurrency(metrics.totalFacturado)}</div>
                                     <div className="flex-1 p-3 text-right tabular-nums text-emerald-800 min-w-0">{formatCurrency(metrics.totalAbonado)}</div>
