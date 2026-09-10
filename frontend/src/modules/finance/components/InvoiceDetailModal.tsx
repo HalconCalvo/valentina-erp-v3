@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { PackageCheck, X, FileMinus } from 'lucide-react';
+import { PackageCheck, X, FileMinus, Receipt } from 'lucide-react';
 import { PendingInvoice } from '../../../types/finance';
 import client from '../../../api/axios-client';
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
+import { VEmptyState } from '@/components/ui/VEmptyState';
 import { toast } from '@/components/ui/VToast';
+
+const isOperationalExpenseInvoice = (inv: PendingInvoice): boolean =>
+    String(inv.invoice_number || '').trim().toUpperCase().startsWith('GASTO-');
 
 interface InvoiceDetailModalProps {
     invoice: PendingInvoice;
@@ -72,6 +76,43 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                     setIsLoading(false);
                     return;
                 }
+
+                if (isOperationalExpenseInvoice(invoice)) {
+                    const folio = String(invoice.invoice_number || '').trim();
+                    const totalConIva = Number(invoice.total_amount) || 0;
+                    const unitPriceSinIva = totalConIva > 0 ? totalConIva / 1.16 : 0;
+                    try {
+                        const expRes = await client.get('/purchases/operational-expenses?limit=200');
+                        const expenses = Array.isArray(expRes.data) ? expRes.data : [];
+                        const match = expenses.find(
+                            (e: { invoice_folio?: string }) =>
+                                String(e.invoice_folio || '').trim() === folio,
+                        );
+                        if (match) {
+                            const category = match.overhead_category
+                                ? String(match.overhead_category)
+                                : '';
+                            const amount = Number(match.total_amount) || totalConIva;
+                            const linePrice = amount > 0 ? amount / 1.16 : unitPriceSinIva;
+                            setItems([
+                                {
+                                    sku: 'GASTO',
+                                    description: category
+                                        ? `Gasto operativo — ${category}`
+                                        : 'Gasto operativo',
+                                    quantity: 1,
+                                    unit_price: linePrice,
+                                    project_name: 'OPERATIVO',
+                                },
+                            ]);
+                        }
+                    } catch {
+                        // Sin detalle en tesorería: el cuerpo muestra mensaje informativo.
+                    }
+                    setIsLoading(false);
+                    return;
+                }
+
                 let fetchedItems: any[] = [];
                 
                 // 1. Intentamos la ruta normal de Finanzas
@@ -246,6 +287,8 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
         [items],
     );
 
+    const isGastoOperativo = isOperationalExpenseInvoice(invoice);
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
             {/* EL CLON EXACTO DE LA TARJETA "POR ENVIAR" DE COMPRAS */}
@@ -291,10 +334,18 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                             <p className="font-black text-[10px] uppercase tracking-widest">Sincronizando desglose de la orden...</p>
                         </div>
                     ) : items.length === 0 ? (
-                        <div className="text-center py-20 bg-slate-50">
-                            <PackageCheck className="mx-auto text-slate-200 mb-4" size={48} />
-                            <p className="text-slate-400 font-black uppercase text-[10px] tracking-widest">El detalle de esta orden no está disponible temporalmente.</p>
-                        </div>
+                        isGastoOperativo ? (
+                            <VEmptyState
+                                icon={<Receipt />}
+                                title="Gasto operativo (sin orden de compra)"
+                                description={`${invoice.invoice_number} es un gasto directo en cuentas por pagar. No hay partidas de material ni recepción de almacén; use el resumen inferior para subtotal, IVA y saldo a pagar.`}
+                            />
+                        ) : (
+                            <div className="text-center py-20 bg-slate-50">
+                                <PackageCheck className="mx-auto text-slate-200 mb-4" size={48} />
+                                <p className="text-slate-400 font-black uppercase text-[10px] tracking-widest">El detalle de esta orden no está disponible temporalmente.</p>
+                            </div>
+                        )
                     ) : (
                         <VTable
                             columns={itemColumns}
