@@ -69,6 +69,7 @@ def get_purchase_orders(
             "mat_map": {},
             "folios_by_po": {},
             "advance_paid_by_po": {},
+            "pending_advance_po_ids": set(),
         }
 
     provider_ids = {o.provider_id for o in orders if o.provider_id is not None}
@@ -109,6 +110,7 @@ def get_purchase_orders(
         folios_by_po = {row[0]: row[1] for row in folio_rows}
 
     advance_paid_by_po: Dict[int, float] = {}
+    pending_advance_po_ids: set[int] = set()
     if order_ids:
         ant_rows = db.exec(text("""
             SELECT po.id as po_id, COALESCE(SUM(sp.amount), 0) as total_paid
@@ -120,6 +122,15 @@ def get_purchase_orders(
             GROUP BY po.id
         """).bindparams(ids=order_ids)).all()
         advance_paid_by_po = {row[0]: float(row[1]) for row in ant_rows}
+        pending_rows = db.exec(text("""
+            SELECT po.id
+            FROM purchase_orders po
+            JOIN purchase_invoices pi ON pi.invoice_number = 'ANT-' || po.folio
+            WHERE po.id = ANY(:ids)
+              AND pi.status = 'PENDING'
+              AND pi.outstanding_balance > 0
+        """).bindparams(ids=order_ids)).all()
+        pending_advance_po_ids = {int(row[0]) for row in pending_rows}
 
     return {
         "orders": orders,
@@ -128,6 +139,7 @@ def get_purchase_orders(
         "mat_map": mat_map,
         "folios_by_po": folios_by_po,
         "advance_paid_by_po": advance_paid_by_po,
+        "pending_advance_po_ids": pending_advance_po_ids,
     }
 
 

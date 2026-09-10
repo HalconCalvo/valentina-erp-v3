@@ -52,6 +52,23 @@ def resolve_po_authorizer_display(db: Session, po: PurchaseOrder) -> Optional[st
     return f"{name} — {role}" if role else name
 
 
+def _sync_advance_waiting_status(
+    db: Session, orders: List[PurchaseOrder], pending_ids: set[int]
+) -> None:
+    changed = False
+    for order in orders:
+        if order.id not in pending_ids:
+            continue
+        if (order.status or "").strip().upper() != "AUTORIZADA":
+            continue
+        order.status = "EN_ESPERA_ANTICIPO"
+        order.is_advance = True
+        db.add(order)
+        changed = True
+    if changed:
+        db.commit()
+
+
 def list_requisitions(db: Session, skip: int = 0, limit: int = 100) -> List[dict]:
     PurchaseManager.evaluate_and_create_automatic_requisitions(db)
     return purchase_repo.get_requisitions(db, skip=skip, limit=limit)
@@ -79,6 +96,8 @@ def list_purchase_orders(
     mat_map = data["mat_map"]
     folios_by_po = data["folios_by_po"]
     advance_paid_by_po = data["advance_paid_by_po"]
+    pending_advance_po_ids = data.get("pending_advance_po_ids") or set()
+    _sync_advance_waiting_status(db, orders, pending_advance_po_ids)
 
     results: List[dict] = []
     for o in orders:
@@ -118,6 +137,7 @@ def list_purchase_orders(
             "is_advance": getattr(o, "is_advance", False),
             "invoice_total_reported": getattr(o, "invoice_total_reported", 0.0),
             "advance_paid": advance_paid_by_po.get(o.id, 0.0),
+            "advance_pending": o.id in pending_advance_po_ids,
         })
     return results
 

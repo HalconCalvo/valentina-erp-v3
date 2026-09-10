@@ -215,6 +215,14 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
 
     const safeStatus = (status: any) => String(status || '').trim().toUpperCase();
 
+    const isOrderWaitingAdvance = (order: Record<string, unknown>) => {
+        if (safeStatus(order.status) === 'EN_ESPERA_ANTICIPO') return true;
+        return Boolean(order.advance_pending);
+    };
+
+    const isOrderAuthorizedForDispatch = (order: Record<string, unknown>) =>
+        safeStatus(order.status) === 'AUTORIZADA' && !isOrderWaitingAdvance(order);
+
     useEffect(() => {
         if (planningError) toast.error('Error al cargar planeación.');
     }, [planningError]);
@@ -1228,8 +1236,8 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     };
 
     const renderWaitingAdvanceTable = () => {
-        const waitingAdvanceOrders = brakeOrders.filter(
-            (o) => safeStatus(o.status) === 'EN_ESPERA_ANTICIPO',
+        const waitingAdvanceOrders = brakeOrders.filter((o) =>
+            isOrderWaitingAdvance(o as Record<string, unknown>),
         );
         const canDispatch = ['DIRECTOR', 'MANAGER', 'ADMIN', 'ADMINISTRACION', 'COMPRAS'].includes(role);
         const canRevoke = ['DIRECTOR', 'MANAGER', 'ADMINISTRACION', 'ADMIN', 'COMPRAS'].includes(role);
@@ -1245,6 +1253,9 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
 
         return (
             <div className="space-y-12 pb-20">
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    El anticipo está registrado en <span className="font-bold">Cuentas por Pagar</span> y pendiente de pago en Tesorería.
+                </div>
                 {waitingAdvanceOrders.map((order, idx) => {
                     const subtotal = order.total_estimated_amount || 0;
                     const iva = subtotal * 0.16;
@@ -1331,10 +1342,9 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     };
 
     const renderSendingTable = () => {
-        const authorizedOrders = brakeOrders.filter((o) => {
-            const st = safeStatus(o.status);
-            return st === 'AUTORIZADA' && st !== 'EN_ESPERA_ANTICIPO';
-        });
+        const authorizedOrders = brakeOrders.filter((o) =>
+            isOrderAuthorizedForDispatch(o as Record<string, unknown>),
+        );
         const canDispatch = ['DIRECTOR', 'MANAGER', 'ADMIN', 'ADMINISTRACION', 'COMPRAS'].includes(role);
         const canRevoke = ['DIRECTOR', 'MANAGER', 'ADMINISTRACION', 'ADMIN', 'COMPRAS'].includes(role);
 
@@ -1399,7 +1409,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                                 </button>
                                             </div>
                                         )}
-                                        {canDispatch && (
+                                        {canDispatch && !isOrderWaitingAdvance(order as Record<string, unknown>) && (
                                             <Button onClick={() => handleRequestAdvance(order.id, order.folio, total)} variant="outline" className="border-orange-300 text-orange-600 font-black uppercase text-[10px] px-6 h-12 hover:bg-orange-50"><AlertTriangle size={14} className="mr-2" /> Pedir Anticipo</Button>
                                         )}
                                         {canRevoke && (
@@ -1420,14 +1430,14 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         );
     };
 
-    const waitingAdvanceCount = brakeOrders.filter(
-        (o) => safeStatus(o.status) === 'EN_ESPERA_ANTICIPO',
+    const waitingAdvanceCount = brakeOrders.filter((o) =>
+        isOrderWaitingAdvance(o as Record<string, unknown>),
     ).length;
 
     const subMenuItems = [
         { id: 'CREATION', title: 'A. GENERAR OC', icon: <Search />, color: 'indigo', bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-100', activeBorder: 'border-l-indigo-600', count: suggestedOrders.length, desc: 'Desde solicitudes o directa' },
         { id: 'BRAKE', title: 'B. POR AUTORIZAR', icon: <Ban />, color: 'rose', bg: 'bg-rose-50', text: 'text-rose-600', border: 'border-rose-100', activeBorder: 'border-l-rose-600', count: brakeOrders.filter(o => safeStatus(o.status) === 'DRAFT').length, desc: 'Pendientes de autorización' },
-        { id: 'SENDING', title: 'C. AUTORIZADAS', icon: <Send />, color: 'emerald', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100', activeBorder: 'border-l-emerald-600', count: brakeOrders.filter(o => safeStatus(o.status) === 'AUTORIZADA').length, desc: 'Listas para enviar' },
+        { id: 'SENDING', title: 'C. AUTORIZADAS', icon: <Send />, color: 'emerald', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100', activeBorder: 'border-l-emerald-600', count: brakeOrders.filter(o => isOrderAuthorizedForDispatch(o as Record<string, unknown>)).length, desc: 'Listas para enviar' },
         ...(waitingAdvanceCount > 0
             ? [{
                 id: 'WAITING_ADVANCE' as const,
