@@ -35,7 +35,7 @@ type PendingConfirm =
     | { kind: 'dispatch'; orderId: number; folio: string }
     | { kind: 'revoke'; orderId: number; folio: string };
 
-type SubSection = 'CREATION' | 'BRAKE' | 'SENDING' | 'PARTIAL' | 'ALL_ORDERS' | null;
+type SubSection = 'CREATION' | 'BRAKE' | 'SENDING' | 'WAITING_ADVANCE' | 'PARTIAL' | 'ALL_ORDERS' | null;
 
 interface PurchaseOrdersModuleProps {
     onSubSectionChange?: (active: boolean) => void;
@@ -1227,9 +1227,114 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         );
     };
 
+    const renderWaitingAdvanceTable = () => {
+        const waitingAdvanceOrders = brakeOrders.filter(
+            (o) => safeStatus(o.status) === 'EN_ESPERA_ANTICIPO',
+        );
+        const canDispatch = ['DIRECTOR', 'MANAGER', 'ADMIN', 'ADMINISTRACION', 'COMPRAS'].includes(role);
+        const canRevoke = ['DIRECTOR', 'MANAGER', 'ADMINISTRACION', 'ADMIN', 'COMPRAS'].includes(role);
+
+        if (waitingAdvanceOrders.length === 0) {
+            return (
+                <div className="text-center py-20 bg-slate-50 rounded-2xl border border-slate-100 border-dashed">
+                    <AlertTriangle className="mx-auto text-slate-200 mb-4" size={48} />
+                    <p className="text-slate-400 font-black uppercase text-[10px]">No hay órdenes en espera de anticipo</p>
+                </div>
+            );
+        }
+
+        return (
+            <div className="space-y-12 pb-20">
+                {waitingAdvanceOrders.map((order, idx) => {
+                    const subtotal = order.total_estimated_amount || 0;
+                    const iva = subtotal * 0.16;
+                    const total = subtotal + iva;
+                    return (
+                        <div key={idx} className="bg-white rounded-3xl border border-amber-200 shadow-md overflow-hidden border-t-8 border-t-amber-500 animate-in slide-in-from-bottom-4 duration-500">
+                            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-amber-50/30">
+                                <div className="flex items-center gap-5">
+                                    <div className="p-3 rounded-2xl shadow-inner bg-amber-100 text-amber-600">
+                                        <PackageCheck size={24} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-black text-slate-800 uppercase leading-none">{order.provider_name}</h3>
+                                        <p className="text-[9px] font-black uppercase text-amber-700 mt-1 tracking-widest leading-none">FOLIO: {order.folio}</p>
+                                        <span className="inline-flex mt-2 rounded border border-amber-300 bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-800">
+                                            Anticipo solicitado
+                                        </span>
+                                    </div>
+                                </div>
+                                <Button
+                                    variant="outline"
+                                    className="text-[9px] font-black uppercase border-slate-200 h-8 hover:bg-slate-100"
+                                    onClick={() => {
+                                        const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+                                        const baseUrl = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:8000';
+                                        window.open(`${baseUrl}/api/v1/purchases/orders/${order.id}/pdf?token=${token}`, '_blank');
+                                    }}
+                                >
+                                    <FileText size={14} className="mr-1" />
+                                    Ver PDF Oficial
+                                </Button>
+                            </div>
+                            <VTable
+                                columns={[
+                                    { key: 'sku', label: 'SKU', render: (item) => <span className="font-black text-indigo-600 text-[11px] uppercase">{String(item.sku ?? '')}</span> },
+                                    { key: 'name', label: 'Descripción', render: (item) => <span className="font-bold text-slate-700 text-xs uppercase">{String(item.name ?? '')}</span> },
+                                    { key: 'qty', label: 'Cant.', render: (item) => <span className="block text-center text-xs font-black text-slate-600">{String(item.qty ?? '')}</span> },
+                                    { key: 'expected_cost', label: 'P. Unit', render: (item) => <span className="block text-center text-xs font-bold text-slate-400">${Number(item.expected_cost || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span> },
+                                    { key: 'project_name', label: 'Proyecto', render: (item) => <span className="block text-right text-[10px] font-black text-rose-600 uppercase">{String(item.project_name || 'GENERAL')}</span> },
+                                    { key: 'subtotal', label: 'Importe', render: (item) => <span className="block text-right text-xs font-black text-slate-800">${Number(item.subtotal || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span> },
+                                ]}
+                                data={(order.items || []) as Record<string, unknown>[]}
+                                className="border-0 shadow-none rounded-none"
+                            />
+                            <div className="p-8 bg-slate-50/50 flex justify-between items-center border-t border-slate-100">
+                                <div className="flex gap-4">
+                                    {canDispatch && (
+                                        <div className="flex flex-col gap-2">
+                                            <Button
+                                                onClick={() => setEmailModal({
+                                                    open: true,
+                                                    orderId: order.id,
+                                                    folio: order.folio,
+                                                    providerEmail: order.provider_email || '',
+                                                })}
+                                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-xs h-12 px-10 shadow-lg"
+                                            >
+                                                <Send size={16} className="mr-3" /> Enviar por Correo
+                                            </Button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleDispatchOrder(order.id, order.folio)}
+                                                className="text-[9px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest underline underline-offset-2"
+                                            >
+                                                Marcar como enviado (sin correo)
+                                            </button>
+                                        </div>
+                                    )}
+                                    {canRevoke && (
+                                        <Button onClick={() => handleRevokeAuthorization(order.id, order.folio)} variant="outline" className="border-amber-200 text-amber-700 font-black uppercase text-[10px] px-6 h-12"><RefreshCw size={14} className="mr-2" /> Revocar Firma</Button>
+                                    )}
+                                </div>
+                                <div className="w-80 space-y-1 pr-14">
+                                    <div className="flex justify-between items-center text-slate-500"><span className="text-[10px] font-black uppercase">Subtotal</span><span className="text-sm font-bold">${subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                    <div className="flex justify-between items-center text-slate-500 border-b border-slate-200 pb-2"><span className="text-[10px] font-black uppercase">IVA (16%)</span><span className="text-sm font-bold">${iva.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                    <div className="flex justify-between items-center pt-2"><span className="text-[11px] font-black text-amber-700 uppercase">Total Autorizado</span><span className="text-3xl font-black text-slate-900">${total.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    };
+
     const renderSendingTable = () => {
-        const authorizedOrders = brakeOrders.filter(o => safeStatus(o.status) === 'AUTORIZADA');
-        
+        const authorizedOrders = brakeOrders.filter((o) => {
+            const st = safeStatus(o.status);
+            return st === 'AUTORIZADA' && st !== 'EN_ESPERA_ANTICIPO';
+        });
         const canDispatch = ['DIRECTOR', 'MANAGER', 'ADMIN', 'ADMINISTRACION', 'COMPRAS'].includes(role);
         const canRevoke = ['DIRECTOR', 'MANAGER', 'ADMINISTRACION', 'ADMIN', 'COMPRAS'].includes(role);
 
@@ -1315,10 +1420,28 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         );
     };
 
+    const waitingAdvanceCount = brakeOrders.filter(
+        (o) => safeStatus(o.status) === 'EN_ESPERA_ANTICIPO',
+    ).length;
+
     const subMenuItems = [
         { id: 'CREATION', title: 'A. GENERAR OC', icon: <Search />, color: 'indigo', bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-100', activeBorder: 'border-l-indigo-600', count: suggestedOrders.length, desc: 'Desde solicitudes o directa' },
         { id: 'BRAKE', title: 'B. POR AUTORIZAR', icon: <Ban />, color: 'rose', bg: 'bg-rose-50', text: 'text-rose-600', border: 'border-rose-100', activeBorder: 'border-l-rose-600', count: brakeOrders.filter(o => safeStatus(o.status) === 'DRAFT').length, desc: 'Pendientes de autorización' },
         { id: 'SENDING', title: 'C. AUTORIZADAS', icon: <Send />, color: 'emerald', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100', activeBorder: 'border-l-emerald-600', count: brakeOrders.filter(o => safeStatus(o.status) === 'AUTORIZADA').length, desc: 'Listas para enviar' },
+        ...(waitingAdvanceCount > 0
+            ? [{
+                id: 'WAITING_ADVANCE' as const,
+                title: 'EN ESPERA DE ANTICIPO',
+                icon: <AlertTriangle />,
+                color: 'amber',
+                bg: 'bg-amber-50',
+                text: 'text-amber-600',
+                border: 'border-amber-100',
+                activeBorder: 'border-l-amber-500',
+                count: waitingAdvanceCount,
+                desc: 'Anticipo en CxP',
+            }]
+            : []),
         { id: 'PARTIAL', title: 'D. EN RECEPCIÓN', icon: <Truck />, color: 'amber', bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-100', activeBorder: 'border-l-amber-600', count: brakeOrders.filter(o => safeStatus(o.status) === 'RECIBIDA_PARCIAL').length, desc: 'Recepción parcial' },
         { id: 'ALL_ORDERS', title: 'E. TODAS LAS OCs', icon: <Search />, color: 'slate', bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-100', activeBorder: 'border-l-slate-600', count: 0, desc: 'Consulta y corrección' },
     ];
@@ -1370,6 +1493,8 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 <><Ban size={28} className="text-rose-600"/> Mesa de Control / Freno</>
                             ) : activeSubSection === 'SENDING' ? (
                                 <><Send size={28} className="text-emerald-600"/> Centro de Despacho</>
+                            ) : activeSubSection === 'WAITING_ADVANCE' ? (
+                                <><AlertTriangle size={28} className="text-amber-600"/> En Espera de Anticipo</>
                             ) : activeSubSection === 'PARTIAL' ? (
                                 <><Truck size={28} className="text-amber-600"/> En Recepción</>
                             ) : activeSubSection === 'ALL_ORDERS' ? (
@@ -1405,6 +1530,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                         activeSubSection === 'CREATION' ? renderPlanningTable()
                         : activeSubSection === 'BRAKE' ? renderBrakeTable()
                         : activeSubSection === 'SENDING' ? renderSendingTable()
+                        : activeSubSection === 'WAITING_ADVANCE' ? renderWaitingAdvanceTable()
                         : activeSubSection === 'PARTIAL' ? renderBrakeTable('RECIBIDA_PARCIAL')
                         : activeSubSection === 'ALL_ORDERS' ? (
                             <AllPurchaseOrdersModule
