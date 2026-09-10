@@ -3212,3 +3212,31 @@ que el archivo en producción tiene el cambio y que Render terminó el deploy.
 2. httpOnly cookies (Fase 9)
 3. Backups automáticos a GCS (Fase 9)
 4. Herramienta de migración OVs legacy (Etapa 3)
+
+
+---
+## SESIÓN 2026-09-10 — CORRECCIONES OPERATIVAS
+
+### Completado:
+- Pedir Anticipo en OCs: window.prompt reemplazado por Modal
+- OCs EN_ESPERA_ANTICIPO: nueva sección entre C y D en módulo de compras
+- AccountsPayable creado al solicitar anticipo
+- Autorizador en CxP: muestra "Nombre — ROL" en lugar de email
+- Gastos Operativos: ordenamiento por Proveedor, Categoría y Vencimiento
+- Gastos Operativos: campo Notas visible y persistente al editar
+- InvoiceDetailModal: notas de GASTO visibles inline bajo descripción
+- InvoiceDetailModal: botón "Registrar NC" oculto en facturas GASTO
+- Íconos de acción estandarizados en todo el sistema:
+  Pencil (editar), XCircle (cancelar), Eye (ver), Ban (rechazar)
+  Centralizados en frontend/src/lib/tableActionIcons.tsx
+- Botones de acción en tablas: solo ícono sin texto
+
+### Pendientes activos:
+1. Botón Regresar en InventoryValuationPage → /inventory (bug persistente)
+2. httpOnly cookies (Fase 9)
+3. Backups automáticos a GCS (Fase 9)
+4. Herramienta de migración OVs legacy (Etapa 3)
+
+### Bugs conocidos:
+- expense_notes solo disponible en gastos con notas capturadas después
+  de la migración e0f1a2b3c4d5 — gastos anteriores muestran vacío
