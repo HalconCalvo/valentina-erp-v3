@@ -34,6 +34,8 @@ interface VTableProps<T = Record<string, unknown>> {
   actions?: (row: T) => VTableAction<T>[];
   onRowClick?: (row: T) => void;
   className?: string;
+  defaultSortKey?: string | null;
+  defaultSortDirection?: SortDirection;
 }
 
 type SortDirection = 'asc' | 'desc';
@@ -71,9 +73,11 @@ export const VTable = <T extends Record<string, unknown>>({
   actions,
   onRowClick,
   className,
+  defaultSortKey = null,
+  defaultSortDirection = 'asc',
 }: VTableProps<T>) => {
-  const [sortKey, setSortKey] = useState<string | null>(null);
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [sortKey, setSortKey] = useState<string | null>(defaultSortKey);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(defaultSortDirection);
 
   const sortedData = useMemo(() => {
     if (!sortKey) return data;
