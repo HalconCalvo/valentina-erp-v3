@@ -345,6 +345,13 @@ def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
     return db.get(User, user_id)
 
 
+def get_user_by_email(db: Session, email: str) -> Optional[User]:
+    normalized = (email or "").strip()
+    if not normalized:
+        return None
+    return db.exec(select(User).where(User.email == normalized)).first()
+
+
 def get_po_items_with_materials(db: Session, po_id: int) -> List[dict]:
     items = get_po_items(db, po_id)
     material_ids = {it.material_id for it in items if it.material_id is not None}

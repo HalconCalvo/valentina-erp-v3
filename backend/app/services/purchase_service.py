@@ -29,6 +29,27 @@ OVERHEAD_CATEGORIES = [
 ]
 
 
+def resolve_po_authorizer_display(db: Session, po: PurchaseOrder) -> Optional[str]:
+    user = None
+    approver_id = getattr(po, "approved_by_user_id", None)
+    if approver_id:
+        user = purchase_repo.get_user_by_id(db, approver_id)
+    if not user:
+        raw = getattr(po, "authorized_by", None)
+        if not raw:
+            return None
+        raw_str = str(raw).strip()
+        if raw_str.isdigit():
+            user = purchase_repo.get_user_by_id(db, int(raw_str))
+        if not user:
+            user = purchase_repo.get_user_by_email(db, raw_str)
+    if not user:
+        return getattr(po, "authorized_by", None)
+    name = (getattr(user, "full_name", None) or getattr(user, "email", None) or "Usuario").strip()
+    role = str(getattr(user, "role", "") or "").strip()
+    return f"{name} — {role}" if role else name
+
+
 def list_requisitions(db: Session, skip: int = 0, limit: int = 100) -> List[dict]:
     PurchaseManager.evaluate_and_create_automatic_requisitions(db)
     return purchase_repo.get_requisitions(db, skip=skip, limit=limit)
@@ -88,7 +109,7 @@ def list_purchase_orders(
             "credit_days": getattr(prov, "credit_days", 0) if prov else 0,
             "total_estimated_amount": o.total_estimated_amount or 0,
             "items": items_formatted,
-            "authorized_by": getattr(o, "authorized_by", None),
+            "authorized_by": resolve_po_authorizer_display(db, o),
             "authorized_at": o.authorized_at.isoformat() if getattr(o, "authorized_at", None) else None,
             "invoice_folio_reported": getattr(o, "invoice_folio_reported", None),
             "invoice_folios": folios_by_po.get(o.id),

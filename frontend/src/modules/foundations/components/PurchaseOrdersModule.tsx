@@ -11,6 +11,8 @@ import { Input } from '@/components/ui/Input';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import { VTable } from '@/components/ui/VTable';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import { VCurrencyInput } from '@/components/ui/VCurrencyInput';
+import Modal from '@/components/ui/Modal';
 import { toast } from '@/components/ui/VToast';
 import axiosClient from '../../../api/axios-client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -137,6 +139,13 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     const [pendingCategory, setPendingCategory] = useState<string>('');
     const [categoryError, setCategoryError] = useState<string | null>(null);
     const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
+    const [advanceModal, setAdvanceModal] = useState<{
+        open: boolean;
+        orderId: number;
+        folio: string;
+        total: number;
+        amount: string;
+    } | null>(null);
 
     const [editingOverheadId, setEditingOverheadId] = useState<number | null>(null);
     const [overheadDraft, setOverheadDraft] = useState<string>('');
@@ -607,33 +616,41 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         setPendingConfirm({ kind: 'dispatch', orderId, folio });
     };
 
-    const handleRequestAdvance = async (orderId: number, folio: string, total: number) => {
+    const handleRequestAdvance = (orderId: number, folio: string, total: number) => {
         const safeTotal = parseFloat(total as any) || 0;
-        const formattedTotalText = safeTotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        const exactInputValue = safeTotal.toFixed(2);
+        setAdvanceModal({
+            open: true,
+            orderId,
+            folio,
+            total: safeTotal,
+            amount: safeTotal.toFixed(2),
+        });
+    };
 
-        const amountStr = window.prompt(
-            `¿Cuánto anticipo requiere la OC ${folio}?\n(Total de la OC: $${formattedTotalText})\nPuedes pedir el 100% o solo una parte:`, 
-            exactInputValue
-        );
-        
-        if (!amountStr) return;
-        
-        const amount = parseFloat(amountStr.replace(/,/g, ''));
-        if (isNaN(amount) || amount <= 0) {
+    const confirmRequestAdvance = async () => {
+        if (!advanceModal?.open) return;
+
+        const amount = parseFloat(advanceModal.amount.replace(/,/g, ''));
+        if (Number.isNaN(amount) || amount <= 0) {
             toast.warning('Monto inválido');
             return;
         }
 
         setActionLoading(true);
         try {
-            await axiosClient.post(`/purchases/orders/${orderId}/request-advance`, { amount });
+            await axiosClient.post(`/purchases/orders/${advanceModal.orderId}/request-advance`, { amount });
             toast.success('Anticipo solicitado correctamente.');
-            void refetchOrders(); 
-        } catch (error: any) {
+            setAdvanceModal(null);
+            void refetchOrders();
+        } catch (error: unknown) {
+            const detail =
+                error && typeof error === 'object' && 'response' in error
+                    ? (error as { response?: { data?: { detail?: string } } }).response?.data?.detail
+                    : undefined;
             toast.error(
-                error.response?.data?.detail ||
-                    'Error: Ya solicitaste este anticipo o hubo un problema de red.',
+                typeof detail === 'string'
+                    ? detail
+                    : 'Error: Ya solicitaste este anticipo o hubo un problema de red.',
             );
         } finally {
             setActionLoading(false);
@@ -2300,6 +2317,65 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                     </div>
                 </div>
             </div>
+        )}
+        {advanceModal?.open && (
+            <Modal
+                isOpen
+                onClose={() => {
+                    if (actionLoading) return;
+                    setAdvanceModal(null);
+                }}
+                title={`Solicitar Anticipo — OC ${advanceModal.folio}`}
+                size="sm"
+            >
+                <div className="space-y-4">
+                    <p className="text-sm text-slate-600">
+                        Total de la OC: $
+                        {new Intl.NumberFormat('en-US', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                        }).format(advanceModal.total)}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                        Puedes solicitar el 100% del total o solo una parte.
+                    </p>
+                    <VCurrencyInput
+                        label="Monto del anticipo"
+                        value={parseFloat(advanceModal.amount.replace(/,/g, '')) || 0}
+                        onChange={(value) =>
+                            setAdvanceModal((prev) =>
+                                prev ? { ...prev, amount: value.toFixed(2) } : null,
+                            )
+                        }
+                        min={0}
+                    />
+                    <div className="flex justify-end gap-3 pt-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            disabled={actionLoading}
+                            onClick={() => setAdvanceModal(null)}
+                            className="border-slate-200 text-slate-500 font-black uppercase text-[10px] px-5"
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            type="button"
+                            disabled={actionLoading}
+                            onClick={() => void confirmRequestAdvance()}
+                            className="bg-orange-600 hover:bg-orange-700 text-white font-black uppercase text-[10px] px-6 shadow-md"
+                        >
+                            {actionLoading ? (
+                                <>
+                                    <Loader2 size={14} className="animate-spin mr-2" /> Procesando...
+                                </>
+                            ) : (
+                                'Confirmar anticipo'
+                            )}
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
         )}
         {(() => {
             const confirmProps = getConfirmDialogProps();

@@ -30,6 +30,7 @@ from app.schemas.finance_schema import (
     CreditNoteCreate,
     CreditNoteRead,
 )
+from app.services.purchase_service import resolve_po_authorizer_display
 
 router = APIRouter()
 
@@ -618,7 +619,7 @@ def get_pending_invoices(session: SessionDep) -> Any:
         if ap_row and ap_row[0]:
             po_for_auth = session.get(PurchaseOrder, ap_row[0])
             if po_for_auth:
-                authorized_by = getattr(po_for_auth, 'authorized_by', None)
+                authorized_by = resolve_po_authorizer_display(session, po_for_auth)
 
         results.append(PendingInvoiceRead(
             id=inv.id,
