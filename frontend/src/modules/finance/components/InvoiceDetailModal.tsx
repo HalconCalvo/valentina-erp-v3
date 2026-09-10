@@ -278,17 +278,25 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                     String(item.expense_notes || item.notes || '').trim()
                     || gastoObservations
                 );
-                const tooltipTitle =
-                    isGastoLine && observations.length > 0 ? observations : undefined;
+                const showInlineNotes = isGastoLine && observations.length > 0;
+
+                if (!showInlineNotes) {
+                    return (
+                        <span className="font-bold text-slate-700 text-xs uppercase">
+                            {label}
+                        </span>
+                    );
+                }
+
                 return (
-                    <span
-                        className={`font-bold text-slate-700 text-xs uppercase${
-                            tooltipTitle ? ' cursor-help underline decoration-dotted decoration-slate-300' : ''
-                        }`}
-                        title={tooltipTitle}
-                    >
-                        {label}
-                    </span>
+                    <div className="max-w-lg pr-2">
+                        <span className="block font-bold text-slate-700 text-xs uppercase">
+                            {label}
+                        </span>
+                        <p className="mt-1 text-[10px] font-medium normal-case leading-snug text-slate-500 whitespace-pre-wrap break-words">
+                            {observations}
+                        </p>
+                    </div>
                 );
             },
         },
@@ -405,7 +413,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                         <VTable
                             columns={itemColumns}
                             data={tableItems}
-                            className="border-0 rounded-none shadow-none"
+                            className="border-0 rounded-none shadow-none [&_td]:align-top"
                         />
                     )}
                 </div>
