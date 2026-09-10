@@ -40,6 +40,7 @@ interface Expense {
     created_at: string;
     overhead_category: string | null;
     instance_id: number | null;
+    notes?: string | null;
 }
 
 interface Props {
@@ -81,8 +82,14 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
     const [loadingOrders, setLoadingOrders] = useState(false);
 
     const [editExpenseModal, setEditExpenseModal] = useState<{ open: boolean; expense: any | null }>({ open: false, expense: null });
-    const [editExpenseForm, setEditExpenseForm] = useState<{ invoice_folio: string; total_amount: string; due_date: string; overhead_category: string }>({
-        invoice_folio: '', total_amount: '', due_date: '', overhead_category: '',
+    const [editExpenseForm, setEditExpenseForm] = useState<{
+        invoice_folio: string;
+        total_amount: string;
+        due_date: string;
+        overhead_category: string;
+        notes: string;
+    }>({
+        invoice_folio: '', total_amount: '', due_date: '', overhead_category: '', notes: '',
     });
     const [cancelExpenseModal, setCancelExpenseModal] = useState<{ open: boolean; expense: any | null }>({ open: false, expense: null });
     const [cancelExpenseReason, setCancelExpenseReason] = useState<string>('');
@@ -181,6 +188,7 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
             total_amount: String(expense.total_amount || ''),
             due_date: expense.due_date ? expense.due_date.slice(0, 10) : '',
             overhead_category: expense.overhead_category || '',
+            notes: expense.notes ?? '',
         });
         setEditExpenseModal({ open: true, expense });
     };
@@ -195,16 +203,19 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
             const amount = parseFloat(editExpenseForm.total_amount);
             const dueDate = editExpenseForm.due_date;
             const category = editExpenseForm.overhead_category;
+            const notes = editExpenseForm.notes.trim();
 
             const origFolio = (original.invoice_folio || '').trim();
             const origAmount = parseFloat(String(original.total_amount || 0));
             const origDue = original.due_date ? original.due_date.slice(0, 10) : '';
             const origCat = original.overhead_category || '';
+            const origNotes = String(original.notes ?? '').trim();
 
             if (folio !== origFolio) body.invoice_folio = folio;
             if (!isNaN(amount) && amount !== origAmount) body.total_amount = amount;
             if (dueDate !== origDue) body.due_date = dueDate;
             if (category !== origCat) body.overhead_category = category;
+            if (notes !== origNotes) body.notes = notes || null;
 
             if (Object.keys(body).length === 0) {
                 setEditExpenseModal({ open: false, expense: null });
@@ -266,6 +277,7 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
         {
             key: 'provider_name',
             label: 'Proveedor / Concepto',
+            sortable: true,
             render: (e) => (
                 <div className="font-bold text-slate-700">
                     {e.provider_name || '—'}
@@ -280,6 +292,7 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
         {
             key: 'overhead_category',
             label: 'Categoría',
+            sortable: true,
             render: (e) => e.overhead_category ? (
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border uppercase ${
                     CATEGORY_COLORS[e.overhead_category] ?? CATEGORY_COLORS['OTRO']
@@ -296,6 +309,7 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
         {
             key: 'due_date',
             label: 'Vencimiento',
+            sortable: true,
             render: (e) => (
                 <span className="text-slate-500 text-xs">
                     {e.due_date ? new Date(e.due_date).toLocaleDateString('es-MX') : '—'}
@@ -607,6 +621,17 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
                                     getValue={(c) => c}
                                     placeholder="— Seleccionar categoría —"
                                     className="w-full"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                    Notas (opcional)
+                                </label>
+                                <textarea
+                                    rows={2}
+                                    value={editExpenseForm.notes}
+                                    onChange={e => setEditExpenseForm(f => ({ ...f, notes: e.target.value }))}
+                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-indigo-400 resize-none"
                                 />
                             </div>
                         </div>
