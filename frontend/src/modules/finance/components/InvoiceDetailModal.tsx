@@ -8,8 +8,19 @@ import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { VEmptyState } from '@/components/ui/VEmptyState';
 import { toast } from '@/components/ui/VToast';
 
-const isOperationalExpenseInvoice = (inv: PendingInvoice): boolean =>
-    String(inv.invoice_number || '').trim().toUpperCase().startsWith('GASTO-');
+const cleanInvoiceFolio = (folio: string | null | undefined): string => {
+    const safe = String(folio ?? '').trim();
+    if (!safe) return '';
+    if (safe.startsWith('OC-OC-')) return safe.replace('OC-OC-', 'OC-');
+    return safe;
+};
+
+/** Alineado con backend: folio GASTO-* o expense_notes en facturas operativas. */
+const isOperationalExpenseInvoice = (inv: PendingInvoice): boolean => {
+    const folio = cleanInvoiceFolio(inv.invoice_number).toUpperCase();
+    if (folio.startsWith('GASTO-')) return true;
+    return Boolean(String(inv.expense_notes ?? '').trim());
+};
 
 interface InvoiceDetailModalProps {
     invoice: PendingInvoice;
@@ -47,6 +58,13 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
 
     const [items, setItems] = useState<any[]>(invoice.items || []);
     const [isLoading, setIsLoading] = useState(!invoice.items || invoice.items.length === 0);
+    const [gastoObservations, setGastoObservations] = useState(() =>
+        String(invoice.expense_notes ?? '').trim(),
+    );
+
+    useEffect(() => {
+        setGastoObservations(String(invoice.expense_notes ?? '').trim());
+    }, [invoice.id, invoice.expense_notes]);
 
     useEffect(() => {
         if (isGastoOperativo) {
@@ -60,33 +78,29 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                 // 0. CAMINO B (prioridad): detalle RECEPCIONADO real de la factura.
                 //    Si trae renglones, mapeamos a los nombres que el render ya espera
                 //    (quantity / unit_price / description / sku) y usamos esos.
-                try {
-                    const recRes = await client.get(`/finance/invoices/${invoice.id}/received-items`);
-                    const received = Array.isArray(recRes.data) ? recRes.data : [];
-                    if (received.length > 0) {
-                        const mapped = received.map((row: any) => ({
-                            quantity: row.quantity_received,
-                            unit_price: row.unit_cost,
-                            description: row.description,
-                            sku: row.sku,
-                            material_id: row.material_id,
-                        }));
-                        setItems(mapped);
-                        setIsLoading(false);
-                        return;
+                if (!isOperationalExpenseInvoice(invoice)) {
+                    try {
+                        const recRes = await client.get(`/finance/invoices/${invoice.id}/received-items`);
+                        const received = Array.isArray(recRes.data) ? recRes.data : [];
+                        if (received.length > 0) {
+                            const mapped = received.map((row: any) => ({
+                                quantity: row.quantity_received,
+                                unit_price: row.unit_cost,
+                                description: row.description,
+                                sku: row.sku,
+                                material_id: row.material_id,
+                            }));
+                            setItems(mapped);
+                            setIsLoading(false);
+                            return;
+                        }
+                    } catch (e) {
+                        // Silencioso: si falla, caemos al comportamiento ACTUAL (fallback OC).
                     }
-                } catch (e) {
-                    // Silencioso: si falla, caemos al comportamiento ACTUAL (fallback OC).
-                }
-
-                // FALLBACK (factura vieja sin desglose Camino B): comportamiento original.
-                if (invoice.items && invoice.items.length > 0) {
-                    setIsLoading(false);
-                    return;
                 }
 
                 if (isOperationalExpenseInvoice(invoice)) {
-                    const folio = String(invoice.invoice_number || '').trim();
+                    const folio = cleanInvoiceFolio(invoice.invoice_number);
                     const totalConIva = Number(invoice.total_amount) || 0;
                     const unitPriceSinIva = totalConIva > 0 ? totalConIva / 1.16 : 0;
                     let category = '';
@@ -115,6 +129,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                     } catch {
                         // Listado de tesorería opcional; observaciones vienen en invoice.expense_notes.
                     }
+                    setGastoObservations(expenseNotes);
                     setItems([
                         {
                             sku: 'GASTO',
@@ -127,6 +142,12 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                             expense_notes: expenseNotes,
                         },
                     ]);
+                    setIsLoading(false);
+                    return;
+                }
+
+                // FALLBACK (factura vieja sin desglose Camino B): comportamiento original.
+                if (invoice.items && invoice.items.length > 0) {
                     setIsLoading(false);
                     return;
                 }
@@ -251,8 +272,12 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                 const label = String(
                     item.name || item.description || item.material_name || 'Articulo',
                 );
-                const isGastoLine = String(item.sku || '').toUpperCase() === 'GASTO';
-                const observations = String(item.expense_notes || item.notes || '').trim();
+                const isGastoLine =
+                    isGastoOperativo || String(item.sku || '').toUpperCase() === 'GASTO';
+                const observations = (
+                    String(item.expense_notes || item.notes || '').trim()
+                    || gastoObservations
+                );
                 const tooltipTitle =
                     isGastoLine && observations.length > 0 ? observations : undefined;
                 return (
@@ -312,7 +337,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                 );
             },
         },
-    ], []);
+    ], [gastoObservations, isGastoOperativo]);
 
     const tableItems = useMemo(
         () => items as unknown as Record<string, unknown>[],
