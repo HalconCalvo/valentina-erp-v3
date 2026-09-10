@@ -30,6 +30,12 @@ export const InventoryDashboardPage = () => {
     const location = useLocation();
     const [returnToPath, setReturnToPath] = useState<string | null>(null);
 
+    useEffect(() => {
+        if (location.state?.openSection) {
+            setActiveSection(location.state.openSection);
+        }
+    }, []);
+
     const openMainSection = (section: Exclude<InventorySection, null>) => {
         setActiveSection(section);
     };
