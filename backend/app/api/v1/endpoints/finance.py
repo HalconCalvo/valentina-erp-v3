@@ -1,6 +1,7 @@
-from typing import Any, List
+from typing import Any, List, Optional
 from datetime import datetime, timedelta, date
 from fastapi import APIRouter, HTTPException, status
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select, func, text
 
 from app.core.deps import SessionDep, CurrentUser
@@ -40,6 +41,26 @@ def clean_invoice_folio(folio: str) -> str:
     if safe_folio.startswith("OC-OC-"):
         return safe_folio.replace("OC-OC-", "OC-")
     return safe_folio
+
+
+def _gasto_expense_notes(session: SessionDep, invoice_folio: str) -> Optional[str]:
+    """Observaciones del gasto operativo (accounts_payable.notes). None si no aplica o no hay dato."""
+    if not invoice_folio or not invoice_folio.upper().startswith("GASTO-"):
+        return None
+    try:
+        notes_row = session.exec(
+            text("""
+                SELECT notes FROM accounts_payable
+                WHERE invoice_folio = :folio AND purchase_order_id IS NULL
+                LIMIT 1
+            """).bindparams(folio=invoice_folio)
+        ).first()
+    except SQLAlchemyError:
+        return None
+    if not notes_row or notes_row[0] is None:
+        return None
+    notes_text = str(notes_row[0]).strip()
+    return notes_text if notes_text else None
 
 # ==================================================================
 # ---> 🛠️ MOTOR DE SINCRONIZACIÓN AUTOMÁTICA Y AUTOSANACIÓN <---
@@ -621,19 +642,8 @@ def get_pending_invoices(session: SessionDep) -> Any:
             if po_for_auth:
                 authorized_by = resolve_po_authorizer_display(session, po_for_auth)
 
-        expense_notes = None
         inv_folio_clean = clean_invoice_folio(inv.invoice_number) if inv.invoice_number else ""
-        if inv_folio_clean.upper().startswith("GASTO-"):
-            notes_row = session.exec(
-                text("""
-                    SELECT notes FROM accounts_payable
-                    WHERE invoice_folio = :folio AND purchase_order_id IS NULL
-                    LIMIT 1
-                """).bindparams(folio=inv_folio_clean)
-            ).first()
-            if notes_row and notes_row[0]:
-                notes_text = str(notes_row[0]).strip()
-                expense_notes = notes_text if notes_text else None
+        expense_notes = _gasto_expense_notes(session, inv_folio_clean)
 
         results.append(PendingInvoiceRead(
             id=inv.id,
