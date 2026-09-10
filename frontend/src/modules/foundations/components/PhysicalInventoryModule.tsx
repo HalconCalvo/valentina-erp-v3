@@ -22,7 +22,6 @@ import {
 } from '@/api/inventory-service';
 import { useCurrentUser } from '@/hooks/useSalesDashboard';
 import { Input } from '@/components/ui/Input';
-import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import Modal from '@/components/ui/Modal';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { VEmptyState } from '@/components/ui/VEmptyState';
@@ -38,30 +37,7 @@ interface MaterialMeta {
 
 type MaterialMetaMap = Record<number, MaterialMeta>;
 
-type CaptureSortField = 'material_sku' | 'material_name' | 'material_category';
-
 type CaptureRow = AuditItemRead & { material_category: string };
-
-const PRINT_SORT_OPTIONS: { value: CaptureSortField; label: string }[] = [
-  { value: 'material_sku', label: 'SKU' },
-  { value: 'material_name', label: 'Nombre' },
-  { value: 'material_category', label: 'Categoría' },
-];
-
-const compareCaptureRows = (a: CaptureRow, b: CaptureRow, key: CaptureSortField): number => {
-  const av = a[key] ?? '';
-  const bv = b[key] ?? '';
-  return String(av).localeCompare(String(bv), 'es-MX', { numeric: true, sensitivity: 'base' });
-};
-
-const sortCaptureRows = (
-  items: CaptureRow[],
-  key: CaptureSortField,
-  direction: 'asc' | 'desc',
-): CaptureRow[] => {
-  const sorted = [...items].sort((a, b) => compareCaptureRows(a, b, key));
-  return direction === 'asc' ? sorted : sorted.reverse();
-};
 
 const unitCellsForPrint = (meta: MaterialMeta | undefined): { usage: string; purchase: string } => {
   const usage = meta?.usage_unit?.trim() || '—';
@@ -136,9 +112,7 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
   const [savingItemId, setSavingItemId] = useState<number | null>(null);
   const [processing, setProcessing] = useState(false);
   const [materialMetaMap, setMaterialMetaMap] = useState<MaterialMetaMap>({});
-  const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
-  const [printSortField, setPrintSortField] = useState<CaptureSortField>('material_sku');
-  const [printSortDirection, setPrintSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [captureTableRows, setCaptureTableRows] = useState<CaptureRow[]>([]);
 
   const [reasonModal, setReasonModal] = useState<{ open: boolean; kind: ReasonModalKind }>({
     open: false,
@@ -396,15 +370,6 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
       }));
   }, [audit, search, materialMetaMap]);
 
-  const printCaptureRows = useMemo((): CaptureRow[] => {
-    if (!audit) return [];
-    const rows: CaptureRow[] = audit.items.map((item) => ({
-      ...item,
-      material_category: materialMetaMap[item.material_id]?.category ?? '—',
-    }));
-    return sortCaptureRows(rows, printSortField, printSortDirection);
-  }, [audit, materialMetaMap, printSortField, printSortDirection]);
-
   const pendingApprovalItems = useMemo(() => {
     if (!audit) return [];
     return audit.items.filter(
@@ -420,11 +385,12 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
     audit.items.length > 0 &&
     audit.items.every((item) => item.captured || item.counted_quantity !== null);
 
-  const openPrintPreview = () => {
-    setPrintSortField('material_sku');
-    setPrintSortDirection('asc');
-    setPrintPreviewOpen(true);
+  const handlePrintBlindList = () => {
+    window.print();
   };
+
+  const rowsForPrint =
+    captureTableRows.length > 0 ? captureTableRows : filteredCaptureItems;
 
   const captureColumns: VTableColumn<CaptureRow>[] = [
     {
@@ -652,7 +618,7 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
             <button
               type="button"
               disabled={processing}
-              onClick={openPrintPreview}
+              onClick={handlePrintBlindList}
               className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >
               <Printer size={16} /> Imprimir lista
@@ -691,6 +657,7 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
           data={filteredCaptureItems}
           defaultSortKey="material_sku"
           defaultSortDirection="asc"
+          onSortedDataChange={setCaptureTableRows}
           emptyState={{
             title: 'Sin materiales',
             description: 'No hay materiales activos para contar.',
@@ -753,192 +720,69 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
           </Modal>
         )}
 
-        {printPreviewOpen && (
-          <Modal
-            isOpen
-            onClose={() => setPrintPreviewOpen(false)}
-            title="Vista previa — lista de conteo"
-            size="xl"
-          >
-            <style>{`
-              @media print {
-                body * { visibility: hidden; }
-                #physical-inventory-print-preview,
-                #physical-inventory-print-preview * { visibility: visible; }
-                #physical-inventory-print-preview {
-                  position: absolute;
-                  left: 0;
-                  top: 0;
-                  width: 100%;
-                }
-              }
-            `}</style>
+        <style>{`
+          @media print {
+            body * { visibility: hidden; }
+            #physical-inventory-print, #physical-inventory-print * { visibility: visible; }
+            #physical-inventory-print {
+              position: absolute;
+              left: 0;
+              top: 0;
+              width: 100%;
+              display: block !important;
+            }
+          }
+        `}</style>
 
-            <div className="space-y-4 print:hidden">
-              <div className="flex flex-wrap items-end gap-4">
-                <div className="min-w-[220px] flex-1">
-                  <label className="text-xs font-bold uppercase text-slate-500 mb-1 block">
-                    Ordenar por
-                  </label>
-                  <SearchableSelect
-                    items={PRINT_SORT_OPTIONS}
-                    value={printSortField}
-                    onChange={(v) => setPrintSortField(v as CaptureSortField)}
-                    getLabel={(o) => o.label}
-                    getValue={(o) => o.value}
-                    placeholder="Campo de orden..."
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold uppercase text-slate-500 mb-1 block">
-                    Dirección
-                  </label>
-                  <div className="flex rounded-lg border border-slate-200 overflow-hidden">
-                    <button
-                      type="button"
-                      onClick={() => setPrintSortDirection('asc')}
-                      className={`px-4 py-2.5 text-sm font-bold ${
-                        printSortDirection === 'asc'
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-white text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      Ascendente
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPrintSortDirection('desc')}
-                      className={`px-4 py-2.5 text-sm font-bold border-l border-slate-200 ${
-                        printSortDirection === 'desc'
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-white text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      Descendente
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="max-h-[50vh] overflow-auto rounded-xl border border-slate-200">
-                {/* Excepción: tabla nativa para vista previa e impresión (@media print). */}
-                <table className="w-full border-collapse text-sm">
-                  <thead className="bg-slate-50 sticky top-0">
-                    <tr>
-                      <th className="border-b border-slate-200 px-3 py-2 text-left text-xs font-bold uppercase text-slate-500">
-                        SKU
-                      </th>
-                      <th className="border-b border-slate-200 px-3 py-2 text-left text-xs font-bold uppercase text-slate-500">
-                        Material
-                      </th>
-                      <th className="border-b border-slate-200 px-3 py-2 text-left text-xs font-bold uppercase text-slate-500">
-                        Categoría
-                      </th>
-                      <th className="border-b border-slate-200 px-3 py-2 text-left text-xs font-bold uppercase text-slate-500">
-                        Unidad uso
-                      </th>
-                      <th className="border-b border-slate-200 px-3 py-2 text-left text-xs font-bold uppercase text-slate-500">
-                        Unidad compra
-                      </th>
-                      <th className="border-b border-slate-200 px-3 py-2 text-left text-xs font-bold uppercase text-slate-500 w-28">
-                        Cantidad
-                      </th>
+        <div id="physical-inventory-print" className="hidden print:block">
+          <div className="p-8">
+            <h1 className="text-xl font-black text-slate-900 mb-1">
+              Inventario Físico — Sesión #{audit.id} —{' '}
+              {new Date().toLocaleDateString('es-MX', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              })}
+            </h1>
+            <p className="text-sm text-slate-600 mb-6">Conteo ciego — anotar cantidades físicas</p>
+            {/* Excepción: tabla nativa para impresión (@media print). */}
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr>
+                  <th className="border border-slate-400 px-3 py-2 text-left font-bold">SKU</th>
+                  <th className="border border-slate-400 px-3 py-2 text-left font-bold">Material</th>
+                  <th className="border border-slate-400 px-3 py-2 text-left font-bold">Categoría</th>
+                  <th className="border border-slate-400 px-3 py-2 text-left font-bold">Unidad uso</th>
+                  <th className="border border-slate-400 px-3 py-2 text-left font-bold">Unidad compra</th>
+                  <th className="border border-slate-400 px-3 py-2 text-left font-bold w-32">Cantidad</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rowsForPrint.map((item) => {
+                  const units = unitCellsForPrint(materialMetaMap[item.material_id]);
+                  return (
+                    <tr key={item.id}>
+                      <td className="border border-slate-300 px-3 py-2 font-mono text-xs">
+                        {item.material_sku || '—'}
+                      </td>
+                      <td className="border border-slate-300 px-3 py-2">{item.material_name || '—'}</td>
+                      <td className="border border-slate-300 px-3 py-2 text-xs uppercase">
+                        {item.material_category}
+                      </td>
+                      <td className="border border-slate-300 px-3 py-2">{units.usage}</td>
+                      <td className="border border-slate-300 px-3 py-2">{units.purchase}</td>
+                      <td className="border border-slate-300 px-3 py-2 h-8" />
                     </tr>
-                  </thead>
-                  <tbody>
-                    {printCaptureRows.map((item) => {
-                      const units = unitCellsForPrint(materialMetaMap[item.material_id]);
-                      return (
-                        <tr key={item.id} className="hover:bg-slate-50/80">
-                          <td className="border-b border-slate-100 px-3 py-2 font-mono text-xs">
-                            {item.material_sku || '—'}
-                          </td>
-                          <td className="border-b border-slate-100 px-3 py-2">{item.material_name || '—'}</td>
-                          <td className="border-b border-slate-100 px-3 py-2 text-xs uppercase text-slate-600">
-                            {item.material_category}
-                          </td>
-                          <td className="border-b border-slate-100 px-3 py-2">{units.usage}</td>
-                          <td className="border-b border-slate-100 px-3 py-2">{units.purchase || '—'}</td>
-                          <td className="border-b border-slate-100 px-3 py-2 h-8" />
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setPrintPreviewOpen(false)}
-                  className="rounded-lg bg-slate-200 px-5 py-2.5 text-sm font-bold text-slate-800 hover:bg-slate-300"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700"
-                >
-                  <Printer size={16} /> Imprimir
-                </button>
-              </div>
+                  );
+                })}
+              </tbody>
+            </table>
+            <div className="mt-12 pt-4 border-t border-slate-400">
+              <p className="text-sm font-bold text-slate-800">Firma del contador:</p>
+              <div className="mt-8 border-b border-slate-800 w-64" />
             </div>
-
-            <div id="physical-inventory-print-preview" className="hidden print:block">
-              <div className="p-8">
-                <h1 className="text-xl font-black text-slate-900 mb-1">
-                  Inventario Físico — Sesión #{audit.id} —{' '}
-                  {new Date().toLocaleDateString('es-MX', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                  })}
-                </h1>
-                <p className="text-sm text-slate-600 mb-2">Conteo ciego — anotar cantidades físicas</p>
-                <p className="text-xs text-slate-500 mb-6">
-                  Orden: {PRINT_SORT_OPTIONS.find((o) => o.value === printSortField)?.label}{' '}
-                  ({printSortDirection === 'asc' ? 'ascendente' : 'descendente'})
-                </p>
-                <table className="w-full border-collapse text-sm">
-                  <thead>
-                    <tr>
-                      <th className="border border-slate-400 px-3 py-2 text-left font-bold">SKU</th>
-                      <th className="border border-slate-400 px-3 py-2 text-left font-bold">Material</th>
-                      <th className="border border-slate-400 px-3 py-2 text-left font-bold">Categoría</th>
-                      <th className="border border-slate-400 px-3 py-2 text-left font-bold">Unidad uso</th>
-                      <th className="border border-slate-400 px-3 py-2 text-left font-bold">Unidad compra</th>
-                      <th className="border border-slate-400 px-3 py-2 text-left font-bold w-32">Cantidad</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {printCaptureRows.map((item) => {
-                      const units = unitCellsForPrint(materialMetaMap[item.material_id]);
-                      return (
-                        <tr key={item.id}>
-                          <td className="border border-slate-300 px-3 py-2 font-mono text-xs">
-                            {item.material_sku || '—'}
-                          </td>
-                          <td className="border border-slate-300 px-3 py-2">{item.material_name || '—'}</td>
-                          <td className="border border-slate-300 px-3 py-2 text-xs uppercase">
-                            {item.material_category}
-                          </td>
-                          <td className="border border-slate-300 px-3 py-2">{units.usage}</td>
-                          <td className="border border-slate-300 px-3 py-2">{units.purchase}</td>
-                          <td className="border border-slate-300 px-3 py-2 h-8" />
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                <div className="mt-12 pt-4 border-t border-slate-400">
-                  <p className="text-sm font-bold text-slate-800">Firma del contador:</p>
-                  <div className="mt-8 border-b border-slate-800 w-64" />
-                </div>
-              </div>
-            </div>
-          </Modal>
-        )}
+          </div>
+        </div>
 
         {editingMaterialId != null && (
           <MaterialForm

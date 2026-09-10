@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useLayoutEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { VEmptyState } from '@/components/ui/VEmptyState';
 import { cn } from '@/lib/utils';
@@ -36,6 +36,7 @@ interface VTableProps<T = Record<string, unknown>> {
   className?: string;
   defaultSortKey?: string | null;
   defaultSortDirection?: SortDirection;
+  onSortedDataChange?: (data: T[]) => void;
 }
 
 type SortDirection = 'asc' | 'desc';
@@ -75,6 +76,7 @@ export const VTable = <T extends Record<string, unknown>>({
   className,
   defaultSortKey = null,
   defaultSortDirection = 'asc',
+  onSortedDataChange,
 }: VTableProps<T>) => {
   const [sortKey, setSortKey] = useState<string | null>(defaultSortKey);
   const [sortDirection, setSortDirection] = useState<SortDirection>(defaultSortDirection);
@@ -87,6 +89,10 @@ export const VTable = <T extends Record<string, unknown>>({
       return sortDirection === 'asc' ? result : -result;
     });
   }, [data, sortDirection, sortKey]);
+
+  useLayoutEffect(() => {
+    onSortedDataChange?.(sortedData);
+  }, [sortedData, onSortedDataChange]);
 
   const handleSort = (column: VTableColumn<T>) => {
     if (!column.sortable) return;
