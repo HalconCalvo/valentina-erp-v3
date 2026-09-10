@@ -3240,3 +3240,35 @@ que el archivo en producción tiene el cambio y que Render terminó el deploy.
 ### Bugs conocidos:
 - expense_notes solo disponible en gastos con notas capturadas después
   de la migración e0f1a2b3c4d5 — gastos anteriores muestran vacío
+
+
+---
+## SESIÓN 2026-09-10 (cierre tarde) — SEGURIDAD Y MEJORAS OPERATIVAS
+
+### Completado:
+- Sesión única estricta: un usuario, una sesión activa a la vez
+  * Modelo ActiveSession, migración f7g8h9i0j1k2
+  * Login con usuario activo → 409 con mensaje claro
+  * Heartbeat cada 60 segundos
+  * Sesión expira a los 5 minutos sin heartbeat
+  * Logout libera la sesión inmediatamente
+- Inventario Físico mejorado:
+  * Ordenamiento por SKU, Material y Categoría (clic en encabezado)
+  * Columna Unidades muestra unidad de uso y unidad de compra
+  * Modal de vista previa eliminado — imprime directo con orden de pantalla
+  * Conteo se realiza en unidades de uso
+- Bug Regresar en InventoryValuationPage: corregido con navigation state
+
+### Decisión técnica:
+- httpOnly cookies: pendiente para después del arranque en ceros
+- Sesiones únicas: implementadas hoy (bajo riesgo, feature aditiva)
+
+### Pendientes activos:
+1. Backups automáticos a GCS (Fase 9)
+2. Herramienta de migración OVs legacy (Etapa 3)
+3. httpOnly cookies (post-arranque)
+
+### Nota sobre inventario físico:
+- Conteo en unidades de uso (physical_stock también en unidades de uso)
+- 766 materiales en sesión activa id=1 (EN_CAPTURA desde 2026-09-09)
+- La sesión puede cancelarse cuando se decida hacer el conteo real
