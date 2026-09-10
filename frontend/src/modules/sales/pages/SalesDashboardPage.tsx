@@ -6,7 +6,7 @@ import {
     ArrowLeft, Plus, TrendingUp, Wallet, Clock, 
     AlertTriangle, CheckCircle, ShieldAlert, BadgeDollarSign,
     FileSignature, FileSearch, CalendarClock, Lock, Unlock,
-    ArrowLeftCircle, XCircle, Send, FileDown, RefreshCcw, Archive, Trash2, Eye,
+    ArrowLeftCircle, XCircle, Send, FileDown, RefreshCcw, Archive, Trash2, Eye, Pencil,
     ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 
@@ -760,8 +760,10 @@ const SalesDashboardPage: React.FC = () => {
                 const order = row as SalesOrder;
                 return (
                     <div className="flex justify-center items-center gap-2">
-                        <Button variant="outline" size="sm" className="text-xs px-3" onClick={() => setViewingOrderIdForFormat(order.id!)}>Ver Formato</Button>
-                        <Button variant="outline" size="sm" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 px-2" onClick={() => handleViewPDF(order.id!)} title="Descargar PDF">
+                        <Button variant="outline" size="sm" className="text-slate-500 border-slate-200 hover:bg-slate-50 px-2" title="Ver formato" aria-label="Ver formato" onClick={() => setViewingOrderIdForFormat(order.id!)}>
+                            <FileSearch size={14} />
+                        </Button>
+                        <Button variant="outline" size="sm" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 px-2" onClick={() => handleViewPDF(order.id!)} title="Descargar PDF" aria-label="Descargar PDF">
                             <FileDown size={14} />
                         </Button>
                     </div>
@@ -860,8 +862,10 @@ const SalesDashboardPage: React.FC = () => {
                     const order = row as SalesOrder;
                     return (
                         <div className="flex justify-center items-center gap-2">
-                            <Button variant="outline" size="sm" className="text-xs px-3" onClick={() => setViewingOrderIdForFormat(order.id!)}>Ver Formato</Button>
-                            <Button variant="outline" size="sm" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 px-2" onClick={() => handleViewPDF(order.id!)} title="Descargar PDF">
+                            <Button variant="outline" size="sm" className="text-slate-500 border-slate-200 hover:bg-slate-50 px-2" title="Ver formato" aria-label="Ver formato" onClick={() => setViewingOrderIdForFormat(order.id!)}>
+                                <FileSearch size={14} />
+                            </Button>
+                            <Button variant="outline" size="sm" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 px-2" onClick={() => handleViewPDF(order.id!)} title="Descargar PDF" aria-label="Descargar PDF">
                                 <FileDown size={14} />
                             </Button>
                         </div>
@@ -962,54 +966,56 @@ const SalesDashboardPage: React.FC = () => {
                 {activeQuoteView === 'HISTORY' ? (
                     <>
                         {canAudit && (
-                            <Button variant="outline" size="sm" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 px-3 shadow-sm flex items-center gap-1" onClick={() => setViewingOrderIdForAudit(order.id!)}>
-                                <Eye size={14} /> Auditar
+                            <Button variant="outline" size="sm" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 px-2 shadow-sm" title="Auditar" aria-label="Auditar" onClick={() => setViewingOrderIdForAudit(order.id!)}>
+                                <Eye size={14} />
                             </Button>
                         )}
-                        <Button variant="outline" size="sm" className="text-slate-500 border-slate-200 hover:bg-slate-50 px-2" onClick={(e) => { e.preventDefault(); handleViewPDF(order.id!); }} title="Descargar PDF">
+                        <Button variant="outline" size="sm" className="text-slate-500 border-slate-200 hover:bg-slate-50 px-2" onClick={(e) => { e.preventDefault(); handleViewPDF(order.id!); }} title="Descargar PDF" aria-label="Descargar PDF">
                             <FileDown size={14} />
                         </Button>
                     </>
                 ) : ['DRAFT', 'CHANGE_REQUESTED', 'REJECTED'].includes(order.status) ? (
                     <>
-                        <Button variant="outline" size="sm" className="text-xs px-3" onClick={() => navigate(`/sales/edit/${order.id}`)}>Editar</Button>
-                        <Button variant="outline" size="sm" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 px-2" onClick={(e) => { e.preventDefault(); handleViewPDF(order.id!); }} title="Descargar PDF">
+                        <Button variant="outline" size="sm" className="text-slate-600 border-slate-200 hover:bg-slate-50 px-2" title="Editar" aria-label="Editar" onClick={() => navigate(`/sales/edit/${order.id}`)}>
+                            <Pencil size={14} />
+                        </Button>
+                        <Button variant="outline" size="sm" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 px-2" onClick={(e) => { e.preventDefault(); handleViewPDF(order.id!); }} title="Descargar PDF" aria-label="Descargar PDF">
                             <FileDown size={14} />
                         </Button>
-                        <Button size="sm" className="bg-amber-500 hover:bg-amber-600 text-white flex items-center gap-1 px-2 shadow-sm" onClick={() => handleRequestAuth(order.id!)}>
-                            <Send size={14} /> Auth.
+                        <Button size="sm" className="bg-amber-500 hover:bg-amber-600 text-white px-2 shadow-sm" title="Solicitar autorización" aria-label="Solicitar autorización" onClick={() => handleRequestAuth(order.id!)}>
+                            <Send size={14} />
                         </Button>
-                        <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50 px-2 shadow-sm" onClick={() => handleDeleteDraft(order.id!)} title="Eliminar Cotización">
+                        <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50 px-2 shadow-sm" onClick={() => handleDeleteDraft(order.id!)} title="Eliminar cotización" aria-label="Eliminar cotización">
                             <Trash2 size={14} />
                         </Button>
                     </>
                 ) : order.status === 'ACCEPTED' ? (
                     <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200">
-                        <button onClick={() => setViewingOrderIdForFormat(order.id!)} className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-100 rounded transition-colors" title="Revisar Formato">
+                        <button type="button" onClick={() => setViewingOrderIdForFormat(order.id!)} className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-100 rounded transition-colors" title="Revisar formato" aria-label="Revisar formato">
                             <FileSearch size={18} />
                         </button>
-                        <button onClick={(e) => { e.preventDefault(); handleViewPDF(order.id!); }} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-100 rounded transition-colors" title="Descargar PDF">
+                        <button type="button" onClick={(e) => { e.preventDefault(); handleViewPDF(order.id!); }} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-100 rounded transition-colors" title="Descargar PDF" aria-label="Descargar PDF">
                             <FileDown size={18} />
                         </button>
-                        <button onClick={() => handleRequestChanges(order.id!)} className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-100 rounded transition-colors" title="Desbloquear para Editar (Cliente pide cambios)">
+                        <button type="button" onClick={() => handleRequestChanges(order.id!)} className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-100 rounded transition-colors" title="Desbloquear para editar" aria-label="Desbloquear para editar">
                             <RefreshCcw size={18} />
                         </button>
-                        <button onClick={() => handleMarkLost(order.id!)} className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-100 rounded transition-colors" title="Marcar como Perdida (Rechazada)">
+                        <button type="button" onClick={() => handleMarkLost(order.id!)} className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-100 rounded transition-colors" title="Marcar como perdida" aria-label="Marcar como perdida">
                             <XCircle size={18} />
                         </button>
                         <div className="w-px h-5 bg-slate-300 mx-1"></div>
-                        <Button size="sm" className="bg-green-500 hover:bg-green-600 text-white flex items-center gap-1 ml-1 shadow-sm px-2 text-xs" onClick={() => openClientOcModal(order.id!)}>
-                            <CheckCircle size={14} /> Generar OV
+                        <Button size="sm" className="bg-green-500 hover:bg-green-600 text-white ml-1 shadow-sm px-2" title="Generar OV" aria-label="Generar OV" onClick={() => openClientOcModal(order.id!)}>
+                            <CheckCircle size={14} />
                         </Button>
                     </div>
                 ) : (
                     <>
                         {canAudit && (
-                            <Button variant="outline" size="sm" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 px-3 shadow-sm flex items-center gap-1" onClick={() => setViewingOrderIdForAudit(order.id!)}>
-                                <Eye size={14} /> Auditar
+                            <Button variant="outline" size="sm" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 px-2 shadow-sm" title="Auditar" aria-label="Auditar" onClick={() => setViewingOrderIdForAudit(order.id!)}>
+                                <Eye size={14} />
                             </Button>
                         )}
-                        <Button variant="outline" size="sm" className="text-slate-500 border-slate-200 hover:bg-slate-50 px-2" onClick={(e) => { e.preventDefault(); handleViewPDF(order.id!); }} title="Descargar PDF">
+                        <Button variant="outline" size="sm" className="text-slate-500 border-slate-200 hover:bg-slate-50 px-2" onClick={(e) => { e.preventDefault(); handleViewPDF(order.id!); }} title="Descargar PDF" aria-label="Descargar PDF">
                             <FileDown size={14} />
                         </Button>
                     </>

@@ -1053,7 +1053,8 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                     const actions = [];
                                     if (isUnassigned) {
                                         actions.push({
-                                            label: 'Asignar',
+                                            label: '',
+                                            title: 'Asignar',
                                             icon: <Building2 size={16} />,
                                             onClick: () => {
                                                 setAssignModal({
@@ -1072,14 +1073,16 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                     }
                                     if (!isCritical) {
                                         actions.push({
-                                            label: 'Congelar',
+                                            label: '',
+                                            title: 'Congelar',
                                             icon: <Snowflake size={16} />,
                                             onClick: () => handleFreezeRequisition(item.requisition_id as number),
                                         });
                                     }
                                     if (!isAuto && !isCritical) {
                                         actions.push({
-                                            label: 'Eliminar',
+                                            label: '',
+                                            title: 'Eliminar',
                                             icon: <Trash2 size={16} />,
                                             variant: 'danger' as const,
                                             onClick: () => handleDeleteManualRequisition(item.requisition_id as number),
@@ -1087,7 +1090,8 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                     }
                                     if (isCritical) {
                                         actions.push({
-                                            label: 'Transferir',
+                                            label: '',
+                                            title: 'Transferir',
                                             icon: <RefreshCw size={16} />,
                                             onClick: () => handleTransferCriticalItem(item.requisition_id as number, String(item.name ?? '')),
                                         });
@@ -1204,11 +1208,11 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                         const actions = [];
                                         if (['DIRECTOR', 'MANAGER', 'ADMIN'].includes(role)) {
                                             actions.push(
-                                                { label: '', icon: <Pencil size={14} />, onClick: () => handleOpenEditItem(order.id, item) },
-                                                { label: '', icon: <XCircle size={14} />, variant: 'danger' as const, onClick: () => { setCancelItemReason(''); setCancelItemModal({ open: true, orderId: order.id, item }); } },
+                                                { label: '', title: 'Editar partida', icon: <Pencil size={14} />, onClick: () => handleOpenEditItem(order.id, item) },
+                                                { label: '', title: 'Cancelar partida', icon: <XCircle size={14} />, variant: 'danger' as const, onClick: () => { setCancelItemReason(''); setCancelItemModal({ open: true, orderId: order.id, item }); } },
                                             );
                                         }
-                                        actions.push({ label: '', icon: <Trash2 size={16} />, variant: 'danger' as const, onClick: () => handleRemoveItemFromOrder(order.id, Number(item.id), String(item.sku)) });
+                                        actions.push({ label: '', title: 'Quitar partida', icon: <Trash2 size={16} />, variant: 'danger' as const, onClick: () => handleRemoveItemFromOrder(order.id, Number(item.id), String(item.sku)) });
                                         return actions;
                                     }}
                                     className="border-0 shadow-none rounded-none"
@@ -1216,8 +1220,25 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 <div className="p-8 bg-white flex justify-between items-end border-t border-slate-50">
                                     {!isPartial && (
                                     <div className="flex gap-3">
-                                        {canAuthorize && <Button onClick={() => handleAuthorizeOrder(order.id, order.folio)} className="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-200 font-black uppercase text-xs h-12 px-10 shadow-lg">Autorizar Firma</Button>}
-                                        <Button onClick={() => handleRejectOrder(order.id, order.folio)} variant="outline" className="text-slate-400 font-black uppercase text-[10px] px-6 h-12 border-slate-200">Rechazar</Button>
+                                        {canAuthorize && (
+                                            <Button
+                                                onClick={() => handleAuthorizeOrder(order.id, order.folio)}
+                                                className="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-200 h-12 px-3 shadow-lg"
+                                                title="Autorizar firma"
+                                                aria-label="Autorizar firma"
+                                            >
+                                                <CheckCircle2 size={18} />
+                                            </Button>
+                                        )}
+                                        <Button
+                                            onClick={() => handleRejectOrder(order.id, order.folio)}
+                                            variant="outline"
+                                            className="text-slate-400 h-12 px-3 border-slate-200"
+                                            title="Rechazar"
+                                            aria-label="Rechazar"
+                                        >
+                                            <Ban size={18} />
+                                        </Button>
                                     </div>
                                     )}
                                     {isPartial && <div />}
@@ -1831,7 +1852,8 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 ]}
                                 data={manualOrderForm.items.map((item, rowIndex) => ({ ...item, rowIndex })) as Record<string, unknown>[]}
                                 actions={(row) => [{
-                                    label: 'Quitar',
+                                    label: '',
+                                    title: 'Quitar',
                                     icon: <Trash2 size={16} />,
                                     variant: 'danger' as const,
                                     hidden: manualOrderForm.items.length === 1,

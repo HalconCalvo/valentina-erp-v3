@@ -13,6 +13,7 @@ export interface VTableColumn<T = Record<string, unknown>> {
 
 export interface VTableAction<T = Record<string, unknown>> {
   label: string;
+  title?: string;
   icon?: React.ReactNode;
   onClick: (row: T) => void;
   variant?: 'default' | 'danger';
@@ -255,10 +256,14 @@ export const VTable = <T extends Record<string, unknown>>({
                   {actions && (
                     <td className="px-4 py-3 align-middle">
                       <div className="flex flex-wrap items-center gap-2">
-                        {rowActions.map((action) => (
+                        {rowActions.map((action, actionIndex) => {
+                          const tooltip = action.title || action.label || undefined;
+                          return (
                           <button
-                            key={action.label}
+                            key={`${tooltip ?? 'action'}-${actionIndex}`}
                             type="button"
+                            title={tooltip}
+                            aria-label={tooltip}
                             onClick={(event) => {
                               event.stopPropagation();
                               action.onClick(row);
@@ -273,9 +278,10 @@ export const VTable = <T extends Record<string, unknown>>({
                             {action.icon && (
                               <span className="[&_svg]:size-3.5">{action.icon}</span>
                             )}
-                            {action.label}
+                            {action.label ? action.label : null}
                           </button>
-                        ))}
+                          );
+                        })}
                       </div>
                     </td>
                   )}

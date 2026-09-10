@@ -577,7 +577,9 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                             <Button
                                 size="sm"
                                 variant="outline"
-                                className="border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                                className="border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 px-2"
+                                title="Editar"
+                                aria-label="Editar"
                                 onClick={() => handleOpenEditInvoice(inv)}
                             >
                                 <Pencil size={14} />
@@ -588,10 +590,12 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                 size="sm"
                                 variant="outline"
                                 disabled={cancellingId === inv.id}
-                                className="border-rose-200 text-rose-500 hover:bg-rose-50 hover:text-rose-700 font-black text-[10px] tracking-widest"
+                                className="border-rose-200 text-rose-500 hover:bg-rose-50 hover:text-rose-700 px-2"
+                                title="Cancelar"
+                                aria-label="Cancelar"
                                 onClick={() => handleCancelInvoice(inv)}
                             >
-                                <XCircle size={14} className="mr-1" /> CANCELAR
+                                <XCircle size={14} />
                             </Button>
                         )}
                     </div>
