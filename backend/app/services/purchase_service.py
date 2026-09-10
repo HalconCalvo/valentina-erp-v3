@@ -5,7 +5,9 @@ from typing import List, Optional
 from fastapi import HTTPException
 from sqlmodel import Session
 
-from app.models.finance import InvoiceStatus, PurchaseInvoice
+from app.models.finance import InvoiceStatus, PurchaseInvoice, SupplierPayment
+
+AccountsPayable = SupplierPayment.AccountsPayable
 from app.models.foundations import Provider
 from app.models.inventory import PurchaseOrder, PurchaseOrderItem, PurchaseRequisition
 from app.repositories import purchase_repository as purchase_repo
@@ -585,16 +587,36 @@ def request_advance(db: Session, po_id: int, data: dict, current_user) -> dict:
     amount = float(data.get("amount", 0))
     if amount <= 0:
         raise HTTPException(status_code=400, detail="El monto debe ser mayor a 0")
+    now = datetime.now()
+    invoice_folio = f"ANT-{po.folio}"
     inv = PurchaseInvoice(
         provider_id=po.provider_id,
-        invoice_number=f"ANT-{po.folio}",
-        issue_date=datetime.now().date(),
-        due_date=datetime.now().date(),
+        invoice_number=invoice_folio,
+        issue_date=now.date(),
+        due_date=now.date(),
         total_amount=amount,
         outstanding_balance=amount,
         status=InvoiceStatus.PENDING,
+        subtotal=amount,
+        tax_rate=0.0,
+        tax_amount=0.0,
     )
     db.add(inv)
+    db.flush()
+    ap = AccountsPayable(
+        provider_id=po.provider_id,
+        purchase_order_id=po.id,
+        invoice_folio=invoice_folio,
+        total_amount=amount,
+        subtotal=amount,
+        tax_rate=0.0,
+        tax_amount=0.0,
+        due_date=now,
+        status="PENDIENTE",
+    )
+    db.add(ap)
+    db.flush()
+    inv.accounts_payable_id = ap.id
     db.commit()
     return {"status": "success", "message": "Anticipo solicitado a Tesorería"}
 
