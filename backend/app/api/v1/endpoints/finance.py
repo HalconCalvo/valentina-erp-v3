@@ -621,6 +621,20 @@ def get_pending_invoices(session: SessionDep) -> Any:
             if po_for_auth:
                 authorized_by = resolve_po_authorizer_display(session, po_for_auth)
 
+        expense_notes = None
+        inv_folio_clean = clean_invoice_folio(inv.invoice_number) if inv.invoice_number else ""
+        if inv_folio_clean.upper().startswith("GASTO-"):
+            notes_row = session.exec(
+                text("""
+                    SELECT notes FROM accounts_payable
+                    WHERE invoice_folio = :folio AND purchase_order_id IS NULL
+                    LIMIT 1
+                """).bindparams(folio=inv_folio_clean)
+            ).first()
+            if notes_row and notes_row[0]:
+                notes_text = str(notes_row[0]).strip()
+                expense_notes = notes_text if notes_text else None
+
         results.append(PendingInvoiceRead(
             id=inv.id,
             provider_name=prov.business_name if prov else "Prov.",
@@ -631,7 +645,8 @@ def get_pending_invoices(session: SessionDep) -> Any:
             outstanding_balance=inv.outstanding_balance,
             items=items_list,
             po_folio=final_po_folio,
-            authorized_by=authorized_by
+            authorized_by=authorized_by,
+            expense_notes=expense_notes,
         ))
     
     results.sort(key=lambda x: str(x.due_date))

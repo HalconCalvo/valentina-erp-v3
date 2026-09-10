@@ -32,6 +32,7 @@ export interface PendingInvoice {
     outstanding_balance: number;
     items?: { description: string; qty: number; price: number }[];
     po_folio?: string | null;
+    expense_notes?: string | null;
 }
 
 // --- 3. SOLICITUD DE PAGO (Input) ---

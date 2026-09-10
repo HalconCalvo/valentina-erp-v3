@@ -31,6 +31,8 @@ const TAX_RATE_OPTIONS = [
 export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice, onClose }) => {
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase().trim();
     const canCreateNC = ['ADMIN','ADMINISTRACION','ADMINISTRADOR','MANAGER','DIRECTOR','DIRECCION'].includes(userRole);
+    const isGastoOperativo = isOperationalExpenseInvoice(invoice);
+    const canRegisterNC = canCreateNC && !isGastoOperativo;
 
     const [localOutstanding, setLocalOutstanding] = useState<number>(Number(invoice.outstanding_balance) || 0);
     const [showNCForm, setShowNCForm] = useState(false);
@@ -45,6 +47,12 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
 
     const [items, setItems] = useState<any[]>(invoice.items || []);
     const [isLoading, setIsLoading] = useState(!invoice.items || invoice.items.length === 0);
+
+    useEffect(() => {
+        if (isGastoOperativo) {
+            setShowNCForm(false);
+        }
+    }, [isGastoOperativo, invoice.id]);
 
     useEffect(() => {
         const fetchItems = async () => {
@@ -81,6 +89,9 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                     const folio = String(invoice.invoice_number || '').trim();
                     const totalConIva = Number(invoice.total_amount) || 0;
                     const unitPriceSinIva = totalConIva > 0 ? totalConIva / 1.16 : 0;
+                    let category = '';
+                    let linePrice = unitPriceSinIva;
+                    let expenseNotes = String(invoice.expense_notes ?? '').trim();
                     try {
                         const expRes = await client.get('/purchases/operational-expenses?limit=200');
                         const expenses = Array.isArray(expRes.data) ? expRes.data : [];
@@ -89,26 +100,33 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                                 String(e.invoice_folio || '').trim() === folio,
                         );
                         if (match) {
-                            const category = match.overhead_category
+                            category = match.overhead_category
                                 ? String(match.overhead_category)
                                 : '';
                             const amount = Number(match.total_amount) || totalConIva;
-                            const linePrice = amount > 0 ? amount / 1.16 : unitPriceSinIva;
-                            setItems([
-                                {
-                                    sku: 'GASTO',
-                                    description: category
-                                        ? `Gasto operativo — ${category}`
-                                        : 'Gasto operativo',
-                                    quantity: 1,
-                                    unit_price: linePrice,
-                                    project_name: 'OPERATIVO',
-                                },
-                            ]);
+                            linePrice = amount > 0 ? amount / 1.16 : unitPriceSinIva;
+                            const notesFromApi = String(
+                                (match as { notes?: string | null }).notes ?? '',
+                            ).trim();
+                            if (notesFromApi) {
+                                expenseNotes = notesFromApi;
+                            }
                         }
                     } catch {
-                        // Sin detalle en tesorería: el cuerpo muestra mensaje informativo.
+                        // Listado de tesorería opcional; observaciones vienen en invoice.expense_notes.
                     }
+                    setItems([
+                        {
+                            sku: 'GASTO',
+                            description: category
+                                ? `Gasto operativo — ${category}`
+                                : 'Gasto operativo',
+                            quantity: 1,
+                            unit_price: linePrice,
+                            project_name: 'OPERATIVO',
+                            expense_notes: expenseNotes,
+                        },
+                    ]);
                     setIsLoading(false);
                     return;
                 }
@@ -229,11 +247,25 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
         {
             key: 'description',
             label: 'Descripción',
-            render: (item) => (
-                <span className="font-bold text-slate-700 text-xs uppercase">
-                    {String(item.name || item.description || item.material_name || 'Articulo')}
-                </span>
-            ),
+            render: (item) => {
+                const label = String(
+                    item.name || item.description || item.material_name || 'Articulo',
+                );
+                const isGastoLine = String(item.sku || '').toUpperCase() === 'GASTO';
+                const observations = String(item.expense_notes || item.notes || '').trim();
+                const tooltipTitle =
+                    isGastoLine && observations.length > 0 ? observations : undefined;
+                return (
+                    <span
+                        className={`font-bold text-slate-700 text-xs uppercase${
+                            tooltipTitle ? ' cursor-help underline decoration-dotted decoration-slate-300' : ''
+                        }`}
+                        title={tooltipTitle}
+                    >
+                        {label}
+                    </span>
+                );
+            },
         },
         {
             key: 'quantity',
@@ -286,8 +318,6 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
         () => items as unknown as Record<string, unknown>[],
         [items],
     );
-
-    const isGastoOperativo = isOperationalExpenseInvoice(invoice);
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
@@ -355,7 +385,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                     )}
                 </div>
 
-                {showNCForm && (
+                {showNCForm && canRegisterNC && (
                     <div className="px-8 py-5 bg-amber-50 border-t-2 border-amber-200">
                         <h4 className="text-sm font-black uppercase text-amber-800 mb-3 flex items-center gap-2">
                             <FileMinus size={16} /> Registrar Nota de Crédito
@@ -451,7 +481,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                         <button onClick={onClose} className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-800 font-black uppercase text-xs h-12 px-10 shadow-sm rounded-lg transition-colors">
                             Cerrar Vista
                         </button>
-                        {canCreateNC && (
+                        {canRegisterNC && (
                             <button onClick={() => setShowNCForm(v => !v)} className="bg-amber-600 hover:bg-amber-700 text-white font-black uppercase text-xs h-12 px-8 shadow-sm rounded-lg transition-colors flex items-center gap-2">
                                 <FileMinus size={16} /> {showNCForm ? 'Ocultar NC' : 'Registrar NC'}
                             </button>

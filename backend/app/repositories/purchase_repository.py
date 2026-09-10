@@ -266,7 +266,7 @@ def get_operational_expenses(db: Session, filters: dict) -> List[dict]:
     rows = db.exec(text("""
         SELECT ap.id, ap.invoice_folio, ap.total_amount, ap.due_date,
                ap.status, ap.created_at, ap.overhead_category,
-               ap.instance_id, p.business_name as provider_name
+               ap.instance_id, ap.notes, p.business_name as provider_name
         FROM accounts_payable ap
         LEFT JOIN providers p ON ap.provider_id = p.id
         WHERE ap.purchase_order_id IS NULL
@@ -303,16 +303,17 @@ def insert_operational_expense(
     due_date,
     overhead_category: str,
     instance_id: Optional[int],
+    notes: Optional[str],
     now: datetime,
 ) -> None:
     db.exec(text("""
         INSERT INTO accounts_payable (
             provider_id, purchase_order_id, invoice_folio,
             total_amount, due_date, status, created_at,
-            overhead_category, instance_id
+            overhead_category, instance_id, notes
         ) VALUES (
             :prov_id, NULL, :folio, :total, :due, 'PENDIENTE', :now,
-            :category, :instance_id
+            :category, :instance_id, :notes
         )
     """).bindparams(
         prov_id=provider_id,
@@ -322,6 +323,7 @@ def insert_operational_expense(
         now=now,
         category=overhead_category,
         instance_id=instance_id,
+        notes=notes,
     ))
 
 

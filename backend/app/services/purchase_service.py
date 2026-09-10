@@ -662,6 +662,7 @@ def create_operational_expense(db: Session, data: OperationalExpenseCreate, curr
             db.flush()
         provider_id = prov.id
     folio = f"GASTO-{datetime.now().strftime('%y%m%d%H%M%S')}"
+    notes_value = (data.notes or "").strip() or None
     purchase_repo.insert_operational_expense(
         db,
         provider_id=provider_id,
@@ -670,6 +671,7 @@ def create_operational_expense(db: Session, data: OperationalExpenseCreate, curr
         due_date=data.due_date,
         overhead_category=data.overhead_category,
         instance_id=data.instance_id,
+        notes=notes_value,
         now=datetime.now(),
     )
     db.commit()
