@@ -1,12 +1,13 @@
 import { useState, useRef, useMemo } from 'react';
 import { useProviders } from '../hooks/useProviders';
 import { Provider } from '../../../types/foundations';
-import { Plus, Search, Edit, Trash2, X, Phone, Mail, User, Building2, Smartphone, Upload } from 'lucide-react';
+import { Plus, Search, X, Phone, Mail, User, Building2, Smartphone, Upload } from 'lucide-react';
 
 // 1. IMPORTAR BOTÓN DE EXPORTACIÓN
 import ExportButton from '@/components/ui/ExportButton';
 import { Input } from '@/components/ui/Input';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
+import { TableActionCancelIcon, TableActionEditIcon } from '@/lib/tableActionIcons';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 
@@ -248,12 +249,14 @@ export default function ProvidersPage() {
           return [
             {
               label: '',
-              icon: <Edit size={16} />,
+              title: 'Editar',
+              icon: <TableActionEditIcon />,
               onClick: () => handleOpenEdit(prov),
             },
             {
               label: '',
-              icon: <Trash2 size={16} />,
+              title: 'Cancelar',
+              icon: <TableActionCancelIcon />,
               variant: 'danger' as const,
               onClick: () => setPendingDelete({ id: prov.id!, name: prov.business_name }),
             },

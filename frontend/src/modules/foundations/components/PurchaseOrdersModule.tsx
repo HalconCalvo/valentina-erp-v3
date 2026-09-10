@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
     Search, Ban, Send, PackageCheck, 
     ArrowUpRight, Loader2, ArrowLeft,
-    Building2, ShoppingCart, CheckCircle2, FileText, XCircle, Trash2, CheckSquare, Square, AlertCircle, RefreshCw, Snowflake, Plus, AlertTriangle, Truck, Pencil
+    Building2, ShoppingCart, CheckCircle2, FileText, XCircle, CheckSquare, Square, AlertCircle, RefreshCw, Snowflake, Plus, AlertTriangle, Truck, Pencil
 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
@@ -10,6 +10,11 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import { VTable } from '@/components/ui/VTable';
+import {
+    TableActionCancelIcon,
+    TableActionEditIcon,
+    TableActionRejectIcon,
+} from '@/lib/tableActionIcons';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { VCurrencyInput } from '@/components/ui/VCurrencyInput';
 import Modal from '@/components/ui/Modal';
@@ -1055,7 +1060,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                         actions.push({
                                             label: '',
                                             title: 'Asignar',
-                                            icon: <Building2 size={16} />,
+                                            icon: <Building2 size={15} className="text-slate-500 group-hover:text-indigo-600 shrink-0" />,
                                             onClick: () => {
                                                 setAssignModal({
                                                     open: true,
@@ -1075,7 +1080,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                         actions.push({
                                             label: '',
                                             title: 'Congelar',
-                                            icon: <Snowflake size={16} />,
+                                            icon: <Snowflake size={15} className="text-slate-500 group-hover:text-indigo-600 shrink-0" />,
                                             onClick: () => handleFreezeRequisition(item.requisition_id as number),
                                         });
                                     }
@@ -1083,7 +1088,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                         actions.push({
                                             label: '',
                                             title: 'Eliminar',
-                                            icon: <Trash2 size={16} />,
+                                            icon: <TableActionCancelIcon />,
                                             variant: 'danger' as const,
                                             onClick: () => handleDeleteManualRequisition(item.requisition_id as number),
                                         });
@@ -1092,7 +1097,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                         actions.push({
                                             label: '',
                                             title: 'Transferir',
-                                            icon: <RefreshCw size={16} />,
+                                            icon: <RefreshCw size={15} className="text-slate-500 group-hover:text-indigo-600 shrink-0" />,
                                             onClick: () => handleTransferCriticalItem(item.requisition_id as number, String(item.name ?? '')),
                                         });
                                     }
@@ -1208,11 +1213,11 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                         const actions = [];
                                         if (['DIRECTOR', 'MANAGER', 'ADMIN'].includes(role)) {
                                             actions.push(
-                                                { label: '', title: 'Editar partida', icon: <Pencil size={14} />, onClick: () => handleOpenEditItem(order.id, item) },
-                                                { label: '', title: 'Cancelar partida', icon: <XCircle size={14} />, variant: 'danger' as const, onClick: () => { setCancelItemReason(''); setCancelItemModal({ open: true, orderId: order.id, item }); } },
+                                                { label: '', title: 'Editar partida', icon: <TableActionEditIcon />, onClick: () => handleOpenEditItem(order.id, item) },
+                                                { label: '', title: 'Cancelar partida', icon: <TableActionCancelIcon />, variant: 'danger' as const, onClick: () => { setCancelItemReason(''); setCancelItemModal({ open: true, orderId: order.id, item }); } },
                                             );
                                         }
-                                        actions.push({ label: '', title: 'Quitar partida', icon: <Trash2 size={16} />, variant: 'danger' as const, onClick: () => handleRemoveItemFromOrder(order.id, Number(item.id), String(item.sku)) });
+                                        actions.push({ label: '', title: 'Quitar partida', icon: <TableActionCancelIcon />, variant: 'danger' as const, onClick: () => handleRemoveItemFromOrder(order.id, Number(item.id), String(item.sku)) });
                                         return actions;
                                     }}
                                     className="border-0 shadow-none rounded-none"
@@ -1223,21 +1228,21 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                         {canAuthorize && (
                                             <Button
                                                 onClick={() => handleAuthorizeOrder(order.id, order.folio)}
-                                                className="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-200 h-12 px-3 shadow-lg"
+                                                className="group bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-200 h-12 px-3 shadow-lg"
                                                 title="Autorizar firma"
                                                 aria-label="Autorizar firma"
                                             >
-                                                <CheckCircle2 size={18} />
+                                                <CheckCircle2 size={15} className="text-emerald-700 shrink-0" />
                                             </Button>
                                         )}
                                         <Button
                                             onClick={() => handleRejectOrder(order.id, order.folio)}
                                             variant="outline"
-                                            className="text-slate-400 h-12 px-3 border-slate-200"
+                                            className="group h-12 px-3 border-slate-200"
                                             title="Rechazar"
                                             aria-label="Rechazar"
                                         >
-                                            <Ban size={18} />
+                                            <TableActionRejectIcon />
                                         </Button>
                                     </div>
                                     )}
@@ -1854,7 +1859,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 actions={(row) => [{
                                     label: '',
                                     title: 'Quitar',
-                                    icon: <Trash2 size={16} />,
+                                    icon: <TableActionCancelIcon />,
                                     variant: 'danger' as const,
                                     hidden: manualOrderForm.items.length === 1,
                                     onClick: () => handleRemoveRow(Number(row.rowIndex)),

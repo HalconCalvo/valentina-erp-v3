@@ -269,7 +269,7 @@ export const VTable = <T extends Record<string, unknown>>({
                               action.onClick(row);
                             }}
                             className={cn(
-                              'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors hover:bg-slate-100',
+                              'group inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors hover:bg-slate-100',
                               action.variant === 'danger'
                                 ? 'text-red-600 hover:bg-red-50'
                                 : 'text-slate-600',

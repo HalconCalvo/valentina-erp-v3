@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TrendingDown, Clock, CheckCircle2, AlertCircle, AlertTriangle, Calendar, ArrowLeft, Check, Layers, ArrowUpDown, ArrowUp, ArrowDown, XCircle, FileText, Pencil } from 'lucide-react';
+import { TrendingDown, Clock, CheckCircle2, AlertCircle, AlertTriangle, Calendar, ArrowLeft, Check, Layers, ArrowUpDown, ArrowUp, ArrowDown, XCircle, FileText } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -18,6 +18,7 @@ import Modal from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
+import { TableActionCancelIcon, TableActionEditIcon } from '@/lib/tableActionIcons';
 
 type PayableFilter =
  | 'ALL'
@@ -577,12 +578,12 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                             <Button
                                 size="sm"
                                 variant="outline"
-                                className="border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 px-2"
+                                className="group border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 px-2"
                                 title="Editar"
                                 aria-label="Editar"
                                 onClick={() => handleOpenEditInvoice(inv)}
                             >
-                                <Pencil size={14} />
+                                <TableActionEditIcon />
                             </Button>
                         )}
                         {isChecker && (
@@ -590,12 +591,12 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                 size="sm"
                                 variant="outline"
                                 disabled={cancellingId === inv.id}
-                                className="border-rose-200 text-rose-500 hover:bg-rose-50 hover:text-rose-700 px-2"
+                                className="group border-rose-200 hover:bg-rose-50 px-2"
                                 title="Cancelar"
                                 aria-label="Cancelar"
                                 onClick={() => handleCancelInvoice(inv)}
                             >
-                                <XCircle size={14} />
+                                <TableActionCancelIcon />
                             </Button>
                         )}
                     </div>

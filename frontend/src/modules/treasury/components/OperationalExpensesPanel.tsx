@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axiosClient from '../../../api/axios-client';
 import { Button } from '@/components/ui/Button';
-import { Plus, XCircle, Receipt, Pencil } from 'lucide-react';
+import { Plus, XCircle, Receipt } from 'lucide-react';
 import { toast } from '@/components/ui/VToast';
 import { Input } from '@/components/ui/Input';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
+import { TableActionCancelIcon, TableActionEditIcon } from '@/lib/tableActionIcons';
 
 const OVERHEAD_CATEGORIES_BASE = [
     'PLANTA', 'COMUNICACIONES', 'COMBUSTIBLES', 'TRANSPORTE',
@@ -361,12 +362,14 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
                         return [
                             {
                                 label: '',
-                                icon: <Pencil size={14} />,
+                                title: 'Editar',
+                                icon: <TableActionEditIcon />,
                                 onClick: () => handleOpenEditExpense(expense),
                             },
                             {
                                 label: '',
-                                icon: <XCircle size={14} />,
+                                title: 'Cancelar',
+                                icon: <TableActionCancelIcon />,
                                 variant: 'danger' as const,
                                 onClick: () => {
                                     setCancelExpenseModal({ open: true, expense });

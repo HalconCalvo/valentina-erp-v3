@@ -2,12 +2,13 @@ import { useState, useRef, useMemo } from 'react';
 import { useClients, Client } from '../hooks/useClients';
 import { 
   Plus, User, Mail, Phone, 
-  FileText, X, Pencil, Trash2, Users, Building2, Upload
+  FileText, X, Users, Building2, Upload
 } from 'lucide-react';
 
 import ExportButton from '@/components/ui/ExportButton';
 import { Input } from '@/components/ui/Input';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
+import { TableActionCancelIcon, TableActionEditIcon } from '@/lib/tableActionIcons';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 
@@ -287,12 +288,14 @@ export default function ClientsPage() {
           return [
             {
               label: '',
-              icon: <Pencil size={16} />,
+              title: 'Editar',
+              icon: <TableActionEditIcon />,
               onClick: () => handleEdit(c),
             },
             {
               label: '',
-              icon: <Trash2 size={16} />,
+              title: 'Cancelar',
+              icon: <TableActionCancelIcon />,
               variant: 'danger' as const,
               onClick: () => c.id && handleDelete(c.id),
             },

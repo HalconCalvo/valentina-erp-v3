@@ -5,7 +5,7 @@ import { useProviders } from '../hooks/useProviders';
 import { Material } from '@/types/foundations';
 import { 
   Plus, Link2, Upload, DollarSign, ArrowRight, 
-  ChevronDown, Pencil, Trash2, X, Lock, ArrowUpDown, EyeOff, Building2, AlertTriangle, ShieldCheck, RotateCcw
+  ChevronDown, Pencil, X, Lock, ArrowUpDown, EyeOff, Building2, AlertTriangle, ShieldCheck, RotateCcw
 } from 'lucide-react';
 import client from '@/api/axios-client'; 
 
@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
+import { TableActionCancelIcon, TableActionEditIcon } from '@/lib/tableActionIcons';
 
 import { ColumnDef } from "@tanstack/react-table"
 import { DataTable } from "@/components/ui/DataTable"
@@ -259,11 +260,11 @@ export default function MaterialsPage() {
                                 <RotateCcw size={16} />
                             </button>
                         )}
-                        <button onClick={() => handleEdit(mat)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors">
-                            <Pencil size={16} />
+                        <button type="button" onClick={() => handleEdit(mat)} className="group p-1.5 hover:bg-indigo-50 rounded transition-colors" title="Editar" aria-label="Editar">
+                            <TableActionEditIcon />
                         </button>
-                        <button onClick={() => mat.id && handleDelete(mat.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
-                            <Trash2 size={16} />
+                        <button type="button" onClick={() => mat.id && handleDelete(mat.id)} className="group p-1.5 hover:bg-rose-50 rounded transition-colors" title="Cancelar" aria-label="Cancelar">
+                            <TableActionCancelIcon />
                         </button>
                     </div>
                 )
