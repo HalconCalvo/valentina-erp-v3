@@ -10,6 +10,7 @@ from app.core.deps import get_current_active_user
 
 # 2. Importaciones de tus Modelos
 from app.models.users import User, UserCreate, UserUpdate, UserPublic, UserRole
+from app.services import active_session_service
 
 router = APIRouter()
 
@@ -23,6 +24,24 @@ def read_user_me(
     current_user: User = Depends(get_current_active_user),
 ) -> Any:
     return current_user
+
+
+@router.post("/heartbeat")
+def post_user_heartbeat(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+) -> Any:
+    active_session_service.touch_heartbeat(session, current_user.id)
+    return {"ok": True}
+
+
+@router.post("/logout")
+def post_user_logout(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+) -> Any:
+    active_session_service.clear_active_session(session, current_user.id)
+    return {"ok": True}
 
 # ==========================================
 # 1. LISTAR (GET)

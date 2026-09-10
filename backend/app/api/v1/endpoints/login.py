@@ -11,8 +11,8 @@ from slowapi.util import get_remote_address
 from app.core.config import settings
 from app.core.database import get_session
 from app.core.security import create_access_token, get_password_hash, verify_password
-# from app.models.auth import Token  <--- YA NO USAREMOS ESTE MODELO SIMPLE
-from app.models.users import User, UserRole  
+from app.models.users import User, UserRole
+from app.services import active_session_service
 
 router = APIRouter()
 
@@ -44,8 +44,7 @@ def login_access_token(
         user = session.exec(
             select(User).where(User.email == form_data.username)
         ).first()
-    except Exception as e:
-        print(f"Error DB en Login: {e}")
+    except Exception:
         raise HTTPException(status_code=500, detail="Error de conexión con base de datos")
 
     # 2. Validar credenciales
@@ -57,6 +56,13 @@ def login_access_token(
 
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Usuario inactivo")
+
+    active_session_service.assert_login_allowed(session, user.id)
+    client_host = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+    active_session_service.upsert_active_session(
+        session, user.id, client_host, user_agent
+    )
 
     # 3. Crear token
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)

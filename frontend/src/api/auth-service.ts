@@ -16,6 +16,18 @@ export const authService = {
      * Inicia sesión enviando usuario (email) y contraseña.
      * FastAPI espera los campos 'username' y 'password' en Form-Data por estándar OAuth2.
      */
+    heartbeat: async (): Promise<void> => {
+        await axiosClient.post('/users/heartbeat');
+    },
+
+    logoutRemote: async (): Promise<void> => {
+        try {
+            await axiosClient.post('/users/logout');
+        } catch {
+            /* best effort */
+        }
+    },
+
     login: async (email: string, password: string): Promise<LoginResponse> => {
         // 1. Usamos FormData (No JSON)
         const formData = new FormData();
@@ -32,10 +44,12 @@ export const authService = {
     /**
      * Cierra sesión limpiando el almacenamiento local
      */
-    logout: () => {
+    logout: async () => {
+        await authService.logoutRemote();
         localStorage.removeItem('token');
         localStorage.removeItem('user_role');
         localStorage.removeItem('user_name');
+        localStorage.removeItem('user_id');
         window.location.href = '/login';
-    }
+    },
 };

@@ -63,6 +63,10 @@ export default function LoginPage() {
                 } else {
                     msg = "Error de validación (422): " + JSON.stringify(detail);
                 }
+            } else if (err.response.status === 409) {
+                msg =
+                    err.response.data.detail ||
+                    'Este usuario ya tiene una sesión activa. Cierra la sesión en el otro dispositivo antes de continuar.';
             } else if (err.response.data.detail) {
                 msg = err.response.data.detail;
             }

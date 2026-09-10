@@ -3,8 +3,11 @@ import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import { VToastContainer } from '@/components/ui/VToast';
+import { useHeartbeat } from '@/hooks/useHeartbeat';
 
 export default function MainLayout() {
+  useHeartbeat();
+
   return (
     <VToastContainer>
       <div className="flex h-screen bg-slate-50 font-sans">

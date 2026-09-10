@@ -9,6 +9,7 @@ import {
 
 import { useFoundations } from '../../modules/foundations/hooks/useFoundations';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import { authService } from '@/api/auth-service';
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
 
@@ -150,8 +151,7 @@ export default function Sidebar() {
   };
 
   const handleLogout = () => {
-    localStorage.clear();
-    navigate('/login');
+    void authService.logout();
   };
 
   return (

@@ -2,6 +2,7 @@
 from .material import Material, ProductionRoute
 from .foundations import GlobalConfig, Provider, Client, TaxRate
 from .users import User, UserCreate, UserUpdate, UserPublic
+from .active_session import ActiveSession
 
 # Módulo de Diseño (INGENIERÍA)
 from .design import ProductMaster, ProductVersion, VersionComponent, VersionStatus
@@ -58,6 +59,7 @@ __all__ = [
     "Client", 
     "TaxRate",
     "User",
+    "ActiveSession",
     
     # Ingeniería
     "ProductMaster",
