@@ -287,9 +287,15 @@ def get_operational_expense_core(db: Session, expense_id: int) -> Optional[dict]
 
 def get_operational_expense_payments_sum(db: Session, expense_id: int) -> float:
     row = db.exec(text("""
-        SELECT COALESCE(SUM(amount), 0)
-        FROM supplier_payments
-        WHERE accounts_payable_id = :expense_id
+        SELECT COALESCE(SUM(sp.amount), 0)
+        FROM supplier_payments sp
+        INNER JOIN purchase_invoices pi ON pi.id = sp.purchase_invoice_id
+        INNER JOIN accounts_payable ap ON ap.id = :expense_id
+        WHERE pi.accounts_payable_id = ap.id
+           OR (
+                pi.invoice_number = ap.invoice_folio
+                AND pi.provider_id = ap.provider_id
+           )
     """).bindparams(expense_id=expense_id)).first()
     return float(row[0] if row else 0)
 
@@ -337,10 +343,13 @@ def update_operational_expense_fields(db: Session, expense_id: int, updates: dic
             params[field] = updates[field]
     if not set_clauses:
         return
-    db.exec(text(
-        f"UPDATE accounts_payable SET {', '.join(set_clauses)} "
-        "WHERE id = :expense_id AND purchase_order_id IS NULL"
-    ).bindparams(**params))
+    db.execute(
+        text(
+            f"UPDATE accounts_payable SET {', '.join(set_clauses)} "
+            "WHERE id = :expense_id AND purchase_order_id IS NULL"
+        ),
+        params,
+    )
 
 
 def cancel_operational_expense_row(db: Session, expense_id: int, notes: str) -> None:

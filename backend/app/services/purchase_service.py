@@ -700,7 +700,7 @@ def update_operational_expense(
         refreshed = purchase_repo.get_operational_expense_by_id(db, expense_id)
         return refreshed or expense_row
     if payments_total > 0:
-        forbidden = set(updates.keys()) - {"due_date"}
+        forbidden = set(updates.keys()) - {"due_date", "notes"}
         if forbidden:
             raise HTTPException(
                 status_code=422,
