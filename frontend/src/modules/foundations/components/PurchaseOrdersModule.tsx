@@ -652,6 +652,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                     ? detail
                     : 'Error: Ya solicitaste este anticipo o hubo un problema de red.',
             );
+            setAdvanceModal(null);
         } finally {
             setActionLoading(false);
         }

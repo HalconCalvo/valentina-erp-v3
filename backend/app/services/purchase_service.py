@@ -617,6 +617,9 @@ def request_advance(db: Session, po_id: int, data: dict, current_user) -> dict:
     db.add(ap)
     db.flush()
     inv.accounts_payable_id = ap.id
+    po.status = "EN_ESPERA_ANTICIPO"
+    po.is_advance = True
+    db.add(po)
     db.commit()
     return {"status": "success", "message": "Anticipo solicitado a Tesorería"}
 
