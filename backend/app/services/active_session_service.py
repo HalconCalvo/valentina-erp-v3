@@ -7,6 +7,7 @@ from fastapi import HTTPException, status
 from sqlmodel import Session, select
 
 from app.models.active_session import ActiveSession
+from app.models.users import User
 
 HEARTBEAT_TTL_MINUTES = 5
 SESSION_ACTIVE_MESSAGE = (
@@ -25,6 +26,11 @@ def _get_row(session: Session, user_id: int) -> Optional[ActiveSession]:
     ).first()
 
 
+def _is_service_account(session: Session, user_id: int) -> bool:
+    user = session.get(User, user_id)
+    return bool(user and user.is_service_account)
+
+
 def is_session_alive(row: Optional[ActiveSession]) -> bool:
     if not row:
         return False
@@ -32,6 +38,8 @@ def is_session_alive(row: Optional[ActiveSession]) -> bool:
 
 
 def assert_login_allowed(session: Session, user_id: int) -> None:
+    if _is_service_account(session, user_id):
+        return
     row = _get_row(session, user_id)
     if is_session_alive(row):
         raise HTTPException(
@@ -46,6 +54,8 @@ def upsert_active_session(
     ip_address: Optional[str],
     user_agent: Optional[str],
 ) -> str:
+    if _is_service_account(session, user_id):
+        return ""
     token = secrets.token_urlsafe(32)
     now = datetime.utcnow()
     row = _get_row(session, user_id)

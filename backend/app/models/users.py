@@ -44,6 +44,7 @@ class User(UserBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
     hashed_password: str
     is_superuser: bool = Field(default=False)
+    is_service_account: bool = Field(default=False)
 
 # 4. Creación (Input del API - Incluye password plano)
 class UserCreate(UserBase):
