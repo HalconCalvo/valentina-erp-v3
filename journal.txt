@@ -3272,3 +3272,36 @@ que el archivo en producción tiene el cambio y que Render terminó el deploy.
 - Conteo en unidades de uso (physical_stock también en unidades de uso)
 - 766 materiales en sesión activa id=1 (EN_CAPTURA desde 2026-09-09)
 - La sesión puede cancelarse cuando se decida hacer el conteo real
+
+
+---
+## SESIÓN 2026-09-11 — ETAPA 3 Y CORRECCIONES
+
+### Completado:
+- Herramienta de migración OVs legacy:
+  * Plantilla Excel (OVs + Facturas)
+  * Endpoint POST /sales/orders/legacy-import
+  * LegacyImportPage.tsx con upload y resultados
+  * Tarjeta "9. Migración Legacy" en DirectorDashboard
+  * Campo is_legacy en SalesOrder
+- Backups automáticos a GCS verificados en producción (0.3MB, 1.8s)
+- postgresql-client agregado al Dockerfile
+- is_service_account en modelo User para bypass de sesión única
+- Reporte CxC corregido: saldo = monto - amortized_advance - abonos
+  Nueva columna "Ant. aplic." en el reporte
+- Prueba exitosa de migración legacy con OV real de GDI DE LA PENINSULA
+  (OV Luna: $115,969.84, F284 con NC anticipo $34,790.95, saldo = $0)
+
+### Estado del plan:
+- Etapa 1 (Limpieza): COMPLETA
+- Etapa 2 (Fases 7-9): COMPLETA (excepto httpOnly cookies post-arranque)
+- Etapa 3 (Migración legacy): HERRAMIENTA LISTA — pendiente migrar OVs reales
+- Etapa 4 (Arranque): PENDIENTE
+
+### Siguiente tema:
+Modelo de negocio y precio de Valentina como producto SaaS
+para empresas de manufactura a la medida.
+
+### Pendientes técnicos menores:
+- Anticipo_Pct en plantilla Excel es redundante (se calcula de monto/total)
+- importador debe poblar amortized_advance automáticamente desde nc_advance_amount
