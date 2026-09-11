@@ -1,7 +1,7 @@
 from typing import Optional, List, Any, Dict
 from datetime import datetime
 import math
-from fastapi import APIRouter, Depends, HTTPException, status, Body, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Query, UploadFile, File
 from sqlmodel import Session, select, delete
 from sqlalchemy import func
 from sqlalchemy.orm import selectinload
@@ -26,6 +26,8 @@ from app.services.pdf_generator import PDFGenerator
 # --- IMPORTAMOS LOS MOTORES (V3.5) ---
 from app.services.cost_engine import CostEngine
 from app.services import sales_service
+from app.services import legacy_import_service
+from app.schemas.legacy_import_schema import LegacyImportRead
 from app.repositories import sales_repository as sales_repo
 
 from app.schemas.sales_schema import (
@@ -1292,3 +1294,21 @@ def get_houses_status(
         ))
 
     return result
+
+
+def _require_director_legacy(user: User) -> None:
+    if _normalized_role(user) != UserRole.DIRECTOR.value:
+        raise HTTPException(status_code=403, detail="Solo DIRECTOR puede importar OVs legacy.")
+
+
+@router.post("/orders/legacy-import", response_model=LegacyImportRead)
+async def import_legacy_orders(
+    file: UploadFile = File(...),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+) -> Any:
+    _require_director_legacy(current_user)
+    if not file.filename or not file.filename.lower().endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="Se requiere un archivo .xlsx")
+    content = await file.read()
+    return legacy_import_service.import_legacy_workbook(session, content, current_user)

@@ -14,6 +14,22 @@ import {
   RetentionUpdatePayload,
 } from '../types/sales';
 
+export interface LegacyImportOrderCreated {
+    project_name: string;
+    order_id: number;
+    folio: string;
+    outstanding_balance: number;
+}
+
+export interface LegacyImportResult {
+    orders_created: number;
+    invoices_created: number;
+    installments_created: number;
+    orders_created_details: LegacyImportOrderCreated[];
+    warnings: string[];
+    errors: string[];
+}
+
 function pickArrayPayload(payload: unknown): unknown[] {
     if (Array.isArray(payload)) return payload;
     if (payload && typeof payload === 'object') {
@@ -481,6 +497,15 @@ export const salesService = {
     getHousesStatus: async (orderId?: number): Promise<any[]> => {
         const params = orderId ? { order_id: orderId } : {};
         const response = await axiosClient.get('/sales/houses-status', { params });
+        return response.data;
+    },
+
+    importLegacyOrders: async (file: File): Promise<LegacyImportResult> => {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await axiosClient.post('/sales/orders/legacy-import', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
         return response.data;
     },
 

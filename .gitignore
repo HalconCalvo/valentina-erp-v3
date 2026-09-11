@@ -19,6 +19,7 @@ coverage/
 # --- ARCHIVOS DE DATOS Y DOCUMENTOS ---
 *.csv
 *.xlsx
+!frontend/src/assets/plantilla-migracion-ov.xlsx
 *.xls
 *.pdf
 *.docx

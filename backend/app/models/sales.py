@@ -424,6 +424,8 @@ class SalesOrder(SQLModel, table=True):
     default_retention_percent: float = Field(default=0.0)
     default_retention_days: int = Field(default=90)
 
+    is_legacy: bool = Field(default=False)
+
     items: List[SalesOrderItem] = Relationship(
         back_populates="order", 
         sa_relationship_kwargs={"cascade": "all, delete-orphan"}

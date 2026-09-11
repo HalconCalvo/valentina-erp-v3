@@ -5,7 +5,7 @@ import {
     ArrowLeft, AlertTriangle, Clock, CheckCircle,
     BarChart3, Target, AlertCircle, PieChart, ShieldAlert,
     ThumbsUp, ThumbsDown, Package, Layers, ArrowLeftCircle,
-    FileSearch, RefreshCw, Lock, XCircle, Wallet, Users, Shield
+    FileSearch, RefreshCw, Lock, XCircle, Wallet, Users, Shield, FileSpreadsheet
 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
@@ -925,6 +925,36 @@ const DirectorDashboard: React.FC = () => {
                                 <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
                                     <p className="text-[10px] text-slate-400 font-bold uppercase truncate">Por volumen de ventas año en curso</p>
                                     <Users size={14} className="text-cyan-400" />
+                                </div>
+                            </div>
+                        </Card>
+                    </div>
+
+                    {/* 9. MIGRACIÓN LEGACY */}
+                    <div className="w-full relative h-40">
+                        <Card
+                            onClick={() => navigate('/director/legacy-import')}
+                            className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-violet-500 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white relative overflow-hidden group"
+                        >
+                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-violet-50 text-violet-700 border-r border-violet-100 font-black text-2xl transition-colors group-hover:bg-violet-100">
+                                <FileSpreadsheet size={28} />
+                            </div>
+                            <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                                <div className="flex justify-between items-start">
+                                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">
+                                        9. Migración Legacy
+                                    </p>
+                                    <FileSpreadsheet size={16} className="text-violet-500" />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-bold text-slate-700 leading-tight">
+                                        Importar OVs con saldo de corte
+                                    </h3>
+                                </div>
+                                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
+                                        Excel → CxC sin producción
+                                    </p>
                                 </div>
                             </div>
                         </Card>
