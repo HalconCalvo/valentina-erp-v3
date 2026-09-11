@@ -32,6 +32,7 @@ if settings.SENTRY_DSN:
 from app.core.database import create_db_and_tables, engine
 from app.core.logging import configure_logging
 from app.core.middleware import add_request_logging_middleware
+from app.core.scheduler import shutdown_scheduler, start_scheduler
 from app.models.foundations import GlobalConfig, TaxRate
 from app.models.users import User
 
@@ -90,9 +91,11 @@ async def lifespan(app: FastAPI):
                 logger.info("admin_user_seeded", email="admin@example.com")
 
         logger.info("system_ready")
+        start_scheduler()
     except Exception as exc:
         logger.error("database_initialization_failed", error=str(exc))
     yield
+    shutdown_scheduler()
     logger.info("system_shutdown")
 
 

@@ -4,12 +4,14 @@ from app.api.v1.endpoints import foundations, auth, users, design, sales, invent
 from app.api.v1.endpoints import finance
 from app.api.v1.endpoints import planning
 from app.api.v1.endpoints import petty_cash
+from app.api.v1.endpoints import admin
 
 api_router = APIRouter()
 
 # --- ACCESO ---
 api_router.include_router(login.router, prefix="/login", tags=["login"])
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 
 # --- PUENTE DE USUARIOS (El Eslabón Solucionado) ---
 # Esto habilita la ruta: /api/v1/users/
