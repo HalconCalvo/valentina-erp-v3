@@ -20,6 +20,7 @@ export interface CxcReportRow {
     sales_order_id: number;
     monto: number;
     abonado: number;
+    amortized_advance: number;
     saldo: number;
     estado: string;
     antiguedad_dias: number | null;
@@ -132,6 +133,7 @@ const CxcReportPage: React.FC = () => {
         sales_order_id: Number(r.sales_order_id),
         monto: Number(r.monto) || 0,
         abonado: Number(r.abonado) || 0,
+        amortized_advance: Number(r.amortized_advance) || 0,
         saldo: Number(r.saldo) || 0,
         estado: String(r.estado ?? ''),
         antiguedad_dias: r.antiguedad_dias != null ? Number(r.antiguedad_dias) : null,
@@ -196,9 +198,11 @@ const CxcReportPage: React.FC = () => {
     const metrics = useMemo(() => {
         const vivas = filteredRows.filter((r) => r.saldo > 0.01 && r.estado !== 'CANCELADA').length;
         const totalFacturado = filteredRows.reduce((s, r) => s + (r.monto || 0), 0);
-        const totalAbonado = filteredRows.reduce((s, r) => s + (r.abonado || 0), 0);
+        const totalAbonadoCash = filteredRows.reduce((s, r) => s + (r.abonado || 0), 0);
+        const totalAmortized = filteredRows.reduce((s, r) => s + (r.amortized_advance || 0), 0);
+        const totalAbonado = totalAbonadoCash + totalAmortized;
         const totalSaldo = filteredRows.reduce((s, r) => s + (r.saldo || 0), 0);
-        return { vivas, totalFacturado, totalAbonado, totalSaldo };
+        return { vivas, totalFacturado, totalAbonadoCash, totalAmortized, totalAbonado, totalSaldo };
     }, [filteredRows]);
 
     const grouped = useMemo(() => {
@@ -331,6 +335,15 @@ const CxcReportPage: React.FC = () => {
             render: (row) => <span className="block text-right tabular-nums">{formatCurrency(row.monto)}</span>,
         },
         {
+            key: 'amortized_advance',
+            label: 'Ant. aplic.',
+            render: (row) => (
+                <span className="block text-right tabular-nums text-slate-600">
+                    {row.amortized_advance > 0.01 ? formatCurrency(row.amortized_advance) : '—'}
+                </span>
+            ),
+        },
+        {
             key: 'abonado',
             label: 'Abonado',
             render: (row) => <span className="block text-right tabular-nums text-emerald-700">{formatCurrency(row.abonado)}</span>,
@@ -419,7 +432,7 @@ const CxcReportPage: React.FC = () => {
                     <p className="text-2xl font-black text-slate-800 tabular-nums mt-1">{formatCurrency(metrics.totalFacturado)}</p>
                 </div>
                 <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Abonos</p>
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Abonos + ant. aplic.</p>
                     <p className="text-2xl font-black text-emerald-700 tabular-nums mt-1">{formatCurrency(metrics.totalAbonado)}</p>
                 </div>
                 <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
@@ -541,7 +554,8 @@ const CxcReportPage: React.FC = () => {
                                         Totales ({filteredRows.length} facturas)
                                     </div>
                                     <div className="flex-1 p-3 text-right tabular-nums min-w-0">{formatCurrency(metrics.totalFacturado)}</div>
-                                    <div className="flex-1 p-3 text-right tabular-nums text-emerald-800 min-w-0">{formatCurrency(metrics.totalAbonado)}</div>
+                                    <div className="flex-1 p-3 text-right tabular-nums text-slate-700 min-w-0">{formatCurrency(metrics.totalAmortized)}</div>
+                                    <div className="flex-1 p-3 text-right tabular-nums text-emerald-800 min-w-0">{formatCurrency(metrics.totalAbonadoCash)}</div>
                                     <div className="flex-1 p-3 text-right tabular-nums text-amber-800 min-w-0">{formatCurrency(metrics.totalSaldo)}</div>
                                     <div className="flex-[2] min-w-0" />
                                 </div>

@@ -357,12 +357,14 @@ def list_pending_cxc(session: Session) -> list:
     return result
 
 
-def _cxc_report_estado(cxc: CustomerPayment, abonado: float, saldo: float) -> str:
+def _cxc_report_estado(
+    cxc: CustomerPayment, abonado: float, amortized_advance: float, saldo: float
+) -> str:
     if cxc.status == CXCStatus.CANCELLED:
         return "CANCELADA"
     if cxc.status == CXCStatus.PAID or saldo <= 0.01:
         return "PAGADA"
-    if abonado > 0:
+    if abonado > 0 or amortized_advance > 0.01:
         return "PARCIAL"
     return "PENDIENTE"
 
@@ -390,8 +392,9 @@ def get_cxc_report(
         order = sales_repo.get_sales_order_by_id(session, cxc.sales_order_id)
         cli = sales_repo.get_client_by_id(session, order.client_id) if order and order.client_id else None
         abonado = round(sales_repo.sum_active_installments(session, cxc.id), 2)
+        amortized_advance = round(float(cxc.amortized_advance or 0.0), 2)
         monto = round(float(cxc.amount or 0.0), 2)
-        saldo = round(monto - abonado, 2)
+        saldo = round(max(monto - amortized_advance - abonado, 0.0), 2)
         if filter_zero_saldo and saldo <= 0.01:
             continue
         antiguedad = (ahora - cxc.invoice_date).days if cxc.invoice_date else None
@@ -406,8 +409,9 @@ def get_cxc_report(
             "sales_order_id": cxc.sales_order_id,
             "monto": monto,
             "abonado": abonado,
+            "amortized_advance": amortized_advance,
             "saldo": saldo,
-            "estado": _cxc_report_estado(cxc, abonado, saldo),
+            "estado": _cxc_report_estado(cxc, abonado, amortized_advance, saldo),
             "antiguedad_dias": antiguedad,
             "payment_date": cxc.payment_date.isoformat() if cxc.payment_date else None,
             "treasury_transaction_id": getattr(cxc, "treasury_transaction_id", None),
