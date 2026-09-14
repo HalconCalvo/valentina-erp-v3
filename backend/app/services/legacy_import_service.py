@@ -33,7 +33,6 @@ OV_HEADERS = [
     "Vendedor",
     "IVA%",
     "Total_OV_con_IVA",
-    "Anticipo_Pct",
     "Anticipo_Cobrado",
     "Comision_Pct",
     "Notas",
@@ -175,6 +174,11 @@ def _create_legacy_order(
     tax_amount = round(total_price - subtotal, 2)
     commission_pct = _cell_float(ov.get("Comision_Pct"), 0.0)
     commission_amount = round(subtotal * (commission_pct / 100.0), 2)
+    anticipo_cobrado = _cell_float(ov.get("Anticipo_Cobrado"))
+    if total_price > 0 and anticipo_cobrado > 0:
+        advance_percent = round((anticipo_cobrado / total_price) * 100.0, 2)
+    else:
+        advance_percent = 0.0
 
     order = SalesOrder(
         client_id=client.id,
@@ -186,9 +190,9 @@ def _create_legacy_order(
         is_approved_by_director=True,
         director_approved_at=datetime.utcnow(),
         valid_until=datetime.utcnow() + timedelta(days=365),
-        advance_percent=_cell_float(ov.get("Anticipo_Pct"), 60.0),
-        advance_invoice_amount=_cell_float(ov.get("Anticipo_Cobrado")) or None,
-        has_advance_invoice=_cell_float(ov.get("Anticipo_Cobrado")) > 0,
+        advance_percent=advance_percent,
+        advance_invoice_amount=anticipo_cobrado or None,
+        has_advance_invoice=anticipo_cobrado > 0,
         applied_commission_percent=commission_pct,
         commission_amount=commission_amount,
         subtotal=subtotal,
@@ -240,6 +244,8 @@ def _add_invoice_and_installments(
         nc_retention_folio=_cell_str(inv.get("NC_FG_Folio")) or None,
         nc_retention_amount=round(_cell_float(inv.get("NC_FG_Monto")), 2),
     )
+    if ptype == PaymentType.PROGRESS and cxc.nc_advance_amount > 0:
+        cxc.amortized_advance = cxc.nc_advance_amount
     session.add(cxc)
     session.flush()
 
