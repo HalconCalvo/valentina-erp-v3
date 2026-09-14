@@ -35,11 +35,11 @@ export default function LegacyImportPage() {
     [],
   );
 
-  if (role !== 'DIRECTOR') {
+  if (role !== 'DIRECTOR' && role !== 'MANAGER') {
     return (
       <VEmptyState
         title="Acceso restringido"
-        description="Solo el Director puede ejecutar la migración legacy."
+        description="Solo Dirección y Gerencia pueden ejecutar la migración legacy."
       />
     );
   }

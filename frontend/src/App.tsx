@@ -67,6 +67,12 @@ import PlanningPage from './modules/planning/pages/PlanningPage';
 // 11. LOGÍSTICA E INSTALACIÓN (iPad / cuadrilla)
 import InstallerWorkdayPage from './modules/logistics/pages/InstallerWorkdayPage';
 
+/** Rutas accesibles por rol (deep links fuera del menú principal) */
+const roleAccessiblePaths: Record<string, string[]> = {
+  DIRECTOR: ['/director/legacy-import'],
+  MANAGER: ['/director/legacy-import'],
+};
+
 // --- GUARDIA DE SEGURIDAD ---
 const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
   const token = localStorage.getItem('token');
@@ -80,6 +86,21 @@ const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
 function AppRoutes() {
   const location = useLocation();
   const key = location.pathname;
+  const userRole = (localStorage.getItem('user_role') || '').toUpperCase().trim();
+  const pathname = location.pathname;
+
+  const rolesAllowedForPath = (path: string): string[] =>
+    Object.entries(roleAccessiblePaths)
+      .filter(([, paths]) => paths.includes(path))
+      .map(([role]) => role.toUpperCase());
+
+  const restrictedPaths = new Set(Object.values(roleAccessiblePaths).flat());
+  if (restrictedPaths.has(pathname)) {
+    const allowed = rolesAllowedForPath(pathname);
+    if (allowed.length > 0 && !allowed.includes(userRole)) {
+      return <Navigate to="/" replace />;
+    }
+  }
 
   return (
     <Routes>

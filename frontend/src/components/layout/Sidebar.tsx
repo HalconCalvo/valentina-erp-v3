@@ -57,6 +57,12 @@ const rolePriorities: Record<string, string[]> = {
   'LOGISTICS': ['/', '/logistics', '/production']
 };
 
+/** Rutas permitidas por rol (deep links fuera del menú principal) */
+const roleAllowedPaths: Record<string, string[]> = {
+  DIRECTOR: ['/director/legacy-import'],
+  MANAGER: ['/director/legacy-import'],
+};
+
 export default function Sidebar() {
   const { config, fetchConfig, loading } = useFoundations();
   const location = useLocation();
@@ -87,6 +93,14 @@ export default function Sidebar() {
         
         // Si es Admin, Gerente o Director, iluminamos Administración
         if (['ADMIN', 'DIRECTOR', 'MANAGER'].includes(userRole) && path === '/treasury') return true;
+    }
+
+    if (
+      path === '/management'
+      && userRole === 'MANAGER'
+      && (roleAllowedPaths.MANAGER ?? []).includes(currentPath)
+    ) {
+      return true;
     }
     
     return currentPath.startsWith(path);

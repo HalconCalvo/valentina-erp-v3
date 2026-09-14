@@ -1297,8 +1297,11 @@ def get_houses_status(
 
 
 def _require_director_legacy(user: User) -> None:
-    if _normalized_role(user) != UserRole.DIRECTOR.value:
-        raise HTTPException(status_code=403, detail="Solo DIRECTOR puede importar OVs legacy.")
+    if _normalized_role(user) not in (UserRole.DIRECTOR.value, UserRole.MANAGER.value):
+        raise HTTPException(
+            status_code=403,
+            detail="Solo DIRECTOR y MANAGER pueden importar OVs legacy.",
+        )
 
 
 @router.post("/orders/legacy-import", response_model=LegacyImportRead)
