@@ -3305,3 +3305,56 @@ para empresas de manufactura a la medida.
 ### Pendientes técnicos menores:
 - Anticipo_Pct en plantilla Excel es redundante (se calcula de monto/total)
 - importador debe poblar amortized_advance automáticamente desde nc_advance_amount
+
+
+---
+## SESIÓN 2026-09-14 — FASE 10 PWA EN DISEÑO
+
+### Completado en sesión:
+- Pendientes técnicos de migración legacy resueltos:
+  * Anticipo_Pct eliminado de plantilla Excel
+  * amortized_advance poblado automáticamente desde nc_advance_amount
+- Migración Legacy movida a Gerencia (/management)
+- MANAGER tiene acceso a /director/legacy-import (frontend + backend)
+- Prueba exitosa de migración OV real (GDI DE LA PENINSULA / Luna)
+- Contabilidad llenando Excel con OVs reales
+
+### FASE 10 — PWA PARA CAMPO (EN DISEÑO)
+
+#### Contexto operativo:
+- 3-5 equipos de instaladores (1 Jefe + 1 ayudante principalmente, ocasional 1+2)
+- Jefe de Producción asigna instancias en Planeación Maestra/Kanban
+- Instaladores salen a campo con iPad o Android
+- NO hay internet confiable en obras (construcciones)
+- Offline-first: descarga en mañana, trabaja offline, sincroniza al volver
+
+#### Datos ya en el modelo (sin cambios necesarios):
+- blueprint_path en ProductVersion — plano PDF isométrico
+- VersionComponent — lista de empaque y herrajes (receta)
+- leader_user_id, helper_1/2_user_id — equipo asignado
+- evidence_photos_urls — fotos de evidencia
+- signed_received_at — firma del cliente (detona garantía y comisiones)
+- scheduled_inst_mdf/stone — fecha programada
+
+#### Flujo diseñado:
+Mañana con WiFi:
+1. Login con credenciales Valentina
+2. Ver instancias del día (donde es líder con fecha = hoy)
+3. Descargar: info, lista empaque, lista herrajes, plano PDF
+4. Escanear etiqueta de bultos para confirmar carga
+
+En obra sin internet:
+5. Consultar info offline
+6. Ver documentos descargados
+7. Tomar fotos de evidencia
+8. Capturar firma del cliente
+9. Registrar incidencias
+
+Al regresar con WiFi:
+10. Sincronización automática:
+    - Fotos → GCS
+    - Firma → signed_received_at (detona garantía y comisiones)
+    - Incidencias registradas
+    - Bultos escaneados confirmados
+
+#### Pendiente: arrancar el diseño técnico de la PWA
