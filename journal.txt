@@ -3358,3 +3358,32 @@ Al regresar con WiFi:
     - Bultos escaneados confirmados
 
 #### Pendiente: arrancar el diseño técnico de la PWA
+
+
+---
+## SESIÓN 2026-09-15 — PWA CAMPO Y CORRECCIONES PRODUCCIÓN
+
+### Completado:
+- PWA Campo (Fase 10): 3 endpoints backend, FieldHomePage, FieldInstancePage con 5 tabs
+  offline-first con IndexedDB, manifest.json PWA instalable
+- Sidebar Campo para roles: LOGISTICS, PRODUCTION, DESIGN, MANAGER, DIRECTOR
+- Kanban Producción:
+  * STATUS_READY_TO_INSTALL → READY (alineado con enum BD)
+  * Selección independiente MDF/Piedra con clave compuesta ${id}-${batch_type}
+  * Scroll en columnas: fix en MainLayout.tsx — overflow-hidden cuando ruta es /production/kanban
+  * Problema de caché CDN resuelto — bundle nuevo en producción
+
+### Nota técnica importante:
+El fix del scroll tardó múltiples intentos porque Render/Cloudflare
+tenía cacheado el index.html viejo. El fix correcto fue en MainLayout.tsx
+usando useLocation para detectar /production/kanban y aplicar overflow-hidden
+al main. La solución funciona en modo incógnito (sin caché).
+
+### Pull pendiente en repo local:
+cd /Users/gabrielfrias/Proyectos/SGP_V3 && git pull origin main
+
+### Pendientes:
+1. Completar pruebas de la PWA Campo en producción
+2. Migración de OVs reales (Contabilidad llenando Excel)
+3. Inventario físico de apertura
+4. Arranque en ceros
