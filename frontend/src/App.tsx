@@ -66,6 +66,8 @@ import PlanningPage from './modules/planning/pages/PlanningPage';
 
 // 11. LOGÍSTICA E INSTALACIÓN (iPad / cuadrilla)
 import InstallerWorkdayPage from './modules/logistics/pages/InstallerWorkdayPage';
+import LogisticsDashboardPage from './modules/logistics/pages/LogisticsDashboardPage';
+import InstallationTeamAgendaPage from './modules/logistics/pages/InstallationTeamAgendaPage';
 import FieldHomePage from './modules/field/pages/FieldHomePage';
 import FieldInstancePage from './modules/field/pages/FieldInstancePage';
 
@@ -189,7 +191,9 @@ function AppRoutes() {
         <Route path="/planning" element={<PlanningPage key={key} />} />
 
         {/* --- LOGÍSTICA E INSTALACIÓN --- */}
-        <Route path="/logistics" element={<InstallerWorkdayPage key={key} />} />
+        <Route path="/logistics" element={<LogisticsDashboardPage key={key} />} />
+        <Route path="/logistics/by-instance" element={<InstallerWorkdayPage key={key} />} />
+        <Route path="/logistics/by-team" element={<InstallationTeamAgendaPage key={key} />} />
 
         {/* --- CAMPO PWA --- */}
         <Route path="/field" element={<FieldHomePage key={key} />} />

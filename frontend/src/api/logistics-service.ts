@@ -35,6 +35,70 @@ export const getMyWorkday = async (): Promise<WorkdayResponse> => {
   return data;
 };
 
+export interface TeamAgendaInstance {
+  assignment_id: number;
+  instance_id: number;
+  instance_name: string;
+  order_folio: string | null;
+  client_name: string | null;
+  address: string | null;
+  lane: string;
+}
+
+export interface TeamAgendaTeam {
+  leader_id: number;
+  leader_name: string;
+  helper_1_id: number | null;
+  helper_1_name: string | null;
+  helper_2_id: number | null;
+  helper_2_name: string | null;
+  instances: TeamAgendaInstance[];
+}
+
+export interface UnassignedAgendaInstance {
+  instance_id: number;
+  lane: string;
+  instance_name: string;
+  order_folio: string | null;
+  client_name: string | null;
+  address: string | null;
+}
+
+export interface TeamAgendaResponse {
+  workday: string;
+  teams: TeamAgendaTeam[];
+  unassigned: UnassignedAgendaInstance[];
+}
+
+export const getTeamAgenda = async (workday: string): Promise<TeamAgendaResponse> => {
+  const { data } = await apiClient.get('/logistics/team-agenda', {
+    params: { workday },
+  });
+  return data;
+};
+
+export const updateDayTeam = async (payload: {
+  workday: string;
+  previous_leader_id: number;
+  leader_user_id: number;
+  helper_1_user_id?: number | null;
+  helper_2_user_id?: number | null;
+}): Promise<{ updated_assignments: number }> => {
+  const { data } = await apiClient.patch('/logistics/team-agenda/day-team', payload);
+  return data;
+};
+
+export const moveAssignmentToTeam = async (
+  assignmentId: number,
+  payload: {
+    leader_user_id: number;
+    helper_1_user_id?: number | null;
+    helper_2_user_id?: number | null;
+  }
+): Promise<void> => {
+  await apiClient.patch(`/logistics/assignments/${assignmentId}/team`, payload);
+};
+
 // Escaneo QR — confirma carga al camión
 export const scanBundleQR = async (
   assignmentId: number,

@@ -24,7 +24,29 @@ from app.models.inventory import InventoryReservation
 from app.models.material import Material
 from app.services.planning_service import trigger_double_green
 from app.services.cloud_storage import upload_to_gcs
+from app.services import logistics_service
+from app.schemas.logistics_schema import (
+    TeamAgendaRead,
+    DayTeamUpdate,
+    AssignmentTeamUpdate,
+)
+
 router = APIRouter()
+
+AGENDA_ROLES = {
+    UserRole.PRODUCTION,
+    UserRole.DESIGN,
+    UserRole.MANAGER,
+    UserRole.DIRECTOR,
+}
+
+
+def _require_agenda_access(user: User) -> None:
+    if user.role not in AGENDA_ROLES:
+        raise HTTPException(
+            status_code=403,
+            detail="Acceso restringido a la agenda de instalaciones.",
+        )
 
 
 def _check_all_lanes_installed(instance_id: int, session: Session) -> bool:
@@ -777,6 +799,68 @@ async def upload_evidence_photos(
         "errors": errors if errors else None,
         "total_evidence_photos": len(instance.evidence_photos_urls or []),
     }
+
+
+# ==========================================
+# 5b. AGENDA POR EQUIPOS (planeación diaria)
+# ==========================================
+@router.get("/team-agenda", response_model=TeamAgendaRead)
+def get_team_agenda(
+    workday: date,
+    session: SessionDep,
+    current_user: CurrentUser,
+):
+    _require_agenda_access(current_user)
+    data = logistics_service.get_team_agenda(session, workday)
+    return TeamAgendaRead(
+        workday=workday,
+        teams=data["teams"],
+        unassigned=data["unassigned"],
+    )
+
+
+@router.patch("/team-agenda/day-team")
+def patch_day_team(
+    payload: DayTeamUpdate,
+    session: SessionDep,
+    current_user: CurrentUser,
+):
+    _require_agenda_access(current_user)
+    try:
+        updated = logistics_service.update_day_team_for_leader(
+            session,
+            {
+                "workday": payload.workday,
+                "previous_leader_id": payload.previous_leader_id,
+                "leader_user_id": payload.leader_user_id,
+                "helper_1_user_id": payload.helper_1_user_id,
+                "helper_2_user_id": payload.helper_2_user_id,
+            },
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return {"updated_assignments": updated}
+
+
+@router.patch("/assignments/{assignment_id}/team")
+def patch_assignment_team(
+    assignment_id: int,
+    payload: AssignmentTeamUpdate,
+    session: SessionDep,
+    current_user: CurrentUser,
+):
+    _require_agenda_access(current_user)
+    try:
+        logistics_service.update_assignment_team(
+            session,
+            assignment_id,
+            payload.model_dump(),
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return {"ok": True, "assignment_id": assignment_id}
 
 
 # ==========================================

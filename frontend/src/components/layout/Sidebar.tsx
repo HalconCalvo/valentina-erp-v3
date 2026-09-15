@@ -35,7 +35,7 @@ const menuItems = [
   
   { icon: Factory, label: 'Producción', path: '/production', allowedRoles: ['DIRECTOR', 'MANAGER', 'ADMIN', 'DESIGN', 'PRODUCTION'] },
   { icon: CalendarDays, label: 'Planeación Maestra', path: '/planning', allowedRoles: ['DIRECTOR', 'MANAGER', 'DESIGN', 'PRODUCTION', 'ADMIN', 'SALES'] },
-  { icon: Truck, label: 'Logística e Instalación', path: '/logistics', allowedRoles: ['DIRECTOR', 'MANAGER', 'ADMIN', 'WAREHOUSE', 'SALES', 'LOGISTICS', 'PRODUCTION'] },
+  { icon: Truck, label: 'Logística e Instalación', path: '/logistics', allowedRoles: ['DIRECTOR', 'MANAGER', 'ADMIN', 'WAREHOUSE', 'SALES', 'LOGISTICS', 'PRODUCTION', 'DESIGN'] },
   { icon: HardHat, label: 'Campo', path: '/field', allowedRoles: ['DIRECTOR', 'MANAGER', 'LOGISTICS', 'PRODUCTION', 'DESIGN'] },
   { icon: ClipboardList, label: 'Compras y Almacén', path: '/inventory', allowedRoles: ['DIRECTOR', 'MANAGER', 'ADMIN', 'WAREHOUSE', 'PRODUCTION'] },
   { icon: Landmark, label: 'Administración', path: '/treasury', allowedRoles: ['DIRECTOR', 'MANAGER', 'ADMIN'] },
