@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react';
 import { planningService, InstanceSchedule, CalendarPill } from '../../../api/planning-service';
 import { getSemaphoreConfig } from '../hooks/usePlanning';
+import { X } from 'lucide-react';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
@@ -24,7 +25,7 @@ interface Props {
   readOnly?: boolean;
   /** Notificado al elegir un día en el mini calendario */
   onDateSelect?: (dateStr: string, laneCode: string) => void;
-  onUnscheduleAll?: () => void;
+  onUnscheduleAll?: () => void | Promise<void>;
   /** Datos del calendario para validar capacidad (máx 4 instancias por carril por día) */
   calendarData?: Record<string, CalendarPill[]>;
 }
@@ -517,6 +518,7 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
   };
 
   return (
+    <>
     <div className="fixed top-0 left-0 z-[55] h-screen overflow-y-auto">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-visible">
 
@@ -647,6 +649,19 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
                           <span className={`flex-1 text-sm ${hasDate ? '' : 'italic'}`}>
                             {displayText}
                           </span>
+                          {hasDate && !readOnly && (
+                            <button
+                              type="button"
+                              title="Quitar fecha de este carril"
+                              onClick={e => {
+                                e.stopPropagation();
+                                handleClearDate(lane.field);
+                              }}
+                              className="shrink-0 flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-red-100 hover:text-red-600 transition"
+                            >
+                              <X size={16} aria-hidden />
+                            </button>
+                          )}
                           <span className={`shrink-0 text-[10px] font-bold uppercase tracking-wide
                             ${hasDate ? 'opacity-50' : 'text-slate-400'}`}>
                             editar
@@ -721,17 +736,6 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
                         })()}
                       </div>
 
-                      {/* Clear button — hidden for read-only */}
-                      {hasDate && !readOnly && (
-                        <button
-                          type="button"
-                          onClick={() => handleClearDate(lane.field)}
-                          className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all text-sm"
-                          title="Quitar del calendario"
-                        >
-                          📅✕
-                        </button>
-                      )}
                     </div>
                   </div>
                 );
@@ -959,10 +963,12 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
           </div>
         </div>
       </div>
+    </div>
 
       {pendingLaneConfirm && (
         <VConfirmDialog
           isOpen={pendingLaneConfirm !== null}
+          overlayZIndex={70}
           title={pendingLaneConfirm.title}
           message={pendingLaneConfirm.message}
           consequence={pendingLaneConfirm.consequence}
@@ -980,18 +986,21 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
       {showUnscheduleConfirm && (
         <VConfirmDialog
           isOpen={showUnscheduleConfirm}
+          overlayZIndex={70}
           title="Desprogramar instancia"
           message="¿Desprogramar todos los procesos de esta instancia?"
           consequence="Se eliminarán PM, PP, IM e IP del calendario."
           variant="danger"
           confirmLabel="Sí, desprogramar"
-          onConfirm={() => {
-            onUnscheduleAll?.();
+          onConfirm={async () => {
+            if (onUnscheduleAll) {
+              await onUnscheduleAll();
+            }
             setShowUnscheduleConfirm(false);
           }}
           onCancel={() => setShowUnscheduleConfirm(false)}
         />
       )}
-    </div>
+    </>
   );
 }

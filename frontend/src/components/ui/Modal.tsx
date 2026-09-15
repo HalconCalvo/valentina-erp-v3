@@ -8,6 +8,8 @@ interface ModalProps {
   children: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl' | 'custom' | 'fullscreen';
   className?: string;
+  /** Por encima de modales anidados (p. ej. confirmaciones sobre InstanceEditModal z-55). */
+  overlayZIndex?: number;
 }
 
 const Modal: React.FC<ModalProps> = ({ 
@@ -16,7 +18,8 @@ const Modal: React.FC<ModalProps> = ({
   title, 
   children, 
   size = 'md',
-  className = '' 
+  className = '',
+  overlayZIndex = 50,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -51,7 +54,10 @@ const Modal: React.FC<ModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div
+      className="fixed inset-0 flex items-center justify-center p-4"
+      style={{ zIndex: overlayZIndex }}
+    >
       {/* Backdrop (Fondo oscuro) */}
       <div 
         className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" 

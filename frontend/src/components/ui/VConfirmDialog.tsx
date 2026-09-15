@@ -13,6 +13,7 @@ interface VConfirmDialogProps {
   confirmLabel?: string;
   cancelLabel?: string;
   variant?: VConfirmDialogVariant;
+  overlayZIndex?: number;
 }
 
 const confirmVariantClasses: Record<VConfirmDialogVariant, string> = {
@@ -31,6 +32,7 @@ export const VConfirmDialog: React.FC<VConfirmDialogProps> = ({
   confirmLabel = 'Confirmar',
   cancelLabel = 'Cancelar',
   variant = 'default',
+  overlayZIndex,
 }) => {
   const [processing, setProcessing] = useState(false);
 
@@ -54,7 +56,13 @@ export const VConfirmDialog: React.FC<VConfirmDialogProps> = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} title={title} size="sm">
+    <Modal
+      isOpen={isOpen}
+      onClose={handleClose}
+      title={title}
+      size="sm"
+      overlayZIndex={overlayZIndex}
+    >
       <div className="flex flex-col gap-4">
         <p className="text-sm text-slate-600 leading-relaxed">{message}</p>
 
