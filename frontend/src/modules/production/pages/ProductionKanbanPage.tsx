@@ -518,7 +518,7 @@ export default function ProductionKanbanPage() {
 
     return (
       <div 
-        className="bg-gray-50 p-4 rounded-xl w-80 flex-shrink-0 flex flex-col border border-gray-200"
+        className="bg-gray-50 p-4 rounded-xl w-80 flex-shrink-0 flex flex-col h-full border border-gray-200"
         onDragOver={handleDragOver}
         onDrop={(e) => handleDrop(e, status)}
       >
@@ -526,7 +526,7 @@ export default function ProductionKanbanPage() {
           <h2 className="font-bold text-gray-700 uppercase tracking-wide text-sm">1. Lote por Producir</h2>
           <span className="bg-gray-200 text-gray-600 text-xs font-bold px-2 py-1 rounded-full">{columnBatches.length}</span>
         </div>
-        <div className="flex flex-col gap-3 overflow-y-auto pr-1">
+        <div className="flex flex-col gap-3 overflow-y-auto pr-1 flex-1 min-h-0">
           {columnBatches.map(batch => {
             const isLocked = !batch.is_payment_cleared;
             return (
@@ -624,7 +624,7 @@ export default function ProductionKanbanPage() {
 
     return (
       <div 
-        className="bg-blue-50/50 p-4 rounded-xl w-80 flex-shrink-0 flex flex-col border border-blue-100"
+        className="bg-blue-50/50 p-4 rounded-xl w-80 flex-shrink-0 flex flex-col h-full border border-blue-100"
         onDragOver={handleDragOver}
         onDrop={(e) => handleDrop(e, status)}
       >
@@ -634,7 +634,7 @@ export default function ProductionKanbanPage() {
           </h2>
           <span className="bg-blue-200 text-blue-800 text-xs font-bold px-2 py-1 rounded-full">{columnBatches.length}</span>
         </div>
-        <div className="flex flex-col gap-3 overflow-y-auto pr-1">
+        <div className="flex flex-col gap-3 overflow-y-auto pr-1 flex-1 min-h-0">
           {columnBatches.map(batch => (
             <div 
               key={batch.id} 
@@ -804,7 +804,7 @@ export default function ProductionKanbanPage() {
 
     return (
       <div
-        className="bg-violet-50/60 p-4 rounded-xl w-[22rem] flex-shrink-0 flex flex-col border border-violet-200"
+        className="bg-violet-50/60 p-4 rounded-xl w-[22rem] flex-shrink-0 flex flex-col h-full border border-violet-200"
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
@@ -843,7 +843,7 @@ export default function ProductionKanbanPage() {
           </button>
         )}
 
-        <div className="flex flex-col gap-3 overflow-y-auto pr-1">
+        <div className="flex flex-col gap-3 overflow-y-auto pr-1 flex-1 min-h-0">
           {allInstances.length === 0 && (
             <div className="border-2 border-dashed border-violet-200 rounded-lg p-6 text-center text-violet-500 text-sm">
               Sin instancias en empaque
@@ -1029,7 +1029,7 @@ export default function ProductionKanbanPage() {
 
     return (
       <div
-        className="bg-emerald-50 p-4 rounded-xl w-80 flex-shrink-0 flex flex-col border border-emerald-200"
+        className="bg-emerald-50 p-4 rounded-xl w-80 flex-shrink-0 flex flex-col h-full border border-emerald-200"
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
@@ -1056,7 +1056,7 @@ export default function ProductionKanbanPage() {
           </span>
         </div>
 
-        <div className="flex flex-col gap-3 overflow-y-auto pr-1">
+        <div className="flex flex-col gap-3 overflow-y-auto pr-1 flex-1 min-h-0">
           {allReady.length === 0 && (
             <div className="border-2 border-dashed border-emerald-200 rounded-lg p-6 text-center text-emerald-500 text-sm">
               Andén vacío
