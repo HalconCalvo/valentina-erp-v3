@@ -526,7 +526,10 @@ export default function ProductionKanbanPage() {
           <h2 className="font-bold text-gray-700 uppercase tracking-wide text-sm">1. Lote por Producir</h2>
           <span className="bg-gray-200 text-gray-600 text-xs font-bold px-2 py-1 rounded-full">{columnBatches.length}</span>
         </div>
-        <div className="flex flex-col gap-3 overflow-y-auto pr-1 flex-1 min-h-0">
+        <div
+          className="flex flex-col gap-3 overflow-y-auto pr-1"
+          style={{ maxHeight: 'calc(100vh - 260px)' }}
+        >
           {columnBatches.map(batch => {
             const isLocked = !batch.is_payment_cleared;
             return (
@@ -634,7 +637,10 @@ export default function ProductionKanbanPage() {
           </h2>
           <span className="bg-blue-200 text-blue-800 text-xs font-bold px-2 py-1 rounded-full">{columnBatches.length}</span>
         </div>
-        <div className="flex flex-col gap-3 overflow-y-auto pr-1 flex-1 min-h-0">
+        <div
+          className="flex flex-col gap-3 overflow-y-auto pr-1"
+          style={{ maxHeight: 'calc(100vh - 260px)' }}
+        >
           {columnBatches.map(batch => (
             <div 
               key={batch.id} 
@@ -843,7 +849,10 @@ export default function ProductionKanbanPage() {
           </button>
         )}
 
-        <div className="flex flex-col gap-3 overflow-y-auto pr-1 flex-1 min-h-0">
+        <div
+          className="flex flex-col gap-3 overflow-y-auto pr-1"
+          style={{ maxHeight: 'calc(100vh - 260px)' }}
+        >
           {allInstances.length === 0 && (
             <div className="border-2 border-dashed border-violet-200 rounded-lg p-6 text-center text-violet-500 text-sm">
               Sin instancias en empaque
@@ -1056,7 +1065,10 @@ export default function ProductionKanbanPage() {
           </span>
         </div>
 
-        <div className="flex flex-col gap-3 overflow-y-auto pr-1 flex-1 min-h-0">
+        <div
+          className="flex flex-col gap-3 overflow-y-auto pr-1"
+          style={{ maxHeight: 'calc(100vh - 260px)' }}
+        >
           {allReady.length === 0 && (
             <div className="border-2 border-dashed border-emerald-200 rounded-lg p-6 text-center text-emerald-500 text-sm">
               Andén vacío
