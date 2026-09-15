@@ -300,6 +300,18 @@ export default function ProductionKanbanPage() {
   }, [batches, materialFilter]);
 
   useEffect(() => {
+    const mainEl = document.querySelector('main');
+    if (mainEl) {
+      mainEl.style.overflow = 'hidden';
+    }
+    return () => {
+      if (mainEl) {
+        mainEl.style.overflow = '';
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     loadBatches();
     loadReadyInstances();
     // Cargar config de empresa para el PDF
