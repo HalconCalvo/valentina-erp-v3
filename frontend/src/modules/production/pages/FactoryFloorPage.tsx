@@ -29,8 +29,15 @@ export default function FactoryFloorPage() {
           .reduce((n, b) => n + (b.instances?.length ?? 0), 0)
       );
       setReadyCount(
-        batches.filter(b => b.status === 'READY_TO_INSTALL')
-          .reduce((n, b) => n + (b.instances?.length ?? 0), 0)
+        batches.reduce(
+          (n, b) =>
+            n +
+            (b.instances?.filter(
+              (inst: { production_status?: string }) =>
+                inst.production_status === 'READY'
+            ).length ?? 0),
+          0
+        )
       );
     }).catch(() => {});
   }, []);

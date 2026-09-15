@@ -211,6 +211,7 @@ def create_production_batch(
 
 
 @router.get("/", response_model=List[ProductionBatchResponse])
+@router.get("/batches", response_model=List[ProductionBatchResponse])
 def read_batches(current_user: CurrentUser, db: Session = Depends(get_session)):
     batches = db.exec(
         select(ProductionBatch)

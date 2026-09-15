@@ -4,7 +4,7 @@ import { ProductionBatch } from '../types/production';
 export const productionService = {
   // Obtener todos los lotes
   getBatches: async (): Promise<ProductionBatch[]> => {
-    const response = await axiosClient.get('/production/');
+    const response = await axiosClient.get('/production/batches');
     return response.data;
   },
   
