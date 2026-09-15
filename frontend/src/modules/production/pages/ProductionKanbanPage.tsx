@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { productionService } from '../../../api/production-service';
 import axiosClient from '../../../api/axios-client';
@@ -299,14 +299,17 @@ export default function ProductionKanbanPage() {
     return batches.filter((b) => b.batch_type === materialFilter);
   }, [batches, materialFilter]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const mainEl = document.querySelector('main');
     if (mainEl) {
-      mainEl.style.overflow = 'hidden';
+      mainEl.classList.add('!overflow-hidden');
+      mainEl.style.setProperty('overflow', 'hidden', 'important');
     }
     return () => {
-      if (mainEl) {
-        mainEl.style.overflow = '';
+      const cleanupMain = document.querySelector('main');
+      if (cleanupMain) {
+        cleanupMain.classList.remove('!overflow-hidden');
+        cleanupMain.style.removeProperty('overflow');
       }
     };
   }, []);
@@ -1248,7 +1251,7 @@ export default function ProductionKanbanPage() {
         </div>
       ) : (
         <div 
-          className="flex flex-1 min-h-0 h-full gap-6 pb-4 overflow-x-auto"
+          className="flex gap-6 pb-4 overflow-x-auto"
           style={{ 
             WebkitOverflowScrolling: 'touch',
             scrollSnapType: 'x mandatory'
