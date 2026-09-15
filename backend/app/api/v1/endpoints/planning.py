@@ -35,6 +35,7 @@ from app.services.planning_service import (
     compute_semaphore, compute_semaphore_label,
     trigger_double_green, reopen_as_warranty,
     recalculate_dates_proportionally, LANE_CODES,
+    list_scheduled_installation_assignments,
 )
 
 router = APIRouter()
@@ -597,6 +598,16 @@ def baptize_instances(
 # ============================================================
 # 8. ASIGNAR / REASIGNAR EQUIPO INSTALADOR (IM/IP)
 # ============================================================
+
+@router.get("/instances/{instance_id}/assignments")
+def get_instance_installation_assignments(
+    instance_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+) -> Any:
+    _get_instance_or_404(instance_id, session)
+    return list_scheduled_installation_assignments(session, instance_id)
+
 
 @router.post("/instances/{instance_id}/assign-team")
 def assign_installation_team(

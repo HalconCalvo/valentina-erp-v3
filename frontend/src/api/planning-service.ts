@@ -71,6 +71,14 @@ export interface BaptismEntry {
   lot?: string | null;
 }
 
+export interface InstanceInstallationAssignment {
+  lane: 'IM' | 'IP';
+  leader_user_id: number;
+  helper_1_user_id: number | null;
+  helper_2_user_id: number | null;
+  assignment_date: string | null;
+}
+
 export const planningService = {
   getCalendar: (year: number, month: number) =>
     client.get<CalendarFeed>(API_ROUTES.PLANNING.CALENDAR, { params: { year, month } }),
@@ -117,6 +125,13 @@ export const planningService = {
     }
   ) =>
     client.post(`/planning/instances/${instanceId}/assign-team`, payload),
+
+  getInstanceAssignments: (instanceId: number) =>
+    client
+      .get<InstanceInstallationAssignment[]>(
+        `/planning/instances/${instanceId}/assignments`
+      )
+      .then((res) => res.data),
 
   getInstallers: () => client.get('/users/?role=LOGISTICS'),
 };

@@ -11,7 +11,14 @@ from typing import Optional, List, Tuple
 from sqlmodel import Session, select
 
 from app.models.sales import SalesOrderItemInstance, InstanceStatus
-from app.models.production import PayrollPayment, InstallationAssignment, PayrollStatus, ProductionBatch, ProductionBatchStatus
+from app.models.production import (
+    PayrollPayment,
+    InstallationAssignment,
+    InstallationAssignmentStatus,
+    PayrollStatus,
+    ProductionBatch,
+    ProductionBatchStatus,
+)
 
 
 # ============================================================
@@ -352,3 +359,28 @@ def recalculate_dates_proportionally(
             updates[field] = current + delta
 
     return updates
+
+
+def list_scheduled_installation_assignments(
+    session: Session, instance_id: int
+) -> List[dict]:
+    """Asignaciones SCHEDULED de instalación (IM/IP) para una instancia."""
+    rows = session.exec(
+        select(InstallationAssignment).where(
+            InstallationAssignment.instance_id == instance_id,
+            InstallationAssignment.status == InstallationAssignmentStatus.SCHEDULED,
+        )
+    ).all()
+    out: List[dict] = []
+    for a in rows:
+        ad = a.assignment_date.date().isoformat() if a.assignment_date else None
+        out.append(
+            {
+                "lane": a.lane,
+                "leader_user_id": a.leader_user_id,
+                "helper_1_user_id": a.helper_1_user_id,
+                "helper_2_user_id": a.helper_2_user_id,
+                "assignment_date": ad,
+            }
+        )
+    return out

@@ -219,6 +219,26 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
   }, [instance]);
 
   useEffect(() => {
+    if (!instance) return;
+    planningService
+      .getInstanceAssignments(instance.id)
+      .then((rows) => {
+        for (const a of rows) {
+          if (a.lane === 'IM') {
+            setImLeaderId(a.leader_user_id);
+            setImHelper1Id(a.helper_1_user_id ?? '');
+            setImHelper2Id(a.helper_2_user_id ?? '');
+          } else if (a.lane === 'IP') {
+            setIpLeaderId(a.leader_user_id);
+            setIpHelper1Id(a.helper_1_user_id ?? '');
+            setIpHelper2Id(a.helper_2_user_id ?? '');
+          }
+        }
+      })
+      .catch(() => {});
+  }, [instance?.id]);
+
+  useEffect(() => {
     if (!pickerOpenField) return;
     const onDown = (e: MouseEvent) => {
       const t = e.target as HTMLElement | null;
