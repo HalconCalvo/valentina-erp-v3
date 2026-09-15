@@ -518,11 +518,11 @@ export default function ProductionKanbanPage() {
 
     return (
       <div 
-        className="bg-gray-50 p-4 rounded-xl w-80 flex-shrink-0 flex flex-col h-full border border-gray-200"
+        className="bg-gray-50 p-4 rounded-xl w-80 flex-shrink-0 flex flex-col h-full min-h-0 border border-gray-200"
         onDragOver={handleDragOver}
         onDrop={(e) => handleDrop(e, status)}
       >
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex shrink-0 justify-between items-center mb-4">
           <h2 className="font-bold text-gray-700 uppercase tracking-wide text-sm">1. Lote por Producir</h2>
           <span className="bg-gray-200 text-gray-600 text-xs font-bold px-2 py-1 rounded-full">{columnBatches.length}</span>
         </div>
@@ -624,11 +624,11 @@ export default function ProductionKanbanPage() {
 
     return (
       <div 
-        className="bg-blue-50/50 p-4 rounded-xl w-80 flex-shrink-0 flex flex-col h-full border border-blue-100"
+        className="bg-blue-50/50 p-4 rounded-xl w-80 flex-shrink-0 flex flex-col h-full min-h-0 border border-blue-100"
         onDragOver={handleDragOver}
         onDrop={(e) => handleDrop(e, status)}
       >
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex shrink-0 justify-between items-center mb-4">
           <h2 className="font-bold text-blue-800 uppercase tracking-wide text-sm flex items-center gap-2">
             <ArrowRight size={16} /> 2. En Producción
           </h2>
@@ -804,7 +804,7 @@ export default function ProductionKanbanPage() {
 
     return (
       <div
-        className="bg-violet-50/60 p-4 rounded-xl w-[22rem] flex-shrink-0 flex flex-col h-full border border-violet-200"
+        className="bg-violet-50/60 p-4 rounded-xl w-[22rem] flex-shrink-0 flex flex-col h-full min-h-0 border border-violet-200"
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
@@ -817,7 +817,7 @@ export default function ProductionKanbanPage() {
         }}
       >
         {/* Header */}
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex shrink-0 justify-between items-center mb-4">
           <h2 className="font-bold text-violet-900 uppercase tracking-wide text-sm flex items-center gap-2">
             <Boxes size={16} /> 3. En Empaque
           </h2>
@@ -834,7 +834,7 @@ export default function ProductionKanbanPage() {
               handleMoveToReady(instanceIdsFromPackingKeys(selectedPackingIds));
             }}
             disabled={movingToReady}
-            className="mb-3 w-full py-2 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
+            className="mb-3 shrink-0 w-full py-2 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
           >
             <CheckCircle2 size={14} />
             {movingToReady
@@ -1029,7 +1029,7 @@ export default function ProductionKanbanPage() {
 
     return (
       <div
-        className="bg-emerald-50 p-4 rounded-xl w-80 flex-shrink-0 flex flex-col h-full border border-emerald-200"
+        className="bg-emerald-50 p-4 rounded-xl w-80 flex-shrink-0 flex flex-col h-full min-h-0 border border-emerald-200"
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
@@ -1047,7 +1047,7 @@ export default function ProductionKanbanPage() {
           }
         }}
       >
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex shrink-0 justify-between items-center mb-4">
           <h2 className="font-bold text-emerald-800 uppercase tracking-wide text-sm flex items-center gap-2">
             <CheckCircle2 size={16} /> 4. Listo para Instalarse
           </h2>
@@ -1169,8 +1169,8 @@ export default function ProductionKanbanPage() {
   };
 
   return (
-    <div className="p-6 h-full bg-white">
-      <div className="flex justify-between items-center mb-8 
+    <div className="flex flex-col h-[calc(100vh-3.5rem)] -m-6 p-6 min-h-0 overflow-hidden bg-white">
+      <div className="flex shrink-0 justify-between items-center mb-8 
                     border-b pb-4">
         <div>
           <div className="flex items-center">
@@ -1200,7 +1200,7 @@ export default function ProductionKanbanPage() {
         </button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 mb-6">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 mb-6">
         <span className="text-xs font-bold text-gray-500 uppercase tracking-wide mr-2">Material</span>
         {(['ALL', 'MDF', 'PIEDRA'] as const).map((key) => (
           <button
@@ -1219,14 +1219,13 @@ export default function ProductionKanbanPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-10">
+        <div className="flex flex-1 min-h-0 items-center justify-center">
           <p className="text-gray-500 font-medium animate-pulse">Consultando piso de fábrica...</p>
         </div>
       ) : (
         <div 
-          className="flex gap-6 pb-4 h-[calc(100vh-200px)]"
+          className="flex flex-1 min-h-0 h-full gap-6 pb-4 overflow-x-auto"
           style={{ 
-            overflowX: 'auto', 
             WebkitOverflowScrolling: 'touch',
             scrollSnapType: 'x mandatory'
           }}
