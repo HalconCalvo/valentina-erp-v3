@@ -14,6 +14,12 @@ import { VToggle } from '@/components/ui/VToggle';
 const STATUS_READY_TO_INSTALL = 'READY';
 const STATUS_PACKING = 'PACKING';
 
+const packingSelectionKey = (instanceId: number, batchType: string) =>
+  `${instanceId}-${batchType}`;
+
+const instanceIdsFromPackingKeys = (keys: string[]): number[] =>
+  [...new Set(keys.map((k) => Number(k.split('-')[0])))];
+
 type MaterialFilter = 'ALL' | 'MDF' | 'PIEDRA';
 
 const PRODUCTION_READ_ONLY_ROLES = ['ADMIN', 'DESIGN', 'MANAGER'];
@@ -278,7 +284,7 @@ export default function ProductionKanbanPage() {
   const [loadingHerrajesPreview, setLoadingHerrajesPreview] = useState(false);
   const [dispatchingHardware, setDispatchingHardware] = useState<number | null>(null);
   const [selectedPackingIds, setSelectedPackingIds] =
-    useState<number[]>([]);
+    useState<string[]>([]);
   const [movingToReady, setMovingToReady] = useState(false);
   const [readyInstances, setReadyInstances] = useState<any[]>([]);
   const [companyConfig, setCompanyConfig] = useState<{
@@ -398,8 +404,8 @@ export default function ProductionKanbanPage() {
     if (instanceIdStr && instanceIdStr !== '' && newStatus === STATUS_READY_TO_INSTALL) {
       // Si hay instancias seleccionadas, moverlas todas; si no, solo la arrastrada
       const idsToMove = selectedPackingIds.length > 0
-        ? selectedPackingIds
-        : [Number(instanceIdStr)];
+        ? instanceIdsFromPackingKeys(selectedPackingIds)
+        : [Number(instanceIdStr.split('-')[0])];
       await handleMoveToReady(idsToMove);
       return;
     }
@@ -742,11 +748,11 @@ export default function ProductionKanbanPage() {
     }
   };
 
-  const togglePackingSelection = (instanceId: number) => {
+  const togglePackingSelection = (packingKey: string) => {
     setSelectedPackingIds(prev =>
-      prev.includes(instanceId)
-        ? prev.filter(id => id !== instanceId)
-        : [...prev, instanceId]
+      prev.includes(packingKey)
+        ? prev.filter(key => key !== packingKey)
+        : [...prev, packingKey]
     );
   };
 
@@ -825,7 +831,7 @@ export default function ProductionKanbanPage() {
           <button
             type="button"
             onClick={() => {
-              handleMoveToReady(selectedPackingIds);
+              handleMoveToReady(instanceIdsFromPackingKeys(selectedPackingIds));
             }}
             disabled={movingToReady}
             className="mb-3 w-full py-2 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
@@ -867,14 +873,15 @@ export default function ProductionKanbanPage() {
               ? stonePieces >= 1
               : mdf > 0 && herrajes > 0;
             const labelsDone = labelsRequestedInstanceIds[instance.id];
-            const isSelected = selectedPackingIds.includes(instance.id);
+            const packingKey = packingSelectionKey(instance.id, instance.batch_type);
+            const isSelected = selectedPackingIds.includes(packingKey);
 
             return (
               <div
-                key={`${instance.id}-${instance.batch_folio}`}
+                key={packingKey}
                 draggable
                 onDragStart={(e) => {
-                  e.dataTransfer.setData('packingInstanceId', String(instance.id));
+                  e.dataTransfer.setData('packingInstanceId', packingKey);
                   e.dataTransfer.effectAllowed = 'move';
                 }}
                 className={`p-3 rounded-lg shadow-sm border border-l-4 cursor-grab active:cursor-grabbing transition ${
@@ -889,7 +896,7 @@ export default function ProductionKanbanPage() {
                 <div className="flex items-start gap-2 mb-3">
                   <VToggle
                     checked={isSelected}
-                    onCheckedChange={() => togglePackingSelection(instance.id)}
+                    onCheckedChange={() => togglePackingSelection(packingKey)}
                     className="mt-1 shrink-0 w-auto"
                   />
                   <div className="flex-1 min-w-0">
@@ -1029,8 +1036,8 @@ export default function ProductionKanbanPage() {
           const instanceIdStr = e.dataTransfer.getData('packingInstanceId');
           if (instanceIdStr && instanceIdStr !== '') {
             const idsToMove = selectedPackingIds.length > 0
-              ? selectedPackingIds
-              : [Number(instanceIdStr)];
+              ? instanceIdsFromPackingKeys(selectedPackingIds)
+              : [Number(instanceIdStr.split('-')[0])];
             handleMoveToReady(idsToMove);
             return;
           }
