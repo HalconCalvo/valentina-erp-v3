@@ -867,7 +867,7 @@ export default function ProductionKanbanPage() {
             }
             const groups = Array.from(ovMap.values()).sort((a, b) => a.folio.localeCompare(b.folio));
             return groups.map(group => (
-              <details key={group.folio} className="rounded-lg border border-violet-200 overflow-hidden" open={groups.length === 1}>
+              <details key={group.folio} className="rounded-lg border border-violet-200" open={groups.length === 1}>
                 <summary className="flex items-center gap-2 px-3 py-2 bg-violet-100 cursor-pointer list-none hover:bg-violet-200 transition-colors">
                   <span className="text-xs font-black text-violet-800">{group.folio}</span>
                   <span className="text-[10px] text-violet-600 flex-1 truncate">{group.project} — {group.client}</span>
@@ -1083,7 +1083,7 @@ export default function ProductionKanbanPage() {
             }
             const groups = Array.from(ovMap.values()).sort((a, b) => a.folio.localeCompare(b.folio));
             return groups.map(group => (
-              <details key={group.folio} className="rounded-lg border border-emerald-200 overflow-hidden" open={groups.length === 1}>
+              <details key={group.folio} className="rounded-lg border border-emerald-200" open={groups.length === 1}>
                 <summary className="flex items-center gap-2 px-3 py-2 bg-emerald-100 cursor-pointer list-none hover:bg-emerald-200 transition-colors">
                   <span className="text-xs font-black text-emerald-800">{group.folio}</span>
                   <span className="text-[10px] text-emerald-600 flex-1 truncate">{group.project} — {group.client}</span>
