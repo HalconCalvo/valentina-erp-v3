@@ -10,15 +10,8 @@ export default function ProductionReadyPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    productionService.getBatches().then(batches => {
-      const ready = batches
-        .filter(b => b.status === 'READY_TO_INSTALL')
-        .flatMap(b => (b.instances || []).map((inst: any) => ({
-          ...inst,
-          batch_folio: b.folio,
-          batch_type: b.batch_type,
-        })));
-      setInstances(ready);
+    productionService.getReadyInstances().then(data => {
+      setInstances(Array.isArray(data) ? data : []);
     }).catch(() => {})
     .finally(() => setLoading(false));
   }, []);
