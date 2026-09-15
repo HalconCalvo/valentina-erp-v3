@@ -1,11 +1,12 @@
 {
-  "name": "Valentina ERP",
-  "short_name": "Valentina",
-  "description": "Sistema de Gestión de Producción Valentina v3.8",
-  "start_url": "https://valentina-frontend.onrender.com",
+  "name": "Valentina Campo",
+  "short_name": "Campo",
+  "description": "Instalaciones en obra — Valentina PWA",
+  "start_url": "/field",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#1e40af",
-  "theme_color": "#2563eb",
+  "background_color": "#fff7ed",
+  "theme_color": "#ea580c",
   "orientation": "portrait-primary",
   "icons": [
     {

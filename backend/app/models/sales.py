@@ -237,6 +237,11 @@ class SalesOrderItemInstance(SQLModel, table=True):
         default=None, sa_column=Column(JSON)
     )
 
+    leader_mdf_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    leader_stone_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    field_work_notes: Optional[str] = Field(default=None)
+    field_scanned_packages: Optional[List[str]] = Field(default=None, sa_column=Column(JSON))
+
     payment: Optional["CustomerPayment"] = Relationship(back_populates="instances_paid")
     item: Optional["SalesOrderItem"] = Relationship(back_populates="instances")
 

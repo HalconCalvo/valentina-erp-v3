@@ -5,6 +5,7 @@ from app.api.v1.endpoints import finance
 from app.api.v1.endpoints import planning
 from app.api.v1.endpoints import petty_cash
 from app.api.v1.endpoints import admin
+from app.api.v1.endpoints import field
 
 api_router = APIRouter()
 
@@ -28,6 +29,7 @@ api_router.include_router(inventory.router, prefix="/inventory", tags=["inventor
 api_router.include_router(production.router, prefix="/production", tags=["production"])
 api_router.include_router(purchases.router, prefix="/purchases", tags=["purchases"])
 api_router.include_router(logistics.router, prefix="/logistics", tags=["logistics"])
+api_router.include_router(field.router, prefix="/field", tags=["field"])
 
 # 2. ANALYTICS & FINANZAS
 api_router.include_router(analytics.router, prefix="/analytics", tags=["analytics"])

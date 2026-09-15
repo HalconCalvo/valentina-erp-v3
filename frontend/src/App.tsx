@@ -66,11 +66,16 @@ import PlanningPage from './modules/planning/pages/PlanningPage';
 
 // 11. LOGÍSTICA E INSTALACIÓN (iPad / cuadrilla)
 import InstallerWorkdayPage from './modules/logistics/pages/InstallerWorkdayPage';
+import FieldHomePage from './modules/field/pages/FieldHomePage';
+import FieldInstancePage from './modules/field/pages/FieldInstancePage';
 
 /** Rutas accesibles por rol (deep links fuera del menú principal) */
 const roleAccessiblePaths: Record<string, string[]> = {
-  DIRECTOR: ['/director/legacy-import'],
-  MANAGER: ['/director/legacy-import'],
+  DIRECTOR: ['/director/legacy-import', '/field'],
+  MANAGER: ['/director/legacy-import', '/field'],
+  LOGISTICS: ['/field'],
+  PRODUCTION: ['/field'],
+  DESIGN: ['/field'],
 };
 
 // --- GUARDIA DE SEGURIDAD ---
@@ -95,6 +100,10 @@ function AppRoutes() {
       .map(([role]) => role.toUpperCase());
 
   const restrictedPaths = new Set(Object.values(roleAccessiblePaths).flat());
+  const fieldRoles = rolesAllowedForPath('/field');
+  if (pathname.startsWith('/field') && fieldRoles.length > 0 && !fieldRoles.includes(userRole)) {
+    return <Navigate to="/" replace />;
+  }
   if (restrictedPaths.has(pathname)) {
     const allowed = rolesAllowedForPath(pathname);
     if (allowed.length > 0 && !allowed.includes(userRole)) {
@@ -181,6 +190,10 @@ function AppRoutes() {
 
         {/* --- LOGÍSTICA E INSTALACIÓN --- */}
         <Route path="/logistics" element={<InstallerWorkdayPage key={key} />} />
+
+        {/* --- CAMPO PWA --- */}
+        <Route path="/field" element={<FieldHomePage key={key} />} />
+        <Route path="/field/instance/:id" element={<FieldInstancePage key={key} />} />
       </Route>
 
       {/* Fallback */}

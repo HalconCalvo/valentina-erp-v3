@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Package, ShoppingCart, Factory, 
   Truck, Settings, LogOut, ChevronRight, Users, Briefcase, 
   UserCog, Percent, ClipboardList, TrendingUp, Shield, User,
-  Ruler, Hammer, PenTool, Landmark, CalendarDays, FileText
+  Ruler, Hammer, PenTool, Landmark, CalendarDays, FileText, HardHat
 } from 'lucide-react';
 
 import { useFoundations } from '../../modules/foundations/hooks/useFoundations';
@@ -36,6 +36,7 @@ const menuItems = [
   { icon: Factory, label: 'Producción', path: '/production', allowedRoles: ['DIRECTOR', 'MANAGER', 'ADMIN', 'DESIGN', 'PRODUCTION'] },
   { icon: CalendarDays, label: 'Planeación Maestra', path: '/planning', allowedRoles: ['DIRECTOR', 'MANAGER', 'DESIGN', 'PRODUCTION', 'ADMIN', 'SALES'] },
   { icon: Truck, label: 'Logística e Instalación', path: '/logistics', allowedRoles: ['DIRECTOR', 'MANAGER', 'ADMIN', 'WAREHOUSE', 'SALES', 'LOGISTICS', 'PRODUCTION'] },
+  { icon: HardHat, label: 'Campo', path: '/field', allowedRoles: ['DIRECTOR', 'MANAGER', 'LOGISTICS', 'PRODUCTION', 'DESIGN'] },
   { icon: ClipboardList, label: 'Compras y Almacén', path: '/inventory', allowedRoles: ['DIRECTOR', 'MANAGER', 'ADMIN', 'WAREHOUSE', 'PRODUCTION'] },
   { icon: Landmark, label: 'Administración', path: '/treasury', allowedRoles: ['DIRECTOR', 'MANAGER', 'ADMIN'] },
   { icon: UserCog, label: 'Usuarios y Comisiones', path: '/users', allowedRoles: ['DIRECTOR'] },
@@ -46,21 +47,24 @@ const menuItems = [
 // --- REORDENAMIENTO ---
 const rolePriorities: Record<string, string[]> = {
   // Ahora el Director ve su panel estratégico antes que la gerencia
-  'DIRECTOR': ['/', '/director', '/planning', '/management', '/treasury'],
-  'MANAGER': ['/', '/management', '/planning', '/treasury', '/production', '/sales'],
+  'DIRECTOR': ['/', '/director', '/planning', '/management', '/treasury', '/field'],
+  'MANAGER': ['/', '/management', '/planning', '/treasury', '/production', '/sales', '/field'],
   'ADMIN': ['/', '/treasury', '/inventory'],
   // Ventas ya no necesita priorizar /design
   'SALES': ['/', '/sales', '/planning', '/clients', '/logistics'],
-  'DESIGN': ['/', '/design', '/planning', '/production'],
+  'DESIGN': ['/', '/design', '/planning', '/production', '/field'],
   'WAREHOUSE': ['/', '/inventory', '/logistics'],
-  'PRODUCTION': ['/', '/production', '/planning', '/inventory'],
-  'LOGISTICS': ['/', '/logistics', '/production']
+  'PRODUCTION': ['/', '/production', '/planning', '/inventory', '/field'],
+  'LOGISTICS': ['/', '/logistics', '/production', '/field']
 };
 
 /** Rutas permitidas por rol (deep links fuera del menú principal) */
 const roleAllowedPaths: Record<string, string[]> = {
-  DIRECTOR: ['/director/legacy-import'],
-  MANAGER: ['/director/legacy-import'],
+  DIRECTOR: ['/director/legacy-import', '/field'],
+  MANAGER: ['/director/legacy-import', '/field'],
+  LOGISTICS: ['/field'],
+  PRODUCTION: ['/field'],
+  DESIGN: ['/field'],
 };
 
 export default function Sidebar() {
@@ -95,6 +99,7 @@ export default function Sidebar() {
         if (['ADMIN', 'DIRECTOR', 'MANAGER'].includes(userRole) && path === '/treasury') return true;
     }
 
+    if (currentPath.startsWith('/field') && path === '/field') return true;
     if (
       path === '/management'
       && userRole === 'MANAGER'
@@ -102,7 +107,7 @@ export default function Sidebar() {
     ) {
       return true;
     }
-    
+
     return currentPath.startsWith(path);
   };
   
