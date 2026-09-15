@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/Input';
 import { VTable, VTableColumn } from '@/components/ui/VTable';
 import { VToggle } from '@/components/ui/VToggle';
 
-const STATUS_READY_TO_INSTALL = 'READY_TO_INSTALL';
+const STATUS_READY_TO_INSTALL = 'READY';
 const STATUS_PACKING = 'PACKING';
 
 type MaterialFilter = 'ALL' | 'MDF' | 'PIEDRA';

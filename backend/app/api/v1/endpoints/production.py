@@ -762,92 +762,71 @@ def get_instance_herrajes(
 
 @router.get("/instances/ready")
 def get_ready_instances(current_user: CurrentUser, db: Session = Depends(get_session)):
-    """
-    Devuelve una entrada POR CADA TRACK LISTO de una instancia.
-    Una instancia puede aparecer dos veces si tanto su lote MDF como su lote PIEDRA
-    están en READY_TO_INSTALL. Cada entrada representa un track independiente
-    que puede instalarse por separado.
-    """
-    # Buscar todos los lotes en READY_TO_INSTALL
-    ready_batches = db.exec(
-        select(ProductionBatch)
-        .where(ProductionBatch.status == ProductionBatchStatus.READY_TO_INSTALL)
+    """Instancias con production_status READY (andén listo para instalar)."""
+    instances = db.exec(
+        select(SalesOrderItemInstance).where(
+            SalesOrderItemInstance.production_status == InstanceStatus.READY,
+            SalesOrderItemInstance.is_cancelled == False,  # noqa: E712
+        )
     ).all()
 
     result = []
-    for batch in ready_batches:
-        is_stone_batch = batch.batch_type.upper() == "PIEDRA"
+    for i in instances:
+        batch = None
+        is_stone_batch = False
+        if i.production_batch_id:
+            batch = db.get(ProductionBatch, i.production_batch_id)
+        if i.stone_batch_id and batch is None:
+            batch = db.get(ProductionBatch, i.stone_batch_id)
+            is_stone_batch = True
+        elif batch and batch.batch_type.upper() == "PIEDRA":
+            is_stone_batch = True
 
-        # Obtener instancias de este lote
-        if is_stone_batch:
-            instances = db.exec(
-                select(SalesOrderItemInstance)
-                .where(SalesOrderItemInstance.stone_batch_id == batch.id)
-            ).all()
-        else:
-            instances = db.exec(
-                select(SalesOrderItemInstance)
-                .where(SalesOrderItemInstance.production_batch_id == batch.id)
-            ).all()
-
-        for i in instances:
-            # Omitir instancias canceladas
-            if i.is_cancelled:
-                continue
-            # Omitir instancias ya cerradas globalmente
-            if i.production_status == InstanceStatus.CLOSED:
-                continue
-
-            # Enriquecer con OV/cliente/proyecto
-            order_folio = None
-            client_name = None
-            project_name = None
-
-            item = db.exec(
-                select(SalesOrderItem)
-                .where(SalesOrderItem.id == i.sales_order_item_id)
+        order_folio = None
+        client_name = None
+        project_name = None
+        item = db.exec(
+            select(SalesOrderItem).where(SalesOrderItem.id == i.sales_order_item_id)
+        ).first()
+        if item:
+            order = db.exec(
+                select(SalesOrder).where(SalesOrder.id == item.sales_order_id)
             ).first()
-            if item:
-                order = db.exec(
-                    select(SalesOrder)
-                    .where(SalesOrder.id == item.sales_order_id)
-                ).first()
-                if order:
-                    order_folio = f"OV-{str(order.id).zfill(4)}"
-                    project_name = order.project_name
-                    if order.client_id:
-                        client = db.get(Client, order.client_id)
-                        if client:
-                            client_name = client.full_name
+            if order:
+                order_folio = f"OV-{str(order.id).zfill(4)}"
+                project_name = order.project_name
+                if order.client_id:
+                    client = db.get(Client, order.client_id)
+                    if client:
+                        client_name = client.full_name
 
-            # Estado del otro track (para mostrar indicador en la tarjeta)
-            other_track_status = None
-            if is_stone_batch and i.production_batch_id:
-                other = db.get(ProductionBatch, i.production_batch_id)
-                if other:
-                    other_track_status = other.status.value if hasattr(other.status, 'value') else other.status
-            elif not is_stone_batch and i.stone_batch_id:
-                other = db.get(ProductionBatch, i.stone_batch_id)
-                if other:
-                    other_track_status = other.status.value if hasattr(other.status, 'value') else other.status
+        other_track_status = None
+        if is_stone_batch and i.production_batch_id:
+            other = db.get(ProductionBatch, i.production_batch_id)
+            if other:
+                other_track_status = other.status.value if hasattr(other.status, 'value') else other.status
+        elif not is_stone_batch and i.stone_batch_id:
+            other = db.get(ProductionBatch, i.stone_batch_id)
+            if other:
+                other_track_status = other.status.value if hasattr(other.status, 'value') else other.status
 
-            result.append({
-                "id": i.id,
-                "track": "PIEDRA" if is_stone_batch else "MDF",
-                "custom_name": i.custom_name,
-                "production_status": (
-                    i.production_status.value
-                    if hasattr(i.production_status, 'value')
-                    else i.production_status
-                ),
-                "qr_code": i.qr_code,
-                "order_folio": order_folio,
-                "client_name": client_name,
-                "project_name": project_name,
-                "batch_folio": batch.folio,
-                "batch_type": batch.batch_type,
-                "other_track_status": other_track_status,
-            })
+        result.append({
+            "id": i.id,
+            "track": "PIEDRA" if is_stone_batch else "MDF",
+            "custom_name": i.custom_name,
+            "production_status": (
+                i.production_status.value
+                if hasattr(i.production_status, 'value')
+                else i.production_status
+            ),
+            "qr_code": i.qr_code,
+            "order_folio": order_folio,
+            "client_name": client_name,
+            "project_name": project_name,
+            "batch_folio": batch.folio if batch else None,
+            "batch_type": batch.batch_type if batch else None,
+            "other_track_status": other_track_status,
+        })
 
     return result
 
