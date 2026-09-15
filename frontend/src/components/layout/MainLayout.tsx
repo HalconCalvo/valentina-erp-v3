@@ -1,12 +1,17 @@
 import React from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import { VToastContainer } from '@/components/ui/VToast';
 import { useHeartbeat } from '@/hooks/useHeartbeat';
 
+// Routes that need full-height fixed layout (no page scroll)
+const FIXED_LAYOUT_ROUTES = ['/production/kanban'];
+
 export default function MainLayout() {
   useHeartbeat();
+  const location = useLocation();
+  const isFixedLayout = FIXED_LAYOUT_ROUTES.some(r => location.pathname.startsWith(r));
 
   return (
     <VToastContainer>
@@ -23,8 +28,9 @@ export default function MainLayout() {
 
         {/* 3. Área Scrollable */}
         {/* overflow-y-auto: Permite que solo el contenido haga scroll, no toda la página */}
-        <main className="flex-1 overflow-x-auto overflow-y-auto bg-slate-50 p-6">
-          <div className="w-full">
+        {/* overflow-hidden en rutas con layout fijo (kanban) para que las columnas scroll internamente */}
+        <main className={`flex-1 overflow-x-auto bg-slate-50 p-6 ${isFixedLayout ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+          <div className="w-full h-full">
             {/* Aquí se inyectan las páginas (Ventas, Dashboard, etc.) */}
             <Outlet /> 
           </div>

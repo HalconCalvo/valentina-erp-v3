@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { productionService } from '../../../api/production-service';
 import axiosClient from '../../../api/axios-client';
@@ -299,20 +299,7 @@ export default function ProductionKanbanPage() {
     return batches.filter((b) => b.batch_type === materialFilter);
   }, [batches, materialFilter]);
 
-  useLayoutEffect(() => {
-    const mainEl = document.querySelector('main');
-    if (mainEl) {
-      mainEl.classList.add('!overflow-hidden');
-      mainEl.style.setProperty('overflow', 'hidden', 'important');
-    }
-    return () => {
-      const cleanupMain = document.querySelector('main');
-      if (cleanupMain) {
-        cleanupMain.classList.remove('!overflow-hidden');
-        cleanupMain.style.removeProperty('overflow');
-      }
-    };
-  }, []);
+  // Overflow del main controlado en MainLayout via FIXED_LAYOUT_ROUTES
 
   useEffect(() => {
     loadBatches();
