@@ -28,17 +28,10 @@ export default function FactoryFloorPage() {
         batches.filter(b => b.status === 'IN_PRODUCTION')
           .reduce((n, b) => n + (b.instances?.length ?? 0), 0)
       );
-      setReadyCount(
-        batches.reduce(
-          (n, b) =>
-            n +
-            (b.instances?.filter(
-              (inst: { production_status?: string }) =>
-                inst.production_status === 'READY'
-            ).length ?? 0),
-          0
-        )
-      );
+    }).catch(() => {});
+
+    productionService.getReadyInstances().then(instances => {
+      setReadyCount(Array.isArray(instances) ? instances.length : 0);
     }).catch(() => {});
   }, []);
 

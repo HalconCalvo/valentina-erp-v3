@@ -7,6 +7,11 @@ export const productionService = {
     const response = await axiosClient.get('/production/batches');
     return response.data;
   },
+
+  getReadyInstances: async (): Promise<unknown[]> => {
+    const response = await axiosClient.get('/production/instances/ready');
+    return response.data;
+  },
   
   // Crear un nuevo lote 
   createBatch: async (data: { batch_type: string; estimated_merma_percent?: number }): Promise<ProductionBatch> => {
