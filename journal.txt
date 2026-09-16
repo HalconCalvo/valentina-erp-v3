@@ -3387,3 +3387,30 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3 && git pull origin main
 2. Migración de OVs reales (Contabilidad llenando Excel)
 3. Inventario físico de apertura
 4. Arranque en ceros
+
+
+---
+## SESIÓN 2026-09-15 (tarde) — FLUJO DE INSTALACIONES
+
+### Completado:
+- Logística: dashboard con 2 tarjetas (Instalaciones por Instancia / por Equipos)
+- InstallationTeamAgendaPage: agenda diaria por equipo con drag & drop y edición de equipo
+- ProductionReadyPage: corregida para usar getReadyInstances()
+- KPIs de Producción: corregidos (batches endpoint y READY status)
+- InstanceEditModal: instaladores existentes se cargan al abrir el modal
+- InstanceEditModal: botón × para desprogramar carril individual
+- InstanceEditModal: "Desprogramar todo" corregido (z-index VConfirmDialog)
+- Planeación Maestra: instaladores aparecen correctamente al abrir instancia
+
+### Pendiente al regresar:
+- Verificar en producción que "Desprogramar todo" y botón × funcionan
+  (nuevo bundle index-CEMjDHOH.js desplegado)
+- Continuar verificación del flujo completo de instalaciones
+- Probar PWA de Campo (/field) con instalador asignado
+
+### Notas técnicas:
+- Bundle nuevo requiere modo incógnito para ver cambios (caché del navegador)
+- La instancia #1566 (Vida Verde mesetas) tiene fechas PM/PP/IM/IP programadas
+  para hoy y mañana — buena candidata para pruebas
+- David Márquez + Miguel Sosa = equipo IM de instancia #1566
+- Juan Antonio + Dariel Tun = equipo IP de instancia #1566
