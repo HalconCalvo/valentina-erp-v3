@@ -3445,3 +3445,29 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3 && git pull origin main
 2. Migración OVs reales (Contabilidad llenando Excel)
 3. Inventario físico de apertura
 4. Arranque en ceros
+
+
+---
+## SESIÓN 2026-09-17 (tarde) — SIMULADOR Y LOTES
+
+### Completado:
+- Simulador: scroll en columna izquierda RESUELTO (8 horas)
+  * Causa raíz: overflow-hidden en tarjeta OV la colapsaba a 2px
+  * Fix: quitar overflow-hidden de className="border border-slate-200 rounded-lg overflow-hidden"
+  * Commit: 12727b8
+- Lotes de Producción: colapsar/expandir con clic
+  * Por defecto contraídos
+  * ChevronRight/ChevronDown en cabecera
+  * Commit: 9dd8832
+
+### Pendientes:
+1. Verificar que el simulador sigue funcionando con el nuevo deploy
+2. PWA Campo: probar con instalador real asignado
+3. Migración OVs reales (Contabilidad llenando Excel)
+4. Heartbeat 404 — bug menor
+5. Inventario físico de apertura
+6. Arranque en ceros
+
+### Lección aprendida:
+Cuando las tarjetas miden 2px en producción, inspeccionar overflow-hidden
+en el contenedor de la tarjeta — no en la lista ni en los ancestros.
