@@ -30,7 +30,7 @@ export default function MainLayout() {
         {/* overflow-y-auto: Permite que solo el contenido haga scroll, no toda la página */}
         {/* overflow-hidden en rutas con layout fijo (kanban) para que las columnas scroll internamente */}
         <main className={`flex-1 overflow-x-auto bg-slate-50 p-6 ${isFixedLayout ? 'overflow-hidden' : 'overflow-y-auto'}`}>
-          <div className="w-full h-full">
+          <div className={isFixedLayout ? 'h-[calc(100vh-3.5rem)] overflow-hidden' : 'w-full h-full'}>
             {/* Aquí se inyectan las páginas (Ventas, Dashboard, etc.) */}
             <Outlet /> 
           </div>

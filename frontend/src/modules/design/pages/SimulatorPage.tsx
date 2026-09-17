@@ -286,7 +286,7 @@ export default function SimulatorPage() {
   ], []);
 
   return (
-    <div className="p-8 bg-slate-50 flex flex-col max-w-7xl mx-auto animate-in fade-in duration-300">
+    <div className="p-8 h-full min-h-0 max-h-[calc(100vh-3.5rem)] bg-slate-50 flex flex-col max-w-7xl mx-auto overflow-hidden animate-in fade-in duration-300">
       
       <div className="flex shrink-0 justify-end mb-6">
         <button
@@ -307,7 +307,7 @@ export default function SimulatorPage() {
         <p className="text-slate-500 mt-1">Agrupa productos pagados y cruza recetas contra el inventario físico.</p>
       </div>
 
-      <div className="flex gap-6 items-stretch">
+      <div className="flex flex-1 min-h-0 gap-6 overflow-hidden items-stretch">
         
         {/* COLUMNA IZQUIERDA: EL RADAR */}
         <div className="w-1/3 h-full min-h-0 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
@@ -333,7 +333,7 @@ export default function SimulatorPage() {
 
           <div
             className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-3"
-            style={{ height: 'calc(100vh - 260px)', overflowY: 'auto' }}
+            style={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}
           >
             {loadingRadar ? (
               <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2">
