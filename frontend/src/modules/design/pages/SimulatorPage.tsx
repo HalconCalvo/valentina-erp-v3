@@ -332,7 +332,7 @@ export default function SimulatorPage() {
           </div>
 
           <div
-            className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-2"
+            className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-3"
             style={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}
           >
             {loadingRadar ? (
@@ -358,11 +358,11 @@ export default function SimulatorPage() {
                     <button
                       type="button"
                       onClick={() => toggleOrderExpand(group.order_id)}
-                      className="w-full text-left p-3 bg-slate-50 hover:bg-slate-100 transition flex items-center justify-between gap-2"
+                      className="w-full min-h-12 text-left px-4 py-3.5 bg-slate-50 hover:bg-slate-100 transition flex items-center justify-between gap-3"
                     >
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-mono font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 shrink-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-mono font-black text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-200 shrink-0 tracking-tight">
                             OV-{String(group.order_id).padStart(4, '0')}
                           </span>
                           {selectedInGroup > 0 && (
