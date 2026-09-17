@@ -286,7 +286,7 @@ export default function SimulatorPage() {
   ], []);
 
   return (
-    <div className="flex flex-col min-h-0 h-[calc(100vh-3.5rem)] -m-6 p-8 bg-slate-50 max-w-7xl mx-auto overflow-hidden animate-in fade-in duration-300">
+    <div className="p-8 h-full min-h-0 max-h-[calc(100vh-3.5rem)] bg-slate-50 flex flex-col max-w-7xl mx-auto overflow-hidden animate-in fade-in duration-300">
       
       <div className="flex shrink-0 justify-end mb-6">
         <button
@@ -307,10 +307,10 @@ export default function SimulatorPage() {
         <p className="text-slate-500 mt-1">Agrupa productos pagados y cruza recetas contra el inventario físico.</p>
       </div>
 
-      <div className="flex flex-1 min-h-0 gap-6 overflow-hidden">
+      <div className="flex flex-1 min-h-0 gap-6 overflow-hidden items-stretch">
         
         {/* COLUMNA IZQUIERDA: EL RADAR */}
-        <div className="w-1/3 min-h-0 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
+        <div className="w-1/3 h-full min-h-0 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
           <div className="shrink-0 p-4 border-b border-slate-200 bg-slate-50">
             <div className="flex justify-between items-center">
               <h2 className="font-bold text-slate-700 flex items-center gap-2">
@@ -516,7 +516,7 @@ export default function SimulatorPage() {
         </div>
 
         {/* COLUMNA DERECHA: EL SIMULADOR */}
-        <div className="w-2/3 min-h-0 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
+        <div className="w-2/3 min-h-0 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-visible">
           <div className="shrink-0 p-4 border-b border-slate-200 bg-slate-50">
             <h2 className="font-bold text-slate-700 flex items-center gap-2">
               <Factory size={18} className="text-slate-500" /> Configuración del Lote
@@ -570,7 +570,7 @@ export default function SimulatorPage() {
           </div>
 
           {/* RESULTADOS DE LA SIMULACIÓN */}
-          <div className="flex-1 min-h-0 p-6 bg-slate-50 overflow-y-auto">
+          <div className="p-6 bg-slate-50 overflow-visible">
             {!simulationResult ? (
               <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm gap-2">
                 <Beaker size={40} className="opacity-20 mb-2" />
