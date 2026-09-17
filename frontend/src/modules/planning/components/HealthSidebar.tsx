@@ -33,6 +33,19 @@ function hasAnyScheduledDate(inst: InstanceSchedule): boolean {
   return !!(s.PM || s.PP || s.IM || s.IP);
 }
 
+function matchesInstanceQuery(inst: InstanceSchedule, q: string): boolean {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return true;
+  return (
+    inst.custom_name.toLowerCase().includes(needle) ||
+    (inst.product_category?.toLowerCase().includes(needle) ?? false) ||
+    (inst.order_folio?.toLowerCase().includes(needle) ?? false) ||
+    (inst.client_name?.toLowerCase().includes(needle) ?? false) ||
+    (inst.project_name?.toLowerCase().includes(needle) ?? false) ||
+    (inst.product_name?.toLowerCase().includes(needle) ?? false)
+  );
+}
+
 const TABS: TabConfig[] = [
   {
     key: 'RED',
@@ -292,14 +305,24 @@ export default function HealthSidebar({ data, loading, onInstanceClick, onInstan
   const query    = searchQuery;
   const setQuery = onSearchQueryChange;
 
-  // Compute active instances count for the BLUE "Activas" pseudo-tab
-  const activeCount = data ? (data.counts['BLUE'] ?? 0) : 0;
+  const isFiltering = query.trim().length > 0;
 
   const getCount = (tab: TabConfig): number => {
     if (!data) return 0;
-    if (tab.key === 'GRAY') return data.planned.filter(i => !hasAnyScheduledDate(i)).length;
-    if (tab.key === 'SCHEDULED') return data.planned.filter(i => hasAnyScheduledDate(i)).length;
-    return data.counts[tab.countKey] ?? 0;
+    let list = tab.dataKey(data);
+    if (isFiltering) {
+      list = list.filter(inst => matchesInstanceQuery(inst, query));
+    }
+    if (tab.key === 'GRAY') {
+      return list.filter(i => !hasAnyScheduledDate(i)).length;
+    }
+    if (tab.key === 'SCHEDULED') {
+      return list.filter(i => hasAnyScheduledDate(i)).length;
+    }
+    if (isFiltering) {
+      return list.length;
+    }
+    return data.counts[tab.countKey] ?? list.length;
   };
 
   // Raw list from the active tab
@@ -311,23 +334,11 @@ export default function HealthSidebar({ data, loading, onInstanceClick, onInstan
 
   // Filtered list — case-insensitive, multi-field, stable across refreshes
   const instances = useMemo((): InstanceSchedule[] => {
-    const q = query.trim().toLowerCase();
-    if (!q) return rawInstances;
-    return rawInstances.filter(inst => {
-      return (
-        inst.custom_name.toLowerCase().includes(q) ||
-        (inst.product_category?.toLowerCase().includes(q) ?? false) ||
-        (inst.order_folio?.toLowerCase().includes(q)      ?? false) ||
-        (inst.client_name?.toLowerCase().includes(q)      ?? false) ||
-        (inst.project_name?.toLowerCase().includes(q)     ?? false) ||
-        (inst.product_name?.toLowerCase().includes(q)     ?? false)
-      );
-    });
-  }, [rawInstances, query]);
+    if (!isFiltering) return rawInstances;
+    return rawInstances.filter(inst => matchesInstanceQuery(inst, query));
+  }, [rawInstances, query, isFiltering]);
 
   const ovGroups = useMemo(() => groupByOv(instances), [instances]);
-
-  const isFiltering = query.trim().length > 0;
 
   return (
     <div className="flex flex-col h-full bg-white border-l border-slate-100">
@@ -487,9 +498,9 @@ export default function HealthSidebar({ data, loading, onInstanceClick, onInstan
       {data && (
         <div className="px-3 py-3 border-t border-slate-100 grid grid-cols-3 gap-2">
           {[
-            { label: 'Críticos', count: data.counts['RED'] ?? 0,   bg: 'bg-red-50',   text: 'text-red-700'   },
-            { label: 'En Prod.',  count: activeCount,               bg: 'bg-blue-50',  text: 'text-blue-700'  },
-            { label: 'Alertas',  count: data.counts['YELLOW'] ?? 0, bg: 'bg-amber-50', text: 'text-amber-700' },
+            { label: 'Críticos', count: getCount(TABS[0]), bg: 'bg-red-50', text: 'text-red-700' },
+            { label: 'En Prod.', count: getCount(TABS[5]), bg: 'bg-blue-50', text: 'text-blue-700' },
+            { label: 'Alertas', count: getCount(TABS[1]), bg: 'bg-amber-50', text: 'text-amber-700' },
           ].map(item => (
             <div key={item.label} className={`${item.bg} rounded-xl p-2 text-center`}>
               <div className={`text-base font-black ${item.text}`}>{item.count}</div>
