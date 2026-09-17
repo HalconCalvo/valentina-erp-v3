@@ -310,7 +310,7 @@ export default function SimulatorPage() {
       <div className="flex gap-6 items-stretch">
         
         {/* COLUMNA IZQUIERDA: EL RADAR */}
-        <div className="w-1/3 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden" style={{ maxHeight: 'calc(100vh - 160px)' }}>
+        <div className="w-1/3 bg-white rounded-xl shadow-sm border border-slate-200">
           <div className="shrink-0 p-4 border-b border-slate-200 bg-slate-50">
             <div className="flex justify-between items-center">
               <h2 className="font-bold text-slate-700 flex items-center gap-2">
@@ -332,8 +332,7 @@ export default function SimulatorPage() {
           </div>
 
           <div
-            className="overflow-y-auto p-4 flex flex-col gap-3"
-            style={{ height: 'calc(100vh - 260px)' }}
+            style={{ height: 'calc(100vh - 260px)', overflowY: 'scroll', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
           >
             {loadingRadar ? (
               <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2">
