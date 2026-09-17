@@ -28,6 +28,7 @@ export interface InstanceSchedule {
   warranty_reopened_at: string | null;
   original_signed_at: string | null;
   is_cancelled: boolean;
+  stone_pieces: number | null;
 }
 
 export interface CalendarPill {

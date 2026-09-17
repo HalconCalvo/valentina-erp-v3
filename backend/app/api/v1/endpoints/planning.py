@@ -154,6 +154,7 @@ def _serialize_instance(inst: SalesOrderItemInstance, now: datetime, session: Op
         "warranty_reopened_at": inst.warranty_reopened_at.isoformat() if inst.warranty_reopened_at else None,
         "original_signed_at": inst.original_signed_at.isoformat() if inst.original_signed_at else None,
         "is_cancelled": inst.is_cancelled,
+        "stone_pieces": inst.stone_pieces,
     }
 
 

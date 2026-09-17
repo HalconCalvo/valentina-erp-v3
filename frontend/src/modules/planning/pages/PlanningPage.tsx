@@ -199,12 +199,14 @@ export default function PlanningPage() {
 
   const handleUnscheduleAll = useCallback(async () => {
     if (!editingInstance) return;
+    const hasStone = (editingInstance.stone_pieces ?? 0) > 0;
     try {
       await planningService.updateInstance(editingInstance.id, {
-        clear_prod_mdf:   true,
-        clear_prod_stone: true,
-        clear_inst_mdf:   true,
-        clear_inst_stone: true,
+        clear_prod_mdf: true,
+        clear_inst_mdf: true,
+        ...(hasStone
+          ? { clear_prod_stone: true, clear_inst_stone: true }
+          : {}),
       });
       setEditingInstance(null);
       setHighlightDays({});
@@ -215,12 +217,15 @@ export default function PlanningPage() {
   }, [editingInstance, handleRefresh]);
 
   const executeUnscheduleFromDrop = async (id: number) => {
+    const inst = instanceLookup[id];
+    const hasStone = (inst?.stone_pieces ?? 0) > 0;
     try {
       await planningService.updateInstance(id, {
-        clear_prod_mdf:   true,
-        clear_prod_stone: true,
-        clear_inst_mdf:   true,
-        clear_inst_stone: true,
+        clear_prod_mdf: true,
+        clear_inst_mdf: true,
+        ...(hasStone
+          ? { clear_prod_stone: true, clear_inst_stone: true }
+          : {}),
       });
       handleRefresh();
     } catch {

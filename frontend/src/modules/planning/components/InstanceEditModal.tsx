@@ -268,16 +268,20 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
   if (!instance) return null;
 
   const cfg = getSemaphoreConfig(instance.semaphore);
+  const hasStone = (instance.stone_pieces ?? 0) > 0;
+  const visibleLanes = LANE_META.filter(
+    lane => hasStone || (lane.code !== 'PP' && lane.code !== 'IP'),
+  );
 
   // ── Validación de orden lógico: IM y IP no pueden ser anteriores a PM ──
   const orderError = (() => {
     const pm = dates.scheduled_prod_mdf;
     const im = dates.scheduled_inst_mdf;
-    const ip = dates.scheduled_inst_stone;
+    const ip = hasStone ? dates.scheduled_inst_stone : '';
     if (im && pm && im < pm) {
       return `IM (${formatDisplayDate(im)}) no puede ser anterior a PM (${formatDisplayDate(pm)}). No se puede instalar antes de producir.`;
     }
-    if (ip && pm && ip < pm) {
+    if (hasStone && ip && pm && ip < pm) {
       return `IP (${formatDisplayDate(ip)}) no puede ser anterior a PM (${formatDisplayDate(pm)}). No se puede instalar antes de producir.`;
     }
     return null;
@@ -296,23 +300,27 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
         scheduled_prod_mdf: dates.scheduled_prod_mdf
           ? fromInputValue(dates.scheduled_prod_mdf)
           : undefined,
-        scheduled_prod_stone: dates.scheduled_prod_stone
-          ? fromInputValue(dates.scheduled_prod_stone)
-          : undefined,
         scheduled_inst_mdf: dates.scheduled_inst_mdf
           ? fromInputValue(dates.scheduled_inst_mdf)
           : undefined,
-        scheduled_inst_stone: dates.scheduled_inst_stone
-          ? fromInputValue(dates.scheduled_inst_stone)
-          : undefined,
         clear_prod_mdf: !dates.scheduled_prod_mdf &&
           !!instance.schedule.PM,
-        clear_prod_stone: !dates.scheduled_prod_stone &&
-          !!instance.schedule.PP,
         clear_inst_mdf: !dates.scheduled_inst_mdf &&
           !!instance.schedule.IM,
-        clear_inst_stone: !dates.scheduled_inst_stone &&
-          !!instance.schedule.IP,
+        ...(hasStone
+          ? {
+              scheduled_prod_stone: dates.scheduled_prod_stone
+                ? fromInputValue(dates.scheduled_prod_stone)
+                : undefined,
+              scheduled_inst_stone: dates.scheduled_inst_stone
+                ? fromInputValue(dates.scheduled_inst_stone)
+                : undefined,
+              clear_prod_stone: !dates.scheduled_prod_stone &&
+                !!instance.schedule.PP,
+              clear_inst_stone: !dates.scheduled_inst_stone &&
+                !!instance.schedule.IP,
+            }
+          : {}),
       });
       onSaved();
       onClose();
@@ -565,8 +573,10 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">
               Estado de Tracks
             </label>
-            <div className="grid grid-cols-2 gap-2">
-              {(['MDF', 'STONE'] as TrackKey[]).map(trackKey => {
+            <div className={`grid gap-2 ${hasStone ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              {(['MDF', 'STONE'] as TrackKey[])
+                .filter(trackKey => hasStone || trackKey === 'MDF')
+                .map(trackKey => {
                 const status = computeTrackStatus(trackKey, instance);
                 if (!status) return null;
                 const isStone = trackKey === 'STONE';
@@ -598,7 +608,7 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
             </label>
 
             <div className="space-y-3">
-              {LANE_META.map(lane => {
+              {visibleLanes.map(lane => {
                 const hasDate     = !!dates[lane.field];
                 const displayText = hasDate
                   ? `${lane.code}, ${formatDisplayDate(dates[lane.field])}`
@@ -824,7 +834,7 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
             </div>
           )}
 
-          {dates.scheduled_inst_stone && !readOnly && (
+          {hasStone && dates.scheduled_inst_stone && !readOnly && (
             <div>
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 block">
                 👷 Equipo — Instalación Piedra (IP)
@@ -924,9 +934,9 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
           <div>
             {!readOnly &&
               (instance.schedule.PM ||
-                instance.schedule.PP ||
                 instance.schedule.IM ||
-                instance.schedule.IP) && (
+                (hasStone &&
+                  (instance.schedule.PP || instance.schedule.IP))) && (
               <button
                 type="button"
                 onClick={() => setShowUnscheduleConfirm(true)}
@@ -989,7 +999,11 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
           overlayZIndex={70}
           title="Desprogramar instancia"
           message="¿Desprogramar todos los procesos de esta instancia?"
-          consequence="Se eliminarán PM, PP, IM e IP del calendario."
+          consequence={
+            hasStone
+              ? 'Se eliminarán PM, PP, IM e IP del calendario.'
+              : 'Se eliminarán PM e IM del calendario.'
+          }
           variant="danger"
           confirmLabel="Sí, desprogramar"
           onConfirm={async () => {
