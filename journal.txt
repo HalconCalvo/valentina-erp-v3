@@ -3414,3 +3414,34 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3 && git pull origin main
   para hoy y mañana — buena candidata para pruebas
 - David Márquez + Miguel Sosa = equipo IM de instancia #1566
 - Juan Antonio + Dariel Tun = equipo IP de instancia #1566
+
+
+---
+## SESIÓN 2026-09-17 — FLUJO INSTALACIONES Y CORRECCIONES
+
+### Completado:
+- Planeación Maestra: PP/IP ocultos cuando stone_pieces es NULL/0
+- Planeación Maestra: semáforos filtran por OV activa en búsqueda
+- Planeación Maestra: calendar refresh async después de desprogramar
+- Logística: dashboard con 2 tarjetas funcionando
+- Producción Kanban: scroll en columnas funcionando (fix en MainLayout via FIXED_LAYOUT_ROUTES)
+- Instaladores existentes se cargan al abrir InstanceEditModal
+- Botón × para desprogramar carril individual
+- VConfirmDialog z-index corregido (detrás de InstanceEditModal)
+
+### PENDIENTE INMEDIATO — Simulador scroll:
+- Las tarjetas de OV se ven perfectamente (commit 857f2a5)
+- Solo falta scroll en la columna izquierda
+- El scroll de página global está eliminado
+- La instrucción a Cursor debe ser: agregar solo scroll a la columna
+  izquierda SIN tocar el tamaño de las tarjetas
+- Commit de referencia visual buena: 857f2a5
+
+### Heartbeat 404:
+- El endpoint /users/heartbeat devuelve 404 — bug menor pendiente
+
+### Pendientes mayores:
+1. PWA Campo: probar con instalador real asignado
+2. Migración OVs reales (Contabilidad llenando Excel)
+3. Inventario físico de apertura
+4. Arranque en ceros
