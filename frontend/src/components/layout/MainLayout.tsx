@@ -6,7 +6,7 @@ import { VToastContainer } from '@/components/ui/VToast';
 import { useHeartbeat } from '@/hooks/useHeartbeat';
 
 // Routes that need full-height fixed layout (no page scroll)
-const FIXED_LAYOUT_ROUTES = ['/production/kanban'];
+const FIXED_LAYOUT_ROUTES = ['/production/kanban', '/design/simulator'];
 
 export default function MainLayout() {
   useHeartbeat();
