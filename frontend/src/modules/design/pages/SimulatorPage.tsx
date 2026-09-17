@@ -285,12 +285,10 @@ export default function SimulatorPage() {
     },
   ], []);
 
-  const listHeight = 'calc(100vh - 280px)';
-
   return (
-    <div style={{ padding: '2rem', background: '#f8fafc', maxWidth: '1280px', margin: '0 auto' }}>
+    <div className="p-8 bg-slate-50 flex flex-col max-w-7xl mx-auto animate-in fade-in duration-300">
       
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
+      <div className="flex shrink-0 justify-end mb-6">
         <button
           onClick={() => navigate('/design')}
           className="flex items-center gap-2 bg-white border 
@@ -309,11 +307,11 @@ export default function SimulatorPage() {
         <p className="text-slate-500 mt-1">Agrupa productos pagados y cruza recetas contra el inventario físico.</p>
       </div>
 
-      <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
+      <div className="flex gap-6 items-stretch">
         
         {/* COLUMNA IZQUIERDA: EL RADAR */}
-        <div style={{ width: '33%', background: 'white', borderRadius: '0.75rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', border: '1px solid #e2e8f0' }}>
-          <div style={{ padding: '1rem', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', borderRadius: '0.75rem 0.75rem 0 0' }}>
+        <div className="w-1/3 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 160px)' }}>
+          <div className="shrink-0 p-4 border-b border-slate-200 bg-slate-50">
             <div className="flex justify-between items-center">
               <h2 className="font-bold text-slate-700 flex items-center gap-2">
                 <Package size={18} className="text-slate-500" /> Órdenes Pendientes
@@ -333,7 +331,10 @@ export default function SimulatorPage() {
             )}
           </div>
 
-          <div style={{ height: listHeight, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div
+            className="flex-none min-h-0 overflow-y-auto p-4 flex flex-col gap-3"
+            style={{ height: 'calc(100vh - 260px)', overflowY: 'auto' }}
+          >
             {loadingRadar ? (
               <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2">
                 <RefreshCw className="animate-spin" size={24} />
@@ -352,7 +353,7 @@ export default function SimulatorPage() {
                 ).length;
                 return (
                   <div key={group.order_id}
-                       className="border border-slate-200 rounded-lg">
+                       className="border border-slate-200 rounded-lg overflow-hidden">
                     {/* Tarjeta OV — clickeable para expandir */}
                     <button
                       type="button"

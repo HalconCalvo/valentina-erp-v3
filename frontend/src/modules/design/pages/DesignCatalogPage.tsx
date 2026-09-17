@@ -77,6 +77,15 @@ const DesignCatalogPage: React.FC = () => {
     const [liveBatches, setLiveBatches] = useState<any[]>([]);
     const [loadingLiveBatches, setLoadingLiveBatches] = useState(false);
     const [deletingBatchId, setDeletingBatchId] = useState<number | null>(null);
+    const [expandedLiveBatchIds, setExpandedLiveBatchIds] = useState<Set<number>>(new Set());
+
+    const toggleLiveBatchExpand = (batchId: number) => {
+        setExpandedLiveBatchIds(prev => {
+            const next = new Set(prev);
+            next.has(batchId) ? next.delete(batchId) : next.add(batchId);
+            return next;
+        });
+    };
 
     // --- SEGURIDAD ---
     const [userRole, setUserRole] = useState('ADMIN');
@@ -1263,27 +1272,47 @@ const DesignCatalogPage: React.FC = () => {
                                     {liveBatches.map((batch: any) => {
                                         const cfg = batchStatusConfig[batch.status]
                                             ?? { label: batch.status, color: 'bg-gray-100 text-gray-600' };
+                                        const isBatchExpanded = expandedLiveBatchIds.has(batch.id);
+                                        const instanceCount = (batch.instances || []).length;
                                         return (
                                             <div
                                                 key={batch.id}
                                                 className="bg-white rounded-xl border border-slate-200 
                              shadow-sm overflow-hidden"
                                             >
-                                                {/* Header del lote */}
-                                                <div className="flex items-center justify-between 
+                                                {/* Header del lote — clic para expandir/contraer */}
+                                                <div
+                                                    className={`flex items-center justify-between 
                                   px-5 py-3 bg-slate-50 
-                                  border-b border-slate-200">
-                                                    <div className="flex items-center gap-3">
+                                  ${isBatchExpanded ? 'border-b border-slate-200' : ''}`}
+                                                >
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => toggleLiveBatchExpand(batch.id)}
+                                                        className="flex items-center gap-3 flex-1 min-w-0 text-left
+                                                                   hover:text-indigo-700 transition-colors"
+                                                        title={isBatchExpanded ? 'Contraer lote' : 'Expandir lote'}
+                                                    >
+                                                        {isBatchExpanded ? (
+                                                            <ChevronDown size={18} className="text-slate-500 shrink-0" />
+                                                        ) : (
+                                                            <ChevronRight size={18} className="text-slate-500 shrink-0" />
+                                                        )}
                                                         <span className="font-black text-slate-800 text-sm">
                                                             {batch.folio}
                                                         </span>
                                                         <span className="text-xs font-semibold px-2 py-0.5 
                                        rounded-full bg-slate-200 
-                                       text-slate-600">
+                                       text-slate-600 shrink-0">
                                                             {batch.batch_type}
                                                         </span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
+                                                        {!isBatchExpanded && instanceCount > 0 && (
+                                                            <span className="text-xs text-slate-500 shrink-0">
+                                                                {instanceCount} instancia{instanceCount !== 1 ? 's' : ''}
+                                                            </span>
+                                                        )}
+                                                    </button>
+                                                    <div className="flex items-center gap-2 shrink-0">
                                                         <span className={`text-xs font-bold px-3 py-1 
                                      rounded-full ${cfg.color}`}>
                                                             {cfg.label}
@@ -1305,7 +1334,7 @@ const DesignCatalogPage: React.FC = () => {
                                                 </div>
 
                                                 {/* Instancias del lote */}
-                                                {(batch.instances || []).length === 0 ? (
+                                                {isBatchExpanded && (instanceCount === 0 ? (
                                                     <p className="px-5 py-3 text-xs text-slate-400 italic">
                                                         Sin instancias asignadas.
                                                     </p>
@@ -1348,7 +1377,7 @@ const DesignCatalogPage: React.FC = () => {
                                                             </div>
                                                         ))}
                                                     </div>
-                                                )}
+                                                ))}
                                             </div>
                                         );
                                     })}
