@@ -115,9 +115,8 @@ export default function PlanningPage() {
   // (hook objects are new each render, but the individual callbacks are useCallback-stable)
   const calendarRefresh = calendar.refresh;
   const healthRefresh   = health.refresh;
-  const handleRefresh = useCallback(() => {
-    calendarRefresh();
-    healthRefresh();
+  const handleRefresh = useCallback(async () => {
+    await Promise.all([calendarRefresh(), healthRefresh()]);
   }, [calendarRefresh, healthRefresh]);
 
   // Open edit modal from health sidebar card
@@ -210,7 +209,8 @@ export default function PlanningPage() {
       });
       setEditingInstance(null);
       setHighlightDays({});
-      handleRefresh();
+      setHighlightInstanceId(null);
+      await handleRefresh();
     } catch {
       toast.error('Error al desprogramar la instancia. Intenta de nuevo.');
     }

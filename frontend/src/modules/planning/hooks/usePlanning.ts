@@ -160,7 +160,7 @@ export function usePlanningCalendar() {
     else setMonth(m => m + 1);
   };
 
-  const refresh = () => fetch(year, month);
+  const refresh = useCallback(() => fetch(year, month), [fetch, year, month]);
 
   /** Navigate to the month that contains the given YYYY-MM-DD date string */
   const goToDate = useCallback((dateStr: string) => {
