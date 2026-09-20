@@ -595,7 +595,10 @@ const DesignCatalogPage: React.FC = () => {
     };
 
     const navigateBack = () => {
-        if (viewHistory.length === 0) return;
+        if (viewHistory.length === 0) {
+            navigate('/design');
+            return;
+        }
         const prev = viewHistory[viewHistory.length - 1];
         setViewHistory(h => h.slice(0, -1));
         setCurrentView(prev as any);
