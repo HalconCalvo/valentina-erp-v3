@@ -485,7 +485,7 @@ export default function SimulatorPage() {
                                         <span className="text-[10px] font-mono font-bold text-indigo-600 shrink-0">
                                           OV-{String(inst.order_id).padStart(4, '0')}
                                         </span>
-                                        <h3 className="font-bold text-slate-800 text-sm truncate">
+                                        <h3 className="font-bold text-slate-800 text-sm min-w-0 flex-1 break-words">
                                           {inst.custom_name}
                                         </h3>
                                       </div>
