@@ -353,7 +353,7 @@ export default function SimulatorPage() {
                 ).length;
                 return (
                   <div key={group.order_id}
-                       className="border border-slate-200 rounded-lg overflow-hidden">
+                       className="border border-slate-200 rounded-lg">
                     {/* Tarjeta OV — clickeable para expandir */}
                     <button
                       type="button"
