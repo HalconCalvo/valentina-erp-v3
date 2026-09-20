@@ -674,6 +674,8 @@ def simulate_batch(
             material = session.exec(
                 select(Material).where(Material.id == comp.material_id)
             ).first()
+            if material and material.is_resale:
+                continue
             cat_material = (material.category or "").upper() if material else ""
             # PROCESO nunca es inventariable
             if cat_material == "PROCESO":
@@ -698,6 +700,8 @@ def simulate_batch(
     for mat_id, req_qty in aggregated_bom.items():
         material = session.exec(select(Material).where(Material.id == mat_id)).first()
         if not material:
+            continue
+        if material.is_resale:
             continue
 
         available_qty = material.physical_stock - material.committed_stock
