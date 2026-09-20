@@ -604,6 +604,9 @@ const DesignCatalogPage: React.FC = () => {
         setCurrentView(prev as any);
     };
 
+    const cameFromSimulator =
+        document.referrer.includes('/design/simulator') || location.key !== 'default';
+
     const handleDeleteBatch = (batchId: number, folio: string) => {
         setPendingConfirm({ kind: 'DELETE_BATCH', batchId, folio });
     };
@@ -940,7 +943,7 @@ const DesignCatalogPage: React.FC = () => {
             {/* =========================================
                 VISTA 2: SUBMÓDULOS ACTIVOS
             ========================================= */}
-            {currentView !== 'HOME' && (
+            {(currentView !== 'HOME' || cameFromSimulator) && (
                 <div className="animate-in slide-in-from-right-8 duration-300">
                     
                     <div className="flex justify-end mb-6">
