@@ -519,7 +519,7 @@ export default function SimulatorPage() {
         </div>
 
         {/* COLUMNA DERECHA: EL SIMULADOR */}
-        <div className="w-2/3 min-h-0 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-visible">
+        <div className="w-2/3 min-h-0 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-auto">
           <div className="shrink-0 p-4 border-b border-slate-200 bg-slate-50">
             <h2 className="font-bold text-slate-700 flex items-center gap-2">
               <Factory size={18} className="text-slate-500" /> Configuración del Lote
@@ -618,7 +618,10 @@ export default function SimulatorPage() {
                 </div>
 
                 <h4 className="font-bold text-slate-700 mb-3 text-sm flex items-center gap-2"><Beaker size={16} className="text-slate-400"/> Desglose de Receta vs Inventario Físico</h4>
-                <div className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm">
+                <div
+                  className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm"
+                  style={{ maxHeight: 'calc(100vh - 420px)', overflowY: 'auto' }}
+                >
                   <VTable
                     columns={materialColumns as unknown as VTableColumn<Record<string, unknown>>[]}
                     data={(simulationResult.materials || []) as unknown as Record<string, unknown>[]}
