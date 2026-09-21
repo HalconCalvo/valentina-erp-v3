@@ -104,6 +104,54 @@ const LANE_LABELS: Record<string, string> = {
   IP: 'I.Piedra',
 };
 
+const PRODUCTION_COMPLETE_STATUSES = new Set([
+  'IN_PRODUCTION',
+  'PACKING',
+  'READY',
+  'CARGADO',
+  'INSTALLED',
+  'CLOSED',
+]);
+
+function formatShortDayMonth(iso: string): string {
+  return new Date(iso).toLocaleDateString('es-MX', {
+    day: '2-digit',
+    month: 'short',
+  });
+}
+
+function InstanceTrackSummary({ instance }: { instance: InstanceSchedule }) {
+  const isResale = instance.is_resale === true;
+  const prodComplete = PRODUCTION_COMPLETE_STATUSES.has(
+    String(instance.production_status).toUpperCase(),
+  );
+  const pm = instance.schedule.PM;
+  const im = instance.schedule.IM;
+
+  return (
+    <div className="mt-1.5 ml-[30px] space-y-0.5">
+      {!isResale && (
+        prodComplete ? (
+          <p className="text-xs font-medium text-emerald-600">Producción ✓</p>
+        ) : pm ? (
+          <p className="text-xs text-slate-700">
+            Prod: {formatShortDayMonth(pm)}
+          </p>
+        ) : (
+          <p className="text-xs text-slate-400">Prod: sin programar</p>
+        )
+      )}
+      {im ? (
+        <p className="text-xs font-medium text-blue-600">
+          Inst: {formatShortDayMonth(im)}
+        </p>
+      ) : (
+        <p className="text-xs text-slate-400">Inst: por programar</p>
+      )}
+    </div>
+  );
+}
+
 function InstanceCard({
   instance,
   onClick,
@@ -164,10 +212,8 @@ function InstanceCard({
         </div>
       </div>
 
-      {/* ── Row 2: Semaphore label ── */}
-      <p className={`text-[10px] font-medium mt-1.5 ml-[30px] ${cfg.text}`}>
-        {cfg.label}
-      </p>
+      {/* ── Row 2: Producción / instalación ── */}
+      <InstanceTrackSummary instance={instance} />
 
       {/* ── Row 3: Scheduled lane chips ── */}
       {schedEntries.length > 0 && (
