@@ -270,9 +270,7 @@ export default function SimulatorPage() {
   const stoneCountByOrder = useMemo(() => {
     const counts = new Map<number, number>();
     for (const inst of pendingByType.PIEDRA) {
-      if ((inst.stone_pieces ?? 0) > 0) {
-        counts.set(inst.order_id, (counts.get(inst.order_id) ?? 0) + 1);
-      }
+      counts.set(inst.order_id, (counts.get(inst.order_id) ?? 0) + 1);
     }
     return counts;
   }, [pendingByType.PIEDRA]);
