@@ -238,27 +238,6 @@ export default function SimulatorPage() {
     }
   };
 
-  const instancesByOrder = useMemo(() => {
-    const groups = new Map<number, {
-      order_id: number;
-      order_project_name: string;
-      client_name: string | null;
-      instances: typeof pendingInstances;
-    }>();
-    for (const inst of pendingInstances) {
-      if (!groups.has(inst.order_id)) {
-        groups.set(inst.order_id, {
-          order_id: inst.order_id,
-          order_project_name: inst.order_project_name,
-          client_name: inst.client_name ?? null,
-          instances: [],
-        });
-      }
-      groups.get(inst.order_id)!.instances.push(inst);
-    }
-    return Array.from(groups.values());
-  }, [pendingInstances]);
-
   const mdfCountByOrder = useMemo(() => {
     const counts = new Map<number, number>();
     for (const inst of pendingByType.MDF) {
@@ -274,6 +253,42 @@ export default function SimulatorPage() {
     }
     return counts;
   }, [pendingByType.PIEDRA]);
+
+  const instancesByOrder = useMemo(() => {
+    const metadata = new Map<number, {
+      order_id: number;
+      order_project_name: string;
+      client_name: string | null;
+    }>();
+    for (const inst of [...pendingByType.MDF, ...pendingByType.PIEDRA]) {
+      if (!metadata.has(inst.order_id)) {
+        metadata.set(inst.order_id, {
+          order_id: inst.order_id,
+          order_project_name: inst.order_project_name,
+          client_name: inst.client_name ?? null,
+        });
+      }
+    }
+
+    const activeByOrder = new Map<number, typeof pendingInstances>();
+    for (const inst of pendingInstances) {
+      if (!activeByOrder.has(inst.order_id)) {
+        activeByOrder.set(inst.order_id, []);
+      }
+      activeByOrder.get(inst.order_id)!.push(inst);
+    }
+
+    return Array.from(metadata.values())
+      .filter(meta => {
+        const mdf = mdfCountByOrder.get(meta.order_id) ?? 0;
+        const stone = stoneCountByOrder.get(meta.order_id) ?? 0;
+        return mdf > 0 || stone > 0;
+      })
+      .map(meta => ({
+        ...meta,
+        instances: activeByOrder.get(meta.order_id) ?? [],
+      }));
+  }, [pendingInstances, pendingByType, mdfCountByOrder, stoneCountByOrder]);
 
   const materialColumns = useMemo((): VTableColumn<any>[] => [
     {
