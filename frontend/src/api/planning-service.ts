@@ -87,6 +87,9 @@ export const planningService = {
   getHealth: () =>
     client.get<HealthPanel>(API_ROUTES.PLANNING.HEALTH),
 
+  getInstance: (id: number) =>
+    client.get<InstanceSchedule>(API_ROUTES.PLANNING.INSTANCE(id)),
+
   updateInstance: (id: number, data: Partial<{
     custom_name: string;
     scheduled_prod_mdf: string | null;

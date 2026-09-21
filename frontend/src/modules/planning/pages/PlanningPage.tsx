@@ -159,7 +159,7 @@ export default function PlanningPage() {
       is_cancelled: false,
     });
     setLoadingInstance(true);
-    planningService.updateInstance(pill.instance_id, {}).then(res => {
+    planningService.getInstance(pill.instance_id).then(res => {
       setEditingInstance(res.data);
     }).catch(() => {
       // keep minimal fallback

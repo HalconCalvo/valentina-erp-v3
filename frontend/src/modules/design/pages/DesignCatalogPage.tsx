@@ -1335,7 +1335,7 @@ const DesignCatalogPage: React.FC = () => {
                    text-red-600 bg-red-50 hover:bg-red-100
                    transition disabled:opacity-40"
                                                             >
-                                                                {deletingBatchId === batch.id ? 'Deteniendo...' : '🛑 ALTO'}
+                                                                {deletingBatchId === batch.id ? 'Deteniendo...' : '🛑 Cancelar Lote'}
                                                             </button>
                                                         )}
                                                     </div>

@@ -39,6 +39,20 @@ const LANE_META = [
 
 type LaneField = typeof LANE_META[number]['field'];
 
+/** Producción ya iniciada o terminada — PM/PP no deben editarse. */
+const PRODUCTION_LOCKED_STATUSES = new Set([
+  'IN_PRODUCTION',
+  'PACKING',
+  'READY',
+  'INSTALLED',
+  'CLOSED',
+  'CARGADO',
+]);
+
+function isProductionTrackLocked(productionStatus: string): boolean {
+  return PRODUCTION_LOCKED_STATUSES.has(String(productionStatus).toUpperCase());
+}
+
 type PendingLaneConfirm = {
   field: LaneField;
   dayStr: string;
@@ -269,9 +283,13 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
 
   const cfg = getSemaphoreConfig(instance.semaphore);
   const hasStone = (instance.stone_pieces ?? 0) > 0;
-  const visibleLanes = LANE_META.filter(
-    lane => hasStone || (lane.code !== 'PP' && lane.code !== 'IP'),
-  );
+  const prodLanesLocked = isProductionTrackLocked(instance.production_status);
+  const visibleLanes = LANE_META.filter(lane => {
+    if (prodLanesLocked && (lane.code === 'PM' || lane.code === 'PP')) {
+      return false;
+    }
+    return hasStone || (lane.code !== 'PP' && lane.code !== 'IP');
+  });
 
   // ── Validación de orden lógico: IM y IP no pueden ser anteriores a PM ──
   const orderError = (() => {
@@ -297,26 +315,34 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
     try {
       await planningService.updateInstance(instance.id, {
         custom_name: name.trim() || instance.custom_name,
-        scheduled_prod_mdf: dates.scheduled_prod_mdf
-          ? fromInputValue(dates.scheduled_prod_mdf)
-          : undefined,
+        ...(!prodLanesLocked
+          ? {
+              scheduled_prod_mdf: dates.scheduled_prod_mdf
+                ? fromInputValue(dates.scheduled_prod_mdf)
+                : undefined,
+              clear_prod_mdf: !dates.scheduled_prod_mdf &&
+                !!instance.schedule.PM,
+            }
+          : {}),
         scheduled_inst_mdf: dates.scheduled_inst_mdf
           ? fromInputValue(dates.scheduled_inst_mdf)
           : undefined,
-        clear_prod_mdf: !dates.scheduled_prod_mdf &&
-          !!instance.schedule.PM,
         clear_inst_mdf: !dates.scheduled_inst_mdf &&
           !!instance.schedule.IM,
         ...(hasStone
           ? {
-              scheduled_prod_stone: dates.scheduled_prod_stone
-                ? fromInputValue(dates.scheduled_prod_stone)
-                : undefined,
+              ...(!prodLanesLocked
+                ? {
+                    scheduled_prod_stone: dates.scheduled_prod_stone
+                      ? fromInputValue(dates.scheduled_prod_stone)
+                      : undefined,
+                    clear_prod_stone: !dates.scheduled_prod_stone &&
+                      !!instance.schedule.PP,
+                  }
+                : {}),
               scheduled_inst_stone: dates.scheduled_inst_stone
                 ? fromInputValue(dates.scheduled_inst_stone)
                 : undefined,
-              clear_prod_stone: !dates.scheduled_prod_stone &&
-                !!instance.schedule.PP,
               clear_inst_stone: !dates.scheduled_inst_stone &&
                 !!instance.schedule.IP,
             }
@@ -448,12 +474,16 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
       // Esto garantiza que el backend no rechace el assign-team por falta de fecha.
       await planningService.updateInstance(instance.id, {
         custom_name: name.trim() || instance.custom_name,
-        scheduled_prod_mdf: dates.scheduled_prod_mdf ? fromInputValue(dates.scheduled_prod_mdf) : undefined,
-        scheduled_prod_stone: dates.scheduled_prod_stone ? fromInputValue(dates.scheduled_prod_stone) : undefined,
+        ...(!prodLanesLocked
+          ? {
+              scheduled_prod_mdf: dates.scheduled_prod_mdf ? fromInputValue(dates.scheduled_prod_mdf) : undefined,
+              scheduled_prod_stone: dates.scheduled_prod_stone ? fromInputValue(dates.scheduled_prod_stone) : undefined,
+              clear_prod_mdf: !dates.scheduled_prod_mdf && !!instance.schedule.PM,
+              clear_prod_stone: !dates.scheduled_prod_stone && !!instance.schedule.PP,
+            }
+          : {}),
         scheduled_inst_mdf: dates.scheduled_inst_mdf ? fromInputValue(dates.scheduled_inst_mdf) : undefined,
         scheduled_inst_stone: dates.scheduled_inst_stone ? fromInputValue(dates.scheduled_inst_stone) : undefined,
-        clear_prod_mdf: !dates.scheduled_prod_mdf && !!instance.schedule.PM,
-        clear_prod_stone: !dates.scheduled_prod_stone && !!instance.schedule.PP,
         clear_inst_mdf: !dates.scheduled_inst_mdf && !!instance.schedule.IM,
         clear_inst_stone: !dates.scheduled_inst_stone && !!instance.schedule.IP,
       });
@@ -495,12 +525,16 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
       // Paso 1: Persistir las 4 fechas del estado local antes de asignar equipo.
       await planningService.updateInstance(instance.id, {
         custom_name: name.trim() || instance.custom_name,
-        scheduled_prod_mdf: dates.scheduled_prod_mdf ? fromInputValue(dates.scheduled_prod_mdf) : undefined,
-        scheduled_prod_stone: dates.scheduled_prod_stone ? fromInputValue(dates.scheduled_prod_stone) : undefined,
+        ...(!prodLanesLocked
+          ? {
+              scheduled_prod_mdf: dates.scheduled_prod_mdf ? fromInputValue(dates.scheduled_prod_mdf) : undefined,
+              scheduled_prod_stone: dates.scheduled_prod_stone ? fromInputValue(dates.scheduled_prod_stone) : undefined,
+              clear_prod_mdf: !dates.scheduled_prod_mdf && !!instance.schedule.PM,
+              clear_prod_stone: !dates.scheduled_prod_stone && !!instance.schedule.PP,
+            }
+          : {}),
         scheduled_inst_mdf: dates.scheduled_inst_mdf ? fromInputValue(dates.scheduled_inst_mdf) : undefined,
         scheduled_inst_stone: dates.scheduled_inst_stone ? fromInputValue(dates.scheduled_inst_stone) : undefined,
-        clear_prod_mdf: !dates.scheduled_prod_mdf && !!instance.schedule.PM,
-        clear_prod_stone: !dates.scheduled_prod_stone && !!instance.schedule.PP,
         clear_inst_mdf: !dates.scheduled_inst_mdf && !!instance.schedule.IM,
         clear_inst_stone: !dates.scheduled_inst_stone && !!instance.schedule.IP,
       });

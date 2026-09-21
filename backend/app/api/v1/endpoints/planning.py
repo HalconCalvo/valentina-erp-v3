@@ -4,6 +4,7 @@ planning.py  –  Endpoints del Módulo de Planeación Estratégica: Matriz de 4
 Rutas:
   GET  /planning/calendar              → Feed de píldoras para el Calendario Maestro
   GET  /planning/instances/health      → Panel de Salud agrupado por semáforo
+  GET  /planning/instances/{id}        → Detalle de instancia (fechas programadas)
   PATCH /planning/instances/{id}       → Editar custom_name y fechas programadas
   PATCH /planning/instances/{id}/reschedule → Drag & Drop con recálculo proporcional
   POST /planning/instances/{id}/close  → Evento Maestro: Doble Verde 🟢🟢
@@ -341,7 +342,23 @@ def get_health_panel(
 
 
 # ============================================================
-# 3. EDITAR INSTANCIA (custom_name + fechas)
+# 3. DETALLE DE INSTANCIA
+# ============================================================
+
+@router.get("/instances/{instance_id}")
+def get_instance_schedule(
+    instance_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+) -> Any:
+    inst = _get_instance_or_404(instance_id, session)
+    if inst.is_cancelled:
+        raise HTTPException(status_code=404, detail=f"Instancia {instance_id} no encontrada.")
+    return _serialize_instance(inst, datetime.utcnow(), session=session)
+
+
+# ============================================================
+# 4. EDITAR INSTANCIA (custom_name + fechas)
 # ============================================================
 
 @router.patch("/instances/{instance_id}")
