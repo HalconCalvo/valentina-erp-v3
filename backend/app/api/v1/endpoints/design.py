@@ -825,11 +825,13 @@ def get_pending_instances(
             else None
         )
 
+        if not version:
+            continue
         if batch_type.upper() == "PIEDRA":
-            if version and not version.has_stone_components:
+            if not version.has_stone_components:
                 continue
         else:
-            if version and not version.has_mdf_components:
+            if not version.has_mdf_components:
                 continue
 
         # Obtener nombre del cliente
