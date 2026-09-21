@@ -29,6 +29,7 @@ export interface InstanceSchedule {
   original_signed_at: string | null;
   is_cancelled: boolean;
   stone_pieces: number | null;
+  is_resale: boolean | null;
 }
 
 export interface CalendarPill {

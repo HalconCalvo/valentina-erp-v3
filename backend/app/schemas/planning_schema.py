@@ -31,3 +31,4 @@ class InstanceScheduleRead(BaseModel):
     original_signed_at: Optional[str] = None
     is_cancelled: bool = False
     stone_pieces: Optional[int] = None
+    is_resale: Optional[bool] = None

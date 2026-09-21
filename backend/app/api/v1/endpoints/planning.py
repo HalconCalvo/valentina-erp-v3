@@ -115,17 +115,24 @@ def _serialize_instance(inst: SalesOrderItemInstance, now: datetime, session: Op
     order_folio:      Optional[str] = None
     client_name:      Optional[str] = None
     project_name:     Optional[str] = None
+    is_resale: Optional[bool] = None
     if session:
         item = session.get(SalesOrderItem, inst.sales_order_item_id)
         if item:
             product_name = item.product_name
-            # Walk version → master to get category from design_product_masters
-            if item.origin_version_id:
-                version = session.get(ProductVersion, item.origin_version_id)
-                if version:
-                    master = session.get(ProductMaster, version.master_id)
-                    if master:
-                        product_category = master.category
+            version = (
+                session.get(ProductVersion, item.origin_version_id)
+                if item.origin_version_id
+                else None
+            )
+            if item.is_resale or not item.origin_version_id or not version:
+                is_resale = True
+            else:
+                is_resale = False
+            if version:
+                master = session.get(ProductMaster, version.master_id)
+                if master:
+                    product_category = master.category
             order = session.get(SalesOrder, item.sales_order_id)
             if order:
                 order_folio  = f"OV-{str(order.id).zfill(4)}"
@@ -156,6 +163,7 @@ def _serialize_instance(inst: SalesOrderItemInstance, now: datetime, session: Op
         "original_signed_at": inst.original_signed_at.isoformat() if inst.original_signed_at else None,
         "is_cancelled": inst.is_cancelled,
         "stone_pieces": inst.stone_pieces,
+        "is_resale": is_resale,
     }
 
 

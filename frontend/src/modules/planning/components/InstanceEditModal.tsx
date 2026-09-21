@@ -297,8 +297,10 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
   }, [instance?.id, dates.scheduled_inst_mdf, dates.scheduled_inst_stone]);
 
   const prodLanesLocked = useMemo(
-    () => isProductionTrackLocked(instance?.production_status),
-    [instance?.production_status],
+    () =>
+      instance?.is_resale === true ||
+      isProductionTrackLocked(instance?.production_status),
+    [instance?.is_resale, instance?.production_status],
   );
 
   const hasStone = (instance?.stone_pieces ?? 0) > 0;
@@ -306,12 +308,15 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
   const visibleLanes = useMemo(
     () =>
       LANE_META.filter(lane => {
+        if (instance?.is_resale === true) {
+          return lane.code === 'IM' || lane.code === 'IP';
+        }
         if (prodLanesLocked && (lane.code === 'PM' || lane.code === 'PP')) {
           return false;
         }
         return hasStone || (lane.code !== 'PP' && lane.code !== 'IP');
       }),
-    [prodLanesLocked, hasStone],
+    [prodLanesLocked, hasStone, instance?.is_resale],
   );
 
   if (!instance) return null;
