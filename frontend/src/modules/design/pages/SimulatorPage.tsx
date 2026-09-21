@@ -357,7 +357,7 @@ export default function SimulatorPage() {
 
           <div
             className="flex-none min-h-0 overflow-y-auto p-4 flex flex-col gap-3"
-            style={{ height: 'calc(100vh - 260px)', overflowY: 'auto' }}
+            style={{ height: 'calc(100vh - 260px)', overflowY: 'auto', paddingBottom: '3rem' }}
           >
             {loadingRadar ? (
               <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2">
