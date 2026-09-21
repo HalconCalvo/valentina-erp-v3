@@ -46,6 +46,10 @@ export default function SimulatorPage() {
   const navigate = useNavigate(); 
   
   const [pendingInstances, setPendingInstances] = useState<PendingInstance[]>([]);
+  const [pendingByType, setPendingByType] = useState<{ MDF: PendingInstance[]; PIEDRA: PendingInstance[] }>({
+    MDF: [],
+    PIEDRA: [],
+  });
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [batchType, setBatchType] = useState<'MDF' | 'PIEDRA'>('MDF');
   
@@ -84,8 +88,12 @@ export default function SimulatorPage() {
   const loadPendingInstances = async () => {
     setLoadingRadar(true);
     try {
-      const data = await designService.getPendingInstances(batchType);
-      setPendingInstances(data);
+      const [mdf, piedra] = await Promise.all([
+        designService.getPendingInstances('MDF'),
+        designService.getPendingInstances('PIEDRA'),
+      ]);
+      setPendingByType({ MDF: mdf, PIEDRA: piedra });
+      setPendingInstances(batchType === 'MDF' ? mdf : piedra);
     } catch {
       toast.error('Error al cargar el radar de instancias pendientes.');
     } finally {
@@ -251,6 +259,24 @@ export default function SimulatorPage() {
     return Array.from(groups.values());
   }, [pendingInstances]);
 
+  const mdfCountByOrder = useMemo(() => {
+    const counts = new Map<number, number>();
+    for (const inst of pendingByType.MDF) {
+      counts.set(inst.order_id, (counts.get(inst.order_id) ?? 0) + 1);
+    }
+    return counts;
+  }, [pendingByType.MDF]);
+
+  const stoneCountByOrder = useMemo(() => {
+    const counts = new Map<number, number>();
+    for (const inst of pendingByType.PIEDRA) {
+      if ((inst.stone_pieces ?? 0) > 0) {
+        counts.set(inst.order_id, (counts.get(inst.order_id) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [pendingByType.PIEDRA]);
+
   const materialColumns = useMemo((): VTableColumn<any>[] => [
     {
       key: 'name',
@@ -408,8 +434,17 @@ export default function SimulatorPage() {
                             </div>
                           );
                         })()}
-                        <span className="text-[10px] text-slate-400">
-                          {group.instances.length} inst.
+                        <span
+                          className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 shrink-0"
+                          title="Instancias MDF pendientes de lote"
+                        >
+                          MDF {mdfCountByOrder.get(group.order_id) ?? 0}
+                        </span>
+                        <span
+                          className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-stone-200 text-stone-800 border border-stone-400 shrink-0"
+                          title="Instancias con piezas de piedra pendientes"
+                        >
+                          Piedra {stoneCountByOrder.get(group.order_id) ?? 0}
                         </span>
                         <span className={`text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
                           ▼

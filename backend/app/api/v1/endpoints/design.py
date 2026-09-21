@@ -763,6 +763,7 @@ class PendingInstanceResponse(BaseModel):
     client_name: Optional[str] = None
     semaphore: Optional[str] = None
     schedule: Optional[dict] = None
+    stone_pieces: Optional[int] = None
 
 # Órdenes confirmadas = tienen anticipo pagado O su status ya avanzó a producción
 _CONFIRMED_ORDER_STATUSES = {
@@ -804,6 +805,8 @@ def get_pending_instances(
         ).first()
         if not item:
             continue
+        if item.is_resale:
+            continue
         order = session.exec(
             select(SalesOrder).where(SalesOrder.id == item.sales_order_id)
         ).first()
@@ -843,6 +846,7 @@ def get_pending_instances(
             order_project_name=order.project_name,
             order_id=order.id,
             client_name=client_name,
+            stone_pieces=inst.stone_pieces,
             semaphore=compute_semaphore(inst, datetime.utcnow(), session=session),
             schedule={
                 "PM": inst.scheduled_prod_mdf.isoformat() if inst.scheduled_prod_mdf else None,

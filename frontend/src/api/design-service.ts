@@ -17,6 +17,7 @@ export interface PendingInstance {
     IM: string | null;
     IP: string | null;
   } | null;
+  stone_pieces?: number | null;
 }
 
 export interface SimulatedMaterial {
