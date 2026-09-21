@@ -606,6 +606,11 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
               <h2 className="text-base font-bold text-slate-800">
                 Editar Instancia #{instance.id}
               </h2>
+              {(instance.order_folio || instance.project_name) && (
+                <p className="text-xs text-slate-500 mt-1">
+                  {[instance.order_folio, instance.project_name].filter(Boolean).join(' — ')}
+                </p>
+              )}
             </div>
             <button
               onClick={onClose}
