@@ -134,35 +134,16 @@ export default function PlanningPage() {
 
     if (found) {
       setEditingInstance(found);
-      return;
     }
 
-    setEditingInstance({
-      id: pill.instance_id,
-      custom_name: pill.custom_name,
-      product_name: null,
-      product_category: pill.product_category,
-      order_folio: null,
-      client_name: null,
-      project_name: null,
-      production_status: pill.production_status,
-      semaphore: pill.semaphore,
-      semaphore_label: pill.semaphore_label,
-      schedule: { PM: null, PP: null, IM: null, IP: null },
-      sales_order_item_id: pill.sales_order_item_id,
-      delivery_deadline: null,
-      signed_received_at: null,
-      warranty_started_at: null,
-      is_warranty_reopened: pill.is_warranty_reopened,
-      warranty_reopened_at: null,
-      original_signed_at: null,
-      is_cancelled: false,
-    });
     setLoadingInstance(true);
     planningService.getInstance(pill.instance_id).then(res => {
       setEditingInstance(res.data);
     }).catch(() => {
-      // keep minimal fallback
+      if (!found) {
+        setEditingInstance(null);
+        toast.error('No se pudo cargar la instancia. Intenta de nuevo.');
+      }
     }).finally(() => {
       setLoadingInstance(false);
     });

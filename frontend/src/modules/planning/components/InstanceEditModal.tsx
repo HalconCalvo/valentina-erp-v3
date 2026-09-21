@@ -3,7 +3,7 @@
  * Modal para editar el custom_name y las 4 fechas programadas (Matriz de 4 Carriles)
  * de una instancia desde cualquier punto del módulo de planeación.
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { planningService, InstanceSchedule, CalendarPill } from '../../../api/planning-service';
 import { getSemaphoreConfig } from '../hooks/usePlanning';
 import { X } from 'lucide-react';
@@ -49,8 +49,17 @@ const PRODUCTION_LOCKED_STATUSES = new Set([
   'CARGADO',
 ]);
 
-function isProductionTrackLocked(productionStatus: string): boolean {
-  return PRODUCTION_LOCKED_STATUSES.has(String(productionStatus).toUpperCase());
+function normalizeProductionStatus(status: unknown): string {
+  if (status == null) return '';
+  if (typeof status === 'string') return status;
+  if (typeof status === 'object' && 'value' in (status as object)) {
+    return String((status as { value: string }).value);
+  }
+  return String(status);
+}
+
+function isProductionTrackLocked(productionStatus: unknown): boolean {
+  return PRODUCTION_LOCKED_STATUSES.has(normalizeProductionStatus(productionStatus).toUpperCase());
 }
 
 type PendingLaneConfirm = {
@@ -231,7 +240,15 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
     setIpHelper2Id('');
     setIpError(null);
     setIpSuccess(false);
-  }, [instance]);
+  }, [
+    instance?.id,
+    instance?.custom_name,
+    instance?.production_status,
+    instance?.schedule?.PM,
+    instance?.schedule?.PP,
+    instance?.schedule?.IM,
+    instance?.schedule?.IP,
+  ]);
 
   useEffect(() => {
     if (!instance) return;
@@ -279,17 +296,27 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
       .catch(() => setInstallers([]));
   }, [instance?.id, dates.scheduled_inst_mdf, dates.scheduled_inst_stone]);
 
+  const prodLanesLocked = useMemo(
+    () => isProductionTrackLocked(instance?.production_status),
+    [instance?.production_status],
+  );
+
+  const hasStone = (instance?.stone_pieces ?? 0) > 0;
+
+  const visibleLanes = useMemo(
+    () =>
+      LANE_META.filter(lane => {
+        if (prodLanesLocked && (lane.code === 'PM' || lane.code === 'PP')) {
+          return false;
+        }
+        return hasStone || (lane.code !== 'PP' && lane.code !== 'IP');
+      }),
+    [prodLanesLocked, hasStone],
+  );
+
   if (!instance) return null;
 
   const cfg = getSemaphoreConfig(instance.semaphore);
-  const hasStone = (instance.stone_pieces ?? 0) > 0;
-  const prodLanesLocked = isProductionTrackLocked(instance.production_status);
-  const visibleLanes = LANE_META.filter(lane => {
-    if (prodLanesLocked && (lane.code === 'PM' || lane.code === 'PP')) {
-      return false;
-    }
-    return hasStone || (lane.code !== 'PP' && lane.code !== 'IP');
-  });
 
   // ── Validación de orden lógico: IM y IP no pueden ser anteriores a PM ──
   const orderError = (() => {
