@@ -1,18 +1,19 @@
 import { CalendarPill } from '../../../api/planning-service';
-import { LANE_COLORS } from '../hooks/usePlanning';
+import { LANE_COLORS, formatPillDisplayLabel } from '../hooks/usePlanning';
 import CalendarPillTooltip from './CalendarPillTooltip';
 
 interface Props {
   pill: CalendarPill;
+  projectName?: string | null;
   onClick?: (pill: CalendarPill) => void;
   draggable?: boolean;
   onDragStart?: (e: React.DragEvent, pill: CalendarPill) => void;
 }
 
 
-export default function InstancePill({ pill, onClick, draggable, onDragStart }: Props) {
+export default function InstancePill({ pill, projectName, onClick, draggable, onDragStart }: Props) {
   const laneClass = LANE_COLORS[pill.lane] ?? 'bg-gray-200 text-gray-700 border-gray-300';
-  const alias = pill.custom_name?.trim() || '—';
+  const label = formatPillDisplayLabel(pill, projectName);
 
   return (
     <CalendarPillTooltip pill={pill}>
@@ -31,7 +32,7 @@ export default function InstancePill({ pill, onClick, draggable, onDragStart }: 
       >
         <span className="shrink-0 font-bold">{pill.lane}</span>
         <span className="shrink-0 opacity-40">|</span>
-        <span className="flex-1 min-w-0 truncate">{alias}</span>
+        <span className="flex-1 min-w-0 truncate">{label}</span>
       </div>
     </CalendarPillTooltip>
   );

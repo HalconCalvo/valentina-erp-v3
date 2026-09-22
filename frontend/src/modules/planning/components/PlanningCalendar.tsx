@@ -316,6 +316,7 @@ function DayCell({
             >
               <InstancePill
                 pill={pill}
+                projectName={instanceLookup[pill.instance_id]?.project_name}
                 onClick={onPillClick}
                 draggable={!readOnly}
                 onDragStart={readOnly ? undefined : (e, p) => onDragStart(e, p, dayKey)}
@@ -593,7 +594,7 @@ export default function PlanningCalendar({
           { code: 'PM', label: 'Prod. MDF',    color: 'bg-violet-200 text-violet-800' },
           { code: 'PP', label: 'Prod. Piedra', color: 'bg-stone-200 text-stone-700'  },
           { code: 'IM', label: 'Inst. MDF',    color: 'bg-sky-200 text-sky-800'      },
-          { code: 'IP', label: 'Inst. Piedra', color: 'bg-cyan-200 text-cyan-800'    },
+          { code: 'IP', label: 'Inst. Piedra', color: 'bg-orange-200 text-orange-800' },
         ].map(item => (
           <div key={item.code} className="flex items-center gap-1 shrink-0">
             <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${item.color}`}>

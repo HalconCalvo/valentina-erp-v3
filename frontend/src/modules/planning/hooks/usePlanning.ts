@@ -90,8 +90,21 @@ export const LANE_COLORS: Record<string, string> = {
   PM: 'bg-violet-200 text-violet-800 border-violet-300',
   PP: 'bg-stone-200 text-stone-700 border-stone-300',
   IM: 'bg-sky-200 text-sky-800 border-sky-300',
-  IP: 'bg-cyan-200 text-cyan-800 border-cyan-300',
+  IP: 'bg-orange-200 text-orange-800 border-orange-300',
 };
+
+/** Texto visible en píldora: proyecto + sufijo de lote si venía en custom_name. */
+export function formatPillDisplayLabel(
+  pill: CalendarPill,
+  projectName?: string | null,
+): string {
+  const custom = pill.custom_name?.trim() || '';
+  const project = projectName?.trim();
+  if (!project) return custom || '—';
+  const lotSuffix = custom.match(/\s(-\s*Lote\s.+)$/i);
+  if (lotSuffix) return `${project}${lotSuffix[1]}`;
+  return project;
+}
 
 // ============================================================
 // SHARED SCHEDULING UTILITIES
