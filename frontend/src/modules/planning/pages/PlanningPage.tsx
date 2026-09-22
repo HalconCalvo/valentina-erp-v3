@@ -160,18 +160,9 @@ export default function PlanningPage() {
     setDraggedInstance(instance);
   }, []);
 
-  const handleSidebarDrop = useCallback((dayKey: string, instance: InstanceSchedule) => {
+  const handleSidebarDrop = useCallback((_dayKey: string, instance: InstanceSchedule) => {
     setDraggedInstance(null);
-    const iso = dayKey + 'T09:00:00.000Z';
-    const modified: InstanceSchedule = {
-      ...instance,
-      schedule: {
-        PM: instance.schedule.PM ?? iso,
-        PP: instance.schedule.PP,
-        IM: instance.schedule.IM,
-        IP: instance.schedule.IP,
-      },
-    };
+    const modified: InstanceSchedule = { ...instance };
     setEditingInstance(modified);
   }, []);
 
