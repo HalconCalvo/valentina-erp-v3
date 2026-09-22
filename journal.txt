@@ -3471,3 +3471,36 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3 && git pull origin main
 ### Lección aprendida:
 Cuando las tarjetas miden 2px en producción, inspeccionar overflow-hidden
 en el contenedor de la tarjeta — no en la lista ni en los ancestros.
+
+
+---
+## SESIONES 2026-09-20/21 — SIMULADOR Y PLANEACIÓN MAESTRA
+
+### Completado:
+- Simulador columna izquierda:
+  * Contadores permanentes MDF y Piedra por tarjeta OV
+  * Instancias sin versión de diseño excluidas del radar
+  * Tarjeta visible si MDF=0 pero Piedra>0 (ocultar solo si ambos=0)
+  * paddingBottom 3rem para que última OV sea completamente visible
+  * Nombres de instancias sin truncar (break-words)
+  * Instancias resale excluidas (sin versión de diseño activa)
+- Simulador columna derecha:
+  * Desglose de materiales con scroll interno
+  * Materiales is_resale excluidos del desglose
+- Navegación Diseño: botón Regresar corregido (cameFromSimulator eliminado)
+- Ver Lotes: botón ALTO → "Cancelar Lote"
+- Planeación Maestra:
+  * Clic en píldora del calendario abre modal con datos reales (GET instance)
+  * PM/PP ocultos para instancias ya en producción (READY, PACKING, etc.)
+  * PM/PP ocultos para instancias resale (is_resale=true)
+  * is_resale agregado al backend planning y al frontend InstanceSchedule
+  * OV folio y nombre de proyecto en header del modal
+  * HealthSidebar: resumen Producción/Instalación en lugar de "Programado"
+
+### Pendientes:
+1. PWA Campo — probar con instalador real asignado
+2. Migración OVs reales — Contabilidad llenando Excel
+3. Heartbeat 404 — bug menor
+4. Control de Déficit y Mermas — módulo en construcción (post-arranque)
+5. Inventario físico de apertura
+6. Arranque en ceros
