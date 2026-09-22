@@ -1,5 +1,6 @@
 import { CalendarPill } from '../../../api/planning-service';
 import { LANE_COLORS } from '../hooks/usePlanning';
+import CalendarPillTooltip from './CalendarPillTooltip';
 
 interface Props {
   pill: CalendarPill;
@@ -14,12 +15,12 @@ export default function InstancePill({ pill, onClick, draggable, onDragStart }: 
   const alias = pill.custom_name?.trim() || '—';
 
   return (
-    <div
-      draggable={draggable}
-      onDragStart={onDragStart ? (e) => onDragStart(e, pill) : undefined}
-      onClick={() => onClick?.(pill)}
-      title={`${pill.lane}|${alias} — ${pill.lane_label}`}
-      className={`
+    <CalendarPillTooltip pill={pill}>
+      <div
+        draggable={draggable}
+        onDragStart={onDragStart ? (e) => onDragStart(e, pill) : undefined}
+        onClick={() => onClick?.(pill)}
+        className={`
         flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[10px] font-medium
         cursor-pointer select-none min-w-0 overflow-hidden
         ${laneClass}
@@ -27,10 +28,11 @@ export default function InstancePill({ pill, onClick, draggable, onDragStart }: 
         ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}
         ${pill.is_warranty_reopened ? 'ring-1 ring-orange-400' : ''}
       `}
-    >
-      <span className="shrink-0 font-bold">{pill.lane}</span>
-      <span className="shrink-0 opacity-40">|</span>
-      <span className="flex-1 min-w-0 truncate">{alias}</span>
-    </div>
+      >
+        <span className="shrink-0 font-bold">{pill.lane}</span>
+        <span className="shrink-0 opacity-40">|</span>
+        <span className="flex-1 min-w-0 truncate">{alias}</span>
+      </div>
+    </CalendarPillTooltip>
   );
 }

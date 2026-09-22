@@ -1,4 +1,5 @@
 import { CalendarPill, InstanceSchedule } from '../../../api/planning-service';
+import CalendarPillTooltip from './CalendarPillTooltip';
 import { LANE_COLORS, matchesPillQuery } from '../hooks/usePlanning';
 
 const FULL_DAY_NAMES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -61,9 +62,11 @@ function PillCard({
   const alias = pill.custom_name?.trim() || '—';
 
   return (
-    <button
-      onClick={() => onClick?.(pill)}
-      className={`
+    <CalendarPillTooltip pill={pill}>
+      <button
+        type="button"
+        onClick={() => onClick?.(pill)}
+        className={`
         w-full text-left px-4 py-3 rounded-xl border transition-all
         hover:shadow-md active:scale-[0.99]
         ${isHighlighted
@@ -71,42 +74,39 @@ function PillCard({
           : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'}
         ${pill.is_warranty_reopened ? 'ring-1 ring-orange-300' : ''}
       `}
-    >
-      <div className="flex items-start gap-3">
-        {/* Lane badge */}
-        <span className={`mt-0.5 shrink-0 text-[10px] font-black px-2 py-1 rounded-lg border ${laneClass}`}>
-          {pill.lane}
-        </span>
+      >
+        <div className="flex items-start gap-3">
+          <span className={`mt-0.5 shrink-0 text-[10px] font-black px-2 py-1 rounded-lg border ${laneClass}`}>
+            {pill.lane}
+          </span>
 
-        {/* Main content */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {pill.is_warranty_reopened && (
-              <span className="text-orange-500 text-xs">⚠️</span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {pill.is_warranty_reopened && (
+                <span className="text-orange-500 text-xs">⚠️</span>
+              )}
+              <p className="text-sm font-bold text-slate-800 leading-snug">
+                {alias}
+              </p>
+            </div>
+
+            <div className="mt-1 flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] text-slate-400 font-medium">
+                {pill.lane_label}
+              </span>
+            </div>
+
+            {pill.production_status && (
+              <p className="mt-1 text-[10px] text-slate-400">
+                Estado: <span className="font-medium text-slate-600">{pill.production_status}</span>
+              </p>
             )}
-            <p className="text-sm font-bold text-slate-800 leading-snug">
-              {alias}
-            </p>
           </div>
 
-          <div className="mt-1 flex items-center gap-2 flex-wrap">
-            <span className="text-[10px] text-slate-400 font-medium">
-              {pill.lane_label}
-            </span>
-          </div>
-
-          {/* Production status */}
-          {pill.production_status && (
-            <p className="mt-1 text-[10px] text-slate-400">
-              Estado: <span className="font-medium text-slate-600">{pill.production_status}</span>
-            </p>
-          )}
+          <span className="shrink-0 text-slate-300 text-xs mt-0.5">›</span>
         </div>
-
-        {/* Click hint */}
-        <span className="shrink-0 text-slate-300 text-xs mt-0.5">›</span>
-      </div>
-    </button>
+      </button>
+    </CalendarPillTooltip>
   );
 }
 
