@@ -1,4 +1,5 @@
 import { InstanceSchedule } from '../../../api/planning-service';
+import { getExternalDropLaneCodes } from '../hooks/usePlanning';
 
 interface ExternalDropPending {
   dayKey: string;
@@ -12,14 +13,17 @@ interface Props {
 }
 
 const LANES = [
-  { field: 'scheduled_prod_mdf',   code: 'PM', label: 'Producción MDF',     cls: 'bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100' },
-  { field: 'scheduled_prod_stone', code: 'PP', label: 'Producción Piedra',   cls: 'bg-stone-50  text-stone-700  border-stone-200  hover:bg-stone-100'  },
-  { field: 'scheduled_inst_mdf',   code: 'IM', label: 'Instalación MDF',    cls: 'bg-sky-50    text-sky-700    border-sky-200    hover:bg-sky-100'    },
-  { field: 'scheduled_inst_stone', code: 'IP', label: 'Instalación Piedra',  cls: 'bg-cyan-50   text-cyan-700   border-cyan-200   hover:bg-cyan-100'   },
+  { field: 'scheduled_prod_mdf',   code: 'PM' as const, label: 'Producción MDF',     cls: 'bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100' },
+  { field: 'scheduled_prod_stone', code: 'PP' as const, label: 'Producción Piedra',   cls: 'bg-stone-50  text-stone-700  border-stone-200  hover:bg-stone-100'  },
+  { field: 'scheduled_inst_mdf',   code: 'IM' as const, label: 'Instalación MDF',    cls: 'bg-sky-50    text-sky-700    border-sky-200    hover:bg-sky-100'    },
+  { field: 'scheduled_inst_stone', code: 'IP' as const, label: 'Instalación Piedra',  cls: 'bg-cyan-50   text-cyan-700   border-cyan-200   hover:bg-cyan-100'   },
 ] as const;
 
 export default function ExternalDropModal({ pending, onExternalDrop, onCancel }: Props) {
   if (!pending) return null;
+
+  const visibleCodes = new Set(getExternalDropLaneCodes(pending.instance));
+  const visibleLanes = LANES.filter(lane => visibleCodes.has(lane.code));
 
   const friendlyDate = new Date(pending.dayKey + 'T12:00:00').toLocaleDateString('es-MX', {
     weekday: 'long', day: 'numeric', month: 'long',
@@ -38,16 +42,17 @@ export default function ExternalDropModal({ pending, onExternalDrop, onCancel }:
         </div>
 
         <div className="p-4 grid grid-cols-2 gap-3">
-          {LANES.map(lane => (
+          {visibleLanes.map(lane => (
             <button
               key={lane.field}
+              type="button"
               onClick={() => {
                 if (onExternalDrop) {
                   const updated: InstanceSchedule = {
                     ...pending.instance,
                     schedule: {
                       ...pending.instance.schedule,
-                      [lane.code]: pending.dayKey + 'T09:00:00',
+                      [lane.code]: pending.dayKey + 'T09:00:00.000Z',
                     },
                   };
                   onExternalDrop(pending.dayKey, updated);
@@ -64,6 +69,7 @@ export default function ExternalDropModal({ pending, onExternalDrop, onCancel }:
 
         <div className="px-4 pb-4">
           <button
+            type="button"
             onClick={onCancel}
             className="w-full py-2 text-sm text-slate-400 hover:text-slate-600 transition-colors"
           >

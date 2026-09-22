@@ -97,6 +97,54 @@ export const LANE_COLORS: Record<string, string> = {
 // SHARED SCHEDULING UTILITIES
 // ============================================================
 
+const PRODUCTION_LOCKED_STATUSES = new Set([
+  'IN_PRODUCTION',
+  'PACKING',
+  'READY',
+  'CARGADO',
+  'INSTALLED',
+  'CLOSED',
+]);
+
+/** Producción ya ocurrió o es reventa — no ofrecer PM/PP al soltar en calendario. */
+export function isExternalDropProductionLocked(instance: InstanceSchedule): boolean {
+  if (instance.is_resale === true) return true;
+  return PRODUCTION_LOCKED_STATUSES.has(
+    String(instance.production_status).toUpperCase(),
+  );
+}
+
+/** IM (y IP si hay piedra) ya tienen fecha programada. */
+export function isInstallationFullyScheduled(instance: InstanceSchedule): boolean {
+  if (!instance.schedule.IM) return false;
+  const hasStone = (instance.stone_pieces ?? 0) > 0;
+  if (hasStone) return !!instance.schedule.IP;
+  return true;
+}
+
+/** Regla 2: abrir InstanceEditModal sin ExternalDropModal. */
+export function shouldSkipExternalDropModal(instance: InstanceSchedule): boolean {
+  return (
+    isExternalDropProductionLocked(instance) &&
+    isInstallationFullyScheduled(instance)
+  );
+}
+
+export type ExternalDropLaneCode = 'PM' | 'PP' | 'IM' | 'IP';
+
+/** Carriles visibles en ExternalDropModal según estado de la instancia. */
+export function getExternalDropLaneCodes(instance: InstanceSchedule): ExternalDropLaneCode[] {
+  const prodLocked = isExternalDropProductionLocked(instance);
+  const hasStone = (instance.stone_pieces ?? 0) > 0;
+  const codes: ExternalDropLaneCode[] = [];
+  if (!prodLocked) {
+    codes.push('PM', 'PP');
+  }
+  codes.push('IM');
+  if (hasStone) codes.push('IP');
+  return codes;
+}
+
 /** Maps a CalendarPill lane code to the backend field name used in reschedule PATCH. */
 export const LANE_FIELD_MAP: Record<string, string> = {
   PM: 'scheduled_prod_mdf',

@@ -4,7 +4,7 @@ import WeekView from '../components/WeekView';
 import DayView from '../components/DayView';
 import HealthSidebar from '../components/HealthSidebar';
 import InstanceEditModal from '../components/InstanceEditModal';
-import { usePlanningCalendar, useHealthPanel } from '../hooks/usePlanning';
+import { usePlanningCalendar, useHealthPanel, shouldSkipExternalDropModal } from '../hooks/usePlanning';
 import { InstanceSchedule, CalendarPill, planningService } from '../../../api/planning-service';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
@@ -166,6 +166,16 @@ export default function PlanningPage() {
     setEditingInstance(modified);
   }, []);
 
+  const handleExternalDropAttempt = useCallback(
+    (_dayKey: string, instance: InstanceSchedule): boolean => {
+      if (!shouldSkipExternalDropModal(instance)) return false;
+      setDraggedInstance(null);
+      setEditingInstance({ ...instance });
+      return true;
+    },
+    [],
+  );
+
   const handleModalSaved = () => handleRefresh();
 
   const handleUnscheduleAll = useCallback(async () => {
@@ -301,6 +311,7 @@ export default function PlanningPage() {
               onPillClick={handleCalendarPillClick}
               externalDragInstance={readOnly ? null : draggedInstance}
               onExternalDrop={handleSidebarDrop}
+              onExternalDropAttempt={handleExternalDropAttempt}
               onDayClick={handleDayClick}
               weekendExpanded={weekendExpanded}
               onWeekendToggle={setWeekendExpanded}
@@ -323,6 +334,7 @@ export default function PlanningPage() {
               onPillClick={handleCalendarPillClick}
               externalDragInstance={readOnly ? null : draggedInstance}
               onExternalDrop={handleSidebarDrop}
+              onExternalDropAttempt={handleExternalDropAttempt}
               onDayClick={handleDayClick}
               weekendExpanded={weekendExpanded}
               onWeekendToggle={setWeekendExpanded}

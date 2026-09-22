@@ -60,6 +60,8 @@ interface Props {
   onPillClick?: (pill: CalendarPill) => void;
   externalDragInstance?: InstanceSchedule | null;
   onExternalDrop?: (dayKey: string, instance: InstanceSchedule) => void;
+  /** Si devuelve true, no se muestra ExternalDropModal (p. ej. instalación ya completa). */
+  onExternalDropAttempt?: (dayKey: string, instance: InstanceSchedule) => boolean;
   onDayClick?: (dayKey: string) => void;
   /** Shared weekend visibility state (controlled from PlanningPage) */
   weekendExpanded: boolean;
@@ -351,6 +353,7 @@ export default function PlanningCalendar({
   onPillClick,
   externalDragInstance,
   onExternalDrop,
+  onExternalDropAttempt,
   onDayClick,
   weekendExpanded,
   onWeekendToggle,
@@ -430,6 +433,10 @@ export default function PlanningCalendar({
     e.preventDefault();
     setDropTarget(null);
     if (externalDragInstance) {
+      if (onExternalDropAttempt?.(dayKey, externalDragInstance)) {
+        setDragState(null);
+        return;
+      }
       setPendingExternalDrop({ dayKey, instance: externalDragInstance });
       setDragState(null);
       return;
@@ -437,7 +444,7 @@ export default function PlanningCalendar({
     if (!dragState || dragState.sourceDate === dayKey) { setDragState(null); return; }
     setPendingReschedule({ pill: dragState.pill, targetDate: dayKey });
     setDragState(null);
-  }, [readOnly, dragState, externalDragInstance]);
+  }, [readOnly, dragState, externalDragInstance, onExternalDropAttempt]);
 
   const confirmReschedule = async (proportional: boolean) => {
     if (!pendingReschedule) return;
