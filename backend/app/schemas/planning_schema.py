@@ -10,6 +10,22 @@ class ScheduleMapRead(BaseModel):
     IP: Optional[str] = None
 
 
+class CalendarPillRead(BaseModel):
+    instance_id: int
+    custom_name: str
+    product_category: Optional[str] = None
+    lane: str
+    lane_label: str
+    datetime: str
+    semaphore: str
+    semaphore_label: str
+    production_status: str
+    sales_order_item_id: int
+    is_warranty_reopened: bool = False
+    project_name: Optional[str] = None
+    order_folio: Optional[str] = None
+
+
 class InstanceScheduleRead(BaseModel):
     id: int
     custom_name: str

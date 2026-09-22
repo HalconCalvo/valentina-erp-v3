@@ -1,4 +1,5 @@
 import { CalendarPill, InstanceSchedule } from '../../../api/planning-service';
+import { formatPillDisplayLabel } from '../hooks/usePlanning';
 import CalendarPillTooltip from './CalendarPillTooltip';
 import { LANE_COLORS, matchesPillQuery } from '../hooks/usePlanning';
 
@@ -59,7 +60,7 @@ function PillCard({
   isHighlighted: boolean;
 }) {
   const laneClass = LANE_COLORS[pill.lane] ?? 'bg-gray-200 text-gray-700 border-gray-300';
-  const alias = pill.custom_name?.trim() || '—';
+  const alias = formatPillDisplayLabel(pill);
 
   return (
     <CalendarPillTooltip pill={pill}>

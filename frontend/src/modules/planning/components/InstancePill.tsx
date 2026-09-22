@@ -13,7 +13,7 @@ interface Props {
 
 export default function InstancePill({ pill, projectName, onClick, draggable, onDragStart }: Props) {
   const laneClass = LANE_COLORS[pill.lane] ?? 'bg-gray-200 text-gray-700 border-gray-300';
-  const label = formatPillDisplayLabel(pill, projectName);
+  const label = formatPillDisplayLabel(pill, projectName ?? pill.project_name);
 
   return (
     <CalendarPillTooltip pill={pill}>

@@ -44,6 +44,8 @@ export interface CalendarPill {
   production_status: string;
   sales_order_item_id: number;
   is_warranty_reopened: boolean;
+  project_name?: string | null;
+  order_folio?: string | null;
 }
 
 export interface CalendarFeed {

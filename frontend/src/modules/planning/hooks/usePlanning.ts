@@ -75,6 +75,8 @@ export function matchesPillQuery(
   if (pill.custom_name.toLowerCase().includes(q)) return true;
   if (pill.product_category?.toLowerCase().includes(q)) return true;
   if (pill.production_status?.toLowerCase().includes(q)) return true;
+  if (pill.project_name?.toLowerCase().includes(q)) return true;
+  if (pill.order_folio?.toLowerCase().includes(q)) return true;
   const inst = lookup[pill.instance_id];
   if (!inst) return false;
   return (
@@ -99,7 +101,7 @@ export function formatPillDisplayLabel(
   projectName?: string | null,
 ): string {
   const custom = pill.custom_name?.trim() || '';
-  const project = projectName?.trim();
+  const project = (projectName ?? pill.project_name)?.trim();
   if (!project) return custom || '—';
   const lotSuffix = custom.match(/\s(-\s*Lote\s.+)$/i);
   if (lotSuffix) return `${project}${lotSuffix[1]}`;

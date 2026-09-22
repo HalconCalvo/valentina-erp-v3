@@ -221,10 +221,20 @@ def get_calendar_feed(
     # Chain: SalesOrderItem.origin_version_id → ProductVersion → ProductMaster.category
     item_ids = list({inst.sales_order_item_id for inst in instances})
     category_by_item: dict = {}
+    project_name_by_item: dict = {}
+    order_folio_by_item: dict = {}
     if item_ids:
         items_q = session.exec(
             select(SalesOrderItem).where(SalesOrderItem.id.in_(item_ids))
         ).all()
+        order_ids = list({it.sales_order_id for it in items_q})
+        orders_map: dict = {}
+        if order_ids:
+            orders_map = {
+                o.id: o for o in session.exec(
+                    select(SalesOrder).where(SalesOrder.id.in_(order_ids))
+                ).all()
+            }
         version_ids = [it.origin_version_id for it in items_q if it.origin_version_id]
         versions_map: dict = {}
         if version_ids:
@@ -250,6 +260,10 @@ def get_calendar_feed(
                     if mst:
                         cat = mst.category
             category_by_item[it.id] = cat
+            order = orders_map.get(it.sales_order_id)
+            if order:
+                project_name_by_item[it.id] = order.project_name
+                order_folio_by_item[it.id] = f"OV-{str(order.id).zfill(4)}"
     # ────────────────────────────────────────────────────────────────────────
 
     # Construir píldoras por día
@@ -273,6 +287,9 @@ def get_calendar_feed(
             day_key = dt.strftime("%Y-%m-%d")
             if day_key not in pills_by_day:
                 pills_by_day[day_key] = []
+            item_id = inst.sales_order_item_id
+            project_name = project_name_by_item.get(item_id)
+            order_folio = order_folio_by_item.get(item_id)
             pills_by_day[day_key].append({
                 "instance_id": inst.id,
                 "custom_name": inst.custom_name,
@@ -283,8 +300,10 @@ def get_calendar_feed(
                 "semaphore": semaphore,
                 "semaphore_label": compute_semaphore_label(semaphore),
                 "production_status": inst.production_status,
-                "sales_order_item_id": inst.sales_order_item_id,
+                "sales_order_item_id": item_id,
                 "is_warranty_reopened": inst.is_warranty_reopened,
+                "project_name": project_name,
+                "order_folio": order_folio,
             })
 
     return {
@@ -665,17 +684,6 @@ def assign_installation_team(
             detail="El carril debe ser IM (Instalación MDF) o IP (Instalación Piedra).",
         )
 
-    if payload.lane == "IM" and not inst.scheduled_inst_mdf:
-        raise HTTPException(
-            status_code=400,
-            detail="La instancia no tiene fecha IM programada en el calendario.",
-        )
-    if payload.lane == "IP" and not inst.scheduled_inst_stone:
-        raise HTTPException(
-            status_code=400,
-            detail="La instancia no tiene fecha IP programada en el calendario.",
-        )
-
     stmt_scheduled = select(InstallationAssignment).where(
         InstallationAssignment.instance_id == instance_id,
         InstallationAssignment.lane == payload.lane,
@@ -692,6 +700,17 @@ def assign_installation_team(
             "instance_id": instance_id,
             "lane": payload.lane,
         }
+
+    if payload.lane == "IM" and not inst.scheduled_inst_mdf:
+        raise HTTPException(
+            status_code=400,
+            detail="La instancia no tiene fecha IM programada en el calendario.",
+        )
+    if payload.lane == "IP" and not inst.scheduled_inst_stone:
+        raise HTTPException(
+            status_code=400,
+            detail="La instancia no tiene fecha IP programada en el calendario.",
+        )
 
     if not payload.assignment_date:
         raise HTTPException(
