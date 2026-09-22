@@ -939,7 +939,7 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
             </div>
           )}
 
-          {hasStone && dates.scheduled_inst_stone && !readOnly && (
+          {hasStone && (dates.scheduled_inst_stone || ipLeaderId !== '') && !readOnly && (
             <div>
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 block">
                 👷 Equipo — Instalación Piedra (IP)
