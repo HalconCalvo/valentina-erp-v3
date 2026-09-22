@@ -87,10 +87,10 @@ class BaptismPayload(BaseModel):
 
 
 class AssignTeamPayload(BaseModel):
-    leader_user_id: int
+    leader_user_id: Optional[int] = None
     helper_1_user_id: Optional[int] = None
     helper_2_user_id: Optional[int] = None
-    assignment_date: date  # Fecha de la jornada de instalación
+    assignment_date: Optional[date] = None
     lane: str = "IM"  # "IM" o "IP"
 
 
@@ -676,6 +676,29 @@ def assign_installation_team(
             detail="La instancia no tiene fecha IP programada en el calendario.",
         )
 
+    stmt_scheduled = select(InstallationAssignment).where(
+        InstallationAssignment.instance_id == instance_id,
+        InstallationAssignment.lane == payload.lane,
+        InstallationAssignment.status == InstallationAssignmentStatus.SCHEDULED,
+    )
+
+    if payload.leader_user_id is None:
+        existing_clear = session.exec(stmt_scheduled).first()
+        if existing_clear:
+            session.delete(existing_clear)
+            session.commit()
+        return {
+            "action": "cleared",
+            "instance_id": instance_id,
+            "lane": payload.lane,
+        }
+
+    if not payload.assignment_date:
+        raise HTTPException(
+            status_code=400,
+            detail="assignment_date es obligatorio al asignar equipo.",
+        )
+
     # Validar usuarios — todos deben existir y tener rol LOGISTICS
     leader = session.get(User, payload.leader_user_id)
     if not leader:
@@ -707,12 +730,7 @@ def assign_installation_team(
     # Buscar asignación existente para esta instancia, carril (IM/IP) y SCHEDULED
     # Si existe → reasignar (update). Si no → crear nueva.
     assignment_dt = datetime.combine(payload.assignment_date, datetime.min.time())
-    stmt = select(InstallationAssignment).where(
-        InstallationAssignment.instance_id == instance_id,
-        InstallationAssignment.lane == payload.lane,
-        InstallationAssignment.status == InstallationAssignmentStatus.SCHEDULED,
-    )
-    existing = session.exec(stmt).first()
+    existing = session.exec(stmt_scheduled).first()
 
     if existing:
         existing.leader_user_id = payload.leader_user_id

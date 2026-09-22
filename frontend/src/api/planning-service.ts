@@ -122,10 +122,10 @@ export const planningService = {
   assignTeam: (
     instanceId: number,
     payload: {
-      leader_user_id: number;
+      leader_user_id: number | null;
       helper_1_user_id?: number | null;
       helper_2_user_id?: number | null;
-      assignment_date: string; // YYYY-MM-DD
+      assignment_date?: string; // YYYY-MM-DD
       lane: 'IM' | 'IP';
     }
   ) =>

@@ -255,19 +255,40 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
     planningService
       .getInstanceAssignments(instance.id)
       .then((rows) => {
+        let hasIm = false;
+        let hasIp = false;
         for (const a of rows) {
           if (a.lane === 'IM') {
+            hasIm = true;
             setImLeaderId(a.leader_user_id);
             setImHelper1Id(a.helper_1_user_id ?? '');
             setImHelper2Id(a.helper_2_user_id ?? '');
           } else if (a.lane === 'IP') {
+            hasIp = true;
             setIpLeaderId(a.leader_user_id);
             setIpHelper1Id(a.helper_1_user_id ?? '');
             setIpHelper2Id(a.helper_2_user_id ?? '');
           }
         }
+        if (!hasIm) {
+          setImLeaderId('');
+          setImHelper1Id('');
+          setImHelper2Id('');
+        }
+        if (!hasIp) {
+          setIpLeaderId('');
+          setIpHelper1Id('');
+          setIpHelper2Id('');
+        }
       })
-      .catch(() => {});
+      .catch(() => {
+        setImLeaderId('');
+        setImHelper1Id('');
+        setImHelper2Id('');
+        setIpLeaderId('');
+        setIpHelper1Id('');
+        setIpHelper2Id('');
+      });
   }, [instance?.id]);
 
   useEffect(() => {
@@ -489,12 +510,22 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
     setPendingLaneConfirm(null);
   };
 
+  const isImTeamEmpty =
+    imLeaderId === '' && imHelper1Id === '' && imHelper2Id === '';
+
+  const isIpTeamEmpty =
+    ipLeaderId === '' && ipHelper1Id === '' && ipHelper2Id === '';
+
   const handleSaveImTeam = async () => {
-    if (!instance || !imLeaderId) return;
+    if (!instance) return;
 
     // Bloquear si hay error de orden lógico
     if (orderError) {
       setImError(orderError);
+      return;
+    }
+    if (!isImTeamEmpty && !imLeaderId) {
+      setImError('Selecciona un líder o deja todo vacío para quitar el equipo.');
       return;
     }
 
@@ -520,12 +551,11 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
         clear_inst_stone: !dates.scheduled_inst_stone && !!instance.schedule.IP,
       });
 
-      // Paso 2: Asignar equipo instalador.
       await planningService.assignTeam(instance.id, {
-        leader_user_id: Number(imLeaderId),
-        helper_1_user_id: imHelper1Id ? Number(imHelper1Id) : null,
-        helper_2_user_id: imHelper2Id ? Number(imHelper2Id) : null,
-        assignment_date: dates.scheduled_inst_mdf,
+        leader_user_id: isImTeamEmpty ? null : Number(imLeaderId),
+        helper_1_user_id: isImTeamEmpty ? null : (imHelper1Id ? Number(imHelper1Id) : null),
+        helper_2_user_id: isImTeamEmpty ? null : (imHelper2Id ? Number(imHelper2Id) : null),
+        assignment_date: isImTeamEmpty ? undefined : dates.scheduled_inst_mdf,
         lane: 'IM',
       });
 
@@ -542,11 +572,15 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
   };
 
   const handleSaveIpTeam = async () => {
-    if (!instance || !ipLeaderId) return;
+    if (!instance) return;
 
     // Bloquear si hay error de orden lógico
     if (orderError) {
       setIpError(orderError);
+      return;
+    }
+    if (!isIpTeamEmpty && !ipLeaderId) {
+      setIpError('Selecciona un líder o deja todo vacío para quitar el equipo.');
       return;
     }
 
@@ -573,10 +607,10 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
 
       // Paso 2: Asignar equipo instalador.
       await planningService.assignTeam(instance.id, {
-        leader_user_id: Number(ipLeaderId),
-        helper_1_user_id: ipHelper1Id ? Number(ipHelper1Id) : null,
-        helper_2_user_id: ipHelper2Id ? Number(ipHelper2Id) : null,
-        assignment_date: dates.scheduled_inst_stone,
+        leader_user_id: isIpTeamEmpty ? null : Number(ipLeaderId),
+        helper_1_user_id: isIpTeamEmpty ? null : (ipHelper1Id ? Number(ipHelper1Id) : null),
+        helper_2_user_id: isIpTeamEmpty ? null : (ipHelper2Id ? Number(ipHelper2Id) : null),
+        assignment_date: isIpTeamEmpty ? undefined : dates.scheduled_inst_stone,
         lane: 'IP',
       });
 
@@ -894,7 +928,7 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
                   <button
                     type="button"
                     onClick={() => void handleSaveImTeam()}
-                    disabled={!imLeaderId || imSaving || !!orderError}
+                    disabled={imSaving || !!orderError}
                     title={orderError ?? undefined}
                     className="w-full py-2.5 rounded-xl text-sm font-bold bg-sky-600 hover:bg-sky-700 text-white transition disabled:opacity-40"
                   >
@@ -975,7 +1009,7 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
                   <button
                     type="button"
                     onClick={() => void handleSaveIpTeam()}
-                    disabled={!ipLeaderId || ipSaving || !!orderError}
+                    disabled={ipSaving || !!orderError}
                     title={orderError ?? undefined}
                     className="w-full py-2.5 rounded-xl text-sm font-bold bg-cyan-600 hover:bg-cyan-700 text-white transition disabled:opacity-40"
                   >
