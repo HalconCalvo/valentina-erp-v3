@@ -149,6 +149,9 @@ export type ExternalDropLaneCode = 'PM' | 'PP' | 'IM' | 'IP';
 
 /** Carriles visibles en ExternalDropModal según estado de la instancia. */
 export function getExternalDropLaneCodes(instance: InstanceSchedule): ExternalDropLaneCode[] {
+  if (instance.is_resale === true) {
+    return ['IM', 'IP'];
+  }
   const prodLocked = isExternalDropProductionLocked(instance);
   const hasStone = (instance.stone_pieces ?? 0) > 0;
   const codes: ExternalDropLaneCode[] = [];
