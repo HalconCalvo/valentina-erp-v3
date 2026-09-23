@@ -3549,3 +3549,43 @@ Diseño:
 ### Nota localhost:
 .env.development apunta a https://valentina-backend.onrender.com/api/v1
 Frontend local en http://localhost:5173 — usar para pruebas rápidas
+
+
+---
+## SESIÓN 2026-09-23 — PLANEACIÓN MAESTRA Y PRODUCCIÓN
+
+### Completado:
+- Drag & drop inteligente en calendario:
+  * Instancia MDF (READY) → abre editor directo con solo IM
+  * Instancia Piedra (READY) → abre editor directo con solo IP
+  * Instancia con ambos → pregunta IM o IP
+  * Instancia resale → pregunta IM o IP
+- Modal reprogramación:
+  * IM/IP → mueve directamente sin preguntar
+  * PM/PP → mantiene modal, texto "Horas Extra" eliminado
+- Resale en calendario: muestra IM e IP para que usuario elija
+- Asignaciones huérfanas limpiadas en BD (8 registros)
+- Corrección BD: instancias 1566 y 1571 (solo piedra) tenían IM → movido a IP
+- Producción Kanban: toggle eliminado de columna Empaque
+- Producción Kanban: colores MDF(amber)/Piedra(violeta) en las 4 columnas
+- HealthSidebar: buscar OV ignora tab de semáforo activo
+- Calendar pills: project_name desde primer render (sin parpadeo)
+
+### PENDIENTE INMEDIATO — Rango de fechas en instalación:
+Aprobado, sin implementar.
+Diseño:
+- 2 campos nuevos BD: scheduled_inst_mdf_end y scheduled_inst_stone_end
+- Migración Alembic
+- Modal: campo "Fecha fin" para IM e IP (opcional, >= fecha inicio)
+- Puede cruzar fin de semana (Vie → Lun)
+- Mismo equipo para todos los días del rango
+- Calendario mes y semana: píldora se replica en CADA DÍA del rango
+- Tooltip: muestra "Del DD/MMM al DD/MMM"
+
+### Otros pendientes:
+1. Optimización velocidad HealthSidebar (update local optimista)
+2. PWA Campo — probar con instalador real
+3. Migración OVs reales
+4. Heartbeat 404 — bug menor
+5. Inventario físico
+6. Arranque en ceros
