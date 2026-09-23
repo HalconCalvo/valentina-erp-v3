@@ -3504,3 +3504,48 @@ en el contenedor de la tarjeta — no en la lista ni en los ancestros.
 4. Control de Déficit y Mermas — módulo en construcción (post-arranque)
 5. Inventario físico de apertura
 6. Arranque en ceros
+
+
+---
+## SESIÓN 2026-09-22 — PLANEACIÓN MAESTRA Y PRODUCCIÓN
+
+### Completado:
+- Calendario: píldoras muestran project_name desde primer render (sin parpadeo)
+- Calendario: hover tooltip con info completa de instancia (400ms delay)
+- Calendario: drag & drop inteligente según estado de instancia
+  * Instancia producida sin IM → modal muestra solo IM/IP
+  * Instancia producida con IM+IP → abre modal directo sin preguntar
+- Calendario: colores IP cambiados a naranja
+- Calendario: píldoras muestran PM|Proyecto+Lote
+- Planeación Maestra: instaladores por defecto vacíos al programar
+- Planeación Maestra: permitir guardar equipo sin líder (limpia asignación)
+- Planeación Maestra: sección IP visible si tiene asignación aunque sin fecha
+- Planeación Maestra: cerrar modal refresca calendario y limpia highlight
+- Planeación Maestra: buscar OV ignora tab de semáforo activo
+- Planeación Maestra: is_resale instancias solo muestran IM/IP en modal
+- Producción Kanban: colores MDF(amber)/Piedra(violeta) en las 4 columnas
+- Producción Kanban: toggle eliminado de columna Empaque
+- Corrección BD: instancias 1566 y 1571 (solo piedra) tenían IM → movido a IP
+
+### PENDIENTE DISEÑADO — Rango de fechas en instalación:
+Aprobado para implementar en próxima sesión.
+Diseño:
+- 2 campos nuevos: scheduled_inst_mdf_end y scheduled_inst_stone_end
+- Migración Alembic
+- Modal: campo "Fecha fin" para IM e IP (opcional, >= fecha inicio)
+- Calendario mes y semana: píldora se replica en cada día del rango
+- Tooltip: muestra "Del DD/MMM al DD/MMM"
+- Caso: puede cruzar fin de semana (Vie → Lun)
+- Mismo equipo de instaladores para todos los días del rango
+
+### Otros pendientes:
+1. Optimización de velocidad del health (update local optimista)
+2. PWA Campo — probar con instalador real
+3. Migración OVs reales
+4. Heartbeat 404 — bug menor
+5. Inventario físico
+6. Arranque en ceros
+
+### Nota localhost:
+.env.development apunta a https://valentina-backend.onrender.com/api/v1
+Frontend local en http://localhost:5173 — usar para pruebas rápidas
