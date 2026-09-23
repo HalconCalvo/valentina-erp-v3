@@ -404,6 +404,7 @@ export default function PlanningPage() {
           onClose={() => {
             setEditingInstance(null);
             setHighlightDays({});
+            void handleRefresh();
           }}
           onSaved={handleModalSaved}
           onUnscheduleAll={handleUnscheduleAll}
