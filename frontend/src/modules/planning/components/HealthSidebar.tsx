@@ -46,6 +46,21 @@ function matchesInstanceQuery(inst: InstanceSchedule, q: string): boolean {
   );
 }
 
+/** Todas las instancias del panel (sin filtro por tab), deduplicadas por id. */
+function allHealthInstances(data: HealthPanel): InstanceSchedule[] {
+  const merged = [
+    ...data.critical,
+    ...data.alerts,
+    ...data.planned,
+    ...data.in_process,
+    ...data.ready_to_install,
+    ...data.in_transit,
+    ...data.installed,
+    ...data.warranty,
+  ];
+  return [...new Map(merged.map((inst) => [inst.id, inst])).values()];
+}
+
 const TABS: TabConfig[] = [
   {
     key: 'RED',
@@ -371,18 +386,16 @@ export default function HealthSidebar({ data, loading, onInstanceClick, onInstan
     return data.counts[tab.countKey] ?? list.length;
   };
 
-  // Raw list from the active tab
-  const rawInstances = useMemo((): InstanceSchedule[] => {
-    if (!data) return [];
-    const tab = TABS.find(t => t.key === activeTab);
-    return tab ? tab.dataKey(data) : [];
-  }, [data, activeTab]);
-
-  // Filtered list — case-insensitive, multi-field, stable across refreshes
   const instances = useMemo((): InstanceSchedule[] => {
-    if (!isFiltering) return rawInstances;
-    return rawInstances.filter(inst => matchesInstanceQuery(inst, query));
-  }, [rawInstances, query, isFiltering]);
+    if (!data) return [];
+    if (isFiltering) {
+      return allHealthInstances(data).filter((inst) =>
+        matchesInstanceQuery(inst, query),
+      );
+    }
+    const tab = TABS.find((t) => t.key === activeTab);
+    return tab ? tab.dataKey(data) : [];
+  }, [data, activeTab, query, isFiltering]);
 
   const ovGroups = useMemo(() => groupByOv(instances), [instances]);
 

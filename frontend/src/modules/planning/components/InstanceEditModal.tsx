@@ -20,7 +20,7 @@ interface Installer {
 interface Props {
   instance: InstanceSchedule | null;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (updatedInstance: InstanceSchedule) => void;
   /** When true, date/name fields are disabled and the Save button is hidden */
   readOnly?: boolean;
   /** Notificado al elegir un día en el mini calendario */
@@ -366,7 +366,7 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
     setSaving(true);
     setError(null);
     try {
-      await planningService.updateInstance(instance.id, {
+      const res = await planningService.updateInstance(instance.id, {
         custom_name: name.trim() || instance.custom_name,
         ...(!prodLanesLocked
           ? {
@@ -401,7 +401,7 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
             }
           : {}),
       });
-      onSaved();
+      onSaved(res.data);
       onClose();
     } catch (e: any) {
       setError(e?.response?.data?.detail ?? 'Error al guardar. Intenta de nuevo.');
@@ -535,7 +535,7 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
     try {
       // Paso 1: Persistir las 4 fechas del estado local antes de asignar equipo.
       // Esto garantiza que el backend no rechace el assign-team por falta de fecha.
-      await planningService.updateInstance(instance.id, {
+      const res = await planningService.updateInstance(instance.id, {
         custom_name: name.trim() || instance.custom_name,
         ...(!prodLanesLocked
           ? {
@@ -559,8 +559,7 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
         lane: 'IM',
       });
 
-      // Refrescar calendario del padre para reflejar los nuevos datos
-      onSaved();
+      onSaved(res.data);
       setImSuccess(true);
       setTimeout(() => setImSuccess(false), 3000);
     } catch (e: unknown) {
@@ -589,7 +588,7 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
     setIpSuccess(false);
     try {
       // Paso 1: Persistir las 4 fechas del estado local antes de asignar equipo.
-      await planningService.updateInstance(instance.id, {
+      const res = await planningService.updateInstance(instance.id, {
         custom_name: name.trim() || instance.custom_name,
         ...(!prodLanesLocked
           ? {
@@ -614,7 +613,7 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
         lane: 'IP',
       });
 
-      onSaved();
+      onSaved(res.data);
       setIpSuccess(true);
       setTimeout(() => setIpSuccess(false), 3000);
     } catch (e: unknown) {

@@ -115,6 +115,8 @@ export default function PlanningPage() {
   // (hook objects are new each render, but the individual callbacks are useCallback-stable)
   const calendarRefresh = calendar.refresh;
   const healthRefresh   = health.refresh;
+  const calendarApplyUpdate = calendar.applyInstanceUpdate;
+  const healthApplyUpdate   = health.applyInstanceUpdate;
   const handleRefresh = useCallback(async () => {
     await Promise.all([calendarRefresh(), healthRefresh()]);
   }, [calendarRefresh, healthRefresh]);
@@ -176,7 +178,16 @@ export default function PlanningPage() {
     [],
   );
 
-  const handleModalSaved = () => handleRefresh();
+  const handleModalSaved = useCallback(
+    (updatedInstance: InstanceSchedule) => {
+      calendar.applyInstanceUpdate(updatedInstance);
+      health.applyInstanceUpdate(updatedInstance);
+      setEditingInstance((prev) =>
+        prev?.id === updatedInstance.id ? updatedInstance : prev,
+      );
+    },
+    [calendarApplyUpdate, healthApplyUpdate],
+  );
 
   const handleUnscheduleAll = useCallback(async () => {
     if (!editingInstance) return;
@@ -404,7 +415,7 @@ export default function PlanningPage() {
           onClose={() => {
             setEditingInstance(null);
             setHighlightDays({});
-            void handleRefresh();
+            setHighlightInstanceId(null);
           }}
           onSaved={handleModalSaved}
           onUnscheduleAll={handleUnscheduleAll}

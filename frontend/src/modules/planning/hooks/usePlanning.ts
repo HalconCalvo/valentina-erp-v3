@@ -173,6 +173,154 @@ export function formatDateKey(year: number, month: number, day: number): string 
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
+// ============================================================
+// OPTIMISTIC LOCAL UPDATES (calendar + health)
+// ============================================================
+
+const SCHEDULE_LANES: { lane: CalendarPill['lane']; key: keyof InstanceSchedule['schedule'] }[] = [
+  { lane: 'PM', key: 'PM' },
+  { lane: 'PP', key: 'PP' },
+  { lane: 'IM', key: 'IM' },
+  { lane: 'IP', key: 'IP' },
+];
+
+function scheduleValueInMonth(value: string | null, year: number, month: number): boolean {
+  if (!value) return false;
+  const dayKey = value.slice(0, 10);
+  const [y, m] = dayKey.split('-').map(Number);
+  return y === year && m === month;
+}
+
+function buildCalendarPill(
+  inst: InstanceSchedule,
+  lane: CalendarPill['lane'],
+  scheduleValue: string,
+): CalendarPill {
+  const datetime = scheduleValue.includes('T')
+    ? scheduleValue
+    : `${scheduleValue.slice(0, 10)}T09:00:00`;
+  return {
+    instance_id: inst.id,
+    custom_name: inst.custom_name,
+    product_category: inst.product_category,
+    lane,
+    lane_label: `${lane} ${inst.custom_name}`,
+    datetime,
+    semaphore: inst.semaphore,
+    semaphore_label: inst.semaphore_label,
+    production_status: inst.production_status,
+    sales_order_item_id: inst.sales_order_item_id,
+    is_warranty_reopened: inst.is_warranty_reopened,
+    project_name: inst.project_name ?? null,
+    order_folio: inst.order_folio ?? null,
+  };
+}
+
+/** Rebuild calendar pills for one instance within the visible month. */
+export function applyInstanceToCalendarFeed(
+  feed: CalendarFeed | null,
+  updated: InstanceSchedule,
+  year: number,
+  month: number,
+): CalendarFeed | null {
+  if (!feed) return feed;
+
+  const calendar: Record<string, CalendarPill[]> = {};
+  for (const [dayKey, pills] of Object.entries(feed.calendar)) {
+    const kept = pills.filter((p) => p.instance_id !== updated.id);
+    if (kept.length > 0) calendar[dayKey] = kept;
+  }
+
+  for (const { lane, key } of SCHEDULE_LANES) {
+    const raw = updated.schedule[key];
+    if (!raw || !scheduleValueInMonth(raw, year, month)) continue;
+    const dayKey = raw.slice(0, 10);
+    if (!calendar[dayKey]) calendar[dayKey] = [];
+    calendar[dayKey].push(buildCalendarPill(updated, lane, raw));
+  }
+
+  const total_pills = Object.values(calendar).reduce((sum, arr) => sum + arr.length, 0);
+  return { ...feed, calendar, total_pills };
+}
+
+type HealthListKey =
+  | 'critical'
+  | 'alerts'
+  | 'planned'
+  | 'in_process'
+  | 'ready_to_install'
+  | 'in_transit'
+  | 'installed'
+  | 'warranty';
+
+const HEALTH_LIST_KEYS: HealthListKey[] = [
+  'critical',
+  'alerts',
+  'planned',
+  'in_process',
+  'ready_to_install',
+  'in_transit',
+  'installed',
+  'warranty',
+];
+
+const SEMAPHORE_TO_HEALTH_LIST: Partial<Record<string, HealthListKey>> = {
+  RED: 'critical',
+  YELLOW: 'alerts',
+  GRAY: 'planned',
+  BLUE: 'in_process',
+  BLUE_GREEN: 'ready_to_install',
+  DOUBLE_BLUE: 'in_transit',
+  GREEN: 'installed',
+  WARRANTY: 'warranty',
+};
+
+function recomputeHealthCounts(panel: HealthPanel): Record<string, number> {
+  return {
+    RED: panel.critical.length,
+    YELLOW: panel.alerts.length,
+    GRAY: panel.planned.length,
+    BLUE: panel.in_process.length,
+    BLUE_GREEN: panel.ready_to_install.length,
+    DOUBLE_BLUE: panel.in_transit.length,
+    GREEN: panel.installed.length,
+    WARRANTY: panel.warranty.length,
+  };
+}
+
+function stripInstanceFromHealth(panel: HealthPanel, instanceId: number): HealthPanel {
+  const next = { ...panel } as HealthPanel;
+  for (const key of HEALTH_LIST_KEYS) {
+    next[key] = panel[key].filter((i) => i.id !== instanceId);
+  }
+  return next;
+}
+
+/** Move or update one instance in the health panel lists by semaphore. */
+export function applyInstanceToHealthPanel(
+  panel: HealthPanel | null,
+  updated: InstanceSchedule,
+): HealthPanel | null {
+  if (!panel) return panel;
+
+  let next = stripInstanceFromHealth(panel, updated.id);
+  const isClosed = String(updated.production_status).toUpperCase() === 'CLOSED';
+  const listKey = SEMAPHORE_TO_HEALTH_LIST[updated.semaphore];
+
+  if (!isClosed && listKey) {
+    next = {
+      ...next,
+      [listKey]: [...next[listKey], updated],
+    };
+  }
+
+  return {
+    ...next,
+    counts: recomputeHealthCounts(next),
+    timestamp: new Date().toISOString(),
+  };
+}
+
 /** Emoji dots used across pill and day-view components. */
 export const SEMAPHORE_DOTS: Record<string, string> = {
   GRAY:         '⬜',
@@ -225,6 +373,13 @@ export function usePlanningCalendar() {
 
   const refresh = useCallback(() => fetch(year, month), [fetch, year, month]);
 
+  const applyInstanceUpdate = useCallback(
+    (updated: InstanceSchedule) => {
+      setData((prev) => applyInstanceToCalendarFeed(prev, updated, year, month));
+    },
+    [year, month],
+  );
+
   /** Navigate to the month that contains the given YYYY-MM-DD date string */
   const goToDate = useCallback((dateStr: string) => {
     const [y, m] = dateStr.split('-').map(Number);
@@ -234,7 +389,18 @@ export function usePlanningCalendar() {
     }
   }, []);
 
-  return { year, month, data, loading, error, prevMonth, nextMonth, refresh, goToDate };
+  return {
+    year,
+    month,
+    data,
+    loading,
+    error,
+    prevMonth,
+    nextMonth,
+    refresh,
+    goToDate,
+    applyInstanceUpdate,
+  };
 }
 
 // ============================================================
@@ -261,7 +427,11 @@ export function useHealthPanel() {
 
   useEffect(() => { fetch(); }, [fetch]);
 
-  return { data, loading, error, refresh: fetch };
+  const applyInstanceUpdate = useCallback((updated: InstanceSchedule) => {
+    setData((prev) => applyInstanceToHealthPanel(prev, updated));
+  }, []);
+
+  return { data, loading, error, refresh: fetch, applyInstanceUpdate };
 }
 
 // ============================================================
