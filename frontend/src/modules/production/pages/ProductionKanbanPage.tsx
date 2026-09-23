@@ -9,16 +9,8 @@ import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 import { Input } from '@/components/ui/Input';
 import { VTable, VTableColumn } from '@/components/ui/VTable';
-import { VToggle } from '@/components/ui/VToggle';
-
 const STATUS_READY_TO_INSTALL = 'READY';
 const STATUS_PACKING = 'PACKING';
-
-const packingSelectionKey = (instanceId: number, batchType: string) =>
-  `${instanceId}-${batchType}`;
-
-const instanceIdsFromPackingKeys = (keys: string[]): number[] =>
-  [...new Set(keys.map((k) => Number(k.split('-')[0])))];
 
 type MaterialFilter = 'ALL' | 'MDF' | 'PIEDRA';
 
@@ -283,9 +275,6 @@ export default function ProductionKanbanPage() {
   } | null>(null);
   const [loadingHerrajesPreview, setLoadingHerrajesPreview] = useState(false);
   const [dispatchingHardware, setDispatchingHardware] = useState<number | null>(null);
-  const [selectedPackingIds, setSelectedPackingIds] =
-    useState<string[]>([]);
-  const [movingToReady, setMovingToReady] = useState(false);
   const [readyInstances, setReadyInstances] = useState<any[]>([]);
   const [companyConfig, setCompanyConfig] = useState<{
     company_name: string;
@@ -404,11 +393,7 @@ export default function ProductionKanbanPage() {
     // Intentar mover instancia individual (desde Empaque)
     const instanceIdStr = e.dataTransfer.getData('packingInstanceId');
     if (instanceIdStr && instanceIdStr !== '' && newStatus === STATUS_READY_TO_INSTALL) {
-      // Si hay instancias seleccionadas, moverlas todas; si no, solo la arrastrada
-      const idsToMove = selectedPackingIds.length > 0
-        ? instanceIdsFromPackingKeys(selectedPackingIds)
-        : [Number(instanceIdStr.split('-')[0])];
-      await handleMoveToReady(idsToMove);
+      await handleMoveToReady([Number(instanceIdStr)]);
       return;
     }
 
@@ -756,22 +741,12 @@ export default function ProductionKanbanPage() {
     }
   };
 
-  const togglePackingSelection = (packingKey: string) => {
-    setSelectedPackingIds(prev =>
-      prev.includes(packingKey)
-        ? prev.filter(key => key !== packingKey)
-        : [...prev, packingKey]
-    );
-  };
-
   const handleMoveToReady = async (instanceIds: number[]) => {
     if (instanceIds.length === 0) return;
-    setMovingToReady(true);
     try {
       for (const id of instanceIds) {
         await productionService.markInstanceReady(id);
       }
-      setSelectedPackingIds([]);
       // Limpiar estados de bultos de las instancias movidas
       setBultosByInstanceId(prev => {
         const next = { ...prev };
@@ -794,8 +769,6 @@ export default function ProductionKanbanPage() {
       await loadReadyInstances();
     } catch (error: any) {
       toast.error(error?.response?.data?.detail || 'Error al mover instancias.');
-    } finally {
-      setMovingToReady(false);
     }
   };
 
@@ -834,23 +807,6 @@ export default function ProductionKanbanPage() {
           </span>
         </div>
 
-        {/* Botón mover seleccionadas */}
-        {selectedPackingIds.length > 0 && (
-          <button
-            type="button"
-            onClick={() => {
-              handleMoveToReady(instanceIdsFromPackingKeys(selectedPackingIds));
-            }}
-            disabled={movingToReady}
-            className="mb-3 shrink-0 w-full py-2 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            <CheckCircle2 size={14} />
-            {movingToReady
-              ? 'Moviendo...'
-              : `Mover ${selectedPackingIds.length} a Listo`}
-          </button>
-        )}
-
         <div
           className="flex flex-col gap-3 overflow-y-auto pr-1"
           style={{ maxHeight: 'calc(100vh - 260px)' }}
@@ -884,32 +840,22 @@ export default function ProductionKanbanPage() {
               ? stonePieces >= 1
               : mdf > 0 && herrajes > 0;
             const labelsDone = labelsRequestedInstanceIds[instance.id];
-            const packingKey = packingSelectionKey(instance.id, instance.batch_type);
-            const isSelected = selectedPackingIds.includes(packingKey);
 
             return (
               <div
-                key={packingKey}
+                key={instance.id}
                 draggable
                 onDragStart={(e) => {
-                  e.dataTransfer.setData('packingInstanceId', packingKey);
+                  e.dataTransfer.setData('packingInstanceId', String(instance.id));
                   e.dataTransfer.effectAllowed = 'move';
                 }}
                 className={`p-3 rounded-lg shadow-sm border border-l-4 cursor-grab active:cursor-grabbing transition ${
-                  isSelected
-                    ? 'bg-emerald-50 border-emerald-200 border-l-emerald-400'
-                    : isStone
-                      ? 'bg-violet-50 border-violet-100 border-l-violet-500'
-                      : 'bg-amber-50 border-amber-100 border-l-amber-500'
+                  isStone
+                    ? 'bg-violet-50 border-violet-100 border-l-violet-500'
+                    : 'bg-amber-50 border-amber-100 border-l-amber-500'
                 }`}
               >
-                {/* Checkbox + Info */}
                 <div className="flex items-start gap-2 mb-3">
-                  <VToggle
-                    checked={isSelected}
-                    onCheckedChange={() => togglePackingSelection(packingKey)}
-                    className="mt-1 shrink-0 w-auto"
-                  />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 mb-0.5">
                       {instance.order_folio && (
@@ -1046,10 +992,7 @@ export default function ProductionKanbanPage() {
           e.preventDefault();
           const instanceIdStr = e.dataTransfer.getData('packingInstanceId');
           if (instanceIdStr && instanceIdStr !== '') {
-            const idsToMove = selectedPackingIds.length > 0
-              ? instanceIdsFromPackingKeys(selectedPackingIds)
-              : [Number(instanceIdStr.split('-')[0])];
-            handleMoveToReady(idsToMove);
+            void handleMoveToReady([Number(instanceIdStr)]);
             return;
           }
           const batchIdStr = e.dataTransfer.getData('batchId');
