@@ -1,5 +1,5 @@
 import { InstanceSchedule } from '../../../api/planning-service';
-import { getExternalDropLaneCodes } from '../hooks/usePlanning';
+import { applyExternalDropSchedule, getExternalDropLaneCodes } from '../hooks/usePlanning';
 
 interface ExternalDropPending {
   dayKey: string;
@@ -48,14 +48,10 @@ export default function ExternalDropModal({ pending, onExternalDrop, onCancel }:
               type="button"
               onClick={() => {
                 if (onExternalDrop) {
-                  const updated: InstanceSchedule = {
-                    ...pending.instance,
-                    schedule: {
-                      ...pending.instance.schedule,
-                      [lane.code]: pending.dayKey + 'T09:00:00.000Z',
-                    },
-                  };
-                  onExternalDrop(pending.dayKey, updated);
+                  onExternalDrop(
+                    pending.dayKey,
+                    applyExternalDropSchedule(pending.instance, pending.dayKey, lane.code),
+                  );
                 }
                 onCancel();
               }}

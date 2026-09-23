@@ -147,20 +147,52 @@ export function shouldSkipExternalDropModal(instance: InstanceSchedule): boolean
 
 export type ExternalDropLaneCode = 'PM' | 'PP' | 'IM' | 'IP';
 
+/** Carriles de instalación al soltar en calendario (IM / IP). */
+function getInstallationDropLaneCodes(instance: InstanceSchedule): ExternalDropLaneCode[] {
+  if (instance.is_resale === true) {
+    return ['IM', 'IP'];
+  }
+  const pieces = instance.stone_pieces ?? 0;
+  if (pieces === 0) {
+    return ['IM'];
+  }
+  const hasMdf = !!instance.schedule.PM;
+  if (!hasMdf) {
+    return ['IP'];
+  }
+  return ['IM', 'IP'];
+}
+
 /** Carriles visibles en ExternalDropModal según estado de la instancia. */
 export function getExternalDropLaneCodes(instance: InstanceSchedule): ExternalDropLaneCode[] {
   if (instance.is_resale === true) {
     return ['IM', 'IP'];
   }
   const prodLocked = isExternalDropProductionLocked(instance);
-  const hasStone = (instance.stone_pieces ?? 0) > 0;
   const codes: ExternalDropLaneCode[] = [];
   if (!prodLocked) {
-    codes.push('PM', 'PP');
+    codes.push('PM');
+    if ((instance.stone_pieces ?? 0) > 0) {
+      codes.push('PP');
+    }
   }
-  codes.push('IM');
-  if (hasStone) codes.push('IP');
+  codes.push(...getInstallationDropLaneCodes(instance));
   return codes;
+}
+
+/** Pre-carga la fecha del día en el carril elegido al soltar desde el sidebar. */
+export function applyExternalDropSchedule(
+  instance: InstanceSchedule,
+  dayKey: string,
+  lane: ExternalDropLaneCode,
+): InstanceSchedule {
+  return {
+    ...instance,
+    schedule: {
+      ...instance.schedule,
+      [lane]: `${dayKey}T09:00:00.000Z`,
+    },
+  };
 }
 
 /** Maps a CalendarPill lane code to the backend field name used in reschedule PATCH. */
