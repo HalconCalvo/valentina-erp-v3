@@ -351,6 +351,15 @@ export default function WeekView({
 
   const handleDragLeave = useCallback(() => setDropTarget(null), []);
 
+  const executeReschedule = useCallback(
+    async (pill: CalendarPill, targetDate: string, proportional: boolean) => {
+      const field = LANE_FIELD_MAP[pill.lane];
+      if (!field) return null;
+      return reschedule(pill.instance_id, field, targetDate + 'T09:00:00', proportional);
+    },
+    [reschedule],
+  );
+
   const handleDrop = useCallback((e: React.DragEvent, dayKey: string) => {
     if (readOnly) { setDropTarget(null); return; }
     e.preventDefault();
@@ -365,16 +374,20 @@ export default function WeekView({
       return;
     }
     if (!dragState || dragState.sourceDate === dayKey) { setDragState(null); return; }
-    setPendingReschedule({ pill: dragState.pill, targetDate: dayKey });
+    const { pill } = dragState;
+    if (pill.lane === 'IM' || pill.lane === 'IP') {
+      void executeReschedule(pill, dayKey, false);
+      setDragState(null);
+      return;
+    }
+    setPendingReschedule({ pill, targetDate: dayKey });
     setDragState(null);
-  }, [readOnly, dragState, externalDragInstance, onExternalDropAttempt]);
+  }, [readOnly, dragState, externalDragInstance, onExternalDropAttempt, executeReschedule]);
 
   const confirmReschedule = async (proportional: boolean) => {
     if (!pendingReschedule) return;
     const { pill, targetDate } = pendingReschedule;
-    const field = LANE_FIELD_MAP[pill.lane];
-    if (!field) return;
-    const result = await reschedule(pill.instance_id, field, targetDate + 'T09:00:00', proportional);
+    const result = await executeReschedule(pill, targetDate, proportional);
     if (result !== null) setPendingReschedule(null);
     // On failure: modal stays open and actionError is shown
   };

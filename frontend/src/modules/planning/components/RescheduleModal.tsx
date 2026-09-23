@@ -78,7 +78,7 @@ export default function RescheduleModal({
             disabled={loading}
             className="w-full py-2.5 rounded-xl bg-white border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50 transition-colors disabled:opacity-50"
           >
-            Solo mover esta operación (Horas Extra)
+            Solo mover esta operación
           </button>
           <button
             onClick={onCancel}
