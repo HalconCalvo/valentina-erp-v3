@@ -5,7 +5,7 @@
  */
 import { useState, useEffect, useMemo } from 'react';
 import { planningService, InstanceSchedule, CalendarPill } from '../../../api/planning-service';
-import { getSemaphoreConfig } from '../hooks/usePlanning';
+import { getInstallationScheduleLaneCodes, getSemaphoreConfig } from '../hooks/usePlanning';
 import { X } from 'lucide-react';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { Input } from '@/components/ui/Input';
@@ -326,19 +326,19 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
 
   const hasStone = (instance?.stone_pieces ?? 0) > 0;
 
-  const visibleLanes = useMemo(
-    () =>
-      LANE_META.filter(lane => {
-        if (instance?.is_resale === true) {
-          return lane.code === 'IM' || lane.code === 'IP';
-        }
-        if (prodLanesLocked && (lane.code === 'PM' || lane.code === 'PP')) {
-          return false;
-        }
-        return hasStone || (lane.code !== 'PP' && lane.code !== 'IP');
-      }),
-    [prodLanesLocked, hasStone, instance?.is_resale],
-  );
+  const visibleLanes = useMemo(() => {
+    if (!instance) return [];
+    if (instance.is_resale === true) {
+      return LANE_META.filter((lane) => lane.code === 'IM' || lane.code === 'IP');
+    }
+    if (prodLanesLocked) {
+      const installCodes = new Set(getInstallationScheduleLaneCodes(instance));
+      return LANE_META.filter((lane) => installCodes.has(lane.code as 'IM' | 'IP'));
+    }
+    return LANE_META.filter(
+      (lane) => hasStone || (lane.code !== 'PP' && lane.code !== 'IP'),
+    );
+  }, [instance, prodLanesLocked, hasStone]);
 
   if (!instance) return null;
 

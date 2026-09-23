@@ -147,20 +147,40 @@ export function shouldSkipExternalDropModal(instance: InstanceSchedule): boolean
 
 export type ExternalDropLaneCode = 'PM' | 'PP' | 'IM' | 'IP';
 
-/** Carriles de instalación al soltar en calendario (IM / IP). */
-function getInstallationDropLaneCodes(instance: InstanceSchedule): ExternalDropLaneCode[] {
+type InstallationLaneCode = 'IM' | 'IP';
+
+const SCHEDULE_KEY_BY_LANE: Record<ExternalDropLaneCode, keyof InstanceSchedule['schedule']> = {
+  PM: 'PM',
+  PP: 'PP',
+  IM: 'IM',
+  IP: 'IP',
+};
+
+/** Carriles IM/IP según material y estado de producción. */
+export function getInstallationScheduleLaneCodes(
+  instance: InstanceSchedule,
+): InstallationLaneCode[] {
   if (instance.is_resale === true) {
     return ['IM', 'IP'];
   }
   const pieces = instance.stone_pieces ?? 0;
+  const prodLocked = isExternalDropProductionLocked(instance);
+
+  if (prodLocked) {
+    return pieces > 0 ? ['IP'] : ['IM'];
+  }
+
   if (pieces === 0) {
     return ['IM'];
   }
-  const hasMdf = !!instance.schedule.PM;
-  if (!hasMdf) {
+  if (!instance.schedule.PM) {
     return ['IP'];
   }
   return ['IM', 'IP'];
+}
+
+function getInstallationDropLaneCodes(instance: InstanceSchedule): ExternalDropLaneCode[] {
+  return getInstallationScheduleLaneCodes(instance);
 }
 
 /** Carriles visibles en ExternalDropModal según estado de la instancia. */
@@ -186,11 +206,12 @@ export function applyExternalDropSchedule(
   dayKey: string,
   lane: ExternalDropLaneCode,
 ): InstanceSchedule {
+  const scheduleKey = SCHEDULE_KEY_BY_LANE[lane];
   return {
     ...instance,
     schedule: {
       ...instance.schedule,
-      [lane]: `${dayKey}T09:00:00.000Z`,
+      [scheduleKey]: `${dayKey}T09:00:00.000Z`,
     },
   };
 }
