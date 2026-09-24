@@ -95,10 +95,38 @@ function mondayFirstOffset(year: number, month: number) {
   return (sundayFirst + 6) % 7;
 }
 
+/** ISO datetime → "YYYY-MM-DD" en calendario local (evita desfase UTC en type="date"). */
+function isoToDateInputValue(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const s = iso.trim();
+  if (!s) return '';
+  const normalized = s.includes('T') ? s : `${s.slice(0, 10)}T12:00:00`;
+  const d = new Date(normalized);
+  if (Number.isNaN(d.getTime())) {
+    return s.slice(0, 10);
+  }
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 /** ISO → "YYYY-MM-DD" for <input type="date"> */
 function toInputValue(iso: string | null): string {
-  if (!iso) return '';
-  return iso.slice(0, 10);
+  return isoToDateInputValue(iso);
+}
+
+/** Fecha fin IM/IP: vacío si no hay fin real o no es posterior al inicio. */
+function toInstallEndInputValue(
+  endIso: string | null | undefined,
+  startIso: string | null | undefined,
+): string {
+  if (!endIso) return '';
+  const endDay = isoToDateInputValue(endIso);
+  if (!endDay) return '';
+  const startDay = startIso ? isoToDateInputValue(startIso) : '';
+  if (!startDay || endDay <= startDay) return '';
+  return endDay;
 }
 
 /** "YYYY-MM-DD" → ISO string at 09:00 local time (avoids UTC midnight timezone shift) */
@@ -238,8 +266,14 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
       scheduled_inst_stone: toInputValue(instance.schedule.IP),
     });
     setEndDates({
-      scheduled_inst_mdf_end: toInputValue(instance.scheduled_inst_mdf_end),
-      scheduled_inst_stone_end: toInputValue(instance.scheduled_inst_stone_end),
+      scheduled_inst_mdf_end: toInstallEndInputValue(
+        instance.scheduled_inst_mdf_end,
+        instance.schedule.IM,
+      ),
+      scheduled_inst_stone_end: toInstallEndInputValue(
+        instance.scheduled_inst_stone_end,
+        instance.schedule.IP,
+      ),
     });
     setError(null);
     setPickerOpenField(null);

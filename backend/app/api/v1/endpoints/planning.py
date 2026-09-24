@@ -104,14 +104,15 @@ class AssignTeamPayload(BaseModel):
 # ============================================================
 
 def _iter_installation_days(start: datetime, end: Optional[datetime]):
-    """Días inclusive entre inicio y fin de instalación."""
+    """Días hábiles (lun–vie) inclusive entre inicio y fin de instalación."""
     start_d = start.date()
     end_d = end.date() if end else start_d
     if end_d < start_d:
         end_d = start_d
     cur = start_d
     while cur <= end_d:
-        yield cur
+        if cur.weekday() < 5:
+            yield cur
         cur += timedelta(days=1)
 
 
