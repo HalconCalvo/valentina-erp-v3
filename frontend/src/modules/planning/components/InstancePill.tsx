@@ -1,5 +1,9 @@
 import { CalendarPill } from '../../../api/planning-service';
-import { LANE_COLORS, formatPillDisplayLabel } from '../hooks/usePlanning';
+import {
+  LANE_COLORS,
+  formatPillDisplayLabel,
+  isPlanningPillProductionLocked,
+} from '../hooks/usePlanning';
 import CalendarPillTooltip from './CalendarPillTooltip';
 
 interface Props {
@@ -14,6 +18,8 @@ interface Props {
 export default function InstancePill({ pill, projectName, onClick, draggable, onDragStart }: Props) {
   const laneClass = LANE_COLORS[pill.lane] ?? 'bg-gray-200 text-gray-700 border-gray-300';
   const label = formatPillDisplayLabel(pill, projectName ?? pill.project_name);
+  const productionLocked = isPlanningPillProductionLocked(pill);
+  const laneLabel = productionLocked ? `✓ ${pill.lane}` : pill.lane;
 
   return (
     <CalendarPillTooltip pill={pill}>
@@ -26,11 +32,11 @@ export default function InstancePill({ pill, projectName, onClick, draggable, on
         cursor-pointer select-none min-w-0 overflow-hidden
         ${laneClass}
         hover:opacity-80 transition-opacity
-        ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}
+        ${draggable ? 'cursor-grab active:cursor-grabbing' : productionLocked ? 'cursor-default' : ''}
         ${pill.is_warranty_reopened ? 'ring-1 ring-orange-400' : ''}
       `}
       >
-        <span className="shrink-0 font-bold">{pill.lane}</span>
+        <span className="shrink-0 font-bold">{laneLabel}</span>
         <span className="shrink-0 opacity-40">|</span>
         <span className="flex-1 min-w-0 truncate">{label}</span>
       </div>

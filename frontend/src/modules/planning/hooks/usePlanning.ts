@@ -108,6 +108,38 @@ export function formatPillDisplayLabel(
   return project;
 }
 
+const PM_PP_PILL_CHECK_STATUSES = new Set([
+  'IN_PRODUCTION',
+  'PACKING',
+  'READY',
+  'CARGADO',
+  'INSTALLED',
+  'CLOSED',
+]);
+
+const IM_IP_PILL_CHECK_STATUSES = new Set(['INSTALLED', 'CLOSED', 'CARGADO']);
+
+function normalizePillProductionStatus(status: unknown): string {
+  if (status == null) return '';
+  if (typeof status === 'string') return status.toUpperCase();
+  if (typeof status === 'object' && 'value' in (status as object)) {
+    return String((status as { value: string }).value).toUpperCase();
+  }
+  return String(status).toUpperCase();
+}
+
+/** Píldora ya producida / instalada — muestra ✓ y no se puede reprogramar. */
+export function isPlanningPillProductionLocked(pill: CalendarPill): boolean {
+  const ps = normalizePillProductionStatus(pill.production_status);
+  if (pill.lane === 'PM' || pill.lane === 'PP') {
+    return PM_PP_PILL_CHECK_STATUSES.has(ps);
+  }
+  if (pill.lane === 'IM' || pill.lane === 'IP') {
+    return IM_IP_PILL_CHECK_STATUSES.has(ps);
+  }
+  return false;
+}
+
 // ============================================================
 // SHARED SCHEDULING UTILITIES
 // ============================================================

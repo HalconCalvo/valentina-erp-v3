@@ -9,6 +9,7 @@ import {
   LANE_FIELD_MAP,
   formatDateKey,
   isScheduleDateBeforeToday,
+  isPlanningPillProductionLocked,
 } from '../hooks/usePlanning';
 import ExternalDropModal from './ExternalDropModal';
 import { toast } from '@/components/ui/VToast';
@@ -326,7 +327,7 @@ function DayCell({
                 pill={pill}
                 projectName={instanceLookup[pill.instance_id]?.project_name}
                 onClick={onPillClick}
-                draggable={!readOnly}
+                draggable={!readOnly && !isPlanningPillProductionLocked(pill)}
                 onDragStart={readOnly ? undefined : (e, p) => onDragStart(e, p, dayKey)}
               />
             </div>
@@ -424,6 +425,11 @@ export default function PlanningCalendar({
   // ── Drag handlers ─────────────────────────────────────────────
   const handleDragStart = useCallback((e: React.DragEvent, pill: CalendarPill, dayKey: string) => {
     if (readOnly) return;
+    if (isPlanningPillProductionLocked(pill)) {
+      e.preventDefault();
+      toast.error('Esta instancia ya fue producida y no puede reprogramarse.');
+      return;
+    }
     setDragState({ pill, sourceDate: dayKey });
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('pill_instance_id', String(pill.instance_id));
