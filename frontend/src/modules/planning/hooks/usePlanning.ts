@@ -229,6 +229,21 @@ export function formatDateKey(year: number, month: number, day: number): string 
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
+/** Mínimo para `<input type="date">` (parte UTC de ISO). */
+export function getScheduleTodayMinIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** Hoy en calendario local (misma convención que las celdas del mes/semana). */
+export function getLocalTodayDateKey(): string {
+  const t = new Date();
+  return formatDateKey(t.getFullYear(), t.getMonth() + 1, t.getDate());
+}
+
+export function isScheduleDateBeforeToday(dayKey: string): boolean {
+  return dayKey < getLocalTodayDateKey();
+}
+
 // ============================================================
 // OPTIMISTIC LOCAL UPDATES (calendar + health)
 // ============================================================

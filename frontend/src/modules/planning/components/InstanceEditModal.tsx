@@ -5,7 +5,11 @@
  */
 import { useState, useEffect, useMemo } from 'react';
 import { planningService, InstanceSchedule, CalendarPill } from '../../../api/planning-service';
-import { getInstallationScheduleLaneCodes, getSemaphoreConfig } from '../hooks/usePlanning';
+import {
+  getInstallationScheduleLaneCodes,
+  getSemaphoreConfig,
+  getScheduleTodayMinIso,
+} from '../hooks/usePlanning';
 import { X } from 'lucide-react';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { Input } from '@/components/ui/Input';
@@ -393,9 +397,28 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
   if (!instance) return null;
 
   const cfg = getSemaphoreConfig(instance.semaphore);
+  const scheduleTodayMin = getScheduleTodayMinIso();
+
+  const pastDateError = (() => {
+    const checks: { label: string; val: string }[] = [
+      { label: 'PM', val: dates.scheduled_prod_mdf },
+      { label: 'PP', val: dates.scheduled_prod_stone },
+      { label: 'IM', val: dates.scheduled_inst_mdf },
+      { label: 'IP', val: dates.scheduled_inst_stone },
+      { label: 'Fin IM', val: endDates.scheduled_inst_mdf_end },
+      { label: 'Fin IP', val: endDates.scheduled_inst_stone_end },
+    ];
+    for (const { label, val } of checks) {
+      if (val && val < scheduleTodayMin) {
+        return `No se puede programar ${label} en una fecha pasada.`;
+      }
+    }
+    return null;
+  })();
 
   // ── Validación de orden lógico: IM y IP no pueden ser anteriores a PM ──
   const orderError = (() => {
+    if (pastDateError) return pastDateError;
     const pm = dates.scheduled_prod_mdf;
     const im = dates.scheduled_inst_mdf;
     const ip = hasStone ? dates.scheduled_inst_stone : '';
@@ -528,6 +551,11 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
     const dayStr = `${pickerYear}-${String(pickerMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const lane = LANE_META.find(l => l.field === field);
     if (!lane) return;
+
+    if (dayStr < scheduleTodayMin) {
+      setError('No se puede programar en una fecha pasada.');
+      return;
+    }
 
     const pillsThatDay = calendarData[dayStr] ?? [];
     const sameLanePills = pillsThatDay.filter(
@@ -946,7 +974,9 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
                           <Input
                             type="date"
                             value={endDates[endField]}
-                            min={dates[lane.field]}
+                            min={dates[lane.field] && dates[lane.field] >= scheduleTodayMin
+                              ? dates[lane.field]
+                              : scheduleTodayMin}
                             onChange={(e) => {
                               setEndDates(prev => ({ ...prev, [endField]: e.target.value }));
                             }}

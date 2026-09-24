@@ -3,8 +3,15 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { CalendarPill, InstanceSchedule } from '../../../api/planning-service';
 import InstancePill from './InstancePill';
 import RescheduleModal from './RescheduleModal';
-import { useInstanceActions, matchesPillQuery, LANE_FIELD_MAP, formatDateKey } from '../hooks/usePlanning';
+import {
+  useInstanceActions,
+  matchesPillQuery,
+  LANE_FIELD_MAP,
+  formatDateKey,
+  isScheduleDateBeforeToday,
+} from '../hooks/usePlanning';
 import ExternalDropModal from './ExternalDropModal';
+import { toast } from '@/components/ui/VToast';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -444,6 +451,11 @@ export default function PlanningCalendar({
     if (readOnly) { setDropTarget(null); return; }
     e.preventDefault();
     setDropTarget(null);
+    if (isScheduleDateBeforeToday(dayKey)) {
+      toast.error('No se puede programar en una fecha pasada.');
+      setDragState(null);
+      return;
+    }
     if (externalDragInstance) {
       if (onExternalDropAttempt?.(dayKey, externalDragInstance)) {
         setDragState(null);
@@ -467,6 +479,11 @@ export default function PlanningCalendar({
   const confirmReschedule = async (proportional: boolean) => {
     if (!pendingReschedule) return;
     const { pill, targetDate } = pendingReschedule;
+    if (isScheduleDateBeforeToday(targetDate)) {
+      toast.error('No se puede programar en una fecha pasada.');
+      setPendingReschedule(null);
+      return;
+    }
     const result = await executeReschedule(pill, targetDate, proportional);
     if (result !== null) setPendingReschedule(null);
     // On failure: modal stays open and actionError is shown
