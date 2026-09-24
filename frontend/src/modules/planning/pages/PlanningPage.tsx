@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import PlanningCalendar from '../components/PlanningCalendar';
 import WeekView from '../components/WeekView';
 import DayView from '../components/DayView';
@@ -127,6 +127,23 @@ export default function PlanningPage() {
     await Promise.all([calendarRefresh(), healthRefresh()]);
   }, [calendarRefresh, healthRefresh]);
 
+  const handleInstanceUpdated = useCallback(
+    (updatedInstance: InstanceSchedule) => {
+      calendarApplyUpdate(updatedInstance);
+      healthApplyUpdate(updatedInstance);
+    },
+    [calendarApplyUpdate, healthApplyUpdate],
+  );
+
+  const skipHealthRefreshOnMount = useRef(true);
+  useEffect(() => {
+    if (skipHealthRefreshOnMount.current) {
+      skipHealthRefreshOnMount.current = false;
+      return;
+    }
+    void healthRefresh();
+  }, [calendar.year, calendar.month, healthRefresh]);
+
   // Open edit modal from health sidebar card
   const handleHealthInstanceClick = (instance: InstanceSchedule) => {
     setHighlightInstanceId(prev => prev === instance.id ? null : instance.id);
@@ -199,13 +216,12 @@ export default function PlanningPage() {
 
   const handleModalSaved = useCallback(
     (updatedInstance: InstanceSchedule) => {
-      calendar.applyInstanceUpdate(updatedInstance);
-      health.applyInstanceUpdate(updatedInstance);
+      handleInstanceUpdated(updatedInstance);
       setEditingInstance((prev) =>
         prev?.id === updatedInstance.id ? updatedInstance : prev,
       );
     },
-    [calendarApplyUpdate, healthApplyUpdate],
+    [handleInstanceUpdated],
   );
 
   const handleUnscheduleAll = useCallback(async () => {
@@ -232,14 +248,14 @@ export default function PlanningPage() {
     const inst = instanceLookup[id];
     const hasStone = (inst?.stone_pieces ?? 0) > 0;
     try {
-      await planningService.updateInstance(id, {
+      const res = await planningService.updateInstance(id, {
         clear_prod_mdf: true,
         clear_inst_mdf: true,
         ...(hasStone
           ? { clear_prod_stone: true, clear_inst_stone: true }
           : {}),
       });
-      handleRefresh();
+      handleInstanceUpdated(res.data);
     } catch {
       toast.error('Error al desprogramar.');
     } finally {
@@ -336,6 +352,7 @@ export default function PlanningPage() {
               onPrevMonth={calendar.prevMonth}
               onNextMonth={calendar.nextMonth}
               onRefresh={handleRefresh}
+              onInstanceUpdated={handleInstanceUpdated}
               highlightInstanceId={highlightInstanceId}
               highlightDays={{ ...highlightDays }}
               onPillClick={handleCalendarPillClick}
@@ -360,6 +377,7 @@ export default function PlanningPage() {
               onPrevWeek={handlePrevWeek}
               onNextWeek={handleNextWeek}
               onRefresh={handleRefresh}
+              onInstanceUpdated={handleInstanceUpdated}
               highlightInstanceId={highlightInstanceId}
               onPillClick={handleCalendarPillClick}
               externalDragInstance={readOnly ? null : draggedInstance}

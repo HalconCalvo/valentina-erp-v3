@@ -58,6 +58,7 @@ interface Props {
   onPrevWeek: () => void;
   onNextWeek: () => void;
   onRefresh: () => void;
+  onInstanceUpdated: (instance: InstanceSchedule) => void;
   highlightInstanceId?: number | null;
   onPillClick?: (pill: CalendarPill) => void;
   externalDragInstance?: InstanceSchedule | null;
@@ -296,6 +297,7 @@ export default function WeekView({
   onPrevWeek,
   onNextWeek,
   onRefresh,
+  onInstanceUpdated,
   highlightInstanceId,
   onPillClick,
   externalDragInstance,
@@ -334,7 +336,7 @@ export default function WeekView({
     dayKey: string; instance: InstanceSchedule;
   } | null>(null);
 
-  const { reschedule, loading: actionLoading, error: actionError } = useInstanceActions(onRefresh);
+  const { reschedule, loading: actionLoading, error: actionError } = useInstanceActions(onInstanceUpdated);
 
   const handleDragStart = useCallback((e: React.DragEvent, pill: CalendarPill, dayKey: string) => {
     if (readOnly) return;

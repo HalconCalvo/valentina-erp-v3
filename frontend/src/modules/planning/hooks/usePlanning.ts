@@ -538,7 +538,7 @@ export function useHealthPanel() {
 // INSTANCE ACTIONS HOOK
 // ============================================================
 
-export function useInstanceActions(onSuccess?: () => void) {
+export function useInstanceActions(onInstanceUpdated?: (updated: InstanceSchedule) => void) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -555,8 +555,8 @@ export function useInstanceActions(onSuccess?: () => void) {
     setLoading(true);
     setError(null);
     try {
-      await planningService.updateInstance(id, updates);
-      onSuccess?.();
+      const res = await planningService.updateInstance(id, updates);
+      onInstanceUpdated?.(res.data);
       return true;
     } catch (e: any) {
       setError(e?.response?.data?.detail ?? 'Error al actualizar instancia');
@@ -576,7 +576,7 @@ export function useInstanceActions(onSuccess?: () => void) {
     setError(null);
     try {
       const res = await planningService.reschedule(id, field, newDate, proportional);
-      onSuccess?.();
+      onInstanceUpdated?.(res.data.instance);
       return res.data;
     } catch (e: any) {
       setError(e?.response?.data?.detail ?? 'Error al reprogramar');
@@ -591,7 +591,6 @@ export function useInstanceActions(onSuccess?: () => void) {
     setError(null);
     try {
       const res = await planningService.closeInstance(id);
-      onSuccess?.();
       return res.data;
     } catch (e: any) {
       setError(e?.response?.data?.detail ?? 'Error al cerrar instancia');
@@ -606,7 +605,6 @@ export function useInstanceActions(onSuccess?: () => void) {
     setError(null);
     try {
       const res = await planningService.reopenWarranty(id);
-      onSuccess?.();
       return res.data;
     } catch (e: any) {
       setError(e?.response?.data?.detail ?? 'Error al reabrir garantía');

@@ -54,6 +54,7 @@ interface Props {
   onPrevMonth: () => void;
   onNextMonth: () => void;
   onRefresh: () => void;
+  onInstanceUpdated: (instance: InstanceSchedule) => void;
   highlightInstanceId?: number | null;
   /** fecha YYYY-MM-DD → sigla de carril al elegir fechas en InstanceEditModal */
   highlightDays?: Record<string, string>;
@@ -349,6 +350,7 @@ export default function PlanningCalendar({
   onPrevMonth,
   onNextMonth,
   onRefresh,
+  onInstanceUpdated,
   highlightInstanceId,
   highlightDays,
   onPillClick,
@@ -407,7 +409,7 @@ export default function PlanningCalendar({
     return count;
   }, [calendarData, year, month, daysInMonth]);
 
-  const { reschedule, loading: actionLoading, error: actionError } = useInstanceActions(onRefresh);
+  const { reschedule, loading: actionLoading, error: actionError } = useInstanceActions(onInstanceUpdated);
 
   const today    = new Date();
   const todayKey = formatDateKey(today.getFullYear(), today.getMonth() + 1, today.getDate());
