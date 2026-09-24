@@ -3589,3 +3589,43 @@ Diseño:
 4. Heartbeat 404 — bug menor
 5. Inventario físico
 6. Arranque en ceros
+
+
+---
+## SESIÓN 2026-09-24 — PLANEACIÓN MAESTRA Y PRODUCCIÓN
+
+### Completado:
+- Rango de fechas instalación: campos IM fin e IP fin (BD + modal + calendario)
+- Calendario: píldoras se replican en cada día hábil del rango (skip sáb/dom)
+- Fecha fin: campo vacío por defecto (fix bug 24/sep que mostraba hoy)
+- Fecha fin: selector custom igual que inicio (no input[type=date])
+- Bloqueo fechas pasadas: drag & drop y modal rechazan fechas anteriores a hoy
+- Píldoras con ✓: PM/PP muestran ✓ cuando instancia ya fue producida
+- Bloqueo drag: instancias producidas no se pueden arrastrar en calendario
+- Update optimista HealthSidebar: sin full refresh en modal save/pill move
+- Semáforo optimista: usa semaphore del backend, no recalcula en frontend
+- Resale: muestra IM e IP para que usuario elija
+- Drag inteligente: MDF solo→IM directo, Piedra solo→IP directo, ambos→pregunta
+- Reprogramación IM/IP: mueve directo sin modal; PM/PP mantiene modal
+- Texto "Horas Extra" eliminado del modal de reprogramación
+
+### PENDIENTE DISEÑADO — Fecha de entrega en bautizo:
+- Campo "Fecha estimada de entrega" al bautizar por Casa
+- Primera Casa sugiere fecha, siguientes heredan la misma (editable)
+- Se guarda en delivery_deadline de cada instancia del Lote/Casa
+- El semáforo usará delivery_deadline para calcular urgencia real
+
+### PENDIENTE — Semáforo por delivery_deadline:
+- Hoy el semáforo es reactivo (basado en fecha programada)
+- Debe ser proactivo (basado en fecha comprometida con cliente)
+- Sin delivery_deadline → GRIS
+- Falta ≤15 días → ROJO
+- Falta 16-30 días → AMARILLO  
+- Falta >30 días → VERDE
+
+### Otros pendientes:
+1. PWA Campo — probar con instalador real
+2. Migración OVs reales
+3. Heartbeat 404 — bug menor
+4. Inventario físico
+5. Arranque en ceros
