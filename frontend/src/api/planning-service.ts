@@ -127,8 +127,19 @@ export const planningService = {
   reopenWarranty: (id: number) =>
     client.post(API_ROUTES.PLANNING.REOPEN_WARRANTY(id)),
 
-  baptizeInstances: (orderId: number, instances: BaptismEntry[]) =>
-    client.patch(API_ROUTES.PLANNING.BAPTIZE(orderId), { instances }),
+  baptizeInstances: (
+    orderId: number,
+    instances: BaptismEntry[],
+    /** YYYY-MM-DD por casa; `null` limpia; omitir = no tocar instancias existentes */
+    deliveryDeadline?: string | null,
+  ) => {
+    const body: { instances: BaptismEntry[]; delivery_deadline?: string | null } = { instances };
+    if (deliveryDeadline !== undefined) {
+      const trimmed = typeof deliveryDeadline === 'string' ? deliveryDeadline.trim() : '';
+      body.delivery_deadline = trimmed ? trimmed : null;
+    }
+    return client.patch(API_ROUTES.PLANNING.BAPTIZE(orderId), body);
+  },
 
   assignTeam: (
     instanceId: number,

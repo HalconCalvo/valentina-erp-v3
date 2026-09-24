@@ -21,6 +21,18 @@ import { Input } from '@/components/ui/Input';
 import { salesService } from '../../../api/sales-service';
 import { planningService, BaptismEntry } from '../../../api/planning-service';
 import { SalesOrder } from '../../../types/sales';
+import {
+  formatDateKey,
+  getLocalTodayDateKey,
+  isScheduleDateBeforeToday,
+} from '../../planning/hooks/usePlanning';
+
+function defaultEstimatedDeliveryDate(): string {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setMonth(d.getMonth() + 2);
+  return formatDateKey(d.getFullYear(), d.getMonth() + 1, d.getDate());
+}
 
 interface Props {
   orderId: number;
@@ -56,6 +68,9 @@ export default function BaptismModal({ orderId, order: orderProp, onClose, onCom
   const [newStreet, setNewStreet] = useState('');
   const [newLot, setNewLot] = useState('');
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  const initialDeliveryDefault = useMemo(() => defaultEstimatedDeliveryDate(), []);
+  const [lastDeliveryDate, setLastDeliveryDate] = useState(initialDeliveryDefault);
+  const [deliveryDate, setDeliveryDate] = useState(initialDeliveryDefault);
 
   // Cargar detalle de la OV si no viene hidratado con instancias
   useEffect(() => {
@@ -136,6 +151,11 @@ export default function BaptismModal({ orderId, order: orderProp, onClose, onCom
       setError('Selecciona al menos una instancia para la casa.');
       return;
     }
+    const trimmedDelivery = deliveryDate.trim();
+    if (trimmedDelivery && isScheduleDateBeforeToday(trimmedDelivery)) {
+      setError('La fecha estimada de entrega debe ser hoy o posterior.');
+      return;
+    }
     const street = newStreet.trim();
     const lot = newLot.trim();
     // Instancias de esta casa (las seleccionadas), con su nombre armado
@@ -149,7 +169,11 @@ export default function BaptismModal({ orderId, order: orderProp, onClose, onCom
       }));
     setSaving(true);
     try {
-      await planningService.baptizeInstances(orderId, payload);
+      await planningService.baptizeInstances(
+        orderId,
+        payload,
+        trimmedDelivery || null,
+      );
       // Éxito: reflejar en pantalla
       setRows(prev => prev.map(r => {
         if (selected.has(r.id)) {
@@ -157,6 +181,8 @@ export default function BaptismModal({ orderId, order: orderProp, onClose, onCom
         }
         return r;
       }));
+      setLastDeliveryDate(trimmedDelivery);
+      setDeliveryDate(trimmedDelivery);
       setNewStreet('');
       setNewLot('');
       setSelected(new Set());
@@ -180,7 +206,7 @@ export default function BaptismModal({ orderId, order: orderProp, onClose, onCom
     }));
     setSaving(true);
     try {
-      await planningService.baptizeInstances(orderId, payload);
+      await planningService.baptizeInstances(orderId, payload, null);
       setRows(prev => prev.map(r => {
         if ((r.street ?? '') === street && (r.lot ?? '') === lot) {
           return { ...r, street: null, lot: null, custom_name: '' };
@@ -232,7 +258,7 @@ export default function BaptismModal({ orderId, order: orderProp, onClose, onCom
           {/* Captura de nueva casa */}
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl mb-3">
             <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-2">Nueva casa</p>
-            <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
+            <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end mb-2">
               <div>
                 <label className="text-[11px] text-slate-500 block mb-1">Calle</label>
                 <Input
@@ -254,11 +280,33 @@ export default function BaptismModal({ orderId, order: orderProp, onClose, onCom
                 />
               </div>
               <button
+                type="button"
                 onClick={handleSuggest}
                 className="h-[38px] px-3 text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 whitespace-nowrap"
               >
                 Sugerir una de c/tipo
               </button>
+            </div>
+            <div>
+              <label className="text-[11px] text-slate-500 block mb-1">Fecha estimada de entrega</label>
+              <Input
+                type="date"
+                value={deliveryDate}
+                min={getLocalTodayDateKey()}
+                onChange={e => setDeliveryDate(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (!saving && selected.size > 0 && newStreet.trim() && newLot.trim()) {
+                      void handleAssignHouse();
+                    }
+                  }
+                }}
+                className="w-full max-w-xs text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 h-auto"
+              />
+              <p className="text-[10px] text-slate-400 mt-1">
+                Opcional. La siguiente casa hereda la última fecha confirmada.
+              </p>
             </div>
           </div>
 

@@ -89,6 +89,7 @@ class BaptismEntry(BaseModel):
 
 class BaptismPayload(BaseModel):
     instances: List[BaptismEntry]
+    delivery_deadline: Optional[str] = None  # YYYY-MM-DD; aplica a todo el batch (una casa)
 
 
 class AssignTeamPayload(BaseModel):
@@ -733,6 +734,28 @@ def baptize_instances(
             detail=f"Las siguientes instancias no pertenecen a la OV {order_id}: {not_found}"
         )
 
+    deadline_fields_set = getattr(payload, "model_fields_set", None) or getattr(
+        payload, "__fields_set__", set()
+    )
+    apply_delivery_deadline = "delivery_deadline" in deadline_fields_set
+    parsed_delivery_deadline: Optional[datetime] = None
+    if apply_delivery_deadline:
+        raw_deadline = payload.delivery_deadline
+        if raw_deadline is not None and str(raw_deadline).strip():
+            try:
+                deadline_date = date.fromisoformat(str(raw_deadline).strip())
+            except ValueError:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Fecha estimada de entrega inválida. Use formato YYYY-MM-DD.",
+                )
+            if deadline_date < date.today():
+                raise HTTPException(
+                    status_code=400,
+                    detail="La fecha estimada de entrega debe ser hoy o posterior.",
+                )
+            parsed_delivery_deadline = datetime.combine(deadline_date, datetime.min.time())
+
     updated = []
     for entry in payload.instances:
         inst = db_instances[entry.instance_id]
@@ -741,8 +764,16 @@ def baptize_instances(
             inst.street = entry.street.strip() or None
         if entry.lot is not None:
             inst.lot = entry.lot.strip() or None
+        if apply_delivery_deadline:
+            inst.delivery_deadline = parsed_delivery_deadline
         session.add(inst)
-        updated.append({"id": inst.id, "custom_name": inst.custom_name, "street": inst.street, "lot": inst.lot})
+        updated.append({
+            "id": inst.id,
+            "custom_name": inst.custom_name,
+            "street": inst.street,
+            "lot": inst.lot,
+            "delivery_deadline": inst.delivery_deadline.isoformat() if inst.delivery_deadline else None,
+        })
 
     session.commit()
 
