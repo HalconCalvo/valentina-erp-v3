@@ -29,6 +29,11 @@ type TooltipCacheEntry = {
 const instanceCache = new Map<number, TooltipCacheEntry>();
 let installerNameById: Map<number, string> | null = null;
 
+/** Tras update optimista, evitar semáforo/fechas obsoletos en tooltip. */
+export function invalidatePlanningInstanceCache(instanceId: number): void {
+  instanceCache.delete(instanceId);
+}
+
 async function ensureInstallerNames(): Promise<Map<number, string>> {
   if (installerNameById) return installerNameById;
   const res = await planningService.getInstallers();

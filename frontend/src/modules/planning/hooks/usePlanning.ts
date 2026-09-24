@@ -304,21 +304,22 @@ export function applyInstanceToCalendarFeed(
 ): CalendarFeed | null {
   if (!feed) return feed;
 
+  const instance = normalizeInstanceFromApi(updated);
   const calendar: Record<string, CalendarPill[]> = {};
   for (const [dayKey, pills] of Object.entries(feed.calendar)) {
-    const kept = pills.filter((p) => p.instance_id !== updated.id);
+    const kept = pills.filter((p) => p.instance_id !== instance.id);
     if (kept.length > 0) calendar[dayKey] = kept;
   }
 
   for (const { lane, key } of SCHEDULE_LANES) {
-    const raw = updated.schedule[key];
+    const raw = instance.schedule[key];
     if (!raw) continue;
 
     if (lane === 'IM' || lane === 'IP') {
       const endRaw =
         lane === 'IM'
-          ? updated.scheduled_inst_mdf_end
-          : updated.scheduled_inst_stone_end;
+          ? instance.scheduled_inst_mdf_end
+          : instance.scheduled_inst_stone_end;
       const rangeStart = raw;
       const rangeEnd = endRaw ?? raw;
       const isRange = endRaw != null && endRaw.slice(0, 10) > raw.slice(0, 10);
@@ -328,7 +329,7 @@ export function applyInstanceToCalendarFeed(
       for (const dayKey of eachDayKeyInRange(raw, endRaw)) {
         if (!scheduleValueInMonth(`${dayKey}T09:00:00`, year, month)) continue;
         if (!calendar[dayKey]) calendar[dayKey] = [];
-        calendar[dayKey].push(buildCalendarPill(updated, lane, dayKey, rangeMeta));
+        calendar[dayKey].push(buildCalendarPill(instance, lane, dayKey, rangeMeta));
       }
       continue;
     }
@@ -336,7 +337,7 @@ export function applyInstanceToCalendarFeed(
     if (!scheduleValueInMonth(raw, year, month)) continue;
     const dayKey = raw.slice(0, 10);
     if (!calendar[dayKey]) calendar[dayKey] = [];
-    calendar[dayKey].push(buildCalendarPill(updated, lane, dayKey));
+    calendar[dayKey].push(buildCalendarPill(instance, lane, dayKey));
   }
 
   const total_pills = Object.values(calendar).reduce((sum, arr) => sum + arr.length, 0);
@@ -375,6 +376,38 @@ const SEMAPHORE_TO_HEALTH_LIST: Partial<Record<string, HealthListKey>> = {
   WARRANTY: 'warranty',
 };
 
+function coerceProductionStatus(value: unknown): string {
+  if (value == null) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && 'value' in (value as object)) {
+    return String((value as { value: string }).value);
+  }
+  return String(value);
+}
+
+function coerceSemaphoreFromApi(value: unknown): string {
+  if (value == null || value === '') return 'GRAY';
+  const s = typeof value === 'string' ? value : String(value);
+  return s.trim().toUpperCase();
+}
+
+/**
+ * Instancia devuelta por PATCH/GET de planeación — semáforo y fechas vienen del backend.
+ * No recomputar semáforo en el cliente.
+ */
+export function normalizeInstanceFromApi(raw: InstanceSchedule): InstanceSchedule {
+  return {
+    ...raw,
+    production_status: coerceProductionStatus(raw.production_status),
+    semaphore: coerceSemaphoreFromApi(raw.semaphore),
+    semaphore_label: raw.semaphore_label ?? '',
+  };
+}
+
+function healthListKeyForInstance(instance: InstanceSchedule): HealthListKey | null {
+  return SEMAPHORE_TO_HEALTH_LIST[instance.semaphore] ?? null;
+}
+
 function recomputeHealthCounts(panel: HealthPanel): Record<string, number> {
   return {
     RED: panel.critical.length,
@@ -396,21 +429,22 @@ function stripInstanceFromHealth(panel: HealthPanel, instanceId: number): Health
   return next;
 }
 
-/** Move or update one instance in the health panel lists by semaphore. */
+/** Reubica una instancia en el panel de salud usando solo `semaphore` del backend. */
 export function applyInstanceToHealthPanel(
   panel: HealthPanel | null,
   updated: InstanceSchedule,
 ): HealthPanel | null {
   if (!panel) return panel;
 
-  let next = stripInstanceFromHealth(panel, updated.id);
-  const isClosed = String(updated.production_status).toUpperCase() === 'CLOSED';
-  const listKey = SEMAPHORE_TO_HEALTH_LIST[updated.semaphore];
+  const instance = normalizeInstanceFromApi(updated);
+  let next = stripInstanceFromHealth(panel, instance.id);
+  const isClosed = instance.production_status.toUpperCase() === 'CLOSED';
+  const listKey = healthListKeyForInstance(instance);
 
   if (!isClosed && listKey) {
     next = {
       ...next,
-      [listKey]: [...next[listKey], updated],
+      [listKey]: [...next[listKey], instance],
     };
   }
 
@@ -556,7 +590,7 @@ export function useInstanceActions(onInstanceUpdated?: (updated: InstanceSchedul
     setError(null);
     try {
       const res = await planningService.updateInstance(id, updates);
-      onInstanceUpdated?.(res.data);
+      onInstanceUpdated?.(normalizeInstanceFromApi(res.data));
       return true;
     } catch (e: any) {
       setError(e?.response?.data?.detail ?? 'Error al actualizar instancia');
@@ -576,7 +610,7 @@ export function useInstanceActions(onInstanceUpdated?: (updated: InstanceSchedul
     setError(null);
     try {
       const res = await planningService.reschedule(id, field, newDate, proportional);
-      onInstanceUpdated?.(res.data.instance);
+      onInstanceUpdated?.(normalizeInstanceFromApi(res.data.instance));
       return res.data;
     } catch (e: any) {
       setError(e?.response?.data?.detail ?? 'Error al reprogramar');

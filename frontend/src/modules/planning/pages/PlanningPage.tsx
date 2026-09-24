@@ -10,7 +10,9 @@ import {
   shouldSkipExternalDropModal,
   getExternalDropLaneCodes,
   applyExternalDropSchedule,
+  normalizeInstanceFromApi,
 } from '../hooks/usePlanning';
+import { invalidatePlanningInstanceCache } from '../components/CalendarPillTooltip';
 import { InstanceSchedule, CalendarPill, planningService } from '../../../api/planning-service';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
@@ -129,8 +131,10 @@ export default function PlanningPage() {
 
   const handleInstanceUpdated = useCallback(
     (updatedInstance: InstanceSchedule) => {
-      calendarApplyUpdate(updatedInstance);
-      healthApplyUpdate(updatedInstance);
+      const instance = normalizeInstanceFromApi(updatedInstance);
+      invalidatePlanningInstanceCache(instance.id);
+      calendarApplyUpdate(instance);
+      healthApplyUpdate(instance);
     },
     [calendarApplyUpdate, healthApplyUpdate],
   );
@@ -216,9 +220,10 @@ export default function PlanningPage() {
 
   const handleModalSaved = useCallback(
     (updatedInstance: InstanceSchedule) => {
-      handleInstanceUpdated(updatedInstance);
+      const instance = normalizeInstanceFromApi(updatedInstance);
+      handleInstanceUpdated(instance);
       setEditingInstance((prev) =>
-        prev?.id === updatedInstance.id ? updatedInstance : prev,
+        prev?.id === instance.id ? instance : prev,
       );
     },
     [handleInstanceUpdated],
