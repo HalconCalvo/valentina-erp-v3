@@ -3629,3 +3629,32 @@ Diseño:
 3. Heartbeat 404 — bug menor
 4. Inventario físico
 5. Arranque en ceros
+
+
+---
+## SESIÓN 2026-09-24 (tarde) — BAUTIZO Y SEMÁFORO
+
+### Completado:
+- Fecha estimada de entrega en modal de Bautizo por Casa:
+  * Default: hoy + 2 meses
+  * Cada Casa hereda la fecha de la anterior (editable)
+  * Se guarda en delivery_deadline de todas las instancias de la Casa
+  * Deshacer Casa limpia el delivery_deadline
+  * Validación: fecha >= hoy
+
+### PENDIENTE INMEDIATO — Semáforo por delivery_deadline:
+- Ahora que delivery_deadline se captura en el bautizo, implementar
+  lógica del semáforo basada en esa fecha:
+  * Sin delivery_deadline → GRIS
+  * Falta ≤15 días → ROJO
+  * Falta 16-30 días → AMARILLO
+  * Falta >30 días → VERDE
+  * Estados terminales (INSTALLED, CLOSED, etc.) sin cambios
+
+### Pendientes:
+1. Semáforo por delivery_deadline (siguiente sesión)
+2. PWA Campo — probar con instalador real
+3. Migración OVs reales
+4. Heartbeat 404 — bug menor
+5. Inventario físico
+6. Arranque en ceros
