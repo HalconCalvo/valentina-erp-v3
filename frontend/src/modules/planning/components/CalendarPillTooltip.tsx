@@ -70,6 +70,37 @@ function formatLaneDate(iso: string): string {
   return `${weekday} ${day}/${month}/${year}`;
 }
 
+function formatShortDayMonth(iso: string): string {
+  const d = new Date(iso.includes('T') ? iso : `${iso.slice(0, 10)}T12:00:00`);
+  const day = d.getDate();
+  const month = d
+    .toLocaleDateString('es-MX', { month: 'short' })
+    .replace(/\./g, '')
+    .trim();
+  return `${day}/${month}`;
+}
+
+function formatInstallationScheduleLabel(
+  code: string,
+  start: string | null,
+  end: string | null | undefined,
+  pill?: CalendarPill,
+): string | null {
+  if (!start) return null;
+  if (
+    pill?.is_range &&
+    pill.lane === code &&
+    pill.range_start &&
+    pill.range_end
+  ) {
+    return `Del ${formatShortDayMonth(pill.range_start)} al ${formatShortDayMonth(pill.range_end)}`;
+  }
+  if (end && end.slice(0, 10) > start.slice(0, 10)) {
+    return `Del ${formatShortDayMonth(start)} al ${formatShortDayMonth(end)}`;
+  }
+  return formatLaneDate(start);
+}
+
 function formatTeamLine(
   assignments: InstanceInstallationAssignment[],
   lane: 'IM' | 'IP',
@@ -128,11 +159,11 @@ function TooltipBody({
   const cfg = getSemaphoreConfig(inst.semaphore ?? pill.semaphore);
   const names = installerNameById ?? new Map<number, string>();
 
-  const laneRows: { code: string; iso: string | null }[] = [
-    { code: 'PM', iso: inst.schedule.PM },
-    { code: 'PP', iso: inst.schedule.PP },
-    { code: 'IM', iso: inst.schedule.IM },
-    { code: 'IP', iso: inst.schedule.IP },
+  const laneRows: { code: string; iso: string | null; endIso: string | null }[] = [
+    { code: 'PM', iso: inst.schedule.PM, endIso: null },
+    { code: 'PP', iso: inst.schedule.PP, endIso: null },
+    { code: 'IM', iso: inst.schedule.IM, endIso: inst.scheduled_inst_mdf_end },
+    { code: 'IP', iso: inst.schedule.IP, endIso: inst.scheduled_inst_stone_end },
   ].filter(row => row.iso);
 
   const imTeam = formatTeamLine(data.assignments, 'IM', names);
@@ -160,7 +191,12 @@ function TooltipBody({
           {laneRows.map(row => (
             <p key={row.code}>
               <span className="font-bold text-slate-700">{row.code}:</span>{' '}
-              {formatLaneDate(row.iso!)}
+              {formatInstallationScheduleLabel(
+                row.code,
+                row.iso,
+                row.endIso,
+                pill,
+              )}
             </p>
           ))}
         </div>

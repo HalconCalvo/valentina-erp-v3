@@ -30,6 +30,8 @@ export interface InstanceSchedule {
   is_cancelled: boolean;
   stone_pieces: number | null;
   is_resale: boolean | null;
+  scheduled_inst_mdf_end: string | null;
+  scheduled_inst_stone_end: string | null;
 }
 
 export interface CalendarPill {
@@ -46,6 +48,9 @@ export interface CalendarPill {
   is_warranty_reopened: boolean;
   project_name?: string | null;
   order_folio?: string | null;
+  is_range?: boolean;
+  range_start?: string | null;
+  range_end?: string | null;
 }
 
 export interface CalendarFeed {
@@ -103,6 +108,10 @@ export const planningService = {
     clear_prod_stone: boolean;
     clear_inst_mdf: boolean;
     clear_inst_stone: boolean;
+    inst_mdf_end: string | null;
+    inst_stone_end: string | null;
+    clear_inst_mdf_end: boolean;
+    clear_inst_stone_end: boolean;
   }>) =>
     client.patch<InstanceSchedule>(API_ROUTES.PLANNING.INSTANCE(id), data),
 

@@ -11,12 +11,13 @@ Rutas:
   POST /planning/instances/{id}/reopen-warranty → Reabrir como Garantía ⚠️
   PATCH /planning/orders/{order_id}/baptize → Bautizo masivo de instancias (custom_names)
 """
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from typing import Optional, List, Any, Union
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlmodel import Session, select
+from sqlalchemy import or_, and_
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_session
@@ -62,6 +63,10 @@ class InstanceScheduleUpdate(BaseModel):
     clear_prod_stone: bool = False
     clear_inst_mdf: bool = False
     clear_inst_stone: bool = False
+    inst_mdf_end: Union[datetime, None] = None
+    inst_stone_end: Union[datetime, None] = None
+    clear_inst_mdf_end: bool = False
+    clear_inst_stone_end: bool = False
 
 
 class ReschedulePayload(BaseModel):
@@ -97,6 +102,18 @@ class AssignTeamPayload(BaseModel):
 # ============================================================
 # HELPERS
 # ============================================================
+
+def _iter_installation_days(start: datetime, end: Optional[datetime]):
+    """Días inclusive entre inicio y fin de instalación."""
+    start_d = start.date()
+    end_d = end.date() if end else start_d
+    if end_d < start_d:
+        end_d = start_d
+    cur = start_d
+    while cur <= end_d:
+        yield cur
+        cur += timedelta(days=1)
+
 
 def _serialize_instance(inst: SalesOrderItemInstance, now: datetime, session: Optional[Session] = None) -> dict:
     """Serializa una instancia con semáforo calculado.
@@ -164,6 +181,12 @@ def _serialize_instance(inst: SalesOrderItemInstance, now: datetime, session: Op
         "is_cancelled": inst.is_cancelled,
         "stone_pieces": inst.stone_pieces,
         "is_resale": is_resale,
+        "scheduled_inst_mdf_end": (
+            inst.scheduled_inst_mdf_end.isoformat() if inst.scheduled_inst_mdf_end else None
+        ),
+        "scheduled_inst_stone_end": (
+            inst.scheduled_inst_stone_end.isoformat() if inst.scheduled_inst_stone_end else None
+        ),
     }
 
 
@@ -208,11 +231,35 @@ def get_calendar_feed(
             (SalesOrderItemInstance.scheduled_prod_stone >= month_start) &
             (SalesOrderItemInstance.scheduled_prod_stone <= month_end)
         ) | (
-            (SalesOrderItemInstance.scheduled_inst_mdf >= month_start) &
-            (SalesOrderItemInstance.scheduled_inst_mdf <= month_end)
+            and_(
+                SalesOrderItemInstance.scheduled_inst_mdf.isnot(None),
+                SalesOrderItemInstance.scheduled_inst_mdf <= month_end,
+                or_(
+                    and_(
+                        SalesOrderItemInstance.scheduled_inst_mdf >= month_start,
+                        SalesOrderItemInstance.scheduled_inst_mdf <= month_end,
+                    ),
+                    and_(
+                        SalesOrderItemInstance.scheduled_inst_mdf_end.isnot(None),
+                        SalesOrderItemInstance.scheduled_inst_mdf_end >= month_start,
+                    ),
+                ),
+            )
         ) | (
-            (SalesOrderItemInstance.scheduled_inst_stone >= month_start) &
-            (SalesOrderItemInstance.scheduled_inst_stone <= month_end)
+            and_(
+                SalesOrderItemInstance.scheduled_inst_stone.isnot(None),
+                SalesOrderItemInstance.scheduled_inst_stone <= month_end,
+                or_(
+                    and_(
+                        SalesOrderItemInstance.scheduled_inst_stone >= month_start,
+                        SalesOrderItemInstance.scheduled_inst_stone <= month_end,
+                    ),
+                    and_(
+                        SalesOrderItemInstance.scheduled_inst_stone_end.isnot(None),
+                        SalesOrderItemInstance.scheduled_inst_stone_end >= month_start,
+                    ),
+                ),
+            )
         )
     )
     instances = session.exec(stmt).all()
@@ -268,29 +315,30 @@ def get_calendar_feed(
 
     # Construir píldoras por día
     pills_by_day: dict = {}
-    field_map = {
-        "scheduled_prod_mdf":   "PM",
+    prod_field_map = {
+        "scheduled_prod_mdf": "PM",
         "scheduled_prod_stone": "PP",
-        "scheduled_inst_mdf":   "IM",
-        "scheduled_inst_stone": "IP",
     }
+    inst_field_map = {
+        "scheduled_inst_mdf": ("IM", "scheduled_inst_mdf_end"),
+        "scheduled_inst_stone": ("IP", "scheduled_inst_stone_end"),
+    }
+    month_start_d = month_start.date()
+    month_end_d = month_end.date()
 
     for inst in instances:
         semaphore = compute_semaphore(inst, now, session=session)
         product_category = category_by_item.get(inst.sales_order_item_id)
-        for field, code in field_map.items():
+        item_id = inst.sales_order_item_id
+        project_name = project_name_by_item.get(item_id)
+        order_folio = order_folio_by_item.get(item_id)
+
+        for field, code in prod_field_map.items():
             dt: Optional[datetime] = getattr(inst, field)
-            if dt is None:
-                continue
-            if not (month_start <= dt <= month_end):
+            if dt is None or not (month_start <= dt <= month_end):
                 continue
             day_key = dt.strftime("%Y-%m-%d")
-            if day_key not in pills_by_day:
-                pills_by_day[day_key] = []
-            item_id = inst.sales_order_item_id
-            project_name = project_name_by_item.get(item_id)
-            order_folio = order_folio_by_item.get(item_id)
-            pills_by_day[day_key].append({
+            pills_by_day.setdefault(day_key, []).append({
                 "instance_id": inst.id,
                 "custom_name": inst.custom_name,
                 "product_category": product_category,
@@ -304,7 +352,42 @@ def get_calendar_feed(
                 "is_warranty_reopened": inst.is_warranty_reopened,
                 "project_name": project_name,
                 "order_folio": order_folio,
+                "is_range": False,
+                "range_start": None,
+                "range_end": None,
             })
+
+        for field, (code, end_field) in inst_field_map.items():
+            dt = getattr(inst, field)
+            if dt is None:
+                continue
+            end_dt: Optional[datetime] = getattr(inst, end_field)
+            range_start_iso = dt.isoformat()
+            range_end_iso = (end_dt.isoformat() if end_dt else dt.isoformat())
+            is_range = bool(end_dt and end_dt.date() > dt.date())
+            for day in _iter_installation_days(dt, end_dt):
+                if not (month_start_d <= day <= month_end_d):
+                    continue
+                day_key = day.strftime("%Y-%m-%d")
+                day_dt = datetime.combine(day, dt.time()) if dt.time() else datetime.combine(day, datetime.min.time())
+                pills_by_day.setdefault(day_key, []).append({
+                    "instance_id": inst.id,
+                    "custom_name": inst.custom_name,
+                    "product_category": product_category,
+                    "lane": code,
+                    "lane_label": f"{code} {inst.custom_name}",
+                    "datetime": day_dt.isoformat(),
+                    "semaphore": semaphore,
+                    "semaphore_label": compute_semaphore_label(semaphore),
+                    "production_status": inst.production_status,
+                    "sales_order_item_id": item_id,
+                    "is_warranty_reopened": inst.is_warranty_reopened,
+                    "project_name": project_name,
+                    "order_folio": order_folio,
+                    "is_range": is_range,
+                    "range_start": range_start_iso if is_range else None,
+                    "range_end": range_end_iso if is_range else None,
+                })
 
     return {
         "year": year,
@@ -406,6 +489,10 @@ def update_instance_schedule(
         payload.clear_prod_stone,
         payload.clear_inst_mdf,
         payload.clear_inst_stone,
+        payload.inst_mdf_end is not None,
+        payload.inst_stone_end is not None,
+        payload.clear_inst_mdf_end,
+        payload.clear_inst_stone_end,
     ])
 
     # Guardia de BAUTIZO: custom_name → DIRECTOR, GERENCIA, SALES, DESIGN
@@ -450,14 +537,39 @@ def update_instance_schedule(
     # Inst MDF
     if payload.clear_inst_mdf:
         inst.scheduled_inst_mdf = None
+        inst.scheduled_inst_mdf_end = None
     elif payload.scheduled_inst_mdf is not None:
         inst.scheduled_inst_mdf = payload.scheduled_inst_mdf
+
+    if payload.clear_inst_mdf_end:
+        inst.scheduled_inst_mdf_end = None
+    elif payload.inst_mdf_end is not None:
+        inst.scheduled_inst_mdf_end = payload.inst_mdf_end
 
     # Inst Stone
     if payload.clear_inst_stone:
         inst.scheduled_inst_stone = None
+        inst.scheduled_inst_stone_end = None
     elif payload.scheduled_inst_stone is not None:
         inst.scheduled_inst_stone = payload.scheduled_inst_stone
+
+    if payload.clear_inst_stone_end:
+        inst.scheduled_inst_stone_end = None
+    elif payload.inst_stone_end is not None:
+        inst.scheduled_inst_stone_end = payload.inst_stone_end
+
+    if inst.scheduled_inst_mdf_end and inst.scheduled_inst_mdf:
+        if inst.scheduled_inst_mdf_end.date() < inst.scheduled_inst_mdf.date():
+            raise HTTPException(
+                status_code=400,
+                detail="La fecha fin IM no puede ser anterior a la fecha inicio IM.",
+            )
+    if inst.scheduled_inst_stone_end and inst.scheduled_inst_stone:
+        if inst.scheduled_inst_stone_end.date() < inst.scheduled_inst_stone.date():
+            raise HTTPException(
+                status_code=400,
+                detail="La fecha fin IP no puede ser anterior a la fecha inicio IP.",
+            )
 
     # Validación de orden lógico: IM y IP no pueden ser anteriores a PM.
     # Mismo día es válido (comparación >=).

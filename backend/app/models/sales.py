@@ -225,6 +225,8 @@ class SalesOrderItemInstance(SQLModel, table=True):
     scheduled_prod_stone: Optional[datetime] = Field(default=None)  # PP: Fecha programada Producción Piedra
     scheduled_inst_mdf: Optional[datetime] = Field(default=None)    # IM: Fecha programada Instalación MDF
     scheduled_inst_stone: Optional[datetime] = Field(default=None)  # IP: Fecha programada Instalación Piedra
+    scheduled_inst_mdf_end: Optional[datetime] = Field(default=None)    # IM fin (multi-día)
+    scheduled_inst_stone_end: Optional[datetime] = Field(default=None)  # IP fin (multi-día)
 
     # GARANTÍA Y CIERRE HISTÓRICO
     warranty_started_at: Optional[datetime] = Field(default=None)   # Timestamp de inicio de garantía (1 año)

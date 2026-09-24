@@ -38,6 +38,12 @@ const LANE_META = [
 ] as const;
 
 type LaneField = typeof LANE_META[number]['field'];
+type InstallEndField = 'scheduled_inst_mdf_end' | 'scheduled_inst_stone_end';
+
+const INSTALL_END_BY_START: Partial<Record<LaneField, InstallEndField>> = {
+  scheduled_inst_mdf: 'scheduled_inst_mdf_end',
+  scheduled_inst_stone: 'scheduled_inst_stone_end',
+};
 
 /** Producción ya iniciada o terminada — PM/PP no deben editarse. */
 const PRODUCTION_LOCKED_STATUSES = new Set([
@@ -192,6 +198,10 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
     scheduled_inst_mdf:   '',
     scheduled_inst_stone: '',
   });
+  const [endDates, setEndDates] = useState<Record<InstallEndField, string>>({
+    scheduled_inst_mdf_end: '',
+    scheduled_inst_stone_end: '',
+  });
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState<string | null>(null);
 
@@ -227,6 +237,10 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
       scheduled_inst_mdf:   toInputValue(instance.schedule.IM),
       scheduled_inst_stone: toInputValue(instance.schedule.IP),
     });
+    setEndDates({
+      scheduled_inst_mdf_end: toInputValue(instance.scheduled_inst_mdf_end),
+      scheduled_inst_stone_end: toInputValue(instance.scheduled_inst_stone_end),
+    });
     setError(null);
     setPickerOpenField(null);
     setCalendarOpen(false);
@@ -248,6 +262,8 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
     instance?.schedule?.PP,
     instance?.schedule?.IM,
     instance?.schedule?.IP,
+    instance?.scheduled_inst_mdf_end,
+    instance?.scheduled_inst_stone_end,
   ]);
 
   useEffect(() => {
@@ -355,6 +371,14 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
     if (hasStone && ip && pm && ip < pm) {
       return `IP (${formatDisplayDate(ip)}) no puede ser anterior a PM (${formatDisplayDate(pm)}). No se puede instalar antes de producir.`;
     }
+    const imEnd = endDates.scheduled_inst_mdf_end;
+    if (im && imEnd && imEnd < im) {
+      return `La fecha fin IM no puede ser anterior al inicio (${formatDisplayDate(im)}).`;
+    }
+    const ipEnd = endDates.scheduled_inst_stone_end;
+    if (ip && ipEnd && ipEnd < ip) {
+      return `La fecha fin IP no puede ser anterior al inicio (${formatDisplayDate(ip)}).`;
+    }
     return null;
   })();
 
@@ -382,6 +406,11 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
           : undefined,
         clear_inst_mdf: !dates.scheduled_inst_mdf &&
           !!instance.schedule.IM,
+        inst_mdf_end: endDates.scheduled_inst_mdf_end
+          ? fromInputValue(endDates.scheduled_inst_mdf_end)
+          : undefined,
+        clear_inst_mdf_end:
+          !endDates.scheduled_inst_mdf_end && !!instance.scheduled_inst_mdf_end,
         ...(hasStone
           ? {
               ...(!prodLanesLocked
@@ -398,6 +427,12 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
                 : undefined,
               clear_inst_stone: !dates.scheduled_inst_stone &&
                 !!instance.schedule.IP,
+              inst_stone_end: endDates.scheduled_inst_stone_end
+                ? fromInputValue(endDates.scheduled_inst_stone_end)
+                : undefined,
+              clear_inst_stone_end:
+                !endDates.scheduled_inst_stone_end &&
+                !!instance.scheduled_inst_stone_end,
             }
           : {}),
       });
@@ -412,6 +447,10 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
 
   const handleClearDate = (field: LaneField) => {
     setDates(prev => ({ ...prev, [field]: '' }));
+    const endField = INSTALL_END_BY_START[field];
+    if (endField) {
+      setEndDates(prev => ({ ...prev, [endField]: '' }));
+    }
     setPickerOpenField(null);
     setCalendarOpen(false);
   };
@@ -549,6 +588,16 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
         scheduled_inst_stone: dates.scheduled_inst_stone ? fromInputValue(dates.scheduled_inst_stone) : undefined,
         clear_inst_mdf: !dates.scheduled_inst_mdf && !!instance.schedule.IM,
         clear_inst_stone: !dates.scheduled_inst_stone && !!instance.schedule.IP,
+        inst_mdf_end: endDates.scheduled_inst_mdf_end
+          ? fromInputValue(endDates.scheduled_inst_mdf_end)
+          : undefined,
+        clear_inst_mdf_end:
+          !endDates.scheduled_inst_mdf_end && !!instance.scheduled_inst_mdf_end,
+        inst_stone_end: endDates.scheduled_inst_stone_end
+          ? fromInputValue(endDates.scheduled_inst_stone_end)
+          : undefined,
+        clear_inst_stone_end:
+          !endDates.scheduled_inst_stone_end && !!instance.scheduled_inst_stone_end,
       });
 
       await planningService.assignTeam(instance.id, {
@@ -851,6 +900,27 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
                       </div>
 
                     </div>
+
+                    {(lane.code === 'IM' || lane.code === 'IP') && hasDate && !readOnly && (() => {
+                      const endField = INSTALL_END_BY_START[lane.field];
+                      if (!endField) return null;
+                      return (
+                        <div className="pl-1 pt-1">
+                          <label className="text-[10px] font-semibold text-slate-500 mb-1 block">
+                            Fecha fin (opcional)
+                          </label>
+                          <Input
+                            type="date"
+                            value={endDates[endField]}
+                            min={dates[lane.field]}
+                            onChange={(e) => {
+                              setEndDates(prev => ({ ...prev, [endField]: e.target.value }));
+                            }}
+                            className="rounded-xl py-2 text-sm"
+                          />
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}

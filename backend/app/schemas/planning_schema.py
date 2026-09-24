@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel
@@ -24,6 +25,9 @@ class CalendarPillRead(BaseModel):
     is_warranty_reopened: bool = False
     project_name: Optional[str] = None
     order_folio: Optional[str] = None
+    is_range: bool = False
+    range_start: Optional[str] = None
+    range_end: Optional[str] = None
 
 
 class InstanceScheduleRead(BaseModel):
@@ -48,3 +52,5 @@ class InstanceScheduleRead(BaseModel):
     is_cancelled: bool = False
     stone_pieces: Optional[int] = None
     is_resale: Optional[bool] = None
+    scheduled_inst_mdf_end: Optional[datetime] = None
+    scheduled_inst_stone_end: Optional[datetime] = None

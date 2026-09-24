@@ -247,14 +247,34 @@ function scheduleValueInMonth(value: string | null, year: number, month: number)
   return y === year && m === month;
 }
 
+function eachDayKeyInRange(startIso: string, endIso: string | null | undefined): string[] {
+  const startKey = startIso.slice(0, 10);
+  const endKey = (endIso?.slice(0, 10) || startKey);
+  const [sy, sm, sd] = startKey.split('-').map(Number);
+  const [ey, em, ed] = endKey.split('-').map(Number);
+  const start = new Date(sy, sm - 1, sd);
+  const end = new Date(ey, em - 1, ed);
+  const from = start <= end ? start : end;
+  const to = start <= end ? end : start;
+  const keys: string[] = [];
+  const cur = new Date(from);
+  while (cur <= to) {
+    const y = cur.getFullYear();
+    const m = String(cur.getMonth() + 1).padStart(2, '0');
+    const d = String(cur.getDate()).padStart(2, '0');
+    keys.push(`${y}-${m}-${d}`);
+    cur.setDate(cur.getDate() + 1);
+  }
+  return keys;
+}
+
 function buildCalendarPill(
   inst: InstanceSchedule,
   lane: CalendarPill['lane'],
-  scheduleValue: string,
+  dayKey: string,
+  range?: { is_range: boolean; range_start: string; range_end: string },
 ): CalendarPill {
-  const datetime = scheduleValue.includes('T')
-    ? scheduleValue
-    : `${scheduleValue.slice(0, 10)}T09:00:00`;
+  const datetime = `${dayKey}T09:00:00`;
   return {
     instance_id: inst.id,
     custom_name: inst.custom_name,
@@ -269,6 +289,9 @@ function buildCalendarPill(
     is_warranty_reopened: inst.is_warranty_reopened,
     project_name: inst.project_name ?? null,
     order_folio: inst.order_folio ?? null,
+    is_range: range?.is_range ?? false,
+    range_start: range?.range_start ?? null,
+    range_end: range?.range_end ?? null,
   };
 }
 
@@ -289,10 +312,31 @@ export function applyInstanceToCalendarFeed(
 
   for (const { lane, key } of SCHEDULE_LANES) {
     const raw = updated.schedule[key];
-    if (!raw || !scheduleValueInMonth(raw, year, month)) continue;
+    if (!raw) continue;
+
+    if (lane === 'IM' || lane === 'IP') {
+      const endRaw =
+        lane === 'IM'
+          ? updated.scheduled_inst_mdf_end
+          : updated.scheduled_inst_stone_end;
+      const rangeStart = raw;
+      const rangeEnd = endRaw ?? raw;
+      const isRange = endRaw != null && endRaw.slice(0, 10) > raw.slice(0, 10);
+      const rangeMeta = isRange
+        ? { is_range: true, range_start: rangeStart, range_end: rangeEnd }
+        : undefined;
+      for (const dayKey of eachDayKeyInRange(raw, endRaw)) {
+        if (!scheduleValueInMonth(`${dayKey}T09:00:00`, year, month)) continue;
+        if (!calendar[dayKey]) calendar[dayKey] = [];
+        calendar[dayKey].push(buildCalendarPill(updated, lane, dayKey, rangeMeta));
+      }
+      continue;
+    }
+
+    if (!scheduleValueInMonth(raw, year, month)) continue;
     const dayKey = raw.slice(0, 10);
     if (!calendar[dayKey]) calendar[dayKey] = [];
-    calendar[dayKey].push(buildCalendarPill(updated, lane, raw));
+    calendar[dayKey].push(buildCalendarPill(updated, lane, dayKey));
   }
 
   const total_pills = Object.values(calendar).reduce((sum, arr) => sum + arr.length, 0);
