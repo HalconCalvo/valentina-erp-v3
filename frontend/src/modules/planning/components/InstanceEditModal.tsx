@@ -125,7 +125,7 @@ function toInstallEndInputValue(
   endIso: string | null | undefined,
   startIso: string | null | undefined,
 ): string {
-  if (!endIso) return '';
+  if (endIso == null || endIso === '') return '';
   const endDay = isoToDateInputValue(endIso);
   if (!endDay) return '';
   const startDay = startIso ? isoToDateInputValue(startIso) : '';
@@ -270,14 +270,20 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
       scheduled_inst_stone: toInputValue(instance.schedule.IP),
     });
     setEndDates({
-      scheduled_inst_mdf_end: toInstallEndInputValue(
-        instance.scheduled_inst_mdf_end,
-        instance.schedule.IM,
-      ),
-      scheduled_inst_stone_end: toInstallEndInputValue(
-        instance.scheduled_inst_stone_end,
-        instance.schedule.IP,
-      ),
+      scheduled_inst_mdf_end:
+        instance.scheduled_inst_mdf_end == null
+          ? ''
+          : toInstallEndInputValue(
+              instance.scheduled_inst_mdf_end,
+              instance.schedule.IM,
+            ),
+      scheduled_inst_stone_end:
+        instance.scheduled_inst_stone_end == null
+          ? ''
+          : toInstallEndInputValue(
+              instance.scheduled_inst_stone_end,
+              instance.schedule.IP,
+            ),
     });
     setError(null);
     setPickerOpenField(null);
@@ -966,6 +972,12 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
                     {(lane.code === 'IM' || lane.code === 'IP') && hasDate && !readOnly && (() => {
                       const endField = INSTALL_END_BY_START[lane.field];
                       if (!endField) return null;
+                      const laneStartDate = dates[lane.field];
+                      const installEndMin =
+                        laneStartDate && laneStartDate >= scheduleTodayMin
+                          ? laneStartDate
+                          : scheduleTodayMin;
+                      const endValue = endDates[endField] ?? '';
                       return (
                         <div className="pl-1 pt-1">
                           <label className="text-[10px] font-semibold text-slate-500 mb-1 block">
@@ -973,10 +985,8 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
                           </label>
                           <Input
                             type="date"
-                            value={endDates[endField]}
-                            min={dates[lane.field] && dates[lane.field] >= scheduleTodayMin
-                              ? dates[lane.field]
-                              : scheduleTodayMin}
+                            value={endValue}
+                            min={installEndMin}
                             onChange={(e) => {
                               setEndDates(prev => ({ ...prev, [endField]: e.target.value }));
                             }}
