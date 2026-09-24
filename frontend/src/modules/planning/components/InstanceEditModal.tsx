@@ -49,6 +49,11 @@ const INSTALL_END_BY_START: Partial<Record<LaneField, InstallEndField>> = {
   scheduled_inst_stone: 'scheduled_inst_stone_end',
 };
 
+const START_BY_INSTALL_END: Record<InstallEndField, LaneField> = {
+  scheduled_inst_mdf_end: 'scheduled_inst_mdf',
+  scheduled_inst_stone_end: 'scheduled_inst_stone',
+};
+
 /** Producción ya iniciada o terminada — PM/PP no deben editarse. */
 const PRODUCTION_LOCKED_STATUSES = new Set([
   'IN_PRODUCTION',
@@ -239,6 +244,7 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
 
   /** Mini calendario (Lunes primera columna) — reemplaza al picker nativo Sunday-first */
   const [pickerOpenField, setPickerOpenField] = useState<LaneField | null>(null);
+  const [pickerOpenEndField, setPickerOpenEndField] = useState<InstallEndField | null>(null);
   /** Panel reanclado arriba (top-4) mientras el mini calendario está abierto */
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [pickerYear, setPickerYear] = useState(() => new Date().getFullYear());
@@ -269,14 +275,15 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
       scheduled_inst_mdf:   toInputValue(instance.schedule.IM),
       scheduled_inst_stone: toInputValue(instance.schedule.IP),
     });
+    const mdfEndInit =
+      instance.scheduled_inst_mdf_end == null
+        ? ''
+        : toInstallEndInputValue(
+            instance.scheduled_inst_mdf_end,
+            instance.schedule.IM,
+          );
     setEndDates({
-      scheduled_inst_mdf_end:
-        instance.scheduled_inst_mdf_end == null
-          ? ''
-          : toInstallEndInputValue(
-              instance.scheduled_inst_mdf_end,
-              instance.schedule.IM,
-            ),
+      scheduled_inst_mdf_end: mdfEndInit,
       scheduled_inst_stone_end:
         instance.scheduled_inst_stone_end == null
           ? ''
@@ -287,6 +294,7 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
     });
     setError(null);
     setPickerOpenField(null);
+    setPickerOpenEndField(null);
     setCalendarOpen(false);
     setImLeaderId('');
     setImHelper1Id('');
@@ -352,16 +360,17 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
   }, [instance?.id]);
 
   useEffect(() => {
-    if (!pickerOpenField) return;
+    if (!pickerOpenField && !pickerOpenEndField) return;
     const onDown = (e: MouseEvent) => {
       const t = e.target as HTMLElement | null;
       if (t?.closest('[data-instance-date-picker]')) return;
       setPickerOpenField(null);
+      setPickerOpenEndField(null);
       setCalendarOpen(false);
     };
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
-  }, [pickerOpenField]);
+  }, [pickerOpenField, pickerOpenEndField]);
 
   useEffect(() => {
     const hasInstallation = dates.scheduled_inst_mdf || dates.scheduled_inst_stone;
@@ -515,6 +524,13 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
       setEndDates(prev => ({ ...prev, [endField]: '' }));
     }
     setPickerOpenField(null);
+    setPickerOpenEndField(null);
+    setCalendarOpen(false);
+  };
+
+  const handleClearEndDate = (endField: InstallEndField) => {
+    setEndDates(prev => ({ ...prev, [endField]: '' }));
+    setPickerOpenEndField(null);
     setCalendarOpen(false);
   };
 
@@ -529,7 +545,32 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
       setPickerYear(n.getFullYear());
       setPickerMonth(n.getMonth() + 1);
     }
+    setPickerOpenEndField(null);
     setPickerOpenField(field);
+    setCalendarOpen(true);
+  };
+
+  const openEndDatePicker = (endField: InstallEndField) => {
+    const current = endDates[endField];
+    if (current) {
+      const [y, m] = current.split('-').map(Number);
+      setPickerYear(y);
+      setPickerMonth(m);
+    } else {
+      const startField = START_BY_INSTALL_END[endField];
+      const start = dates[startField];
+      if (start) {
+        const [y, m] = start.split('-').map(Number);
+        setPickerYear(y);
+        setPickerMonth(m);
+      } else {
+        const n = new Date();
+        setPickerYear(n.getFullYear());
+        setPickerMonth(n.getMonth() + 1);
+      }
+    }
+    setPickerOpenField(null);
+    setPickerOpenEndField(endField);
     setCalendarOpen(true);
   };
 
@@ -605,6 +646,105 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
     }
 
     applyLaneDate();
+  };
+
+  const selectEndPickerDay = (endField: InstallEndField, day: number) => {
+    const dayStr = `${pickerYear}-${String(pickerMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const startField = START_BY_INSTALL_END[endField];
+    const laneStart = dates[startField];
+
+    if (dayStr < scheduleTodayMin) {
+      setError('No se puede programar en una fecha pasada.');
+      return;
+    }
+    if (laneStart && dayStr <= laneStart) {
+      setError('La fecha fin debe ser posterior al inicio.');
+      return;
+    }
+
+    setEndDates(prev => ({ ...prev, [endField]: dayStr }));
+    setError(null);
+    setPickerOpenEndField(null);
+    setCalendarOpen(false);
+  };
+
+  const renderMonthPicker = (
+    selectedDayKey: string,
+    onSelectDay: (day: number) => void,
+    isDayDisabled?: (dayKey: string) => boolean,
+  ) => {
+    const daysInMonth = getDaysInMonth(pickerYear, pickerMonth);
+    const lead = mondayFirstOffset(pickerYear, pickerMonth);
+    const cells: (number | null)[] = [];
+    for (let i = 0; i < lead; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+    while (cells.length % 7 !== 0) cells.push(null);
+    const ymd = (d: number) =>
+      `${pickerYear}-${String(pickerMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+    return (
+      <div className="absolute left-0 top-full z-[60] mt-1 w-full max-w-[280px] rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
+        <div className="mb-1 flex items-center justify-between gap-0.5">
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); goPrevMonth(); }}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-xs text-slate-600 hover:bg-slate-100"
+            aria-label="Mes anterior"
+          >
+            ‹
+          </button>
+          <span className="min-w-0 flex-1 truncate text-center text-xs font-semibold text-slate-800">
+            {MONTH_SHORT_ES[pickerMonth - 1]} {pickerYear}
+          </span>
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); goNextMonth(); }}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-xs text-slate-600 hover:bg-slate-100"
+            aria-label="Mes siguiente"
+          >
+            ›
+          </button>
+        </div>
+        <div className="mb-0.5 grid grid-cols-7 gap-0.5 text-center text-xs font-semibold text-slate-400">
+          {WEEKDAY_HEADERS.map(h => (
+            <div key={h} className="flex h-7 w-7 max-h-7 max-w-7 items-center justify-center">
+              {h}
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-0.5">
+          {cells.map((d, idx) =>
+            d === null ? (
+              <div key={`e-${idx}`} className="h-7 w-7 max-h-7 max-w-7 shrink-0" />
+            ) : (() => {
+              const dayKey = ymd(d);
+              const disabled = isDayDisabled?.(dayKey) ?? false;
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  disabled={disabled}
+                  onClick={e => {
+                    e.stopPropagation();
+                    if (!disabled) onSelectDay(d);
+                  }}
+                  className={`
+                    flex h-7 w-7 max-h-7 max-w-7 shrink-0 items-center justify-center rounded-md text-xs font-medium transition-colors
+                    ${disabled
+                      ? 'cursor-not-allowed text-slate-300'
+                      : selectedDayKey === dayKey
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-slate-700 hover:bg-slate-100'}
+                  `}
+                >
+                  {d}
+                </button>
+              );
+            })(),
+          )}
+        </div>
+      </div>
+    );
   };
 
   const confirmLaneDate = () => {
@@ -899,72 +1039,12 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
                           </span>
                         </div>
 
-                        {!readOnly && pickerOpenField === lane.field && (() => {
-                          const daysInMonth = getDaysInMonth(pickerYear, pickerMonth);
-                          const lead = mondayFirstOffset(pickerYear, pickerMonth);
-                          const cells: (number | null)[] = [];
-                          for (let i = 0; i < lead; i++) cells.push(null);
-                          for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-                          while (cells.length % 7 !== 0) cells.push(null);
-                          const ymd = (d: number) =>
-                            `${pickerYear}-${String(pickerMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                          return (
-                            <div className="absolute left-0 top-full z-[60] mt-1 w-full max-w-[280px] rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
-                              <div className="mb-1 flex items-center justify-between gap-0.5">
-                                <button
-                                  type="button"
-                                  onClick={e => { e.stopPropagation(); goPrevMonth(); }}
-                                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-xs text-slate-600 hover:bg-slate-100"
-                                  aria-label="Mes anterior"
-                                >
-                                  ‹
-                                </button>
-                                <span className="min-w-0 flex-1 truncate text-center text-xs font-semibold text-slate-800">
-                                  {MONTH_SHORT_ES[pickerMonth - 1]} {pickerYear}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={e => { e.stopPropagation(); goNextMonth(); }}
-                                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-xs text-slate-600 hover:bg-slate-100"
-                                  aria-label="Mes siguiente"
-                                >
-                                  ›
-                                </button>
-                              </div>
-                              <div className="mb-0.5 grid grid-cols-7 gap-0.5 text-center text-xs font-semibold text-slate-400">
-                                {WEEKDAY_HEADERS.map(h => (
-                                  <div key={h} className="flex h-7 w-7 max-h-7 max-w-7 items-center justify-center">
-                                    {h}
-                                  </div>
-                                ))}
-                              </div>
-                              <div className="grid grid-cols-7 gap-0.5">
-                                {cells.map((d, idx) =>
-                                  d === null ? (
-                                    <div key={`e-${idx}`} className="h-7 w-7 max-h-7 max-w-7 shrink-0" />
-                                  ) : (
-                                    <button
-                                      key={d}
-                                      type="button"
-                                      onClick={e => {
-                                        e.stopPropagation();
-                                        selectPickerDay(lane.field, d);
-                                      }}
-                                      className={`
-                                        flex h-7 w-7 max-h-7 max-w-7 shrink-0 items-center justify-center rounded-md text-xs font-medium transition-colors
-                                        ${dates[lane.field] === ymd(d)
-                                          ? 'bg-indigo-600 text-white'
-                                          : 'text-slate-700 hover:bg-slate-100'}
-                                      `}
-                                    >
-                                      {d}
-                                    </button>
-                                  ),
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })()}
+                        {!readOnly && pickerOpenField === lane.field &&
+                          renderMonthPicker(
+                            dates[lane.field],
+                            (d) => selectPickerDay(lane.field, d),
+                            (dayKey) => dayKey < scheduleTodayMin,
+                          )}
                       </div>
 
                     </div>
@@ -973,25 +1053,70 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
                       const endField = INSTALL_END_BY_START[lane.field];
                       if (!endField) return null;
                       const laneStartDate = dates[lane.field];
-                      const installEndMin =
-                        laneStartDate && laneStartDate >= scheduleTodayMin
-                          ? laneStartDate
-                          : scheduleTodayMin;
                       const endValue = endDates[endField] ?? '';
+                      const hasEndDate = !!endValue;
+                      const endDisplayText = hasEndDate
+                        ? `Hasta ${formatDisplayDate(endValue)}`
+                        : 'Sin fecha fin — clic para agregar';
+
                       return (
-                        <div className="pl-1 pt-1">
-                          <label className="text-[10px] font-semibold text-slate-500 mb-1 block">
+                        <div className="pl-1 pt-1 space-y-1">
+                          <label className="text-[10px] font-semibold text-slate-500 block">
                             Fecha fin (opcional)
                           </label>
-                          <Input
-                            type="date"
-                            value={endValue}
-                            min={installEndMin}
-                            onChange={(e) => {
-                              setEndDates(prev => ({ ...prev, [endField]: e.target.value }));
-                            }}
-                            className="rounded-xl py-2 text-sm"
-                          />
+                          <div
+                            className="relative"
+                            data-instance-date-picker
+                          >
+                            <div
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => openEndDatePicker(endField)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  openEndDatePicker(endField);
+                                }
+                              }}
+                              className={`
+                                flex items-center gap-2.5 px-3 py-2 rounded-xl border
+                                cursor-pointer select-none transition-all
+                                ${hasEndDate
+                                  ? `${lane.color} font-semibold text-sm`
+                                  : 'border-slate-200 bg-slate-50 text-slate-400 text-sm italic'}
+                              `}
+                            >
+                              <span className="shrink-0 text-base leading-none">
+                                {hasEndDate ? '📅' : '○'}
+                              </span>
+                              <span className="flex-1">{endDisplayText}</span>
+                              {hasEndDate && (
+                                <button
+                                  type="button"
+                                  title="Quitar fecha fin"
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    handleClearEndDate(endField);
+                                  }}
+                                  className="shrink-0 flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-red-100 hover:text-red-600 transition"
+                                >
+                                  <X size={16} aria-hidden />
+                                </button>
+                              )}
+                              <span className={`shrink-0 text-[10px] font-bold uppercase tracking-wide
+                                ${hasEndDate ? 'opacity-50' : 'text-slate-400'}`}>
+                                editar
+                              </span>
+                            </div>
+                            {pickerOpenEndField === endField &&
+                              renderMonthPicker(
+                                endValue,
+                                (d) => selectEndPickerDay(endField, d),
+                                (dayKey) =>
+                                  dayKey < scheduleTodayMin ||
+                                  (!!laneStartDate && dayKey <= laneStartDate),
+                              )}
+                          </div>
                         </div>
                       );
                     })()}
