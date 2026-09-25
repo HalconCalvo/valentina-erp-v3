@@ -1372,5 +1372,14 @@ def update_instance_delivery_deadline(
             session.add(other)
 
     session.commit()
-    return {"ok": True, "updated": 1 + (len(others) if apply_to_all and deadline else 0)}
+    session.refresh(inst)
+    
+    # Devolver todas las instancias actualizadas para que el frontend pueda actualizar el estado local
+    updated_instances = [{"id": inst.id, "delivery_deadline": str(inst.delivery_deadline) if inst.delivery_deadline else None}]
+    if apply_to_all and deadline:
+        for other in others:
+            session.refresh(other)
+            updated_instances.append({"id": other.id, "delivery_deadline": str(other.delivery_deadline) if other.delivery_deadline else None})
+    
+    return {"ok": True, "instances": updated_instances}
 
