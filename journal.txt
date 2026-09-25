@@ -3713,3 +3713,24 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 3. Heartbeat 404 — bug menor
 4. Inventario físico
 5. Arranque en ceros
+
+
+---
+## SESIÓN 2026-09-25 (noche) — SEMÁFOROS Y CORRECCIONES
+
+### Completado:
+- compute_semaphore con session: READY → BLUE_GREEN, IN_PRODUCTION → BLUE
+- Semáforos consistentes entre Rayos X y Planeación Maestra
+- Backend local configurado correctamente con PostgreSQL de Render
+- Comando backend local:
+  cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://valentina_db_prod_user:ApTPkD67HEwhXJ6tdqWNkYCt0rkMQkPs@dpg-d6et6idm5p6s73edv780-a.ohio-postgres.render.com/valentina_db_prod" python3 -m uvicorn app.main:app --reload --port 8000
+- NOTA: backend local muy lento con BD en Ohio (196s por health) — usar Render como backend para desarrollo normal
+- frontend/.env.development → https://valentina-backend.onrender.com/api/v1 (default)
+- frontend/.env.development → http://localhost:8000/api/v1 (solo para probar cambios backend)
+
+### Pendientes:
+1. PWA Campo — probar con instalador real
+2. Migración OVs reales
+3. Heartbeat 404 — bug menor
+4. Inventario físico
+5. Arranque en ceros
