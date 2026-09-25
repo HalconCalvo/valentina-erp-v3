@@ -265,6 +265,14 @@ const RayosXOcQuickEdit: React.FC<{
     );
 };
 
+/** Texto del badge sin emoji inicial (el dot de color ya identifica el estado). */
+function semaphoreBadgeDisplayText(semaphoreLabel: string | null | undefined, cfgLabel: string): string {
+  let text = (semaphoreLabel?.trim() || cfgLabel).trim();
+  text = text.replace(/^⚪⚠️\s*/u, '').replace(/^🔵🟢\s*/u, '').replace(/^🔵🔵\s*/u, '').replace(/^🟢🟢\s*/u, '');
+  text = text.replace(/^[\s]*(?:🔴|🟡|🔵|🟢|⚪|⬜|⚠️|🔘|🟣)\s*/u, '');
+  return text.trim();
+}
+
 function InstanceSemaphoreBadge({
   semaphore,
   semaphoreLabel,
@@ -273,14 +281,17 @@ function InstanceSemaphoreBadge({
   semaphoreLabel?: string | null;
 }) {
   const cfg = getSemaphoreConfig(semaphore ?? 'GRAY');
-  const text = (semaphoreLabel?.trim() || cfg.label).trim();
+  const text = semaphoreBadgeDisplayText(semaphoreLabel, cfg.label);
   return (
     <span
-      className={`inline-flex items-center gap-1 max-w-[11rem] text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${cfg.bg} ${cfg.text} ${cfg.border}`}
+      className={`inline-flex items-center gap-1.5 max-w-[12rem] text-[10px] font-bold shrink-0 ${cfg.text}`}
       title={text}
     >
-      <span className="leading-none shrink-0">{cfg.dot}</span>
-      <span className="truncate">{text}</span>
+      <span
+        className={`w-3 h-3 rounded-full shrink-0 border-2 ${cfg.border} ${cfg.pillBg}`}
+        aria-hidden
+      />
+      <span className="truncate leading-tight">{text}</span>
     </span>
   );
 }
@@ -2263,8 +2274,8 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                         <div className="divide-y divide-slate-100 bg-white">
                                             {realInstances.map((inst: any) => (
                                                 <div key={inst.id} className="py-2 pl-8 pr-4 flex flex-wrap gap-2 justify-between items-center hover:bg-slate-50 text-sm">
-                                                    <div className="flex items-start gap-3 min-w-0 flex-1">
-                                                        <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${inst.customer_payment_id ? 'bg-blue-500' : 'bg-slate-300'}`} />
+                                                    <div className="flex items-start gap-3 min-w-0 flex-1 flex-wrap">
+                                                        <div className="w-2 h-2 rounded-full mt-1.5 shrink-0 bg-slate-300" />
                                                         <div className="min-w-0">
                                                             <span className="font-bold text-slate-700 block truncate">
                                                                 {inst.custom_name || inst.item_name}
@@ -2273,12 +2284,12 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                                 {formatInstanceCasaSubtitle(displayName, inst)}
                                                             </p>
                                                         </div>
-                                                    </div>
-                                                    <div className="text-right flex items-center justify-end gap-2 shrink-0 flex-wrap">
                                                         <InstanceSemaphoreBadge
                                                             semaphore={inst.semaphore}
                                                             semaphoreLabel={inst.semaphore_label}
                                                         />
+                                                    </div>
+                                                    <div className="text-right flex items-center justify-end gap-2 shrink-0 flex-wrap">
                                                         <span className={`text-xs font-bold px-2 py-1 rounded ${
                                                             inst.customer_payment_id
                                                             ? 'bg-blue-50 text-blue-600 border border-blue-100'
@@ -2291,7 +2302,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                                 type="button"
                                                                 onClick={() => handleDeleteInstance(item.id, inst)}
                                                                 disabled={deletingId === inst.id}
-                                                                className="ml-2 p-1 text-slate-400 hover:text-red-600 transition-colors disabled:opacity-50"
+                                                                className="p-1 text-slate-400 hover:text-red-600 transition-colors disabled:opacity-50"
                                                                 title="Eliminar esta unidad"
                                                             >
                                                                 <Trash2 size={14} />
@@ -2415,19 +2426,22 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                         const meta = INSTANCE_STATUS_META[mueble.production_status] ?? { label: mueble.production_status, cls: 'bg-slate-100 text-slate-500' };
                                         return (
                                           <div key={mueble.id} className="py-2 px-4 flex flex-wrap gap-2 justify-between items-center hover:bg-slate-50 text-sm">
-                                            <div className="min-w-0">
-                                              <span className="font-bold text-slate-700 block truncate">
-                                                {mueble.custom_name || mueble.product_name}
-                                              </span>
-                                              <p className="text-[10px] text-slate-400 truncate">
-                                                {formatInstanceCasaSubtitle(displayName, mueble)}
-                                              </p>
-                                            </div>
-                                            <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                                            <div className="flex items-start gap-3 min-w-0 flex-1 flex-wrap">
+                                              <div className="w-2 h-2 rounded-full mt-1.5 shrink-0 bg-slate-300" />
+                                              <div className="min-w-0">
+                                                <span className="font-bold text-slate-700 block truncate">
+                                                  {mueble.custom_name || mueble.product_name}
+                                                </span>
+                                                <p className="text-[10px] text-slate-400 truncate">
+                                                  {formatInstanceCasaSubtitle(displayName, mueble)}
+                                                </p>
+                                              </div>
                                               <InstanceSemaphoreBadge
                                                 semaphore={mueble.semaphore}
                                                 semaphoreLabel={mueble.semaphore_label}
                                               />
+                                            </div>
+                                            <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                                               {mueble.customer_payment_id ? (
                                                 <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-100">FACTURADO</span>
                                               ) : (
