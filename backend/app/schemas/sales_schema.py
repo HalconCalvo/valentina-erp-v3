@@ -1,7 +1,7 @@
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlmodel import SQLModel
-from datetime import datetime
+from datetime import datetime, date
 
 # Importamos los Enums directamente desde los modelos
 from app.models.sales import (
@@ -95,8 +95,31 @@ class SalesOrderItemInstanceRead(SalesOrderItemInstanceBase):
     id: int
     sales_order_item_id: int
     description_override: Optional[str] = None
+    delivery_deadline: Optional[str] = None  # YYYY-MM-DD en API
     semaphore: Optional[str] = None
     semaphore_label: Optional[str] = None
+
+    @field_validator("delivery_deadline", mode="before")
+    @classmethod
+    def _coerce_delivery_deadline(cls, value: object) -> Optional[str]:
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.date().isoformat()
+        if isinstance(value, date):
+            return value.isoformat()
+        if isinstance(value, str):
+            trimmed = value.strip()
+            if not trimmed:
+                return None
+            if "T" in trimmed:
+                return trimmed.split("T", 1)[0]
+            return trimmed[:10] if len(trimmed) >= 10 else trimmed
+        return str(value)
+
+class InstanceDeliveryDeadlineUpdate(SQLModel):
+    delivery_deadline: Optional[str] = None  # YYYY-MM-DD
+    apply_to_all_without_date: bool = False
 
 class SalesOrderItemInstanceUpdate(SQLModel):
     custom_name: Optional[str] = None

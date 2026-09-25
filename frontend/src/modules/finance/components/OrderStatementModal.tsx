@@ -26,7 +26,11 @@ import {
   orderStatementQueryKeys,
   fetchInstallmentsForCxc,
 } from '../../../hooks/useOrderStatement';
-import { getSemaphoreBadgeMark, getSemaphoreConfig } from '../../planning/hooks/usePlanning';
+import {
+  getLocalTodayDateKey,
+  getSemaphoreBadgeMark,
+  getSemaphoreConfig,
+} from '../../planning/hooks/usePlanning';
 
 type OrderStatementPendingConfirm =
     | { kind: 'CANCEL_OV' }
@@ -304,6 +308,91 @@ function formatInstanceCasaSubtitle(projectName: string, inst: { street?: string
   return [projectName?.trim(), casa].filter(Boolean).join(' · ');
 }
 
+function formatDeliveryDeadlineDisplay(iso: string | null | undefined): string {
+  const raw = typeof iso === 'string' ? iso.trim() : '';
+  if (!raw) return 'Sin fecha estimada';
+  const d = new Date(raw.includes('T') ? raw : `${raw.slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return 'Sin fecha estimada';
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = d
+    .toLocaleDateString('es-MX', { month: 'short' })
+    .replace(/\./g, '')
+    .trim();
+  return `${day}/${month}/${d.getFullYear()}`;
+}
+
+function deliveryDeadlineInputValue(iso: string | null | undefined): string {
+  if (!iso) return '';
+  return iso.slice(0, 10);
+}
+
+function InstanceDeliveryDeadlineCell({
+  deliveryDeadline,
+  canEdit,
+  disabled,
+  onCommit,
+}: {
+  deliveryDeadline?: string | null;
+  canEdit: boolean;
+  disabled?: boolean;
+  onCommit: (dateKey: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const display = formatDeliveryDeadlineDisplay(deliveryDeadline);
+  const todayMin = getLocalTodayDateKey();
+
+  if (!canEdit) {
+    return (
+      <span className="text-[10px] font-semibold text-slate-600 shrink-0" title={display}>
+        {display}
+      </span>
+    );
+  }
+
+  if (editing) {
+    return (
+      <Input
+        type="date"
+        min={todayMin}
+        value={draft}
+        disabled={disabled}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && draft && draft >= todayMin) {
+            onCommit(draft);
+            setEditing(false);
+          }
+          if (e.key === 'Escape') setEditing(false);
+        }}
+        onBlur={() => {
+          if (draft && draft >= todayMin) {
+            onCommit(draft);
+          }
+          setEditing(false);
+        }}
+        className="h-7 w-[9.5rem] text-[10px] px-2 py-0 rounded-lg"
+        autoFocus
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => {
+        setDraft(deliveryDeadlineInputValue(deliveryDeadline));
+        setEditing(true);
+      }}
+      className="text-[10px] font-semibold text-indigo-700 hover:text-indigo-900 hover:underline shrink-0 disabled:opacity-50 text-left"
+      title="Editar fecha estimada de entrega"
+    >
+      {display}
+    </button>
+  );
+}
+
 const INSTANCE_STATUS_META: Record<string, { label: string; cls: string }> = {
     PENDING:       { label: 'Pendiente',     cls: 'bg-slate-100 text-slate-600' },
     IN_PRODUCTION: { label: 'En Producción', cls: 'bg-blue-50 text-blue-700' },
@@ -334,6 +423,8 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const canExpandOrder =
         ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'MANAGER', 'SALES', 'VENTAS', 'ADMIN', 'ADMINISTRADOR'].includes(userRole)
         && ['ACCEPTED', 'WAITING_ADVANCE', 'SOLD', 'IN_PRODUCTION'].includes((order as any).status);
+    const canEditDeliveryDeadline =
+        !readOnly && ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'MANAGER', 'DESIGN', 'DISEÑO'].includes(userRole);
     const [showAddItems, setShowAddItems] = useState(false);
     const [deletingId, setDeletingId] = useState<number | null>(null);
     const [editingResaleId, setEditingResaleId] = useState<number | null>(null);
@@ -357,6 +448,8 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const [ocSaving, setOcSaving] = useState(false);
     const [cancelling, setCancelling] = useState(false);
     const [pendingConfirm, setPendingConfirm] = useState<OrderStatementPendingConfirm | null>(null);
+    const [deliveryApplyPrompt, setDeliveryApplyPrompt] = useState<{ instanceId: number; dateKey: string } | null>(null);
+    const [savingDeliveryInstanceId, setSavingDeliveryInstanceId] = useState<number | null>(null);
 
     const [editingName, setEditingName] = useState(false);
     const [nameDraft, setNameDraft] = useState('');
@@ -497,6 +590,62 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         if (!orderId) return;
         await refetchOrderDetail();
     }, [orderId, refetchOrderDetail]);
+
+    const countOtherInstancesWithoutDelivery = useCallback((instanceId: number) => {
+        let count = 0;
+        for (const item of localOrder?.items ?? []) {
+            for (const inst of item.instances ?? []) {
+                if (inst.id !== instanceId && !inst.delivery_deadline) count += 1;
+            }
+        }
+        return count;
+    }, [localOrder]);
+
+    const applyDeliveryDeadlinePatch = useCallback(async (
+        instanceId: number,
+        dateKey: string,
+        applyToAllWithoutDate: boolean,
+    ) => {
+        if (!orderId) return;
+        setSavingDeliveryInstanceId(instanceId);
+        try {
+            const result = await salesService.patchInstanceDeliveryDeadline(orderId, instanceId, {
+                delivery_deadline: dateKey,
+                apply_to_all_without_date: applyToAllWithoutDate,
+            });
+            const updates = new Map(result.instances.map((row) => [row.id, row]));
+            setLocalOrder((prev) => ({
+                ...prev,
+                items: (prev.items ?? []).map((item) => ({
+                    ...item,
+                    instances: (item.instances ?? []).map((inst) => {
+                        const patch = updates.get(inst.id!);
+                        return patch ? { ...inst, ...patch } : inst;
+                    }),
+                })),
+            }));
+            await refetchOrderDetail();
+            toast.success('Fecha estimada de entrega guardada.');
+        } catch (err: unknown) {
+            const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+            toast.error(typeof detail === 'string' ? detail : 'No se pudo guardar la fecha estimada de entrega.');
+        } finally {
+            setSavingDeliveryInstanceId(null);
+            setDeliveryApplyPrompt(null);
+        }
+    }, [orderId, refetchOrderDetail]);
+
+    const handleDeliveryDeadlineCommit = useCallback((instanceId: number, dateKey: string) => {
+        if (!dateKey || dateKey < getLocalTodayDateKey()) {
+            toast.error('La fecha estimada de entrega debe ser hoy o posterior.');
+            return;
+        }
+        if (countOtherInstancesWithoutDelivery(instanceId) > 0) {
+            setDeliveryApplyPrompt({ instanceId, dateKey });
+            return;
+        }
+        void applyDeliveryDeadlinePatch(instanceId, dateKey, false);
+    }, [applyDeliveryDeadlinePatch, countOtherInstancesWithoutDelivery]);
 
     useEffect(() => {
         if (orderDetail) {
@@ -688,6 +837,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                     lot: inst.lot,
                     semaphore: inst.semaphore,
                     semaphore_label: inst.semaphore_label,
+                    delivery_deadline: inst.delivery_deadline,
                 });
             });
         });
@@ -2283,13 +2433,19 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                             <span className="font-bold text-slate-700 block truncate">
                                                                 {inst.custom_name || inst.item_name}
                                                             </span>
-                                                            <p className="text-[10px] text-slate-400 truncate">
+                                                            <p className="text-[10px] text-slate-600 truncate">
                                                                 {formatInstanceCasaSubtitle(displayName, inst)}
                                                             </p>
                                                         </div>
                                                         <InstanceSemaphoreBadge
                                                             semaphore={inst.semaphore}
                                                             semaphoreLabel={inst.semaphore_label}
+                                                        />
+                                                        <InstanceDeliveryDeadlineCell
+                                                            deliveryDeadline={inst.delivery_deadline}
+                                                            canEdit={canEditDeliveryDeadline}
+                                                            disabled={savingDeliveryInstanceId === inst.id}
+                                                            onCommit={(dateKey) => handleDeliveryDeadlineCommit(inst.id, dateKey)}
                                                         />
                                                     </div>
                                                     <div className="text-right flex items-center justify-end gap-2 shrink-0 flex-wrap">
@@ -2435,13 +2591,19 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                 <span className="font-bold text-slate-700 block truncate">
                                                   {mueble.custom_name || mueble.product_name}
                                                 </span>
-                                                <p className="text-[10px] text-slate-400 truncate">
+                                                <p className="text-[10px] text-slate-600 truncate">
                                                   {formatInstanceCasaSubtitle(displayName, mueble)}
                                                 </p>
                                               </div>
                                               <InstanceSemaphoreBadge
                                                 semaphore={mueble.semaphore}
                                                 semaphoreLabel={mueble.semaphore_label}
+                                              />
+                                              <InstanceDeliveryDeadlineCell
+                                                deliveryDeadline={mueble.delivery_deadline}
+                                                canEdit={canEditDeliveryDeadline}
+                                                disabled={savingDeliveryInstanceId === mueble.id}
+                                                onCommit={(dateKey) => handleDeliveryDeadlineCommit(mueble.id, dateKey)}
                                               />
                                             </div>
                                             <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
@@ -3151,6 +3313,46 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                             {waivingRetention ? 'Procesando…' : 'Confirmar liberación'}
                         </button>
                     </div>
+                </div>
+            </Modal>
+        )}
+        {deliveryApplyPrompt && (
+            <Modal
+                isOpen={true}
+                onClose={() => {
+                    if (savingDeliveryInstanceId != null) return;
+                    setDeliveryApplyPrompt(null);
+                }}
+                title="Fecha estimada de entrega"
+                size="sm"
+            >
+                <p className="text-sm text-slate-600 leading-relaxed mb-4">
+                    ¿Aplicar esta fecha a todas las instancias de esta OV que no tienen fecha estimada de entrega?
+                </p>
+                <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={savingDeliveryInstanceId != null}
+                        onClick={() => {
+                            const p = deliveryApplyPrompt;
+                            if (!p) return;
+                            void applyDeliveryDeadlinePatch(p.instanceId, p.dateKey, false);
+                        }}
+                    >
+                        Solo esta instancia
+                    </Button>
+                    <Button
+                        type="button"
+                        disabled={savingDeliveryInstanceId != null}
+                        onClick={() => {
+                            const p = deliveryApplyPrompt;
+                            if (!p) return;
+                            void applyDeliveryDeadlinePatch(p.instanceId, p.dateKey, true);
+                        }}
+                    >
+                        Aplicar a todas sin fecha
+                    </Button>
                 </div>
             </Modal>
         )}

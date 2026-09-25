@@ -20,7 +20,7 @@ export const SEMAPHORE_CONFIG: Record<string, {
   YELLOW:      { label: 'Alerta',            dot: '🟡', bg: 'bg-amber-50',    text: 'text-amber-700', border: 'border-amber-300', pillBg: 'bg-amber-100' },
   RED:         { label: 'Crítico',           dot: '🔴', bg: 'bg-red-50',      text: 'text-red-700',   border: 'border-red-300',   pillBg: 'bg-red-100'   },
   BLUE:        { label: 'En Proceso',        dot: '🔵', bg: 'bg-blue-50',     text: 'text-blue-700',  border: 'border-blue-300',  pillBg: 'bg-blue-100'  },
-  BLUE_GREEN:  { label: 'Listo / Andén',     dot: '🔵', bg: 'bg-teal-50',     text: 'text-teal-700',  border: 'border-teal-300',  pillBg: 'bg-teal-100'  },
+  BLUE_GREEN:  { label: 'Listo / Andén',     dot: '🔵🟢', icon: '🔵🟢', bg: 'bg-teal-50',     text: 'text-teal-700',  border: 'border-teal-300',  pillBg: 'bg-teal-100'  },
   DOUBLE_BLUE: { label: 'En Instalación',    dot: '🔵', bg: 'bg-indigo-50',   text: 'text-indigo-700',border: 'border-indigo-300',pillBg: 'bg-indigo-100'},
   GREEN:       { label: 'Instalado',         dot: '🟢', bg: 'bg-green-50',    text: 'text-green-700', border: 'border-green-300', pillBg: 'bg-green-100' },
   DOUBLE_GREEN:{ label: 'Cerrado',           dot: '🟢', bg: 'bg-emerald-50',  text: 'text-emerald-700',border:'border-emerald-300',pillBg:'bg-emerald-100'},
@@ -39,7 +39,7 @@ export function getSemaphoreBadgeMark(semaphore: string): { kind: 'icon'; icon: 
   }
   return {
     kind: 'dot',
-    dotClass: `w-3 h-3 rounded-full shrink-0 border-2 ${cfg.border} ${cfg.pillBg}`,
+    dotClass: `w-4 h-4 rounded-full shrink-0 border-2 ${cfg.border} ${cfg.pillBg}`,
   };
 }
 

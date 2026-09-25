@@ -41,6 +41,7 @@ from app.schemas.sales_schema import (
     InstallmentCancel,
     SalesOrderItemInstanceUpdate,
     SalesOrderItemInstanceRead,
+    InstanceDeliveryDeadlineUpdate,
     PaymentPayload,
     ClientPurchaseOrderPayload,
     ResaleItemPatch,
@@ -316,6 +317,26 @@ def delete_order_instance(
     except Exception as e:
         session.rollback()
         raise HTTPException(500, f"Error al eliminar instancia: {e}")
+
+
+@router.patch("/orders/{order_id}/instances/{instance_id}/delivery-deadline")
+def patch_order_instance_delivery_deadline(
+    order_id: int,
+    instance_id: int,
+    payload: InstanceDeliveryDeadlineUpdate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+) -> Any:
+    allowed = {UserRole.DIRECTOR, UserRole.MANAGER, UserRole.DESIGN}
+    if current_user.role not in allowed:
+        raise HTTPException(status_code=403, detail="No tienes permisos para editar la fecha estimada de entrega.")
+    return sales_service.patch_instance_delivery_deadline(
+        session,
+        order_id,
+        instance_id,
+        payload.delivery_deadline,
+        payload.apply_to_all_without_date,
+    )
 
 
 @router.patch("/instances/{instance_id}", response_model=SalesOrderItemInstanceRead)

@@ -1,5 +1,5 @@
 """Sales domain — business logic (no direct HTTP, queries via repository)."""
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Union
 
 from fastapi import HTTPException
@@ -327,10 +327,18 @@ def get_order(session: Session, order_id: int, current_user: User) -> SalesOrder
     return order
 
 
+def _delivery_deadline_to_api(value: Optional[Union[datetime, date]]) -> Optional[str]:
+    if value is None:
+        return None
+    day = value.date() if isinstance(value, datetime) else value
+    return day.isoformat()
+
+
 def enrich_order_instances_with_semaphore(session: Session, order: SalesOrder) -> SalesOrderRead:
     """SalesOrderRead con semáforo por instancia (no serializar el ORM directo)."""
     base = SalesOrderRead.model_validate(order, from_attributes=True)
     orm_items = {item.id: item for item in (order.items or []) if item.id is not None}
+
     items_payload: List[dict] = []
     for item_read in base.items:
         orm_item = orm_items.get(item_read.id)
@@ -344,18 +352,22 @@ def enrich_order_instances_with_semaphore(session: Session, order: SalesOrder) -
             orm_inst = orm_insts.get(inst_read.id)
             row = inst_read.model_dump(mode="python")
             if orm_inst is not None:
-                color = compute_semaphore(orm_inst)  # sin session → camino legacy con GRAY_WARNING
+                color = compute_semaphore(orm_inst)
                 row["semaphore"] = color
                 row["semaphore_label"] = compute_semaphore_label(color)
+                row["delivery_deadline"] = _delivery_deadline_to_api(orm_inst.delivery_deadline)
+            elif not row.get("delivery_deadline") and inst_read.delivery_deadline:
+                row["delivery_deadline"] = inst_read.delivery_deadline
             insts_payload.append(row)
             orm_insts.pop(inst_read.id, None)
 
         for orm_inst in orm_insts.values():
             inst_read = SalesOrderItemInstanceRead.model_validate(orm_inst, from_attributes=True)
             row = inst_read.model_dump(mode="python")
-            color = compute_semaphore(orm_inst, now, session=session)
+            color = compute_semaphore(orm_inst)
             row["semaphore"] = color
             row["semaphore_label"] = compute_semaphore_label(color)
+            row["delivery_deadline"] = _delivery_deadline_to_api(orm_inst.delivery_deadline)
             insts_payload.append(row)
 
         item_row = item_read.model_dump(mode="python")
@@ -365,6 +377,64 @@ def enrich_order_instances_with_semaphore(session: Session, order: SalesOrder) -
     order_payload = base.model_dump(mode="python")
     order_payload["items"] = items_payload
     return SalesOrderRead.model_validate(order_payload)
+
+
+def patch_instance_delivery_deadline(
+    session: Session,
+    order_id: int,
+    instance_id: int,
+    delivery_deadline: Optional[str],
+    apply_to_all_without_date: bool,
+) -> dict:
+    inst = sales_repo.get_instance_for_order(session, instance_id, order_id)
+    if not inst:
+        raise HTTPException(status_code=404, detail="Instancia no encontrada en esta orden.")
+
+    parsed_deadline: Optional[datetime] = None
+    if delivery_deadline is not None and str(delivery_deadline).strip():
+        try:
+            deadline_date = date.fromisoformat(str(delivery_deadline).strip())
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Fecha inválida. Use formato YYYY-MM-DD.")
+        if deadline_date < date.today():
+            raise HTTPException(
+                status_code=400,
+                detail="La fecha estimada de entrega debe ser hoy o posterior.",
+            )
+        parsed_deadline = datetime.combine(deadline_date, datetime.min.time())
+
+    target_ids = {inst.id}
+    targets = [inst]
+    if apply_to_all_without_date:
+        stmt = (
+            select(SalesOrderItemInstance)
+            .join(SalesOrderItem, SalesOrderItemInstance.sales_order_item_id == SalesOrderItem.id)
+            .where(SalesOrderItem.sales_order_id == order_id)
+            .where(SalesOrderItemInstance.is_cancelled == False)  # noqa: E712
+            .where(SalesOrderItemInstance.delivery_deadline.is_(None))
+        )
+        for row in session.exec(stmt).all():
+            if row.id not in target_ids:
+                targets.append(row)
+                target_ids.add(row.id)
+
+    for row in targets:
+        row.delivery_deadline = parsed_deadline
+        session.add(row)
+    session.commit()
+
+    now = datetime.utcnow()
+    payload_instances = []
+    for row in targets:
+        session.refresh(row)
+        color = compute_semaphore(row, now, session=session)
+        payload_instances.append({
+            "id": row.id,
+            "delivery_deadline": row.delivery_deadline.isoformat() if row.delivery_deadline else None,
+            "semaphore": color,
+            "semaphore_label": compute_semaphore_label(color),
+        })
+    return {"updated_count": len(payload_instances), "instances": payload_instances}
 
 
 def list_customer_payments(

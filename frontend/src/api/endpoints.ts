@@ -44,6 +44,8 @@ export const API_ROUTES = {
         ORDERS: '/sales/orders', 
         ORDER_DETAIL: (id: number) => `/sales/orders/${id}`, 
         ORDER_STATUS: (id: number) => `/sales/orders/${id}/status`, 
+        INSTANCE_DELIVERY_DEADLINE: (orderId: number, instanceId: number) =>
+            `/sales/orders/${orderId}/instances/${instanceId}/delivery-deadline`,
     },
 
     QUOTATIONS: {

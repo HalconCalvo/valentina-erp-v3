@@ -125,6 +125,26 @@ export const salesService = {
         await axiosClient.delete(`${API_ROUTES.SALES.ORDER_DETAIL(orderId)}/items/${itemId}/instances/${instanceId}`);
     },
 
+    patchInstanceDeliveryDeadline: async (
+        orderId: number,
+        instanceId: number,
+        payload: { delivery_deadline: string; apply_to_all_without_date: boolean },
+    ): Promise<{
+        updated_count: number;
+        instances: Array<{
+            id: number;
+            delivery_deadline: string | null;
+            semaphore: string;
+            semaphore_label: string;
+        }>;
+    }> => {
+        const response = await axiosClient.patch(
+            API_ROUTES.SALES.INSTANCE_DELIVERY_DEADLINE(orderId, instanceId),
+            payload,
+        );
+        return response.data;
+    },
+
     deleteResaleItem: async (orderId: number, itemId: number): Promise<void> => {
         await axiosClient.delete(`${API_ROUTES.SALES.ORDER_DETAIL(orderId)}/items/${itemId}/resale`);
     },
