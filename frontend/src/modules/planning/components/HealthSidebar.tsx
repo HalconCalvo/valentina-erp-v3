@@ -82,7 +82,9 @@ const TABS: TabConfig[] = [
     key: 'GRAY',
     icon: '⬜',
     label: 'Planeación',
-    dataKey: d => d.planned.filter(i => !hasAnyScheduledDate(i)),
+    dataKey: d => d.planned.filter(
+      i => !hasAnyScheduledDate(i) && i.semaphore !== 'GRAY' && i.semaphore !== 'GRAY_WARNING',
+    ),
     countKey: '_UNSCHEDULED',
     dotClass: 'bg-slate-300',
   },
@@ -90,7 +92,9 @@ const TABS: TabConfig[] = [
     key: 'SCHEDULED',
     icon: '🟣',
     label: 'Programadas',
-    dataKey: d => d.planned.filter(i => hasAnyScheduledDate(i)),
+    dataKey: d => d.planned.filter(
+      i => hasAnyScheduledDate(i) || i.semaphore === 'GRAY' || i.semaphore === 'GRAY_WARNING',
+    ),
     countKey: '_SCHEDULED',
     dotClass: 'bg-purple-500',
   },
@@ -193,7 +197,9 @@ function InstanceCard({
         ${isDraggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} hover:shadow-md active:scale-[0.98]
         ${isHighlighted
           ? 'border-indigo-400 ring-2 ring-indigo-200 shadow-md bg-indigo-50/40'
-          : `border-slate-200 bg-white hover:border-slate-300`
+          : instance.semaphore === 'GRAY_WARNING'
+            ? 'border-amber-400 bg-slate-50 hover:border-amber-500 ring-1 ring-amber-200'
+            : 'border-slate-200 bg-white hover:border-slate-300'
         }
       `}
     >
@@ -375,10 +381,14 @@ export default function HealthSidebar({ data, loading, onInstanceClick, onInstan
       list = list.filter(inst => matchesInstanceQuery(inst, query));
     }
     if (tab.key === 'GRAY') {
-      return list.filter(i => !hasAnyScheduledDate(i)).length;
+      return list.filter(
+        i => !hasAnyScheduledDate(i) && i.semaphore !== 'GRAY' && i.semaphore !== 'GRAY_WARNING',
+      ).length;
     }
     if (tab.key === 'SCHEDULED') {
-      return list.filter(i => hasAnyScheduledDate(i)).length;
+      return list.filter(
+        i => hasAnyScheduledDate(i) || i.semaphore === 'GRAY' || i.semaphore === 'GRAY_WARNING',
+      ).length;
     }
     if (isFiltering) {
       return list.length;

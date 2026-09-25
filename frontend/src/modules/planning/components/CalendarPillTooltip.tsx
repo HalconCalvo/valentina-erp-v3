@@ -186,9 +186,11 @@ function TooltipBody({
         <p className="text-xs text-slate-500">{ovLine}</p>
       )}
 
-      <p className={`text-xs font-medium flex items-center gap-1.5 ${cfg.text}`}>
+      <p
+        className={`text-xs font-medium flex items-center gap-1.5 px-2 py-1 rounded-md border ${cfg.bg} ${cfg.text} ${cfg.border}`}
+      >
         <span className="text-sm leading-none">{cfg.dot}</span>
-        {inst.semaphore_label || pill.semaphore_label}
+        {inst.semaphore_label || pill.semaphore_label || cfg.label}
       </p>
 
       {laneRows.length > 0 && (

@@ -13,7 +13,8 @@ export const SEMAPHORE_CONFIG: Record<string, {
   border: string;       // Tailwind border class
   pillBg: string;
 }> = {
-  GRAY:        { label: 'Programado',        dot: '⬛', bg: 'bg-slate-100',   text: 'text-slate-500', border: 'border-slate-200', pillBg: 'bg-slate-200' },
+  GRAY:        { label: 'Programado',        dot: '⬜', bg: 'bg-slate-100',   text: 'text-slate-500', border: 'border-slate-200', pillBg: 'bg-slate-200' },
+  GRAY_WARNING:{ label: 'Sin Fecha de Entrega', dot: '⚠️', bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-amber-400', pillBg: 'bg-slate-200' },
   YELLOW:      { label: 'Alerta',            dot: '🟡', bg: 'bg-amber-50',    text: 'text-amber-700', border: 'border-amber-300', pillBg: 'bg-amber-100' },
   RED:         { label: 'Crítico',           dot: '🔴', bg: 'bg-red-50',      text: 'text-red-700',   border: 'border-red-300',   pillBg: 'bg-red-100'   },
   BLUE:        { label: 'En Proceso',        dot: '🔵', bg: 'bg-blue-50',     text: 'text-blue-700',  border: 'border-blue-300',  pillBg: 'bg-blue-100'  },
@@ -416,6 +417,7 @@ const SEMAPHORE_TO_HEALTH_LIST: Partial<Record<string, HealthListKey>> = {
   RED: 'critical',
   YELLOW: 'alerts',
   GRAY: 'planned',
+  GRAY_WARNING: 'planned',
   BLUE: 'in_process',
   BLUE_GREEN: 'ready_to_install',
   DOUBLE_BLUE: 'in_transit',
@@ -505,6 +507,7 @@ export function applyInstanceToHealthPanel(
 /** Emoji dots used across pill and day-view components. */
 export const SEMAPHORE_DOTS: Record<string, string> = {
   GRAY:         '⬜',
+  GRAY_WARNING: '⚠️',
   YELLOW:       '🟡',
   RED:          '🔴',
   BLUE:         '🔵',

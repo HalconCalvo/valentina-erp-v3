@@ -2,6 +2,7 @@ import { CalendarPill } from '../../../api/planning-service';
 import {
   LANE_COLORS,
   formatPillDisplayLabel,
+  getSemaphoreConfig,
   isPlanningPillProductionLocked,
 } from '../hooks/usePlanning';
 import CalendarPillTooltip from './CalendarPillTooltip';
@@ -20,6 +21,9 @@ export default function InstancePill({ pill, projectName, onClick, draggable, on
   const label = formatPillDisplayLabel(pill, projectName ?? pill.project_name);
   const productionLocked = isPlanningPillProductionLocked(pill);
   const laneLabel = productionLocked ? `✓ ${pill.lane}` : pill.lane;
+  const semCfg = getSemaphoreConfig(pill.semaphore);
+  const grayWarningRing =
+    pill.semaphore === 'GRAY_WARNING' ? `ring-1 ${semCfg.border}` : '';
 
   return (
     <CalendarPillTooltip pill={pill}>
@@ -34,6 +38,7 @@ export default function InstancePill({ pill, projectName, onClick, draggable, on
         hover:opacity-80 transition-opacity
         ${draggable ? 'cursor-grab active:cursor-grabbing' : productionLocked ? 'cursor-default' : ''}
         ${pill.is_warranty_reopened ? 'ring-1 ring-orange-400' : ''}
+        ${grayWarningRing}
       `}
       >
         <span className="shrink-0 font-bold">{laneLabel}</span>

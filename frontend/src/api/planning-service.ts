@@ -1,6 +1,19 @@
 import client from './axios-client';
 import { API_ROUTES } from './endpoints';
 
+/** Colores del semáforo de planeación (backend `planning_service.compute_semaphore`). */
+export type PlanningSemaphore =
+  | 'GRAY'
+  | 'GRAY_WARNING'
+  | 'YELLOW'
+  | 'RED'
+  | 'BLUE'
+  | 'BLUE_GREEN'
+  | 'DOUBLE_BLUE'
+  | 'GREEN'
+  | 'DOUBLE_GREEN'
+  | 'WARRANTY';
+
 export interface ScheduleMap {
   PM: string | null;  // Prod. MDF
   PP: string | null;  // Prod. Piedra
@@ -17,7 +30,7 @@ export interface InstanceSchedule {
   client_name: string | null;
   project_name: string | null;
   production_status: string;
-  semaphore: string;
+  semaphore: PlanningSemaphore | string;
   semaphore_label: string;
   schedule: ScheduleMap;
   sales_order_item_id: number;
@@ -41,7 +54,7 @@ export interface CalendarPill {
   lane: 'PM' | 'PP' | 'IM' | 'IP';
   lane_label: string;
   datetime: string;
-  semaphore: string;
+  semaphore: PlanningSemaphore | string;
   semaphore_label: string;
   production_status: string;
   sales_order_item_id: number;

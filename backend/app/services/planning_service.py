@@ -27,7 +27,8 @@ from app.models.production import (
 
 class SemaphoreColor(str):
     """Colores del semáforo preventivo (usados en el calendario y sidebar)."""
-    GRAY    = "GRAY"        # 🔘 Programado (+30 días)
+    GRAY    = "GRAY"        # 🔘 Con fecha de entrega lejana (>30 días), sin fechas de carril
+    GRAY_WARNING = "GRAY_WARNING"  # ⚪⚠️ Sin fecha de entrega pactada
     YELLOW  = "YELLOW"      # 🟡 Alerta (< 15 días para fecha programada)
     RED     = "RED"         # 🔴 Crítico (fecha vencida sin evento real)
     BLUE    = "BLUE"        # 🔵 En Proceso (lote generado)
@@ -45,11 +46,12 @@ _SEMAPHORE_SEVERITY = {
     SemaphoreColor.RED:          1,
     SemaphoreColor.YELLOW:       2,
     SemaphoreColor.GRAY:         3,
-    SemaphoreColor.BLUE:         4,
-    SemaphoreColor.BLUE_GREEN:   5,
-    SemaphoreColor.DOUBLE_BLUE:  6,
-    SemaphoreColor.GREEN:        7,
-    SemaphoreColor.DOUBLE_GREEN: 8,
+    SemaphoreColor.GRAY_WARNING: 4,
+    SemaphoreColor.BLUE:         5,
+    SemaphoreColor.BLUE_GREEN:   6,
+    SemaphoreColor.DOUBLE_BLUE:  7,
+    SemaphoreColor.GREEN:        8,
+    SemaphoreColor.DOUBLE_GREEN: 9,
 }
 
 def _worst_semaphore(colors: list) -> str:
@@ -104,6 +106,28 @@ def _compute_track_semaphore(
         return SemaphoreColor.GRAY
 
 
+def _semaphore_pending_without_schedule(
+    instance: SalesOrderItemInstance,
+    reference_date: datetime,
+) -> str:
+    """
+    PENDING sin fechas en carriles: el semáforo depende de delivery_deadline.
+    """
+    if instance.delivery_deadline is None:
+        return SemaphoreColor.GRAY_WARNING
+
+    deadline = instance.delivery_deadline
+    deadline_day = deadline.date() if isinstance(deadline, datetime) else deadline
+    now_day = reference_date.date() if isinstance(reference_date, datetime) else reference_date
+    days_until = (deadline_day - now_day).days
+
+    if days_until < 0 or days_until <= 15:
+        return SemaphoreColor.RED
+    if days_until <= 30:
+        return SemaphoreColor.YELLOW
+    return SemaphoreColor.GRAY
+
+
 def compute_semaphore(
     instance: SalesOrderItemInstance,
     reference_date: Optional[datetime] = None,
@@ -153,7 +177,7 @@ def compute_semaphore(
             ] if d is not None
         ]
         if not scheduled_dates:
-            return SemaphoreColor.GRAY
+            return _semaphore_pending_without_schedule(instance, now)
         earliest = min(scheduled_dates)
         days_until = (earliest - now).days
         if days_until < 0:
@@ -184,15 +208,15 @@ def compute_semaphore(
     active = [c for c in [mdf_color, stone_color] if c is not None]
 
     if not active:
-        # Ningún track activo — instancia sin fechas ni lotes
-        return SemaphoreColor.GRAY
+        return _semaphore_pending_without_schedule(instance, now)
 
     return _worst_semaphore(active)
 
 
 def compute_semaphore_label(color: str) -> str:
     labels = {
-        SemaphoreColor.GRAY:         "🔘 Programado",
+        SemaphoreColor.GRAY:         "🔘 Programado (+30 días)",
+        SemaphoreColor.GRAY_WARNING: "⚪⚠️ Sin Fecha de Entrega",
         SemaphoreColor.YELLOW:       "🟡 Alerta",
         SemaphoreColor.RED:          "🔴 Crítico",
         SemaphoreColor.BLUE:         "🔵 En Proceso",
