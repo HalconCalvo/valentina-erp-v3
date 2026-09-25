@@ -188,6 +188,11 @@ def compute_semaphore(
             return SemaphoreColor.GRAY
 
     # Camino moderno: con session, evaluamos cada track por separado.
+    if instance.production_status == InstanceStatus.READY:
+        return SemaphoreColor.BLUE_GREEN
+    if instance.production_status == InstanceStatus.IN_PRODUCTION:
+        return SemaphoreColor.BLUE
+
     # Track MDF
     mdf_dates = [d for d in [instance.scheduled_prod_mdf, instance.scheduled_inst_mdf] if d is not None]
     mdf_batch_status = None
