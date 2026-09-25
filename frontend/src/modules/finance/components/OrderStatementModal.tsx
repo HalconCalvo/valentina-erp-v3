@@ -26,7 +26,7 @@ import {
   orderStatementQueryKeys,
   fetchInstallmentsForCxc,
 } from '../../../hooks/useOrderStatement';
-import { getSemaphoreConfig } from '../../planning/hooks/usePlanning';
+import { getSemaphoreBadgeMark, getSemaphoreConfig } from '../../planning/hooks/usePlanning';
 
 type OrderStatementPendingConfirm =
     | { kind: 'CANCEL_OV' }
@@ -280,17 +280,20 @@ function InstanceSemaphoreBadge({
   semaphore?: string | null;
   semaphoreLabel?: string | null;
 }) {
-  const cfg = getSemaphoreConfig(semaphore ?? 'GRAY');
+  const sem = semaphore ?? 'GRAY';
+  const cfg = getSemaphoreConfig(sem);
+  const mark = getSemaphoreBadgeMark(sem);
   const text = semaphoreBadgeDisplayText(semaphoreLabel, cfg.label);
   return (
     <span
       className={`inline-flex items-center gap-1.5 max-w-[12rem] text-[10px] font-bold shrink-0 ${cfg.text}`}
       title={text}
     >
-      <span
-        className={`w-3 h-3 rounded-full shrink-0 border-2 ${cfg.border} ${cfg.pillBg}`}
-        aria-hidden
-      />
+      {mark.kind === 'icon' ? (
+        <span className="text-sm leading-none shrink-0" aria-hidden>{mark.icon}</span>
+      ) : (
+        <span className={mark.dotClass} aria-hidden />
+      )}
       <span className="truncate leading-tight">{text}</span>
     </span>
   );

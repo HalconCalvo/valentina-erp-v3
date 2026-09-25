@@ -891,7 +891,7 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
-                {cfg.dot} {cfg.label}
+                {cfg.icon ?? cfg.dot} {cfg.label}
               </p>
               <h2 className="text-base font-bold text-slate-800">
                 Editar Instancia #{instance.id}

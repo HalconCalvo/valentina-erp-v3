@@ -189,7 +189,7 @@ function TooltipBody({
       <p
         className={`text-xs font-medium flex items-center gap-1.5 px-2 py-1 rounded-md border ${cfg.bg} ${cfg.text} ${cfg.border}`}
       >
-        <span className="text-sm leading-none">{cfg.dot}</span>
+        <span className="text-sm leading-none">{cfg.icon ?? cfg.dot}</span>
         {inst.semaphore_label || pill.semaphore_label || cfg.label}
       </p>
 

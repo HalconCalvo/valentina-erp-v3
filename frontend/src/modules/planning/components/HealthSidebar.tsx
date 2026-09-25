@@ -216,7 +216,7 @@ function InstanceCard({
       {/* ── Row 1: Semaphore dot + Alias title ── */}
       <div className="flex items-start gap-2.5">
         {/* Semaphore dot — visual bullet */}
-        <span className="text-lg leading-none mt-0.5 shrink-0">{cfg.dot}</span>
+        <span className="text-lg leading-none mt-0.5 shrink-0">{cfg.icon ?? cfg.dot}</span>
 
         <div className="flex-1 min-w-0">
           {/* Main title: [Category] | [Alias] */}

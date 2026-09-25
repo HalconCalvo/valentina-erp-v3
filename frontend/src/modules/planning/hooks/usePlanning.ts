@@ -12,9 +12,11 @@ export const SEMAPHORE_CONFIG: Record<string, {
   text: string;         // Tailwind text class
   border: string;       // Tailwind border class
   pillBg: string;
+  /** Si está definido, usar emoji en lugar del dot circular de color (badges). */
+  icon?: string;
 }> = {
   GRAY:        { label: 'Programado',        dot: '⬜', bg: 'bg-slate-100',   text: 'text-slate-500', border: 'border-slate-200', pillBg: 'bg-slate-200' },
-  GRAY_WARNING:{ label: '⚠️ Sin Fecha de Entrega', dot: '⚠️', bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-400', pillBg: 'bg-amber-100' },
+  GRAY_WARNING:{ label: 'Sin Fecha de Entrega', dot: '⚠️', icon: '⚠️', bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-400', pillBg: 'bg-amber-100' },
   YELLOW:      { label: 'Alerta',            dot: '🟡', bg: 'bg-amber-50',    text: 'text-amber-700', border: 'border-amber-300', pillBg: 'bg-amber-100' },
   RED:         { label: 'Crítico',           dot: '🔴', bg: 'bg-red-50',      text: 'text-red-700',   border: 'border-red-300',   pillBg: 'bg-red-100'   },
   BLUE:        { label: 'En Proceso',        dot: '🔵', bg: 'bg-blue-50',     text: 'text-blue-700',  border: 'border-blue-300',  pillBg: 'bg-blue-100'  },
@@ -27,6 +29,18 @@ export const SEMAPHORE_CONFIG: Record<string, {
 
 export function getSemaphoreConfig(semaphore: string) {
   return SEMAPHORE_CONFIG[semaphore] ?? SEMAPHORE_CONFIG['GRAY'];
+}
+
+/** Marca visual en badge: icon emoji o clases Tailwind del dot circular. */
+export function getSemaphoreBadgeMark(semaphore: string): { kind: 'icon'; icon: string } | { kind: 'dot'; dotClass: string } {
+  const cfg = getSemaphoreConfig(semaphore);
+  if (cfg.icon) {
+    return { kind: 'icon', icon: cfg.icon };
+  }
+  return {
+    kind: 'dot',
+    dotClass: `w-3 h-3 rounded-full shrink-0 border-2 ${cfg.border} ${cfg.pillBg}`,
+  };
 }
 
 // ============================================================

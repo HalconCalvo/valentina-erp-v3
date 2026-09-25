@@ -43,8 +43,8 @@ export default function InstancePill({ pill, projectName, onClick, draggable, on
         ${grayWarningStyle}
       `}
       >
-        {pill.semaphore === 'GRAY_WARNING' && (
-          <span className="shrink-0 text-amber-600 leading-none" aria-hidden>⚠️</span>
+        {semCfg.icon && (
+          <span className="shrink-0 text-amber-600 leading-none" aria-hidden>{semCfg.icon}</span>
         )}
         <span className="shrink-0 font-bold">{laneLabel}</span>
         <span className="shrink-0 opacity-40">|</span>
