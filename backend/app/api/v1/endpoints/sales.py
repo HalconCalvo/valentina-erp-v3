@@ -1316,3 +1316,61 @@ async def import_legacy_orders(
         raise HTTPException(status_code=400, detail="Se requiere un archivo .xlsx")
     content = await file.read()
     return legacy_import_service.import_legacy_workbook(session, content, current_user)
+
+@router.patch("/orders/{order_id}/instances/{instance_id}/delivery-deadline")
+def update_instance_delivery_deadline(
+    order_id: int,
+    instance_id: int,
+    body: dict,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Actualizar delivery_deadline de una instancia. Solo DIRECTOR, MANAGER, DESIGN."""
+    from app.models.sales import SalesOrderItemInstance
+    from datetime import date
+
+    allowed_roles = {"DIRECTOR", "MANAGER", "DESIGN"}
+    if current_user.role not in allowed_roles:
+        raise HTTPException(status_code=403, detail="No autorizado para modificar fechas de entrega")
+
+    inst = session.get(SalesOrderItemInstance, instance_id)
+    if not inst:
+        raise HTTPException(status_code=404, detail="Instancia no encontrada")
+
+    # Verificar que pertenece a la OV
+    from app.models.sales import SalesOrderItem
+    item = session.get(SalesOrderItem, inst.sales_order_item_id)
+    if not item or item.sales_order_id != order_id:
+        raise HTTPException(status_code=404, detail="Instancia no pertenece a esta OV")
+
+    deadline_str = body.get("delivery_deadline")
+    apply_to_all = body.get("apply_to_all_without_date", False)
+
+    deadline = None
+    if deadline_str:
+        try:
+            deadline = date.fromisoformat(deadline_str)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Fecha inválida")
+
+    from sqlmodel import select
+    inst.delivery_deadline = deadline
+    session.add(inst)
+
+    if apply_to_all and deadline:
+        # Actualizar todas las instancias de la OV sin delivery_deadline
+        stmt = (
+            select(SalesOrderItemInstance)
+            .join(SalesOrderItem, SalesOrderItem.id == SalesOrderItemInstance.sales_order_item_id)
+            .where(SalesOrderItem.sales_order_id == order_id)
+            .where(SalesOrderItemInstance.delivery_deadline == None)
+            .where(SalesOrderItemInstance.id != instance_id)
+        )
+        others = session.exec(stmt).all()
+        for other in others:
+            other.delivery_deadline = deadline
+            session.add(other)
+
+    session.commit()
+    return {"ok": True, "updated": 1 + (len(others) if apply_to_all and deadline else 0)}
+
