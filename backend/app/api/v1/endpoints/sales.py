@@ -210,18 +210,17 @@ def read_order_detail(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ):
+    from app.models.sales import SalesOrderItemInstance as InstORM
     order = sales_service.get_order(session, order_id, current_user)
-    # Enriquecer instancias con semáforo
+    # Enriquecer ORM con semáforo antes de serializar
     for item in (order.items or []):
         for inst in (item.instances or []):
             try:
-                raw = session.get(type(inst).__mro__[0], inst.id) if hasattr(inst, 'id') else None
-                if raw is None:
-                    from app.models.sales import SalesOrderItemInstance
-                    raw = session.get(SalesOrderItemInstance, inst.id)
-                if raw:
-                    inst.semaphore = compute_semaphore(raw, session=session)
-                    inst.semaphore_label = compute_semaphore_label(inst.semaphore)
+                orm_inst = session.get(InstORM, inst.id)
+                if orm_inst:
+                    color = compute_semaphore(orm_inst, session=session)
+                    inst.semaphore = color
+                    inst.semaphore_label = compute_semaphore_label(color)
             except Exception:
                 pass
     return order
