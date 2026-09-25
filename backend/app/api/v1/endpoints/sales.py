@@ -26,7 +26,6 @@ from app.services.pdf_generator import PDFGenerator
 # --- IMPORTAMOS LOS MOTORES (V3.5) ---
 from app.services.cost_engine import CostEngine
 from app.services import sales_service
-from app.services.planning_service import compute_semaphore, compute_semaphore_label
 from app.services import legacy_import_service
 from app.schemas.legacy_import_schema import LegacyImportRead
 from app.repositories import sales_repository as sales_repo
@@ -209,21 +208,9 @@ def read_order_detail(
     order_id: int,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
-):
-    from app.models.sales import SalesOrderItemInstance as InstORM
+) -> SalesOrderRead:
     order = sales_service.get_order(session, order_id, current_user)
-    # Enriquecer ORM con semáforo antes de serializar
-    for item in (order.items or []):
-        for inst in (item.instances or []):
-            try:
-                orm_inst = session.get(InstORM, inst.id)
-                if orm_inst:
-                    color = compute_semaphore(orm_inst, session=session)
-                    inst.semaphore = color
-                    inst.semaphore_label = compute_semaphore_label(color)
-            except Exception:
-                pass
-    return order
+    return sales_service.enrich_order_instances_with_semaphore(session, order)
 
 
 # ==========================================

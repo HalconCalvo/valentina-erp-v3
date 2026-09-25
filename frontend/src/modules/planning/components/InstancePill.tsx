@@ -22,8 +22,10 @@ export default function InstancePill({ pill, projectName, onClick, draggable, on
   const productionLocked = isPlanningPillProductionLocked(pill);
   const laneLabel = productionLocked ? `✓ ${pill.lane}` : pill.lane;
   const semCfg = getSemaphoreConfig(pill.semaphore);
-  const grayWarningRing =
-    pill.semaphore === 'GRAY_WARNING' ? `ring-1 ${semCfg.border}` : '';
+  const grayWarningStyle =
+    pill.semaphore === 'GRAY_WARNING'
+      ? `ring-2 ${semCfg.border} ${semCfg.bg} shadow-sm`
+      : '';
 
   return (
     <CalendarPillTooltip pill={pill}>
@@ -38,9 +40,12 @@ export default function InstancePill({ pill, projectName, onClick, draggable, on
         hover:opacity-80 transition-opacity
         ${draggable ? 'cursor-grab active:cursor-grabbing' : productionLocked ? 'cursor-default' : ''}
         ${pill.is_warranty_reopened ? 'ring-1 ring-orange-400' : ''}
-        ${grayWarningRing}
+        ${grayWarningStyle}
       `}
       >
+        {pill.semaphore === 'GRAY_WARNING' && (
+          <span className="shrink-0 text-amber-600 leading-none" aria-hidden>⚠️</span>
+        )}
         <span className="shrink-0 font-bold">{laneLabel}</span>
         <span className="shrink-0 opacity-40">|</span>
         <span className="flex-1 min-w-0 truncate">{label}</span>

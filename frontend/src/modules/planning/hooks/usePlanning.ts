@@ -14,7 +14,7 @@ export const SEMAPHORE_CONFIG: Record<string, {
   pillBg: string;
 }> = {
   GRAY:        { label: 'Programado',        dot: '⬜', bg: 'bg-slate-100',   text: 'text-slate-500', border: 'border-slate-200', pillBg: 'bg-slate-200' },
-  GRAY_WARNING:{ label: 'Sin Fecha de Entrega', dot: '⚠️', bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-amber-400', pillBg: 'bg-slate-200' },
+  GRAY_WARNING:{ label: '⚠️ Sin Fecha de Entrega', dot: '⚠️', bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-400', pillBg: 'bg-amber-100' },
   YELLOW:      { label: 'Alerta',            dot: '🟡', bg: 'bg-amber-50',    text: 'text-amber-700', border: 'border-amber-300', pillBg: 'bg-amber-100' },
   RED:         { label: 'Crítico',           dot: '🔴', bg: 'bg-red-50',      text: 'text-red-700',   border: 'border-red-300',   pillBg: 'bg-red-100'   },
   BLUE:        { label: 'En Proceso',        dot: '🔵', bg: 'bg-blue-50',     text: 'text-blue-700',  border: 'border-blue-300',  pillBg: 'bg-blue-100'  },
@@ -22,7 +22,7 @@ export const SEMAPHORE_CONFIG: Record<string, {
   DOUBLE_BLUE: { label: 'En Instalación',    dot: '🔵', bg: 'bg-indigo-50',   text: 'text-indigo-700',border: 'border-indigo-300',pillBg: 'bg-indigo-100'},
   GREEN:       { label: 'Instalado',         dot: '🟢', bg: 'bg-green-50',    text: 'text-green-700', border: 'border-green-300', pillBg: 'bg-green-100' },
   DOUBLE_GREEN:{ label: 'Cerrado',           dot: '🟢', bg: 'bg-emerald-50',  text: 'text-emerald-700',border:'border-emerald-300',pillBg:'bg-emerald-100'},
-  WARRANTY:    { label: 'Garantía',          dot: '⚠️', bg: 'bg-orange-50',   text: 'text-orange-700',border: 'border-orange-300',pillBg: 'bg-orange-100'},
+  WARRANTY:    { label: '🟣 Garantía',       dot: '🟣', bg: 'bg-purple-100',  text: 'text-purple-700',border: 'border-purple-300',pillBg: 'bg-purple-100'},
 };
 
 export function getSemaphoreConfig(semaphore: string) {
@@ -515,7 +515,7 @@ export const SEMAPHORE_DOTS: Record<string, string> = {
   DOUBLE_BLUE:  '🔵🔵',
   GREEN:        '🟢',
   DOUBLE_GREEN: '🟢🟢',
-  WARRANTY:     '⚠️',
+  WARRANTY:     '🟣',
 };
 
 // ============================================================

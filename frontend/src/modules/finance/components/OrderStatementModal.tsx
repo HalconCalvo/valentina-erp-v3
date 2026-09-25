@@ -26,6 +26,7 @@ import {
   orderStatementQueryKeys,
   fetchInstallmentsForCxc,
 } from '../../../hooks/useOrderStatement';
+import { getSemaphoreConfig } from '../../planning/hooks/usePlanning';
 
 type OrderStatementPendingConfirm =
     | { kind: 'CANCEL_OV' }
@@ -263,6 +264,31 @@ const RayosXOcQuickEdit: React.FC<{
         </div>
     );
 };
+
+function InstanceSemaphoreBadge({
+  semaphore,
+  semaphoreLabel,
+}: {
+  semaphore?: string | null;
+  semaphoreLabel?: string | null;
+}) {
+  const cfg = getSemaphoreConfig(semaphore ?? 'GRAY');
+  const text = (semaphoreLabel?.trim() || cfg.label).trim();
+  return (
+    <span
+      className={`inline-flex items-center gap-1 max-w-[11rem] text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${cfg.bg} ${cfg.text} ${cfg.border}`}
+      title={text}
+    >
+      <span className="leading-none shrink-0">{cfg.dot}</span>
+      <span className="truncate">{text}</span>
+    </span>
+  );
+}
+
+function formatInstanceCasaSubtitle(projectName: string, inst: { street?: string | null; lot?: string | null }) {
+  const casa = [inst.street?.trim(), inst.lot?.trim()].filter(Boolean).join(', ');
+  return [projectName?.trim(), casa].filter(Boolean).join(' · ');
+}
 
 const INSTANCE_STATUS_META: Record<string, { label: string; cls: string }> = {
     PENDING:       { label: 'Pendiente',     cls: 'bg-slate-100 text-slate-600' },
@@ -644,6 +670,10 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                     custom_name: inst.custom_name,
                     production_status: inst.production_status,
                     customer_payment_id: inst.customer_payment_id,
+                    street: inst.street,
+                    lot: inst.lot,
+                    semaphore: inst.semaphore,
+                    semaphore_label: inst.semaphore_label,
                 });
             });
         });
@@ -2232,12 +2262,23 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                         </div>
                                         <div className="divide-y divide-slate-100 bg-white">
                                             {realInstances.map((inst: any) => (
-                                                <div key={inst.id} className="py-2 pl-8 pr-4 flex justify-between items-center hover:bg-slate-50 text-sm">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={`w-2 h-2 rounded-full ${inst.customer_payment_id ? 'bg-blue-500' : 'bg-slate-300'}`}></div>
-                                                        <span className="font-bold text-slate-700">{inst.custom_name || inst.item_name}</span>
+                                                <div key={inst.id} className="py-2 pl-8 pr-4 flex flex-wrap gap-2 justify-between items-center hover:bg-slate-50 text-sm">
+                                                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                                                        <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${inst.customer_payment_id ? 'bg-blue-500' : 'bg-slate-300'}`} />
+                                                        <div className="min-w-0">
+                                                            <span className="font-bold text-slate-700 block truncate">
+                                                                {inst.custom_name || inst.item_name}
+                                                            </span>
+                                                            <p className="text-[10px] text-slate-400 truncate">
+                                                                {formatInstanceCasaSubtitle(displayName, inst)}
+                                                            </p>
+                                                        </div>
                                                     </div>
-                                                    <div className="text-right flex items-center justify-end">
+                                                    <div className="text-right flex items-center justify-end gap-2 shrink-0 flex-wrap">
+                                                        <InstanceSemaphoreBadge
+                                                            semaphore={inst.semaphore}
+                                                            semaphoreLabel={inst.semaphore_label}
+                                                        />
                                                         <span className={`text-xs font-bold px-2 py-1 rounded ${
                                                             inst.customer_payment_id
                                                             ? 'bg-blue-50 text-blue-600 border border-blue-100'
@@ -2373,9 +2414,20 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                       {house.items.map((mueble: any) => {
                                         const meta = INSTANCE_STATUS_META[mueble.production_status] ?? { label: mueble.production_status, cls: 'bg-slate-100 text-slate-500' };
                                         return (
-                                          <div key={mueble.id} className="py-2 px-4 flex justify-between items-center hover:bg-slate-50 text-sm">
-                                            <span className="font-bold text-slate-700">{mueble.custom_name || mueble.product_name}</span>
-                                            <div className="flex items-center gap-2 shrink-0">
+                                          <div key={mueble.id} className="py-2 px-4 flex flex-wrap gap-2 justify-between items-center hover:bg-slate-50 text-sm">
+                                            <div className="min-w-0">
+                                              <span className="font-bold text-slate-700 block truncate">
+                                                {mueble.custom_name || mueble.product_name}
+                                              </span>
+                                              <p className="text-[10px] text-slate-400 truncate">
+                                                {formatInstanceCasaSubtitle(displayName, mueble)}
+                                              </p>
+                                            </div>
+                                            <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                                              <InstanceSemaphoreBadge
+                                                semaphore={mueble.semaphore}
+                                                semaphoreLabel={mueble.semaphore_label}
+                                              />
                                               {mueble.customer_payment_id ? (
                                                 <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-100">FACTURADO</span>
                                               ) : (

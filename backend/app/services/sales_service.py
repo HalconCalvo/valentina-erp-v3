@@ -20,6 +20,7 @@ from app.models.sales import (
 from app.models.treasury import BankTransaction, TransactionType
 from app.models.users import User, UserRole
 from app.repositories import sales_repository as sales_repo
+from app.services.planning_service import compute_semaphore, compute_semaphore_label
 from app.schemas.sales_schema import (
     AddItemsPayload,
     ClientPurchaseOrderPayload,
@@ -36,6 +37,8 @@ from app.schemas.sales_schema import (
     SalesCommissionRead,
     SalesOrderCreate,
     SalesOrderItemCreate,
+    SalesOrderItemInstanceRead,
+    SalesOrderRead,
     SalesOrderUpdate,
     RetentionUpdate,
     RetentionDefaultsUpdate,
@@ -322,6 +325,48 @@ def get_order(session: Session, order_id: int, current_user: User) -> SalesOrder
     if _is_seller_scoped_role(current_user) and order.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Acceso denegado")
     return order
+
+
+def enrich_order_instances_with_semaphore(session: Session, order: SalesOrder) -> SalesOrderRead:
+    """SalesOrderRead con semáforo por instancia (no serializar el ORM directo)."""
+    base = SalesOrderRead.model_validate(order, from_attributes=True)
+    orm_items = {item.id: item for item in (order.items or []) if item.id is not None}
+    now = datetime.utcnow()
+
+    items_payload: List[dict] = []
+    for item_read in base.items:
+        orm_item = orm_items.get(item_read.id)
+        insts_payload: List[dict] = []
+        orm_insts = {
+            inst.id: inst
+            for inst in (orm_item.instances or [] if orm_item else [])
+            if inst.id is not None
+        }
+        for inst_read in item_read.instances:
+            orm_inst = orm_insts.get(inst_read.id)
+            row = inst_read.model_dump(mode="python")
+            if orm_inst is not None:
+                color = compute_semaphore(orm_inst, now, session=session)
+                row["semaphore"] = color
+                row["semaphore_label"] = compute_semaphore_label(color)
+            insts_payload.append(row)
+            orm_insts.pop(inst_read.id, None)
+
+        for orm_inst in orm_insts.values():
+            inst_read = SalesOrderItemInstanceRead.model_validate(orm_inst, from_attributes=True)
+            row = inst_read.model_dump(mode="python")
+            color = compute_semaphore(orm_inst, now, session=session)
+            row["semaphore"] = color
+            row["semaphore_label"] = compute_semaphore_label(color)
+            insts_payload.append(row)
+
+        item_row = item_read.model_dump(mode="python")
+        item_row["instances"] = insts_payload
+        items_payload.append(item_row)
+
+    order_payload = base.model_dump(mode="python")
+    order_payload["items"] = items_payload
+    return SalesOrderRead.model_validate(order_payload)
 
 
 def list_customer_payments(

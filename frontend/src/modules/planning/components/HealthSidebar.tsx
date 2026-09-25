@@ -16,7 +16,7 @@ interface Props {
   readOnly?: boolean;
 }
 
-type Tab = 'RED' | 'YELLOW' | 'GRAY' | 'SCHEDULED' | 'WARRANTY' | 'BLUE' | 'ALL';
+type Tab = 'RED' | 'YELLOW' | 'GRAY' | 'GRAY_WARNING' | 'SCHEDULED' | 'WARRANTY' | 'BLUE' | 'ALL';
 
 interface TabConfig {
   key: Tab;
@@ -89,22 +89,30 @@ const TABS: TabConfig[] = [
     dotClass: 'bg-slate-300',
   },
   {
+    key: 'GRAY_WARNING',
+    icon: '⚠️',
+    label: 'Sin entrega',
+    dataKey: d => d.planned.filter(i => i.semaphore === 'GRAY_WARNING'),
+    countKey: 'GRAY_WARNING',
+    dotClass: 'bg-amber-400',
+  },
+  {
     key: 'SCHEDULED',
     icon: '🟣',
     label: 'Programadas',
     dataKey: d => d.planned.filter(
-      i => hasAnyScheduledDate(i) || i.semaphore === 'GRAY' || i.semaphore === 'GRAY_WARNING',
+      i => hasAnyScheduledDate(i) || i.semaphore === 'GRAY',
     ),
     countKey: '_SCHEDULED',
     dotClass: 'bg-purple-500',
   },
   {
     key: 'WARRANTY',
-    icon: '⚠️',
+    icon: '🟣',
     label: 'Garantías',
     dataKey: d => d.warranty,
     countKey: 'WARRANTY',
-    dotClass: 'bg-orange-400',
+    dotClass: 'bg-purple-500',
   },
   {
     key: 'BLUE',
@@ -198,8 +206,10 @@ function InstanceCard({
         ${isHighlighted
           ? 'border-indigo-400 ring-2 ring-indigo-200 shadow-md bg-indigo-50/40'
           : instance.semaphore === 'GRAY_WARNING'
-            ? 'border-amber-400 bg-slate-50 hover:border-amber-500 ring-1 ring-amber-200'
-            : 'border-slate-200 bg-white hover:border-slate-300'
+            ? 'border-amber-400 bg-amber-50 hover:border-amber-500 ring-1 ring-amber-200'
+            : instance.semaphore === 'WARRANTY'
+              ? 'border-purple-300 bg-purple-50 hover:border-purple-400'
+              : 'border-slate-200 bg-white hover:border-slate-300'
         }
       `}
     >
@@ -385,9 +395,12 @@ export default function HealthSidebar({ data, loading, onInstanceClick, onInstan
         i => !hasAnyScheduledDate(i) && i.semaphore !== 'GRAY' && i.semaphore !== 'GRAY_WARNING',
       ).length;
     }
+    if (tab.key === 'GRAY_WARNING') {
+      return list.filter(i => i.semaphore === 'GRAY_WARNING').length;
+    }
     if (tab.key === 'SCHEDULED') {
       return list.filter(
-        i => hasAnyScheduledDate(i) || i.semaphore === 'GRAY' || i.semaphore === 'GRAY_WARNING',
+        i => hasAnyScheduledDate(i) || i.semaphore === 'GRAY',
       ).length;
     }
     if (isFiltering) {
@@ -485,7 +498,8 @@ export default function HealthSidebar({ data, loading, onInstanceClick, onInstan
                     flex items-center justify-center text-white
                     ${tab.key === 'RED' ? 'bg-red-500' :
                       tab.key === 'YELLOW' ? 'bg-amber-400' :
-                      tab.key === 'WARRANTY' ? 'bg-orange-500' :
+                      tab.key === 'GRAY_WARNING' ? 'bg-amber-500' :
+                      tab.key === 'WARRANTY' ? 'bg-purple-500' :
                       tab.key === 'BLUE' ? 'bg-blue-500' :
                       tab.key === 'SCHEDULED' ? 'bg-purple-500' :
                       'bg-slate-400'}
@@ -531,17 +545,19 @@ export default function HealthSidebar({ data, loading, onInstanceClick, onInstan
             ) : (
               <>
                 <span className="text-3xl mb-2">
-                  {activeTab === 'RED'       ? '🟢' :
-                   activeTab === 'YELLOW'    ? '✅' :
-                   activeTab === 'WARRANTY'  ? '🛡️' :
-                   activeTab === 'SCHEDULED' ? '🟣' : '📋'}
+                  {activeTab === 'RED'           ? '🟢' :
+                   activeTab === 'YELLOW'        ? '✅' :
+                   activeTab === 'GRAY_WARNING'  ? '⚠️' :
+                   activeTab === 'WARRANTY'      ? '🛡️' :
+                   activeTab === 'SCHEDULED'     ? '🟣' : '📋'}
                 </span>
                 <p className="text-xs text-center leading-relaxed">
-                  {activeTab === 'RED'       ? 'Sin instancias críticas. ¡Todo en orden!' :
-                   activeTab === 'YELLOW'    ? 'Sin alertas próximas.' :
-                   activeTab === 'WARRANTY'  ? 'Sin garantías activas.' :
-                   activeTab === 'BLUE'      ? 'Sin instancias en producción.' :
-                   activeTab === 'SCHEDULED' ? 'Sin instancias programadas aún.' :
+                  {activeTab === 'RED'           ? 'Sin instancias críticas. ¡Todo en orden!' :
+                   activeTab === 'YELLOW'        ? 'Sin alertas próximas.' :
+                   activeTab === 'GRAY_WARNING'  ? 'Todas tienen fecha estimada de entrega.' :
+                   activeTab === 'WARRANTY'      ? 'Sin garantías activas.' :
+                   activeTab === 'BLUE'          ? 'Sin instancias en producción.' :
+                   activeTab === 'SCHEDULED'     ? 'Sin instancias programadas aún.' :
                    'Sin instancias en planeación.'}
                 </p>
               </>
