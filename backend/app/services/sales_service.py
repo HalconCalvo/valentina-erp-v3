@@ -346,7 +346,7 @@ def enrich_order_instances_with_semaphore(session: Session, order: SalesOrder) -
             orm_inst = orm_insts.get(inst_read.id)
             row = inst_read.model_dump(mode="python")
             if orm_inst is not None:
-                color = compute_semaphore(orm_inst, now, session=session)
+                color = compute_semaphore(orm_inst)  # sin session → camino legacy con GRAY_WARNING
                 row["semaphore"] = color
                 row["semaphore_label"] = compute_semaphore_label(color)
             insts_payload.append(row)
