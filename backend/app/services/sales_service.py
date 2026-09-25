@@ -331,8 +331,6 @@ def enrich_order_instances_with_semaphore(session: Session, order: SalesOrder) -
     """SalesOrderRead con semáforo por instancia (no serializar el ORM directo)."""
     base = SalesOrderRead.model_validate(order, from_attributes=True)
     orm_items = {item.id: item for item in (order.items or []) if item.id is not None}
-    now = datetime.utcnow()
-
     items_payload: List[dict] = []
     for item_read in base.items:
         orm_item = orm_items.get(item_read.id)
