@@ -26,6 +26,7 @@ from app.services.pdf_generator import PDFGenerator
 # --- IMPORTAMOS LOS MOTORES (V3.5) ---
 from app.services.cost_engine import CostEngine
 from app.services import sales_service
+from app.services.planning_service import compute_semaphore, compute_semaphore_label
 from app.services import legacy_import_service
 from app.schemas.legacy_import_schema import LegacyImportRead
 from app.repositories import sales_repository as sales_repo
@@ -209,7 +210,21 @@ def read_order_detail(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ):
-    return sales_service.get_order(session, order_id, current_user)
+    order = sales_service.get_order(session, order_id, current_user)
+    # Enriquecer instancias con semáforo
+    for item in (order.items or []):
+        for inst in (item.instances or []):
+            try:
+                raw = session.get(type(inst).__mro__[0], inst.id) if hasattr(inst, 'id') else None
+                if raw is None:
+                    from app.models.sales import SalesOrderItemInstance
+                    raw = session.get(SalesOrderItemInstance, inst.id)
+                if raw:
+                    inst.semaphore = compute_semaphore(raw, session=session)
+                    inst.semaphore_label = compute_semaphore_label(inst.semaphore)
+            except Exception:
+                pass
+    return order
 
 
 # ==========================================
