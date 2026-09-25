@@ -3658,3 +3658,28 @@ Diseño:
 4. Heartbeat 404 — bug menor
 5. Inventario físico
 6. Arranque en ceros
+
+
+---
+## SESIÓN 2026-09-25 — SEMÁFOROS Y RAYOS X
+
+### Completado:
+- Semáforo GRAY_WARNING agregado (⚪⚠️ Sin Fecha de Entrega)
+- GRAY ahora significa "Con fecha > 30 días" (no "programado")
+- Semáforo usa delivery_deadline cuando no hay fechas programadas
+- Color GRAY_WARNING: amber/naranja con ⚠️ (no magenta, que es WARRANTY)
+- Rayos X (Ventas/Monitor Operativo): semáforo visible por instancia
+  * dot de color + label sin emoji duplicado
+  * Posición: después de nombre/lote, antes de PENDIENTE y basurero
+  * Pestaña Por Instancia y Por Casa
+- Backend: endpoint GET /sales/orders/{id} enriquece instancias con semáforo
+  via model_validate + model_copy (Pydantic correcto)
+- Píldoras calendario: ✓ cuando instancia ya producida, no arrastrable
+- Fecha estimada de entrega en bautizo: default hoy+2 meses, heredada por Casa
+
+### Pendientes:
+1. PWA Campo — probar con instalador real
+2. Migración OVs reales
+3. Heartbeat 404 — bug menor
+4. Inventario físico
+5. Arranque en ceros
