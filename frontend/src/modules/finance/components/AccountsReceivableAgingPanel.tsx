@@ -264,6 +264,7 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
     const [selectedOrderForStatement, setSelectedOrderForStatement] = useState<SalesOrder | null>(null);
     const [isChargeModalOpen, setIsChargeModalOpen] = useState(false);
     const [selectedOrderForCharge, setSelectedOrderForCharge] = useState<SalesOrder | null>(null);
+    const [existingProgressInvoiceForCharge, setExistingProgressInvoiceForCharge] = useState<CustomerPayment | null>(null);
 
     const loadSalesData = async () => {
         try {
@@ -554,8 +555,9 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
                     readOnly={!allowFinanceActions}
                     onOpenInvoiceModal={
                         allowFinanceActions
-                            ? (orderToInvoice) => {
+                            ? (orderToInvoice, existingProgressInvoice) => {
                                   setSelectedOrderForCharge(orderToInvoice);
+                                  setExistingProgressInvoiceForCharge(existingProgressInvoice ?? null);
                                   setIsChargeModalOpen(true);
                               }
                             : undefined
@@ -569,11 +571,14 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
                     onClose={() => {
                         setIsChargeModalOpen(false);
                         setSelectedOrderForCharge(null);
+                        setExistingProgressInvoiceForCharge(null);
                     }}
                     order={selectedOrderForCharge}
+                    existingProgressInvoice={existingProgressInvoiceForCharge}
                     onSuccess={() => {
                         loadSalesData();
                         setIsChargeModalOpen(false);
+                        setExistingProgressInvoiceForCharge(null);
                         if (selectedOrderForStatement && selectedOrderForStatement.id === selectedOrderForCharge.id) {
                             salesService.getOrders().then((list) => {
                                 const updated = list.find((o) => o.id === selectedOrderForStatement.id);

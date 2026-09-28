@@ -191,7 +191,7 @@ interface OrderStatementModalProps {
     onClose: () => void;
     order: SalesOrder;
     onSuccess: () => void | Promise<void>;
-    onOpenInvoiceModal?: (order: SalesOrder) => void;
+    onOpenInvoiceModal?: (order: SalesOrder, existingProgressInvoice?: CustomerPayment | null) => void;
     /** Si existe, al guardar OC solo se fusiona en el padre (sin refrescar tablas de tesorería/listados). */
     onOrderPatch?: (patch: Partial<SalesOrder>) => void;
     readOnly?: boolean;

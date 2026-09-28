@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { X, FileText, CheckSquare, DollarSign, Calculator, AlertTriangle } from 'lucide-react';
-import { SalesOrder, PaymentPayload } from '../../../types/sales';
+import { SalesOrder, PaymentPayload, CustomerPayment } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
 import { Input } from '@/components/ui/Input';
 import { VCurrencyInput } from '@/components/ui/VCurrencyInput';
@@ -11,9 +11,76 @@ interface ReceivableChargeModalProps {
     onClose: () => void;
     order: SalesOrder;
     onSuccess: () => void;
+    /** Factura PROGRESS ya emitida (ej. cobro / revisión). Usa amortized_advance de BD. */
+    existingProgressInvoice?: CustomerPayment | null;
 }
 
-export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ isOpen, onClose, order, onSuccess }) => {
+function findProgressPaymentForInstances(
+    order: SalesOrder,
+    instanceIds: number[],
+): CustomerPayment | null {
+    if (!instanceIds.length || !order.payments?.length) return null;
+    const paymentIds = new Set<number>();
+    for (const item of order.items ?? []) {
+        for (const inst of item.instances ?? []) {
+            if (instanceIds.includes(inst.id) && inst.customer_payment_id) {
+                paymentIds.add(Number(inst.customer_payment_id));
+            }
+        }
+    }
+    if (paymentIds.size !== 1) return null;
+    const paymentId = [...paymentIds][0];
+    return (
+        order.payments.find(
+            (p) => p.id === paymentId && p.payment_type === 'PROGRESS',
+        ) ?? null
+    );
+}
+
+function isProgressPaymentWithStoredAmort(
+    order: SalesOrder,
+    paymentId: number | null | undefined,
+): boolean {
+    if (paymentId == null || !order.payments?.length) return false;
+    const payment = order.payments.find((p) => Number(p.id) === Number(paymentId));
+    return (
+        payment?.payment_type === 'PROGRESS'
+        && Number(payment.amortized_advance || 0) > 0
+    );
+}
+
+function cashAmountFromExistingProgressInvoice(payment: CustomerPayment): number {
+    const gross = Number(payment.amount || 0);
+    const amort = Number(payment.amortized_advance || 0);
+    return Number(Math.max(gross - amort, 0).toFixed(2));
+}
+
+function applyStoredProgressAmounts(
+    payment: CustomerPayment,
+    setAmortizedAdvance: React.Dispatch<React.SetStateAction<number>>,
+    setDisplayAmortized: React.Dispatch<React.SetStateAction<string>>,
+    setAmount: React.Dispatch<React.SetStateAction<number>>,
+    setDisplayAmount: React.Dispatch<React.SetStateAction<string>>,
+) {
+    const amort = Number(payment.amortized_advance || 0);
+    const cash = cashAmountFromExistingProgressInvoice(payment);
+    setAmortizedAdvance(amort);
+    setDisplayAmortized(
+        new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amort),
+    );
+    setAmount(cash);
+    setDisplayAmount(
+        new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cash),
+    );
+}
+
+export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({
+    isOpen,
+    onClose,
+    order,
+    onSuccess,
+    existingProgressInvoice = null,
+}) => {
     const [tipoFactura, setTipoFactura] = useState<'ADVANCE' | 'PROGRESS' | 'FULL'>(
         order.status === 'WAITING_ADVANCE' ? 'ADVANCE' : 'PROGRESS'
     );
@@ -54,6 +121,35 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
         [order.advance_invoice_amount, sugerido]
     );
 
+    const autoStoredProgressPayment = useMemo((): CustomerPayment | null => {
+        if (
+            existingProgressInvoice?.payment_type === 'PROGRESS'
+            && Number(existingProgressInvoice.amortized_advance || 0) > 0
+        ) {
+            return existingProgressInvoice;
+        }
+        let hasUnlinkedPending = false;
+        for (const item of order.items ?? []) {
+            const realInstances = item.instances
+                ? item.instances.slice(0, item.quantity || 1)
+                : [];
+            for (const inst of realInstances) {
+                if (!inst.customer_payment_id) {
+                    hasUnlinkedPending = true;
+                    break;
+                }
+            }
+            if (hasUnlinkedPending) break;
+        }
+        if (hasUnlinkedPending) return null;
+        const progressWithAmort = (order.payments ?? []).filter(
+            (p) =>
+                p.payment_type === 'PROGRESS'
+                && Number(p.amortized_advance || 0) > 0,
+        );
+        return progressWithAmort.length === 1 ? progressWithAmort[0] : null;
+    }, [existingProgressInvoice, order.items, order.payments]);
+
     // ---> ESCOBA INVISIBLE: Limpiar la memoria al abrir <---
     useEffect(() => {
         if (isOpen) {
@@ -61,15 +157,68 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
             setSelectedInstances([]);
             setTipoFactura(order.status === 'WAITING_ADVANCE' ? 'ADVANCE' : 'PROGRESS');
             setInvoiceDate(new Date().toISOString().slice(0, 10));
-            // Modo anticipo: prellenar el importe objetivo (guardado o sugerido).
             setImporteFactura(Number(objetivo.toFixed(2)));
             setDisplayImporte(new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(objetivo.toFixed(2))));
             setNcAdvanceFolio('');
             setNcAdvanceAmount(0);
             setNcRetentionFolio('');
             setNcRetentionAmount(0);
+
+            const existing = existingProgressInvoice;
+            if (
+                existing?.payment_type === 'PROGRESS'
+                && Number(existing.amortized_advance || 0) > 0
+            ) {
+                setTipoFactura('PROGRESS');
+                setInvoiceFolio(existing.invoice_folio ?? '');
+                if (existing.invoice_date) {
+                    setInvoiceDate(String(existing.invoice_date).slice(0, 10));
+                }
+                const linkedIds: number[] = [];
+                for (const item of order.items ?? []) {
+                    for (const inst of item.instances ?? []) {
+                        if (Number(inst.customer_payment_id) === Number(existing.id)) {
+                            linkedIds.push(inst.id);
+                        }
+                    }
+                }
+                setSelectedInstances(linkedIds);
+                applyStoredProgressAmounts(
+                    existing,
+                    setAmortizedAdvance,
+                    setDisplayAmortized,
+                    setAmount,
+                    setDisplayAmount,
+                );
+            } else if (order.status !== 'WAITING_ADVANCE' && autoStoredProgressPayment) {
+                const auto = autoStoredProgressPayment;
+                if (Number(auto.amortized_advance || 0) > 0) {
+                    const linkedIds: number[] = [];
+                    for (const item of order.items ?? []) {
+                        for (const inst of item.instances ?? []) {
+                            if (Number(inst.customer_payment_id) === Number(auto.id)) {
+                                linkedIds.push(inst.id);
+                            }
+                        }
+                    }
+                    if (linkedIds.length > 0) {
+                        setSelectedInstances(linkedIds);
+                        setInvoiceFolio(auto.invoice_folio ?? '');
+                        if (auto.invoice_date) {
+                            setInvoiceDate(String(auto.invoice_date).slice(0, 10));
+                        }
+                        applyStoredProgressAmounts(
+                            auto,
+                            setAmortizedAdvance,
+                            setDisplayAmortized,
+                            setAmount,
+                            setDisplayAmount,
+                        );
+                    }
+                }
+            }
         }
-    }, [isOpen, objetivo, order.status]);
+    }, [isOpen, objetivo, order.status, existingProgressInvoice, order.items, autoStoredProgressPayment]);
 
     useEffect(() => {
         if (tipoFactura === 'FULL') {
@@ -107,17 +256,24 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
             const realInstances = item.instances ? item.instances.slice(0, item.quantity || 1) : [];
             
             realInstances.forEach((inst: any) => {
-                if (!inst.customer_payment_id) {
-                    instances.push({ 
-                        ...inst, 
-                        unit_price: Number(item.unit_price) || 0, // <-- EL PRECIO REAL SIN DIVIDIR
-                        item_name: item.product_name 
+                const linkedToExisting =
+                    existingProgressInvoice != null
+                    && Number(inst.customer_payment_id) === Number(existingProgressInvoice.id);
+                const linkedProgressWithAmort = isProgressPaymentWithStoredAmort(
+                    order,
+                    inst.customer_payment_id,
+                );
+                if (!inst.customer_payment_id || linkedToExisting || linkedProgressWithAmort) {
+                    instances.push({
+                        ...inst,
+                        unit_price: Number(item.unit_price) || 0,
+                        item_name: item.product_name,
                     });
                 }
             });
         });
         return instances;
-    }, [uniqueItems, isAdvance]);
+    }, [uniqueItems, isAdvance, existingProgressInvoice, order]);
 
     // EL MOTOR FINANCIERO PERFECTO
     useEffect(() => {
@@ -129,6 +285,24 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
             setDisplayAmount(new Intl.NumberFormat('en-US').format(Number(calcAmount.toFixed(2))));
             setAmortizedAdvance(0);
         } else {
+            const storedPayment =
+                (autoStoredProgressPayment
+                    && Number(autoStoredProgressPayment.amortized_advance || 0) > 0
+                    ? autoStoredProgressPayment
+                    : null)
+                ?? findProgressPaymentForInstances(order, selectedInstances);
+
+            if (storedPayment && Number(storedPayment.amortized_advance || 0) > 0) {
+                applyStoredProgressAmounts(
+                    storedPayment,
+                    setAmortizedAdvance,
+                    setDisplayAmortized,
+                    setAmount,
+                    setDisplayAmount,
+                );
+                return;
+            }
+
             // 1. Suma base cruda de lo que palomeaste
             const rawValueOfSelected = pendingInstances
                 .filter(inst => selectedInstances.includes(inst.id))
@@ -158,7 +332,21 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({ is
             setAmount(Number(suggestedCash.toFixed(2)));
             setDisplayAmount(new Intl.NumberFormat('en-US').format(Number(suggestedCash.toFixed(2))));
         }
-    }, [selectedInstances, isAdvance, pendingInstances, totalOrder, pct, uniqueItems, isOpen, order.has_advance_invoice, order.advance_invoice_amount]);
+    }, [
+        selectedInstances,
+        isAdvance,
+        pendingInstances,
+        totalOrder,
+        pct,
+        uniqueItems,
+        isOpen,
+        order.has_advance_invoice,
+        order.advance_invoice_amount,
+        order.payments,
+        order.items,
+        existingProgressInvoice,
+        autoStoredProgressPayment,
+    ]);
 
     useEffect(() => {
         if (!isOpen || isAdvance || isFull) return;

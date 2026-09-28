@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, FileText, Lock, Unlock, ChevronDown, BadgeDollarSign, FileSearch, ArrowUpDown, ArrowUp, ArrowDown, Layers, Clock, Wallet } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
-import { SalesOrder } from '../../../types/sales';
+import { SalesOrder, CustomerPayment } from '../../../types/sales';
 import { normalizeOrderStatus, STATUS_WAITING_ADVANCE } from '../utils/pendingInvoiceBuckets';
 import { ReceivableChargeModal } from './ReceivableChargeModal';
 import { OrderStatementModal } from './OrderStatementModal';
@@ -58,6 +58,7 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
 
     const [isChargeModalOpen, setIsChargeModalOpen] = useState(false);
     const [selectedOrderForCharge, setSelectedOrderForCharge] = useState<SalesOrder | null>(null);
+    const [existingProgressInvoiceForCharge, setExistingProgressInvoiceForCharge] = useState<CustomerPayment | null>(null);
     const [isStatementModalOpen, setIsStatementModalOpen] = useState(false);
     const [selectedOrderForStatement, setSelectedOrderForStatement] = useState<SalesOrder | null>(null);
 
@@ -363,10 +364,10 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
             )}
 
             {selectedOrderForStatement && (
-                <OrderStatementModal isOpen={isStatementModalOpen} onClose={() => setIsStatementModalOpen(false)} order={selectedOrderForStatement} onSuccess={refreshReceivables} onOrderPatch={(patch) => { if (selectedOrderForStatement && (patch as SalesOrder).items) setSelectedOrderForStatement(patch as SalesOrder); }} onOpenInvoiceModal={(orderToInvoice) => { setSelectedOrderForCharge(orderToInvoice); setIsChargeModalOpen(true); }} readOnly={!hasAbsolutePower} />
+                <OrderStatementModal isOpen={isStatementModalOpen} onClose={() => setIsStatementModalOpen(false)} order={selectedOrderForStatement} onSuccess={refreshReceivables} onOrderPatch={(patch) => { if (selectedOrderForStatement && (patch as SalesOrder).items) setSelectedOrderForStatement(patch as SalesOrder); }} onOpenInvoiceModal={(orderToInvoice, existingProgressInvoice) => { setSelectedOrderForCharge(orderToInvoice); setExistingProgressInvoiceForCharge(existingProgressInvoice ?? null); setIsChargeModalOpen(true); }} readOnly={!hasAbsolutePower} />
             )}
             {selectedOrderForCharge && hasAbsolutePower && (
-                <ReceivableChargeModal isOpen={isChargeModalOpen} onClose={() => setIsChargeModalOpen(false)} order={selectedOrderForCharge} onSuccess={() => { void refreshReceivables(); setIsChargeModalOpen(false); }} />
+                <ReceivableChargeModal isOpen={isChargeModalOpen} onClose={() => { setIsChargeModalOpen(false); setExistingProgressInvoiceForCharge(null); }} order={selectedOrderForCharge} existingProgressInvoice={existingProgressInvoiceForCharge} onSuccess={() => { void refreshReceivables(); setIsChargeModalOpen(false); setExistingProgressInvoiceForCharge(null); }} />
             )}
         </div>
     );

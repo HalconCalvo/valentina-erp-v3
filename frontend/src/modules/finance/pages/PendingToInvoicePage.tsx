@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Unlock, Lock, Search, Factory, FileSearch, Users, CheckCircle2, FilePlus, RefreshCw } from 'lucide-react';
 import { salesService } from '../../../api/sales-service';
-import { SalesOrder, PendingProgressInstance, InvoicingRightsRead, InvoicingRightAdvanceRow } from '../../../types/sales';
+import { SalesOrder, CustomerPayment, PendingProgressInstance, InvoicingRightsRead, InvoicingRightAdvanceRow } from '../../../types/sales';
 import { OrderStatementModal } from '../components/OrderStatementModal';
 import { ReceivableChargeModal } from '../components/ReceivableChargeModal';
 import { toast } from '@/components/ui/VToast';
@@ -30,6 +30,7 @@ const PendingToInvoicePage = () => {
     const [selectedOrderForStatement, setSelectedOrderForStatement] = useState<SalesOrder | null>(null);
     const [isChargeModalOpen, setIsChargeModalOpen] = useState(false);
     const [selectedOrderForCharge, setSelectedOrderForCharge] = useState<SalesOrder | null>(null);
+    const [existingProgressInvoiceForCharge, setExistingProgressInvoiceForCharge] = useState<CustomerPayment | null>(null);
 
     const initialProgressTab =
         (location.state as { progressTab?: string } | null)?.progressTab === 'AVANCES' ? 'AVANCES' : 'ANTICIPOS';
@@ -614,8 +615,9 @@ const PendingToInvoicePage = () => {
                     readOnly={!hasAbsolutePower}
                     onOpenInvoiceModal={
                         hasAbsolutePower
-                            ? (orderToInvoice) => {
+                            ? (orderToInvoice, existingProgressInvoice) => {
                                   setSelectedOrderForCharge(orderToInvoice);
+                                  setExistingProgressInvoiceForCharge(existingProgressInvoice ?? null);
                                   setIsChargeModalOpen(true);
                               }
                             : undefined
@@ -628,11 +630,14 @@ const PendingToInvoicePage = () => {
                     onClose={() => {
                         setIsChargeModalOpen(false);
                         setSelectedOrderForCharge(null);
+                        setExistingProgressInvoiceForCharge(null);
                     }}
                     order={selectedOrderForCharge}
+                    existingProgressInvoice={existingProgressInvoiceForCharge}
                     onSuccess={() => {
                         loadSalesData();
                         setIsChargeModalOpen(false);
+                        setExistingProgressInvoiceForCharge(null);
                         if (selectedOrderForStatement && selectedOrderForStatement.id === selectedOrderForCharge.id) {
                             salesService.getOrders().then((olist) => {
                                 const updated = Array.isArray(olist) ? olist.find((o) => o.id === selectedOrderForStatement.id) : null;
