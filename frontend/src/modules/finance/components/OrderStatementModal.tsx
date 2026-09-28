@@ -423,8 +423,14 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const canExpandOrder =
         ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'MANAGER', 'SALES', 'VENTAS', 'ADMIN', 'ADMINISTRADOR'].includes(userRole)
         && ['ACCEPTED', 'WAITING_ADVANCE', 'SOLD', 'IN_PRODUCTION'].includes((order as any).status);
-    const canEditDeliveryDeadline =
-        !readOnly && ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'MANAGER', 'DESIGN', 'DISEÑO'].includes(userRole);
+    const canEditDeliveryDeadline = [
+        'DIRECTOR',
+        'DIRECCION',
+        'DIRECTION',
+        'MANAGER',
+        'DESIGN',
+        'DISEÑO',
+    ].includes(userRole);
     const [showAddItems, setShowAddItems] = useState(false);
     const [deletingId, setDeletingId] = useState<number | null>(null);
     const [editingResaleId, setEditingResaleId] = useState<number | null>(null);

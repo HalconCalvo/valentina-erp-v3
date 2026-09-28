@@ -42,6 +42,8 @@ export interface InstanceSchedule {
   original_signed_at: string | null;
   is_cancelled: boolean;
   stone_pieces: number | null;
+  has_mdf_components?: boolean;
+  has_stone_components?: boolean;
   is_resale: boolean | null;
   scheduled_inst_mdf_end: string | null;
   scheduled_inst_stone_end: string | null;

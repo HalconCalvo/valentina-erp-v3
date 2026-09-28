@@ -51,6 +51,8 @@ class InstanceScheduleRead(BaseModel):
     original_signed_at: Optional[str] = None
     is_cancelled: bool = False
     stone_pieces: Optional[int] = None
+    has_mdf_components: bool = False
+    has_stone_components: bool = False
     is_resale: Optional[bool] = None
     scheduled_inst_mdf_end: Optional[datetime] = None
     scheduled_inst_stone_end: Optional[datetime] = None

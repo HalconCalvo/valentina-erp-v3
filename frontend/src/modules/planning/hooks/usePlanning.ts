@@ -176,11 +176,24 @@ export function isExternalDropProductionLocked(instance: InstanceSchedule): bool
   );
 }
 
+function instanceHasStoneComponents(instance: InstanceSchedule): boolean {
+  if (typeof instance.has_stone_components === 'boolean') {
+    return instance.has_stone_components;
+  }
+  return (instance.stone_pieces ?? 0) > 0;
+}
+
+function instanceHasMdfComponents(instance: InstanceSchedule): boolean {
+  if (typeof instance.has_mdf_components === 'boolean') {
+    return instance.has_mdf_components;
+  }
+  return !instanceHasStoneComponents(instance);
+}
+
 /** IM (y IP si hay piedra) ya tienen fecha programada. */
 export function isInstallationFullyScheduled(instance: InstanceSchedule): boolean {
   if (!instance.schedule.IM) return false;
-  const hasStone = (instance.stone_pieces ?? 0) > 0;
-  if (hasStone) return !!instance.schedule.IP;
+  if (instanceHasStoneComponents(instance)) return !!instance.schedule.IP;
   return true;
 }
 
@@ -210,15 +223,21 @@ export function getInstallationScheduleLaneCodes(
   if (instance.is_resale === true) {
     return ['IM', 'IP'];
   }
-  const pieces = instance.stone_pieces ?? 0;
+  const hasStone = instanceHasStoneComponents(instance);
+  const hasMdf = instanceHasMdfComponents(instance);
   const prodLocked = isExternalDropProductionLocked(instance);
 
   if (prodLocked) {
-    return pieces > 0 ? ['IP'] : ['IM'];
+    if (hasStone && !hasMdf) return ['IP'];
+    if (hasMdf && !hasStone) return ['IM'];
+    return hasStone ? ['IP'] : ['IM'];
   }
 
-  if (pieces === 0) {
+  if (!hasStone) {
     return ['IM'];
+  }
+  if (!hasMdf) {
+    return ['IP'];
   }
   if (!instance.schedule.PM) {
     return ['IP'];
@@ -238,8 +257,10 @@ export function getExternalDropLaneCodes(instance: InstanceSchedule): ExternalDr
   const prodLocked = isExternalDropProductionLocked(instance);
   const codes: ExternalDropLaneCode[] = [];
   if (!prodLocked) {
-    codes.push('PM');
-    if ((instance.stone_pieces ?? 0) > 0) {
+    if (instanceHasMdfComponents(instance)) {
+      codes.push('PM');
+    }
+    if (instanceHasStoneComponents(instance)) {
       codes.push('PP');
     }
   }

@@ -142,6 +142,7 @@ function AppRoutes() {
 
         {/* Diseño */}
         <Route path="/design" element={<DesignCatalogPage key={key} />} />
+        <Route path="/design/catalog" element={<DesignCatalogPage key={key} />} />
         <Route path="/design/versions/:id" element={<DesignBuilderPage key={key} />} />
         <Route path="/design/simulator" element={<SimulatorPage key={key} />} />
         <Route path="/design/print-center" element={<PrintCenterPage key={key} />} />

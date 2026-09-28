@@ -92,6 +92,9 @@ const DesignCatalogPage: React.FC = () => {
     }, []);
 
     const isSales = userRole === 'SALES';
+    const isProduction = userRole === 'PRODUCTION';
+    const isCatalogReadOnly = isSales || isProduction;
+    const isProductionCatalogRoute = location.pathname === '/design/catalog';
 
     const { masters, loading, error, loadMasters, addMaster, updateMaster, deleteMaster } = useDesign();
     const { clients, fetchClients } = useClients();
@@ -548,7 +551,7 @@ const DesignCatalogPage: React.FC = () => {
     };
 
     const handleOpenProduct = async (masterId: number, versions: any[]) => {
-        if (isSales) { toast.warning('Acceso restringido.'); return; }
+        if (isCatalogReadOnly) { toast.warning('Acceso restringido.'); return; }
         if (versions && versions.length > 0) navigate(`/design/versions/${versions[0].id}`);
         else {
             try {
@@ -586,6 +589,10 @@ const DesignCatalogPage: React.FC = () => {
 
     const navigateBack = () => {
         if (viewHistory.length === 0) {
+            if (isProductionCatalogRoute || (isProduction && currentView === 'CATALOG')) {
+                navigate('/production');
+                return;
+            }
             if (currentView === 'HOME') {
                 navigate('/design');
             } else {
@@ -615,6 +622,13 @@ const DesignCatalogPage: React.FC = () => {
             setDeletingBatchId(null);
         }
     };
+
+    useEffect(() => {
+        if (isProductionCatalogRoute) {
+            setCurrentView('CATALOG');
+            setViewHistory([]);
+        }
+    }, [isProductionCatalogRoute]);
 
     useEffect(() => {
         if (location.state) {
@@ -649,7 +663,7 @@ const DesignCatalogPage: React.FC = () => {
                 return (
                     <>
                         <div
-                            className={`font-bold text-slate-800 flex items-center gap-2 ${isSales ? 'cursor-default' : 'hover:text-indigo-600 cursor-pointer'}`}
+                            className={`font-bold text-slate-800 flex items-center gap-2 ${isCatalogReadOnly ? 'cursor-default' : 'hover:text-indigo-600 cursor-pointer'}`}
                             onClick={() => handleOpenProduct(product.id, version ? [version] : [])}
                         >
                             {product.name}
@@ -709,12 +723,24 @@ const DesignCatalogPage: React.FC = () => {
                         {v?.blueprint_path ? (
                             <>
                                 <button onClick={(e) => { e.stopPropagation(); handleViewBlueprint(v.blueprint_path!); }} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded" title="Ver Plano"><FileText size={16}/></button>
-                                {!isSales && <button onClick={(e) => { e.stopPropagation(); handleDeleteVersionBlueprint(e, v.id!); }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded" title="Quitar Plano"><FileMinus size={16}/></button>}
+                                {isCatalogReadOnly && (
+                                    <a
+                                        href={v.blueprint_path}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded inline-flex"
+                                        title="Descargar / abrir plano"
+                                    >
+                                        <Download size={16} />
+                                    </a>
+                                )}
+                                {!isCatalogReadOnly && <button onClick={(e) => { e.stopPropagation(); handleDeleteVersionBlueprint(e, v.id!); }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded" title="Quitar Plano"><FileMinus size={16}/></button>}
                             </>
                         ) : (
-                            !isSales && v ? <button onClick={(e) => { e.stopPropagation(); handleUploadClick(v.id!); }} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="Adjuntar Plano a esta versión"><Paperclip size={16}/></button> : null
+                            !isCatalogReadOnly && v ? <button onClick={(e) => { e.stopPropagation(); handleUploadClick(v.id!); }} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="Adjuntar Plano a esta versión"><Paperclip size={16}/></button> : null
                         )}
-                        {!isSales && (
+                        {!isCatalogReadOnly && (
                             <>
                                 <div className="w-px h-4 bg-slate-200 mx-1"></div>
                                 <button onClick={(e) => openEditModal(e, product)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="Editar Nombre"><Edit size={16}/></button>
@@ -726,7 +752,7 @@ const DesignCatalogPage: React.FC = () => {
                 );
             },
         },
-    ], [isSales, sortDir]);
+    ], [isCatalogReadOnly, sortDir]);
 
     const handleCatalogTableHeaderClick = (e: React.MouseEvent<HTMLDivElement>) => {
         const th = (e.target as HTMLElement).closest('thead th');
@@ -1066,12 +1092,19 @@ const DesignCatalogPage: React.FC = () => {
                                 <div>
                                     <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
                                         <Layers className="text-indigo-500"/> Catálogo de Ingeniería
+                                        {isProduction && (
+                                            <Badge className="bg-slate-100 text-slate-600 border-slate-200">
+                                                <Lock size={12} className="mr-1"/> LECTURA
+                                            </Badge>
+                                        )}
                                     </h2>
                                     <p className="text-slate-500 text-sm mt-1">Gestión de productos base, explosión de materiales y repositorio de planos.</p>
                                 </div>
                                 <div className="flex gap-3 items-center">
-                                    <ExportButton data={masters} fileName="Catalogo_Productos" mapping={mapMastersForExcel} label="Exportar"/>
-                                    {!isSales && (
+                                    {!isProduction && (
+                                        <ExportButton data={masters} fileName="Catalogo_Productos" mapping={mapMastersForExcel} label="Exportar"/>
+                                    )}
+                                    {!isCatalogReadOnly && (
                                         <button
                                             onClick={handleBackupExcel}
                                             className="flex items-center gap-2 px-3 py-2 text-xs font-bold
@@ -1092,7 +1125,7 @@ const DesignCatalogPage: React.FC = () => {
                                             className="pl-9 w-64 shadow-sm"
                                         />
                                     </div>
-                                    {!isSales && (
+                                    {!isCatalogReadOnly && (
                                         <Button onClick={openCreateModal} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm">
                                             <Plus size={16} className="mr-1" /> Nuevo Producto
                                         </Button>
@@ -1123,7 +1156,7 @@ const DesignCatalogPage: React.FC = () => {
                                                 {clientName}
                                             </h3>
                                             <div className="flex items-center gap-2">
-                                                {!isSales && (
+                                                {!isCatalogReadOnly && (
                                                     <>
                                                         <button
                                                             onClick={(e) => {

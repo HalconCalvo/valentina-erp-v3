@@ -135,21 +135,24 @@ def _serialize_instance(inst: SalesOrderItemInstance, now: datetime, session: Op
     client_name:      Optional[str] = None
     project_name:     Optional[str] = None
     is_resale: Optional[bool] = None
+    has_mdf_components = False
+    has_stone_components = False
+    origin_version: Optional[ProductVersion] = None
     if session:
         item = session.get(SalesOrderItem, inst.sales_order_item_id)
         if item:
             product_name = item.product_name
-            version = (
+            origin_version = (
                 session.get(ProductVersion, item.origin_version_id)
                 if item.origin_version_id
                 else None
             )
-            if item.is_resale or not item.origin_version_id or not version:
+            if item.is_resale or not item.origin_version_id or not origin_version:
                 is_resale = True
             else:
                 is_resale = False
-            if version:
-                master = session.get(ProductMaster, version.master_id)
+            if origin_version:
+                master = session.get(ProductMaster, origin_version.master_id)
                 if master:
                     product_category = master.category
             order = session.get(SalesOrder, item.sales_order_id)
@@ -160,6 +163,15 @@ def _serialize_instance(inst: SalesOrderItemInstance, now: datetime, session: Op
                     client = session.get(Client, order.client_id)
                     if client:
                         client_name = client.full_name
+
+    if origin_version:
+        has_mdf_components = bool(origin_version.has_mdf_components)
+        has_stone_components = bool(origin_version.has_stone_components)
+    else:
+        has_stone_components = (
+            inst.stone_pieces is not None and inst.stone_pieces > 0
+        )
+        has_mdf_components = not has_stone_components
 
     return {
         "id": inst.id,
@@ -182,6 +194,8 @@ def _serialize_instance(inst: SalesOrderItemInstance, now: datetime, session: Op
         "original_signed_at": inst.original_signed_at.isoformat() if inst.original_signed_at else None,
         "is_cancelled": inst.is_cancelled,
         "stone_pieces": inst.stone_pieces,
+        "has_mdf_components": has_mdf_components,
+        "has_stone_components": has_stone_components,
         "is_resale": is_resale,
         "scheduled_inst_mdf_end": (
             inst.scheduled_inst_mdf_end.isoformat() if inst.scheduled_inst_mdf_end else None
