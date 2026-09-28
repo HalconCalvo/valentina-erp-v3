@@ -2,6 +2,20 @@ import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { productionService } from '../../../api/production-service';
+import { getSemaphoreBadgeMark } from '../../planning/hooks/usePlanning';
+
+function InstanceSemaphoreMark({ semaphore }: { semaphore?: string | null }) {
+  const sem = semaphore ?? 'BLUE_GREEN';
+  const mark = getSemaphoreBadgeMark(sem);
+  if (mark.kind === 'icon') {
+    return (
+      <span className="text-sm leading-none shrink-0" title={sem} aria-hidden>
+        {mark.icon}
+      </span>
+    );
+  }
+  return <span className={mark.dotClass} title={sem} aria-hidden />;
+}
 
 export default function ProductionReadyPage() {
   const navigate = useNavigate();
@@ -95,12 +109,29 @@ export default function ProductionReadyPage() {
                 {/* Instancias de esta OV */}
                 {isOpen && (
                   <div className="border-t border-slate-100 divide-y divide-slate-50">
-                    {group.instances.map(inst => (
-                      <div key={inst.id} className="px-5 py-3 flex items-center gap-4 bg-slate-50/50 hover:bg-slate-50">
-                        <span className="text-xs font-mono font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100 shrink-0">
+                    {group.instances.map(inst => {
+                      const isPiedra =
+                        String(inst.batch_type ?? '').toUpperCase() === 'PIEDRA';
+                      return (
+                      <div
+                        key={inst.id}
+                        className={`px-5 py-3 flex items-center gap-3 border-l-4 hover:opacity-95 transition-opacity ${
+                          isPiedra
+                            ? 'bg-violet-50 border-l-violet-400'
+                            : 'bg-amber-50 border-l-amber-400'
+                        }`}
+                      >
+                        <InstanceSemaphoreMark semaphore={inst.semaphore} />
+                        <span className="text-[10px] font-mono text-slate-500 bg-white/70 px-1.5 py-0.5 rounded border border-slate-200 shrink-0 max-w-[7rem] truncate">
                           {inst.batch_folio}
                         </span>
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 shrink-0">
+                        <span
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
+                            isPiedra
+                              ? 'bg-violet-100 text-violet-800 border border-violet-300'
+                              : 'bg-amber-100 text-amber-800 border border-amber-300'
+                          }`}
+                        >
                           {inst.batch_type}
                         </span>
                         <span className="font-bold text-slate-700 flex-1 truncate text-sm">
@@ -112,7 +143,8 @@ export default function ProductionReadyPage() {
                           </span>
                         )}
                       </div>
-                    ))}
+                    );
+                    })}
                   </div>
                 )}
               </div>
