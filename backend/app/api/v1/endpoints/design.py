@@ -32,7 +32,7 @@ from app.models.sales import (
 )
 from app.services.cloud_storage import upload_to_gcs
 from app.services.label_printer import generate_all_labels, concatenate_zpl
-from app.services.planning_service import compute_semaphore
+from app.services.design_service import build_pending_instance_rows
 from datetime import datetime
 
 # Schemas
@@ -756,8 +756,6 @@ def simulate_batch(
 # ==========================================
 # 10. RADAR DE INSTANCIAS PENDIENTES (SIMULADOR)
 # ==========================================
-from app.models.sales import PaymentStatus, SalesOrderStatus as _SOStatus
-
 class PendingInstanceResponse(BaseModel):
     id: int
     custom_name: str
@@ -769,99 +767,15 @@ class PendingInstanceResponse(BaseModel):
     schedule: Optional[dict] = None
     stone_pieces: Optional[int] = None
 
-# Órdenes confirmadas = tienen anticipo pagado O su status ya avanzó a producción
-_CONFIRMED_ORDER_STATUSES = {
-    _SOStatus.WAITING_ADVANCE,
-    _SOStatus.SOLD,
-    _SOStatus.IN_PRODUCTION,
-    _SOStatus.FINISHED,
-    _SOStatus.COMPLETED,
-}
-
 @router.get("/pending_instances", response_model=List[PendingInstanceResponse])
 def get_pending_instances(
     batch_type: str = "MDF",
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ):
-    """
-    Instancias sin lote asignado cuya OV está confirmada.
-    Regla ampliada: incluye OVs con anticipo pagado (PARTIAL/PAID)
-    O cuyo estatus de orden ya es WAITING_ADVANCE/SOLD/IN_PRODUCTION.
-    """
-    if batch_type.upper() == "PIEDRA":
-        instances = session.exec(
-            select(SalesOrderItemInstance)
-            .where(SalesOrderItemInstance.stone_batch_id == None)
-            .where(SalesOrderItemInstance.is_cancelled == False)
-        ).all()
-    else:
-        instances = session.exec(
-            select(SalesOrderItemInstance)
-            .where(SalesOrderItemInstance.production_batch_id == None)
-            .where(SalesOrderItemInstance.is_cancelled == False)
-        ).all()
-
-    result = []
-    for inst in instances:
-        item = session.exec(
-            select(SalesOrderItem).where(SalesOrderItem.id == inst.sales_order_item_id)
-        ).first()
-        if not item:
-            continue
-        if item.is_resale:
-            continue
-        order = session.exec(
-            select(SalesOrder).where(SalesOrder.id == item.sales_order_id)
-        ).first()
-        if not order:
-            continue
-
-        is_paid = order.payment_status in [PaymentStatus.PARTIAL, PaymentStatus.PAID]
-        is_confirmed_status = order.status in _CONFIRMED_ORDER_STATUSES
-
-        if not (is_paid or is_confirmed_status):
-            continue
-
-        version = (
-            session.get(ProductVersion, item.origin_version_id)
-            if item.origin_version_id
-            else None
-        )
-
-        if not version:
-            continue
-        if batch_type.upper() == "PIEDRA":
-            if not version.has_stone_components:
-                continue
-        else:
-            if not version.has_mdf_components:
-                continue
-
-        # Obtener nombre del cliente
-        client_name = None
-        if order and order.client_id:
-            client = session.get(Client, order.client_id)
-            if client:
-                client_name = client.full_name
-
-        result.append(PendingInstanceResponse(
-            id=inst.id,
-            custom_name=inst.custom_name,
-            product_name=item.product_name,
-            order_project_name=order.project_name,
-            order_id=order.id,
-            client_name=client_name,
-            stone_pieces=inst.stone_pieces,
-            semaphore=compute_semaphore(inst, datetime.utcnow(), session=session),
-            schedule={
-                "PM": inst.scheduled_prod_mdf.isoformat() if inst.scheduled_prod_mdf else None,
-                "PP": inst.scheduled_prod_stone.isoformat() if inst.scheduled_prod_stone else None,
-                "IM": inst.scheduled_inst_mdf.isoformat() if inst.scheduled_inst_mdf else None,
-                "IP": inst.scheduled_inst_stone.isoformat() if inst.scheduled_inst_stone else None,
-            },
-        ))
-    return result
+    """Instancias sin lote cuya OV está confirmada (anticipo o estatus avanzado)."""
+    rows = build_pending_instance_rows(session, batch_type)
+    return [PendingInstanceResponse(**row) for row in rows]
 
 
 # ==========================================

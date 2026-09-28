@@ -457,12 +457,15 @@ def list_pending_cxc(session: Session) -> list:
     for cxc in rows:
         order = sales_repo.get_sales_order_by_id(session, cxc.sales_order_id)
         abonado = sales_repo.sum_active_installments(session, cxc.id)
+        amortizado = float(cxc.amortized_advance or 0.0)
+        monto = float(cxc.amount or 0.0)
         result.append({
             "cxc_id": cxc.id,
             "invoice_folio": cxc.invoice_folio,
             "payment_type": cxc.payment_type,
             "monto_factura": cxc.amount,
-            "saldo": max(float(cxc.amount or 0.0) - abonado, 0.0),
+            "amortized_advance": amortizado,
+            "saldo": max(monto - abonado - amortizado, 0.0),
             "project_name": order.project_name if order else None,
             "sales_order_id": cxc.sales_order_id,
             "client_id": order.client_id if order else None,
