@@ -98,7 +98,8 @@ def read_product_masters(
         ).distinct()
     
     query = query.options(
-        selectinload(ProductMaster.versions).selectinload(ProductVersion.components)
+        selectinload(ProductMaster.client),
+        selectinload(ProductMaster.versions).selectinload(ProductVersion.components),
     )
     masters = session.exec(query).all()
 
@@ -119,6 +120,9 @@ def read_product_masters(
     result = []
     for master in masters:
         m_dict = master.model_dump()
+        m_dict['client_name'] = (
+            master.client.full_name if master.client else None
+        )
         m_dict['versions'] = []
         for version in master.versions:
             v_dict = version.model_dump()

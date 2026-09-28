@@ -24,6 +24,7 @@ class ProductMaster(SQLModel, table=True):
     client_id: Optional[int] = Field(default=None, foreign_key="clients_v2.id", nullable=True)
     name: str = Field(index=True) # Ej: "Cocina Torre Y"
     category: str = Field(default="General") # Cocina, Closet, Baño
+    project_name: Optional[str] = Field(default=None, index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     is_active: bool = Field(default=True)
     

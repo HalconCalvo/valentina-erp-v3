@@ -77,5 +77,6 @@ class ProductMasterRead(ProductMasterBase):
     id: int
     created_at: datetime
     is_active: bool
+    client_name: Optional[str] = None
     # Incluye sus versiones hijas
     versions: List[ProductVersionRead] = []
