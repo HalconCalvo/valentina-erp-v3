@@ -1271,11 +1271,16 @@ const DesignCatalogPage: React.FC = () => {
                                         const cfg = batchStatusConfig[batch.status]
                                             ?? { label: batch.status, color: 'bg-gray-100 text-gray-600' };
                                         const instanceCount = (batch.instances || []).length;
+                                        const isPiedraBatch =
+                                            String(batch.batch_type ?? '').toUpperCase() === 'PIEDRA';
                                         return (
                                             <div
                                                 key={batch.id}
-                                                className="bg-white rounded-xl border border-slate-200 
-                             shadow-sm overflow-hidden"
+                                                className={`rounded-xl border border-slate-200 shadow-sm overflow-hidden border-l-4 ${
+                                                    isPiedraBatch
+                                                        ? 'bg-violet-50 border-l-violet-400'
+                                                        : 'bg-amber-50 border-l-amber-400'
+                                                }`}
                                             >
                                                 <div
                                                     className="flex items-center justify-between 
@@ -1285,9 +1290,13 @@ const DesignCatalogPage: React.FC = () => {
                                                         <span className="font-black text-slate-800 text-sm">
                                                             {batch.folio}
                                                         </span>
-                                                        <span className="text-xs font-semibold px-2 py-0.5 
-                                       rounded-full bg-slate-200 
-                                       text-slate-600 shrink-0">
+                                                        <span
+                                                            className={`text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${
+                                                                String(batch.batch_type ?? '').toUpperCase() === 'PIEDRA'
+                                                                    ? 'bg-violet-100 text-violet-800 border border-violet-300'
+                                                                    : 'bg-amber-100 text-amber-800 border border-amber-300'
+                                                            }`}
+                                                        >
                                                             {batch.batch_type}
                                                         </span>
                                                         {instanceCount > 0 && (
