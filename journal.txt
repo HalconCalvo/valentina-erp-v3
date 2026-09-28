@@ -3734,3 +3734,35 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 3. Heartbeat 404 — bug menor
 4. Inventario físico
 5. Arranque en ceros
+
+
+---
+## SESIÓN 2026-09-28 — DISEÑO, PRODUCCIÓN, PLANEACIÓN Y FINANZAS
+
+### Completado:
+- Simulador: badges MDF/Piedra clickeables por OV — eliminados botones Lote MDF/Piedra
+- Simulador: colores amber(MDF)/violet(Piedra) en badges e instancias
+- Simulador: scrollIntoView al expandir última OV
+- Simulador: botón Regresar completamente visible (fix layout calc(100vh))
+- Ver Lotes: siempre expandidos — eliminado toggle colapsar/expandir
+- Ver Lotes: colores amber/violet en badges y fondos de lotes
+- Listas para Instalarse: eliminado badge nombre lote, semáforo BLUE_GREEN, colores MDF/violet
+- Planos de Productos: redirige a Catálogo de Ingeniería en modo solo lectura para PRODUCTION
+- Planeación Maestra: N+1 queries eliminadas — health endpoint de ~30s a <3s
+- Simulador pending_instances: N+1 queries eliminadas — de ~4s a subsegundo
+- has_mdf_components y has_stone_components en instancias de planning
+- Drag inteligente: COCINA NADIRA GRANITO (solo piedra) va directo a PP
+- PP/IP lanes visibles en modal usando has_stone_components
+- Semáforo: compute_semaphore con session — READY → BLUE_GREEN corregido
+- CxC: list_pending_cxc saldo descuenta amortized_advance (factura 618: $46,797.60)
+- ReceivableChargeModal: pre-carga amortized_advance de BD para facturas PROGRESS existentes
+- design/masters endpoint: devuelve client_name y project_name
+- Delivery deadline editable en Ventas/Monitor Operativo para DIRECTOR/MANAGER/DESIGN
+
+### Pendientes:
+1. PWA Campo — probar con instalador real
+2. Migración OVs reales
+3. Heartbeat 404 — bug menor
+4. Inventario físico
+5. Arranque en ceros
+6. Control de Déficit y Mermas — post-arranque
