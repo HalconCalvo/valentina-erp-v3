@@ -8,7 +8,7 @@ import {
   usePlanningCalendar,
   useHealthPanel,
   shouldSkipExternalDropModal,
-  getExternalDropLaneCodes,
+  getMissingExternalDropLaneCodes,
   applyExternalDropSchedule,
   normalizeInstanceFromApi,
 } from '../hooks/usePlanning';
@@ -202,7 +202,7 @@ export default function PlanningPage() {
         return true;
       }
 
-      const lanes = getExternalDropLaneCodes(instance);
+      const lanes = getMissingExternalDropLaneCodes(instance);
       if (lanes.length === 1) {
         const lane = lanes[0];
         setDraggedInstance(null);

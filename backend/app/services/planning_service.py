@@ -7,10 +7,17 @@ Responsabilidades:
   3. Gestionar reapertura de instancias para Órdenes de Garantía (⚠️).
 """
 from datetime import datetime, timedelta
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict
 from sqlmodel import Session, select
+from sqlalchemy.orm import selectinload
 
-from app.models.sales import SalesOrderItemInstance, InstanceStatus
+from app.models.sales import (
+    SalesOrderItemInstance,
+    SalesOrderItem,
+    SalesOrder,
+    InstanceStatus,
+)
+from app.models.design import ProductMaster, ProductVersion
 from app.models.production import (
     PayrollPayment,
     InstallationAssignment,
@@ -128,10 +135,27 @@ def _semaphore_pending_without_schedule(
     return SemaphoreColor.GRAY
 
 
+def _batch_status(
+    batch_id: Optional[int],
+    batch_by_id: Optional[Dict[int, ProductionBatch]],
+    session: Optional[Session],
+):
+    if not batch_id:
+        return None
+    if batch_by_id is not None:
+        batch = batch_by_id.get(batch_id)
+        return batch.status if batch else None
+    if session is not None:
+        batch = session.get(ProductionBatch, batch_id)
+        return batch.status if batch else None
+    return None
+
+
 def compute_semaphore(
     instance: SalesOrderItemInstance,
     reference_date: Optional[datetime] = None,
     session: Optional[Session] = None,
+    batch_by_id: Optional[Dict[int, ProductionBatch]] = None,
 ) -> str:
     """
     Calcula el color del semáforo de una instancia usando la Ley del Track Más Atrasado.
@@ -160,8 +184,8 @@ def compute_semaphore(
     if instance.production_status == InstanceStatus.CARGADO:
         return SemaphoreColor.DOUBLE_BLUE
 
-    # Fallback legacy: si no se pasa session, usar comportamiento antiguo basado en production_status
-    if session is None:
+    # Fallback legacy: sin session ni mapa de lotes precargado
+    if session is None and batch_by_id is None:
         if instance.production_status == InstanceStatus.READY:
             return SemaphoreColor.BLUE_GREEN
         if instance.production_status == InstanceStatus.IN_PRODUCTION:
@@ -195,19 +219,19 @@ def compute_semaphore(
 
     # Track MDF
     mdf_dates = [d for d in [instance.scheduled_prod_mdf, instance.scheduled_inst_mdf] if d is not None]
-    mdf_batch_status = None
-    if instance.production_batch_id:
-        mdf_batch = session.get(ProductionBatch, instance.production_batch_id)
-        mdf_batch_status = mdf_batch.status if mdf_batch else None
-    mdf_color = _compute_track_semaphore(mdf_dates, instance.production_batch_id, mdf_batch_status, now)
+    mdf_batch_status = _batch_status(
+        instance.production_batch_id, batch_by_id, session
+    )
+    mdf_color = _compute_track_semaphore(
+        mdf_dates, instance.production_batch_id, mdf_batch_status, now
+    )
 
     # Track PIEDRA
     stone_dates = [d for d in [instance.scheduled_prod_stone, instance.scheduled_inst_stone] if d is not None]
-    stone_batch_status = None
-    if instance.stone_batch_id:
-        stone_batch = session.get(ProductionBatch, instance.stone_batch_id)
-        stone_batch_status = stone_batch.status if stone_batch else None
-    stone_color = _compute_track_semaphore(stone_dates, instance.stone_batch_id, stone_batch_status, now)
+    stone_batch_status = _batch_status(instance.stone_batch_id, batch_by_id, session)
+    stone_color = _compute_track_semaphore(
+        stone_dates, instance.stone_batch_id, stone_batch_status, now
+    )
 
     # Recolectar tracks activos (None = track no aplica a esta instancia)
     active = [c for c in [mdf_color, stone_color] if c is not None]
@@ -413,3 +437,62 @@ def list_scheduled_installation_assignments(
             }
         )
     return out
+
+
+def list_health_panel_instances(session: Session) -> List[SalesOrderItemInstance]:
+    stmt = (
+        select(SalesOrderItemInstance)
+        .where(SalesOrderItemInstance.is_cancelled == False)  # noqa: E712
+        .where(
+            SalesOrderItemInstance.production_status.notin_([InstanceStatus.CLOSED])
+        )
+        .options(
+            selectinload(SalesOrderItemInstance.item)
+            .selectinload(SalesOrderItem.order)
+            .selectinload(SalesOrder.client),
+        )
+    )
+    return list(session.exec(stmt).all())
+
+
+def batch_map_for_instances(
+    session: Session,
+    instances: List[SalesOrderItemInstance],
+) -> Dict[int, ProductionBatch]:
+    batch_ids: set[int] = set()
+    for inst in instances:
+        if inst.production_batch_id:
+            batch_ids.add(inst.production_batch_id)
+        if inst.stone_batch_id:
+            batch_ids.add(inst.stone_batch_id)
+    if not batch_ids:
+        return {}
+    rows = session.exec(
+        select(ProductionBatch).where(ProductionBatch.id.in_(batch_ids))
+    ).all()
+    return {b.id: b for b in rows if b.id is not None}
+
+
+def version_master_maps_for_instances(
+    session: Session,
+    instances: List[SalesOrderItemInstance],
+) -> Tuple[Dict[int, ProductVersion], Dict[int, ProductMaster]]:
+    version_ids: set[int] = set()
+    for inst in instances:
+        item = inst.item
+        if item and item.origin_version_id:
+            version_ids.add(item.origin_version_id)
+    if not version_ids:
+        return {}, {}
+    versions = session.exec(
+        select(ProductVersion).where(ProductVersion.id.in_(version_ids))
+    ).all()
+    version_by_id = {v.id: v for v in versions if v.id is not None}
+    master_ids = {v.master_id for v in versions if v.master_id}
+    if not master_ids:
+        return version_by_id, {}
+    masters = session.exec(
+        select(ProductMaster).where(ProductMaster.id.in_(master_ids))
+    ).all()
+    master_by_id = {m.id: m for m in masters if m.id is not None}
+    return version_by_id, master_by_id

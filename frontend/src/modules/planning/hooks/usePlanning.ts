@@ -197,17 +197,7 @@ export function isInstallationFullyScheduled(instance: InstanceSchedule): boolea
   return true;
 }
 
-/** Regla 2: abrir InstanceEditModal sin ExternalDropModal. */
-export function shouldSkipExternalDropModal(instance: InstanceSchedule): boolean {
-  return (
-    isExternalDropProductionLocked(instance) &&
-    isInstallationFullyScheduled(instance)
-  );
-}
-
 export type ExternalDropLaneCode = 'PM' | 'PP' | 'IM' | 'IP';
-
-type InstallationLaneCode = 'IM' | 'IP';
 
 const SCHEDULE_KEY_BY_LANE: Record<ExternalDropLaneCode, keyof InstanceSchedule['schedule']> = {
   PM: 'PM',
@@ -215,6 +205,62 @@ const SCHEDULE_KEY_BY_LANE: Record<ExternalDropLaneCode, keyof InstanceSchedule[
   IM: 'IM',
   IP: 'IP',
 };
+
+function isLaneScheduled(instance: InstanceSchedule, code: ExternalDropLaneCode): boolean {
+  const key = SCHEDULE_KEY_BY_LANE[code];
+  const val = instance.schedule[key];
+  return val != null && String(val).trim() !== '';
+}
+
+/** Carriles que la instancia debe tener según material y estado de producción. */
+export function getRequiredScheduleLaneCodes(
+  instance: InstanceSchedule,
+): ExternalDropLaneCode[] {
+  if (instance.is_resale === true) {
+    return ['IM', 'IP'];
+  }
+  const prodLocked = isExternalDropProductionLocked(instance);
+  const hasStone = instanceHasStoneComponents(instance);
+  const hasMdf = instanceHasMdfComponents(instance);
+
+  if (prodLocked) {
+    if (hasStone && !hasMdf) return ['IP'];
+    if (hasMdf && !hasStone) return ['IM'];
+    if (hasMdf && hasStone) return ['IM', 'IP'];
+    return ['IM'];
+  }
+
+  if (hasMdf && hasStone) return ['PM', 'PP', 'IM', 'IP'];
+  if (hasMdf) return ['PM', 'IM'];
+  if (hasStone) return ['PP', 'IP'];
+  return ['PM', 'IM'];
+}
+
+/** Carriles requeridos que aún no tienen fecha. */
+export function getMissingExternalDropLaneCodes(
+  instance: InstanceSchedule,
+): ExternalDropLaneCode[] {
+  return getRequiredScheduleLaneCodes(instance).filter(
+    (code) => !isLaneScheduled(instance, code),
+  );
+}
+
+export function areAllRequiredLanesScheduled(instance: InstanceSchedule): boolean {
+  return getMissingExternalDropLaneCodes(instance).length === 0;
+}
+
+/** Regla 2: abrir InstanceEditModal sin ExternalDropModal. */
+export function shouldSkipExternalDropModal(instance: InstanceSchedule): boolean {
+  if (areAllRequiredLanesScheduled(instance)) {
+    return true;
+  }
+  return (
+    isExternalDropProductionLocked(instance) &&
+    isInstallationFullyScheduled(instance)
+  );
+}
+
+type InstallationLaneCode = 'IM' | 'IP';
 
 /** Carriles IM/IP según material y estado de producción. */
 export function getInstallationScheduleLaneCodes(
@@ -245,27 +291,9 @@ export function getInstallationScheduleLaneCodes(
   return ['IM', 'IP'];
 }
 
-function getInstallationDropLaneCodes(instance: InstanceSchedule): ExternalDropLaneCode[] {
-  return getInstallationScheduleLaneCodes(instance);
-}
-
-/** Carriles visibles en ExternalDropModal según estado de la instancia. */
+/** Carriles aplicables al editar / elegir carril (todos los requeridos). */
 export function getExternalDropLaneCodes(instance: InstanceSchedule): ExternalDropLaneCode[] {
-  if (instance.is_resale === true) {
-    return ['IM', 'IP'];
-  }
-  const prodLocked = isExternalDropProductionLocked(instance);
-  const codes: ExternalDropLaneCode[] = [];
-  if (!prodLocked) {
-    if (instanceHasMdfComponents(instance)) {
-      codes.push('PM');
-    }
-    if (instanceHasStoneComponents(instance)) {
-      codes.push('PP');
-    }
-  }
-  codes.push(...getInstallationDropLaneCodes(instance));
-  return codes;
+  return getRequiredScheduleLaneCodes(instance);
 }
 
 /** Pre-carga la fecha del día en el carril elegido al soltar desde el sidebar. */

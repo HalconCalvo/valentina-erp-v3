@@ -12,7 +12,7 @@ Rutas:
   PATCH /planning/orders/{order_id}/baptize → Bautizo masivo de instancias (custom_names)
 """
 from datetime import datetime, date, timedelta
-from typing import Optional, List, Any, Union
+from typing import Optional, List, Any, Union, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -26,6 +26,7 @@ from app.models.users import User, UserRole
 from app.models.production import (
     InstallationAssignment,
     InstallationAssignmentStatus,
+    ProductionBatch,
 )
 from app.models.sales import (
     SalesOrderItemInstance, SalesOrderItem, SalesOrder,
@@ -34,10 +35,16 @@ from app.models.sales import (
 from app.models.foundations import Client
 from app.models.design import ProductMaster, ProductVersion
 from app.services.planning_service import (
-    compute_semaphore, compute_semaphore_label,
-    trigger_double_green, reopen_as_warranty,
-    recalculate_dates_proportionally, LANE_CODES,
+    compute_semaphore,
+    compute_semaphore_label,
+    trigger_double_green,
+    reopen_as_warranty,
+    recalculate_dates_proportionally,
+    LANE_CODES,
     list_scheduled_installation_assignments,
+    list_health_panel_instances,
+    batch_map_for_instances,
+    version_master_maps_for_instances,
 )
 
 router = APIRouter()
@@ -117,10 +124,23 @@ def _iter_installation_days(start: datetime, end: Optional[datetime]):
         cur += timedelta(days=1)
 
 
-def _serialize_instance(inst: SalesOrderItemInstance, now: datetime, session: Optional[Session] = None) -> dict:
+def _serialize_instance(
+    inst: SalesOrderItemInstance,
+    now: datetime,
+    session: Optional[Session] = None,
+    *,
+    batch_by_id: Optional[Dict[int, ProductionBatch]] = None,
+    version_by_id: Optional[Dict[int, ProductVersion]] = None,
+    master_by_id: Optional[Dict[int, ProductMaster]] = None,
+) -> dict:
     """Serializa una instancia con semáforo calculado.
     Si se provee `session`, enriquece con product_name y order_folio del padre."""
-    semaphore = compute_semaphore(inst, now, session=session)
+    semaphore = compute_semaphore(
+        inst,
+        now,
+        session=session if batch_by_id is None else None,
+        batch_by_id=batch_by_id,
+    )
     schedule = {
         "PM": inst.scheduled_prod_mdf.isoformat() if inst.scheduled_prod_mdf else None,
         "PP": inst.scheduled_prod_stone.isoformat() if inst.scheduled_prod_stone else None,
@@ -138,31 +158,39 @@ def _serialize_instance(inst: SalesOrderItemInstance, now: datetime, session: Op
     has_mdf_components = False
     has_stone_components = False
     origin_version: Optional[ProductVersion] = None
-    if session:
+    item = inst.item
+    if item is None and session is not None:
         item = session.get(SalesOrderItem, inst.sales_order_item_id)
-        if item:
-            product_name = item.product_name
-            origin_version = (
-                session.get(ProductVersion, item.origin_version_id)
-                if item.origin_version_id
-                else None
-            )
-            if item.is_resale or not item.origin_version_id or not origin_version:
-                is_resale = True
-            else:
-                is_resale = False
-            if origin_version:
+    if item:
+        product_name = item.product_name
+        if item.origin_version_id:
+            if version_by_id is not None:
+                origin_version = version_by_id.get(item.origin_version_id)
+            elif session is not None:
+                origin_version = session.get(ProductVersion, item.origin_version_id)
+        if item.is_resale or not item.origin_version_id or not origin_version:
+            is_resale = True
+        else:
+            is_resale = False
+        if origin_version:
+            master = None
+            if master_by_id is not None:
+                master = master_by_id.get(origin_version.master_id)
+            elif session is not None:
                 master = session.get(ProductMaster, origin_version.master_id)
-                if master:
-                    product_category = master.category
+            if master:
+                product_category = master.category
+        order = item.order
+        if order is None and session is not None:
             order = session.get(SalesOrder, item.sales_order_id)
-            if order:
-                order_folio  = f"OV-{str(order.id).zfill(4)}"
-                project_name = order.project_name
-                if order.client_id:
-                    client = session.get(Client, order.client_id)
-                    if client:
-                        client_name = client.full_name
+        if order:
+            order_folio = f"OV-{str(order.id).zfill(4)}"
+            project_name = order.project_name
+            client = order.client
+            if client is None and session is not None and order.client_id:
+                client = session.get(Client, order.client_id)
+            if client:
+                client_name = client.full_name
 
     if origin_version:
         has_mdf_components = bool(origin_version.has_mdf_components)
@@ -427,15 +455,9 @@ def get_health_panel(
     Usado por el Panel Lateral de Salud con sus 3 pestañas: 🔴 🟡 🔘
     """
     now = datetime.utcnow()
-
-    stmt = select(SalesOrderItemInstance).where(
-        SalesOrderItemInstance.is_cancelled == False
-    ).where(
-        SalesOrderItemInstance.production_status.notin_([
-            InstanceStatus.CLOSED,
-        ])
-    )
-    instances = session.exec(stmt).all()
+    instances = list_health_panel_instances(session)
+    batch_by_id = batch_map_for_instances(session, instances)
+    version_by_id, master_by_id = version_master_maps_for_instances(session, instances)
 
     groups: dict = {
         "RED": [],
@@ -450,9 +472,17 @@ def get_health_panel(
     }
 
     for inst in instances:
-        color = compute_semaphore(inst, now, session=session)
+        color = compute_semaphore(inst, now, batch_by_id=batch_by_id)
         if color in groups:
-            groups[color].append(_serialize_instance(inst, now, session))
+            groups[color].append(
+                _serialize_instance(
+                    inst,
+                    now,
+                    batch_by_id=batch_by_id,
+                    version_by_id=version_by_id,
+                    master_by_id=master_by_id,
+                )
+            )
 
     return {
         "timestamp": now.isoformat(),

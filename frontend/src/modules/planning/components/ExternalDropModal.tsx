@@ -1,5 +1,8 @@
 import { InstanceSchedule } from '../../../api/planning-service';
-import { applyExternalDropSchedule, getExternalDropLaneCodes } from '../hooks/usePlanning';
+import {
+  applyExternalDropSchedule,
+  getMissingExternalDropLaneCodes,
+} from '../hooks/usePlanning';
 
 interface ExternalDropPending {
   dayKey: string;
@@ -22,7 +25,7 @@ const LANES = [
 export default function ExternalDropModal({ pending, onExternalDrop, onCancel }: Props) {
   if (!pending) return null;
 
-  const visibleCodes = new Set(getExternalDropLaneCodes(pending.instance));
+  const visibleCodes = new Set(getMissingExternalDropLaneCodes(pending.instance));
   const visibleLanes = LANES.filter(lane => visibleCodes.has(lane.code));
 
   const friendlyDate = new Date(pending.dayKey + 'T12:00:00').toLocaleDateString('es-MX', {
