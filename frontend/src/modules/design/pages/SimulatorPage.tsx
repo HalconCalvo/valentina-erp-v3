@@ -45,13 +45,14 @@ function semaphoreDotWithScheduled(color: string): string {
 export default function SimulatorPage() {
   const navigate = useNavigate(); 
   
-  const [pendingInstances, setPendingInstances] = useState<PendingInstance[]>([]);
   const [pendingByType, setPendingByType] = useState<{ MDF: PendingInstance[]; PIEDRA: PendingInstance[] }>({
     MDF: [],
     PIEDRA: [],
   });
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [batchType, setBatchType] = useState<'MDF' | 'PIEDRA'>('MDF');
+  /** Tipo de material activo por OV (badge MDF o Piedra). */
+  const [orderMaterialViews, setOrderMaterialViews] = useState<Record<number, 'MDF' | 'PIEDRA'>>({});
   
   const [simulationResult, setSimulationResult] = useState<SimulateBatchResponse | null>(null);
   const [loadingRadar, setLoadingRadar] = useState(false);
@@ -71,19 +72,52 @@ export default function SimulatorPage() {
   const [expandedOrderIds, setExpandedOrderIds] =
     useState<Set<number>>(new Set());
 
+  const scrollOvCardIntoView = (orderId: number) => {
+    setTimeout(() => {
+      const element = document.getElementById(`ov-card-${orderId}`);
+      element?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 100);
+  };
+
   const toggleOrderExpand = (orderId: number) => {
     setExpandedOrderIds(prev => {
+      const expanding = !prev.has(orderId);
       const next = new Set(prev);
-      next.has(orderId) ? next.delete(orderId) : next.add(orderId);
+      if (next.has(orderId)) next.delete(orderId);
+      else next.add(orderId);
+      if (expanding) {
+        setOrderMaterialViews(views => {
+          if (views[orderId]) return views;
+          const mdf = mdfCountByOrder.get(orderId) ?? 0;
+          const stone = stoneCountByOrder.get(orderId) ?? 0;
+          const initial: 'MDF' | 'PIEDRA' = mdf > 0 ? 'MDF' : 'PIEDRA';
+          if (mdf === 0 && stone === 0) return views;
+          return { ...views, [orderId]: initial };
+        });
+        scrollOvCardIntoView(orderId);
+      }
       return next;
     });
+  };
+
+  const toggleOrderMaterialBadge = (
+    orderId: number,
+    material: 'MDF' | 'PIEDRA',
+    e: React.MouseEvent,
+  ) => {
+    e.stopPropagation();
+    setBatchType(material);
+    setSimulationResult(null);
+    setExpandedOrderIds(prev => new Set(prev).add(orderId));
+    setOrderMaterialViews(prev => ({ ...prev, [orderId]: material }));
+    scrollOvCardIntoView(orderId);
   };
 
   useEffect(() => {
     loadPendingInstances();
     setSelectedIds([]);
     setSimulationResult(null);
-  }, [batchType]);
+  }, []);
 
   const loadPendingInstances = async () => {
     setLoadingRadar(true);
@@ -93,7 +127,6 @@ export default function SimulatorPage() {
         designService.getPendingInstances('PIEDRA'),
       ]);
       setPendingByType({ MDF: mdf, PIEDRA: piedra });
-      setPendingInstances(batchType === 'MDF' ? mdf : piedra);
     } catch {
       toast.error('Error al cargar el radar de instancias pendientes.');
     } finally {
@@ -108,15 +141,36 @@ export default function SimulatorPage() {
     setSimulationResult(null); 
   };
 
+  const resolveBatchTypeForSelection = (): 'MDF' | 'PIEDRA' | null => {
+    const mdfIds = new Set(pendingByType.MDF.map(p => p.id));
+    const piedraIds = new Set(pendingByType.PIEDRA.map(p => p.id));
+    let hasMdf = false;
+    let hasPiedra = false;
+    for (const id of selectedIds) {
+      if (mdfIds.has(id)) hasMdf = true;
+      if (piedraIds.has(id)) hasPiedra = true;
+    }
+    if (hasMdf && hasPiedra) return null;
+    if (hasPiedra) return 'PIEDRA';
+    if (hasMdf) return 'MDF';
+    return batchType;
+  };
+
   const handleSimulate = async () => {
     if (selectedIds.length === 0) {
       toast.warning('Selecciona al menos una instancia');
       return;
     }
-    
+    const line = resolveBatchTypeForSelection();
+    if (!line) {
+      toast.warning('Selecciona instancias de un solo tipo: MDF o Piedra.');
+      return;
+    }
+    setBatchType(line);
+
     setSimulating(true);
     try {
-      const result = await designService.simulateBatch(selectedIds, batchType);
+      const result = await designService.simulateBatch(selectedIds, line);
       setSimulationResult(result);
     } catch (error: any) {
       toast.error(error?.response?.data?.detail || 'Error al simular el lote. Verifica la conexión.');
@@ -197,9 +251,10 @@ export default function SimulatorPage() {
     try {
       await planningService.updateInstance(instId, { custom_name: editingName.trim() });
       // Update local list immediately
-      setPendingInstances(prev =>
-        prev.map(p => p.id === instId ? { ...p, custom_name: editingName.trim() } : p)
-      );
+      setPendingByType(prev => ({
+        MDF: prev.MDF.map(p => (p.id === instId ? { ...p, custom_name: editingName.trim() } : p)),
+        PIEDRA: prev.PIEDRA.map(p => (p.id === instId ? { ...p, custom_name: editingName.trim() } : p)),
+      }));
       setEditingId(null);
     } catch {
       toast.error('Error al guardar el alias. Intenta de nuevo.');
@@ -209,7 +264,9 @@ export default function SimulatorPage() {
   };
 
   const openMassBaptism = () => {
-    const selected = pendingInstances.filter(p => selectedIds.includes(p.id));
+    const selected = [...pendingByType.MDF, ...pendingByType.PIEDRA].filter(p =>
+      selectedIds.includes(p.id),
+    );
     const initial: Record<number, string> = {};
     selected.forEach(p => { initial[p.id] = p.custom_name; });
     setBaptismNames(initial);
@@ -224,12 +281,14 @@ export default function SimulatorPage() {
           planningService.updateInstance(Number(id), { custom_name: name })
         )
       );
-      setPendingInstances(prev =>
-        prev.map(p => baptismNames[p.id] !== undefined
-          ? { ...p, custom_name: baptismNames[p.id] }
-          : p
-        )
-      );
+      setPendingByType(prev => ({
+        MDF: prev.MDF.map(p =>
+          baptismNames[p.id] !== undefined ? { ...p, custom_name: baptismNames[p.id] } : p,
+        ),
+        PIEDRA: prev.PIEDRA.map(p =>
+          baptismNames[p.id] !== undefined ? { ...p, custom_name: baptismNames[p.id] } : p,
+        ),
+      }));
       setShowMassBaptism(false);
     } catch {
       toast.error('Error al guardar los alias. Intenta de nuevo.');
@@ -254,13 +313,18 @@ export default function SimulatorPage() {
     return counts;
   }, [pendingByType.PIEDRA]);
 
+  const allPendingInstances = useMemo(
+    () => [...pendingByType.MDF, ...pendingByType.PIEDRA],
+    [pendingByType],
+  );
+
   const instancesByOrder = useMemo(() => {
     const metadata = new Map<number, {
       order_id: number;
       order_project_name: string;
       client_name: string | null;
     }>();
-    for (const inst of [...pendingByType.MDF, ...pendingByType.PIEDRA]) {
+    for (const inst of allPendingInstances) {
       if (!metadata.has(inst.order_id)) {
         metadata.set(inst.order_id, {
           order_id: inst.order_id,
@@ -270,25 +334,26 @@ export default function SimulatorPage() {
       }
     }
 
-    const activeByOrder = new Map<number, typeof pendingInstances>();
-    for (const inst of pendingInstances) {
-      if (!activeByOrder.has(inst.order_id)) {
-        activeByOrder.set(inst.order_id, []);
-      }
-      activeByOrder.get(inst.order_id)!.push(inst);
-    }
+    return Array.from(metadata.values()).filter(meta => {
+      const mdf = mdfCountByOrder.get(meta.order_id) ?? 0;
+      const stone = stoneCountByOrder.get(meta.order_id) ?? 0;
+      return mdf > 0 || stone > 0;
+    });
+  }, [allPendingInstances, mdfCountByOrder, stoneCountByOrder]);
 
-    return Array.from(metadata.values())
-      .filter(meta => {
-        const mdf = mdfCountByOrder.get(meta.order_id) ?? 0;
-        const stone = stoneCountByOrder.get(meta.order_id) ?? 0;
-        return mdf > 0 || stone > 0;
-      })
-      .map(meta => ({
-        ...meta,
-        instances: activeByOrder.get(meta.order_id) ?? [],
-      }));
-  }, [pendingInstances, pendingByType, mdfCountByOrder, stoneCountByOrder]);
+  const visibleInstancesForOrder = (orderId: number): PendingInstance[] => {
+    const view = orderMaterialViews[orderId];
+    if (view === 'MDF') {
+      return pendingByType.MDF.filter(i => i.order_id === orderId);
+    }
+    if (view === 'PIEDRA') {
+      return pendingByType.PIEDRA.filter(i => i.order_id === orderId);
+    }
+    return [];
+  };
+
+  const allInstancesForOrder = (orderId: number): PendingInstance[] =>
+    allPendingInstances.filter(i => i.order_id === orderId);
 
   const materialColumns = useMemo((): VTableColumn<any>[] => [
     {
@@ -325,38 +390,34 @@ export default function SimulatorPage() {
   ], []);
 
   return (
-    <div className="p-8 bg-slate-50 flex flex-col max-w-7xl mx-auto animate-in fade-in duration-300">
-      
-      <div className="flex shrink-0 justify-end mb-6">
+    <div className="flex flex-col h-full min-h-0 max-w-7xl mx-auto w-full animate-in fade-in duration-300">
+      <div className="flex shrink-0 justify-end mb-3 pt-1">
         <button
+          type="button"
           onClick={() => navigate('/design')}
-          className="flex items-center gap-2 bg-white border 
-                   border-slate-300 text-slate-700 px-4 py-2 
-                   rounded-lg font-bold hover:bg-slate-50 
-                   hover:text-indigo-600 transition-all shadow-sm"
+          className="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-bold hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm relative z-10"
         >
           <ArrowLeft size={18} /> Regresar
         </button>
       </div>
 
-      <div className="mb-6 shrink-0 pb-4 border-b border-slate-200">
+      <div className="mb-4 shrink-0 pb-3 border-b border-slate-200">
         <h1 className="text-3xl font-black text-slate-800 flex items-center gap-3">
           <Calculator className="text-blue-500" /> Simulador y Lotificación
         </h1>
         <p className="text-slate-500 mt-1">Agrupa productos pagados y cruza recetas contra el inventario físico.</p>
       </div>
 
-      <div className="flex gap-6 items-stretch">
-        
+      <div className="flex flex-1 min-h-0 gap-6 items-stretch">
         {/* COLUMNA IZQUIERDA: EL RADAR */}
-        <div className="w-1/3 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 160px)' }}>
+        <div className="w-1/3 min-h-0 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
           <div className="shrink-0 p-4 border-b border-slate-200 bg-slate-50">
             <div className="flex justify-between items-center">
               <h2 className="font-bold text-slate-700 flex items-center gap-2">
                 <Package size={18} className="text-slate-500" /> Órdenes Pendientes
               </h2>
               <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-bold">
-                {pendingInstances.length} piezas
+                {allPendingInstances.length} piezas
               </span>
             </div>
             {/* Bautizo Masivo de selección */}
@@ -370,10 +431,7 @@ export default function SimulatorPage() {
             )}
           </div>
 
-          <div
-            className="flex-none min-h-0 overflow-y-auto p-4 flex flex-col gap-3"
-            style={{ height: 'calc(100vh - 260px)', overflowY: 'auto', paddingBottom: '3rem' }}
-          >
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-3 pb-32">
             {loadingRadar ? (
               <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2">
                 <RefreshCw className="animate-spin" size={24} />
@@ -387,19 +445,26 @@ export default function SimulatorPage() {
             ) : (
               instancesByOrder.map(group => {
                 const isExpanded = expandedOrderIds.has(group.order_id);
-                const selectedInGroup = group.instances.filter(
-                  i => selectedIds.includes(i.id)
+                const orderInstances = allInstancesForOrder(group.order_id);
+                const visibleInstances = visibleInstancesForOrder(group.order_id);
+                const activeMaterial = orderMaterialViews[group.order_id];
+                const mdfCount = mdfCountByOrder.get(group.order_id) ?? 0;
+                const stoneCount = stoneCountByOrder.get(group.order_id) ?? 0;
+                const selectedInGroup = orderInstances.filter(i =>
+                  selectedIds.includes(i.id),
                 ).length;
                 return (
-                  <div key={group.order_id}
-                       className="border border-slate-200 rounded-lg">
-                    {/* Tarjeta OV — clickeable para expandir */}
-                    <button
-                      type="button"
-                      onClick={() => toggleOrderExpand(group.order_id)}
-                      className="w-full min-h-12 text-left px-4 py-3.5 bg-slate-50 hover:bg-slate-100 transition flex items-center justify-between gap-3"
-                    >
-                      <div className="flex-1 min-w-0">
+                  <div
+                    key={group.order_id}
+                    id={`ov-card-${group.order_id}`}
+                    className="border border-slate-200 rounded-lg"
+                  >
+                    <div className="min-h-12 px-4 py-3.5 bg-slate-50 flex items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() => toggleOrderExpand(group.order_id)}
+                        className="flex-1 min-w-0 text-left hover:opacity-90 transition"
+                      >
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-mono font-black text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-200 shrink-0 tracking-tight">
                             OV-{String(group.order_id).padStart(4, '0')}
@@ -418,16 +483,14 @@ export default function SimulatorPage() {
                             {group.client_name}
                           </p>
                         )}
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
+                      </button>
+                      <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                         {(() => {
-                          // Contar semáforos efectivos de las instancias del grupo
                           const counts: Record<string, number> = {};
-                          group.instances.forEach(i => {
+                          orderInstances.forEach(i => {
                             const s = effectiveSemaphore(i);
                             counts[s] = (counts[s] ?? 0) + 1;
                           });
-                          // Mostrar en orden de prioridad: RED, YELLOW, SCHEDULED, otros
                           const priority = ['RED', 'YELLOW', 'SCHEDULED', 'GRAY', 'BLUE', 'BLUE_GREEN', 'DOUBLE_BLUE', 'GREEN', 'DOUBLE_GREEN', 'WARRANTY'];
                           const summary = priority
                             .filter(k => counts[k] > 0)
@@ -447,28 +510,55 @@ export default function SimulatorPage() {
                             </div>
                           );
                         })()}
-                        <span
-                          className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 shrink-0"
-                          title="Instancias MDF pendientes de lote"
+                        {mdfCount > 0 && (
+                          <button
+                            type="button"
+                            onClick={(e) => toggleOrderMaterialBadge(group.order_id, 'MDF', e)}
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 transition ${
+                              activeMaterial === 'MDF'
+                                ? 'bg-slate-800 text-white border-slate-800 ring-2 ring-slate-400'
+                                : 'bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200'
+                            }`}
+                            title="Ver instancias MDF de esta OV"
+                          >
+                            MDF {mdfCount}
+                          </button>
+                        )}
+                        {stoneCount > 0 && (
+                          <button
+                            type="button"
+                            onClick={(e) => toggleOrderMaterialBadge(group.order_id, 'PIEDRA', e)}
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 transition ${
+                              activeMaterial === 'PIEDRA'
+                                ? 'bg-stone-800 text-white border-stone-800 ring-2 ring-stone-500'
+                                : 'bg-stone-200 text-stone-800 border-stone-400 hover:bg-stone-300'
+                            }`}
+                            title="Ver instancias Piedra de esta OV"
+                          >
+                            Piedra {stoneCount}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => toggleOrderExpand(group.order_id)}
+                          className="p-1 text-slate-400 hover:text-slate-600"
+                          title={isExpanded ? 'Contraer' : 'Expandir'}
                         >
-                          MDF {mdfCountByOrder.get(group.order_id) ?? 0}
-                        </span>
-                        <span
-                          className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-stone-200 text-stone-800 border border-stone-400 shrink-0"
-                          title="Instancias con piezas de piedra pendientes"
-                        >
-                          Piedra {stoneCountByOrder.get(group.order_id) ?? 0}
-                        </span>
-                        <span className={`text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
-                          ▼
-                        </span>
+                          <span className={`inline-block transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+                            ▼
+                          </span>
+                        </button>
                       </div>
-                    </button>
+                    </div>
 
-                    {/* Instancias expandibles */}
                     {isExpanded && (
                       <div className="flex flex-col divide-y divide-slate-100">
-                        {group.instances.map(inst => (
+                        {visibleInstances.length === 0 ? (
+                          <p className="p-3 text-xs text-slate-500 italic">
+                            Activa MDF o Piedra para ver instancias.
+                          </p>
+                        ) : null}
+                        {visibleInstances.map(inst => (
                           <div
                             key={inst.id}
                             className={`p-3 transition ${
@@ -567,61 +657,37 @@ export default function SimulatorPage() {
         </div>
 
         {/* COLUMNA DERECHA: EL SIMULADOR */}
-        <div className="w-2/3 min-h-0 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-auto">
+        <div className="w-2/3 min-h-0 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
           <div className="shrink-0 p-4 border-b border-slate-200 bg-slate-50">
             <h2 className="font-bold text-slate-700 flex items-center gap-2">
               <Factory size={18} className="text-slate-500" /> Configuración del Lote
             </h2>
           </div>
 
-          <div className="shrink-0 p-6 border-b border-slate-200">
-            <div className="flex items-center gap-6">
-              <div className="flex-1">
-                <label className="block text-sm font-bold text-slate-700 mb-2">Línea de Producción:</label>
-                <div className="flex gap-4">
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => { setBatchType('MDF'); setSimulationResult(null); }}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setBatchType('MDF'); setSimulationResult(null); } }}
-                    className={`flex-1 p-3 border rounded-lg cursor-pointer flex flex-col items-center justify-center gap-1 font-bold transition ${batchType === 'MDF' ? 'bg-slate-800 text-white border-slate-800 shadow-md' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}
-                  >
-                    <span>Lote MDF</span>
-                    <span className={`text-[10px] font-normal ${batchType === 'MDF' ? 'text-slate-300' : 'text-slate-400'}`}>
-                      Requiere simulación de inventario
-                    </span>
-                  </div>
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => { setBatchType('PIEDRA'); setSimulationResult(null); }}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setBatchType('PIEDRA'); setSimulationResult(null); } }}
-                    className={`flex-1 p-3 border rounded-lg cursor-pointer flex flex-col items-center justify-center gap-1 font-bold transition ${batchType === 'PIEDRA' ? 'bg-slate-800 text-white border-slate-800 shadow-md' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}
-                  >
-                    <span>Lote Piedra</span>
-                    <span className={`text-[10px] font-normal ${batchType === 'PIEDRA' ? 'text-slate-300' : 'text-slate-400'}`}>
-                      Creación directa sin simulación
-                    </span>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="flex items-end pt-6">
-                <button
-                  onClick={handleSimulate}
-                  disabled={selectedIds.length === 0 || simulating}
-                  className="bg-blue-600 text-white px-8 py-3 rounded-lg font-bold shadow hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
-                >
-                  {simulating
-                    ? <><RefreshCw className="animate-spin" size={18}/> Calculando...</>
-                    : 'Ejecutar Simulación'}
-                </button>
-              </div>
-            </div>
+          <div className="shrink-0 p-6 border-b border-slate-200 flex flex-wrap items-center justify-between gap-4">
+            <p className="text-sm text-slate-600">
+              Línea activa:{' '}
+              <span className="font-bold text-slate-800">
+                {batchType === 'MDF' ? 'MDF (simulación de inventario)' : 'Piedra'}
+              </span>
+              <span className="block text-[11px] text-slate-400 mt-0.5">
+                Usa los badges MDF / Piedra en cada OV para filtrar y definir el tipo de lote.
+              </span>
+            </p>
+            <button
+              type="button"
+              onClick={handleSimulate}
+              disabled={selectedIds.length === 0 || simulating}
+              className="bg-blue-600 text-white px-8 py-3 rounded-lg font-bold shadow hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2 shrink-0"
+            >
+              {simulating
+                ? <><RefreshCw className="animate-spin" size={18}/> Calculando...</>
+                : 'Ejecutar Simulación'}
+            </button>
           </div>
 
           {/* RESULTADOS DE LA SIMULACIÓN */}
-          <div className="p-6 bg-slate-50 overflow-visible">
+          <div className="flex-1 min-h-0 p-6 bg-slate-50 overflow-y-auto">
             {!simulationResult ? (
               <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm gap-2">
                 <Beaker size={40} className="opacity-20 mb-2" />
@@ -666,10 +732,7 @@ export default function SimulatorPage() {
                 </div>
 
                 <h4 className="font-bold text-slate-700 mb-3 text-sm flex items-center gap-2"><Beaker size={16} className="text-slate-400"/> Desglose de Receta vs Inventario Físico</h4>
-                <div
-                  className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm"
-                  style={{ maxHeight: 'calc(100vh - 420px)', overflowY: 'auto' }}
-                >
+                <div className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm max-h-[min(28rem,50vh)] overflow-y-auto">
                   <VTable
                     columns={materialColumns as unknown as VTableColumn<Record<string, unknown>>[]}
                     data={(simulationResult.materials || []) as unknown as Record<string, unknown>[]}
@@ -701,7 +764,7 @@ export default function SimulatorPage() {
 
             {/* Instance list */}
             <div className="px-6 py-4 max-h-80 overflow-y-auto space-y-2.5">
-              {pendingInstances
+              {allPendingInstances
                 .filter(p => selectedIds.includes(p.id))
                 .map((inst, idx) => (
                   <div key={inst.id} className="flex items-center gap-3">
