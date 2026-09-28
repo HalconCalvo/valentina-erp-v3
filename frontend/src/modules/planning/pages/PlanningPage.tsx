@@ -191,8 +191,7 @@ export default function PlanningPage() {
 
   const handleSidebarDrop = useCallback((_dayKey: string, instance: InstanceSchedule) => {
     setDraggedInstance(null);
-    const modified: InstanceSchedule = { ...instance };
-    setEditingInstance(modified);
+    setEditingInstance(instance);
   }, []);
 
   const handleExternalDropAttempt = useCallback(

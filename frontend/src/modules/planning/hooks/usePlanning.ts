@@ -176,14 +176,14 @@ export function isExternalDropProductionLocked(instance: InstanceSchedule): bool
   );
 }
 
-function instanceHasStoneComponents(instance: InstanceSchedule): boolean {
+export function instanceHasStoneComponents(instance: InstanceSchedule): boolean {
   if (typeof instance.has_stone_components === 'boolean') {
     return instance.has_stone_components;
   }
   return (instance.stone_pieces ?? 0) > 0;
 }
 
-function instanceHasMdfComponents(instance: InstanceSchedule): boolean {
+export function instanceHasMdfComponents(instance: InstanceSchedule): boolean {
   if (typeof instance.has_mdf_components === 'boolean') {
     return instance.has_mdf_components;
   }
@@ -275,11 +275,15 @@ export function applyExternalDropSchedule(
   lane: ExternalDropLaneCode,
 ): InstanceSchedule {
   const scheduleKey = SCHEDULE_KEY_BY_LANE[lane];
+  if (!scheduleKey) {
+    return instance;
+  }
+  const iso = dayKey.includes('T') ? dayKey : `${dayKey}T09:00:00.000Z`;
   return {
     ...instance,
     schedule: {
       ...instance.schedule,
-      [scheduleKey]: `${dayKey}T09:00:00.000Z`,
+      [scheduleKey]: iso,
     },
   };
 }
