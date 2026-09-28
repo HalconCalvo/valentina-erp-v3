@@ -516,8 +516,8 @@ export default function SimulatorPage() {
                             onClick={(e) => toggleOrderMaterialBadge(group.order_id, 'MDF', e)}
                             className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 transition ${
                               activeMaterial === 'MDF'
-                                ? 'bg-slate-800 text-white border-slate-800 ring-2 ring-slate-400'
-                                : 'bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200'
+                                ? 'bg-amber-100 text-amber-800 border-amber-300 ring-2 ring-amber-500'
+                                : 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200/90'
                             }`}
                             title="Ver instancias MDF de esta OV"
                           >
@@ -530,8 +530,8 @@ export default function SimulatorPage() {
                             onClick={(e) => toggleOrderMaterialBadge(group.order_id, 'PIEDRA', e)}
                             className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 transition ${
                               activeMaterial === 'PIEDRA'
-                                ? 'bg-stone-800 text-white border-stone-800 ring-2 ring-stone-500'
-                                : 'bg-stone-200 text-stone-800 border-stone-400 hover:bg-stone-300'
+                                ? 'bg-violet-100 text-violet-800 border-violet-300 ring-2 ring-violet-500'
+                                : 'bg-violet-100 text-violet-800 border-violet-300 hover:bg-violet-200/90'
                             }`}
                             title="Ver instancias Piedra de esta OV"
                           >
@@ -561,10 +561,16 @@ export default function SimulatorPage() {
                         {visibleInstances.map(inst => (
                           <div
                             key={inst.id}
-                            className={`p-3 transition ${
-                              selectedIds.includes(inst.id)
-                                ? 'bg-blue-50'
-                                : 'bg-white hover:bg-slate-50'
+                            className={`p-3 transition border-l-4 ${
+                              activeMaterial === 'PIEDRA'
+                                ? selectedIds.includes(inst.id)
+                                  ? 'bg-violet-100 border-l-violet-400'
+                                  : 'bg-violet-50 border-l-violet-400 hover:bg-violet-100/80'
+                                : activeMaterial === 'MDF'
+                                  ? selectedIds.includes(inst.id)
+                                    ? 'bg-amber-100 border-l-amber-400'
+                                    : 'bg-amber-50 border-l-amber-400 hover:bg-amber-100/80'
+                                  : 'bg-white border-l-transparent hover:bg-slate-50'
                             }`}
                           >
                             <div className="flex items-start gap-3">
