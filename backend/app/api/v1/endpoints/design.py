@@ -870,6 +870,9 @@ class LabelRequestItem(BaseModel):
     custom_name: str
     client_name: str
     project_name: str
+    order_folio: str
+    street: Optional[str] = None
+    lot: Optional[str] = None
     declared_bundles: int
     is_stone: bool = False
 
@@ -918,6 +921,9 @@ def list_label_requests(
                 custom_name=inst.custom_name,
                 client_name=client.full_name if client else "",
                 project_name=order.project_name,
+                order_folio=f"OV-{str(order.id).zfill(4)}",
+                street=inst.street,
+                lot=inst.lot,
                 declared_bundles=inst.declared_bundles or 0,
                 is_stone=is_stone,
             )

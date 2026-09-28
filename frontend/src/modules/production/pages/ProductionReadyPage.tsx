@@ -2,7 +2,40 @@ import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { productionService } from '../../../api/production-service';
-import { getSemaphoreBadgeMark } from '../../planning/hooks/usePlanning';
+import { getSemaphoreBadgeMark, getSemaphoreConfig } from '../../planning/hooks/usePlanning';
+
+const TITLE_SEMAPHORE = getSemaphoreConfig('BLUE_GREEN');
+
+function formatScheduleDay(iso: string | null | undefined): string | null {
+  const raw = typeof iso === 'string' ? iso.trim() : '';
+  if (!raw) return null;
+  const d = new Date(raw.includes('T') ? raw : `${raw.slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = d
+    .toLocaleDateString('es-MX', { month: 'short' })
+    .replace(/\./g, '')
+    .trim();
+  return `${day}/${month}/${d.getFullYear()}`;
+}
+
+function installationScheduleDisplay(
+  inst: {
+    scheduled_inst_mdf?: string | null;
+    scheduled_inst_stone?: string | null;
+    track?: string | null;
+    batch_type?: string | null;
+  },
+  isPiedra: boolean,
+): { text: string; hasDate: boolean } {
+  const raw = isPiedra ? inst.scheduled_inst_stone : inst.scheduled_inst_mdf;
+  const prefix = isPiedra ? 'IP' : 'IM';
+  const formatted = formatScheduleDay(raw);
+  if (formatted) {
+    return { text: `${prefix}: ${formatted}`, hasDate: true };
+  }
+  return { text: 'Sin fecha programada', hasDate: false };
+}
 
 function InstanceSemaphoreMark({ semaphore }: { semaphore?: string | null }) {
   const sem = semaphore ?? 'BLUE_GREEN';
@@ -71,7 +104,10 @@ export default function ProductionReadyPage() {
 
       <div className="mb-6 pb-4 border-b border-slate-200">
         <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-          🟢 Listas para Instalarse
+          <span className="text-2xl leading-none shrink-0" aria-hidden>
+            {TITLE_SEMAPHORE.icon ?? TITLE_SEMAPHORE.dot}
+          </span>
+          Listas para Instalarse
         </h2>
         <p className="text-slate-500 text-sm mt-1">
           Instancias terminadas esperando despacho — agrupadas por OV.
@@ -111,7 +147,8 @@ export default function ProductionReadyPage() {
                   <div className="border-t border-slate-100 divide-y divide-slate-50">
                     {group.instances.map(inst => {
                       const isPiedra =
-                        String(inst.batch_type ?? '').toUpperCase() === 'PIEDRA';
+                        String(inst.track ?? inst.batch_type ?? '').toUpperCase() === 'PIEDRA';
+                      const schedule = installationScheduleDisplay(inst, isPiedra);
                       return (
                       <div
                         key={inst.id}
@@ -122,9 +159,6 @@ export default function ProductionReadyPage() {
                         }`}
                       >
                         <InstanceSemaphoreMark semaphore={inst.semaphore} />
-                        <span className="text-[10px] font-mono text-slate-500 bg-white/70 px-1.5 py-0.5 rounded border border-slate-200 shrink-0 max-w-[7rem] truncate">
-                          {inst.batch_folio}
-                        </span>
                         <span
                           className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
                             isPiedra
@@ -134,8 +168,17 @@ export default function ProductionReadyPage() {
                         >
                           {inst.batch_type}
                         </span>
-                        <span className="font-bold text-slate-700 flex-1 truncate text-sm">
+                        <span className="font-bold text-slate-700 flex-1 min-w-0 truncate text-sm">
                           {inst.custom_name || '—'}
+                        </span>
+                        <span
+                          className={`text-xs shrink-0 ml-auto text-right max-w-[11rem] ${
+                            schedule.hasDate
+                              ? 'text-blue-700 font-semibold'
+                              : 'text-slate-400 font-medium'
+                          }`}
+                        >
+                          {schedule.text}
                         </span>
                         {inst.qr_code && (
                           <span className="text-[10px] font-mono text-slate-400 shrink-0">

@@ -41,6 +41,9 @@ export interface LabelRequestItem {
   custom_name: string;
   client_name: string;
   project_name: string;
+  order_folio?: string;
+  street?: string | null;
+  lot?: string | null;
   declared_bundles: number;
   is_stone: boolean;
 }

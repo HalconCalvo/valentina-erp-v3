@@ -827,6 +827,12 @@ def get_ready_instances(current_user: CurrentUser, db: Session = Depends(get_ses
             "batch_folio": batch.folio if batch else None,
             "batch_type": batch.batch_type if batch else None,
             "other_track_status": other_track_status,
+            "scheduled_inst_mdf": (
+                i.scheduled_inst_mdf.isoformat() if i.scheduled_inst_mdf else None
+            ),
+            "scheduled_inst_stone": (
+                i.scheduled_inst_stone.isoformat() if i.scheduled_inst_stone else None
+            ),
         })
 
     return result

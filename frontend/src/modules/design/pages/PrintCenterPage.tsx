@@ -5,6 +5,46 @@ import { designService, LabelRequestItem } from '../../../api/design-service';
 import { toast } from '@/components/ui/VToast';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 
+function localeCompareEs(a: string, b: string): number {
+  return a.localeCompare(b, 'es', { sensitivity: 'base', numeric: true });
+}
+
+function orderFolioSortKey(folio: string | undefined): number {
+  const raw = (folio ?? '').trim();
+  const m = raw.match(/OV-(\d+)/i);
+  if (m) return parseInt(m[1], 10);
+  return Number.MAX_SAFE_INTEGER;
+}
+
+/** Casa/Lote: street+lot del API o últimos segmentos del custom_name (bautizo). */
+function casaSortKey(row: LabelRequestItem): string {
+  const street = row.street?.trim() ?? '';
+  const lot = row.lot?.trim() ?? '';
+  if (street || lot) {
+    return [street, lot].filter(Boolean).join(', ');
+  }
+  const parts = row.custom_name.split(',').map((p) => p.trim()).filter(Boolean);
+  if (parts.length >= 3) {
+    return parts.slice(-2).join(', ');
+  }
+  return '';
+}
+
+function compareLabelRequests(a: LabelRequestItem, b: LabelRequestItem): number {
+  let cmp = localeCompareEs(a.client_name ?? '', b.client_name ?? '');
+  if (cmp !== 0) return cmp;
+
+  const ovNum = orderFolioSortKey(a.order_folio) - orderFolioSortKey(b.order_folio);
+  if (ovNum !== 0) return ovNum;
+  cmp = localeCompareEs(a.order_folio ?? '', b.order_folio ?? '');
+  if (cmp !== 0) return cmp;
+
+  cmp = localeCompareEs(casaSortKey(a), casaSortKey(b));
+  if (cmp !== 0) return cmp;
+
+  return localeCompareEs(a.custom_name ?? '', b.custom_name ?? '');
+}
+
 export default function PrintCenterPage() {
   const navigate = useNavigate();
   const [rows, setRows] = useState<LabelRequestItem[]>([]);
@@ -97,10 +137,10 @@ export default function PrintCenterPage() {
     }
   };
 
-  const tableData = useMemo(
-    () => rows.map((row) => ({ ...row, id: row.instance_id })),
-    [rows],
-  );
+  const tableData = useMemo(() => {
+    const sorted = [...rows].sort(compareLabelRequests);
+    return sorted.map((row) => ({ ...row, id: row.instance_id }));
+  }, [rows]);
 
   const labelColumns = useMemo((): VTableColumn<LabelRequestItem & { id: number }>[] => [
     {
