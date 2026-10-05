@@ -27,7 +27,7 @@ from app.services.pdf_generator import PDFGenerator
 from app.services.cost_engine import CostEngine
 from app.services import sales_service
 from app.services import legacy_import_service
-from app.schemas.legacy_import_schema import LegacyImportRead
+from app.schemas.legacy_import_schema import LegacyImportPreviewRead, LegacyImportRead
 from app.repositories import sales_repository as sales_repo
 
 from app.schemas.sales_schema import (
@@ -1326,6 +1326,23 @@ def _require_director_legacy(user: User) -> None:
         )
 
 
+async def _read_legacy_upload(file: UploadFile) -> bytes:
+    if not file.filename or not file.filename.lower().endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="Se requiere un archivo .xlsx")
+    return await file.read()
+
+
+@router.post("/orders/legacy-import/validate", response_model=LegacyImportPreviewRead)
+async def validate_legacy_orders(
+    file: UploadFile = File(...),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+) -> Any:
+    _require_director_legacy(current_user)
+    content = await _read_legacy_upload(file)
+    return legacy_import_service.validate_legacy_workbook(session, content)
+
+
 @router.post("/orders/legacy-import", response_model=LegacyImportRead)
 async def import_legacy_orders(
     file: UploadFile = File(...),
@@ -1333,9 +1350,7 @@ async def import_legacy_orders(
     current_user: User = Depends(get_current_active_user),
 ) -> Any:
     _require_director_legacy(current_user)
-    if not file.filename or not file.filename.lower().endswith(".xlsx"):
-        raise HTTPException(status_code=400, detail="Se requiere un archivo .xlsx")
-    content = await file.read()
+    content = await _read_legacy_upload(file)
     return legacy_import_service.import_legacy_workbook(session, content, current_user)
 
 @router.patch("/orders/{order_id}/instances/{instance_id}/delivery-deadline")

@@ -14,20 +14,52 @@ import {
   RetentionUpdatePayload,
 } from '../types/sales';
 
-export interface LegacyImportOrderCreated {
+export type LegacyImportOrderCreated = {
     project_name: string;
     order_id: number;
     folio: string;
     outstanding_balance: number;
 }
 
-export interface LegacyImportResult {
+export type LegacyImportIssue = {
+    sheet: string;
+    row: number | null;
+    project: string | null;
+    message: string;
+}
+
+export type LegacyImportPreviewOrder = {
+    row: number;
+    project_name: string;
+    client_name: string;
+    seller_name: string;
+    tax_rate_name: string;
+    total_price: number;
+    subtotal: number;
+    tax_amount: number;
+    invoices: number;
+    installments: number;
+    outstanding_balance: number;
+    payment_status: string;
+}
+
+export type LegacyImportPreview = {
+    orders: LegacyImportPreviewOrder[];
+    orders_to_create: number;
+    invoices_to_create: number;
+    installments_to_create: number;
+    can_import: boolean;
+    warnings: LegacyImportIssue[];
+    errors: LegacyImportIssue[];
+}
+
+export type LegacyImportResult = {
     orders_created: number;
     invoices_created: number;
     installments_created: number;
     orders_created_details: LegacyImportOrderCreated[];
-    warnings: string[];
-    errors: string[];
+    warnings: LegacyImportIssue[];
+    errors: LegacyImportIssue[];
 }
 
 function pickArrayPayload(payload: unknown): unknown[] {
@@ -517,6 +549,15 @@ export const salesService = {
     getHousesStatus: async (orderId?: number): Promise<any[]> => {
         const params = orderId ? { order_id: orderId } : {};
         const response = await axiosClient.get('/sales/houses-status', { params });
+        return response.data;
+    },
+
+    validateLegacyOrders: async (file: File): Promise<LegacyImportPreview> => {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await axiosClient.post('/sales/orders/legacy-import/validate', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
         return response.data;
     },
 
