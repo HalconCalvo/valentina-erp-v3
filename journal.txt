@@ -3766,3 +3766,58 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 4. Inventario físico
 5. Arranque en ceros
 6. Control de Déficit y Mermas — post-arranque
+
+
+---
+## SESIÓN 2026-10-05 — CLAUDE CODE E IMPORTADOR LEGACY
+
+### Completado:
+- Adopción de Claude Code: CLAUDE.md con sección "FLUJO DE TRABAJO CON CLAUDE CODE" y ROL actualizado
+- Importador legacy en dos fases: validar (sin escribir, todos los errores/avisos con hoja y fila) → vista previa → confirmar → importar todo o nada
+- Importador: IVA EXENTO por nombre, errores en vez de suposiciones, saldo solo con abonos, estado PENDING sin cobros
+- Importador: fondo de garantía — columna opcional FG_Fecha_Vencimiento, retention_percent real (4 decimales), retención pendiente
+- Plantilla descargable y script generador actualizados con FG_Fecha_Vencimiento
+- 43 tests nuevos del importador (75 en total pasando)
+
+### Commits:
+- 4498419 docs: add Claude Code workflow rules to CLAUDE.md
+- e754813 feat: legacy import validates before writing — no silent assumptions
+- c6d9077 feat: legacy import FG retention — optional due date column and real percent
+
+### Decisiones:
+- Claude Code reemplaza a Cursor como arquitecto y programador; Cursor queda como respaldo
+- Seguridad pospuesta hasta el arranque
+- Los datos actuales de producción son de prueba (se borran en el arranque en ceros); no se corrigen las 20 OVs legacy existentes
+- Formato de migración = plantilla de 2 hojas (OVs + Facturas); el formato de 5 pestañas se descarta
+- IVA "EXENTO" se resuelve por nombre a la tasa "Exento"; el número 0 va a "Tasa Cero"
+- El saldo de la OV baja solo con abonos (las NC no lo reducen, igual que el flujo normal)
+- NC de FG crea retención pendiente de cobro
+- Factura sin Folio_Factura es error
+
+### Pendientes para el arranque:
+1. Crear tasa "Exento" 0% activa
+2. Clientes y usuario vendedor con el nombre exacto del Excel
+3. Contabilidad debe resolver:
+   - Folios de ZENARA (Facturas filas 15 y 16)
+   - Abono de 2025 en ZENARA (fila 15, factura de 2026)
+   - Fecha futura en HABITARE OT 100 (fila 38, 16/10/2026)
+   - Anticipo de GALERÍAS PH 71 (49,539.54 vs 43,539.54 facturado)
+   - Si SPCH OC 58 2 y SPCH OC 65 tienen facturas
+
+### Pendientes técnicos menores:
+1. Redondeo al editar retenciones en el estado de cuenta (recalcula el monto desde el %)
+2. CLAUDE_FULL.md desactualizado (sección "ROL DE CURSOR")
+3. console.error en frontend/src/api/sales-service.ts:233
+4. Imports dentro de funciones en backend/app/api/v1/endpoints/sales.py
+5. ~245 errores de tipos preexistentes en frontend (el build no corre tsc)
+
+### Pendientes generales:
+1. PWA Campo — probar con instalador real
+2. Heartbeat 404 — bug menor
+3. Inventario físico
+4. Arranque en ceros
+5. Control de Déficit y Mermas — post-arranque
+
+### Lecciones:
+- El backend local necesita DATABASE_URL="$PGURL"; sin esa variable arranca con una SQLite vacía
+- Si el navegador conserva una sesión vieja, usar ventana de incógnito
