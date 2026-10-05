@@ -1,8 +1,9 @@
 import io
 from datetime import datetime
+from pathlib import Path
 
 import pytest
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from sqlmodel import select
 
 from app.core.config import settings
@@ -41,7 +42,11 @@ def _inv(**overrides) -> dict:
     return row
 
 
-def _workbook(ov_rows: list[dict], inv_rows: list[dict]) -> bytes:
+ALL_INV_HEADERS = svc.INV_HEADERS + svc.INV_OPTIONAL_HEADERS
+
+
+def _workbook(ov_rows: list[dict], inv_rows: list[dict], inv_headers: list[str] | None = None) -> bytes:
+    inv_headers = inv_headers or ALL_INV_HEADERS
     wb = Workbook()
     ws = wb.active
     ws.title = svc.OV_SHEET
@@ -49,9 +54,9 @@ def _workbook(ov_rows: list[dict], inv_rows: list[dict]) -> bytes:
     for row in ov_rows:
         ws.append([row.get(h) for h in svc.OV_HEADERS])
     ws_inv = wb.create_sheet(svc.INV_SHEET)
-    ws_inv.append(svc.INV_HEADERS)
+    ws_inv.append(inv_headers)
     for row in inv_rows:
-        ws_inv.append([row.get(h) for h in svc.INV_HEADERS])
+        ws_inv.append([row.get(h) for h in inv_headers])
     buffer = io.BytesIO()
     wb.save(buffer)
     return buffer.getvalue()
@@ -253,6 +258,101 @@ def test_credit_notes_do_not_reduce_balance_and_fg_creates_retention(session_fix
     assert cxc.retention_amount == 5000
     assert cxc.retention_status == "PENDING"
     assert cxc.retention_due_date == datetime(2026, 5, 2)
+
+
+# --- Fondo de garantía ----------------------------------------------------------
+
+def _fg_invoice(**overrides) -> dict:
+    row = _inv(
+        Tipo="AVANCE", Folio_Factura=102, Fecha_Factura=datetime(2026, 2, 1), Monto_Factura=100000,
+        NC_FG_Folio="FG-1", NC_FG_Monto=5000, Abono1_Fecha=datetime(2026, 2, 5), Abono1_Monto=58000,
+    )
+    row.update(overrides)
+    return row
+
+
+def _fg_cxc(session):
+    return session.exec(select(CustomerPayment).where(CustomerPayment.invoice_folio == "102")).first()
+
+
+def test_fg_explicit_due_date_is_used_without_warning(session_fixture, director):
+    data = _workbook([_ov(Anticipo_Cobrado=None)], [_fg_invoice(FG_Fecha_Vencimiento="15/08/2026")])
+    preview = svc.validate_legacy_workbook(session_fixture, data)
+    assert preview["errors"] == []
+    assert "FG_Fecha_Vencimiento" not in _messages(preview["warnings"])
+    svc.import_legacy_workbook(session_fixture, data, director)
+    cxc = _fg_cxc(session_fixture)
+    assert cxc.retention_due_date == datetime(2026, 8, 15)
+    assert cxc.retention_days == 195
+    assert cxc.retention_status == "PENDING"
+
+
+@pytest.mark.parametrize("with_column", [True, False])
+def test_fg_without_due_date_uses_invoice_plus_ov_days_with_warning(session_fixture, director, with_column):
+    headers = ALL_INV_HEADERS if with_column else svc.INV_HEADERS
+    data = _workbook([_ov(Anticipo_Cobrado=None)], [_fg_invoice()], inv_headers=headers)
+    preview = svc.validate_legacy_workbook(session_fixture, data)
+    assert preview["errors"] == []
+    assert (
+        "Facturas:2:NC de FG sin FG_Fecha_Vencimiento; se usará 02/05/2026 (Fecha_Factura + 90 días)."
+        in _messages(preview["warnings"])
+    )
+    svc.import_legacy_workbook(session_fixture, data, director)
+    cxc = _fg_cxc(session_fixture)
+    assert cxc.retention_due_date == datetime(2026, 5, 2)
+    assert cxc.retention_days == 90
+
+
+def test_legacy_retention_days_match_order_default():
+    assert SalesOrder(project_name="x").default_retention_days == svc.LEGACY_RETENTION_DAYS
+
+
+@pytest.mark.parametrize(
+    "amount, fg_amount, expected_percent",
+    [(100000, 5000, 5.0), (601555, 30077.75, 5.0), (98765.43, 1234.56, 1.25)],
+)
+def test_fg_retention_percent_is_fg_over_invoice(session_fixture, director, amount, fg_amount, expected_percent):
+    data = _workbook(
+        [_ov(Anticipo_Cobrado=None, Total_OV_con_IVA=700000)],
+        [_fg_invoice(Monto_Factura=amount, NC_FG_Monto=fg_amount, Abono1_Monto=1000)],
+    )
+    result = svc.import_legacy_workbook(session_fixture, data, director)
+    assert result["errors"] == []
+    cxc = _fg_cxc(session_fixture)
+    assert cxc.retention_percent == pytest.approx(expected_percent, abs=0.0001)
+    assert cxc.retention_percent == round(fg_amount / amount * 100, 4)
+    assert cxc.retention_amount == fg_amount
+
+
+@pytest.mark.parametrize(
+    "overrides, expected",
+    [
+        (
+            {"NC_FG_Folio": None, "NC_FG_Monto": None, "FG_Fecha_Vencimiento": "15/08/2026"},
+            "FG_Fecha_Vencimiento no tiene NC_FG_Folio/NC_FG_Monto.",
+        ),
+        ({"FG_Fecha_Vencimiento": "31/02/2026"}, "FG_Fecha_Vencimiento no es una fecha válida"),
+        ({"FG_Fecha_Vencimiento": "15/01/2026"}, "FG_Fecha_Vencimiento 15/01/2026 es anterior a Fecha_Factura 01/02/2026."),
+        ({"NC_FG_Monto": 100000.5}, "NC_FG_Monto 100,000.50 supera Monto_Factura 100,000.00."),
+    ],
+)
+def test_fg_due_date_and_amount_errors(session_fixture, overrides, expected):
+    data = _workbook([_ov(Anticipo_Cobrado=None)], [_fg_invoice(**overrides)])
+    preview = svc.validate_legacy_workbook(session_fixture, data)
+    assert expected in _messages(preview["errors"])
+    assert preview["can_import"] is False
+
+
+def test_downloadable_template_matches_importer_columns():
+    template = Path(__file__).resolve().parents[2] / "frontend" / "src" / "assets" / "plantilla-migracion-ov.xlsx"
+    wb = load_workbook(template)
+    ov_headers = [c.value for c in wb[svc.OV_SHEET][1] if c.value]
+    inv_headers = [c.value for c in wb[svc.INV_SHEET][1] if c.value]
+    assert ov_headers == svc.OV_HEADERS
+    assert set(inv_headers) == set(ALL_INV_HEADERS)
+    assert inv_headers.index("FG_Fecha_Vencimiento") == inv_headers.index("NC_FG_Monto") + 1
+    preview_rows = [r for r in wb[svc.INV_SHEET].iter_rows(min_row=2, values_only=True) if r[0]]
+    assert all(str(r[0]).startswith("#") for r in preview_rows)
 
 
 def test_advance_mismatch_and_dates_are_warnings(session_fixture):

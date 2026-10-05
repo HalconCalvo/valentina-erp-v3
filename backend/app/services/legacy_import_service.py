@@ -69,6 +69,8 @@ INV_HEADERS = [
     "Abono3_Fecha",
     "Abono3_Monto",
 ]
+# Optional columns: older files without them still validate; when present they are checked.
+INV_OPTIONAL_HEADERS = ["FG_Fecha_Vencimiento"]
 TIPO_MAP = {
     "ANTICIPO": PaymentType.ADVANCE,
     "AVANCE": PaymentType.PROGRESS,
@@ -79,6 +81,9 @@ EXEMPT_TAX_NAME = "exento"
 RATE_TOLERANCE = 0.0001
 AMOUNT_TOLERANCE = 0.01
 BALANCE_TOLERANCE = 0.1
+# Must match the SalesOrder.default_retention_days model default (legacy OVs never override it).
+LEGACY_RETENTION_DAYS = 90
+RETENTION_PERCENT_DECIMALS = 4
 INSTALLMENT_SLOTS = (1, 2, 3)
 DATE_FORMATS = ("%Y-%m-%d", "%d/%m/%Y")
 DECIMAL_TEXT = re.compile(r"^\d+[.,]\d+$")
@@ -102,6 +107,14 @@ class _InstallmentPlan:
 
 
 @dataclass
+class _RetentionPlan:
+    due_date: datetime
+    days: int
+    percent: float
+    calculated: bool
+
+
+@dataclass
 class _InvoicePlan:
     row: int
     payment_type: PaymentType
@@ -112,6 +125,7 @@ class _InvoicePlan:
     nc_advance_amount: float
     nc_retention_folio: Optional[str]
     nc_retention_amount: float
+    retention: Optional[_RetentionPlan]
     installments: list[_InstallmentPlan]
 
     def paid(self) -> float:
@@ -256,6 +270,32 @@ def _parse_credit_note(inv: dict, folio_label: str, amount_label: str) -> tuple[
     return folio, amount
 
 
+def _plan_retention(
+    invoice_date: datetime,
+    amount: float,
+    fg_note: tuple[Optional[str], float],
+    due_date: Optional[datetime],
+) -> Optional[_RetentionPlan]:
+    """FG credit note → pending retention. Explicit due date wins; otherwise invoice date + OV days."""
+    fg_folio, fg_amount = fg_note
+    if not fg_folio:
+        if due_date is not None:
+            raise ValueError("FG_Fecha_Vencimiento no tiene NC_FG_Folio/NC_FG_Monto.")
+        return None
+    if fg_amount > amount + AMOUNT_TOLERANCE:
+        raise ValueError(f"NC_FG_Monto {fg_amount:,.2f} supera Monto_Factura {amount:,.2f}.")
+    percent = round(fg_amount / amount * 100.0, RETENTION_PERCENT_DECIMALS)
+    if due_date is None:
+        calculated = invoice_date + timedelta(days=LEGACY_RETENTION_DAYS)
+        return _RetentionPlan(calculated, LEGACY_RETENTION_DAYS, percent, calculated=True)
+    if due_date.date() < invoice_date.date():
+        raise ValueError(
+            f"FG_Fecha_Vencimiento {due_date:%d/%m/%Y} es anterior a Fecha_Factura {invoice_date:%d/%m/%Y}."
+        )
+    days = (due_date.date() - invoice_date.date()).days
+    return _RetentionPlan(due_date, days, percent, calculated=False)
+
+
 def _parse_installment(inv: dict, slot: int) -> Optional[_InstallmentPlan]:
     date_label, amount_label = f"Abono{slot}_Fecha", f"Abono{slot}_Monto"
     amount = _parse_amount(inv[amount_label], amount_label)
@@ -341,7 +381,9 @@ def _load_workbook(file_bytes: bytes):
         raise HTTPException(status_code=400, detail="El archivo no es un .xlsx válido.") from exc
 
 
-def _read_sheet_rows(wb, sheet_name: str, headers: list[str]) -> list[tuple[int, dict[str, Any]]]:
+def _read_sheet_rows(
+    wb, sheet_name: str, headers: list[str], optional: Optional[list[str]] = None
+) -> list[tuple[int, dict[str, Any]]]:
     if sheet_name not in wb.sheetnames:
         raise HTTPException(status_code=400, detail=f"Falta la hoja '{sheet_name}'.")
     rows = list(wb[sheet_name].iter_rows(min_row=1, values_only=True))
@@ -351,10 +393,11 @@ def _read_sheet_rows(wb, sheet_name: str, headers: list[str]) -> list[tuple[int,
     missing = [h for h in headers if h not in header_row]
     if missing:
         raise HTTPException(status_code=400, detail=f"Columnas faltantes en {sheet_name}: {', '.join(missing)}")
-    idx = {h: header_row.index(h) for h in headers}
+    present = headers + [h for h in (optional or []) if h in header_row]
+    idx = {h: header_row.index(h) for h in present}
     out: list[tuple[int, dict[str, Any]]] = []
     for row_number, raw in enumerate(rows[1:], start=2):
-        record = {h: raw[idx[h]] if idx[h] < len(raw) else None for h in headers}
+        record = {h: raw[idx[h]] if h in idx and idx[h] < len(raw) else None for h in headers + (optional or [])}
         if all(_is_blank(v) for v in record.values()):
             continue
         if _cell_str(record["Proyecto"]).startswith("#"):
@@ -466,13 +509,23 @@ def _validate_invoice_row(plan: _ImportPlan, row: int, project: str, inv: dict) 
     invoice_date = check(lambda: _parse_date(inv["Fecha_Factura"], "Fecha_Factura", required=True))
     amount = check(lambda: _parse_positive(inv["Monto_Factura"], "Monto_Factura"))
     notes = [check(lambda f=f, m=m: _parse_credit_note(inv, f, m)) for f, m in CREDIT_NOTE_FIELDS]
+    fg_due = check(lambda: _parse_date(inv["FG_Fecha_Vencimiento"], "FG_Fecha_Vencimiento"))
     slots = [check(lambda s=s: _parse_installment(inv, s)) for s in INSTALLMENT_SLOTS]
     installments = [i for i in slots if i is not None]
+    retention = None
+    if None not in (invoice_date, amount, notes[1]):
+        retention = check(lambda: _plan_retention(invoice_date, amount, notes[1], fg_due))
     _warn_folio_shapes(plan, row, project, inv)
     if invoice_date is not None:
         _warn_dates(plan, row, project, invoice_date, installments)
     if len(plan.errors) > errors_before:
         return None
+    if retention is not None and retention.calculated:
+        plan.warn(
+            INV_SHEET, row, project,
+            f"NC de FG sin FG_Fecha_Vencimiento; se usará {retention.due_date:%d/%m/%Y} "
+            f"(Fecha_Factura + {retention.days} días).",
+        )
     (nc_adv_folio, nc_adv_amount), (nc_fg_folio, nc_fg_amount) = notes
     return _InvoicePlan(
         row=row,
@@ -484,6 +537,7 @@ def _validate_invoice_row(plan: _ImportPlan, row: int, project: str, inv: dict) 
         nc_advance_amount=nc_adv_amount,
         nc_retention_folio=nc_fg_folio,
         nc_retention_amount=nc_fg_amount,
+        retention=retention,
         installments=installments,
     )
 
@@ -548,7 +602,7 @@ def _sort_issues(issues: list[dict]) -> list[dict]:
 def _build_plan(session: Session, file_bytes: bytes) -> _ImportPlan:
     wb = _load_workbook(file_bytes)
     ov_rows = _read_sheet_rows(wb, OV_SHEET, OV_HEADERS)
-    inv_rows = _read_sheet_rows(wb, INV_SHEET, INV_HEADERS)
+    inv_rows = _read_sheet_rows(wb, INV_SHEET, INV_HEADERS, INV_OPTIONAL_HEADERS)
     plan = _ImportPlan()
     if not ov_rows:
         plan.error(OV_SHEET, None, None, "La hoja OVs no tiene filas para importar.")
@@ -639,14 +693,13 @@ def _create_order_record(session: Session, plan: _OrderPlan) -> SalesOrder:
     return order
 
 
-def _set_pending_retention(cxc: CustomerPayment, order: SalesOrder, inv: _InvoicePlan) -> None:
+def _set_pending_retention(cxc: CustomerPayment, retention: _RetentionPlan, amount: float) -> None:
     """Mirrors register_progress: the FG credit note becomes a retention owed by the client."""
-    retention_days = int(getattr(order, "default_retention_days", None) or 90)
-    cxc.retention_amount = inv.nc_retention_amount
+    cxc.retention_amount = amount
     cxc.retention_status = "PENDING"
-    cxc.retention_percent = float(getattr(order, "default_retention_percent", None) or 0.0)
-    cxc.retention_days = retention_days
-    cxc.retention_due_date = sales_service._calc_retention_due(inv.invoice_date, retention_days)  # noqa: SLF001
+    cxc.retention_percent = retention.percent
+    cxc.retention_days = retention.days
+    cxc.retention_due_date = retention.due_date
 
 
 def _create_invoice_record(session: Session, order: SalesOrder, inv: _InvoicePlan, director_id: int) -> None:
@@ -666,8 +719,8 @@ def _create_invoice_record(session: Session, order: SalesOrder, inv: _InvoicePla
     )
     if inv.payment_type == PaymentType.PROGRESS and inv.nc_advance_amount > 0:
         cxc.amortized_advance = inv.nc_advance_amount
-    if inv.nc_retention_folio and inv.nc_retention_amount > 0:
-        _set_pending_retention(cxc, order, inv)
+    if inv.retention is not None:
+        _set_pending_retention(cxc, inv.retention, inv.nc_retention_amount)
     session.add(cxc)
     session.flush()
     for inst in inv.installments:

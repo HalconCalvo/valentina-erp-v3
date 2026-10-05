@@ -1,6 +1,7 @@
-"""Genera frontend/src/assets/plantilla-migracion-ov.xlsx (ejecutar una vez)."""
+"""Generates frontend/src/assets/plantilla-migracion-ov.xlsx (run after changing the import columns)."""
 from pathlib import Path
 
+import structlog
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 
@@ -64,6 +65,7 @@ inv_headers = [
     "NC_Anticipo_Monto",
     "NC_FG_Folio",
     "NC_FG_Monto",
+    "FG_Fecha_Vencimiento",
     "Abono1_Fecha",
     "Abono1_Monto",
     "Abono2_Fecha",
@@ -83,6 +85,7 @@ inv.append(
         0,
         "",
         0,
+        "",
         "2025-11-20",
         696000,
         "",
@@ -102,6 +105,7 @@ inv.append(
         5000,
         "",
         0,
+        "",
         "2026-01-15",
         150000,
         "2026-02-01",
@@ -121,6 +125,7 @@ inv.append(
         0,
         "NC-FG-01",
         29000,
+        "2026-03-01",
         "2025-12-05",
         290000,
         "",
@@ -136,4 +141,4 @@ for row in inv.iter_rows(min_row=2, max_row=4):
 
 OUT.parent.mkdir(parents=True, exist_ok=True)
 wb.save(OUT)
-print(f"Wrote {OUT}")
+structlog.get_logger(__name__).info("legacy_template_written", path=str(OUT))
