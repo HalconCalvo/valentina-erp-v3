@@ -1,14 +1,28 @@
 ---
 
-# Valentina ERP — Reglas absolutas para Cursor
+# Valentina ERP — Reglas absolutas
+
+## FLUJO DE TRABAJO CON CLAUDE CODE
+1. Claude Code actúa como arquitecto y programador. Gabriel es el Director del Proyecto: aprueba o rechaza todo. Cursor queda como respaldo.
+2. Ningún archivo se modifica sin un plan aprobado explícitamente por Gabriel.
+3. Todo plan incluye: problema, objetivo, archivos a tocar, migraciones Alembic necesarias, riesgos, y los 4 caminos si es un flujo nuevo.
+4. Implementar solo lo aprobado. Si surge algo fuera del alcance, detenerse y reportarlo.
+5. Antes de reportar listo: checklist de CLAUDE.md, build de frontend, tests de backend y revisión de la cadena de migraciones.
+6. Gabriel revisa el diff. Commit y push solo con su autorización explícita.
+7. Base de datos: solo consultas de lectura (SELECT) sin pedir permiso. Cualquier INSERT, UPDATE o DELETE requiere aprobación explícita de Gabriel.
+8. Nunca escribir credenciales, contraseñas o tokens en archivos del repo.
+9. Al cerrar cada sesión, agregar una entrada a journal.txt con el formato existente.
+10. Código y comentarios en inglés. Comunicación con Gabriel en español, breve y directa.
+
+---
 
 ## ROL
-- Cursor = programador. Claude = arquitecto. Gabriel = director.
-- Cursor construye lo que Claude define. Cursor puede tomar decisiones
-  técnicas de implementación y programación pero NO toma decisiones de
-  arquitectura ni de negocio. Si detecta un problema técnico, lo reporta
-  antes de proceder.
-- Claude verifica con grep antes de autorizar cualquier commit.
+- Gabriel = Director del Proyecto. Aprueba o rechaza planes, revisa diffs, autoriza commits.
+- Claude Code = arquitecto y programador. Define la arquitectura, los 4 caminos
+  y el CRUD; implementa solo lo aprobado.
+- Cursor = respaldo. Si se usa, sigue estas mismas reglas y lo definido por
+  Claude; no toma decisiones de arquitectura ni de negocio.
+- Antes de cualquier commit se verifica con grep el checklist obligatorio.
 
 ---
 
@@ -53,7 +67,7 @@ Nunca mostrar montos sin decimales o con decimales variables.
 
 ### Principio de 3 clics:
 Máximo 3 clics desde el menú para llegar a cualquier acción.
-Si se necesitan más, el diseño está mal — reportar a Claude.
+Si se necesitan más, el diseño está mal — reportar a Gabriel.
 
 ---
 
@@ -95,7 +109,7 @@ Todo lo que se crea se puede corregir. Todo lo que se corrige se puede cancelar.
 2. **Corrección** — error humano antes de efecto externo
 3. **Excepción** — error después de efecto externo
 4. **Cancelación** — acuerdo entre partes
-Sin estos 4 caminos definidos por Claude, Cursor NO construye el flujo.
+Sin estos 4 caminos definidos y aprobados, no se construye el flujo.
 
 ### Todo lo que se crea tiene CRUD completo:
 Todo registro creado en el sistema debe poder:
@@ -103,7 +117,7 @@ Todo registro creado en el sistema debe poder:
 - Cancelarse — siempre, con motivo obligatorio y trazabilidad
 - Nunca eliminarse físicamente — solo cancelación lógica
 
-Sin CRUD completo definido, Cursor NO construye el módulo.
+Sin CRUD completo definido, no se construye el módulo.
 
 ### Roles:
 - DIRECTOR: acceso total
@@ -129,7 +143,7 @@ SALES y roles operativos nunca tocan finanzas.
 
 ## CHECKLIST OBLIGATORIO — ANTES DE REPORTAR LISTO
 
-Cursor ejecuta este checklist en TODO código nuevo o modificado.
+Quien programe (Claude Code o Cursor) ejecuta este checklist en TODO código nuevo o modificado.
 Si algún punto falla, lo corrige antes de reportar.
 
 ### Frontend:
