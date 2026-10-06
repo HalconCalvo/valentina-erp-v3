@@ -1,6 +1,9 @@
 import axiosClient from './axios-client';
 
-export type AuditStatus = 'EN_CAPTURA' | 'ESPERANDO_AUTORIZACION' | 'CERRADA' | 'CANCELADA';
+export type AuditStatus = 'EN_CAPTURA' | 'ESPERANDO_AUTORIZACION' | 'CERRADA' | 'REABIERTA' | 'CANCELADA';
+
+/** Why a counted line needs approval (comma-separated in approval_reason). */
+export type ApprovalReason = 'PERCENT' | 'ZERO_THEORETICAL' | 'NEGATIVE_THEORETICAL' | 'VALUE';
 
 export interface AuditItemRead {
   id: number;
@@ -16,13 +19,24 @@ export interface AuditItemRead {
   approved_by_id?: number | null;
   approved_at?: string | null;
   approval_notes?: string | null;
+  approval_reason?: string | null;
   resolved?: boolean;
+  usage_unit?: string | null;
+  auto_zero?: boolean;
+  unit_cost_at_cut?: number | null;
+  valued_difference?: number;
+  adjustment_movement_id?: number | null;
 }
 
 export interface AuditSessionRead {
   id: number;
   status: AuditStatus;
   scheduled_date: string;
+  cut_date: string | null;
+  cut_at: string | null;
+  closed_at: string | null;
+  total_valued_difference: number | null;
+  value_threshold: number;
   auditor_id: number | null;
   authorized_by_id: number | null;
   notes: string | null;
@@ -44,6 +58,7 @@ export interface KardexEntryRead {
   project_id: number | null;
   reception_id: number | null;
   created_at: string;
+  recorded_at: string | null;
   saldo_acumulado: number;
   operator_name: string | null;
 }
@@ -75,6 +90,8 @@ export interface AuditSessionSummary {
   status: AuditStatus;
   created_at: string;
   scheduled_date: string;
+  cut_date: string | null;
+  closed_at: string | null;
   auditor_id: number | null;
   authorized_by_id: number | null;
   notes: string | null;
@@ -126,6 +143,20 @@ export type NegativeStockReport = {
   authorizations: StockAuthorization[];
 };
 
+export type PeriodLockRead = {
+  locked: boolean;
+  locked_until?: string | null;
+  locked_until_local?: string | null;
+  audit_id?: number | null;
+};
+
+/** 422 detail when uncounted materials still have stock at the cut. */
+export type UncapturedWithStockDetail = {
+  code: 'UNCAPTURED_WITH_STOCK';
+  message: string;
+  materials: { sku: string; name: string }[];
+};
+
 const AUDITS_BASE = '/foundations/inventory/audits';
 
 export const formatInventoryCurrency = (amount: number | undefined | null): string => {
@@ -172,8 +203,43 @@ export const inventoryService = {
     return response.data;
   },
 
-  createAuditSession: async (): Promise<AuditSessionRead> => {
-    const response = await axiosClient.post(`${AUDITS_BASE}`);
+  createAuditSession: async (cutDate: string, notes?: string): Promise<AuditSessionRead> => {
+    const response = await axiosClient.post(`${AUDITS_BASE}`, { cut_date: cutDate, notes: notes || null });
+    return response.data;
+  },
+
+  reopenAudit: async (auditId: number, reason: string): Promise<AuditSessionRead> => {
+    const response = await axiosClient.post(`${AUDITS_BASE}/${auditId}/reopen`, { reason });
+    return response.data;
+  },
+
+  closeAuditAgain: async (auditId: number): Promise<AuditSessionRead> => {
+    const response = await axiosClient.post(`${AUDITS_BASE}/${auditId}/close`);
+    return response.data;
+  },
+
+  recountAuditItem: async (auditId: number, itemId: number, countedQuantity: number, reason: string) => {
+    const response = await axiosClient.post(`${AUDITS_BASE}/${auditId}/items/${itemId}/recount`, {
+      counted_quantity: countedQuantity,
+      reason,
+    });
+    return response.data;
+  },
+
+  getPeriodLock: async (): Promise<PeriodLockRead> => {
+    const response = await axiosClient.get('/foundations/inventory/period-lock');
+    return response.data;
+  },
+
+  getAuditSettings: async (): Promise<{ inventory_audit_value_threshold: number }> => {
+    const response = await axiosClient.get('/foundations/inventory/audit-settings');
+    return response.data;
+  },
+
+  updateAuditSettings: async (threshold: number): Promise<{ inventory_audit_value_threshold: number }> => {
+    const response = await axiosClient.patch('/foundations/inventory/audit-settings', {
+      inventory_audit_value_threshold: threshold,
+    });
     return response.data;
   },
 

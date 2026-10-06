@@ -45,12 +45,19 @@ const formatInitialAmount = (num: any): string => {
     return `${integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${decimalPart}`;
 };
 
+/** Today's date (YYYY-MM-DD) in local business time; the receipt date can never be in the future. */
+const todayIso = (): string => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 const InventoryReceptionPage: React.FC = () => {
     const [incomingPOs, setIncomingPOs] = useState<any[]>([]);
     const [isLoadingPOs, setIsLoadingPOs] = useState(false);
     
     const [selectedPO, setSelectedPO] = useState<any | null>(null);
     const [invoiceFolio, setInvoiceFolio] = useState('');
+    const [receivedAt, setReceivedAt] = useState<string>(todayIso());
     const [folioWarning, setFolioWarning] = useState<any[] | null>(null);
     const [invoiceTotal, setInvoiceTotal] = useState<number | ''>('');
     const [displayTotal, setDisplayTotal] = useState('');
@@ -133,6 +140,7 @@ const InventoryReceptionPage: React.FC = () => {
         if (!po) return;
         setSelectedPO(po);
         setInvoiceFolio('');
+        setReceivedAt(todayIso());
 
         const initialReceived: Record<number, string> = {};
         (po.items || []).forEach((item: any, idx: number) => {
@@ -226,6 +234,7 @@ const InventoryReceptionPage: React.FC = () => {
             const payload = {
                 invoice_folio: invoiceFolio,
                 invoice_total: Number(invoiceTotal),
+                received_at: receivedAt,
                 tax_rate: taxRate,
                 received_items: [
                     ...(selectedPO.items || []).map((item: any, idx: number) => ({
@@ -779,6 +788,16 @@ const InventoryReceptionPage: React.FC = () => {
                     </div>
                     
                     <div className="flex flex-row items-center gap-3">
+                        <div className="text-left">
+                            <label className="block text-[8px] font-black text-emerald-700 uppercase tracking-widest mb-1">Fecha real de llegada *</label>
+                            <Input
+                                type="date"
+                                className="font-black text-[11px] px-3 w-36 bg-white border-emerald-200 rounded-lg text-slate-800 shadow-sm h-8"
+                                value={receivedAt}
+                                max={todayIso()}
+                                onChange={(e) => setReceivedAt(e.target.value)}
+                            />
+                        </div>
                         <div className="text-right">
                             <label className="block text-[8px] font-black text-emerald-700 uppercase tracking-widest mb-1 text-left">Factura Chofer *</label>
                             <Input

@@ -176,17 +176,6 @@ class ManualAdjustDelta(BaseModel):
     reason: str = "Ajuste manual"
 
 
-class ManualAdjustStock(BaseModel):
-    counted_quantity: float
-    notes: str = "Inventario físico"
-
-
-class PhysicalCountCreate(BaseModel):
-    counted_quantity: float
-    fecha_conteo: str
-    notes: Optional[str] = None
-
-
 class AuditCapturePayload(BaseModel):
     item_id: int
     counted_quantity: float

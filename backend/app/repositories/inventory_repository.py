@@ -1,10 +1,19 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from sqlalchemy import func
 from sqlmodel import Session, select
 
-from app.models.inventory import InventoryTransaction, PurchaseOrder, PurchaseOrderItem, InventoryAudit, InventoryAuditItem
+from app.models.inventory import (
+    InventoryAudit,
+    InventoryAuditItem,
+    InventoryAuditItemRecount,
+    InventoryPeriodLock,
+    InventoryTransaction,
+    PurchaseOrder,
+    PurchaseOrderItem,
+)
+from app.models.foundations import GlobalConfig
 from app.models.material import Material
 from app.models.users import User
 
@@ -120,3 +129,75 @@ def get_all_audits(db: Session, status: Optional[str] = None) -> List[InventoryA
     if status is not None:
         query = query.where(InventoryAudit.status == status)
     return list(db.exec(query).all())
+
+
+def get_balances_at(db: Session, cut_at: datetime) -> Dict[int, float]:
+    """Theoretical stock per material: sum of movements with effective date <= cut_at."""
+    rows = db.exec(
+        select(InventoryTransaction.material_id, func.sum(InventoryTransaction.quantity))
+        .where(InventoryTransaction.created_at <= cut_at)
+        .group_by(InventoryTransaction.material_id)
+    ).all()
+    return {material_id: float(total or 0.0) for material_id, total in rows}
+
+
+def get_last_purchase_cost_at(db: Session, material_id: int, cut_at: datetime) -> Optional[float]:
+    """Cost per usage unit of the last purchase entry effective on or before cut_at."""
+    return db.exec(
+        select(InventoryTransaction.unit_cost)
+        .where(
+            InventoryTransaction.material_id == material_id,
+            InventoryTransaction.transaction_type == "PURCHASE_ENTRY",
+            InventoryTransaction.created_at <= cut_at,
+        )
+        .order_by(InventoryTransaction.created_at.desc(), InventoryTransaction.id.desc())
+    ).first()
+
+
+def get_active_locks(db: Session) -> List[InventoryPeriodLock]:
+    return list(
+        db.exec(
+            select(InventoryPeriodLock)
+            .where(InventoryPeriodLock.released_at.is_(None))
+            .order_by(InventoryPeriodLock.locked_until.desc())
+        ).all()
+    )
+
+
+def get_active_lock_for_audit(db: Session, audit_id: int) -> Optional[InventoryPeriodLock]:
+    return db.exec(
+        select(InventoryPeriodLock).where(
+            InventoryPeriodLock.audit_id == audit_id, InventoryPeriodLock.released_at.is_(None)
+        )
+    ).first()
+
+
+def get_reopened_audit(db: Session) -> Optional[InventoryAudit]:
+    return db.exec(select(InventoryAudit).where(InventoryAudit.status == "REABIERTA")).first()
+
+
+def get_movement(db: Session, movement_id: int) -> Optional[InventoryTransaction]:
+    return db.get(InventoryTransaction, movement_id)
+
+
+def get_item_recounts(db: Session, item_ids: List[int]) -> List[InventoryAuditItemRecount]:
+    if not item_ids:
+        return []
+    return list(
+        db.exec(
+            select(InventoryAuditItemRecount)
+            .where(InventoryAuditItemRecount.audit_item_id.in_(item_ids))
+            .order_by(InventoryAuditItemRecount.created_at)
+        ).all()
+    )
+
+
+def get_global_config(db: Session) -> Optional[GlobalConfig]:
+    return db.exec(select(GlobalConfig)).first()
+
+
+def get_materials_by_ids(db: Session, material_ids: List[int]) -> Dict[int, Material]:
+    if not material_ids:
+        return {}
+    rows = db.exec(select(Material).where(Material.id.in_(list(set(material_ids))))).all()
+    return {m.id: m for m in rows}

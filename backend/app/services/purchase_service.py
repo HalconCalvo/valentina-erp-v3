@@ -1,5 +1,5 @@
 """Purchase domain — business logic (no direct HTTP, queries via repository)."""
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Optional
 
 from fastapi import HTTPException
@@ -24,6 +24,8 @@ from app.schemas.inventory_schema import (
 )
 from app.schemas.treasury_schema import OperationalExpenseCreate
 from app.services.purchase_manager import PurchaseManager
+from app.core.business_time import effective_datetime_for, today_local
+from app.services import inventory_service
 
 OVERHEAD_CATEGORIES = [
     "MATERIALES", "PLANTA", "COMUNICACIONES", "COMBUSTIBLES", "TRANSPORTE",
@@ -904,6 +906,21 @@ def generate_po_pdf(db: Session, po_id: int):
     )
 
 
+def _reception_effective_at(db: Session, received_at) -> datetime:
+    """Real arrival date (YYYY-MM-DD, business time). Default today; never future or inside a closed period."""
+    if received_at in (None, ""):
+        return datetime.utcnow()
+    try:
+        day = date.fromisoformat(str(received_at)[:10])
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Fecha de llegada inválida. Use AAAA-MM-DD.") from None
+    if day > today_local():
+        raise HTTPException(status_code=400, detail="La fecha de llegada no puede ser futura.")
+    effective_at = effective_datetime_for(day)
+    inventory_service.check_movement_date(db, effective_at)
+    return effective_at
+
+
 def receive_purchase_order(db: Session, po_id: int, data: dict, current_user):
     from datetime import timedelta
 
@@ -913,6 +930,7 @@ def receive_purchase_order(db: Session, po_id: int, data: dict, current_user):
     po = purchase_repo.get_purchase_order_by_id(db, po_id)
     if not po:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
+    received_effective_at = _reception_effective_at(db, data.get("received_at"))
 
     po.status = "RECIBIDA_PARCIAL"
     po.invoice_folio_reported = data.get("invoice_folio")
@@ -986,8 +1004,6 @@ def receive_purchase_order(db: Session, po_id: int, data: dict, current_user):
                         float(_edited_cost) if _edited_cost is not None
                         else float(getattr(item, "expected_unit_cost", 0.0) or 0.0)
                     )
-                    from app.services import inventory_service
-
                     inventory_service.register_movement(
                         db,
                         mat.id,
@@ -995,6 +1011,7 @@ def receive_purchase_order(db: Session, po_id: int, data: dict, current_user):
                         qty_in_usage_units,
                         unit_cost=_costo_kardex,
                         reason="RECEPCION_OC",
+                        created_at=received_effective_at,
                         commit=False,
                     )
         else:

@@ -25,6 +25,8 @@ from .inventory import (
     PurchaseOrderItem,
     InventoryAudit,
     InventoryAuditItem,
+    InventoryPeriodLock,
+    InventoryAuditItemRecount,
 )
 
 # --- Módulo de Finanzas (NUEVO) ---

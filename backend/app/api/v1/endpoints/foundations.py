@@ -12,12 +12,18 @@ from sqlalchemy.exc import IntegrityError
 from app.core.database import get_session
 from app.core.deps import CurrentUser, SessionDep
 from app.services.cloud_storage import upload_to_gcs  # <--- LA TUBERÍA BLINDADA
-from app.services import inventory_service, inventory_valuation_service
+from app.services import inventory_audit_service, inventory_service, inventory_valuation_service
 from app.schemas.production_inventory_schema import NegativeStockRead, ValuationSummaryRead
+from app.schemas.inventory_audit_schema import (
+    AuditCreate,
+    AuditItemRecountCreate,
+    AuditReopenCreate,
+    AuditSettingsRead,
+    AuditSettingsUpdate,
+    PeriodLockRead,
+)
 from app.schemas.inventory_schema import (
     ManualAdjustDelta,
-    ManualAdjustStock,
-    PhysicalCountCreate,
     AuditCapturePayload,
     AuditReasonPayload,
     AuditItemApprovePayload,
@@ -489,35 +495,6 @@ def adjust_material_by_delta(
     )
 
 
-@router.patch("/materials/{material_id}/adjust-stock")
-def adjust_material_stock(
-    material_id: int,
-    body: ManualAdjustStock,
-    current_user: CurrentUser,
-    session: Session = Depends(get_session),
-):
-    return inventory_service.register_manual_adjustment_to_count(
-        session, material_id, body.counted_quantity, body.notes, current_user
-    )
-
-
-@router.post("/materials/{material_id}/physical-count")
-def physical_count_with_date(
-    material_id: int,
-    body: PhysicalCountCreate,
-    current_user: CurrentUser,
-    session: Session = Depends(get_session),
-):
-    return inventory_service.register_physical_count(
-        session,
-        material_id,
-        body.counted_quantity,
-        body.fecha_conteo,
-        current_user,
-        body.notes,
-    )
-
-
 @router.get("/materials/low-stock")
 def read_low_stock_materials(current_user: CurrentUser, session: Session = Depends(get_session)):
     return inventory_service.list_low_stock_materials(session, current_user)
@@ -563,8 +540,8 @@ def read_negative_stock(current_user: CurrentUser, session: Session = Depends(ge
 
 
 @router.post("/inventory/audits")
-def create_inventory_audit(current_user: CurrentUser, session: Session = Depends(get_session)):
-    return inventory_service.create_audit_session(session, current_user)
+def create_inventory_audit(payload: AuditCreate, current_user: CurrentUser, session: Session = Depends(get_session)):
+    return inventory_audit_service.create_audit_session(session, payload, current_user)
 
 
 @router.get("/inventory/audits")
@@ -573,17 +550,34 @@ def list_inventory_audits(
     session: Session = Depends(get_session),
     status: Optional[str] = None,
 ):
-    return inventory_service.list_audit_sessions(session, current_user, status)
+    return inventory_audit_service.list_audit_sessions(session, current_user, status)
 
 
 @router.get("/inventory/audits/active")
 def get_active_inventory_audit(current_user: CurrentUser, session: Session = Depends(get_session)):
-    return inventory_service.get_active_audit(session, current_user)
+    return inventory_audit_service.get_active_audit(session, current_user)
+
+
+@router.get("/inventory/period-lock", response_model=PeriodLockRead)
+def get_inventory_period_lock(current_user: CurrentUser, session: Session = Depends(get_session)):
+    return inventory_audit_service.get_period_lock(session, current_user)
+
+
+@router.get("/inventory/audit-settings", response_model=AuditSettingsRead)
+def get_inventory_audit_settings(current_user: CurrentUser, session: Session = Depends(get_session)):
+    return inventory_audit_service.get_audit_settings(session, current_user)
+
+
+@router.patch("/inventory/audit-settings", response_model=AuditSettingsRead)
+def update_inventory_audit_settings(
+    payload: AuditSettingsUpdate, current_user: CurrentUser, session: Session = Depends(get_session)
+):
+    return inventory_audit_service.update_audit_settings(session, payload, current_user)
 
 
 @router.get("/inventory/audits/{audit_id}")
 def get_inventory_audit(audit_id: int, current_user: CurrentUser, session: Session = Depends(get_session)):
-    return inventory_service.get_audit_detail(session, audit_id, current_user)
+    return inventory_audit_service.get_audit_detail(session, audit_id, current_user)
 
 
 @router.post("/inventory/audits/{audit_id}/capture")
@@ -593,19 +587,19 @@ def capture_inventory_count(
     current_user: CurrentUser,
     session: Session = Depends(get_session),
 ):
-    return inventory_service.capture_count(
+    return inventory_audit_service.capture_count(
         session, audit_id, payload.item_id, payload.counted_quantity, current_user
     )
 
 
 @router.post("/inventory/audits/{audit_id}/submit")
 def submit_inventory_audit(audit_id: int, current_user: CurrentUser, session: Session = Depends(get_session)):
-    return inventory_service.submit_for_approval(session, audit_id, current_user)
+    return inventory_audit_service.submit_for_approval(session, audit_id, current_user)
 
 
 @router.post("/inventory/audits/{audit_id}/approve")
 def approve_inventory_audit(audit_id: int, current_user: CurrentUser, session: Session = Depends(get_session)):
-    return inventory_service.approve_audit(session, audit_id, current_user)
+    return inventory_audit_service.approve_audit(session, audit_id, current_user)
 
 
 @router.post("/inventory/audits/{audit_id}/items/{item_id}/approve")
@@ -616,9 +610,7 @@ def approve_inventory_audit_item(
     current_user: CurrentUser,
     session: Session = Depends(get_session),
 ):
-    return inventory_service.approve_audit_item(
-        session, audit_id, item_id, payload.notes, current_user
-    )
+    return inventory_audit_service.approve_audit_item(session, audit_id, item_id, payload.notes, current_user)
 
 
 @router.post("/inventory/audits/{audit_id}/reject")
@@ -628,7 +620,7 @@ def reject_inventory_audit(
     current_user: CurrentUser,
     session: Session = Depends(get_session),
 ):
-    return inventory_service.reject_audit(session, audit_id, payload.reason, current_user)
+    return inventory_audit_service.reject_audit(session, audit_id, payload.reason, current_user)
 
 
 @router.post("/inventory/audits/{audit_id}/cancel")
@@ -638,7 +630,30 @@ def cancel_inventory_audit(
     current_user: CurrentUser,
     session: Session = Depends(get_session),
 ):
-    return inventory_service.cancel_audit(session, audit_id, payload.reason, current_user)
+    return inventory_audit_service.cancel_audit(session, audit_id, payload.reason, current_user)
+
+
+@router.post("/inventory/audits/{audit_id}/reopen")
+def reopen_inventory_audit(
+    audit_id: int, payload: AuditReopenCreate, current_user: CurrentUser, session: Session = Depends(get_session)
+):
+    return inventory_audit_service.reopen_audit(session, audit_id, payload, current_user)
+
+
+@router.post("/inventory/audits/{audit_id}/close")
+def close_inventory_audit(audit_id: int, current_user: CurrentUser, session: Session = Depends(get_session)):
+    return inventory_audit_service.close_again(session, audit_id, current_user)
+
+
+@router.post("/inventory/audits/{audit_id}/items/{item_id}/recount")
+def recount_inventory_audit_item(
+    audit_id: int,
+    item_id: int,
+    payload: AuditItemRecountCreate,
+    current_user: CurrentUser,
+    session: Session = Depends(get_session),
+):
+    return inventory_audit_service.recount_item(session, audit_id, item_id, payload, current_user)
 
 
 @router.get("/materials")

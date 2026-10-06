@@ -1,11 +1,12 @@
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import HTTPException
 from sqlmodel import Session, select
 
-from app.models.inventory import InventoryAudit, InventoryAuditItem, InventoryTransaction
+from app.core.business_time import format_local_date
+from app.models.inventory import InventoryTransaction
 from app.models.material import Material
 from app.repositories import inventory_repository as inventory_repo
 
@@ -15,6 +16,7 @@ IN_MOVEMENT_TYPES = {
     "TRANSFER_IN",
     "OPENING_BALANCE",
     "PRODUCTION_RETURN",
+    "INVENTORY_DIFF_IN",
 }
 OUT_MOVEMENT_TYPES = {
     "PRODUCTION_EXIT",
@@ -22,18 +24,15 @@ OUT_MOVEMENT_TYPES = {
     "ADJUSTMENT_OUT",
     "RETURN",
     "TRANSFER_OUT",
+    "INVENTORY_DIFF_OUT",
 }
 VALID_MOVEMENT_TYPES = IN_MOVEMENT_TYPES | OUT_MOVEMENT_TYPES
 REQUIRES_REASON = {"WASTE", "ADJUSTMENT_IN", "ADJUSTMENT_OUT"}
 
 KARDEX_VIEW_ROLES = {"DIRECTOR", "MANAGER", "ADMIN", "WAREHOUSE"}
 ADJUST_ROLES = {"DIRECTOR", "MANAGER", "ADMIN"}
-AUDIT_CAPTURE_ROLES = {"DIRECTOR", "MANAGER", "ADMIN"}
-AUDIT_LIST_ROLES = {"DIRECTOR", "MANAGER", "ADMIN"}
-AUDIT_APPROVE_ROLES = {"DIRECTOR", "MANAGER"}
-AUDIT_CANCEL_ROLES = {"DIRECTOR", "MANAGER", "ADMIN"}
-VARIANCE_THRESHOLD = 0.05
 NEGATIVE_STOCK_TOLERANCE = 0.0001
+FUTURE_TOLERANCE = timedelta(minutes=5)
 
 
 def _resolve_role(user) -> str:
@@ -59,8 +58,20 @@ def usage_unit_cost(material: Material, purchase_unit_cost: float | None = None)
     return cost / factor
 
 
+def check_movement_date(session: Session, effective_at: datetime) -> None:
+    """Rejects future dates and dates inside a closed inventory period."""
+    if effective_at > datetime.utcnow() + FUTURE_TOLERANCE:
+        raise HTTPException(status_code=400, detail="La fecha del movimiento no puede ser futura.")
+    locks = inventory_repo.get_active_locks(session)
+    if locks and effective_at <= locks[0].locked_until:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Periodo de inventario cerrado al {format_local_date(locks[0].locked_until)}.",
+        )
+
+
 def _validate_movement(
-    session: Session, material_id: int, movement_type: str, qty: float, reason_text: str
+    session: Session, material_id: int, movement_type: str, qty: float, reason_text: str, effective_at: datetime
 ) -> Material:
     if movement_type not in VALID_MOVEMENT_TYPES:
         raise HTTPException(status_code=422, detail=f"Tipo de movimiento inválido: {movement_type}")
@@ -68,6 +79,7 @@ def _validate_movement(
         raise HTTPException(status_code=422, detail="La cantidad debe ser mayor a cero.")
     if movement_type in REQUIRES_REASON and not reason_text:
         raise HTTPException(status_code=422, detail="El motivo es obligatorio para este tipo de movimiento.")
+    check_movement_date(session, effective_at)
     if movement_type == "OPENING_BALANCE" and inventory_repo.has_opening_balance(session, material_id):
         raise HTTPException(status_code=400, detail="Ya existe un saldo inicial para este material.")
     material = inventory_repo.get_material_by_id(session, material_id)
@@ -104,6 +116,16 @@ def _kardex_cost(material: Material, movement_type: str, unit_cost: float | None
     return usage_unit_cost(material, purchase_cost)
 
 
+def _persist(session: Session, commit: bool, material: Material, movement: InventoryTransaction) -> None:
+    session.add(movement)
+    if commit:
+        session.commit()
+        session.refresh(material)
+        session.refresh(movement)
+    else:
+        session.flush()
+
+
 def register_movement(
     session: Session,
     material_id: int,
@@ -125,7 +147,8 @@ def register_movement(
     """unit_cost is per purchase unit (like Material.current_cost); usage_cost is already per usage unit.
     The kardex stores cost per usage unit. trace: production_batch_id, instance_id, user_id, authorization_id."""
     reason_text = (reason or "").strip()
-    material = _validate_movement(session, material_id, movement_type, float(quantity or 0.0), reason_text)
+    effective_at = created_at or datetime.utcnow()
+    material = _validate_movement(session, material_id, movement_type, float(quantity or 0.0), reason_text, effective_at)
     signed_qty = _signed_quantity(movement_type, float(quantity))
     new_stock = _check_stock(material, signed_qty, affect_stock, allow_negative)
     kardex_cost = _kardex_cost(material, movement_type, unit_cost, usage_cost)
@@ -142,16 +165,11 @@ def register_movement(
         project_id=project_id,
         operator_badge=operator_badge,
         reason_code=reason_text or None,
-        created_at=created_at or datetime.utcnow(),
+        created_at=effective_at,
+        recorded_at=datetime.utcnow(),
         **(trace or {}),
     )
-    session.add(movement)
-    if commit:
-        session.commit()
-        session.refresh(material)
-        session.refresh(movement)
-    else:
-        session.flush()
+    _persist(session, commit, material, movement)
     return {"material_id": material.id, "movement_id": movement.id, "movement_type": movement_type,
             "quantity": signed_qty, "new_stock": float(material.physical_stock or 0.0), "unit_cost": kardex_cost}
 
@@ -185,122 +203,6 @@ def register_manual_adjustment_by_delta(
     }
 
 
-def register_manual_adjustment_to_count(
-    session: Session,
-    material_id: int,
-    counted_quantity: float,
-    notes: str,
-    current_user,
-) -> dict:
-    _assert_roles(current_user, ADJUST_ROLES)
-    material = inventory_repo.get_material_by_id(session, material_id)
-    if not material:
-        raise HTTPException(status_code=404, detail="Material no encontrado.")
-
-    counted = float(counted_quantity or 0.0)
-    difference = counted - float(material.physical_stock or 0.0)
-    if difference == 0:
-        return {"ok": True, "message": "Sin diferencia, stock no modificado"}
-
-    movement_type = "ADJUSTMENT_IN" if difference > 0 else "ADJUSTMENT_OUT"
-    result = register_movement(
-        session,
-        material_id,
-        movement_type,
-        abs(difference),
-        reason=notes or "Inventario físico",
-        operator_badge=getattr(current_user, "email", None),
-    )
-    return {
-        "ok": True,
-        "material_id": material_id,
-        "movement_type": movement_type,
-        "difference": difference,
-        "new_stock": result["new_stock"],
-    }
-
-
-def register_physical_count(
-    session: Session,
-    material_id: int,
-    counted_quantity: float,
-    fecha_conteo: str,
-    current_user,
-    notes: str | None = None,
-) -> dict:
-    _assert_roles(current_user, ADJUST_ROLES)
-    material = inventory_repo.get_material_by_id(session, material_id)
-    if not material:
-        raise HTTPException(status_code=404, detail="Material no encontrado.")
-
-    counted = float(counted_quantity or 0.0)
-    try:
-        fecha_base = datetime.strptime(str(fecha_conteo)[:10], "%Y-%m-%d")
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail="Formato de fecha inválido. Use YYYY-MM-DD.") from exc
-
-    fecha_fin_dia = fecha_base.replace(hour=23, minute=59, second=59, microsecond=999999)
-    conteos_previos = session.exec(
-        select(InventoryTransaction).where(
-            InventoryTransaction.material_id == material_id,
-            InventoryTransaction.transaction_type.in_(["PHYSICAL_COUNT", "AJUSTE_CONTEO_FISICO"]),
-            InventoryTransaction.created_at == fecha_fin_dia,
-        )
-    ).all()
-
-    for viejo in conteos_previos:
-        inverse_type = "ADJUSTMENT_IN" if float(viejo.quantity or 0.0) < 0 else "ADJUSTMENT_OUT"
-        register_movement(
-            session,
-            material_id,
-            inverse_type,
-            abs(float(viejo.quantity or 0.0)),
-            reason="Reversión de conteo físico previo",
-            operator_badge=getattr(current_user, "email", None),
-            commit=False,
-        )
-        session.delete(viejo)
-
-    session.flush()
-    saldo_a_fecha = inventory_repo.calcular_saldo_a_fecha(session, material_id, fecha_fin_dia)
-    diferencia = counted - saldo_a_fecha
-
-    if diferencia == 0:
-        session.commit()
-        session.refresh(material)
-        return {
-            "ok": True,
-            "message": "Sin diferencia, no se registró movimiento.",
-            "material_id": material_id,
-            "saldo_a_fecha": saldo_a_fecha,
-            "counted_quantity": counted,
-            "diferencia": 0.0,
-            "nuevo_physical_stock": float(material.physical_stock or 0.0),
-        }
-
-    movement_type = "ADJUSTMENT_IN" if diferencia > 0 else "ADJUSTMENT_OUT"
-    register_movement(
-        session,
-        material_id,
-        movement_type,
-        abs(diferencia),
-        reason=notes or "CONTEO_FISICO",
-        operator_badge=getattr(current_user, "email", None),
-        created_at=fecha_fin_dia,
-        commit=True,
-    )
-    session.refresh(material)
-
-    return {
-        "ok": True,
-        "material_id": material_id,
-        "saldo_a_fecha": saldo_a_fecha,
-        "counted_quantity": counted,
-        "diferencia": diferencia,
-        "nuevo_physical_stock": float(material.physical_stock or 0.0),
-    }
-
-
 def get_material_kardex(
     session: Session,
     material_id: int,
@@ -330,6 +232,7 @@ def get_material_kardex(
                 "project_id": row.project_id,
                 "reception_id": row.reception_id,
                 "created_at": row.created_at,
+                "recorded_at": row.recorded_at,
                 "saldo_acumulado": round(saldo, 4),
                 "operator_name": operator_name,
             }
@@ -400,344 +303,3 @@ def seed_opening_balance_entries(session: Session, current_user) -> dict:
         "saltados_stock_cero": saltados_stock_cero,
         "total_materiales": len(materials),
     }
-
-
-def _requires_authorization(system_quantity: float, variance: float) -> bool:
-    variance_abs = abs(float(variance or 0.0))
-    if variance_abs <= 0.0001:
-        return False
-    system_abs = abs(float(system_quantity or 0.0))
-    if system_abs <= 0.0001:
-        return True
-    return (variance_abs / system_abs) > VARIANCE_THRESHOLD
-
-
-def _should_blind_audit(audit: InventoryAudit, user) -> bool:
-    if audit.status == "EN_CAPTURA":
-        return True
-    if audit.status == "ESPERANDO_AUTORIZACION" and _resolve_role(user) not in AUDIT_APPROVE_ROLES:
-        return True
-    return False
-
-
-def _serialize_audit_item(item: InventoryAuditItem, material: Material | None, blind: bool) -> dict:
-    payload = {
-        "id": item.id,
-        "audit_id": item.audit_id,
-        "material_id": item.material_id,
-        "material_sku": material.sku if material else None,
-        "material_name": material.name if material else None,
-        "counted_quantity": item.counted_quantity,
-        "captured": item.counted_quantity is not None,
-    }
-    if not blind:
-        payload["system_quantity"] = item.system_quantity
-        payload["variance"] = item.variance
-        payload["requires_approval"] = item.requires_approval
-        payload["approved_by_id"] = item.approved_by_id
-        payload["approved_at"] = item.approved_at
-        payload["approval_notes"] = item.approval_notes
-        payload["resolved"] = _item_is_resolved(item)
-    return payload
-
-
-def _item_is_resolved(item: InventoryAuditItem) -> bool:
-    if item.approved_at is not None:
-        return True
-    variance = abs(float(item.variance or 0.0))
-    if variance <= 0.0001:
-        return True
-    return not item.requires_approval
-
-
-def _apply_item_adjustment(
-    session: Session,
-    audit: InventoryAudit,
-    item: InventoryAuditItem,
-    user_id: int,
-    notes: str | None = None,
-) -> None:
-    variance = float(item.variance or 0.0)
-    if abs(variance) <= 0.0001:
-        return
-    movement_type = "ADJUSTMENT_IN" if variance > 0 else "ADJUSTMENT_OUT"
-    register_movement(
-        session,
-        item.material_id,
-        movement_type,
-        abs(variance),
-        reason=notes or f"Inventario físico audit #{audit.id}",
-        commit=False,
-    )
-    item.approved_by_id = user_id
-    item.approved_at = datetime.utcnow()
-    item.approval_notes = notes
-    session.add(item)
-
-
-def _pending_approval_items(items: list[InventoryAuditItem]) -> list[InventoryAuditItem]:
-    return [
-        i for i in items
-        if i.requires_approval and i.approved_at is None and abs(float(i.variance or 0.0)) > 0.0001
-    ]
-
-
-def _maybe_close_audit(session: Session, audit: InventoryAudit, user_id: int) -> None:
-    items = inventory_repo.get_audit_items(session, audit.id)
-    if any(not _item_is_resolved(i) for i in items):
-        return
-    audit.status = "CERRADA"
-    audit.authorized_by_id = user_id
-    session.add(audit)
-
-
-def _serialize_audit(session: Session, audit: InventoryAudit, user, blind: bool | None = None) -> dict:
-    use_blind = _should_blind_audit(audit, user) if blind is None else blind
-    items = inventory_repo.get_audit_items(session, audit.id)
-    serialized_items = []
-    for item in items:
-        material = inventory_repo.get_material_by_id(session, item.material_id)
-        serialized_items.append(_serialize_audit_item(item, material, use_blind))
-    return {
-        "id": audit.id,
-        "status": audit.status,
-        "scheduled_date": audit.scheduled_date,
-        "auditor_id": audit.auditor_id,
-        "authorized_by_id": audit.authorized_by_id,
-        "notes": audit.notes,
-        "created_at": audit.created_at,
-        "items": serialized_items,
-        "items_total": len(serialized_items),
-        "items_captured": sum(1 for i in items if i.counted_quantity is not None),
-        "items_pending_approval": len(_pending_approval_items(items)),
-    }
-
-
-def create_audit_session(session: Session, current_user) -> dict:
-    _assert_roles(current_user, AUDIT_CAPTURE_ROLES)
-    if inventory_repo.get_active_audit_session(session):
-        raise HTTPException(status_code=409, detail="Ya existe una sesión de inventario físico activa.")
-    audit = InventoryAudit(status="EN_CAPTURA", auditor_id=current_user.id)
-    session.add(audit)
-    session.flush()
-    for material in inventory_repo.get_all_active_materials(session):
-        session.add(
-            InventoryAuditItem(
-                audit_id=audit.id,
-                material_id=material.id,
-                system_quantity=float(material.physical_stock or 0.0),
-            )
-        )
-    session.commit()
-    session.refresh(audit)
-    return _serialize_audit(session, audit, current_user, blind=True)
-
-
-def capture_count(
-    session: Session,
-    audit_id: int,
-    item_id: int,
-    counted_quantity: float,
-    current_user,
-) -> dict:
-    _assert_roles(current_user, AUDIT_CAPTURE_ROLES)
-    audit = inventory_repo.get_audit_by_id(session, audit_id)
-    if not audit:
-        raise HTTPException(status_code=404, detail="Sesión de inventario no encontrada.")
-    if audit.status != "EN_CAPTURA":
-        raise HTTPException(status_code=400, detail="Solo se puede capturar en sesiones EN_CAPTURA.")
-    item = inventory_repo.get_audit_item_by_id(session, item_id)
-    if not item or item.audit_id != audit_id:
-        raise HTTPException(status_code=404, detail="Línea de conteo no encontrada.")
-    if item.approved_at is not None:
-        raise HTTPException(status_code=409, detail="Esta línea ya fue procesada.")
-    counted = float(counted_quantity or 0.0)
-    if counted < 0:
-        raise HTTPException(status_code=422, detail="La cantidad contada no puede ser negativa.")
-    item.counted_quantity = counted
-    item.variance = counted - float(item.system_quantity or 0.0)
-    session.add(item)
-    session.commit()
-    session.refresh(item)
-    material = inventory_repo.get_material_by_id(session, item.material_id)
-    return _serialize_audit_item(item, material, blind=True)
-
-
-def submit_for_approval(session: Session, audit_id: int, current_user) -> dict:
-    _assert_roles(current_user, AUDIT_CAPTURE_ROLES)
-    audit = inventory_repo.get_audit_by_id(session, audit_id)
-    if not audit:
-        raise HTTPException(status_code=404, detail="Sesión de inventario no encontrada.")
-    if audit.status != "EN_CAPTURA":
-        raise HTTPException(status_code=400, detail="Solo se puede enviar una sesión EN_CAPTURA.")
-    items = inventory_repo.get_audit_items(session, audit_id)
-    pending_capture = [i for i in items if i.counted_quantity is None and i.approved_at is None]
-    if pending_capture:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Faltan {len(pending_capture)} materiales por capturar antes de enviar.",
-        )
-    has_pending_approval = False
-    for item in items:
-        if item.approved_at is not None:
-            continue
-        variance = float(item.variance or 0.0)
-        needs = _requires_authorization(float(item.system_quantity or 0.0), variance)
-        if needs:
-            item.requires_approval = True
-            has_pending_approval = True
-            session.add(item)
-            continue
-        item.requires_approval = False
-        _apply_item_adjustment(
-            session,
-            audit,
-            item,
-            current_user.id,
-            notes="Ajuste automático (dentro del umbral)",
-        )
-    audit.status = "ESPERANDO_AUTORIZACION" if has_pending_approval else "CERRADA"
-    if not has_pending_approval:
-        audit.authorized_by_id = current_user.id
-    session.add(audit)
-    session.commit()
-    session.refresh(audit)
-    return _serialize_audit(session, audit, current_user)
-
-
-def approve_audit_item(
-    session: Session,
-    audit_id: int,
-    item_id: int,
-    notes: str | None,
-    current_user,
-) -> dict:
-    _assert_roles(current_user, AUDIT_APPROVE_ROLES)
-    audit = inventory_repo.get_audit_by_id(session, audit_id)
-    if not audit or audit.status != "ESPERANDO_AUTORIZACION":
-        raise HTTPException(status_code=400, detail="La sesión debe estar en ESPERANDO_AUTORIZACION.")
-    item = inventory_repo.get_audit_item_by_id(session, item_id)
-    if not item or item.audit_id != audit_id:
-        raise HTTPException(status_code=404, detail="Línea de conteo no encontrada.")
-    if not item.requires_approval:
-        raise HTTPException(status_code=400, detail="Este material no requiere aprobación.")
-    if item.approved_at is not None:
-        raise HTTPException(status_code=409, detail="Este material ya fue aprobado.")
-    _apply_item_adjustment(
-        session,
-        audit,
-        item,
-        current_user.id,
-        notes=notes or "Aprobación de excepción de inventario",
-    )
-    _maybe_close_audit(session, audit, current_user.id)
-    session.commit()
-    session.refresh(item)
-    material = inventory_repo.get_material_by_id(session, item.material_id)
-    return _serialize_audit_item(item, material, blind=False)
-
-
-def approve_audit(session: Session, audit_id: int, current_user) -> dict:
-    _assert_roles(current_user, AUDIT_APPROVE_ROLES)
-    audit = inventory_repo.get_audit_by_id(session, audit_id)
-    if not audit:
-        raise HTTPException(status_code=404, detail="Sesión de inventario no encontrada.")
-    if audit.status != "ESPERANDO_AUTORIZACION":
-        raise HTTPException(status_code=400, detail="Solo se pueden aprobar sesiones en ESPERANDO_AUTORIZACION.")
-    pending = _pending_approval_items(inventory_repo.get_audit_items(session, audit_id))
-    if not pending:
-        raise HTTPException(status_code=400, detail="No hay materiales pendientes de aprobación.")
-    for item in pending:
-        _apply_item_adjustment(
-            session,
-            audit,
-            item,
-            current_user.id,
-            notes="Aprobación masiva de excepción de inventario",
-        )
-    _maybe_close_audit(session, audit, current_user.id)
-    session.commit()
-    session.refresh(audit)
-    return _serialize_audit(session, audit, current_user, blind=False)
-
-
-def reject_audit(session: Session, audit_id: int, reason: str, current_user) -> dict:
-    _assert_roles(current_user, AUDIT_APPROVE_ROLES)
-    reason_text = (reason or "").strip()
-    if not reason_text:
-        raise HTTPException(status_code=422, detail="El motivo de rechazo es obligatorio.")
-    audit = inventory_repo.get_audit_by_id(session, audit_id)
-    if not audit:
-        raise HTTPException(status_code=404, detail="Sesión de inventario no encontrada.")
-    if audit.status != "ESPERANDO_AUTORIZACION":
-        raise HTTPException(status_code=400, detail="Solo se pueden rechazar sesiones en ESPERANDO_AUTORIZACION.")
-    stamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
-    audit.notes = f"{audit.notes or ''}\n[RECHAZO {stamp}]: {reason_text}".strip()
-    audit.status = "EN_CAPTURA"
-    audit.authorized_by_id = None
-    for item in inventory_repo.get_audit_items(session, audit_id):
-        if item.requires_approval and item.approved_at is None:
-            item.counted_quantity = None
-            item.variance = None
-            item.requires_approval = False
-            session.add(item)
-    session.add(audit)
-    session.commit()
-    session.refresh(audit)
-    return _serialize_audit(session, audit, current_user, blind=True)
-
-
-def cancel_audit(session: Session, audit_id: int, reason: str, current_user) -> dict:
-    _assert_roles(current_user, AUDIT_CANCEL_ROLES)
-    reason_text = (reason or "").strip()
-    if not reason_text:
-        raise HTTPException(status_code=422, detail="El motivo de cancelación es obligatorio.")
-    audit = inventory_repo.get_audit_by_id(session, audit_id)
-    if not audit:
-        raise HTTPException(status_code=404, detail="Sesión de inventario no encontrada.")
-    if audit.status not in {"EN_CAPTURA", "ESPERANDO_AUTORIZACION"}:
-        raise HTTPException(status_code=400, detail="Solo se pueden cancelar sesiones activas.")
-    stamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
-    audit.notes = f"{audit.notes or ''}\n[CANCELACIÓN {stamp}]: {reason_text}".strip()
-    audit.status = "CANCELADA"
-    session.add(audit)
-    session.commit()
-    session.refresh(audit)
-    return _serialize_audit(session, audit, current_user, blind=False)
-
-
-def get_active_audit(session: Session, current_user) -> dict | None:
-    _assert_roles(current_user, AUDIT_CAPTURE_ROLES | AUDIT_APPROVE_ROLES)
-    audit = inventory_repo.get_active_audit_session(session)
-    if not audit:
-        return None
-    return _serialize_audit(session, audit, current_user)
-
-
-def get_audit_detail(session: Session, audit_id: int, current_user) -> dict:
-    _assert_roles(current_user, AUDIT_CAPTURE_ROLES | AUDIT_APPROVE_ROLES | KARDEX_VIEW_ROLES)
-    audit = inventory_repo.get_audit_by_id(session, audit_id)
-    if not audit:
-        raise HTTPException(status_code=404, detail="Sesión de inventario no encontrada.")
-    return _serialize_audit(session, audit, current_user)
-
-
-def _serialize_audit_list_item(session: Session, audit: InventoryAudit) -> dict:
-    items = inventory_repo.get_audit_items(session, audit.id)
-    return {
-        "id": audit.id,
-        "status": audit.status,
-        "created_at": audit.created_at,
-        "scheduled_date": audit.scheduled_date,
-        "auditor_id": audit.auditor_id,
-        "authorized_by_id": audit.authorized_by_id,
-        "notes": audit.notes,
-        "items_total": len(items),
-        "items_captured": sum(1 for i in items if i.counted_quantity is not None),
-    }
-
-
-def list_audit_sessions(session: Session, current_user, status: Optional[str] = None) -> list[dict]:
-    _assert_roles(current_user, AUDIT_LIST_ROLES)
-    audits = inventory_repo.get_all_audits(session, status)
-    return [_serialize_audit_list_item(session, audit) for audit in audits]

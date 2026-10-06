@@ -27,12 +27,16 @@ const MOVEMENT_LABELS: Record<string, string> = {
   ADJUSTMENT_OUT: 'Ajuste negativo',
   WASTE: 'Merma',
   PRODUCTION_OUT: 'Salida producción',
+  PRODUCTION_EXIT: 'Salida a producción',
+  PRODUCTION_RETURN: 'Regreso de producción',
+  INVENTORY_DIFF_IN: 'Diferencia de inventario (+)',
+  INVENTORY_DIFF_OUT: 'Diferencia de inventario (−)',
   PHYSICAL_COUNT: 'Conteo físico',
 };
 
 const getMovementColor = (entry: KardexEntryRead): string => {
   const type = (entry.transaction_type || '').toUpperCase();
-  if (type.includes('ADJUSTMENT') || type.includes('AJUSTE')) {
+  if (type.includes('ADJUSTMENT') || type.includes('AJUSTE') || type.includes('INVENTORY_DIFF')) {
     return 'text-amber-700 bg-amber-50 border-amber-200';
   }
   if ((entry.quantity ?? 0) >= 0) {
@@ -52,9 +56,12 @@ const formatReference = (entry: KardexEntryRead): string => {
   return parts.length > 0 ? parts.join(' · ') : '—';
 };
 
+// The backend stores naive UTC datetimes; show them in business time (America/Merida).
 const formatDate = (iso: string): string => {
   try {
-    return new Date(iso).toLocaleString('es-MX', {
+    const utc = /[zZ]|[+-]\d{2}:\d{2}$/.test(iso) ? iso : `${iso}Z`;
+    return new Date(utc).toLocaleString('es-MX', {
+      timeZone: 'America/Merida',
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -139,9 +146,14 @@ export default function KardexPage() {
     () => [
       {
         key: 'created_at',
-        label: 'Fecha',
+        label: 'Fecha efectiva',
         sortable: true,
         render: (row) => formatDate(row.created_at),
+      },
+      {
+        key: 'recorded_at',
+        label: 'Registrado',
+        render: (row) => (row.recorded_at ? formatDate(row.recorded_at) : '—'),
       },
       {
         key: 'transaction_type',

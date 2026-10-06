@@ -1,5 +1,6 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Optional, TYPE_CHECKING
+from sqlalchemy import func
 from sqlmodel import JSON, Column, Field, Relationship, SQLModel
 
 # Usamos TYPE_CHECKING para evitar importaciones circulares en tiempo de ejecución
@@ -51,8 +52,16 @@ class InventoryTransactionBase(SQLModel):
     authorization_id: Optional[int] = Field(
         default=None, foreign_key="production_stock_authorizations.id"
     )
+    # Physical inventory traceability (cut-date adjustments and recount reversals)
+    audit_id: Optional[int] = Field(default=None, foreign_key="inventory_audits.id", index=True)
+    audit_item_id: Optional[int] = Field(default=None, foreign_key="inventory_audit_items.id")
+    reverses_movement_id: Optional[int] = Field(default=None, foreign_key="inventory_transactions.id")
 
-    created_at: datetime = Field(default_factory=datetime.now)
+    # created_at = effective date of the movement; recorded_at = when it was captured (both naive UTC)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    recorded_at: datetime = Field(
+        default_factory=datetime.utcnow, sa_column_kwargs={"server_default": func.now()}
+    )
 
 class InventoryTransaction(InventoryTransactionBase, table=True):
     __tablename__ = "inventory_transactions"
@@ -220,13 +229,18 @@ class InventoryAudit(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     scheduled_date: datetime = Field(default_factory=datetime.utcnow)
     
-    status: str = Field(default="EN_CAPTURA") # EN_CAPTURA, ESPERANDO_AUTORIZACION, CERRADA, RECHAZADA
+    status: str = Field(default="EN_CAPTURA") # EN_CAPTURA, ESPERANDO_AUTORIZACION, CERRADA, REABIERTA, CANCELADA
     
     auditor_id: Optional[int] = Field(default=None, foreign_key="users.id") # El que cuenta
     authorized_by_id: Optional[int] = Field(default=None, foreign_key="users.id") # El Director que aprueba el ajuste
     
     notes: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    # Cut date: theoretical stock and adjustments are as of 23:59:59 America/Merida of cut_date
+    cut_date: Optional[date] = Field(default=None)
+    cut_at: Optional[datetime] = Field(default=None)  # naive UTC
+    closed_at: Optional[datetime] = Field(default=None)
 
 
 class InventoryAuditItem(SQLModel, table=True):
@@ -244,6 +258,39 @@ class InventoryAuditItem(SQLModel, table=True):
     approved_by_id: Optional[int] = Field(default=None, foreign_key="users.id")
     approved_at: Optional[datetime] = Field(default=None)
     approval_notes: Optional[str] = Field(default=None)
+    approval_reason: Optional[str] = Field(default=None)  # PERCENT, ZERO_THEORETICAL, NEGATIVE_THEORETICAL, VALUE
+    unit_cost_at_cut: Optional[float] = Field(default=None)  # per usage unit
+    adjustment_movement_id: Optional[int] = Field(default=None, foreign_key="inventory_transactions.id")
+    auto_zero: bool = Field(default=False, sa_column_kwargs={"server_default": "false"})
+
+
+class InventoryPeriodLock(SQLModel, table=True):
+    """Closed inventory period: movements dated on or before locked_until are rejected."""
+    __tablename__ = "inventory_period_locks"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    audit_id: int = Field(foreign_key="inventory_audits.id", index=True)
+    locked_until: datetime  # naive UTC (cut end)
+    created_by_user_id: int = Field(foreign_key="users.id")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    released_at: Optional[datetime] = Field(default=None)
+    released_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    release_reason: Optional[str] = Field(default=None)
+
+
+class InventoryAuditItemRecount(SQLModel, table=True):
+    """History of recounts on a closed (reopened) audit line."""
+    __tablename__ = "inventory_audit_item_recounts"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    audit_item_id: int = Field(foreign_key="inventory_audit_items.id", index=True)
+    previous_counted: Optional[float] = Field(default=None)
+    new_counted: float
+    reason: str
+    user_id: int = Field(foreign_key="users.id")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    reversed_movement_id: Optional[int] = Field(default=None, foreign_key="inventory_transactions.id")
+    new_movement_id: Optional[int] = Field(default=None, foreign_key="inventory_transactions.id")
 
 
 # ==========================================

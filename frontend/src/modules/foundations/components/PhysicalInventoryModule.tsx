@@ -7,11 +7,12 @@ import {
   CheckCircle2,
   Check,
   History,
-  Loader2,
   Search,
   RefreshCw,
   Pencil,
   Printer,
+  RotateCcw,
+  Lock,
 } from 'lucide-react';
 import axiosClient from '@/api/axios-client';
 import {
@@ -19,7 +20,10 @@ import {
   AuditSessionRead,
   AuditSessionSummary,
   inventoryService,
+  type PeriodLockRead,
+  type UncapturedWithStockDetail,
 } from '@/api/inventory-service';
+import { Button } from '@/components/ui/Button';
 import { useCurrentUser } from '@/hooks/useSalesDashboard';
 import { Input } from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
@@ -78,7 +82,57 @@ const STATUS_LABELS: Record<string, string> = {
   EN_CAPTURA: 'En captura',
   ESPERANDO_AUTORIZACION: 'Esperando autorización',
   CERRADA: 'Cerrada',
+  REABIERTA: 'Reabierta',
   CANCELADA: 'Cancelada',
+};
+
+const APPROVAL_REASON_LABELS: Record<string, string> = {
+  PERCENT: 'Diferencia > 5%',
+  ZERO_THEORETICAL: 'Existencia teórica 0',
+  NEGATIVE_THEORETICAL: 'Existencia teórica negativa',
+  VALUE: 'Valor > umbral',
+};
+
+const formatReasons = (reasons?: string | null): string =>
+  (reasons || '')
+    .split(',')
+    .filter(Boolean)
+    .map((r) => APPROVAL_REASON_LABELS[r] || r)
+    .join(' · ') || '—';
+
+const formatMoney = (value: number | null | undefined): string =>
+  `$${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value ?? 0)}`;
+
+const toIsoDate = (d: Date): string =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/** Default cut: last day of the previous month (business dates are entered in local time). */
+const defaultCutDate = (): string => {
+  const now = new Date();
+  return toIsoDate(new Date(now.getFullYear(), now.getMonth(), 0));
+};
+
+const formatCutDate = (iso?: string | null): string => {
+  if (!iso) return '—';
+  const [y, m, d] = iso.slice(0, 10).split('-');
+  return `${d}/${m}/${y}`;
+};
+
+type UncapturedRow = { sku: string; name: string };
+
+const uncapturedColumns: VTableColumn<UncapturedRow>[] = [
+  { key: 'sku', label: 'SKU', render: (r) => <span className="font-mono text-xs">{r.sku}</span> },
+  { key: 'name', label: 'Material', render: (r) => r.name },
+];
+
+const errorDetail = (e: unknown, fallback: string): string => {
+  const detail =
+    e && typeof e === 'object' && 'response' in e
+      ? (e as { response?: { data?: { detail?: unknown } } }).response?.data?.detail
+      : undefined;
+  if (typeof detail === 'string') return detail;
+  if (detail && typeof detail === 'object' && 'message' in detail) return String((detail as { message: string }).message);
+  return fallback;
 };
 
 const formatQty = (value: number | null | undefined): string => {
@@ -100,6 +154,7 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
   const { data: currentUser } = useCurrentUser();
   const userRole = String(currentUser?.role ?? '').toUpperCase().trim();
   const canApprove = userRole === 'DIRECTOR' || userRole === 'MANAGER';
+  const isDirector = userRole === 'DIRECTOR';
 
   const [loading, setLoading] = useState(true);
   const [audit, setAudit] = useState<AuditSessionRead | null>(null);
@@ -122,6 +177,16 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
   const [submitConfirm, setSubmitConfirm] = useState(false);
   const [approveAllConfirm, setApproveAllConfirm] = useState(false);
   const [editingMaterialId, setEditingMaterialId] = useState<number | null>(null);
+  const [cutDate, setCutDate] = useState<string>(defaultCutDate());
+  const [periodLock, setPeriodLock] = useState<PeriodLockRead | null>(null);
+  const [uncapturedWithStock, setUncapturedWithStock] = useState<UncapturedWithStockDetail | null>(null);
+  const [threshold, setThreshold] = useState<number | null>(null);
+  const [thresholdDraft, setThresholdDraft] = useState('');
+  const [savingThreshold, setSavingThreshold] = useState(false);
+  const [reopenOpen, setReopenOpen] = useState(false);
+  const [closeAgainConfirm, setCloseAgainConfirm] = useState(false);
+  const [recountItem, setRecountItem] = useState<AuditItemRead | null>(null);
+  const [recountQty, setRecountQty] = useState('');
 
   const loadMaterialMeta = useCallback(async () => {
     try {
@@ -152,10 +217,24 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
     try {
       const sessions = await inventoryService.listAuditSessions();
       setHistory(
-        sessions.filter((s) => s.status === 'CERRADA' || s.status === 'CANCELADA'),
+        sessions.filter((s) => s.status === 'CERRADA' || s.status === 'CANCELADA' || s.status === 'REABIERTA'),
       );
     } catch {
       setHistory([]);
+    }
+  }, []);
+
+  const loadLockAndSettings = useCallback(async () => {
+    try {
+      const [lock, settings] = await Promise.all([
+        inventoryService.getPeriodLock(),
+        inventoryService.getAuditSettings(),
+      ]);
+      setPeriodLock(lock);
+      setThreshold(settings.inventory_audit_value_threshold);
+      setThresholdDraft(String(settings.inventory_audit_value_threshold));
+    } catch {
+      setPeriodLock(null);
     }
   }, []);
 
@@ -163,6 +242,12 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
     setLoading(true);
     try {
       const active = await inventoryService.getActiveAudit();
+      if (active?.status === 'REABIERTA') {
+        setAudit(null);
+        setClosedAudit(active);
+        setViewingClosedId(active.id);
+        return;
+      }
       setAudit(active);
       if (active) {
         const drafts: Record<number, string> = {};
@@ -190,15 +275,16 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
     void loadMaterialMeta();
     void refreshActive();
     void loadHistory();
-  }, [loadMaterialMeta, refreshActive, loadHistory]);
+    void loadLockAndSettings();
+  }, [loadMaterialMeta, refreshActive, loadHistory, loadLockAndSettings]);
 
   const handleStartSession = async () => {
     setProcessing(true);
     try {
-      const session = await inventoryService.createAuditSession();
+      const session = await inventoryService.createAuditSession(cutDate);
       setAudit(session);
       setDraftQty({});
-      toast.success('Sesión de conteo iniciada.');
+      toast.success(`Sesión de conteo iniciada con corte al ${formatCutDate(cutDate)}.`);
     } catch (e: unknown) {
       const detail =
         e && typeof e === 'object' && 'response' in e
@@ -250,11 +336,12 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
         toast.success('Conteo enviado. Hay materiales pendientes de aprobación.');
       }
     } catch (e: unknown) {
-      const detail =
-        e && typeof e === 'object' && 'response' in e
-          ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
-          : undefined;
-      toast.error(typeof detail === 'string' ? detail : 'Error al enviar conteo.');
+      const detail = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+      if (detail && typeof detail === 'object' && (detail as { code?: string }).code === 'UNCAPTURED_WITH_STOCK') {
+        setUncapturedWithStock(detail as UncapturedWithStockDetail);
+      } else {
+        toast.error(errorDetail(e, 'Error al enviar conteo.'));
+      }
     } finally {
       setProcessing(false);
       setSubmitConfirm(false);
@@ -350,6 +437,84 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
       toast.error('No se pudo cargar el detalle de la sesión.');
     } finally {
       setProcessing(false);
+    }
+  };
+
+  const reloadClosed = async (auditId: number) => {
+    const detail = await inventoryService.getAuditDetail(auditId);
+    setClosedAudit(detail);
+    setViewingClosedId(detail.id);
+    await Promise.all([loadHistory(), loadLockAndSettings()]);
+  };
+
+  const handleReopen = async () => {
+    if (!closedAudit || !reasonText.trim()) return;
+    setProcessing(true);
+    try {
+      await inventoryService.reopenAudit(closedAudit.id, reasonText.trim());
+      await reloadClosed(closedAudit.id);
+      setReopenOpen(false);
+      setReasonText('');
+      toast.success('Corte reabierto. Ya puedes recontar materiales.');
+    } catch (e: unknown) {
+      toast.error(errorDetail(e, 'No se pudo reabrir el corte.'));
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleCloseAgain = async () => {
+    if (!closedAudit) return;
+    setProcessing(true);
+    try {
+      await inventoryService.closeAuditAgain(closedAudit.id);
+      await reloadClosed(closedAudit.id);
+      toast.success('Corte cerrado de nuevo.');
+    } catch (e: unknown) {
+      toast.error(errorDetail(e, 'No se pudo cerrar el corte.'));
+    } finally {
+      setProcessing(false);
+      setCloseAgainConfirm(false);
+    }
+  };
+
+  const handleRecount = async () => {
+    if (!closedAudit || !recountItem) return;
+    const qty = parseFloat(recountQty);
+    if (Number.isNaN(qty) || qty < 0 || !reasonText.trim()) {
+      toast.warning('Captura una cantidad válida y el motivo.');
+      return;
+    }
+    setProcessing(true);
+    try {
+      await inventoryService.recountAuditItem(closedAudit.id, recountItem.id, qty, reasonText.trim());
+      await reloadClosed(closedAudit.id);
+      setRecountItem(null);
+      setRecountQty('');
+      setReasonText('');
+      toast.success('Reconteo aplicado con fecha del corte.');
+    } catch (e: unknown) {
+      toast.error(errorDetail(e, 'No se pudo aplicar el reconteo.'));
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleSaveThreshold = async () => {
+    const value = parseFloat(thresholdDraft);
+    if (Number.isNaN(value) || value <= 0) {
+      toast.warning('El umbral debe ser mayor a cero.');
+      return;
+    }
+    setSavingThreshold(true);
+    try {
+      const saved = await inventoryService.updateAuditSettings(value);
+      setThreshold(saved.inventory_audit_value_threshold);
+      toast.success('Umbral por valor actualizado.');
+    } catch (e: unknown) {
+      toast.error(errorDetail(e, 'No se pudo guardar el umbral.'));
+    } finally {
+      setSavingThreshold(false);
     }
   };
 
@@ -450,7 +615,7 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
             onClick={() => void handleSaveItem(row)}
             className="rounded-lg p-2 text-indigo-600 hover:bg-indigo-50 disabled:opacity-50"
           >
-            {savingItemId === row.id ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+            <Check size={16} />
           </button>
         </div>
       ),
@@ -508,9 +673,21 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
       key: 'variance_pct',
       label: '% Dif.',
       render: (row) => {
-        const pct = variancePercent(row.system_quantity ?? 0, row.variance ?? 0);
+        const theoretical = row.system_quantity ?? 0;
+        if (theoretical <= 0.0001) return <span className="text-slate-400">—</span>;
+        const pct = variancePercent(theoretical, row.variance ?? 0);
         return <span className="font-bold text-amber-700">{formatQty(pct)}%</span>;
       },
+    },
+    {
+      key: 'valued_difference',
+      label: 'Valor',
+      render: (row) => <span className="font-bold">{formatMoney(row.valued_difference)}</span>,
+    },
+    {
+      key: 'approval_reason',
+      label: 'Motivo',
+      render: (row) => <span className="text-xs font-bold text-amber-800">{formatReasons(row.approval_reason)}</span>,
     },
   ];
 
@@ -546,13 +723,25 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
       },
     },
     {
+      key: 'unit_cost_at_cut',
+      label: 'Costo al corte',
+      render: (row) => (row.unit_cost_at_cut != null ? formatMoney(row.unit_cost_at_cut) : '—'),
+    },
+    {
+      key: 'valued_difference',
+      label: 'Valor',
+      render: (row) => (Math.abs(row.valued_difference ?? 0) > 0.004 ? formatMoney(row.valued_difference) : '—'),
+    },
+    {
       key: 'resolved',
       label: 'Estado',
       render: (row) =>
-        row.resolved ? (
-          <span className="text-emerald-600 font-bold text-xs uppercase">Aplicado</span>
+        row.auto_zero ? (
+          <span className="text-slate-500 text-xs uppercase">Sin existencia (0)</span>
+        ) : row.adjustment_movement_id ? (
+          <span className="text-emerald-600 font-bold text-xs uppercase">Ajustado</span>
         ) : (
-          <span className="text-slate-400 text-xs uppercase">Sin ajuste</span>
+          <span className="text-slate-400 text-xs uppercase">Sin diferencia</span>
         ),
     },
   ];
@@ -560,13 +749,15 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
   if (loading) {
     return (
       <VEmptyState
-        icon={<Loader2 className="animate-spin text-slate-300" size={48} />}
+        icon={<ClipboardCheck className="text-slate-300" size={48} />}
         title="Cargando inventario físico..."
       />
     );
   }
 
   if (viewingClosedId && closedAudit) {
+    const isReopened = closedAudit.status === 'REABIERTA';
+    const hasAdjustments = closedAudit.status === 'CERRADA' || isReopened;
     return (
       <div className="space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -575,24 +766,68 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
               Sesión #{closedAudit.id} — {STATUS_LABELS[closedAudit.status] || closedAudit.status}
             </h3>
             <p className="text-sm text-slate-500 mt-1">
-              {closedAudit.items_captured} de {closedAudit.items_total} materiales capturados
+              Corte al {formatCutDate(closedAudit.cut_date)} (23:59:59 hora Mérida) · {closedAudit.items_captured} de{' '}
+              {closedAudit.items_total} materiales capturados
+              {closedAudit.total_valued_difference != null && (
+                <> · Diferencia valuada total: <strong>{formatMoney(closedAudit.total_valued_difference)}</strong></>
+              )}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setViewingClosedId(null);
-              setClosedAudit(null);
-              void refreshActive();
-            }}
-            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700"
-          >
-            <Play size={16} /> Nueva sesión
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {isDirector && closedAudit.status === 'CERRADA' && (
+              <Button variant="outline" disabled={processing} onClick={() => setReopenOpen(true)}>
+                <RotateCcw size={16} /> Reabrir corte
+              </Button>
+            )}
+            {isDirector && isReopened && (
+              <Button disabled={processing} onClick={() => setCloseAgainConfirm(true)}>
+                <Lock size={16} /> Volver a cerrar
+              </Button>
+            )}
+            {!isReopened && (
+              <Button
+                disabled={processing}
+                onClick={() => {
+                  setViewingClosedId(null);
+                  setClosedAudit(null);
+                  void refreshActive();
+                }}
+              >
+                <Play size={16} /> Nueva sesión
+              </Button>
+            )}
+          </div>
         </div>
 
-        {closedAudit.status === 'CERRADA' ? (
-          <VTable columns={closedColumns} data={closedAudit.items as AuditItemRead[]} />
+        {isReopened && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            El periodo está abierto. Los reconteos generan un movimiento inverso del ajuste anterior y un ajuste nuevo,
+            ambos con fecha del corte. Al terminar, vuelve a cerrar el corte.
+          </div>
+        )}
+
+        {hasAdjustments ? (
+          <VTable
+            columns={closedColumns}
+            data={closedAudit.items as AuditItemRead[]}
+            actions={
+              isReopened && canApprove
+                ? (row) => [
+                    {
+                      label: 'Recontar',
+                      title: 'Recontar material',
+                      icon: <RotateCcw size={16} />,
+                      onClick: () => {
+                        const item = row as unknown as AuditItemRead;
+                        setRecountItem(item);
+                        setRecountQty(String(item.counted_quantity ?? ''));
+                        setReasonText('');
+                      },
+                    },
+                  ]
+                : undefined
+            }
+          />
         ) : (
           <VEmptyState
             icon={<XCircle className="text-red-300" size={48} />}
@@ -600,6 +835,66 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
             description={closedAudit.notes || 'Esta sesión fue cancelada y no generó ajustes.'}
           />
         )}
+
+        <Modal
+          isOpen={reopenOpen}
+          onClose={() => {
+            if (processing) return;
+            setReopenOpen(false);
+            setReasonText('');
+          }}
+          title={`Reabrir corte al ${formatCutDate(closedAudit.cut_date)}`}
+          size="sm"
+        >
+          <div className="space-y-4">
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              Se desbloquean los movimientos con fecha igual o anterior al corte hasta que lo vuelvas a cerrar.
+              Queda registrado quién reabrió y por qué.
+            </div>
+            <Input value={reasonText} onChange={(e) => setReasonText(e.target.value)} placeholder="Motivo obligatorio..." />
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" disabled={processing} onClick={() => setReopenOpen(false)}>Volver</Button>
+              <Button variant="destructive" disabled={processing || !reasonText.trim()} onClick={() => void handleReopen()}>
+                {processing ? 'Procesando…' : 'Reabrir'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+
+        <Modal
+          isOpen={recountItem !== null}
+          onClose={() => {
+            if (processing) return;
+            setRecountItem(null);
+          }}
+          title={`Recontar ${recountItem?.material_name ?? ''}`}
+          size="sm"
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600">
+              Conteo anterior: <strong>{formatQty(recountItem?.counted_quantity)}</strong>. El ajuste anterior se revierte y
+              se calcula uno nuevo contra la existencia al corte.
+            </p>
+            <Input type="number" min={0} step="any" value={recountQty} onChange={(e) => setRecountQty(e.target.value)} placeholder="Nueva cantidad contada" />
+            <Input value={reasonText} onChange={(e) => setReasonText(e.target.value)} placeholder="Motivo obligatorio..." />
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" disabled={processing} onClick={() => setRecountItem(null)}>Volver</Button>
+              <Button disabled={processing || !reasonText.trim() || recountQty === ''} onClick={() => void handleRecount()}>
+                {processing ? 'Procesando…' : 'Aplicar reconteo'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+
+        <VConfirmDialog
+          isOpen={closeAgainConfirm}
+          title="Volver a cerrar el corte"
+          message={`¿Cerrar de nuevo el corte al ${formatCutDate(closedAudit.cut_date)}?`}
+          consequence="Los movimientos con fecha igual o anterior al corte volverán a quedar bloqueados."
+          confirmLabel="Cerrar corte"
+          onConfirm={() => void handleCloseAgain()}
+          onCancel={() => setCloseAgainConfirm(false)}
+        />
       </div>
     );
   }
@@ -611,7 +906,7 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
           <div>
             <p className="text-xs font-black uppercase tracking-widest text-orange-700">Sesión #{audit.id}</p>
             <p className="text-sm text-orange-800 font-medium mt-1">
-              Conteo ciego — {audit.items_captured} / {audit.items_total} capturados
+              Conteo ciego al {formatCutDate(audit.cut_date)} — {audit.items_captured} / {audit.items_total} capturados
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -625,7 +920,7 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
             </button>
             <button
               type="button"
-              disabled={!allCaptured || processing}
+              disabled={processing}
               onClick={() => setSubmitConfirm(true)}
               className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
             >
@@ -668,11 +963,35 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
           isOpen={submitConfirm}
           title="Enviar conteo"
           message="¿Enviar el conteo para procesamiento?"
-          consequence="Diferencias ≤5% se ajustarán automáticamente. Diferencias mayores requerirán aprobación de Dirección o Gerencia."
+          consequence={
+            `${allCaptured ? '' : 'Los materiales sin capturar que no tienen existencia al corte se toman como 0; si alguno tiene existencia, el envío se bloquea. '}` +
+            `Diferencias de hasta 5% y de valor hasta ${formatMoney(audit.value_threshold)} se ajustan automáticamente con fecha del corte. ` +
+            'Las demás requieren aprobación de Dirección o Gerencia.'
+          }
           confirmLabel="Enviar"
           onConfirm={() => void handleSubmit()}
           onCancel={() => setSubmitConfirm(false)}
         />
+
+        <Modal
+          isOpen={uncapturedWithStock !== null}
+          onClose={() => setUncapturedWithStock(null)}
+          title="Faltan materiales por contar"
+          size="md"
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600">
+              {uncapturedWithStock?.message} Cuéntalos (si no hay, captura 0) y vuelve a enviar.
+            </p>
+            <VTable
+              columns={uncapturedColumns}
+              data={uncapturedWithStock?.materials ?? []}
+            />
+            <div className="flex justify-end">
+              <Button onClick={() => setUncapturedWithStock(null)}>Entendido</Button>
+            </div>
+          </div>
+        </Modal>
 
         {reasonModal.open && (
           <Modal
@@ -737,12 +1056,7 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
         <div id="physical-inventory-print" className="hidden print:block">
           <div className="p-8">
             <h1 className="text-xl font-black text-slate-900 mb-1">
-              Inventario Físico — Sesión #{audit.id} —{' '}
-              {new Date().toLocaleDateString('es-MX', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-              })}
+              Inventario Físico — Sesión #{audit.id} — Corte al {formatCutDate(audit.cut_date)}
             </h1>
             <p className="text-sm text-slate-600 mb-6">Conteo ciego — anotar cantidades físicas</p>
             {/* Excepción: tabla nativa para impresión (@media print). */}
@@ -806,7 +1120,8 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
           <div>
             <p className="text-xs font-black uppercase tracking-widest text-amber-700">Sesión #{audit.id}</p>
             <p className="text-sm text-amber-900 font-medium mt-1">
-              {audit.items_pending_approval} material(es) con diferencia &gt;5% pendientes de aprobación
+              Corte al {formatCutDate(audit.cut_date)} — {audit.items_pending_approval} material(es) pendientes de
+              aprobación (diferencia &gt; 5%, existencia 0 o negativa, o valor &gt; {formatMoney(audit.value_threshold)})
             </p>
           </div>
           {canApprove && (
@@ -922,20 +1237,43 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
     <div className="space-y-8">
       <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
         <ClipboardCheck size={48} className="mx-auto text-orange-400 mb-4" />
-        <h3 className="text-xl font-black text-slate-800">Inventario Físico por Sesiones</h3>
+        <h3 className="text-xl font-black text-slate-800">Inventario Físico con Fecha de Corte</h3>
         <p className="text-sm text-slate-500 mt-2 max-w-lg mx-auto">
-          Inicia una sesión de conteo ciego. Captura las cantidades físicas de todos los materiales
-          y envía para procesamiento automático o aprobación.
+          El conteo se compara contra la existencia teórica al corte (23:59:59 hora Mérida). Los movimientos posteriores
+          al corte se respetan y el ajuste queda con la fecha del corte.
         </p>
-        <button
-          type="button"
-          disabled={processing}
-          onClick={() => void handleStartSession()}
-          className="mt-6 inline-flex items-center gap-2 rounded-lg bg-orange-600 px-6 py-3 text-sm font-black text-white hover:bg-orange-700 disabled:opacity-50"
-        >
-          {processing ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} />}
-          Iniciar conteo físico
-        </button>
+        {periodLock?.locked && (
+          <p className="mt-3 inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-600">
+            <Lock size={14} /> Periodo cerrado al {periodLock.locked_until_local}
+          </p>
+        )}
+        <div className="mt-6 flex flex-wrap items-end justify-center gap-3">
+          <div className="text-left">
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">Fecha de corte</label>
+            <Input type="date" value={cutDate} max={toIsoDate(new Date())} onChange={(e) => setCutDate(e.target.value)} />
+          </div>
+          <Button disabled={processing || !cutDate} onClick={() => void handleStartSession()}>
+            <Play size={18} /> {processing ? 'Iniciando…' : 'Iniciar conteo físico'}
+          </Button>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 flex flex-wrap items-end gap-4">
+        <div className="flex-1 min-w-[16rem]">
+          <p className="text-sm font-black text-slate-700">Umbral por valor para aprobación</p>
+          <p className="text-xs text-slate-500 mt-1">
+            Una diferencia cuyo valor supere este monto requiere aprobación de Dirección o Gerencia, aunque sea de 5% o menos.
+            {threshold != null && <> Actual: <strong>{formatMoney(threshold)}</strong>.</>}
+          </p>
+        </div>
+        {isDirector && (
+          <div className="flex items-end gap-2">
+            <Input type="number" min={0} step="0.01" value={thresholdDraft} onChange={(e) => setThresholdDraft(e.target.value)} className="max-w-[10rem]" />
+            <Button variant="outline" disabled={savingThreshold} onClick={() => void handleSaveThreshold()}>
+              {savingThreshold ? 'Guardando…' : 'Guardar'}
+            </Button>
+          </div>
+        )}
       </div>
 
       <div>
@@ -970,9 +1308,10 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
               >
                 <div>
                   <span className="font-bold text-slate-800">Sesión #{entry.id}</span>
+                  <span className="ml-2 text-xs text-slate-500">Corte {formatCutDate(entry.cut_date)}</span>
                   <span
                     className={`ml-3 text-xs font-bold uppercase ${
-                      entry.status === 'CERRADA' ? 'text-emerald-600' : 'text-red-600'
+                      entry.status === 'CERRADA' ? 'text-emerald-600' : entry.status === 'REABIERTA' ? 'text-amber-600' : 'text-red-600'
                     }`}
                   >
                     {STATUS_LABELS[entry.status] || entry.status}
