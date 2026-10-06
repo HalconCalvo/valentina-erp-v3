@@ -3821,3 +3821,35 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 ### Lecciones:
 - El backend local necesita DATABASE_URL="$PGURL"; sin esa variable arranca con una SQLite vacía
 - Si el navegador conserva una sesión vieja, usar ventana de incógnito
+
+
+---
+## SESIÓN 2026-10-05 (segunda parte) — INVENTARIO: DESCARGA EN PRODUCCIÓN Y VALUACIÓN
+
+### Decisiones:
+- Inventario en tres cajones, todos activo: materia prima (almacén), producción en proceso, producto terminado. Al cargar para instalar pasa a costo de venta
+- La receta se descarga del almacén cuando el lote ENTRA a producción (ya no al cargar el camión; ya no se cancelan reservas al marcar el lote DEAD)
+- Sin stock: se bloquea con detalle de qué falta y cuánto; DIRECTOR/MANAGER puede autorizar con motivo obligatorio, queda en negativo con traza y aparece en reporte de negativos
+- Reversas (lote regresa, se saca instancia, se cancela OV con material descargado): caso por caso, motivo obligatorio, elegir almacén (movimiento inverso) o merma; solo DIRECTOR/MANAGER; nunca DELETE
+- Corrección de costo millar vs pieza: el kárdex guarda costo por unidad de uso
+- Inventario físico con fecha de corte queda como PLAN 2
+
+### Estado:
+- PLAN 1 implementado SIN COMMIT: 96 tests pasando, build OK
+- Migración h8i9j0k1l2m3 creada, NO aplicada en ninguna base
+- Pendiente: probar en navegador, decidir cómo aplicar la migración para probar, revisar diff y autorizar commit
+
+### Decisiones a validar por Gabriel:
+1. Solo DIRECTOR mueve lotes en el Kanban (comportamiento existente: MANAGER, ADMIN y DESIGN son solo lectura)
+2. Asignar una instancia a un lote ya en producción descarga su receta en ese momento
+3. Cambiar un lote a DEAD manualmente se rechaza (solo lo pone el sistema)
+4. Reporte de valuación solo para DIRECTOR/MANAGER/ADMIN
+
+### Hallazgos pendientes:
+1. Borrar instancia desde el estado de cuenta la elimina físicamente, sin revisar permisos ni liberar reservas
+2. Devoluciones por NC e /inventory/reception no convierten la cantidad de millar a pieza
+3. Borrar un lote en borrador lo elimina físicamente
+4. Kanban: fetch directo (vista previa de herrajes y PDF) y detalle de lote con div fijo en vez de Modal
+
+### Cómo retomar:
+- claude --continue
