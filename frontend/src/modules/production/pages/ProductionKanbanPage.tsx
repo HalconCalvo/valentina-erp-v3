@@ -435,6 +435,8 @@ export default function ProductionKanbanPage() {
       const conflict = getInventoryConflict(error);
       if (conflict?.code === 'INSUFFICIENT_STOCK') {
         setShortageState({ batchId, newStatus, batchFolio: batch.folio, shortages: conflict.shortages ?? [] });
+      } else if (conflict?.code === 'ADVANCE_REQUIRED') {
+        toast.error(conflict.message);
       } else if (conflict?.code === 'REVERSAL_REQUIRED') {
         setReversalState({ kind: 'batch', batchId, newStatus, batchFolio: batch.folio });
       } else {
@@ -1573,7 +1575,7 @@ export default function ProductionKanbanPage() {
           isOpen={pendingDispatchInst !== null}
           title="Marcar herrajes surtidos"
           message={`¿Confirmas que los herrajes de "${pendingDispatchInst.custom_name}" ya fueron surtidos a producción?`}
-          consequence="La instancia quedará marcada como surtida y no podrás revertir este registro desde el Kanban."
+          consequence="Los herrajes, accesorios, electro y vidrio de la receta se descargarán del almacén (pueden quedar en negativo si falta existencia). La instancia quedará marcada como surtida y no podrás revertirlo desde el Kanban."
           variant="default"
           confirmLabel="Sí, marcar surtido"
           onConfirm={async () => {

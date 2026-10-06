@@ -55,7 +55,7 @@ export function ShortageDialog({ isOpen, batchFolio, shortages, canAuthorize, on
     <Modal isOpen={isOpen} onClose={processing ? () => undefined : onClose} title={`Material insuficiente · ${batchFolio}`} size="lg">
       <div className="flex flex-col gap-4">
         <p className="text-sm text-slate-600">
-          El lote no puede entrar a producción: estos materiales de la receta no alcanzan en el almacén.
+          El lote no puede entrar a producción: falta material principal (MDF o piedra). Los consumibles y herrajes faltantes no bloquean.
         </p>
         <div className="overflow-x-auto">
           <VTable columns={shortageColumns} data={shortages} />

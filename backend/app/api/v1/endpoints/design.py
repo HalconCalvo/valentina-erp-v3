@@ -11,6 +11,7 @@ from uuid import uuid4
 from google.cloud import storage 
 from pydantic import BaseModel
 
+from app.core import material_groups
 from app.core.database import get_session
 # --- IMPORTS DE SEGURIDAD ---
 from app.core.deps import get_current_active_user
@@ -48,9 +49,7 @@ router = APIRouter()
 # -----------------------------------------------------------------------------
 BUCKET_NAME = "valentina-erp-v3-assets" 
 
-# Categorías que tienen poder de bloqueo según el proceso de fabricación
-CRITICAL_CATEGORIES_MDF = ["MDF", "TABLERO", "MELAMINA", "MADERA", "ENCHAPADO"]
-CRITICAL_CATEGORIES_PIEDRA = ["PIEDRA", "GRANITO", "CUARZO", "MARMOL", "SUPERFICIE"]
+# Categorías con poder de bloqueo: una sola definición compartida (app/core/material_groups.py)
 
 # ==========================================
 # 1. GESTIÓN DE MAESTROS (Familia del Producto)
@@ -219,8 +218,8 @@ def delete_product_master(
 # 2. GESTIÓN DE VERSIONES (Recetas)
 # ==========================================
 
-MDF_CATEGORIES = {"TABLERO"}
-STONE_CATEGORIES = {"PIEDRA"}
+MDF_CATEGORIES = material_groups.MAIN_MDF
+STONE_CATEGORIES = material_groups.MAIN_STONE
 
 
 def _update_version_flags(
@@ -715,14 +714,8 @@ def simulate_batch(
         status_color = "GREEN"
 
         if is_shortage:
-            cat_upper = material.category.upper()
-            
-            # Aplicar Regla de Oro: Dependencia estricta solo para categorías núcleo del lote
-            if request.batch_type == "MDF" and any(c in cat_upper for c in CRITICAL_CATEGORIES_MDF):
-                is_blocking = True
-                batch_is_blocked = True
-                status_color = "RED"
-            elif request.batch_type == "PIEDRA" and any(c in cat_upper for c in CRITICAL_CATEGORIES_PIEDRA):
+            # Regla de Oro: solo el material principal del lote (TABLERO / PIEDRA) bloquea
+            if material_groups.is_main(material.category, request.batch_type):
                 is_blocking = True
                 batch_is_blocked = True
                 status_color = "RED"

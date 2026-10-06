@@ -642,7 +642,7 @@ def scan_bundle_qr(
     # ── COSTO DE VENTA ───────────────────────────────────────
     # The recipe left the warehouse when the batch entered production; loading the truck
     # moves that consumed material from finished goods to cost of sales (no stock movement).
-    transferred_to_cogs = production_inventory_service.transfer_instance_to_cogs(session, instance.id)
+    transferred_to_cogs = production_inventory_service.transfer_instance_to_cogs(session, instance.id, current_user)
     # ─────────────────────────────────────────────────────────
 
     # Leer tabulador global

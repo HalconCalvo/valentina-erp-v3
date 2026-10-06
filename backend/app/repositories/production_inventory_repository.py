@@ -7,7 +7,7 @@ from sqlmodel import Session, select
 from app.models.inventory import InventoryReservation, ProductionStockAuthorization
 from app.models.material import Material
 from app.models.production import ProductionBatch
-from app.models.sales import SalesOrderItem, SalesOrderItemInstance
+from app.models.sales import CustomerPayment, SalesOrder, SalesOrderItem, SalesOrderItemInstance
 from app.models.users import User
 
 
@@ -109,5 +109,24 @@ def get_stock_authorizations(session: Session) -> List[tuple]:
             .join(User, User.id == ProductionStockAuthorization.authorized_by_user_id)
             .join(ProductionBatch, ProductionBatch.id == ProductionStockAuthorization.production_batch_id)
             .order_by(ProductionStockAuthorization.created_at.desc())
+        ).all()
+    )
+
+
+def get_orders_with_unpaid_advance(session: Session, order_ids: Sequence[int]) -> List[SalesOrder]:
+    """OVs with an agreed advance (percent or amount > 0) and no PAID ADVANCE invoice (same rule as the Kanban)."""
+    if not order_ids:
+        return []
+    paid = (
+        select(CustomerPayment.sales_order_id)
+        .where(CustomerPayment.payment_type == "ADVANCE", CustomerPayment.status == "PAID")
+    )
+    return list(
+        session.exec(
+            select(SalesOrder).where(
+                SalesOrder.id.in_(list(set(order_ids))),
+                (SalesOrder.advance_percent > 0) | (SalesOrder.advance_invoice_amount > 0),
+                SalesOrder.id.not_in(paid),
+            )
         ).all()
     )

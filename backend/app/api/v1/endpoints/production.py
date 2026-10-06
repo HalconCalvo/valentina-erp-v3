@@ -13,7 +13,7 @@ from app.core.deps import get_session, CurrentUser
 
 from app.models.production import ProductionBatch, ProductionBatchStatus, PrintJob
 from app.models.foundations import Client
-from app.models.sales import SalesOrderItemInstance, SalesOrderItem, SalesOrder, PaymentStatus, InstanceStatus, CustomerPayment
+from app.models.sales import SalesOrderItemInstance, SalesOrderItem, SalesOrder, PaymentStatus, InstanceStatus
 from app.models.inventory import InventoryReservation
 from app.models.design import VersionComponent, ProductVersion
 from app.models.material import Material
@@ -104,24 +104,8 @@ def dispatch_hardware(
     current_user: CurrentUser,
     db: Session = Depends(get_session),
 ):
-    """Marca los herrajes de una instancia como surtidos a producción."""
-    instance = db.get(SalesOrderItemInstance, instance_id)
-    if not instance:
-        raise HTTPException(status_code=404, detail="Instancia no encontrada")
-    if instance.hardware_dispatched:
-        raise HTTPException(status_code=400, detail="Los herrajes ya fueron marcados como surtidos")
-    instance.hardware_dispatched = True
-    instance.hardware_dispatched_at = datetime.utcnow()
-    instance.hardware_dispatched_by_user_id = current_user.id
-    db.add(instance)
-    db.commit()
-    db.refresh(instance)
-    return {
-        "ok": True,
-        "instance_id": instance_id,
-        "hardware_dispatched_at": instance.hardware_dispatched_at,
-        "hardware_dispatched_by_user_id": instance.hardware_dispatched_by_user_id,
-    }
+    """Marca los herrajes de una instancia como surtidos y los descarga del almacén (pueden quedar en negativo)."""
+    return production_inventory_service.dispatch_instance_hardware(db, instance_id, current_user)
 
 
 @router.post("/instances/{instance_id}/request_labels", response_model=RequestLabelsResponse)
@@ -258,36 +242,8 @@ def read_batches(current_user: CurrentUser, db: Session = Depends(get_session)):
                 .where(SalesOrderItemInstance.production_batch_id == batch.id)
             ).all()
 
-        # 2. Lógica Financiera: Verificar anticipo pagado leyendo directamente de customer_payments
-        #    (fuente de verdad, no depende del campo denormalizado sales_orders.payment_status)
-        is_payment_cleared = True
-        if not instances:
-            # Regla: Un lote sin instancias no se puede enviar a producción
-            is_payment_cleared = False
-        else:
-            # Reunir los IDs únicos de todas las OVs vinculadas a este lote
-            order_ids_in_batch = set()
-            for inst in instances:
-                item = db.exec(
-                    select(SalesOrderItem).where(SalesOrderItem.id == inst.sales_order_item_id)
-                ).first()
-                if item:
-                    order_ids_in_batch.add(item.sales_order_id)
-
-            # Opción X: el anticipo es UNA factura (CustomerPayment ADVANCE) que pasa a PAID
-            # cuando sus abonos la saldan (register_installment). El lote se libera solo si esa
-            # factura de anticipo está PAID. Si alguna OV no la tiene, el lote queda bloqueado.
-            for order_id in order_ids_in_batch:
-                advance_invoice_paid = db.exec(
-                    select(CustomerPayment).where(
-                        CustomerPayment.sales_order_id == order_id,
-                        CustomerPayment.payment_type == "ADVANCE",
-                        CustomerPayment.status == "PAID",
-                    )
-                ).first()
-                if not advance_invoice_paid:
-                    is_payment_cleared = False
-                    break
+        # 2. Lógica Financiera: anticipo pactado y pagado (misma regla que el backend al entrar a producción)
+        is_payment_cleared = production_inventory_service.payment_cleared(db, list(instances))
         
         # 3. Construir el objeto de respuesta
         batch_data = batch.model_dump()

@@ -12,6 +12,7 @@ from typing import Optional
 from fastapi import HTTPException
 from sqlmodel import Session
 
+from app.core import material_groups
 from app.models.inventory import InventoryReservation, ProductionStockAuthorization
 from app.models.production import ProductionBatch, ProductionBatchStatus
 from app.models.sales import InstanceStatus, SalesOrderItemInstance
@@ -35,6 +36,10 @@ CANCELLED = "CANCELADA"
 REVERSED = "REVERTIDA"
 RETURN_TO_STOCK = "RETURN_TO_STOCK"
 EXIT_REASON = "ENTRADA_PRODUCCION"
+DISPATCH_REASON = "SURTIDO_HERRAJES"
+TRUCK_LOAD_REASON = "DESCARGA_EN_CARGA"
+DISPATCH_ROLES = {"WAREHOUSE", "PRODUCTION", "DIRECTOR", "MANAGER", "ADMIN"}
+PRODUCTION_GROUPS = {material_groups.MAIN, material_groups.CONSUMABLE}
 STOCK_TOLERANCE = 0.0001
 
 
@@ -123,13 +128,29 @@ def _authorize_shortages(
     return authorization.id
 
 
-def discharge_reservations(
-    session: Session, batch: ProductionBatch, reservations: list[InventoryReservation], user,
-    override_reason: Optional[str] = None,
+def reservation_groups(session: Session, reservations: list[InventoryReservation]) -> dict[int, str]:
+    """reservation id -> MAIN / CONSUMABLE / DISPATCH, by material category and the batch type."""
+    materials = prod_inv_repo.get_materials_by_ids(session, [r.material_id for r in reservations])
+    batch_types = {}
+    for batch_id in {r.production_batch_id for r in reservations}:
+        batch = prod_inv_repo.get_batch(session, batch_id)
+        batch_types[batch_id] = batch.batch_type if batch else None
+    return {
+        r.id: material_groups.group_for(
+            materials[r.material_id].category if r.material_id in materials else None,
+            batch_types.get(r.production_batch_id),
+        )
+        for r in reservations
+    }
+
+
+def _consume(
+    session: Session, reservations: list[InventoryReservation], user, reason: str,
+    negative_ok: set[int], authorized: Optional[tuple[int, set[int]]] = None,
 ) -> int:
-    """Consumes ACTIVE reservations: PRODUCTION_EXIT per line, releases committed stock."""
-    authorization_id = _authorize_shortages(session, batch, compute_shortages(session, reservations), user,
-                                            override_reason)
+    """PRODUCTION_EXIT per reservation (cost per usage unit), releases committed stock, marks CONSUMIDA.
+    authorized = (authorization id, reservation ids it covers)."""
+    authorization_id, covered = authorized or (None, set())
     materials = prod_inv_repo.get_materials_by_ids(session, [r.material_id for r in reservations])
     order_ids = prod_inv_repo.get_order_ids_by_instance(session, [r.instance_id for r in reservations if r.instance_id])
     now = datetime.utcnow()
@@ -139,17 +160,56 @@ def discharge_reservations(
         cost = inventory_service.usage_unit_cost(material)
         if quantity > 0:
             movement = inventory_service.register_movement(
-                session, material.id, "PRODUCTION_EXIT", quantity, usage_cost=cost, reason=EXIT_REASON,
+                session, material.id, "PRODUCTION_EXIT", quantity, usage_cost=cost, reason=reason,
                 project_id=order_ids.get(res.instance_id), operator_badge=getattr(user, "email", None),
-                commit=False, allow_negative=authorization_id is not None,
-                trace={"production_batch_id": batch.id, "instance_id": res.instance_id, "user_id": user.id,
-                       "authorization_id": authorization_id},
+                commit=False, allow_negative=res.id in negative_ok,
+                trace={"production_batch_id": res.production_batch_id, "instance_id": res.instance_id,
+                       "user_id": getattr(user, "id", None),
+                       "authorization_id": authorization_id if res.id in covered else None},
             )
             res.consumed_movement_id = movement["movement_id"]
         material.committed_stock = max(0.0, float(material.committed_stock or 0.0) - quantity)
         res.status, res.consumed_at, res.consumed_unit_cost = CONSUMED, now, cost
         session.add_all([material, res])
     return len(reservations)
+
+
+def discharge_reservations(
+    session: Session, batch: ProductionBatch, reservations: list[InventoryReservation], user,
+    override_reason: Optional[str] = None,
+) -> int:
+    """Entering production: main material (shortage blocks unless authorized) and factory consumables
+    (never block). Hardware (DISPATCH group) is left ACTIVE until it is dispatched."""
+    groups = reservation_groups(session, reservations)
+    to_consume = [r for r in reservations if groups[r.id] in PRODUCTION_GROUPS]
+    main = [r for r in to_consume if groups[r.id] == material_groups.MAIN]
+    authorization_id = _authorize_shortages(session, batch, compute_shortages(session, main), user, override_reason)
+    main_ids = {r.id for r in main}
+    negative_ok = {r.id for r in to_consume if r.id not in main_ids or authorization_id}
+    authorized = (authorization_id, main_ids) if authorization_id else None
+    return _consume(session, to_consume, user, EXIT_REASON, negative_ok, authorized)
+
+
+def payment_cleared(session: Session, instances: list[SalesOrderItemInstance]) -> bool:
+    """Same rule as the Kanban padlock: not empty, and no OV with an agreed advance left unpaid."""
+    if not instances:
+        return False
+    order_ids = list(prod_inv_repo.get_order_ids_by_instance(session, [i.id for i in instances]).values())
+    return not prod_inv_repo.get_orders_with_unpaid_advance(session, order_ids)
+
+
+def assert_advance_paid(session: Session, instances: list[SalesOrderItemInstance]) -> None:
+    if not instances:
+        raise HTTPException(status_code=400, detail="El lote no tiene instancias; no puede entrar a producción.")
+    order_ids = list(prod_inv_repo.get_order_ids_by_instance(session, [i.id for i in instances]).values())
+    pending = prod_inv_repo.get_orders_with_unpaid_advance(session, order_ids)
+    if pending:
+        folios = ", ".join(f"OV-{str(o.id).zfill(4)} ({o.project_name})" for o in pending)
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "ADVANCE_REQUIRED", "orders": [o.id for o in pending],
+                    "message": f"Anticipo pactado sin pagar: {folios}. No puede entrar a producción."},
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -167,8 +227,12 @@ def _mark_closed(res: InventoryReservation, status: str, user, reason: str, disp
 def reverse_reservations(
     session: Session, reservations: list[InventoryReservation], user, reversal: ReversalCreate, recreate: bool
 ) -> int:
-    """Consumed reservations: back to stock (PRODUCTION_RETURN) or waste (no stock movement)."""
+    """Consumed reservations: back to stock (PRODUCTION_RETURN) or waste (no stock movement).
+    Dispatched hardware returned to stock clears the instance's dispatch flag so it can be dispatched again."""
     materials = prod_inv_repo.get_materials_by_ids(session, [r.material_id for r in reservations])
+    groups = reservation_groups(session, reservations)
+    if reversal.disposition == RETURN_TO_STOCK:
+        _clear_dispatch_flags(session, {r.instance_id for r in reservations if groups[r.id] == material_groups.DISPATCH_GROUP})
     for res in reservations:
         if res.cogs_at is not None:
             raise HTTPException(status_code=400, detail="El material ya pasó a costo de venta; no se puede revertir.")
@@ -254,6 +318,7 @@ def change_batch_status(session: Session, batch_id: int, payload: BatchStatusUpd
     old_status = batch.status
     try:
         if batch.status in PRE_PRODUCTION and new_status in POST_PRODUCTION:
+            assert_advance_paid(session, [i for i in instances if not i.is_cancelled])
             active = prod_inv_repo.get_reservations(session, [ACTIVE], batch_id=batch.id)
             discharge_reservations(session, batch, active, user, payload.override_reason)
             batch.started_at = batch.started_at or datetime.utcnow()
@@ -276,6 +341,7 @@ def discharge_on_assign(
     """An instance assigned to a batch already in production is discharged right away."""
     if batch.status not in POST_PRODUCTION:
         return 0
+    assert_advance_paid(session, [instance])
     session.flush()
     active = prod_inv_repo.get_reservations(session, [ACTIVE], batch_id=batch.id, instance_ids=[instance.id])
     return discharge_reservations(session, batch, active, user, override_reason)
@@ -352,11 +418,59 @@ def release_for_cancelled_order(session: Session, order_id: int, user, reversal:
         session.add(inst)
 
 
-def transfer_instance_to_cogs(session: Session, instance_id: int) -> int:
-    """Truck load: the instance's consumed material leaves inventory and becomes cost of sales."""
+def _clear_dispatch_flags(session: Session, instance_ids: set) -> None:
+    for instance_id in instance_ids - {None}:
+        instance = prod_inv_repo.get_instance(session, instance_id)
+        if instance and instance.hardware_dispatched:
+            instance.hardware_dispatched = False
+            instance.hardware_dispatched_at = None
+            instance.hardware_dispatched_by_user_id = None
+            session.add(instance)
+
+
+def _mark_dispatched(session: Session, instance: SalesOrderItemInstance, user) -> None:
+    instance.hardware_dispatched = True
+    instance.hardware_dispatched_at = datetime.utcnow()
+    instance.hardware_dispatched_by_user_id = getattr(user, "id", None)
+    session.add(instance)
+
+
+def dispatch_instance_hardware(session: Session, instance_id: int, user) -> dict:
+    """Hardware handed to production: discharges the instance's DISPATCH-group reservations (may go negative)."""
+    _require_roles(user, DISPATCH_ROLES, "No tienes permisos para surtir herrajes.")
+    instance = prod_inv_repo.get_instance(session, instance_id)
+    if not instance:
+        raise HTTPException(status_code=404, detail="Instancia no encontrada")
+    if instance.hardware_dispatched:
+        raise HTTPException(status_code=400, detail="Los herrajes ya fueron marcados como surtidos")
+    active = prod_inv_repo.get_reservations(session, [ACTIVE], instance_ids=[instance.id])
+    groups = reservation_groups(session, active)
+    hardware = [r for r in active if groups[r.id] == material_groups.DISPATCH_GROUP]
+    try:
+        _consume(session, hardware, user, DISPATCH_REASON, negative_ok={r.id for r in hardware})
+        _mark_dispatched(session, instance, user)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    session.refresh(instance)
+    return {"ok": True, "instance_id": instance.id, "hardware_dispatched_at": instance.hardware_dispatched_at,
+            "hardware_dispatched_by_user_id": instance.hardware_dispatched_by_user_id,
+            "materials_discharged": len(hardware)}
+
+
+def transfer_instance_to_cogs(session: Session, instance_id: int, user=None) -> int:
+    """Truck load: discharges anything still reserved (safety net for hardware never dispatched), then the
+    instance's consumed material leaves inventory and becomes cost of sales. Caller commits."""
+    leftover = prod_inv_repo.get_reservations(session, [ACTIVE], instance_ids=[instance_id])
+    if leftover:
+        groups = reservation_groups(session, leftover)
+        _consume(session, leftover, user, TRUCK_LOAD_REASON, negative_ok={r.id for r in leftover})
+        instance = prod_inv_repo.get_instance(session, instance_id)
+        if instance and not instance.hardware_dispatched and any(g == material_groups.DISPATCH_GROUP for g in groups.values()):
+            _mark_dispatched(session, instance, user)
     now = datetime.utcnow()
-    reservations = prod_inv_repo.get_reservations(session, [CONSUMED], instance_ids=[instance_id])
-    pending = [r for r in reservations if r.cogs_at is None]
+    pending = [r for r in prod_inv_repo.get_reservations(session, [CONSUMED], instance_ids=[instance_id]) if r.cogs_at is None]
     for res in pending:
         res.cogs_at = now
         session.add(res)

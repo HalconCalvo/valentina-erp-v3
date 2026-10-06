@@ -25,7 +25,7 @@ export type StockShortage = {
 
 /** 409 detail returned by the backend for inventory decisions. */
 export type InventoryConflictDetail = {
-  code: 'INSUFFICIENT_STOCK' | 'REVERSAL_REQUIRED';
+  code: 'INSUFFICIENT_STOCK' | 'REVERSAL_REQUIRED' | 'ADVANCE_REQUIRED';
   message: string;
   batch_folio?: string;
   shortages?: StockShortage[];
