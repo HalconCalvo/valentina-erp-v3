@@ -78,6 +78,16 @@ def run_backup() -> dict:
     filename = f"{date_str}.sql.gz"
     blob_path = f"{BACKUP_PREFIX}{filename}"
 
+    if settings.LOCAL_SAFE_MODE:
+        logger.warning("backup_skipped_local_safe_mode")
+        return {
+            "status": "skipped",
+            "filename": None,
+            "size_mb": None,
+            "duration_seconds": round(time.perf_counter() - started, 2),
+            "detail": "LOCAL_SAFE_MODE activo; backup omitido.",
+        }
+
     if not settings.DATABASE_URL.startswith("postgres"):
         detail = "DATABASE_URL no es PostgreSQL; backup omitido."
         logger.warning("backup_skipped", reason=detail)

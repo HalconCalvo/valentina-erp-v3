@@ -1,5 +1,11 @@
 import os
+
+import structlog
 from google.cloud import storage
+
+from app.core.config import settings
+
+logger = structlog.get_logger(__name__)
 
 # Configuración
 BUCKET_NAME = "valentina-erp-v3-assets"
@@ -11,6 +17,9 @@ def upload_to_gcs(file_obj, destination_blob_name, content_type="application/oct
     Sube un archivo a Google Cloud Storage.
     Busca las credenciales tanto en local como en la carpeta de secretos de Render.
     """
+    if settings.LOCAL_SAFE_MODE:
+        logger.warning("upload_skipped_local_safe_mode", blob=destination_blob_name)
+        return None
     try:
         # 1. BUSQUEDA INTELIGENTE DE LA LLAVE
         # Opción A: Estamos en tu Mac (carpeta actual)

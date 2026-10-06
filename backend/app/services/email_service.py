@@ -1,6 +1,12 @@
 import base64
-import requests
 from io import BytesIO
+
+import requests
+import structlog
+
+from app.core.config import settings
+
+logger = structlog.get_logger(__name__)
 
 
 def send_purchase_order_email(
@@ -13,6 +19,9 @@ def send_purchase_order_email(
     pdf_buffer: BytesIO = None,
     company_name: str = "Valentina"
 ) -> None:
+    if settings.LOCAL_SAFE_MODE:
+        logger.warning("email_skipped_local_safe_mode", to=to_email, subject=f"Orden de Compra {folio}")
+        return
 
     body = (
         f"Estimado proveedor {provider_name},\n\n"

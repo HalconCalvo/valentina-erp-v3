@@ -26,6 +26,9 @@ class Settings(BaseSettings):
 
     DEBUG: bool = True
 
+    # Local copy of production: no scheduled backup, no cloud uploads, no emails.
+    LOCAL_SAFE_MODE: bool = False
+
     SENTRY_DSN: Optional[str] = None
 
     # Google Cloud

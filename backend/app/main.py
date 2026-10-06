@@ -48,6 +48,14 @@ else:
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
+def start_background_jobs() -> None:
+    """Scheduled jobs (daily backup to GCS). Never in LOCAL_SAFE_MODE: a local copy must not touch the cloud."""
+    if settings.LOCAL_SAFE_MODE:
+        logger.warning("scheduler_disabled_local_safe_mode")
+        return
+    start_scheduler()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("database_initialization_started")
@@ -91,7 +99,7 @@ async def lifespan(app: FastAPI):
                 logger.info("admin_user_seeded", email="admin@example.com")
 
         logger.info("system_ready")
-        start_scheduler()
+        start_background_jobs()
     except Exception as exc:
         logger.error("database_initialization_failed", error=str(exc))
     yield
