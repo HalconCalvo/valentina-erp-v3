@@ -12,7 +12,8 @@ from sqlalchemy.exc import IntegrityError
 from app.core.database import get_session
 from app.core.deps import CurrentUser, SessionDep
 from app.services.cloud_storage import upload_to_gcs  # <--- LA TUBERÍA BLINDADA
-from app.services import inventory_service
+from app.services import inventory_service, inventory_valuation_service
+from app.schemas.production_inventory_schema import NegativeStockRead, ValuationSummaryRead
 from app.schemas.inventory_schema import (
     ManualAdjustDelta,
     ManualAdjustStock,
@@ -546,6 +547,21 @@ def seed_kardex_opening(current_user: CurrentUser, session: SessionDep):
 # ==========================================
 # INVENTARIO FÍSICO — CONTEO CIEGO
 # ==========================================
+@router.get("/inventory/valuation-summary", response_model=ValuationSummaryRead)
+def read_inventory_valuation_summary(
+    current_user: CurrentUser,
+    session: Session = Depends(get_session),
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None,
+):
+    return inventory_valuation_service.get_valuation_summary(session, current_user, date_from, date_to)
+
+
+@router.get("/inventory/negative-stock", response_model=NegativeStockRead)
+def read_negative_stock(current_user: CurrentUser, session: Session = Depends(get_session)):
+    return inventory_valuation_service.get_negative_stock_report(session, current_user)
+
+
 @router.post("/inventory/audits")
 def create_inventory_audit(current_user: CurrentUser, session: Session = Depends(get_session)):
     return inventory_service.create_audit_session(session, current_user)

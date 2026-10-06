@@ -82,6 +82,50 @@ export interface AuditSessionSummary {
   items_captured: number;
 }
 
+export type RawMaterialLine = {
+  material_id: number;
+  sku: string;
+  name: string;
+  usage_unit: string;
+  stock: number;
+  usage_unit_cost: number;
+  value: number;
+};
+
+export type InProcessLine = {
+  instance_id: number;
+  instance_name: string;
+  batch_folio: string;
+  value: number;
+};
+
+export type ValuationSummary = {
+  raw_materials: number;
+  work_in_progress: number;
+  finished_goods: number;
+  total: number;
+  cost_of_sales: number;
+  waste: number;
+  negative_stock_materials: number;
+  raw_material_lines: RawMaterialLine[];
+  work_in_progress_lines: InProcessLine[];
+  finished_goods_lines: InProcessLine[];
+};
+
+export type StockAuthorization = {
+  id: number;
+  batch_folio: string;
+  authorized_by: string;
+  reason: string;
+  shortages: { sku: string; missing: number; usage_unit: string }[];
+  created_at: string;
+};
+
+export type NegativeStockReport = {
+  materials: RawMaterialLine[];
+  authorizations: StockAuthorization[];
+};
+
 const AUDITS_BASE = '/foundations/inventory/audits';
 
 export const formatInventoryCurrency = (amount: number | undefined | null): string => {
@@ -93,6 +137,19 @@ export const formatInventoryCurrency = (amount: number | undefined | null): stri
 };
 
 export const inventoryService = {
+  getValuationSummary: async (dateFrom?: string, dateTo?: string): Promise<ValuationSummary> => {
+    const params: Record<string, string> = {};
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = `${dateTo}T23:59:59`;
+    const response = await axiosClient.get('/foundations/inventory/valuation-summary', { params });
+    return response.data;
+  },
+
+  getNegativeStock: async (): Promise<NegativeStockReport> => {
+    const response = await axiosClient.get('/foundations/inventory/negative-stock');
+    return response.data;
+  },
+
   getKardex: async (
     materialId: number,
     dateFrom?: string,

@@ -1,7 +1,7 @@
 import math
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, status
 from pydantic import BaseModel
 from typing import List, Optional
 from sqlalchemy import or_, func
@@ -18,6 +18,12 @@ from app.models.inventory import InventoryReservation
 from app.models.design import VersionComponent, ProductVersion
 from app.models.material import Material
 from app.services.planning_service import compute_semaphore
+from app.services import production_inventory_service
+from app.schemas.production_inventory_schema import (
+    BatchStatusUpdate,
+    InstanceRemovalCreate,
+    ProductionOverrideCreate,
+)
 
 router = APIRouter()
 
@@ -370,7 +376,8 @@ def assign_instance_to_batch(
     current_user: CurrentUser,
     db: Session = Depends(get_session),
     batch_id: int,
-    instance_id: int
+    instance_id: int,
+    payload: Optional[ProductionOverrideCreate] = Body(default=None),
 ):
     """
     CANDADO RTM: Asigna una instancia (bultos) a un Lote de Producción.
@@ -479,64 +486,44 @@ def assign_instance_to_batch(
                 ) + comp.quantity
                 db.add(material)
 
+    # A batch already in production discharges the new instance's recipe right away
+    try:
+        production_inventory_service.discharge_on_assign(
+            db, batch, instance, current_user, payload.override_reason if payload else None
+        )
+    except HTTPException:
+        db.rollback()
+        raise
     db.commit()
     db.refresh(instance)
     
     return {"message": "Instancia asignada exitosamente al lote", "instance": instance}
 
 @router.patch("/{batch_id}/status")
-def update_batch_status(batch_id: int, status: str, current_user: CurrentUser, db: Session = Depends(get_session)):
-    allowed = {"DESIGN", "ADMIN", "MANAGER", "DIRECTOR"}
-    role = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
-    if role.upper() not in allowed:
-        raise HTTPException(status_code=403, detail="No tienes permisos para esta operación.")
+def update_batch_status(
+    batch_id: int,
+    current_user: CurrentUser,
+    status: Optional[str] = None,
+    payload: Optional[BatchStatusUpdate] = Body(default=None),
+    db: Session = Depends(get_session),
+):
+    """PRE -> production discharges the recipe; production -> PRE requires a reversal."""
+    data = payload or BatchStatusUpdate()
+    data.status = data.status or status
+    return production_inventory_service.change_batch_status(db, batch_id, data, current_user)
 
-    # 1. Buscar el lote
-    batch = db.exec(select(ProductionBatch).where(ProductionBatch.id == batch_id)).first()
-    if not batch:
-        raise HTTPException(status_code=404, detail="Lote no encontrado")
-    
-    # 2. Actualizar el estatus del lote
-    try:
-        new_status = ProductionBatchStatus(status)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Estado de lote no válido")
 
-    batch.status = new_status
-    db.add(batch)
-    
-    # 3. Sincronizar instancias solo en IN_PRODUCTION / READY_TO_INSTALL.
-    #    PACKING solo cambia el lote; las instancias siguen IN_PRODUCTION.
-    if new_status in (
-        ProductionBatchStatus.IN_PRODUCTION,
-        ProductionBatchStatus.READY_TO_INSTALL,
-    ):
-        # Buscar instancias según tipo de lote
-        if batch.batch_type.upper() == "PIEDRA":
-            instances = db.exec(
-                select(SalesOrderItemInstance)
-                .where(SalesOrderItemInstance.stone_batch_id == batch_id)
-            ).all()
-        else:
-            instances = db.exec(
-                select(SalesOrderItemInstance)
-                .where(SalesOrderItemInstance.production_batch_id == batch_id)
-            ).all()
-
-        if new_status == ProductionBatchStatus.IN_PRODUCTION:
-            for inst in instances:
-                inst.production_status = InstanceStatus.IN_PRODUCTION
-                db.add(inst)
-        else:  # READY_TO_INSTALL
-            for inst in instances:
-                inst.production_status = InstanceStatus.READY
-                db.add(inst)
-
-    # 4. Guardar cambios en la base de datos
-    db.commit()
-    db.refresh(batch)
-    
-    return batch
+@router.post("/{batch_id}/instances/{instance_id}/remove")
+def remove_instance_from_batch(
+    batch_id: int,
+    instance_id: int,
+    payload: InstanceRemovalCreate,
+    current_user: CurrentUser,
+    db: Session = Depends(get_session),
+):
+    """Takes an instance out of a batch: frees reservations or reverses discharged material."""
+    instance = production_inventory_service.remove_instance_from_batch(db, batch_id, instance_id, payload, current_user)
+    return {"instance_id": instance.id, "production_status": instance.production_status}
 
 
 @router.delete("/{batch_id}", status_code=200)
@@ -914,24 +901,8 @@ def mark_instance_ready(
             ).all()
 
         if len(active_count) == 0:
-            # Liberar reservas de inventario antes de marcar DEAD
-            dead_reservations = db.exec(
-                select(InventoryReservation)
-                .where(InventoryReservation.production_batch_id == batch_id)
-                .where(InventoryReservation.status == "ACTIVA")
-            ).all()
-
-            for res in dead_reservations:
-                res.status = "CANCELADA"
-                db.add(res)
-                material = db.get(Material, res.material_id)
-                if material:
-                    material.committed_stock = max(
-                        0.0,
-                        (material.committed_stock or 0.0) - res.quantity_reserved
-                    )
-                    db.add(material)
-
+            # Reservations are not touched: the recipe was discharged when the batch entered
+            # production and its cost stays in finished goods until the truck load.
             batch.status = ProductionBatchStatus.DEAD
             db.add(batch)
 

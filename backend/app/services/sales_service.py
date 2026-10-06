@@ -45,7 +45,8 @@ from app.schemas.sales_schema import (
     RetentionAlertRead,
 )
 from app.services.cost_engine import CostEngine
-from app.services import audit_service
+from app.services import audit_service, production_inventory_service
+from app.schemas.production_inventory_schema import OVCancelCreate
 
 
 def _normalized_role(user: User) -> str:
@@ -624,7 +625,12 @@ def mark_waiting_advance(
     return order
 
 
-def cancel_ov(session: Session, order_id: int) -> SalesOrder:
+def cancel_ov(
+    session: Session,
+    order_id: int,
+    current_user: Optional[User] = None,
+    payload: Optional[OVCancelCreate] = None,
+) -> SalesOrder:
     order = _require_order(session, order_id)
     if order.status != SalesOrderStatus.WAITING_ADVANCE:
         raise HTTPException(
@@ -639,6 +645,10 @@ def cancel_ov(session: Session, order_id: int) -> SalesOrder:
                 "Use Modificar OV para ajustar la cantidad."
             ),
         )
+    # Frees reserved material, or reverses it if a batch already discharged it from the warehouse
+    production_inventory_service.release_for_cancelled_order(
+        session, order.id, current_user, payload.reversal if payload else None
+    )
     for item in sales_repo.get_items_by_order(session, order.id):
         for inst in sales_repo.get_active_instances_by_item(session, item.id):
             inst.is_cancelled = True

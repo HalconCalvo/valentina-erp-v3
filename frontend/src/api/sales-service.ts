@@ -1,3 +1,4 @@
+import type { ReversalPayload } from './production-service';
 import axiosClient from './axios-client';
 import { API_ROUTES } from './endpoints';
 import {
@@ -270,9 +271,9 @@ export const salesService = {
      * Cancela una OV en espera de anticipo (WAITING_ADVANCE -> CANCELLED_OV).
      * Solo si no tiene anticipo pagado. Es terminal.
      */
-    cancelOv: async (orderId: number): Promise<void> => {
+    cancelOv: async (orderId: number, reversal?: ReversalPayload): Promise<void> => {
         const url = `${API_ROUTES.SALES.ORDER_DETAIL(orderId)}/cancel_ov`;
-        await axiosClient.post(url);
+        await axiosClient.post(url, reversal ? { reversal } : null);
     },
 
     /**

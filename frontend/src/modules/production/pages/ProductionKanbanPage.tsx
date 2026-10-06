@@ -1,20 +1,29 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { productionService } from '../../../api/production-service';
+import { productionService, getInventoryConflict, type StockShortage } from '../../../api/production-service';
 import axiosClient from '../../../api/axios-client';
 import { ProductionBatch } from '../../../types/production';
-import { Lock, Package, AlertCircle, ArrowRight, CheckCircle2, Boxes } from 'lucide-react';
+import { Lock, Package, AlertCircle, ArrowRight, CheckCircle2, Boxes, LogOut } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 import { Input } from '@/components/ui/Input';
 import { VTable, VTableColumn } from '@/components/ui/VTable';
+import { ReversalDialog, ShortageDialog, type ReversalInput } from '../components/BatchInventoryDialogs';
 const STATUS_READY_TO_INSTALL = 'READY';
 const STATUS_PACKING = 'PACKING';
 
 type MaterialFilter = 'ALL' | 'MDF' | 'PIEDRA';
 
 const PRODUCTION_READ_ONLY_ROLES = ['ADMIN', 'DESIGN', 'MANAGER'];
+const INVENTORY_AUTHORIZER_ROLES = ['DIRECTOR', 'MANAGER'];
+const POST_PRODUCTION_STATUSES = ['IN_PRODUCTION', 'PACKING', 'READY_TO_INSTALL', 'FINISHED'];
+const LOADED_INSTANCE_STATUSES = ['CARGADO', 'INSTALLED', 'CLOSED', 'WARRANTY'];
+
+type ShortageState = { batchId: number; newStatus: string; batchFolio: string; shortages: StockShortage[] };
+type ReversalState =
+  | { kind: 'batch'; batchId: number; newStatus: string; batchFolio: string }
+  | { kind: 'instance'; batchId: number; batchFolio: string; instanceId: number; instanceName: string; discharged: boolean };
 
 /** Devuelve el badge de urgencia del lote según el peor semáforo de sus instancias. */
 function getBatchUrgencyBadge(batch: any): { label: string; className: string } | null {
@@ -282,6 +291,9 @@ export default function ProductionKanbanPage() {
   } | null>(null);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [pendingDispatchInst, setPendingDispatchInst] = useState<any | null>(null);
+  const [shortageState, setShortageState] = useState<ShortageState | null>(null);
+  const [reversalState, setReversalState] = useState<ReversalState | null>(null);
+  const canAuthorizeInventory = INVENTORY_AUTHORIZER_ROLES.includes(userRole);
 
   const batchesForView = useMemo(() => {
     if (materialFilter === 'ALL') return batches;
@@ -406,8 +418,8 @@ export default function ProductionKanbanPage() {
     if (!batch) return;
     if (batch.status === newStatus) return;
 
-    if (batch.status === 'IN_PRODUCTION' && newStatus === 'DRAFT') {
-      toast.warning('Operación denegada: un lote en producción no puede regresar a la fila de espera.');
+    if (batch.status === 'IN_PRODUCTION' && newStatus === 'DRAFT' && !canAuthorizeInventory) {
+      toast.warning('Operación denegada: solo Dirección o Gerencia pueden regresar un lote en producción.');
       return;
     }
 
@@ -419,20 +431,54 @@ export default function ProductionKanbanPage() {
     try {
       await productionService.updateBatchStatus(batchId, newStatus);
     } catch (error: any) {
-      toast.error(error?.response?.data?.detail || 'No se pudo actualizar el estatus.');
       setBatches(previousBatches);
+      const conflict = getInventoryConflict(error);
+      if (conflict?.code === 'INSUFFICIENT_STOCK') {
+        setShortageState({ batchId, newStatus, batchFolio: batch.folio, shortages: conflict.shortages ?? [] });
+      } else if (conflict?.code === 'REVERSAL_REQUIRED') {
+        setReversalState({ kind: 'batch', batchId, newStatus, batchFolio: batch.folio });
+      } else {
+        toast.error(error?.response?.data?.detail || 'No se pudo actualizar el estatus.');
+      }
+    }
+  };
+
+  const handleAuthorizeShortage = async (reason: string) => {
+    if (!shortageState) return;
+    try {
+      await productionService.updateBatchStatus(shortageState.batchId, shortageState.newStatus, { override_reason: reason });
+      toast.success(`Lote ${shortageState.batchFolio} en producción con material en negativo autorizado.`);
+      setShortageState(null);
+      await loadBatches();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.detail || 'No se pudo autorizar la entrada a producción.');
+    }
+  };
+
+  const handleConfirmReversal = async ({ reason, disposition }: ReversalInput) => {
+    if (!reversalState) return;
+    const reversal = disposition ? { reason, disposition } : undefined;
+    try {
+      if (reversalState.kind === 'batch') {
+        await productionService.updateBatchStatus(reversalState.batchId, reversalState.newStatus, { reversal });
+        toast.success(`Lote ${reversalState.batchFolio} regresó a espera.`);
+      } else {
+        await productionService.removeInstanceFromBatch(reversalState.batchId, reversalState.instanceId, reason, reversal);
+        toast.success(`${reversalState.instanceName} salió del lote ${reversalState.batchFolio}.`);
+        setSelectedBatch(null);
+      }
+      setReversalState(null);
+      await loadBatches();
+    } catch (error: any) {
+      const detail = error?.response?.data?.detail;
+      toast.error(typeof detail === 'string' ? detail : detail?.message || 'No se pudo completar la operación.');
     }
   };
 
   const executeDispatchHardware = async (inst: any) => {
     setDispatchingHardware(inst.id);
     try {
-      const token = localStorage.getItem('token');
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
-      await fetch(`${baseUrl}/production/instances/${inst.id}/dispatch-hardware`, {
-        method: 'PATCH',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
+      await productionService.dispatchHardware(inst.id);
       setSelectedBatch((prev: any) => {
         if (!prev) return prev;
         return {
@@ -1267,9 +1313,28 @@ export default function ProductionKanbanPage() {
                           )}
                         </div>
                         {/* Nombre instancia */}
-                        <p className="font-bold text-slate-800 text-sm">
-                          {inst.custom_name || '—'}
-                        </p>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-bold text-slate-800 text-sm">
+                            {inst.custom_name || '—'}
+                          </p>
+                          {!isReadOnly && !LOADED_INSTANCE_STATUSES.includes(inst.production_status) && (
+                            <button
+                              type="button"
+                              title="Sacar del lote"
+                              onClick={() => setReversalState({
+                                kind: 'instance',
+                                batchId: selectedBatch.id,
+                                batchFolio: selectedBatch.folio,
+                                instanceId: inst.id,
+                                instanceName: inst.custom_name || `Instancia ${inst.id}`,
+                                discharged: POST_PRODUCTION_STATUSES.includes(selectedBatch.status),
+                              })}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50"
+                            >
+                              <LogOut size={16} />
+                            </button>
+                          )}
+                        </div>
                         {/* Material(es) clave — puede haber más de uno */}
                         {inst.key_materials && inst.key_materials.length > 0 && (
                           <div className="mt-1.5 flex flex-col gap-1">
@@ -1519,6 +1584,33 @@ export default function ProductionKanbanPage() {
           onCancel={() => setPendingDispatchInst(null)}
         />
       )}
+
+      <ShortageDialog
+        isOpen={shortageState !== null}
+        batchFolio={shortageState?.batchFolio ?? ''}
+        shortages={shortageState?.shortages ?? []}
+        canAuthorize={canAuthorizeInventory}
+        onAuthorize={handleAuthorizeShortage}
+        onClose={() => setShortageState(null)}
+      />
+
+      <ReversalDialog
+        isOpen={reversalState !== null}
+        title={
+          reversalState?.kind === 'instance'
+            ? `Sacar ${reversalState.instanceName} del lote`
+            : `Regresar lote ${reversalState?.batchFolio ?? ''} a espera`
+        }
+        message={
+          reversalState?.kind === 'instance'
+            ? `La instancia saldrá del lote ${reversalState.batchFolio}.`
+            : 'El lote ya descargó la receta del almacén al entrar a producción.'
+        }
+        requireDisposition={reversalState?.kind === 'batch' || (reversalState?.kind === 'instance' && reversalState.discharged)}
+        confirmLabel={reversalState?.kind === 'instance' ? 'Sacar del lote' : 'Regresar a espera'}
+        onConfirm={handleConfirmReversal}
+        onClose={() => setReversalState(null)}
+      />
     </div>
   );
 }

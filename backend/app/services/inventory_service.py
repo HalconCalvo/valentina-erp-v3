@@ -14,6 +14,7 @@ IN_MOVEMENT_TYPES = {
     "ADJUSTMENT_IN",
     "TRANSFER_IN",
     "OPENING_BALANCE",
+    "PRODUCTION_RETURN",
 }
 OUT_MOVEMENT_TYPES = {
     "PRODUCTION_EXIT",
@@ -32,6 +33,7 @@ AUDIT_LIST_ROLES = {"DIRECTOR", "MANAGER", "ADMIN"}
 AUDIT_APPROVE_ROLES = {"DIRECTOR", "MANAGER"}
 AUDIT_CANCEL_ROLES = {"DIRECTOR", "MANAGER", "ADMIN"}
 VARIANCE_THRESHOLD = 0.05
+NEGATIVE_STOCK_TOLERANCE = 0.0001
 
 
 def _resolve_role(user) -> str:
@@ -50,6 +52,58 @@ def _signed_quantity(movement_type: str, quantity: float) -> float:
     return -abs(quantity)
 
 
+def usage_unit_cost(material: Material, purchase_unit_cost: float | None = None) -> float:
+    """Cost per usage unit. Material.current_cost (and purchase costs) are per purchase unit."""
+    cost = float(material.current_cost or 0.0) if purchase_unit_cost is None else float(purchase_unit_cost)
+    factor = float(material.conversion_factor or 1.0) or 1.0
+    return cost / factor
+
+
+def _validate_movement(
+    session: Session, material_id: int, movement_type: str, qty: float, reason_text: str
+) -> Material:
+    if movement_type not in VALID_MOVEMENT_TYPES:
+        raise HTTPException(status_code=422, detail=f"Tipo de movimiento inválido: {movement_type}")
+    if qty <= 0:
+        raise HTTPException(status_code=422, detail="La cantidad debe ser mayor a cero.")
+    if movement_type in REQUIRES_REASON and not reason_text:
+        raise HTTPException(status_code=422, detail="El motivo es obligatorio para este tipo de movimiento.")
+    if movement_type == "OPENING_BALANCE" and inventory_repo.has_opening_balance(session, material_id):
+        raise HTTPException(status_code=400, detail="Ya existe un saldo inicial para este material.")
+    material = inventory_repo.get_material_by_id(session, material_id)
+    if not material:
+        raise HTTPException(status_code=404, detail="Material no encontrado.")
+    return material
+
+
+def _apply_purchase_cost(material: Material, unit_cost: float | None) -> float:
+    """Updates current_cost (per purchase unit, rounded up to the cent) and returns it."""
+    raw_cost = float(unit_cost if unit_cost is not None else material.current_cost or 0.0)
+    new_unit_cost = math.ceil(raw_cost * 100) / 100
+    if new_unit_cost == 0.0 and raw_cost > 0:
+        new_unit_cost = 0.01
+    material.current_cost = new_unit_cost
+    return new_unit_cost
+
+
+def _check_stock(material: Material, signed_qty: float, affect_stock: bool, allow_negative: bool) -> float:
+    current_stock = float(material.physical_stock or 0.0)
+    new_stock = current_stock + signed_qty
+    if affect_stock and not allow_negative and new_stock < -NEGATIVE_STOCK_TOLERANCE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"El movimiento dejaría el stock en negativo (actual: {current_stock:.4f}).",
+        )
+    return new_stock
+
+
+def _kardex_cost(material: Material, movement_type: str, unit_cost: float | None, usage_cost: float | None) -> float:
+    if usage_cost is not None:
+        return float(usage_cost)
+    purchase_cost = _apply_purchase_cost(material, unit_cost) if movement_type == "PURCHASE_ENTRY" else unit_cost
+    return usage_unit_cost(material, purchase_cost)
+
+
 def register_movement(
     session: Session,
     material_id: int,
@@ -57,6 +111,7 @@ def register_movement(
     quantity: float,
     *,
     unit_cost: float | None = None,
+    usage_cost: float | None = None,
     reason: str | None = None,
     reception_id: int | None = None,
     project_id: int | None = None,
@@ -64,77 +119,41 @@ def register_movement(
     created_at: datetime | None = None,
     affect_stock: bool = True,
     commit: bool = True,
+    allow_negative: bool = False,
+    trace: dict | None = None,
 ) -> dict:
-    if movement_type not in VALID_MOVEMENT_TYPES:
-        raise HTTPException(status_code=422, detail=f"Tipo de movimiento inválido: {movement_type}")
-
-    qty = float(quantity or 0.0)
-    if qty <= 0:
-        raise HTTPException(status_code=422, detail="La cantidad debe ser mayor a cero.")
-
+    """unit_cost is per purchase unit (like Material.current_cost); usage_cost is already per usage unit.
+    The kardex stores cost per usage unit. trace: production_batch_id, instance_id, user_id, authorization_id."""
     reason_text = (reason or "").strip()
-    if movement_type in REQUIRES_REASON and not reason_text:
-        raise HTTPException(status_code=422, detail="El motivo es obligatorio para este tipo de movimiento.")
-
-    if movement_type == "OPENING_BALANCE" and inventory_repo.has_opening_balance(session, material_id):
-        raise HTTPException(status_code=400, detail="Ya existe un saldo inicial para este material.")
-
-    material = inventory_repo.get_material_by_id(session, material_id)
-    if not material:
-        raise HTTPException(status_code=404, detail="Material no encontrado.")
-
-    signed_qty = _signed_quantity(movement_type, qty)
-    current_stock = float(material.physical_stock or 0.0)
-    new_stock = current_stock + signed_qty
-
-    if affect_stock and new_stock < -0.0001:
-        raise HTTPException(
-            status_code=400,
-            detail=f"El movimiento dejaría el stock en negativo (actual: {current_stock:.4f}).",
-        )
-
-    effective_unit_cost = float(unit_cost if unit_cost is not None else material.current_cost or 0.0)
-    if movement_type == "PURCHASE_ENTRY":
-        raw_cost = effective_unit_cost
-        new_unit_cost = math.ceil(raw_cost * 100) / 100
-        if new_unit_cost == 0.0 and raw_cost > 0:
-            new_unit_cost = 0.01
-        material.current_cost = new_unit_cost
-        effective_unit_cost = new_unit_cost
-
+    material = _validate_movement(session, material_id, movement_type, float(quantity or 0.0), reason_text)
+    signed_qty = _signed_quantity(movement_type, float(quantity))
+    new_stock = _check_stock(material, signed_qty, affect_stock, allow_negative)
+    kardex_cost = _kardex_cost(material, movement_type, unit_cost, usage_cost)
     if affect_stock:
         material.physical_stock = new_stock
-        session.add(material)
-
+    session.add(material)
     movement = InventoryTransaction(
         reception_id=reception_id,
         material_id=material.id,
         quantity=signed_qty,
-        unit_cost=effective_unit_cost,
-        subtotal=round(abs(signed_qty) * effective_unit_cost, 2),
+        unit_cost=kardex_cost,
+        subtotal=round(abs(signed_qty) * kardex_cost, 2),
         transaction_type=movement_type,
         project_id=project_id,
         operator_badge=operator_badge,
         reason_code=reason_text or None,
         created_at=created_at or datetime.utcnow(),
+        **(trace or {}),
     )
     session.add(movement)
-
     if commit:
         session.commit()
         session.refresh(material)
         session.refresh(movement)
     else:
         session.flush()
-
-    return {
-        "material_id": material.id,
-        "movement_id": movement.id,
-        "movement_type": movement_type,
-        "quantity": signed_qty,
-        "new_stock": float(material.physical_stock or 0.0),
-        "unit_cost": effective_unit_cost,
-    }
+    return {"material_id": material.id, "movement_id": movement.id, "movement_type": movement_type,
+            "quantity": signed_qty, "new_stock": float(material.physical_stock or 0.0), "unit_cost": kardex_cost}
 
 
 def register_manual_adjustment_by_delta(

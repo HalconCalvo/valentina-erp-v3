@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { X, Receipt, CheckCircle, Clock, FileText, Package, AlertCircle, PieChart, Users, Coins, Pencil, Plus, PlusCircle, Trash2, Check, XCircle, ChevronDown, ChevronRight, Shield } from 'lucide-react';
 import { SalesOrder, CustomerPayment, RetentionAlertRead } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
+import { getInventoryConflict } from '../../../api/production-service';
+import { ReversalDialog, type ReversalInput } from '../../production/components/BatchInventoryDialogs';
 import axiosClient from '../../../api/axios-client';
 import { AddItemsModal } from '../../sales/components/AddItemsModal';
 import { toast } from '@/components/ui/VToast';
@@ -453,6 +455,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const [isUpdatingCommission, setIsUpdatingCommission] = useState(false);
     const [ocSaving, setOcSaving] = useState(false);
     const [cancelling, setCancelling] = useState(false);
+    const [ovReversalMessage, setOvReversalMessage] = useState<string | null>(null);
     const [pendingConfirm, setPendingConfirm] = useState<OrderStatementPendingConfirm | null>(null);
     const [deliveryApplyPrompt, setDeliveryApplyPrompt] = useState<{ instanceId: number; dateKey: string } | null>(null);
     const [savingDeliveryInstanceId, setSavingDeliveryInstanceId] = useState<number | null>(null);
@@ -1419,10 +1422,28 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
             await salesService.cancelOv(order.id!);
             onSuccess();
         } catch (err: any) {
-            toast.error(err?.response?.data?.detail || 'No se pudo cancelar la OV.');
+            const conflict = getInventoryConflict(err);
+            if (conflict?.code === 'REVERSAL_REQUIRED' && ['DIRECTOR', 'MANAGER'].includes(userRole)) {
+                setOvReversalMessage(conflict.message);
+            } else {
+                const detail = err?.response?.data?.detail;
+                toast.error(typeof detail === 'string' ? detail : detail?.message || 'No se pudo cancelar la OV.');
+            }
         } finally {
             setCancelling(false);
             setPendingConfirm(null);
+        }
+    };
+
+    const executeCancelOvWithReversal = async ({ reason, disposition }: ReversalInput) => {
+        if (!disposition) return;
+        try {
+            await salesService.cancelOv(order.id!, { reason, disposition });
+            setOvReversalMessage(null);
+            onSuccess();
+        } catch (err: any) {
+            const detail = err?.response?.data?.detail;
+            toast.error(typeof detail === 'string' ? detail : detail?.message || 'No se pudo cancelar la OV.');
         }
     };
 
@@ -3362,6 +3383,15 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                 </div>
             </Modal>
         )}
+        <ReversalDialog
+            isOpen={ovReversalMessage !== null}
+            title="Cancelar OV con material descargado"
+            message={ovReversalMessage ?? ''}
+            requireDisposition
+            confirmLabel="Cancelar OV"
+            onConfirm={executeCancelOvWithReversal}
+            onClose={() => setOvReversalMessage(null)}
+        />
         {pendingConfirm && (
             <VConfirmDialog
                 isOpen={pendingConfirm !== null}

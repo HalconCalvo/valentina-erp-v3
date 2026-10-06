@@ -1,6 +1,43 @@
 import axiosClient from './axios-client';
 import { ProductionBatch } from '../types/production';
 
+export type ReversalDisposition = 'RETURN_TO_STOCK' | 'WASTE';
+
+export type ReversalPayload = {
+  reason: string;
+  disposition: ReversalDisposition;
+};
+
+export type BatchStatusOptions = {
+  override_reason?: string;
+  reversal?: ReversalPayload;
+};
+
+export type StockShortage = {
+  material_id: number;
+  sku: string;
+  name: string;
+  usage_unit: string;
+  required: number;
+  available: number;
+  missing: number;
+};
+
+/** 409 detail returned by the backend for inventory decisions. */
+export type InventoryConflictDetail = {
+  code: 'INSUFFICIENT_STOCK' | 'REVERSAL_REQUIRED';
+  message: string;
+  batch_folio?: string;
+  shortages?: StockShortage[];
+};
+
+export function getInventoryConflict(err: unknown): InventoryConflictDetail | null {
+  const response = (err as { response?: { status?: number; data?: { detail?: unknown } } })?.response;
+  const detail = response?.data?.detail as InventoryConflictDetail | undefined;
+  if (response?.status !== 409 || !detail || typeof detail !== 'object' || !('code' in detail)) return null;
+  return detail;
+}
+
 export const productionService = {
   // Obtener todos los lotes
   getBatches: async (): Promise<ProductionBatch[]> => {
@@ -35,10 +72,33 @@ export const productionService = {
     return response.data;
   },
 
-  // Actualizar el estatus del lote (Drag & Drop)
-  updateBatchStatus: async (batchId: number, newStatus: string): Promise<ProductionBatch> => {
-    // Asumimos que el backend recibirá el nuevo estatus vía query params
-    const response = await axiosClient.patch(`/production/${batchId}/status`, null, { params: { status: newStatus } });
+  // Actualizar el estatus del lote (Drag & Drop).
+  // Entrar a producción descarga la receta; regresar de producción exige reversa.
+  updateBatchStatus: async (
+    batchId: number,
+    newStatus: string,
+    options: BatchStatusOptions = {},
+  ): Promise<ProductionBatch> => {
+    const response = await axiosClient.patch(`/production/${batchId}/status`, { status: newStatus, ...options });
+    return response.data;
+  },
+
+  // Sacar una instancia de un lote (libera reservas o revierte material descargado)
+  removeInstanceFromBatch: async (
+    batchId: number,
+    instanceId: number,
+    reason: string,
+    reversal?: ReversalPayload,
+  ) => {
+    const response = await axiosClient.post(`/production/${batchId}/instances/${instanceId}/remove`, {
+      reason,
+      reversal: reversal ?? null,
+    });
+    return response.data;
+  },
+
+  dispatchHardware: async (instanceId: number) => {
+    const response = await axiosClient.patch(`/production/instances/${instanceId}/dispatch-hardware`);
     return response.data;
   },
 

@@ -19,6 +19,7 @@ from .inventory import (
     InventoryReception,
     InventoryTransaction,
     InventoryReservation,
+    ProductionStockAuthorization,
     PurchaseRequisition,
     PurchaseOrder,
     PurchaseOrderItem,

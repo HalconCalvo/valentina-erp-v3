@@ -20,11 +20,9 @@ from app.models.design import ProductVersion
 from app.models.foundations import GlobalConfig, Client
 from app.models.users import User, UserRole
 from app.models.treasury import BankAccount, BankTransaction, TransactionType
-from app.models.inventory import InventoryReservation
-from app.models.material import Material
 from app.services.planning_service import trigger_double_green
 from app.services.cloud_storage import upload_to_gcs
-from app.services import logistics_service
+from app.services import logistics_service, production_inventory_service
 from app.schemas.logistics_schema import (
     TeamAgendaRead,
     DayTeamUpdate,
@@ -641,40 +639,10 @@ def scan_bundle_qr(
     instance.current_location = "En Tránsito (Camión)"
     session.add(instance)
 
-    # ── BAJA CONTABLE DE INVENTARIO ──────────────────────────
-    # Regla inmutable: la baja ocurre al escanear QR (CARGADO)
-    # Se consumen las reservas ACTIVA de esta instancia
-    reservations = session.exec(
-        select(InventoryReservation).where(
-            InventoryReservation.instance_id == instance.id,
-            InventoryReservation.status == "ACTIVA",
-        )
-    ).all()
-
-    for res in reservations:
-        material = session.get(Material, res.material_id)
-        if material:
-            from app.services import inventory_service
-
-            inventory_service.register_movement(
-                session,
-                material.id,
-                "PRODUCTION_EXIT",
-                res.quantity_reserved,
-                unit_cost=float(getattr(material, "current_cost", 0.0) or 0.0),
-                reason="CARGA_CAMION",
-                project_id=getattr(instance, "sales_order_id", None),
-                commit=False,
-            )
-            material.committed_stock = max(
-                0.0,
-                (material.committed_stock or 0.0) - res.quantity_reserved
-            )
-            session.add(material)
-
-        # Marcar reserva como consumida
-        res.status = "CONSUMIDA"
-        session.add(res)
+    # ── COSTO DE VENTA ───────────────────────────────────────
+    # The recipe left the warehouse when the batch entered production; loading the truck
+    # moves that consumed material from finished goods to cost of sales (no stock movement).
+    transferred_to_cogs = production_inventory_service.transfer_instance_to_cogs(session, instance.id)
     # ─────────────────────────────────────────────────────────
 
     # Leer tabulador global
@@ -730,7 +698,7 @@ def scan_bundle_qr(
         "leader": {"id": assignment.leader_user_id, "name": leader.full_name if leader else None},
         "payroll_records_created": 1 + bool(assignment.helper_1_user_id) + bool(assignment.helper_2_user_id),
         "scanned_at": now.isoformat(),
-        "inventory_consumed": len(reservations),
+        "inventory_consumed": transferred_to_cogs,
     }
 
 

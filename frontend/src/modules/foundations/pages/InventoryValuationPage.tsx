@@ -1,144 +1,111 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, DollarSign, Loader2, Pencil, Search } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, DollarSign, Pencil, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import axiosClient from '@/api/axios-client';
-import { formatInventoryCurrency } from '@/api/inventory-service';
-import { Material } from '@/types/foundations';
+import {
+  formatInventoryCurrency,
+  inventoryService,
+  type InProcessLine,
+  type NegativeStockReport,
+  type RawMaterialLine,
+  type StockAuthorization,
+  type ValuationSummary,
+} from '@/api/inventory-service';
+import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { VEmptyState } from '@/components/ui/VEmptyState';
 import { VTable, VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
 import { MaterialForm } from '../components/MaterialForm';
 
-interface ValuationRow extends Record<string, unknown> {
-  id: number;
-  sku: string;
-  name: string;
-  physical_stock: number;
-  usage_unit: string;
-  unit_cost: number;
-  total_value: number;
-}
+type Section = 'RAW' | 'WIP' | 'FINISHED' | 'NEGATIVE';
+
+const SECTIONS: { key: Section; label: string }[] = [
+  { key: 'RAW', label: 'Materia prima' },
+  { key: 'WIP', label: 'Producción en proceso' },
+  { key: 'FINISHED', label: 'Producto terminado' },
+  { key: 'NEGATIVE', label: 'Existencias negativas' },
+];
 
 const formatQty = (value: number): string =>
-  new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
+  new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 
-const computeUnitCost = (mat: Material): number => {
-  const factor = mat.conversion_factor && mat.conversion_factor !== 0 ? mat.conversion_factor : 1;
-  return (mat.current_cost ?? 0) / factor;
-};
+const money = (value: number): string => `$${formatInventoryCurrency(value)}`;
+
+const inProcessColumns: VTableColumn<InProcessLine>[] = [
+  { key: 'instance_name', label: 'Instancia', sortable: true, render: (r) => <span className="font-medium">{r.instance_name}</span> },
+  { key: 'batch_folio', label: 'Lote', sortable: true, render: (r) => <span className="font-mono text-xs">{r.batch_folio}</span> },
+  { key: 'value', label: 'Valor de receta', sortable: true, render: (r) => <span className="font-bold">{money(r.value)}</span> },
+];
+
+const authorizationColumns: VTableColumn<StockAuthorization>[] = [
+  { key: 'created_at', label: 'Fecha', render: (r) => new Date(r.created_at).toLocaleString('es-MX') },
+  { key: 'batch_folio', label: 'Lote', render: (r) => <span className="font-mono text-xs">{r.batch_folio}</span> },
+  { key: 'authorized_by', label: 'Autorizó', render: (r) => r.authorized_by },
+  { key: 'reason', label: 'Motivo', render: (r) => r.reason },
+  {
+    key: 'shortages',
+    label: 'Faltantes',
+    render: (r) => r.shortages.map((s) => `${s.sku}: ${formatQty(s.missing)} ${s.usage_unit}`).join(' · '),
+  },
+];
+
+function SummaryCard({ label, value, tone }: { label: string; value: number; tone: string }) {
+  return (
+    <div className={`rounded-2xl border p-5 ${tone}`}>
+      <p className="text-[10px] font-black uppercase tracking-widest">{label}</p>
+      <p className="text-2xl font-black">{money(value)}</p>
+    </div>
+  );
+}
 
 export default function InventoryValuationPage() {
   const navigate = useNavigate();
-  const [materials, setMaterials] = useState<Material[]>([]);
+  const [summary, setSummary] = useState<ValuationSummary | null>(null);
+  const [negatives, setNegatives] = useState<NegativeStockReport | null>(null);
   const [loading, setLoading] = useState(true);
+  const [section, setSection] = useState<Section>('RAW');
   const [search, setSearch] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [editingMaterialId, setEditingMaterialId] = useState<number | null>(null);
 
-  const loadMaterials = useCallback(async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await axiosClient.get('/foundations/materials');
-      const rows = Array.isArray(response.data) ? response.data : [];
-      setMaterials(rows as Material[]);
-    } catch {
-      toast.error('Error al cargar materiales.');
-      setMaterials([]);
+      const [summaryData, negativeData] = await Promise.all([
+        inventoryService.getValuationSummary(dateFrom || undefined, dateTo || undefined),
+        inventoryService.getNegativeStock(),
+      ]);
+      setSummary(summaryData);
+      setNegatives(negativeData);
+    } catch (err: any) {
+      toast.error(err?.response?.status === 403 ? 'No tienes permisos para ver la valuación.' : 'Error al cargar la valuación.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [dateFrom, dateTo]);
 
   useEffect(() => {
-    void loadMaterials();
-  }, [loadMaterials]);
+    void loadData();
+  }, [loadData]);
 
-  const valuationRows = useMemo((): ValuationRow[] => {
-    const term = search.trim().toLowerCase();
-    return materials
-      .filter((m) => m.is_active && (m.physical_stock ?? 0) > 0)
-      .filter((m) => {
-        if (!term) return true;
-        return (
-          m.sku.toLowerCase().includes(term) ||
-          m.name.toLowerCase().includes(term)
-        );
-      })
-      .map((m) => {
-        const unitCost = computeUnitCost(m);
-        const stock = m.physical_stock ?? 0;
-        return {
-          id: m.id!,
-          sku: m.sku,
-          name: m.name,
-          physical_stock: stock,
-          usage_unit: m.usage_unit,
-          unit_cost: unitCost,
-          total_value: stock * unitCost,
-        };
-      })
-      .sort((a, b) => b.total_value - a.total_value);
-  }, [materials, search]);
-
-  const totals = useMemo(
-    () => ({
-      count: valuationRows.length,
-      value: valuationRows.reduce((sum, row) => sum + row.total_value, 0),
-    }),
-    [valuationRows],
-  );
-
-  const columns: VTableColumn<ValuationRow>[] = useMemo(
+  const rawColumns: VTableColumn<RawMaterialLine>[] = useMemo(
     () => [
-      {
-        key: 'sku',
-        label: 'SKU',
-        sortable: true,
-        render: (row) => <span className="font-mono text-xs font-bold text-indigo-600">{row.sku}</span>,
-      },
-      {
-        key: 'name',
-        label: 'Material',
-        sortable: true,
-        render: (row) => <span className="font-medium">{row.name}</span>,
-      },
-      {
-        key: 'physical_stock',
-        label: 'Stock',
-        sortable: true,
-        render: (row) => formatQty(row.physical_stock),
-      },
-      {
-        key: 'usage_unit',
-        label: 'Unidad',
-        render: (row) => row.usage_unit || '—',
-      },
-      {
-        key: 'unit_cost',
-        label: 'Costo Unit.',
-        sortable: true,
-        render: (row) => `$${formatInventoryCurrency(row.unit_cost)}`,
-      },
-      {
-        key: 'total_value',
-        label: 'Valor Total',
-        sortable: true,
-        render: (row) => (
-          <span className="font-bold text-slate-800">${formatInventoryCurrency(row.total_value)}</span>
-        ),
-      },
+      { key: 'sku', label: 'SKU', sortable: true, render: (r) => <span className="font-mono text-xs font-bold text-indigo-600">{r.sku}</span> },
+      { key: 'name', label: 'Material', sortable: true, render: (r) => <span className="font-medium">{r.name}</span> },
+      { key: 'stock', label: 'Stock', sortable: true, render: (r) => formatQty(r.stock) },
+      { key: 'usage_unit', label: 'Unidad', render: (r) => r.usage_unit || '—' },
+      { key: 'usage_unit_cost', label: 'Costo unit. (uso)', sortable: true, render: (r) => money(r.usage_unit_cost) },
+      { key: 'value', label: 'Valor', sortable: true, render: (r) => <span className="font-bold text-slate-800">{money(r.value)}</span> },
       {
         key: 'actions',
         label: 'Acciones',
         width: '80px',
-        render: (row) => (
+        render: (r) => (
           <button
             type="button"
             title="Editar material"
-            onClick={() => setEditingMaterialId(row.id)}
+            onClick={() => setEditingMaterialId(r.material_id)}
             className="rounded-lg p-2 text-indigo-600 hover:bg-indigo-50"
           >
             <Pencil size={16} />
@@ -149,6 +116,53 @@ export default function InventoryValuationPage() {
     [],
   );
 
+  const term = search.trim().toLowerCase();
+  const rawRows = useMemo(
+    () => (summary?.raw_material_lines ?? []).filter((r) => !term || r.sku.toLowerCase().includes(term) || r.name.toLowerCase().includes(term)),
+    [summary, term],
+  );
+
+  const renderSection = () => {
+    if (!summary) return null;
+    if (section === 'RAW') {
+      return (
+        <>
+          <div className="relative max-w-md">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por SKU o nombre..." className="pl-9" />
+          </div>
+          <VTable columns={rawColumns} data={rawRows} emptyState={{ title: 'Sin materiales con stock' }} />
+        </>
+      );
+    }
+    if (section === 'WIP' || section === 'FINISHED') {
+      const rows = section === 'WIP' ? summary.work_in_progress_lines : summary.finished_goods_lines;
+      return (
+        <VTable
+          columns={inProcessColumns}
+          data={rows}
+          emptyState={{
+            title: section === 'WIP' ? 'Sin producción en proceso' : 'Sin producto terminado',
+            description: 'La receta se descarga del almacén cuando el lote entra a producción.',
+          }}
+        />
+      );
+    }
+    return (
+      <div className="space-y-6">
+        <VTable
+          columns={rawColumns.filter((c) => c.key !== 'actions')}
+          data={negatives?.materials ?? []}
+          emptyState={{ title: 'Sin existencias negativas' }}
+        />
+        <div className="space-y-2">
+          <h2 className="text-sm font-black uppercase text-slate-600">Autorizaciones de producción sin stock</h2>
+          <VTable columns={authorizationColumns} data={negatives?.authorizations ?? []} emptyState={{ title: 'Sin autorizaciones' }} />
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6 animate-fadeIn pb-24">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-4">
@@ -157,65 +171,64 @@ export default function InventoryValuationPage() {
           <div>
             <h1 className="text-3xl font-black text-slate-800 tracking-tight">Valuación de Inventario</h1>
             <p className="text-slate-500 mt-1 font-medium">
-              Detalle por artículo — stock × costo unitario de uso.
+              Materia prima, producción en proceso y producto terminado — todo es activo hasta que se carga para instalar.
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => navigate('/inventory', { state: { openSection: 'INVENTORY_HUB' } })}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 font-bold rounded-lg hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm"
-        >
+        <Button variant="outline" onClick={() => navigate('/inventory', { state: { openSection: 'INVENTORY_HUB' } })}>
           <ArrowLeft size={18} /> Regresar
-        </button>
+        </Button>
       </div>
 
-      <div className="relative max-w-md">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar por SKU o nombre..."
-          className="pl-9"
-        />
-      </div>
-
-      {loading ? (
-        <VEmptyState
-          icon={<Loader2 className="animate-spin text-slate-300" size={48} />}
-          title="Cargando valuación..."
-        />
-      ) : valuationRows.length === 0 ? (
-        <VEmptyState
-          icon={<DollarSign className="text-slate-300" size={48} />}
-          title="Sin materiales con stock"
-          description={
-            search.trim()
-              ? 'No hay resultados para la búsqueda.'
-              : 'No hay materiales activos con stock mayor a cero.'
-          }
-        />
-      ) : (
+      {loading && !summary ? (
+        <VEmptyState icon={<DollarSign className="text-slate-300" size={48} />} title="Cargando valuación..." />
+      ) : summary ? (
         <>
-          <VTable columns={columns} data={valuationRows} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <SummaryCard label="Materia prima" value={summary.raw_materials} tone="border-orange-200 bg-orange-50 text-orange-900" />
+            <SummaryCard label="Producción en proceso" value={summary.work_in_progress} tone="border-indigo-200 bg-indigo-50 text-indigo-900" />
+            <SummaryCard label="Producto terminado" value={summary.finished_goods} tone="border-emerald-200 bg-emerald-50 text-emerald-900" />
+            <SummaryCard label="Total inventario" value={summary.total} tone="border-slate-300 bg-slate-800 text-white" />
+          </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-orange-200 bg-orange-50 p-5">
+          <div className="flex flex-wrap items-end gap-4 rounded-2xl border border-slate-200 bg-white p-4">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-orange-700">
-                Total materiales
-              </p>
-              <p className="text-2xl font-black text-orange-900">{totals.count}</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Costo de venta (cargado para instalar)</p>
+              <p className="text-xl font-black text-slate-800">{money(summary.cost_of_sales)}</p>
             </div>
-            <div className="text-right">
-              <p className="text-[10px] font-black uppercase tracking-widest text-orange-700">
-                Valor total del inventario
-              </p>
-              <p className="text-2xl font-black text-orange-900">
-                ${formatInventoryCurrency(totals.value)}
-              </p>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Merma por reversas</p>
+              <p className="text-xl font-black text-slate-800">{money(summary.waste)}</p>
+            </div>
+            <div className="flex items-end gap-2 ml-auto">
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block">Desde</label>
+                <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block">Hasta</label>
+                <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+              </div>
             </div>
           </div>
+
+          <div className="flex flex-wrap gap-2">
+            {SECTIONS.map((s) => (
+              <Button key={s.key} variant={section === s.key ? 'default' : 'outline'} onClick={() => setSection(s.key)}>
+                {s.label}
+                {s.key === 'NEGATIVE' && summary.negative_stock_materials > 0 && (
+                  <span className="ml-1 rounded-full bg-red-600 px-2 text-[10px] font-black text-white">
+                    {summary.negative_stock_materials}
+                  </span>
+                )}
+              </Button>
+            ))}
+          </div>
+
+          {renderSection()}
         </>
+      ) : (
+        <VEmptyState icon={<DollarSign className="text-slate-300" size={48} />} title="Sin datos de valuación" />
       )}
 
       {editingMaterialId != null && (
@@ -225,7 +238,7 @@ export default function InventoryValuationPage() {
           onCreated={() => {
             setEditingMaterialId(null);
             toast.success('Material actualizado.');
-            void loadMaterials();
+            void loadData();
           }}
         />
       )}

@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List, Optional, TYPE_CHECKING
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import JSON, Column, Field, Relationship, SQLModel
 
 # Usamos TYPE_CHECKING para evitar importaciones circulares en tiempo de ejecución
 if TYPE_CHECKING:
@@ -43,7 +43,15 @@ class InventoryTransactionBase(SQLModel):
     operator_badge: Optional[str] = Field(default=None) # Gafete de quien rompió/pidió la pieza
     reason_code: Optional[str] = Field(default=None) # Ej: MERMA, NO_CALIDAD, AJUSTE_AUDITORIA, SURTIDO_KITTING
     # ========================================================
-    
+
+    # Production traceability (recipe discharge when a batch enters production)
+    production_batch_id: Optional[int] = Field(default=None, index=True)
+    instance_id: Optional[int] = Field(default=None, index=True)
+    user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    authorization_id: Optional[int] = Field(
+        default=None, foreign_key="production_stock_authorizations.id"
+    )
+
     created_at: datetime = Field(default_factory=datetime.now)
 
 class InventoryTransaction(InventoryTransactionBase, table=True):
@@ -69,7 +77,33 @@ class InventoryReservation(SQLModel, table=True):
     )
     material_id: int = Field(foreign_key="materials.id")
     quantity_reserved: float
-    status: str = Field(default="ACTIVA")  # ACTIVA, CONSUMIDA, CANCELADA
+    status: str = Field(default="ACTIVA")  # ACTIVA, CONSUMIDA, CANCELADA, REVERTIDA
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    # Discharge from warehouse when the batch enters production
+    consumed_at: Optional[datetime] = Field(default=None)
+    consumed_unit_cost: Optional[float] = Field(default=None)  # per usage unit
+    consumed_movement_id: Optional[int] = Field(
+        default=None, foreign_key="inventory_transactions.id"
+    )
+    # Reversal of a consumed reservation (RETURN_TO_STOCK or WASTE)
+    reversed_at: Optional[datetime] = Field(default=None)
+    reversed_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    reversal_reason: Optional[str] = Field(default=None)
+    reversal_disposition: Optional[str] = Field(default=None)
+    # Moved to cost of sales when the instance is loaded on the truck
+    cogs_at: Optional[datetime] = Field(default=None)
+
+
+class ProductionStockAuthorization(SQLModel, table=True):
+    """Director/Manager authorization to enter production without enough stock."""
+    __tablename__ = "production_stock_authorizations"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    production_batch_id: int = Field(foreign_key="production_batches.id", index=True)
+    authorized_by_user_id: int = Field(foreign_key="users.id")
+    reason: str
+    shortages: list = Field(default_factory=list, sa_column=Column(JSON))
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 

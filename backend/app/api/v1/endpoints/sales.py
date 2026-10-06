@@ -26,8 +26,9 @@ from app.services.pdf_generator import PDFGenerator
 # --- IMPORTAMOS LOS MOTORES (V3.5) ---
 from app.services.cost_engine import CostEngine
 from app.services import sales_service
-from app.services import legacy_import_service
+from app.services import inventory_service, legacy_import_service
 from app.schemas.legacy_import_schema import LegacyImportPreviewRead, LegacyImportRead
+from app.schemas.production_inventory_schema import OVCancelCreate
 from app.repositories import sales_repository as sales_repo
 
 from app.schemas.sales_schema import (
@@ -443,7 +444,7 @@ def patch_resale_item(
             if not mat:
                 raise HTTPException(404, f"Material {payload.resale_sku} no encontrado")
             item.resale_sku = mat.sku
-            item.frozen_unit_cost = float(mat.current_cost or 0.0)
+            item.frozen_unit_cost = inventory_service.usage_unit_cost(mat)
             if payload.product_name is None:
                 item.product_name = mat.name
 
@@ -619,8 +620,9 @@ def cancel_ov(
     order_id: int,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
+    payload: Optional[OVCancelCreate] = Body(default=None),
 ):
-    return sales_service.cancel_ov(session, order_id)
+    return sales_service.cancel_ov(session, order_id, current_user, payload)
 
 # ==========================================
 # 6. PAGOS Y COMISIONES (CÓDIGO HÍBRIDO)
