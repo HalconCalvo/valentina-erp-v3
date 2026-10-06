@@ -3853,3 +3853,92 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 
 ### Cómo retomar:
 - claude --continue
+
+
+---
+## SESIÓN 2026-10-06 — INVENTARIO FÍSICO CON CORTE, COPIA LOCAL Y DESCARGA POR GRUPO
+
+### Completado:
+- PLAN 2 (inventario físico con fecha de corte) probado en navegador sobre copia local y APROBADO:
+  - Regla de no capturados: 257 de 772 materiales con existencia a contar; los de teórica 0 se toman como 0
+  - Aprobación por diferencia > 5%, valor > umbral y teórica 0 (cada línea muestra su motivo)
+  - Ajustes con fecha efectiva del corte (30/09 23:59:59 Mérida) y fecha de registro de hoy
+  - Candado de periodo: bloquea movimientos al 29/09 y acepta el 01/10
+- PLAN 1b implementado (descarga por grupo de material + anticipo validado en backend), SIN probar en navegador
+- Modo local seguro (LOCAL_SAFE_MODE): sin respaldo programado, sin subidas a Google Cloud, sin correos
+- Copia local de producción: PostgreSQL 16 en puerto 5433, base valentina_local, migraciones aplicadas solo en local
+- 138 tests pasando, build OK
+
+### Commits (locales, SIN push):
+- 43b3b46 feat: discharge recipe when batch enters production + 3-bucket inventory valuation
+- 10c09c3 feat: physical inventory with cut date, period lock and recounts
+- a69a15a feat: local safe mode for running against a local copy of production
+- 5ab3df0 feat: discharge by material group + advance payment enforced in backend
+
+### Decisiones:
+- Entrada a producción solo se bloquea por: material principal faltante (MDF en lote MDF, piedra en lote Piedra; DIRECTOR/MANAGER puede autorizar con motivo) o anticipo pactado no pagado (advance_percent > 0 o monto > 0, sin factura de anticipo PAID; sin excepción)
+- Consumibles de fábrica (chapacinta, insumos) se descargan al entrar a producción sin bloquear (pueden quedar en negativo)
+- Herrajes, accesorios, electrodomésticos, vidrio, electricidad y especiales se descargan al surtir (por instancia), con red de seguridad al cargar el camión; pueden quedar en negativo sin autorización
+- Surtir herrajes: roles WAREHOUSE, PRODUCTION, DIRECTOR, MANAGER, ADMIN
+- Umbral de aprobación por valor en inventario físico: $2,000.00, configurable por DIRECTOR (GlobalConfig)
+
+### Estado:
+- 4 commits locales SIN push (43b3b46, 10c09c3, a69a15a, 5ab3df0)
+- Al hacer push se aplican en Render las migraciones h8i9j0k1l2m3 e i9j0k1l2m3n4 (producción sigue en g7h8i9j0k1l2)
+
+### Siguiente paso:
+1. Probar PLAN 1b en el Kanban local: entrada a producción, faltante de MDF, anticipo pactado sin pagar, surtido de herrajes
+2. Autorizar push
+
+### Entorno local:
+- PostgreSQL 16 en puerto 5433 NO arranca solo al reiniciar la Mac. Encenderlo con:
+  /opt/homebrew/opt/postgresql@16/bin/pg_ctl -D /opt/homebrew/var/postgresql@16 -o "-p 5433" -l ~/valentina_local/pg16.log start
+- Conexión local en ~/.pgurl_valentina_local (chmod 600). ~/.pgurl_valentina es la de PRODUCCIÓN: no usarla para local
+- Backend: backend/scripts/run_local.sh (rechaza cualquier URL de Render y activa LOCAL_SAFE_MODE)
+- Frontend: cd frontend && VITE_API_URL=http://localhost:8000/api/v1 npm run dev
+- Abrir en ventana de incógnito
+- El respaldo en ~/valentina_local/dumps tiene datos reales: borrarlo cuando ya no se use
+- Usar pg_dump/psql de postgresql@16 (el de la ruta por defecto es 14 y no es compatible con Render 16)
+
+### Detalles visuales pendientes:
+1. Montos negativos se ven como "$-60.00" en vez de "-$60.00"
+2. Filtro Desde/Hasta del kárdex
+3. Subtotal positivo en salidas del kárdex
+
+### Decisiones a validar (siguen abiertas):
+- PLAN 1: solo DIRECTOR mueve lotes en el Kanban (comportamiento existente); DEAD manual rechazado; reporte de valuación solo DIRECTOR/MANAGER/ADMIN
+- PLAN 2: ajustes por conteo pueden dejar stock negativo; estado REABIERTA impide iniciar otra sesión; sesiones sin fecha de corte deben cancelarse
+
+### Hallazgos pendientes (de sesiones anteriores):
+1. Borrar instancia desde el estado de cuenta la elimina físicamente, sin revisar permisos ni liberar reservas
+2. Devoluciones por NC e /inventory/reception no convierten la cantidad de millar a pieza
+3. Borrar un lote en borrador lo elimina físicamente
+4. Kanban: fetch directo (vista previa de herrajes y PDF) y detalle de lote con div fijo en vez de Modal
+5. Kárdex histórico (antes de PLAN 1) con costo por millar en materiales con factor ≠ 1 (ej. 0502-002); se limpia en el arranque
+
+### Pendientes para el arranque (sin cambio):
+1. Crear tasa "Exento" 0% activa
+2. Clientes y usuario vendedor con el nombre exacto del Excel
+3. Contabilidad: folios de ZENARA (filas 15 y 16), abono de 2025 en ZENARA, fecha futura en HABITARE OT 100, anticipo de GALERÍAS PH 71, facturas de SPCH OC 58 2 y OC 65
+
+### Pendientes técnicos menores (sin cambio):
+1. Redondeo al editar retenciones en el estado de cuenta (recalcula el monto desde el %)
+2. CLAUDE_FULL.md desactualizado (sección "ROL DE CURSOR")
+3. console.error en frontend/src/api/sales-service.ts:233
+4. Imports dentro de funciones en backend/app/api/v1/endpoints/sales.py
+5. ~245 errores de tipos preexistentes en frontend (el build no corre tsc)
+
+### Pendientes generales:
+1. PWA Campo — probar con instalador real
+2. Heartbeat 404 — bug menor
+3. Inventario físico — implementado y aprobado (PLAN 2), pendiente de push
+4. Arranque en ceros
+5. Control de Déficit y Mermas — post-arranque
+
+### Lecciones:
+- Antes de sobrescribir un archivo de configuración, revisar si ya existe (se sobrescribió ~/.pgurl_valentina y se restauró desde backend/.env)
+- alembic/env.py carga backend/.env (producción): siempre exportar DATABASE_URL local antes de migrar y verificar con alembic current
+- En zsh no usar "path" como nombre de variable (pisa PATH)
+
+### Cómo retomar:
+- claude --continue
