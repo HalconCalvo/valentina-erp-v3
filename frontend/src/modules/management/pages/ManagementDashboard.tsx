@@ -17,6 +17,7 @@ import {
     CheckCircle,
     FileText,
     FileSpreadsheet,
+    Shield,
 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
@@ -513,6 +514,29 @@ const ManagementDashboard: React.FC = () => {
                                     <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
                                         Excel → CxC sin producción
                                     </p>
+                                </div>
+                            </div>
+                        </Card>
+                    </div>
+
+                    <div className="w-full relative h-40">
+                        <Card
+                            onClick={() => navigate('/director/audit')}
+                            className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-slate-500 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white overflow-hidden group"
+                        >
+                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-slate-50 text-slate-600 border-r border-slate-200 font-black transition-colors group-hover:bg-slate-100">
+                                <Shield size={28} />
+                            </div>
+                            <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                                <div className="flex justify-between items-start">
+                                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Auditoría</p>
+                                    <Shield size={16} className="text-slate-500" />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-bold text-slate-700 leading-tight">Cambios por campo</h3>
+                                </div>
+                                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">Quién cambió qué y cuándo</p>
                                 </div>
                             </div>
                         </Card>
