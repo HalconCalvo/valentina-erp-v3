@@ -24,6 +24,7 @@ import {
   type UncapturedWithStockDetail,
 } from '@/api/inventory-service';
 import { Button } from '@/components/ui/Button';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { useCurrentUser } from '@/hooks/useSalesDashboard';
 import { Input } from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
@@ -37,11 +38,36 @@ interface MaterialMeta {
   usage_unit: string;
   purchase_unit: string;
   category: string;
+  provider: string;
 }
 
 type MaterialMetaMap = Record<number, MaterialMeta>;
 
-type CaptureRow = AuditItemRead & { material_category: string };
+type CaptureRow = AuditItemRead & { material_category: string; material_provider: string };
+
+type PrintSortKey = 'category' | 'sku' | 'name' | 'provider';
+
+const PRINT_SORT_OPTIONS: { value: PrintSortKey; label: string }[] = [
+  { value: 'category', label: 'Categoría' },
+  { value: 'sku', label: 'SKU' },
+  { value: 'name', label: 'Descripción' },
+  { value: 'provider', label: 'Proveedor' },
+];
+
+const compareText = (a: string, b: string): number => a.localeCompare(b, 'es', { sensitivity: 'base', numeric: true });
+
+/** Blind count list order for printing: chosen field first, then SKU. */
+const sortForPrint = (rows: CaptureRow[], key: PrintSortKey): CaptureRow[] => {
+  const field = (row: CaptureRow): string => {
+    if (key === 'category') return row.material_category;
+    if (key === 'provider') return row.material_provider;
+    if (key === 'name') return row.material_name || '';
+    return row.material_sku || '';
+  };
+  return [...rows].sort(
+    (a, b) => compareText(field(a), field(b)) || compareText(a.material_sku || '', b.material_sku || ''),
+  );
+};
 
 const unitCellsForPrint = (meta: MaterialMeta | undefined): { usage: string; purchase: string } => {
   const usage = meta?.usage_unit?.trim() || '—';
@@ -170,7 +196,7 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
   const [savingItemId, setSavingItemId] = useState<number | null>(null);
   const [processing, setProcessing] = useState(false);
   const [materialMetaMap, setMaterialMetaMap] = useState<MaterialMetaMap>({});
-  const [captureTableRows, setCaptureTableRows] = useState<CaptureRow[]>([]);
+  const [printSort, setPrintSort] = useState<PrintSortKey>('category');
 
   const [reasonModal, setReasonModal] = useState<{ open: boolean; kind: ReasonModalKind }>({
     open: false,
@@ -202,11 +228,13 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
           usage_unit?: string;
           purchase_unit?: string;
           category?: string;
+          provider_name?: string | null;
         }) => {
           map[m.id] = {
             usage_unit: m.usage_unit?.trim() || '—',
             purchase_unit: m.purchase_unit?.trim() || '—',
             category: m.category?.trim() || '—',
+            provider: m.provider_name?.trim() || '—',
           };
         },
       );
@@ -524,11 +552,13 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
         const name = (item.material_name || '').toLowerCase();
         const sku = (item.material_sku || '').toLowerCase();
         const category = (materialMetaMap[item.material_id]?.category || '').toLowerCase();
-        return name.includes(term) || sku.includes(term) || category.includes(term);
+        const provider = (materialMetaMap[item.material_id]?.provider || '').toLowerCase();
+        return name.includes(term) || sku.includes(term) || category.includes(term) || provider.includes(term);
       })
       .map((item) => ({
         ...item,
         material_category: materialMetaMap[item.material_id]?.category ?? '—',
+        material_provider: materialMetaMap[item.material_id]?.provider ?? '—',
       }));
   }, [audit, search, materialMetaMap]);
 
@@ -551,8 +581,7 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
     window.print();
   };
 
-  const rowsForPrint =
-    captureTableRows.length > 0 ? captureTableRows : filteredCaptureItems;
+  const rowsForPrint = useMemo(() => sortForPrint(filteredCaptureItems, printSort), [filteredCaptureItems, printSort]);
 
   const captureColumns: VTableColumn<CaptureRow>[] = [
     {
@@ -576,6 +605,13 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
       render: (row) => (
         <span className="text-xs font-bold uppercase text-slate-600">{row.material_category}</span>
       ),
+    },
+    {
+      key: 'material_provider',
+      label: 'Proveedor',
+      sortable: true,
+      width: '160px',
+      render: (row) => <span className="text-xs text-slate-600">{row.material_provider}</span>,
     },
     {
       key: 'units',
@@ -906,7 +942,17 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
               Conteo ciego al {formatCutDate(audit.cut_date)} — {audit.items_captured} / {audit.items_total} capturados
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="w-48" title="Orden de la lista impresa">
+              <SearchableSelect
+                items={PRINT_SORT_OPTIONS}
+                value={printSort}
+                onChange={(value) => setPrintSort((value || 'category') as PrintSortKey)}
+                getLabel={(option) => `Imprimir por: ${option.label}`}
+                getValue={(option) => option.value}
+                placeholder="Ordenar lista impresa por"
+              />
+            </div>
             <button
               type="button"
               disabled={processing}
@@ -949,7 +995,6 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
           data={filteredCaptureItems}
           defaultSortKey="material_sku"
           defaultSortDirection="asc"
-          onSortedDataChange={setCaptureTableRows}
           emptyState={{
             title: 'Sin materiales',
             description: 'No hay materiales activos para contar.',
@@ -1055,7 +1100,10 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
             <h1 className="text-xl font-black text-slate-900 mb-1">
               Inventario Físico — Sesión #{audit.id} — Corte al {formatCutDate(audit.cut_date)}
             </h1>
-            <p className="text-sm text-slate-600 mb-6">Conteo ciego — anotar cantidades físicas</p>
+            <p className="text-sm text-slate-600 mb-6">
+              Conteo ciego — anotar cantidades físicas · Ordenada por{' '}
+              {PRINT_SORT_OPTIONS.find((o) => o.value === printSort)?.label.toLowerCase()}
+            </p>
             {/* Excepción: tabla nativa para impresión (@media print). */}
             <table className="w-full border-collapse text-sm">
               <thead>
@@ -1063,6 +1111,7 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
                   <th className="border border-slate-400 px-3 py-2 text-left font-bold">SKU</th>
                   <th className="border border-slate-400 px-3 py-2 text-left font-bold">Material</th>
                   <th className="border border-slate-400 px-3 py-2 text-left font-bold">Categoría</th>
+                  <th className="border border-slate-400 px-3 py-2 text-left font-bold">Proveedor</th>
                   <th className="border border-slate-400 px-3 py-2 text-left font-bold">Unidad uso</th>
                   <th className="border border-slate-400 px-3 py-2 text-left font-bold">Unidad compra</th>
                   <th className="border border-slate-400 px-3 py-2 text-left font-bold w-32">Cantidad</th>
@@ -1080,6 +1129,7 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
                       <td className="border border-slate-300 px-3 py-2 text-xs uppercase">
                         {item.material_category}
                       </td>
+                      <td className="border border-slate-300 px-3 py-2 text-xs">{item.material_provider}</td>
                       <td className="border border-slate-300 px-3 py-2">{units.usage}</td>
                       <td className="border border-slate-300 px-3 py-2">{units.purchase}</td>
                       <td className="border border-slate-300 px-3 py-2 h-8" />

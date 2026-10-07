@@ -389,7 +389,11 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                 quantity: Number(i.quantity) || 1,
                 unit_price: Number(i.newUnitPrice.toFixed(2)),
                 frozen_unit_cost: Number(i.frozen_unit_cost) || 0,
-                cost_snapshot: i.cost_snapshot
+                cost_snapshot: i.cost_snapshot,
+                // Keep line text and resale data: authorizing must not erase them.
+                commercial_description: i.commercial_description,
+                is_resale: Boolean(i.is_resale),
+                resale_sku: i.resale_sku ?? null,
             }));
 
             await salesService.updateOrder(order.id, {
