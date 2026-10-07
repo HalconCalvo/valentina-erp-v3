@@ -1,5 +1,6 @@
 """Quotation domain — database queries only (no business logic)."""
-from typing import List, Optional
+from datetime import datetime
+from typing import Iterable, List, Optional
 
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
@@ -78,3 +79,10 @@ def get_active_quotation_items(session: Session, quotation_id: int) -> List[Quot
             )
         ).all()
     )
+
+
+def get_overdue_quotations(
+    session: Session, statuses: Iterable[QuotationStatus], before: datetime
+) -> List[Quotation]:
+    stmt = select(Quotation).where(Quotation.status.in_(list(statuses)), Quotation.valid_until < before)
+    return list(session.exec(stmt).all())

@@ -1,18 +1,18 @@
 // Estatus de la Orden (Espejo del Backend)
+// Desde la separación Cotización / OV, una OV nace en WAITING_ADVANCE al convertir una cotización autorizada.
+// DRAFT, SENT, ACCEPTED, REJECTED, CLIENT_REJECTED y CHANGE_REQUESTED son históricos (ya no se asignan).
 export enum SalesOrderStatus {
-    // FASE 1: CREACIÓN
-    DRAFT = "DRAFT",                 // Borrador (Editable por Ventas)
+    DRAFT = "DRAFT",
+    SENT = "SENT",
+    ACCEPTED = "ACCEPTED",
+    REJECTED = "REJECTED",
     
-    // FASE 2: AUTORIZACIÓN INTERNA
-    SENT = "SENT",                   // En Revisión (Enviada a Gerencia / Bloqueada para Ventas)
-    ACCEPTED = "ACCEPTED",           // Autorizada por Gerencia (Lista para enviar al Cliente)
-    REJECTED = "REJECTED",           // Rechazada por Gerencia (Vuelve a Ventas para corrección)
-    
-    // FASE 3: CIERRE CON CLIENTE Y COBRANZA
-    WAITING_ADVANCE = "WAITING_ADVANCE", // <--- NUEVO ESTATUS: Esperando pago de anticipo
+    // CIERRE CON CLIENTE Y COBRANZA
+    WAITING_ADVANCE = "WAITING_ADVANCE", // Esperando pago de anticipo
     SOLD = "SOLD",                   // ¡VENDIDA! (Cliente aceptó y pagó / Pasa a Producción)
-    CLIENT_REJECTED = "CLIENT_REJECTED", // Perdida (Cliente rechazó la propuesta)
-    CHANGE_REQUESTED = "CHANGE_REQUESTED", // Cliente solicita cambios (Regresa a ser editable)
+    CLIENT_REJECTED = "CLIENT_REJECTED",
+    CHANGE_REQUESTED = "CHANGE_REQUESTED",
+    CANCELLED_OV = "CANCELLED_OV",   // OV cancelada sin anticipo
 
     // FASE 4: PRODUCCIÓN (Futuro)
     IN_PRODUCTION = "IN_PRODUCTION", // En Producción

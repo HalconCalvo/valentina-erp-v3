@@ -5,7 +5,7 @@ from sqlmodel import SQLModel
 from datetime import datetime
 
 from app.models.sales import QuotationStatus
-from app.schemas.sales_schema import ClientReadBasic, SalesOrderItemCreate
+from app.schemas.sales_schema import ClientReadBasic
 
 
 class QuotationItemBase(SQLModel):
@@ -73,8 +73,14 @@ class QuotationUpdate(SQLModel):
     items: Optional[List[QuotationItemCreate]] = None
 
 
+class QuotationUserRead(SQLModel):
+    id: int
+    full_name: Optional[str] = None
+
+
 class QuotationRead(QuotationBase):
     id: int
+    folio: str = ""
     status: QuotationStatus
     created_at: datetime
     subtotal: float
@@ -83,25 +89,50 @@ class QuotationRead(QuotationBase):
     commission_amount: float
     user_id: Optional[int] = None
     sales_order_id: Optional[int] = None
-    sent_at: Optional[datetime] = None
-    accepted_at: Optional[datetime] = None
-    rejected_at: Optional[datetime] = None
-    reject_reason: Optional[str] = None
-    rejected_by_user_id: Optional[int] = None
+    auth_requested_at: Optional[datetime] = None
+    authorized_at: Optional[datetime] = None
+    authorized_by_user_id: Optional[int] = None
+    director_notes: Optional[str] = None
+    changes_requested_at: Optional[datetime] = None
+    changes_requested_reason: Optional[str] = None
+    changes_requested_by_user_id: Optional[int] = None
+    lost_at: Optional[datetime] = None
+    lost_reason: Optional[str] = None
+    converted_at: Optional[datetime] = None
     expired_at: Optional[datetime] = None
     cancelled_at: Optional[datetime] = None
     cancel_reason: Optional[str] = None
     client: Optional[ClientReadBasic] = None
-    user: Optional[Any] = None
+    user: Optional[QuotationUserRead] = None
     items: List[QuotationItemRead] = []
+
+
+class QuotationAuthorize(BaseModel):
+    """Director's financial review: final prices, margin, commission and advance."""
+    items: List[QuotationItemCreate] = Field(..., min_length=1)
+    applied_margin_percent: float
+    applied_commission_percent: float
+    advance_percent: float
+    advance_invoice_amount: Optional[float] = None
+    director_notes: Optional[str] = None
+
+
+class QuotationReason(BaseModel):
+    reason: str = Field(..., min_length=1)
 
 
 class QuotationCancel(BaseModel):
     cancel_reason: str = Field(..., min_length=1)
 
 
-class QuotationReject(BaseModel):
-    reject_reason: str = Field(..., min_length=1)
+class QuotationRenew(BaseModel):
+    valid_until: datetime
+
+
+class QuotationConvert(BaseModel):
+    """Client purchase order: required to turn an authorized quotation into a sales order."""
+    client_po_folio: str = Field(..., min_length=1)
+    client_po_date: datetime
 
 
 class QuotationConvertRead(BaseModel):

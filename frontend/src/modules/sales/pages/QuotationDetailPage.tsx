@@ -1,170 +1,105 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import {
-  ArrowLeft, Send, CheckCircle, Ban, XCircle, ArrowRightCircle,
-  FileDown, Pencil, Loader, CopyPlus,
-} from 'lucide-react';
+import { ArrowLeft, FileDown, Loader, Save } from 'lucide-react';
 
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
-import Modal from '@/components/ui/Modal';
-import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
-import Badge from '@/components/ui/Badge';
+import { RecordHistoryButton } from '@/components/audit/RecordHistoryButton';
 
 import {
   quotationService,
   formatQuotationCurrency,
-  formatQuotationFolio,
   QUOTATION_STATUS_LABELS,
+  EDITABLE_QUOTATION_STATUSES,
 } from '../../../api/quotation-service';
+import { getErrorMessage, useQuotation } from '../../../hooks/useQuotations';
+import { useQueryClient } from '@tanstack/react-query';
+import { Quotation, QuotationItem } from '../../../types/quotations';
 import {
-  useQuotation,
-  useSendQuotation,
-  useAcceptQuotation,
-  useRejectQuotation,
-  useCancelQuotation,
-  useConvertQuotation,
-} from '../../../hooks/useQuotations';
-import { QuotationItem, QuotationStatus } from '../../../types/quotations';
-
-const statusBadgeClass = (status: QuotationStatus): string => {
-  switch (status) {
-    case 'DRAFT': return 'bg-slate-100 text-slate-700';
-    case 'SENT': return 'bg-blue-100 text-blue-700';
-    case 'ACCEPTED': return 'bg-emerald-100 text-emerald-700';
-    case 'REJECTED': return 'bg-orange-100 text-orange-700';
-    case 'EXPIRED': return 'bg-amber-100 text-amber-700';
-    case 'CANCELLED': return 'bg-red-100 text-red-700';
-    default: return 'bg-slate-100 text-slate-600';
-  }
-};
+  PendingQuotationAction,
+  QuotationActionDialogs,
+  QuotationActionKind,
+  QuotationRowActions,
+  canManageQuotations,
+  quotationStatusBadgeClass,
+} from '../components/QuotationActions';
+import { FinancialReviewModal } from '../../management/components/FinancialReviewModal';
 
 const formatDateTime = (iso: string | null | undefined): string => {
   if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleString('es-MX', {
-      year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-    });
-  } catch {
-    return '—';
-  }
+  const utc = /[zZ]|[+-]\d{2}:\d{2}$/.test(iso) ? iso : `${iso}Z`;
+  const date = new Date(utc);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleString('es-MX', {
+    timeZone: 'America/Merida', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
 };
 
-type ReasonModalKind = 'cancel' | 'reject';
+const formatDate = (iso: string | null | undefined): string => (iso ? formatDateTime(iso).split(',')[0] : '—');
+
+/** Who/when/why of each step of the quotation's life. */
+const timeline = (q: Quotation): Array<{ label: string; value: string; tone?: string }> => [
+  { label: 'Creada', value: formatDateTime(q.created_at) },
+  ...(q.auth_requested_at ? [{ label: 'Enviada a Dirección', value: formatDateTime(q.auth_requested_at) }] : []),
+  ...(q.changes_requested_at
+    ? [{ label: 'Regresada para cambios', value: `${formatDateTime(q.changes_requested_at)} · ${q.changes_requested_reason ?? ''}`, tone: 'text-orange-700' }]
+    : []),
+  ...(q.authorized_at ? [{ label: 'Autorizada', value: formatDateTime(q.authorized_at), tone: 'text-emerald-700' }] : []),
+  ...(q.director_notes ? [{ label: 'Notas de Dirección', value: q.director_notes }] : []),
+  ...(q.converted_at ? [{ label: 'Convertida en OV', value: `${formatDateTime(q.converted_at)} · OV-${String(q.sales_order_id ?? '').padStart(4, '0')}`, tone: 'text-indigo-700' }] : []),
+  ...(q.lost_at ? [{ label: 'Perdida', value: `${formatDateTime(q.lost_at)} · ${q.lost_reason ?? ''}`, tone: 'text-rose-700' }] : []),
+  ...(q.expired_at ? [{ label: 'Vencida', value: formatDateTime(q.expired_at), tone: 'text-amber-700' }] : []),
+  ...(q.cancelled_at ? [{ label: 'Cancelada', value: `${formatDateTime(q.cancelled_at)} · ${q.cancel_reason ?? ''}`, tone: 'text-red-700' }] : []),
+];
+
+const textAreaClass = 'w-full p-3 border border-slate-300 rounded text-sm min-h-[110px] resize-y bg-white disabled:bg-slate-100 disabled:text-slate-500';
 
 const QuotationDetailPage: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const quotationId = Number(id);
 
   const { data: quotation, isLoading, isError } = useQuotation(quotationId);
-  const sendMutation = useSendQuotation();
-  const acceptMutation = useAcceptQuotation();
-  const rejectMutation = useRejectQuotation();
-  const cancelMutation = useCancelQuotation();
-  const convertMutation = useConvertQuotation();
-
-  const [pdfLoading, setPdfLoading] = useState(false);
-  const [sendConfirm, setSendConfirm] = useState(false);
-  const [acceptConfirm, setAcceptConfirm] = useState(false);
-  const [convertConfirm, setConvertConfirm] = useState(false);
-  const [reasonModal, setReasonModal] = useState<{ open: boolean; kind: ReasonModalKind }>({
-    open: false,
-    kind: 'cancel',
-  });
-  const [reasonText, setReasonText] = useState('');
-
-  const processing =
-    sendMutation.isPending ||
-    acceptMutation.isPending ||
-    rejectMutation.isPending ||
-    cancelMutation.isPending ||
-    convertMutation.isPending;
+  const [pending, setPending] = useState<PendingQuotationAction | null>(null);
+  const [reviewing, setReviewing] = useState(false);
+  const [notes, setNotes] = useState('');
+  const [conditions, setConditions] = useState('');
+  const [savingTexts, setSavingTexts] = useState(false);
 
   useEffect(() => {
-    if (!Number.isFinite(quotationId)) navigate('/quotations');
+    if (!Number.isFinite(quotationId)) navigate('/sales');
   }, [quotationId, navigate]);
 
   useEffect(() => {
     if (isError) {
       toast.error('No se pudo cargar la cotización.');
-      navigate('/quotations');
+      navigate('/sales');
     }
   }, [isError, navigate]);
 
-  const activeItems = useMemo(
-    () => (quotation?.items ?? []).filter((i) => !i.is_cancelled),
-    [quotation],
-  );
+  useEffect(() => {
+    setNotes(quotation?.notes ?? '');
+    setConditions(quotation?.conditions ?? '');
+  }, [quotation]);
 
   const itemColumns: VTableColumn<QuotationItem>[] = useMemo(() => [
-    { key: 'product_name', label: 'Producto', sortable: true },
     {
-      key: 'quantity',
-      label: 'Cantidad',
-      sortable: true,
-      render: (row) => row.quantity.toLocaleString('en-US', { maximumFractionDigits: 2 }),
+      key: 'product_name',
+      label: 'Producto',
+      render: (row) => (
+        <>
+          <span className="font-bold text-slate-800">{row.product_name}</span>
+          {row.commercial_description && <p className="text-xs text-slate-500 mt-0.5">{row.commercial_description}</p>}
+        </>
+      ),
     },
-    {
-      key: 'unit_price',
-      label: 'Precio unit.',
-      render: (row) => formatQuotationCurrency(row.unit_price),
-    },
-    {
-      key: 'subtotal_price',
-      label: 'Subtotal',
-      render: (row) => formatQuotationCurrency(row.subtotal_price ?? row.quantity * row.unit_price),
-    },
+    { key: 'quantity', label: 'Cantidad', render: (row) => row.quantity.toLocaleString('en-US', { maximumFractionDigits: 2 }) },
+    { key: 'unit_price', label: 'Precio unit.', render: (row) => formatQuotationCurrency(row.unit_price) },
+    { key: 'subtotal_price', label: 'Importe', render: (row) => formatQuotationCurrency(row.subtotal_price ?? row.quantity * row.unit_price) },
   ], []);
-
-  const handleReasonConfirm = async () => {
-    if (!quotation) return;
-    const reason = reasonText.trim();
-    if (!reason) {
-      toast.warning('El motivo es obligatorio.');
-      return;
-    }
-    try {
-      if (reasonModal.kind === 'cancel') {
-        await cancelMutation.mutateAsync({ id: quotation.id, reason });
-        toast.success('Cotización cancelada.');
-      } else {
-        await rejectMutation.mutateAsync({ id: quotation.id, reason });
-        toast.success('Cotización rechazada.');
-      }
-      setReasonModal({ open: false, kind: 'cancel' });
-      setReasonText('');
-    } catch {
-      /* toast en hook */
-    }
-  };
-
-  const handleConvert = async () => {
-    if (!quotation) return;
-    try {
-      const result = await convertMutation.mutateAsync(quotation.id);
-      toast.success(result.message || 'Orden de venta creada.');
-      setConvertConfirm(false);
-      navigate(`/sales/edit/${result.sales_order_id}`);
-    } catch {
-      /* toast en hook */
-    }
-  };
-
-  const handlePdf = async () => {
-    if (!quotation) return;
-    setPdfLoading(true);
-    try {
-      await quotationService.openQuotationPdf(quotation.id);
-    } catch {
-      toast.error('Error al generar el PDF.');
-    } finally {
-      setPdfLoading(false);
-    }
-  };
 
   if (isLoading || !quotation) {
     return (
@@ -175,32 +110,51 @@ const QuotationDetailPage: React.FC = () => {
     );
   }
 
-  const isDraft = quotation.status === 'DRAFT';
-  const isSent = quotation.status === 'SENT';
-  const isAccepted = quotation.status === 'ACCEPTED';
-  const isRejected = quotation.status === 'REJECTED';
+  const textsEditable = canManageQuotations()
+    && (EDITABLE_QUOTATION_STATUSES.includes(quotation.status) || quotation.status === 'AUTHORIZED');
+  const textsChanged = notes !== (quotation.notes ?? '') || conditions !== (quotation.conditions ?? '');
+
+  const refresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['quotations'] });
+    await queryClient.invalidateQueries({ queryKey: ['quotation', quotation.id] });
+  };
+
+  const handlePdf = async () => {
+    try {
+      await quotationService.openQuotationPdf(quotation.id);
+    } catch {
+      toast.error('Error al generar el PDF.');
+    }
+  };
+
+  const saveTexts = async () => {
+    setSavingTexts(true);
+    try {
+      await quotationService.updateQuotation(quotation.id, { notes, conditions });
+      toast.success('Notas y condiciones guardadas.');
+      await refresh();
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'No se pudieron guardar las notas.'));
+    } finally {
+      setSavingTexts(false);
+    }
+  };
 
   return (
     <div className="p-6 max-w-[1200px] mx-auto space-y-6">
       <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => navigate('/quotations')}
-          className="p-2 rounded-lg hover:bg-slate-100 text-slate-500"
-          title="Volver"
-        >
+        <button type="button" onClick={() => navigate('/sales')} className="p-2 rounded-lg hover:bg-slate-100 text-slate-500" title="Volver">
           <ArrowLeft size={20} />
         </button>
         <div className="flex-1">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-black text-slate-800">{formatQuotationFolio(quotation.id)}</h1>
-            <Badge className={statusBadgeClass(quotation.status)}>
-              {QUOTATION_STATUS_LABELS[quotation.status]}
-            </Badge>
+            <h1 className="text-2xl font-black text-slate-800">{quotation.folio}</h1>
+            <span className={`rounded-full px-3 py-1 text-xs font-bold ${quotationStatusBadgeClass(quotation.status)}`}>{QUOTATION_STATUS_LABELS[quotation.status]}</span>
+            <RecordHistoryButton tableName="quotations" recordId={quotation.id} label={quotation.folio} />
           </div>
           <p className="text-sm text-slate-500 mt-1">{quotation.project_name}</p>
         </div>
-        <Button variant="outline" onClick={handlePdf} disabled={pdfLoading || processing} className="gap-2">
+        <Button variant="outline" onClick={handlePdf} className="gap-2">
           <FileDown size={16} /> PDF
         </Button>
       </div>
@@ -212,65 +166,40 @@ const QuotationDetailPage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
               <div>
                 <p className="text-slate-400 font-bold text-xs uppercase">Cliente</p>
-                <p className="font-bold text-slate-800">{quotation.client?.business_name ?? '—'}</p>
+                <p className="font-bold text-slate-800">{quotation.client?.full_name ?? '—'}</p>
               </div>
               <div>
-                <p className="text-slate-400 font-bold text-xs uppercase">Proyecto</p>
-                <p className="font-bold text-slate-800">{quotation.project_name}</p>
+                <p className="text-slate-400 font-bold text-xs uppercase">Vendedor</p>
+                <p className="font-bold text-slate-800">{quotation.user?.full_name ?? '—'}</p>
               </div>
               <div>
                 <p className="text-slate-400 font-bold text-xs uppercase">Válida hasta</p>
-                <p className="font-medium text-slate-700">{formatDateTime(quotation.valid_until)}</p>
+                <p className="font-medium text-slate-700">{formatDate(quotation.valid_until)}</p>
               </div>
               <div>
-                <p className="text-slate-400 font-bold text-xs uppercase">Creada</p>
-                <p className="font-medium text-slate-700">{formatDateTime(quotation.created_at)}</p>
+                <p className="text-slate-400 font-bold text-xs uppercase">Anticipo</p>
+                <p className="font-medium text-slate-700">{Number(quotation.advance_percent).toFixed(2)}%</p>
               </div>
-              {quotation.sent_at && (
-                <div>
-                  <p className="text-slate-400 font-bold text-xs uppercase">Enviada</p>
-                  <p className="font-medium text-slate-700">{formatDateTime(quotation.sent_at)}</p>
-                </div>
-              )}
-              {quotation.accepted_at && (
-                <div>
-                  <p className="text-slate-400 font-bold text-xs uppercase">Aceptada</p>
-                  <p className="font-medium text-slate-700">{formatDateTime(quotation.accepted_at)}</p>
-                </div>
-              )}
-              {quotation.rejected_at && (
-                <div>
-                  <p className="text-slate-400 font-bold text-xs uppercase">Rechazada</p>
-                  <p className="font-medium text-slate-700">{formatDateTime(quotation.rejected_at)}</p>
-                </div>
-              )}
-              {quotation.reject_reason && (
-                <div className="sm:col-span-2">
-                  <p className="text-slate-400 font-bold text-xs uppercase">Motivo rechazo</p>
-                  <p className="font-medium text-orange-700">{quotation.reject_reason}</p>
-                </div>
-              )}
-              {quotation.cancel_reason && (
-                <div className="sm:col-span-2">
-                  <p className="text-slate-400 font-bold text-xs uppercase">Motivo cancelación</p>
-                  <p className="font-medium text-red-700">{quotation.cancel_reason}</p>
-                </div>
-              )}
             </div>
-            {(quotation.notes || quotation.conditions) && (
-              <div className="pt-4 border-t border-slate-100 space-y-3 text-sm">
-                {quotation.notes && (
-                  <div>
-                    <p className="text-slate-400 font-bold text-xs uppercase mb-1">Notas</p>
-                    <p className="text-slate-600 whitespace-pre-wrap">{quotation.notes}</p>
-                  </div>
-                )}
-                {quotation.conditions && (
-                  <div>
-                    <p className="text-slate-400 font-bold text-xs uppercase mb-1">Condiciones</p>
-                    <p className="text-slate-600 whitespace-pre-wrap">{quotation.conditions}</p>
-                  </div>
-                )}
+            <div className="pt-4 border-t border-slate-100 space-y-2 text-sm">
+              {timeline(quotation).map((row) => (
+                <div key={row.label} className="flex flex-wrap gap-2">
+                  <span className="w-48 shrink-0 text-xs font-bold uppercase text-slate-400">{row.label}</span>
+                  <span className={`font-medium ${row.tone ?? 'text-slate-700'}`}>{row.value}</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card className="p-6 space-y-3">
+            <h2 className="text-sm font-black uppercase text-slate-500 tracking-wider">Notas y condiciones del formato</h2>
+            <textarea className={textAreaClass} disabled={!textsEditable || savingTexts} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notas / introducción" />
+            <textarea className={textAreaClass} disabled={!textsEditable || savingTexts} value={conditions} onChange={(e) => setConditions(e.target.value)} placeholder="Condiciones comerciales" />
+            {textsEditable && (
+              <div className="flex justify-end">
+                <Button onClick={saveTexts} disabled={!textsChanged || savingTexts} className="gap-2">
+                  <Save size={16} /> {savingTexts ? 'Guardando…' : 'Guardar notas'}
+                </Button>
               </div>
             )}
           </Card>
@@ -279,8 +208,8 @@ const QuotationDetailPage: React.FC = () => {
             <h2 className="text-sm font-black uppercase text-slate-500 tracking-wider mb-4">Partidas</h2>
             <VTable
               columns={itemColumns}
-              data={activeItems as unknown as Record<string, unknown>[] as QuotationItem[]}
-              emptyState={{ title: 'Sin partidas activas' }}
+              data={quotation.items}
+              emptyState={{ title: 'Sin partidas', description: 'Edita la cotización para agregar productos.' }}
               className="border-0 shadow-none"
             />
           </Card>
@@ -305,192 +234,30 @@ const QuotationDetailPage: React.FC = () => {
 
           <Card className="p-6 space-y-3">
             <h2 className="text-sm font-black uppercase text-slate-500 tracking-wider">Acciones</h2>
-
-            {isDraft && (
-              <>
-                <Button
-                  variant="outline"
-                  className="w-full gap-2"
-                  onClick={() => navigate(`/quotations/edit/${quotation.id}`)}
-                  disabled={processing}
-                >
-                  <Pencil size={16} /> Editar
-                </Button>
-                <Button className="w-full gap-2" onClick={() => setSendConfirm(true)} disabled={processing}>
-                  <Send size={16} /> Enviar al cliente
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full gap-2 text-red-600 border-red-200 hover:bg-red-50"
-                  onClick={() => {
-                    setReasonModal({ open: true, kind: 'cancel' });
-                    setReasonText('');
-                  }}
-                  disabled={processing}
-                >
-                  <XCircle size={16} /> Cancelar
-                </Button>
-              </>
-            )}
-
-            {isSent && (
-              <>
-                <Button className="w-full gap-2" onClick={() => setAcceptConfirm(true)} disabled={processing}>
-                  <CheckCircle size={16} /> Cliente acepta
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full gap-2 text-orange-600 border-orange-200 hover:bg-orange-50"
-                  onClick={() => {
-                    setReasonModal({ open: true, kind: 'reject' });
-                    setReasonText('');
-                  }}
-                  disabled={processing}
-                >
-                  <Ban size={16} /> Cliente rechaza
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full gap-2 text-red-600 border-red-200 hover:bg-red-50"
-                  onClick={() => {
-                    setReasonModal({ open: true, kind: 'cancel' });
-                    setReasonText('');
-                  }}
-                  disabled={processing}
-                >
-                  <XCircle size={16} /> Cancelar
-                </Button>
-              </>
-            )}
-
-            {isAccepted && (
-              <>
-                {quotation.sales_order_id ? (
-                  <Button
-                    variant="outline"
-                    className="w-full gap-2"
-                    onClick={() => navigate(`/sales/edit/${quotation.sales_order_id}`)}
-                  >
-                    <ArrowRightCircle size={16} /> Ver OV #{quotation.sales_order_id}
-                  </Button>
-                ) : (
-                  <Button className="w-full gap-2" onClick={() => setConvertConfirm(true)} disabled={processing}>
-                    <ArrowRightCircle size={16} /> Convertir a OV
-                  </Button>
-                )}
-              </>
-            )}
-
-            {isRejected && (
-              <Button
-                className="w-full gap-2"
-                onClick={() => navigate('/quotations/new', { state: { cloneFrom: quotation } })}
-              >
-                <CopyPlus size={16} /> Nueva versión
-              </Button>
-            )}
-
-            {!isDraft && !isSent && !isAccepted && !isRejected && (
-              <p className="text-sm text-slate-400 text-center py-2">Solo lectura</p>
+            <QuotationRowActions
+              quotation={quotation}
+              onView={() => undefined}
+              hideView
+              onEdit={() => navigate(`/quotations/edit/${quotation.id}`)}
+              onReview={() => setReviewing(true)}
+              onPdf={handlePdf}
+              onAction={(kind: QuotationActionKind) => setPending({ kind, quotation })}
+            />
+            {quotation.status === 'PENDING_AUTH' && (
+              <p className="text-xs text-slate-500 text-center">En revisión de Dirección: no se puede editar.</p>
             )}
           </Card>
         </div>
       </div>
 
-      <VConfirmDialog
-        isOpen={sendConfirm}
-        title="Enviar cotización"
-        message="¿Enviar esta cotización al cliente? No podrá editarse después."
-        confirmLabel="Enviar"
-        onConfirm={async () => {
-          setSendConfirm(false);
-          try {
-            await sendMutation.mutateAsync(quotation.id);
-            toast.success('Cotización enviada.');
-          } catch {
-            /* toast en hook */
-          }
-        }}
-        onCancel={() => setSendConfirm(false)}
-      />
+      <QuotationActionDialogs pending={pending} onClose={() => setPending(null)} onDone={refresh} />
 
-      <VConfirmDialog
-        isOpen={acceptConfirm}
-        title="Aceptar cotización"
-        message="¿Confirmar que el cliente aceptó esta cotización?"
-        confirmLabel="Aceptar"
-        onConfirm={async () => {
-          setAcceptConfirm(false);
-          try {
-            await acceptMutation.mutateAsync(quotation.id);
-            toast.success('Cotización aceptada.');
-          } catch {
-            /* toast en hook */
-          }
-        }}
-        onCancel={() => setAcceptConfirm(false)}
-      />
-
-      <VConfirmDialog
-        isOpen={convertConfirm}
-        title="Convertir a Orden de Venta"
-        message="¿Convertir esta cotización en una Orden de Venta?"
-        consequence="Se creará una OV vinculada. Esta acción no se puede deshacer."
-        confirmLabel="Convertir"
-        onConfirm={handleConvert}
-        onCancel={() => setConvertConfirm(false)}
-      />
-
-      {reasonModal.open && (
-        <Modal
-          isOpen
-          onClose={() => {
-            if (processing) return;
-            setReasonModal({ open: false, kind: 'cancel' });
-            setReasonText('');
-          }}
-          title={reasonModal.kind === 'cancel' ? 'Cancelar cotización' : 'Rechazar cotización'}
-          size="sm"
-        >
-          <div className="space-y-4">
-            <p className="text-sm text-slate-600">
-              {reasonModal.kind === 'cancel'
-                ? 'Indica el motivo de la cancelación.'
-                : 'Indica el motivo del rechazo del cliente.'}
-            </p>
-            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {reasonModal.kind === 'cancel'
-                ? 'La cotización quedará cancelada con trazabilidad.'
-                : 'La cotización quedará rechazada. Podrás crear una nueva versión.'}
-            </div>
-            <Input
-              value={reasonText}
-              onChange={(e) => setReasonText(e.target.value)}
-              placeholder="Motivo obligatorio..."
-            />
-            <div className="flex justify-between gap-3 pt-2">
-              <button
-                type="button"
-                disabled={processing}
-                onClick={() => {
-                  setReasonModal({ open: false, kind: 'cancel' });
-                  setReasonText('');
-                }}
-                className="px-6 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-black rounded-lg disabled:opacity-50"
-              >
-                Cerrar
-              </button>
-              <button
-                type="button"
-                disabled={processing}
-                onClick={handleReasonConfirm}
-                className="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white font-black rounded-lg disabled:opacity-50"
-              >
-                {processing ? 'Procesando...' : 'Confirmar'}
-              </button>
-            </div>
-          </div>
-        </Modal>
+      {reviewing && (
+        <FinancialReviewModal
+          quotationId={quotation.id}
+          onClose={() => setReviewing(false)}
+          onOrderUpdated={() => void refresh()}
+        />
       )}
     </div>
   );

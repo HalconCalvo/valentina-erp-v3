@@ -16,14 +16,15 @@ from app.models.sales import (
     SalesOrderItem,
     SalesOrderItemInstance,
     SalesOrderStatus,
+    InstanceStatus,
 )
+from app.models.production import InstallationAssignment, PayrollPayment, PayrollStatus
 from app.models.treasury import BankTransaction, TransactionType
 from app.models.users import User, UserRole
 from app.repositories import sales_repository as sales_repo
 from app.services.planning_service import compute_semaphore, compute_semaphore_label
 from app.schemas.sales_schema import (
     AddItemsPayload,
-    ClientPurchaseOrderPayload,
     CommissionPaidUpdate,
     CommissionPayrollUpdate,
     CommissionsPayrollOverview,
@@ -35,7 +36,6 @@ from app.schemas.sales_schema import (
     RegisterProgressPayload,
     PayrollCommissionRow,
     SalesCommissionRead,
-    SalesOrderCreate,
     SalesOrderItemCreate,
     SalesOrderItemInstanceRead,
     SalesOrderRead,
@@ -44,7 +44,6 @@ from app.schemas.sales_schema import (
     RetentionDefaultsUpdate,
     RetentionAlertRead,
 )
-from app.services.cost_engine import CostEngine
 from app.core.audit_context import audit_reason
 from app.services import audit_service, production_inventory_service
 from app.schemas.production_inventory_schema import OVCancelCreate
@@ -558,72 +557,27 @@ def _require_order(session: Session, order_id: int) -> SalesOrder:
     return order
 
 
-def request_authorization(session: Session, order_id: int) -> SalesOrder:
-    order = _require_order(session, order_id)
-    if order.status != SalesOrderStatus.DRAFT:
-        raise HTTPException(status_code=400, detail="La OV debe estar en DRAFT para solicitar autorización.")
-    order.status = SalesOrderStatus.SENT
-    session.add(order)
-    session.commit()
-    session.refresh(order)
-    return order
+def create_instances_for_order(session: Session, order: SalesOrder) -> int:
+    """One instance per unit of each non-resale item. Idempotent: items that already have instances are skipped."""
+    created = 0
+    for item in order.items:
+        if item.is_resale or sales_repo.item_has_instances(session, item.id):
+            continue
+        qty_int = int(item.quantity) if item.quantity and item.quantity > 0 else 1
+        for i in range(1, qty_int + 1):
+            session.add(SalesOrderItemInstance(
+                sales_order_item_id=item.id,
+                custom_name=f"{item.product_name} - Instancia {i}",
+                production_status=InstanceStatus.PENDING,
+            ))
+            created += 1
+    return created
 
 
-def authorize_order(session: Session, order_id: int) -> SalesOrder:
-    order = _require_order(session, order_id)
-    if order.status != SalesOrderStatus.SENT:
-        raise HTTPException(status_code=400, detail="La OV debe estar en SENT para autorizar.")
-    order.status = SalesOrderStatus.ACCEPTED
-    session.add(order)
-    session.commit()
-    session.refresh(order)
-    return order
 
 
-def mark_waiting_advance(
-    session: Session,
-    order_id: int,
-    current_user: User,
-    payload: ClientPurchaseOrderPayload,
-) -> SalesOrder:
-    folio = (payload.client_po_folio or "").strip()
-    if not folio:
-        raise HTTPException(status_code=400, detail="El folio de la OC del cliente es obligatorio.")
-    if not payload.client_po_date:
-        raise HTTPException(status_code=400, detail="La fecha de la OC del cliente es obligatoria.")
 
-    order = sales_repo.get_sales_order_by_id(session, order_id)
-    if not order:
-        raise HTTPException(status_code=404, detail="No encontrada")
-    if order.status != SalesOrderStatus.ACCEPTED:
-        raise HTTPException(status_code=400, detail="La OV debe estar en ACCEPTED.")
-    if _is_seller_scoped_role(current_user) and order.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Acceso denegado")
 
-    analysis = CostEngine.analyze_order_drift(session, order)
-    if not analysis["is_safe"]:
-        order.status = SalesOrderStatus.CHANGE_REQUESTED
-        session.add(order)
-        session.commit()
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"SEMÁFORO ROJO: Inflación del {analysis['variation_percent']}%. "
-                f"Supera el {analysis['tolerance_percent']}%. Requiere re-cotizar."
-            ),
-        )
-
-    order.client_po_folio = folio
-    order.client_po_date = payload.client_po_date
-
-    from app.api.v1.endpoints.sales import _create_instances_for_order
-
-    _create_instances_for_order(session, order)
-    order.status = SalesOrderStatus.WAITING_ADVANCE
-    session.add(order)
-    session.commit()
-    session.refresh(order)
-    return order
 
 
 def cancel_ov(
@@ -831,31 +785,10 @@ def confirm_payment(
     return order
 
 
-def request_changes(session: Session, order_id: int) -> SalesOrder:
-    order = _require_order(session, order_id)
-    order.status = SalesOrderStatus.DRAFT
-    session.add(order)
-    session.commit()
-    session.refresh(order)
-    return order
 
 
-def mark_lost(session: Session, order_id: int) -> SalesOrder:
-    order = _require_order(session, order_id)
-    order.status = SalesOrderStatus.CLIENT_REJECTED
-    session.add(order)
-    session.commit()
-    session.refresh(order)
-    return order
 
 
-def reject_order(session: Session, order_id: int) -> SalesOrder:
-    order = _require_order(session, order_id)
-    order.status = SalesOrderStatus.REJECTED
-    session.add(order)
-    session.commit()
-    session.refresh(order)
-    return order
 
 
 _INSTALLMENT_ROLES = {UserRole.DIRECTOR, UserRole.MANAGER}
@@ -1235,8 +1168,6 @@ def register_progress_invoice(
     session.add(new_cxc)
     session.flush()
 
-    from app.models.production import PayrollPayment, PayrollStatus, InstallationAssignment
-
     linked = []
     for inst in candidates:
         inst.customer_payment_id = new_cxc.id
@@ -1395,7 +1326,6 @@ def cancel_customer_payment(
 
 _ORDER_EDIT_ROLES = {UserRole.DIRECTOR, UserRole.MANAGER, UserRole.SALES}
 _AMPLIABLE_STATUSES = {
-    SalesOrderStatus.ACCEPTED,
     SalesOrderStatus.WAITING_ADVANCE,
     SalesOrderStatus.SOLD,
     SalesOrderStatus.IN_PRODUCTION,
@@ -1476,69 +1406,6 @@ def _persist_order_item(
     return db_item
 
 
-def create_order(session: Session, order_in: SalesOrderCreate, current_user: User) -> SalesOrder:
-    try:
-        if not order_in.items:
-            raise HTTPException(status_code=422, detail="La OV debe incluir al menos una partida.")
-        tax_rate = sales_repo.get_tax_rate_by_id(session, order_in.tax_rate_id)
-        if not tax_rate:
-            raise HTTPException(status_code=400, detail="Tasa de impuestos inválida")
-
-        raw_commission = current_user.commission_rate if current_user.commission_rate is not None else 0.0
-        applied_commission = normalize_commission(raw_commission)
-
-        db_order = SalesOrder(
-            project_name=order_in.project_name,
-            client_id=order_in.client_id,
-            tax_rate_id=order_in.tax_rate_id,
-            user_id=current_user.id,
-            applied_commission_percent=applied_commission,
-            valid_until=order_in.valid_until,
-            delivery_date=order_in.delivery_date,
-            applied_margin_percent=order_in.applied_margin_percent,
-            applied_tolerance_percent=order_in.applied_tolerance_percent,
-            advance_percent=order_in.advance_percent,
-            has_advance_invoice=order_in.has_advance_invoice,
-            currency=order_in.currency,
-            notes=order_in.notes,
-            conditions=order_in.conditions,
-            external_invoice_ref=order_in.external_invoice_ref,
-            is_warranty=order_in.is_warranty,
-            status=SalesOrderStatus.DRAFT,
-            created_at=datetime.utcnow(),
-        )
-        session.add(db_order)
-        session.commit()
-        session.refresh(db_order)
-
-        items_sum = 0.0
-        for item_in in order_in.items:
-            snapshot_data, calculated_frozen_cost = _build_item_snapshot(session, item_in)
-            line_amount = item_in.quantity * item_in.unit_price
-            items_sum += line_amount
-            _persist_order_item(session, db_order.id, item_in, snapshot_data, calculated_frozen_cost, line_amount)
-            session.flush()
-
-        commission_amount = items_sum - (items_sum / (1 + applied_commission)) if applied_commission > 0 else 0.0
-        tax_amount = items_sum * tax_rate.rate
-        total_price = items_sum + tax_amount
-
-        db_order.commission_amount = commission_amount
-        db_order.subtotal = items_sum
-        db_order.tax_amount = tax_amount
-        db_order.total_price = total_price
-        db_order.outstanding_balance = total_price
-
-        session.add(db_order)
-        session.commit()
-        session.refresh(db_order)
-        return db_order
-    except HTTPException:
-        session.rollback()
-        raise
-    except Exception as e:
-        session.rollback()
-        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 def update_order(
@@ -1552,7 +1419,6 @@ def update_order(
         raise HTTPException(status_code=403, detail="Acceso denegado")
 
     update_data = order_update.model_dump(exclude_unset=True)
-    items_data = update_data.pop("items", None)
 
     if not _can_edit_client_po_meta(current_user):
         update_data.pop("client_po_folio", None)
@@ -1562,30 +1428,6 @@ def update_order(
         setattr(db_order, key, value)
     if "applied_commission_percent" in update_data:
         db_order.applied_commission_percent = normalize_commission(update_data["applied_commission_percent"])
-
-    if items_data is not None:
-        sales_repo.clear_order_items_and_instances(session, order_id)
-        items_sum = 0.0
-        for item_in in order_update.items:
-            snapshot_data, calculated_frozen_cost = _build_item_snapshot(session, item_in)
-            qty = item_in.quantity or 0
-            price = item_in.unit_price or 0
-            line_amount = qty * price
-            items_sum += line_amount
-            _persist_order_item(session, db_order.id, item_in, snapshot_data, calculated_frozen_cost, line_amount)
-            session.flush()
-
-        comm_percent = db_order.applied_commission_percent or 0.0
-        commission_amount = items_sum - (items_sum / (1 + comm_percent)) if comm_percent > 0 else 0.0
-        tax_rate_obj = sales_repo.get_tax_rate_by_id(session, db_order.tax_rate_id)
-        tax_multiplier = tax_rate_obj.rate if tax_rate_obj else 0.16
-        tax_total = items_sum * tax_multiplier
-
-        db_order.subtotal = items_sum
-        db_order.commission_amount = commission_amount
-        db_order.tax_amount = tax_total
-        db_order.total_price = items_sum + tax_total
-        db_order.outstanding_balance = db_order.total_price
 
     session.add(db_order)
     session.commit()
@@ -1607,7 +1449,7 @@ def add_items_to_order(
             status_code=409,
             detail=(
                 f"No se puede ampliar una orden en estado {order.status}. "
-                "Solo órdenes en curso (ACEPTADA, ESPERANDO ANTICIPO, VENDIDA, EN PRODUCCIÓN)."
+                "Solo órdenes en curso (ESPERANDO ANTICIPO, VENDIDA, EN PRODUCCIÓN)."
             ),
         )
     if not payload.items:
@@ -1624,9 +1466,7 @@ def add_items_to_order(
 
     session.flush()
     order = sales_repo.get_order_by_id(session, order_id)
-    from app.api.v1.endpoints.sales import _create_instances_for_order
-
-    _create_instances_for_order(session, order)
+    create_instances_for_order(session, order)
 
     tax_rate_obj = sales_repo.get_tax_rate_by_id(session, order.tax_rate_id)
     tax_multiplier = tax_rate_obj.rate if tax_rate_obj else 0.16

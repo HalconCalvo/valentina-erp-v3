@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from sqlalchemy import func
-from sqlmodel import Session, select, delete
+from sqlmodel import Session, select
 from sqlalchemy.orm import selectinload
 
 from app.models.design import ProductVersion
@@ -139,6 +139,11 @@ def get_items_by_order(session: Session, order_id: int) -> List[SalesOrderItem]:
     return list(
         session.exec(select(SalesOrderItem).where(SalesOrderItem.sales_order_id == order_id)).all()
     )
+
+
+def item_has_instances(session: Session, item_id: int) -> bool:
+    stmt = select(SalesOrderItemInstance.id).where(SalesOrderItemInstance.sales_order_item_id == item_id)
+    return session.exec(stmt).first() is not None
 
 
 def get_active_instances_by_item(session: Session, item_id: int) -> List[SalesOrderItemInstance]:
@@ -351,14 +356,3 @@ def get_commissions_payroll_overview_data(session: Session) -> dict:
         "ready": ready,
         "paid": paid,
     }
-
-
-def clear_order_items_and_instances(session: Session, order_id: int) -> None:
-    for item in get_items_by_order(session, order_id):
-        session.exec(
-            delete(SalesOrderItemInstance).where(
-                SalesOrderItemInstance.sales_order_item_id == item.id
-            )
-        )
-    session.exec(delete(SalesOrderItem).where(SalesOrderItem.sales_order_id == order_id))
-    session.flush()

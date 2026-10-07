@@ -18,12 +18,13 @@ vi.mock('../api/quotation-service', () => ({
     getQuotation: vi.fn(),
     createQuotation: vi.fn(),
     updateQuotation: vi.fn(),
-    sendQuotation: vi.fn(),
-    acceptQuotation: vi.fn(),
-    rejectQuotation: vi.fn(),
+    requestAuthorization: vi.fn(),
+    authorize: vi.fn(),
+    requestChanges: vi.fn(),
+    markLost: vi.fn(),
     cancelQuotation: vi.fn(),
+    renew: vi.fn(),
     convertToOrder: vi.fn(),
-    getQuotationPdf: vi.fn(),
     openQuotationPdf: vi.fn(),
   },
   formatQuotationCurrency: vi.fn(),
@@ -97,6 +98,7 @@ describe('useQuotations hooks', () => {
     };
     const created = {
       id: 10,
+      folio: 'COT-0010',
       status: 'DRAFT' as const,
       project_name: payload.project_name,
       client_id: payload.client_id,
@@ -126,6 +128,7 @@ describe('useQuotations hooks', () => {
   });
 
   it('useConvertQuotation invalida el cache correctamente', async () => {
+    const po = { client_po_folio: 'OC-1', client_po_date: '2026-10-07T12:00:00' };
     vi.mocked(quotationService.convertToOrder).mockResolvedValue({
       quotation_id: 5,
       sales_order_id: 99,
@@ -140,10 +143,10 @@ describe('useQuotations hooks', () => {
     });
 
     await act(async () => {
-      await result.current.mutateAsync(5);
+      await result.current.mutateAsync({ id: 5, po });
     });
 
-    expect(quotationService.convertToOrder).toHaveBeenCalledWith(5);
+    expect(quotationService.convertToOrder).toHaveBeenCalledWith(5, po);
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['quotations'] });
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: quotationQueryKeys.detail(5),

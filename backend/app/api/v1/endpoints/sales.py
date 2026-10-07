@@ -1,6 +1,7 @@
 from typing import Optional, List, Any, Dict
-from datetime import datetime
+from datetime import date, datetime
 import math
+import re
 from fastapi import APIRouter, Depends, HTTPException, status, Body, Query, UploadFile, File
 from sqlmodel import Session, select, delete
 from sqlalchemy import func
@@ -24,7 +25,6 @@ from app.models.treasury import BankAccount, BankTransaction, TransactionType
 from app.services.pdf_generator import PDFGenerator
 
 # --- IMPORTAMOS LOS MOTORES (V3.5) ---
-from app.services.cost_engine import CostEngine
 from app.services import sales_service
 from app.services import inventory_service, legacy_import_service
 from app.schemas.legacy_import_schema import LegacyImportPreviewRead, LegacyImportRead
@@ -32,7 +32,7 @@ from app.schemas.production_inventory_schema import OVCancelCreate
 from app.repositories import sales_repository as sales_repo
 
 from app.schemas.sales_schema import (
-    SalesOrderCreate, SalesOrderRead, SalesOrderUpdate,
+    SalesOrderRead, SalesOrderUpdate,
     SalesOrderItemCreate,
     AddItemsPayload,
     CustomerPaymentRead,
@@ -44,7 +44,6 @@ from app.schemas.sales_schema import (
     SalesOrderItemInstanceRead,
     InstanceDeliveryDeadlineUpdate,
     PaymentPayload,
-    ClientPurchaseOrderPayload,
     ResaleItemPatch,
     ProductionItemPatch,
     RegisterProgressPayload,
@@ -117,36 +116,6 @@ def normalize_commission(rate: float | None) -> float:
     return rate
 
 
-def _create_instances_for_order(session: Session, order: SalesOrder) -> int:
-    """
-    Crea las instancias (Productos Vendidos) de una orden al generar la OV.
-    Una instancia por cada unidad de cada item. Idempotente: si el item ya tiene
-    instancias, no las duplica.
-    Devuelve el número de instancias creadas.
-    """
-    created = 0
-    for item in order.items:
-        if getattr(item, 'is_resale', False):
-            continue
-        # Idempotencia: si este item ya tiene instancias, saltarlo
-        existing = session.exec(
-            select(SalesOrderItemInstance).where(
-                SalesOrderItemInstance.sales_order_item_id == item.id
-            )
-        ).first()
-        if existing:
-            continue
-        qty_int = int(item.quantity) if item.quantity and item.quantity > 0 else 1
-        for i in range(1, qty_int + 1):
-            session.add(SalesOrderItemInstance(
-                sales_order_item_id=item.id,
-                custom_name=f"{item.product_name} - Instancia {i}",
-                production_status=InstanceStatus.PENDING
-            ))
-            created += 1
-    return created
-
-
 def _recalculate_order_totals(session: Session, order: SalesOrder) -> None:
     """
     Recalcula subtotal, comision, IVA y total de una orden desde sus items
@@ -177,17 +146,6 @@ def _recalculate_order_totals(session: Session, order: SalesOrder) -> None:
     order.outstanding_balance = (order.outstanding_balance or 0.0) + delta_total
     session.add(order)
 
-
-# ==========================================
-# 1. CREAR ORDEN
-# ==========================================
-@router.post("/orders", response_model=SalesOrderRead)
-def create_sales_order(
-    order_in: SalesOrderCreate,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
-):
-    return sales_service.create_order(session, order_in, current_user)
 
 # ==========================================
 # 2. LISTAR ORDENES
@@ -562,7 +520,6 @@ def add_instance_to_item(
         ).all()
         # Numerar por el mayor sufijo numerico existente + 1 (no por conteo,
         # que duplica cuando hay huecos por instancias borradas).
-        import re
         max_n = 0
         for inst in existing:
             m = re.search(r'Instancia\s+(\d+)\s*$', inst.custom_name or '')
@@ -593,28 +550,8 @@ def add_instance_to_item(
 
 
 # ==========================================
-# 5. WORKFLOW: AUTORIZACIÓN Y SEMÁFORO
+# 5. CANCELACIÓN DE OV (las cotizaciones viven en /quotations)
 # ==========================================
-@router.post("/orders/{order_id}/request-auth", response_model=SalesOrderRead)
-def request_order_authorization(order_id: int, session: Session = Depends(get_session)):
-    return sales_service.request_authorization(session, order_id)
-
-
-@router.post("/orders/{order_id}/authorize", response_model=SalesOrderRead)
-def authorize_order(order_id: int, session: Session = Depends(get_session)):
-    return sales_service.authorize_order(session, order_id)
-
-
-@router.post("/orders/{order_id}/mark_waiting_advance", response_model=SalesOrderRead)
-def mark_as_waiting_advance(
-    order_id: int,
-    payload: ClientPurchaseOrderPayload,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
-):
-    return sales_service.mark_waiting_advance(session, order_id, current_user, payload)
-
-
 @router.post("/orders/{order_id}/cancel_ov", response_model=SalesOrderRead)
 def cancel_ov(
     order_id: int,
@@ -731,7 +668,11 @@ def register_advance_payment(order_id: int, payload: PaymentPayload,
     return order
 
 @router.get("/orders/{order_id}/pdf")
-def download_quote_pdf(order_id: int, session: Session = Depends(get_session)):
+def download_quote_pdf(
+    order_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
     """
     DESCARGA DE PDF DE COTIZACIÓN
     """
@@ -754,39 +695,16 @@ def download_quote_pdf(order_id: int, session: Session = Depends(get_session)):
         config=config, 
         seller_name=seller_name, 
         seller_email=seller_email,
-        seller_phone=seller_phone
+        seller_phone=seller_phone,
+        folio=f"OV-{order.id:04d}",
     )
 
-    filename = f"Cotizacion_{order.id}.pdf"
+    filename = f"OV_{order.id}.pdf"
     return StreamingResponse(
         pdf_buffer, 
         media_type="application/pdf", 
         headers={"Content-Disposition": f'inline; filename="{filename}"'}
     )
-
-# ==========================================
-# RECHAZAR COTIZACIÓN (REGRESAR A DRAFT)
-# ==========================================
-@router.post("/orders/{order_id}/request_changes", response_model=SalesOrderRead)
-def request_order_changes(order_id: int, session: Session = Depends(get_session)):
-    return sales_service.request_changes(session, order_id)
-
-
-# ==========================================
-# MARCAR COMO PERDIDA (CLIENTE NO ACEPTÓ)
-# ==========================================
-@router.post("/orders/{order_id}/mark_lost", response_model=SalesOrderRead)
-def mark_order_lost(order_id: int, session: Session = Depends(get_session)):
-    return sales_service.mark_lost(session, order_id)
-
-
-# ==========================================
-# RECHAZAR COTIZACIÓN (DIRECCIÓN → VENDEDOR)
-# ==========================================
-@router.post("/orders/{order_id}/reject", response_model=SalesOrderRead)
-def reject_order(order_id: int, session: Session = Depends(get_session)):
-    return sales_service.reject_order(session, order_id)
-
 
 # ==========================================
 # REGISTRAR AVANCE DE OBRA (🟢🟢 → FACTURA DE AVANCE)
@@ -1047,19 +965,6 @@ def get_pending_progress_instances(
     instances = session.exec(_pending_progress_instances_base_stmt()).all()
     return [_instance_to_progress_dict(inst) for inst in instances]
 
-
-@router.delete("/orders/{order_id}")
-def delete_sales_order(order_id: int, session: Session = Depends(get_session)):
-    """
-    ELIMINAR COTIZACIÓN
-    """
-    order = session.get(SalesOrder, order_id)
-    if not order:
-        raise HTTPException(status_code=404, detail="Cotización no encontrada")
-        
-    session.delete(order)
-    session.commit()
-    return {"ok": True}
 
 # ==========================================
 # 7. CONTROL DE NÓMINA (TESORERÍA)
@@ -1364,9 +1269,6 @@ def update_instance_delivery_deadline(
     current_user: User = Depends(get_current_active_user),
 ):
     """Actualizar delivery_deadline de una instancia. Solo DIRECTOR, MANAGER, DESIGN."""
-    from app.models.sales import SalesOrderItemInstance
-    from datetime import date
-
     allowed_roles = {"DIRECTOR", "MANAGER", "DESIGN"}
     if current_user.role not in allowed_roles:
         raise HTTPException(status_code=403, detail="No autorizado para modificar fechas de entrega")
@@ -1376,7 +1278,6 @@ def update_instance_delivery_deadline(
         raise HTTPException(status_code=404, detail="Instancia no encontrada")
 
     # Verificar que pertenece a la OV
-    from app.models.sales import SalesOrderItem
     item = session.get(SalesOrderItem, inst.sales_order_item_id)
     if not item or item.sales_order_id != order_id:
         raise HTTPException(status_code=404, detail="Instancia no pertenece a esta OV")
@@ -1391,7 +1292,6 @@ def update_instance_delivery_deadline(
         except ValueError:
             raise HTTPException(status_code=400, detail="Fecha inválida")
 
-    from sqlmodel import select
     inst.delivery_deadline = deadline
     session.add(inst)
 

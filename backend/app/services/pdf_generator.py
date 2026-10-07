@@ -1,14 +1,22 @@
 import os
 import ssl 
+import textwrap
+from datetime import date as date_type, datetime
 from io import BytesIO
 from urllib.request import urlopen
 from reportlab.lib.pagesizes import LETTER
 from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image, KeepTogether
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image, KeepTogether, HRFlowable
+from reportlab.pdfgen import canvas as pdf_canvas
+import qrcode
+from PIL import Image as PILImage
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch, cm
 from reportlab.lib.enums import TA_RIGHT, TA_LEFT
 from reportlab.lib.utils import ImageReader
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 class PDFGenerator:
     def __init__(self):
@@ -91,7 +99,7 @@ class PDFGenerator:
         
         canvas.restoreState()
 
-    def generate_quote_pdf(self, order, client, config, seller_name="Departamento de Ventas", seller_email="", seller_phone="") -> BytesIO:
+    def generate_quote_pdf(self, order, client, config, seller_name="Departamento de Ventas", seller_email="", seller_phone="", folio=None) -> BytesIO:
         buffer = BytesIO()
         
         doc = SimpleDocTemplate(
@@ -114,6 +122,8 @@ class PDFGenerator:
             date_str = f"Mérida, Yucatán a {day} de {month} de {year}"
         except:
             date_str = "Fecha no disponible"
+        if folio:
+            date_str = f"{date_str}<br/><b>Folio: {folio}</b>"
 
         # --- 2. ENCABEZADO Y LOGO ---
         logo_image_obj = None 
@@ -130,7 +140,7 @@ class PDFGenerator:
                         img_data = response.read()
                     logo_image_obj = BytesIO(img_data)
                 except Exception as e:
-                    print(f"Advertencia: No se pudo descargar el logo desde la nube: {e}")
+                    logger.warning("pdf_asset_warning", detail="Advertencia: No se pudo descargar el logo desde la nube", error=str(e))
                     logo_image_obj = None
             elif os.path.exists(logo_url):
                  logo_image_obj = logo_url
@@ -161,7 +171,7 @@ class PDFGenerator:
                 img.hAlign = 'LEFT'
                 header_content.append([img, Paragraph(date_str, self.styles['DateStyle'])])
             except Exception as e:
-                print(f"Error procesando imagen para PDF: {e}")
+                logger.warning("pdf_asset_warning", detail="Error procesando imagen para PDF", error=str(e))
                 header_content.append([
                     Paragraph(f"<b>{company_title}</b>", self.styles['Heading3']), 
                     Paragraph(date_str, self.styles['DateStyle'])
@@ -308,7 +318,6 @@ class PDFGenerator:
     # EL NUEVO GENERADOR DE ORDEN DE COMPRA
     # ==========================================================
     def generate_po_pdf(self, order, provider, config) -> BytesIO:
-        from datetime import datetime
         buffer = BytesIO()
         doc = SimpleDocTemplate(
             buffer, pagesize=LETTER,
@@ -337,7 +346,7 @@ class PDFGenerator:
                         img_data = response.read()
                     logo_image_obj = BytesIO(img_data)
                 except Exception as e:
-                    print(f"Advertencia: No se pudo descargar el logo: {e}")
+                    logger.warning("pdf_asset_warning", detail="Advertencia: No se pudo descargar el logo", error=str(e))
             elif os.path.exists(logo_url):
                  logo_image_obj = logo_url
 
@@ -513,9 +522,6 @@ class PDFGenerator:
         Genera el Manifiesto de Viaje para piezas de Piedra.
         Tamaño: Carta (LETTER). Sin tabla de materiales.
         """
-        from datetime import datetime
-        from reportlab.platypus import HRFlowable
-        import qrcode
 
         buffer = BytesIO()
         doc = SimpleDocTemplate(
@@ -545,7 +551,7 @@ class PDFGenerator:
                         img_data = response.read()
                     logo_image_obj = BytesIO(img_data)
                 except Exception as e:
-                    print(f"Advertencia logo: {e}")
+                    logger.warning("pdf_asset_warning", detail="Advertencia logo", error=str(e))
             elif os.path.exists(logo_url):
                 logo_image_obj = logo_url
 
@@ -713,7 +719,7 @@ class PDFGenerator:
                                alignment=1, fontSize=8)
             ))
         except Exception as e:
-            print(f"Error generando QR: {e}")
+            logger.warning("pdf_asset_warning", detail="Error generando QR", error=str(e))
             elements.append(Paragraph(
                 f"QR: {qr_uuid}",
                 label_center
@@ -740,8 +746,6 @@ class PDFGenerator:
         """
         PDF del reporte de pagos a proveedor por periodo y filtro de estatus.
         """
-        from datetime import datetime, date as date_type
-        from reportlab.platypus import HRFlowable
 
         buffer = BytesIO()
         doc = SimpleDocTemplate(
@@ -778,7 +782,6 @@ class PDFGenerator:
                         img_data = response.read()
                     # Optimizar: reducir a máx 1000px de ancho y recomprimir
                     try:
-                        from PIL import Image as PILImage
                         raw = BytesIO(img_data)
                         pil_img = PILImage.open(raw)
                         max_width = 1000
@@ -795,10 +798,10 @@ class PDFGenerator:
                         out.seek(0)
                         logo_image_obj = out
                     except Exception as opt_e:
-                        print(f"Advertencia optimización logo: {opt_e}")
+                        logger.warning("pdf_asset_warning", detail="Advertencia optimización logo", error=str(opt_e))
                         logo_image_obj = BytesIO(img_data)
                 except Exception as e:
-                    print(f"Advertencia logo: {e}")
+                    logger.warning("pdf_asset_warning", detail="Advertencia logo", error=str(e))
             elif os.path.exists(logo_url):
                 logo_image_obj = logo_url
 
@@ -960,9 +963,6 @@ class PDFGenerator:
         tamaño 10x6.5cm. 'labels' es la lista de LabelBundle (bundle_number,
         total_bundles, bundle_type) de generate_all_labels.
         """
-        import qrcode
-        import textwrap
-        from reportlab.pdfgen import canvas as pdf_canvas
 
         page_w, page_h = 10 * cm, 6.5 * cm
         margin = 0.4 * cm

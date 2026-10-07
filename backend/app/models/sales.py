@@ -64,11 +64,13 @@ class InstanceStatus(str, enum.Enum):
 
 
 class QuotationStatus(str, enum.Enum):
-    DRAFT = "DRAFT"
-    SENT = "SENT"
-    ACCEPTED = "ACCEPTED"
-    REJECTED = "REJECTED"
-    EXPIRED = "EXPIRED"
+    DRAFT = "DRAFT"                          # Seller is working on it
+    PENDING_AUTH = "PENDING_AUTH"            # Waiting for the Director
+    CHANGES_REQUESTED = "CHANGES_REQUESTED"  # Returned with a reason; editable again
+    AUTHORIZED = "AUTHORIZED"                # Approved by the Director; can be sent to the client
+    CONVERTED = "CONVERTED"                  # Client PO received; the sales order was created
+    LOST = "LOST"                            # The client did not accept
+    EXPIRED = "EXPIRED"                      # Validity date passed
     CANCELLED = "CANCELLED"
 
 # ==========================================
@@ -316,11 +318,16 @@ class Quotation(SQLModel, table=True):
     external_invoice_ref: Optional[str] = None
     is_warranty: bool = Field(default=False)
 
-    sent_at: Optional[datetime] = Field(default=None)
-    accepted_at: Optional[datetime] = Field(default=None)
-    rejected_at: Optional[datetime] = Field(default=None)
-    reject_reason: Optional[str] = Field(default=None)
-    rejected_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    auth_requested_at: Optional[datetime] = Field(default=None)
+    authorized_at: Optional[datetime] = Field(default=None)
+    authorized_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    director_notes: Optional[str] = Field(default=None)
+    changes_requested_at: Optional[datetime] = Field(default=None)
+    changes_requested_reason: Optional[str] = Field(default=None)
+    changes_requested_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    lost_at: Optional[datetime] = Field(default=None)
+    lost_reason: Optional[str] = Field(default=None)
+    converted_at: Optional[datetime] = Field(default=None)
     expired_at: Optional[datetime] = Field(default=None)
     cancelled_at: Optional[datetime] = Field(default=None)
     cancel_reason: Optional[str] = Field(default=None)

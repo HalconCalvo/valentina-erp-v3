@@ -2,10 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { quotationService } from '../api/quotation-service';
 import { toast } from '@/components/ui/VToast';
 import {
+  ClientPurchaseOrder,
   Quotation,
   QuotationCreatePayload,
   QuotationListFilters,
-  QuotationUpdatePayload,
 } from '../types/quotations';
 
 export const quotationQueryKeys = {
@@ -13,7 +13,7 @@ export const quotationQueryKeys = {
   detail: (id: number) => ['quotation', id] as const,
 };
 
-function getErrorMessage(error: unknown, fallback: string): string {
+export function getErrorMessage(error: unknown, fallback: string): string {
   const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
   return typeof detail === 'string' ? detail : fallback;
 }
@@ -46,74 +46,23 @@ export function useCreateQuotation() {
   });
 }
 
-export function useUpdateQuotation() {
+/**
+ * Any change of state of a quotation (request authorization, return, lost, cancel, renew...).
+ * Refreshes the list and the detail; the error message comes from the backend.
+ */
+export function useQuotationTransition<TArgs>(
+  action: (args: TArgs) => Promise<Quotation>,
+  fallbackError: string,
+) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: QuotationUpdatePayload }) =>
-      quotationService.updateQuotation(id, data),
-    onSuccess: (quotation: Quotation) => {
-      queryClient.invalidateQueries({ queryKey: quotationQueryKeys.detail(quotation.id) });
-    },
-    onError: (error) => {
-      toast.error(getErrorMessage(error, 'No se pudo actualizar la cotización.'));
-    },
-  });
-}
-
-export function useSendQuotation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => quotationService.sendQuotation(id),
+    mutationFn: action,
     onSuccess: (quotation: Quotation) => {
       queryClient.invalidateQueries({ queryKey: ['quotations'] });
       queryClient.invalidateQueries({ queryKey: quotationQueryKeys.detail(quotation.id) });
     },
     onError: (error) => {
-      toast.error(getErrorMessage(error, 'No se pudo enviar la cotización.'));
-    },
-  });
-}
-
-export function useAcceptQuotation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => quotationService.acceptQuotation(id),
-    onSuccess: (quotation: Quotation) => {
-      queryClient.invalidateQueries({ queryKey: ['quotations'] });
-      queryClient.invalidateQueries({ queryKey: quotationQueryKeys.detail(quotation.id) });
-    },
-    onError: (error) => {
-      toast.error(getErrorMessage(error, 'No se pudo aceptar la cotización.'));
-    },
-  });
-}
-
-export function useRejectQuotation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
-      quotationService.rejectQuotation(id, reason),
-    onSuccess: (quotation: Quotation) => {
-      queryClient.invalidateQueries({ queryKey: ['quotations'] });
-      queryClient.invalidateQueries({ queryKey: quotationQueryKeys.detail(quotation.id) });
-    },
-    onError: (error) => {
-      toast.error(getErrorMessage(error, 'No se pudo rechazar la cotización.'));
-    },
-  });
-}
-
-export function useCancelQuotation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
-      quotationService.cancelQuotation(id, reason),
-    onSuccess: (quotation: Quotation) => {
-      queryClient.invalidateQueries({ queryKey: ['quotations'] });
-      queryClient.invalidateQueries({ queryKey: quotationQueryKeys.detail(quotation.id) });
-    },
-    onError: (error) => {
-      toast.error(getErrorMessage(error, 'No se pudo cancelar la cotización.'));
+      toast.error(getErrorMessage(error, fallbackError));
     },
   });
 }
@@ -121,13 +70,14 @@ export function useCancelQuotation() {
 export function useConvertQuotation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => quotationService.convertToOrder(id),
-    onSuccess: (_result, id) => {
+    mutationFn: ({ id, po }: { id: number; po: ClientPurchaseOrder }) => quotationService.convertToOrder(id, po),
+    onSettled: (_result, _error, { id }) => {
+      // A blocked conversion (expired or cost drift) also changes the quotation status.
       queryClient.invalidateQueries({ queryKey: ['quotations'] });
       queryClient.invalidateQueries({ queryKey: quotationQueryKeys.detail(id) });
     },
     onError: (error) => {
-      toast.error(getErrorMessage(error, 'No se pudo convertir a OV.'));
+      toast.error(getErrorMessage(error, 'No se pudo generar la OV.'));
     },
   });
 }

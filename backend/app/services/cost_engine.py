@@ -1,15 +1,15 @@
 from sqlmodel import Session, select
 from app.models.material import Material
 from app.models.design import ProductVersion
-from app.models.sales import SalesOrder
 from app.models.foundations import GlobalConfig
 
 class CostEngine:
     @staticmethod
-    def analyze_order_drift(session: Session, order: SalesOrder) -> dict:
+    def analyze_items_drift(session: Session, items: list) -> dict:
         """
         MOTOR DE AUDITORÍA DE INFLACIÓN (V3.5)
         Compara los costos congelados en la cotización vs los costos reales de almacén hoy.
+        Acepta partidas de OV o de cotización (product_name, quantity, frozen_unit_cost, origin_version_id).
         """
         # 1. Obtener tolerancia global (por defecto 3%)
         config = session.exec(select(GlobalConfig)).first()
@@ -19,7 +19,7 @@ class CostEngine:
         total_current_cost = 0.0
         alerts = []
 
-        for item in order.items:
+        for item in items:
             qty = item.quantity
             total_frozen_cost += (item.frozen_unit_cost * qty)
             

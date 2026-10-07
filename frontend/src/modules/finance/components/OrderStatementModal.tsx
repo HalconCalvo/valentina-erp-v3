@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { X, Receipt, CheckCircle, Clock, FileText, Package, AlertCircle, PieChart, Users, Coins, Pencil, Plus, PlusCircle, Trash2, Check, XCircle, ChevronDown, ChevronRight, Shield } from 'lucide-react';
 import { SalesOrder, CustomerPayment, RetentionAlertRead } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
@@ -414,7 +413,6 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     onOrderPatch,
     readOnly = false,
 }) => {
-    const navigate = useNavigate();
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase();
     const hasAbsolutePower = ['ADMIN', 'ADMINISTRADOR', 'ADMINISTRACIÓN', 'ADMINISTRATION', 'FINANCE', 'FINANZAS', 'DIRECTOR', 'DIRECCION', 'DIRECTION', 'MANAGER'].includes(userRole);
     const canEditOcInRayos = !readOnly && ['ADMIN', 'ADMINISTRADOR', 'MANAGER', 'DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
@@ -424,7 +422,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const canManageRetention = ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'MANAGER'].includes(userRole);
     const canExpandOrder =
         ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'MANAGER', 'SALES', 'VENTAS', 'ADMIN', 'ADMINISTRADOR'].includes(userRole)
-        && ['ACCEPTED', 'WAITING_ADVANCE', 'SOLD', 'IN_PRODUCTION'].includes((order as any).status);
+        && ['WAITING_ADVANCE', 'SOLD', 'IN_PRODUCTION'].includes((order as any).status);
     const canEditDeliveryDeadline = [
         'DIRECTOR',
         'DIRECCION',
@@ -1650,13 +1648,6 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                 <Plus size={14} /> Ampliar Orden
                             </button>
                         )}
-                        <button
-                            type="button"
-                            onClick={() => { onClose(); navigate(`/sales/edit/${order.id}`); }}
-                            className="flex items-center gap-1 px-3 py-1.5 text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors"
-                        >
-                            <Pencil size={14} /> Editar OV
-                        </button>
                         <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors">
                             <X size={20} />
                         </button>

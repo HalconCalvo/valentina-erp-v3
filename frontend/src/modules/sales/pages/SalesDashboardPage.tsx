@@ -6,7 +6,7 @@ import {
     ArrowLeft, Plus, TrendingUp, Wallet, Clock, 
     AlertTriangle, CheckCircle, ShieldAlert, BadgeDollarSign,
     FileSignature, FileSearch, CalendarClock, Lock, Unlock,
-    ArrowLeftCircle, XCircle, Send, FileDown, RefreshCcw, Archive,
+    ArrowLeftCircle, XCircle, FileDown, RefreshCcw, Archive,
     ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 
@@ -14,11 +14,8 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import Badge from '@/components/ui/Badge';
-import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import {
-    TableActionCancelIcon,
-    TableActionEditIcon,
     TableActionViewIcon,
     TABLE_ACTION_ICON_SIZE,
 } from '@/lib/tableActionIcons';
@@ -37,19 +34,21 @@ import { OrderStatementModal } from '../../finance/components/OrderStatementModa
 import { aggregateCarteraMonitorTotals } from '../utils/receivableCxcOrders';
 import { useCurrentUser } from '../../../hooks/useSalesDashboard';
 import { useSalesOrders, receivablesQueryKeys } from '../../../hooks/useReceivables';
+import { useQuotations } from '../../../hooks/useQuotations';
+import { quotationService, QUOTATION_STATUS_LABELS } from '../../../api/quotation-service';
+import type { Quotation } from '../../../types/quotations';
+import {
+    PendingQuotationAction,
+    QuotationActionDialogs,
+    QuotationActionKind,
+    QuotationRowActions,
+    quotationStatusBadgeClass,
+} from '../components/QuotationActions';
 
 type SalesSection = 'GOALS' | 'QUOTES' | 'COLLECTIONS' | 'MONITOR' | null;
 type GoalDetailView = 'COMMISSIONS' | 'CLOSED' | 'STREET' | 'EFFECTIVENESS' | null;
 type QuoteDetailView = 'DRAFTS' | 'REVIEW' | 'AUTHORIZED' | 'EXPIRING' | 'HISTORY' | null;
 type CollectionDetailView = 'RETAINED' | 'PAYABLE' | 'ADVANCES' | 'AR_AGING' | null;
-
-type SalesPendingConfirm =
-    | { kind: 'REQUEST_AUTH'; orderId: number }
-    | { kind: 'GENERATE_OV'; orderId: number }
-    | { kind: 'DUPLICATE_OV'; orderId: number; folio: string; dateStrYmd: string; duplicateId: number; projectName: string }
-    | { kind: 'REQUEST_CHANGES'; orderId: number }
-    | { kind: 'MARK_LOST'; orderId: number }
-    | { kind: 'DELETE_DRAFT'; orderId: number };
 
 const COLLECTION_DETAIL_KEYS: CollectionDetailView[] = ['RETAINED', 'PAYABLE', 'ADVANCES', 'AR_AGING'];
 
@@ -90,6 +89,13 @@ function isClientPoDateInCurrentMonth(clientPoDate: string | null | undefined): 
     return y === n.getFullYear() && m === n.getMonth() + 1;
 }
 
+/** Open quotation whose validity ends within the radar window, or already expired (needs renewal). */
+function isExpiringQuotation(q: Quotation, limit: Date): boolean {
+    if (q.status === 'EXPIRED') return true;
+    if (!q.valid_until || !['DRAFT', 'CHANGES_REQUESTED', 'PENDING_AUTH', 'AUTHORIZED'].includes(q.status)) return false;
+    return new Date(q.valid_until) <= limit;
+}
+
 function quotaProgressToneClass(pct: number): string {
     if (pct <= 20) return 'text-red-600';
     if (pct <= 40) return 'text-orange-500';
@@ -103,86 +109,6 @@ function readStoredCollectionView(): CollectionDetailView {
     return raw as CollectionDetailView;
 }
 
-/**
- * Captura OC solo para flujo &quot;Generar OV&quot;. Inputs no controlados desde el padre:
- * al teclear no se re-renderiza SalesDashboardPage; el estado vive en el DOM del modal.
- */
-const ClientOcCaptureModal: React.FC<{
-    orderId: number;
-    onCancel: () => void;
-    onConfirm: (orderId: number, folio: string, dateStrYmd: string) => Promise<void>;
-    isSubmitting: boolean;
-}> = ({ orderId, onCancel, onConfirm, isSubmitting }) => {
-    const [folio, setFolio] = useState('');
-    const [dateStr, setDateStr] = useState(() => new Date().toISOString().slice(0, 10));
-
-    const handleSubmit = async () => {
-        const trimmed = folio.trim();
-        if (!trimmed) {
-            toast.warning('Ingresa el folio de la OC del cliente.');
-            return;
-        }
-        if (!dateStr) {
-            toast.warning('Selecciona la fecha de la OC del cliente.');
-            return;
-        }
-        await onConfirm(orderId, trimmed, dateStr);
-    };
-
-    return (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-slate-200">
-                <h3 className="text-lg font-black text-slate-800 mb-1">Generar OV — Orden de compra del cliente</h3>
-                <p className="text-sm text-slate-500 mb-4">
-                    Captura folio y fecha de la OC del cliente. Con esto se valida el semáforo financiero y la cotización pasa a &quot;Esperando anticipo&quot;.
-                </p>
-                <div className="space-y-4">
-                    <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase">Folio de la OC</label>
-                        <Input
-                            className="mt-1"
-                            value={folio}
-                            onChange={(e) => setFolio(e.target.value)}
-                            placeholder="Ej. OC-2026-0042"
-                            autoFocus
-                            disabled={isSubmitting}
-                        />
-                    </div>
-                    <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase">Fecha de la OC</label>
-                        <Input
-                            className="mt-1"
-                            type="date"
-                            value={dateStr}
-                            onChange={(e) => setDateStr(e.target.value)}
-                            disabled={isSubmitting}
-                        />
-                    </div>
-                </div>
-                <div className="flex gap-3 mt-6">
-                    <Button
-                        variant="outline"
-                        className="flex-1"
-                        disabled={isSubmitting}
-                        onClick={() => {
-                            onCancel();
-                        }}
-                    >
-                        Cancelar
-                    </Button>
-                    <Button
-                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                        disabled={isSubmitting}
-                        onClick={() => void handleSubmit()}
-                    >
-                        Generar OV y ejecutar semáforo
-                    </Button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
 const SalesDashboardPage: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -192,7 +118,7 @@ const SalesDashboardPage: React.FC = () => {
     const userRole  = (localStorage.getItem('user_role') || '').toUpperCase().trim();
     const canAudit  = ['DIRECTOR', 'MANAGER', 'ADMIN', 'ADMINISTRADOR'].includes(userRole);
 
-    const [actionLoading, setActionLoading] = useState(false);
+    const [, setActionLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
 
     // ESTADOS PARA ORDENAMIENTO DE COLUMNAS (AÑADIDOS DATE Y FOLIO)
@@ -248,16 +174,20 @@ const SalesDashboardPage: React.FC = () => {
     });
 
     const [monthlyQuota, setMonthlyQuota] = useState(0);
-    const [ocModalOpen, setOcModalOpen] = useState(false);
-    const [ocModalOrderId, setOcModalOrderId] = useState<number | null>(null);
-    const [pendingConfirm, setPendingConfirm] = useState<SalesPendingConfirm | null>(null);
+    const [quotationAction, setQuotationAction] = useState<PendingQuotationAction | null>(null);
+    const [reviewQuotationId, setReviewQuotationId] = useState<number | null>(null);
 
     const { data: currentUser } = useCurrentUser();
     const {
         data: orders = [],
         isError: ordersError,
         refetch: refetchOrders,
-    } = useSalesOrders({ pausePolling: ocModalOpen });
+    } = useSalesOrders({ pausePolling: quotationAction !== null });
+    const {
+        data: quotations = [],
+        isError: quotationsError,
+        refetch: refetchQuotations,
+    } = useQuotations();
 
     useEffect(() => {
         if (!currentUser) {
@@ -269,8 +199,12 @@ const SalesDashboardPage: React.FC = () => {
     }, [currentUser]);
 
     useEffect(() => {
-        if (ordersError) toast.error('Error al cargar cotizaciones.');
+        if (ordersError) toast.error('Error al cargar las órdenes de venta.');
     }, [ordersError]);
+
+    useEffect(() => {
+        if (quotationsError) toast.error('Error al cargar cotizaciones.');
+    }, [quotationsError]);
 
     useEffect(() => {
         if (location.state?.reset) {
@@ -299,7 +233,7 @@ const SalesDashboardPage: React.FC = () => {
         });
     }, [queryClient]);
 
-    const calculateMetrics = useCallback((allOrders: SalesOrder[]) => {
+    const calculateMetrics = useCallback((allOrders: SalesOrder[], allQuotations: Quotation[]) => {
         let closedSalesMonth = 0;
         let closedOrdersMonthCount = 0;
 
@@ -309,15 +243,27 @@ const SalesDashboardPage: React.FC = () => {
             drafts: 0, draftsVal: 0, inReview: 0, reviewVal: 0, authorized: 0, authVal: 0, expiring: 0, expiringVal: 0,
             retainedComm: 0, retainedCount: 0, payableComm: 0, payableCount: 0, pendingAdvance: 0, advanceVal: 0, pendingInvoices: 0, invoicesVal: 0, finalInvoices: 0, finalInvoicesVal: 0,
             activeProjectsCount: 0,
-            historyCount: allOrders.length,
+            historyCount: allQuotations.length,
             quotaProgressPct: null as number | null,
             quotaProgressTone: 'text-slate-500',
             monthlyQuota: Number(monthlyQuota) || 0,
         };
 
-        let lostCount = 0;
         const fifteenDaysFromNow = new Date();
         fifteenDaysFromNow.setDate(new Date().getDate() + 15);
+
+        // Quotations: pipeline before the client's purchase order.
+        let lostCount = 0;
+        allQuotations.forEach(q => {
+            const price = Number(q.total_price) || 0;
+            const comm = Number(q.commission_amount) || 0;
+            if (q.status === 'LOST') lostCount++;
+            if (['PENDING_AUTH', 'AUTHORIZED'].includes(q.status)) { s.moneyOnStreet += comm; s.streetCount++; }
+            if (['DRAFT', 'CHANGES_REQUESTED'].includes(q.status)) { s.drafts++; s.draftsVal += price; }
+            if (q.status === 'PENDING_AUTH') { s.inReview++; s.reviewVal += price; }
+            if (q.status === 'AUTHORIZED') { s.authorized++; s.authVal += price; }
+            if (isExpiringQuotation(q, fifteenDaysFromNow)) { s.expiring++; s.expiringVal += price; }
+        });
 
         allOrders.forEach(o => {
             const st = normalizeSalesStatus(o.status);
@@ -343,18 +289,8 @@ const SalesDashboardPage: React.FC = () => {
                 s.payableCount++;
             }
 
-            if (st === 'CLIENT_REJECTED') lostCount++;
-            if (['ACCEPTED', 'WAITING_ADVANCE', 'SENT'].includes(st)) { s.moneyOnStreet += comm; s.streetCount++; }
-            if (['DRAFT', 'CHANGE_REQUESTED', 'REJECTED'].includes(st)) { s.drafts++; s.draftsVal += price; }
-            if (st === 'SENT') { s.inReview++; s.reviewVal += price; }
-            if (st === 'ACCEPTED') { s.authorized++; s.authVal += price; }
-
-            if (o.valid_until && ['DRAFT', 'ACCEPTED', 'SENT'].includes(st)) {
-                const validDate = new Date(o.valid_until);
-                if (validDate <= fifteenDaysFromNow) { s.expiring++; s.expiringVal += price; }
-            }
-
-            if (['ACCEPTED', 'WAITING_ADVANCE'].includes(st)) { s.retainedComm += comm; s.retainedCount++; }
+            if (st === 'WAITING_ADVANCE') { s.moneyOnStreet += comm; s.streetCount++; }
+            if (st === 'WAITING_ADVANCE') { s.retainedComm += comm; s.retainedCount++; }
             
             if (['WAITING_ADVANCE', 'SOLD', 'IN_PRODUCTION', 'FINISHED', 'COMPLETED'].includes(st)) {
                 s.activeProjectsCount++;
@@ -389,78 +325,37 @@ const SalesDashboardPage: React.FC = () => {
     }, [monthlyQuota]);
 
     useEffect(() => {
-        calculateMetrics(orders);
-    }, [orders, calculateMetrics]);
+        calculateMetrics(orders, quotations);
+    }, [orders, quotations, calculateMetrics]);
 
-    const executeRequestAuth = async (orderId: number) => {
-        setActionLoading(true);
-        try {
-            const token = localStorage.getItem('token');
-            const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
-            const response = await fetch(`${baseUrl}/sales/orders/${orderId}/request-auth`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (!response.ok) throw new Error('Error al solicitar autorización');
-            patchOrderInCache(orderId, { status: 'SENT' as SalesOrder['status'] });
-            await refetchOrders();
-        } catch {
-            toast.error('Hubo un problema al enviar la cotización a revisión.');
-            setActionLoading(false);
-        }
-    };
+    const ACTIVE_ORDER_STATUSES = ['WAITING_ADVANCE', 'SOLD', 'IN_PRODUCTION', 'FINISHED', 'COMPLETED'];
 
-    const handleRequestAuth = (orderId: number) => {
-        setPendingConfirm({ kind: 'REQUEST_AUTH', orderId });
-    };
-
-    /** Solo desde cotización ACCEPTED — acción &quot;Generar OV&quot; (no reutilizar para otras filas). */
-    const openClientOcModal = (orderId: number) => {
-        setPendingConfirm({ kind: 'GENERATE_OV', orderId });
-    };
-
-    const executeAdvanceRequest = async (orderId: number, folio: string, dateStrYmd: string) => {
-        setActionLoading(true);
-        try {
-            const client_po_date = `${dateStrYmd}T12:00:00`;
-            await salesService.requestAdvance(orderId, { client_po_folio: folio, client_po_date });
-            setOcModalOpen(false);
-            setOcModalOrderId(null);
-            toast.success("SEMÁFORO VERDE: Los costos son estables. La orden ha pasado a 'Esperando Anticipo'.");
-            await refetchOrders();
-        } catch (error: any) {
-            if (error.response?.status === 409) {
-                toast.error(error.response?.data?.detail || 'Alerta financiera: variación de costos superior al umbral.');
-                await refetchOrders();
-            } else {
-                toast.error(error.response?.data?.detail || 'Error al procesar la orden de venta.');
-            }
-        } finally {
-            setActionLoading(false);
-        }
-    };
-
-    const submitClientOcModal = async (orderId: number, folio: string, dateStrYmd: string) => {
-        const ACTIVE_STATUSES = ['WAITING_ADVANCE', 'SOLD', 'IN_PRODUCTION', 'FINISHED', 'COMPLETED'];
-        const current = orders.find(o => o.id === orderId);
-        const posibleDuplicado = current && orders.find(o =>
-            o.id !== current.id &&
-            o.client_id === current.client_id &&
-            (o.project_name || '').trim().toLowerCase() === (current.project_name || '').trim().toLowerCase() &&
-            ACTIVE_STATUSES.includes(o.status)
+    /** Warns before generating an OV when the client already has an active OV for the same project. */
+    const duplicateOrderWarning = (q: Quotation): string | undefined => {
+        const project = (q.project_name || '').trim().toLowerCase();
+        const duplicate = orders.find(o =>
+            o.client_id === q.client_id &&
+            (o.project_name || '').trim().toLowerCase() === project &&
+            ACTIVE_ORDER_STATUSES.includes(o.status)
         );
-        if (posibleDuplicado && current) {
-            setPendingConfirm({
-                kind: 'DUPLICATE_OV',
-                orderId,
-                folio,
-                dateStrYmd,
-                duplicateId: posibleDuplicado.id as number,
-                projectName: current.project_name || '',
-            });
-            return;
+        if (!duplicate) return undefined;
+        return `Ya existe una OV activa para este cliente y proyecto (OV-${String(duplicate.id).padStart(4, '0')}). Verifica que no sea un duplicado.`;
+    };
+
+    const openQuotationAction = (kind: QuotationActionKind, q: Quotation) => {
+        setQuotationAction({ kind, quotation: q, duplicateWarning: kind === 'CONVERT' ? duplicateOrderWarning(q) : undefined });
+    };
+
+    const refreshAfterQuotationAction = async () => {
+        await Promise.all([refetchQuotations(), refetchOrders()]);
+    };
+
+    const handleQuotationPdf = async (quotationId: number) => {
+        try {
+            await quotationService.openQuotationPdf(quotationId);
+        } catch {
+            toast.error('Error al generar el PDF de la cotización.');
         }
-        await executeAdvanceRequest(orderId, folio, dateStrYmd);
     };
 
     const handleViewPDF = async (orderId: number) => {
@@ -484,52 +379,6 @@ const SalesDashboardPage: React.FC = () => {
         }
     };
 
-    const executeRequestChanges = async (orderId: number) => {
-        setActionLoading(true);
-        try {
-            await client.post(`/sales/orders/${orderId}/request_changes`);
-            toast.success('Cotización desbloqueada. Búscala en tus Borradores para editarla.');
-            await refetchOrders();
-        } catch (error: any) {
-            toast.error(error.response?.data?.detail || 'Error al desbloquear la cotización.');
-            setActionLoading(false);
-        }
-    };
-
-    const handleRequestChanges = (orderId: number) => {
-        setPendingConfirm({ kind: 'REQUEST_CHANGES', orderId });
-    };
-
-    const executeMarkLost = async (orderId: number) => {
-        setActionLoading(true);
-        try {
-            await client.post(`/sales/orders/${orderId}/mark_lost`);
-            await refetchOrders();
-        } catch (error: any) {
-            toast.error(error.response?.data?.detail || 'Error al marcar la cotización como perdida.');
-            setActionLoading(false);
-        }
-    };
-
-    const handleMarkLost = (orderId: number) => {
-        setPendingConfirm({ kind: 'MARK_LOST', orderId });
-    };
-
-    const executeDeleteDraft = async (orderId: number) => {
-        setActionLoading(true);
-        try {
-            await client.delete(`/sales/orders/${orderId}`);
-            await refetchOrders();
-        } catch (error: any) {
-            toast.error(error.response?.data?.detail || 'Error al eliminar el borrador.');
-            setActionLoading(false);
-        }
-    };
-
-    const handleDeleteDraft = (orderId: number) => {
-        setPendingConfirm({ kind: 'DELETE_DRAFT', orderId });
-    };
-
     const formatCurrency = (amount: number) => amount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 
     const getCountSize = (count: number) => {
@@ -539,21 +388,14 @@ const SalesDashboardPage: React.FC = () => {
         return 'text-3xl';
     };
 
-    const getDocumentPrefix = (status: string) => {
-        return ['DRAFT', 'SENT', 'REJECTED', 'CHANGE_REQUESTED', 'CLIENT_REJECTED'].includes(status) ? 'COT' : 'OV';
-    };
 
     const getStatusLabel = (status: string) => {
         const labels: Record<string, string> = {
-            'DRAFT': 'Borrador',
-            'SENT': 'Esperando Autorización',
-            'ACCEPTED': 'Autorizada',
-            'REJECTED': 'Rechazada (Dirección)',
-            'CHANGE_REQUESTED': 'Cambios Solicitados',
             'WAITING_ADVANCE': 'Esperando Anticipo',
             'SOLD': 'Vendida / En Producción',
-            'CLIENT_REJECTED': 'Perdida',
             'INSTALLED': 'Instalada',
+            'CANCELLED': 'Cancelada',
+            'CANCELLED_OV': 'OV cancelada',
             'FINISHED': 'Finalizada Cerrada',
             'COMPLETED': 'Completada',
             'IN_PRODUCTION': 'En Producción'
@@ -564,11 +406,6 @@ const SalesDashboardPage: React.FC = () => {
     const getClientName = (order: SalesOrder) => {
         const o = order as any; 
         return o.client_name || o.client?.full_name || o.client?.name || o.customer?.name || 'Cliente por Defecto';
-    };
-
-    const getSellerName = (order: SalesOrder) => {
-        const oAny = order as any;
-        return oAny.user?.full_name || oAny.user?.username || (order.user_id ? `Asesor #${order.user_id}` : 'N/A');
     };
 
     // ---> LÓGICA DE ORDENAMIENTO EXTENDIDA <---
@@ -639,80 +476,83 @@ const SalesDashboardPage: React.FC = () => {
         }
     };
 
+    /** Row of the goal tables: an OV (closed sale) or a quotation (still in the client's hands, or lost). */
+    type GoalRow = {
+        kind: 'OV' | 'COT';
+        id: number;
+        folio: string;
+        project_name: string;
+        clientName: string;
+        statusLabel: string;
+        total_price: number;
+        commission_amount: number;
+        client_po_folio?: string | null;
+        client_po_date?: string | null;
+        won: boolean;
+    };
+
+    const orderRow = (o: SalesOrder): GoalRow => ({
+        kind: 'OV', id: o.id as number, folio: `OV-${String(o.id).padStart(4, '0')}`, project_name: o.project_name,
+        clientName: getClientName(o), statusLabel: getStatusLabel(o.status), total_price: Number(o.total_price) || 0,
+        commission_amount: Number(o.commission_amount) || 0, client_po_folio: (o as any).client_po_folio,
+        client_po_date: (o as any).client_po_date, won: statusInList(o.status, STATUSES_CLOSED_SALE),
+    });
+
+    const quotationRow = (q: Quotation): GoalRow => ({
+        kind: 'COT', id: q.id, folio: q.folio, project_name: q.project_name, clientName: q.client?.full_name || 'Cliente',
+        statusLabel: QUOTATION_STATUS_LABELS[q.status], total_price: Number(q.total_price) || 0,
+        commission_amount: Number(q.commission_amount) || 0, won: false,
+    });
+
     const renderGoalDetailTable = () => {
-        let filteredOrders: SalesOrder[] = [];
+        let rows: GoalRow[] = [];
         let emptyMessage = "No hay datos para mostrar.";
 
         if (activeGoalView === 'COMMISSIONS') {
-            filteredOrders = orders.filter(o => statusInList(o.status, STATUSES_COMMISSION_RECOGNIZED));
+            rows = orders.filter(o => statusInList(o.status, STATUSES_COMMISSION_RECOGNIZED)).map(orderRow);
             emptyMessage = "No tienes comisiones activas en proceso de entrega/cobro.";
         } 
         else if (activeGoalView === 'CLOSED') {
-            filteredOrders = orders.filter(o =>
+            rows = orders.filter(o =>
                 statusInList(o.status, STATUSES_CLOSED_SALE) && isClientPoDateInCurrentMonth(o.client_po_date)
-            );
+            ).map(orderRow);
             emptyMessage = "No hay ventas con OC registrada en el mes en curso. Si faltan datos historicos, pide a Administración completarlos en Rayos X.";
         } 
         else if (activeGoalView === 'STREET') {
-            filteredOrders = orders.filter(o => ['ACCEPTED', 'WAITING_ADVANCE', 'SENT'].includes(normalizeSalesStatus(o.status)));
+            rows = [
+                ...quotations.filter(q => ['PENDING_AUTH', 'AUTHORIZED'].includes(q.status)).map(quotationRow),
+                ...orders.filter(o => normalizeSalesStatus(o.status) === 'WAITING_ADVANCE').map(orderRow),
+            ];
             emptyMessage = "No tienes cotizaciones enviadas o esperando respuesta del cliente.";
         } 
         else if (activeGoalView === 'EFFECTIVENESS') {
-            filteredOrders = orders.filter(o =>
-                statusInList(o.status, STATUSES_CLOSED_SALE) || normalizeSalesStatus(o.status) === 'CLIENT_REJECTED'
-            );
+            rows = [
+                ...orders.filter(o => statusInList(o.status, STATUSES_CLOSED_SALE)).map(orderRow),
+                ...quotations.filter(q => q.status === 'LOST').map(quotationRow),
+            ];
             emptyMessage = "Aún no tienes proyectos ganados o perdidos para medir efectividad.";
         }
 
-        if (filteredOrders.length === 0) return <div className="text-center py-12 text-slate-500 bg-white rounded-xl border border-slate-200 mt-4 shadow-sm">{emptyMessage}</div>;
+        if (rows.length === 0) return <div className="text-center py-12 text-slate-500 bg-white rounded-xl border border-slate-200 mt-4 shadow-sm">{emptyMessage}</div>;
 
-        const goalColumns: VTableColumn<Record<string, unknown>>[] = [
-            {
-                key: 'client',
-                label: 'Cliente',
-                render: (row) => (
-                    <span className="font-medium text-slate-600">{getClientName(row as SalesOrder)}</span>
-                ),
-            },
+        const goalColumns: VTableColumn<GoalRow>[] = [
+            { key: 'clientName', label: 'Cliente', render: (row) => <span className="font-medium text-slate-600">{row.clientName}</span> },
             {
                 key: 'folio',
                 label: 'Folio / Proyecto',
-                render: (row) => {
-                    const order = row as SalesOrder;
-                    return (
-                        <span className="font-bold text-slate-800">
-                            {getDocumentPrefix(order.status)}-{order.id?.toString().padStart(4, '0')} - {order.project_name}
-                        </span>
-                    );
-                },
+                render: (row) => <span className="font-bold text-slate-800">{row.folio} - {row.project_name}</span>,
             },
-            {
-                key: 'status',
-                label: 'Estatus',
-                render: (row) => (
-                    <Badge variant="outline" className="bg-white">{getStatusLabel((row as SalesOrder).status)}</Badge>
-                ),
-            },
+            { key: 'statusLabel', label: 'Estatus', render: (row) => <Badge variant="secondary">{row.statusLabel}</Badge> },
         ];
 
         if (activeGoalView === 'CLOSED') {
             goalColumns.push(
-                {
-                    key: 'client_po_folio',
-                    label: 'Folio OC',
-                    render: (row) => (
-                        <span className="font-mono text-slate-700">{(row as any).client_po_folio || '—'}</span>
-                    ),
-                },
+                { key: 'client_po_folio', label: 'Folio OC', render: (row) => <span className="font-mono text-slate-700">{row.client_po_folio || '—'}</span> },
                 {
                     key: 'client_po_date',
                     label: 'Fecha OC',
                     render: (row) => (
-                        <span className="text-slate-600">
-                            {(row as any).client_po_date
-                                ? new Date((row as any).client_po_date).toLocaleDateString('es-MX')
-                                : '—'}
-                        </span>
+                        <span className="text-slate-600">{row.client_po_date ? new Date(row.client_po_date).toLocaleDateString('es-MX') : '—'}</span>
                     ),
                 },
             );
@@ -721,67 +561,55 @@ const SalesDashboardPage: React.FC = () => {
         goalColumns.push({
             key: 'total_price',
             label: 'Monto de Venta',
-            render: (row) => (
-                <span className="block text-right font-bold text-slate-700">
-                    {formatCurrency((row as SalesOrder).total_price || 0)}
-                </span>
-            ),
+            render: (row) => <span className="block text-right font-bold text-slate-700">{formatCurrency(row.total_price)}</span>,
         });
 
         if (['COMMISSIONS', 'CLOSED', 'STREET'].includes(activeGoalView || '')) {
             goalColumns.push({
                 key: 'commission_amount',
                 label: 'Tu Comisión',
-                render: (row) => (
-                    <span className="block text-right font-black text-emerald-600">
-                        {formatCurrency((row as SalesOrder).commission_amount || 0)}
-                    </span>
-                ),
+                render: (row) => <span className="block text-right font-black text-emerald-600">{formatCurrency(row.commission_amount)}</span>,
             });
         }
 
         if (activeGoalView === 'EFFECTIVENESS') {
             goalColumns.push({
-                key: 'result',
+                key: 'won',
                 label: 'Resultado',
-                render: (row) => {
-                    const order = row as SalesOrder;
-                    return (
-                        <div className="text-center">
-                            {statusInList(order.status, STATUSES_CLOSED_SALE) ? (
-                                <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200"><CheckCircle size={12} className="mr-1"/> Ganada</Badge>
-                            ) : (
-                                <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200"><XCircle size={12} className="mr-1"/> Perdida</Badge>
-                            )}
-                        </div>
-                    );
-                },
+                render: (row) => (
+                    <div className="text-center">
+                        {row.won ? (
+                            <span className="inline-flex items-center rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700"><CheckCircle size={12} className="mr-1"/> Ganada</span>
+                        ) : (
+                            <span className="inline-flex items-center rounded border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-bold text-red-700"><XCircle size={12} className="mr-1"/> Perdida</span>
+                        )}
+                    </div>
+                ),
             });
         }
 
         goalColumns.push({
             key: 'actions',
             label: 'Acción',
-            render: (row) => {
-                const order = row as SalesOrder;
-                return (
-                    <div className="flex justify-center items-center gap-2">
-                        <Button variant="outline" size="sm" className="group border-slate-200 hover:bg-slate-50 px-2" title="Ver formato" aria-label="Ver formato" onClick={() => setViewingOrderIdForFormat(order.id!)}>
-                            <TableActionViewIcon />
-                        </Button>
-                        <Button variant="outline" size="sm" className="group border-indigo-200 hover:bg-indigo-50 px-2" onClick={() => handleViewPDF(order.id!)} title="Descargar PDF" aria-label="Descargar PDF">
-                            <FileDown size={TABLE_ACTION_ICON_SIZE} className="text-slate-500 group-hover:text-indigo-600 shrink-0" />
-                        </Button>
-                    </div>
-                );
-            },
+            render: (row) => (
+                <div className="flex justify-center items-center gap-2">
+                    <Button variant="outline" size="sm" className="group border-slate-200 hover:bg-slate-50 px-2" title="Ver formato" aria-label="Ver formato"
+                        onClick={() => (row.kind === 'OV' ? setViewingOrderIdForFormat(row.id) : navigate(`/quotations/${row.id}`))}>
+                        <TableActionViewIcon />
+                    </Button>
+                    <Button variant="outline" size="sm" className="group border-indigo-200 hover:bg-indigo-50 px-2" title="Descargar PDF" aria-label="Descargar PDF"
+                        onClick={() => (row.kind === 'OV' ? handleViewPDF(row.id) : handleQuotationPdf(row.id))}>
+                        <FileDown size={TABLE_ACTION_ICON_SIZE} className="text-slate-500 group-hover:text-indigo-600 shrink-0" />
+                    </Button>
+                </div>
+            ),
         });
 
         return (
             <VTable
                 className="mt-6 animate-in slide-in-from-right-4 duration-300 shadow-sm"
                 columns={goalColumns}
-                data={filteredOrders as unknown as Record<string, unknown>[]}
+                data={rows}
             />
         );
     };
@@ -791,7 +619,7 @@ const SalesDashboardPage: React.FC = () => {
         let emptyMessage = "No hay datos para mostrar.";
 
         if (activeCollectionView === 'RETAINED') {
-            filteredOrders = orders.filter(o => ['ACCEPTED', 'WAITING_ADVANCE'].includes(normalizeSalesStatus(o.status)));
+            filteredOrders = orders.filter(o => normalizeSalesStatus(o.status) === 'WAITING_ADVANCE');
             emptyMessage = "No tienes comisiones retenidas. Todo está cobrado o en borrador.";
         } else if (activeCollectionView === 'PAYABLE') {
             filteredOrders = orders.filter(o => statusInList(o.status, STATUSES_PAYABLE_COMMISSION));
@@ -822,7 +650,7 @@ const SalesDashboardPage: React.FC = () => {
                     const order = row as SalesOrder;
                     return (
                         <span className="font-bold text-slate-800">
-                            {getDocumentPrefix(order.status)}-{order.id?.toString().padStart(4, '0')} - {order.project_name}
+                            OV-{order.id?.toString().padStart(4, '0')} - {order.project_name}
                         </span>
                     );
                 },
@@ -890,144 +718,50 @@ const SalesDashboardPage: React.FC = () => {
     };
     
     const renderQuoteDetailTable = () => {
-        let filteredOrders: SalesOrder[] = [];
+        let filtered: Quotation[] = [];
         let emptyMessage = "No hay datos para mostrar.";
 
         if (searchQuery) {
             const q = searchQuery.toLowerCase().trim();
-            filteredOrders = orders.filter(o => {
-                const oAny = o as any; 
-                const bolsaDeTexto = `
-                    ${o.id || ''} 
-                    ${o.project_name || ''} 
-                    ${oAny.client_name || ''} 
-                    ${oAny.client?.full_name || ''} 
-                    ${oAny.client?.name || ''}
-                    ${oAny.customer?.name || ''}
-                `.toLowerCase();
-                return bolsaDeTexto.includes(q);
-            });
+            filtered = quotations.filter(row =>
+                `${row.folio} ${row.project_name || ''} ${row.client?.full_name || ''}`.toLowerCase().includes(q)
+            );
             emptyMessage = `No se encontraron resultados para "${searchQuery}".`;
         }
         else if (activeQuoteView === 'DRAFTS') {
-            filteredOrders = orders.filter(o => ['DRAFT', 'CHANGE_REQUESTED', 'REJECTED'].includes(o.status));
-            emptyMessage = "Bandeja limpia. No tienes borradores ni rechazos de Dirección pendientes.";
+            filtered = quotations.filter(row => ['DRAFT', 'CHANGES_REQUESTED'].includes(row.status));
+            emptyMessage = "Bandeja limpia. No tienes borradores ni cotizaciones regresadas por Dirección.";
         } else if (activeQuoteView === 'REVIEW') {
-            filteredOrders = orders.filter(o => o.status === 'SENT');
+            filtered = quotations.filter(row => row.status === 'PENDING_AUTH');
             emptyMessage = "No tienes cotizaciones esperando autorización de Dirección.";
         } else if (activeQuoteView === 'AUTHORIZED') {
-            filteredOrders = orders.filter(o => o.status === 'ACCEPTED');
-            emptyMessage = "No tienes cotizaciones autorizadas pendientes de enviar al cliente.";
+            filtered = quotations.filter(row => row.status === 'AUTHORIZED');
+            emptyMessage = "No tienes cotizaciones autorizadas pendientes de OC del cliente.";
         } else if (activeQuoteView === 'EXPIRING') {
             const fifteenDaysFromNow = new Date(); fifteenDaysFromNow.setDate(new Date().getDate() + 15);
-            filteredOrders = orders.filter(o => {
-                if (!o.valid_until || !['DRAFT', 'ACCEPTED', 'SENT'].includes(o.status)) return false;
-                return new Date(o.valid_until) <= fifteenDaysFromNow;
-            });
+            filtered = quotations.filter(row => isExpiringQuotation(row, fifteenDaysFromNow));
             emptyMessage = "¡Excelente! Tu cartera está sana. Ninguna cotización vence en los próximos 15 días.";
         } else if (activeQuoteView === 'HISTORY') {
-            filteredOrders = [...orders]; 
+            filtered = [...quotations];
             emptyMessage = "Tu archivo histórico está vacío.";
         }
 
-        // MOTOR DE ORDENAMIENTO APLICADO (FECHA, FOLIO, CLIENTE, VENDEDOR, ESTATUS)
+        const sellerOf = (row: Quotation) => row.user?.full_name || (row.user_id ? `Asesor #${row.user_id}` : 'N/A');
         if (quoteSortConfig.key) {
-            filteredOrders.sort((a, b) => {
-                if (quoteSortConfig.key === 'DATE') {
-                    const dateA = new Date((a as any).created_at || 0).getTime();
-                    const dateB = new Date((b as any).created_at || 0).getTime();
-                    return quoteSortConfig.direction === 'asc' ? dateA - dateB : dateB - dateA;
-                }
-                
-                if (quoteSortConfig.key === 'FOLIO') {
-                    const idA = a.id || 0;
-                    const idB = b.id || 0;
-                    return quoteSortConfig.direction === 'asc' ? idA - idB : idB - idA;
-                }
-
-                let aValue = '';
-                let bValue = '';
-                
-                if (quoteSortConfig.key === 'CLIENT') {
-                    aValue = getClientName(a).toLowerCase();
-                    bValue = getClientName(b).toLowerCase();
-                } else if (quoteSortConfig.key === 'SELLER') {
-                    aValue = getSellerName(a).toLowerCase();
-                    bValue = getSellerName(b).toLowerCase();
-                } else if (quoteSortConfig.key === 'STATUS') {
-                    aValue = getStatusLabel(a.status).toLowerCase();
-                    bValue = getStatusLabel(b.status).toLowerCase();
-                }
-
-                if (aValue < bValue) return quoteSortConfig.direction === 'asc' ? -1 : 1;
-                if (aValue > bValue) return quoteSortConfig.direction === 'asc' ? 1 : -1;
-                return 0;
+            const dir = quoteSortConfig.direction === 'asc' ? 1 : -1;
+            const textKey = (row: Quotation): string => {
+                if (quoteSortConfig.key === 'CLIENT') return (row.client?.full_name || '').toLowerCase();
+                if (quoteSortConfig.key === 'SELLER') return sellerOf(row).toLowerCase();
+                return QUOTATION_STATUS_LABELS[row.status].toLowerCase();
+            };
+            filtered.sort((a, b) => {
+                if (quoteSortConfig.key === 'DATE') return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir;
+                if (quoteSortConfig.key === 'FOLIO') return (a.id - b.id) * dir;
+                return textKey(a).localeCompare(textKey(b)) * dir;
             });
         }
 
-        if (filteredOrders.length === 0) return <div className="text-center py-12 text-slate-500 bg-white rounded-xl border border-slate-200 mt-4 shadow-sm">{emptyMessage}</div>;
-
-        const renderQuoteRowActions = (order: SalesOrder) => (
-            <>
-                {activeQuoteView === 'HISTORY' ? (
-                    <>
-                        {canAudit && (
-                            <Button variant="outline" size="sm" className="group border-indigo-200 hover:bg-indigo-50 px-2 shadow-sm" title="Auditar" aria-label="Auditar" onClick={() => setViewingOrderIdForAudit(order.id!)}>
-                                <TableActionViewIcon />
-                            </Button>
-                        )}
-                        <Button variant="outline" size="sm" className="group border-slate-200 hover:bg-slate-50 px-2" onClick={(e) => { e.preventDefault(); handleViewPDF(order.id!); }} title="Descargar PDF" aria-label="Descargar PDF">
-                            <FileDown size={TABLE_ACTION_ICON_SIZE} className="text-slate-500 group-hover:text-indigo-600 shrink-0" />
-                        </Button>
-                    </>
-                ) : ['DRAFT', 'CHANGE_REQUESTED', 'REJECTED'].includes(order.status) ? (
-                    <>
-                        <Button variant="outline" size="sm" className="group border-slate-200 hover:bg-slate-50 px-2" title="Editar" aria-label="Editar" onClick={() => navigate(`/sales/edit/${order.id}`)}>
-                            <TableActionEditIcon />
-                        </Button>
-                        <Button variant="outline" size="sm" className="group border-indigo-200 hover:bg-indigo-50 px-2" onClick={(e) => { e.preventDefault(); handleViewPDF(order.id!); }} title="Descargar PDF" aria-label="Descargar PDF">
-                            <FileDown size={TABLE_ACTION_ICON_SIZE} className="text-slate-500 group-hover:text-indigo-600 shrink-0" />
-                        </Button>
-                        <Button size="sm" className="bg-amber-500 hover:bg-amber-600 text-white px-2 shadow-sm" title="Solicitar autorización" aria-label="Solicitar autorización" onClick={() => handleRequestAuth(order.id!)}>
-                            <Send size={TABLE_ACTION_ICON_SIZE} className="shrink-0" />
-                        </Button>
-                        <Button variant="outline" size="sm" className="group border-rose-200 hover:bg-rose-50 px-2 shadow-sm" onClick={() => handleDeleteDraft(order.id!)} title="Eliminar cotización" aria-label="Eliminar cotización">
-                            <TableActionCancelIcon />
-                        </Button>
-                    </>
-                ) : order.status === 'ACCEPTED' ? (
-                    <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200">
-                        <button type="button" onClick={() => setViewingOrderIdForFormat(order.id!)} className="group p-1.5 rounded transition-colors hover:bg-indigo-50" title="Revisar formato" aria-label="Revisar formato">
-                            <TableActionViewIcon />
-                        </button>
-                        <button type="button" onClick={(e) => { e.preventDefault(); handleViewPDF(order.id!); }} className="group p-1.5 rounded transition-colors hover:bg-indigo-50" title="Descargar PDF" aria-label="Descargar PDF">
-                            <FileDown size={TABLE_ACTION_ICON_SIZE} className="text-slate-500 group-hover:text-indigo-600 shrink-0" />
-                        </button>
-                        <button type="button" onClick={() => handleRequestChanges(order.id!)} className="group p-1.5 rounded transition-colors hover:bg-indigo-50" title="Desbloquear para editar" aria-label="Desbloquear para editar">
-                            <TableActionEditIcon />
-                        </button>
-                        <button type="button" onClick={() => handleMarkLost(order.id!)} className="group p-1.5 rounded transition-colors hover:bg-rose-50" title="Marcar como perdida" aria-label="Marcar como perdida">
-                            <TableActionCancelIcon />
-                        </button>
-                        <div className="w-px h-5 bg-slate-300 mx-1"></div>
-                        <Button size="sm" className="bg-green-500 hover:bg-green-600 text-white ml-1 shadow-sm px-2" title="Generar OV" aria-label="Generar OV" onClick={() => openClientOcModal(order.id!)}>
-                            <CheckCircle size={TABLE_ACTION_ICON_SIZE} className="shrink-0" />
-                        </Button>
-                    </div>
-                ) : (
-                    <>
-                        {canAudit && (
-                            <Button variant="outline" size="sm" className="group border-indigo-200 hover:bg-indigo-50 px-2 shadow-sm" title="Auditar" aria-label="Auditar" onClick={() => setViewingOrderIdForAudit(order.id!)}>
-                                <TableActionViewIcon />
-                            </Button>
-                        )}
-                        <Button variant="outline" size="sm" className="group border-slate-200 hover:bg-slate-50 px-2" onClick={(e) => { e.preventDefault(); handleViewPDF(order.id!); }} title="Descargar PDF" aria-label="Descargar PDF">
-                            <FileDown size={TABLE_ACTION_ICON_SIZE} className="text-slate-500 group-hover:text-indigo-600 shrink-0" />
-                        </Button>
-                    </>
-                )}
-            </>
-        );
+        if (filtered.length === 0) return <div className="text-center py-12 text-slate-500 bg-white rounded-xl border border-slate-200 mt-4 shadow-sm">{emptyMessage}</div>;
 
         const quoteSortKeys: Array<{ key: 'DATE' | 'FOLIO' | 'CLIENT' | 'SELLER' | 'STATUS'; label: string }> = [
             { key: 'DATE', label: 'Fecha' },
@@ -1037,47 +771,37 @@ const SalesDashboardPage: React.FC = () => {
             { key: 'STATUS', label: 'Estatus' },
         ];
 
-        const quoteColumns: VTableColumn<Record<string, unknown>>[] = [
+        const reasonOf = (row: Quotation): string | null | undefined => {
+            if (row.status === 'CHANGES_REQUESTED') return row.changes_requested_reason;
+            if (row.status === 'LOST') return row.lost_reason;
+            if (row.status === 'CANCELLED') return row.cancel_reason;
+            return null;
+        };
+
+        const quoteColumns: VTableColumn<Quotation>[] = [
             {
                 key: 'created_at',
                 label: 'Fecha',
-                render: (row) => (
-                    <span className="text-slate-600 font-medium whitespace-nowrap">
-                        {(row as any).created_at ? new Date((row as any).created_at).toLocaleDateString('es-MX') : 'S/F'}
-                    </span>
-                ),
+                render: (row) => <span className="text-slate-600 font-medium whitespace-nowrap">{new Date(row.created_at).toLocaleDateString('es-MX')}</span>,
             },
             {
                 key: 'folio',
                 label: 'Folio / Proyecto',
-                render: (row) => {
-                    const order = row as SalesOrder;
-                    return (
-                        <>
-                            <p className="font-bold text-slate-800 whitespace-nowrap">{getDocumentPrefix(order.status)}-{order.id?.toString().padStart(4, '0')}</p>
-                            <p className="text-xs text-slate-500 font-medium">{order.project_name}</p>
-                        </>
-                    );
-                },
-            },
-            {
-                key: 'client',
-                label: 'Cliente',
                 render: (row) => (
-                    <span className="font-medium text-slate-600">{getClientName(row as SalesOrder)}</span>
+                    <>
+                        <p className="font-bold text-slate-800 whitespace-nowrap">{row.folio}</p>
+                        <p className="text-xs text-slate-500 font-medium">{row.project_name}</p>
+                    </>
                 ),
             },
+            { key: 'client', label: 'Cliente', render: (row) => <span className="font-medium text-slate-600">{row.client?.full_name || '—'}</span> },
         ];
 
         if (activeQuoteView === 'HISTORY') {
             quoteColumns.push({
-                key: 'seller',
+                key: 'user',
                 label: 'Vendedor',
-                render: (row) => (
-                    <span className="text-xs font-bold text-indigo-600 bg-indigo-50/50 whitespace-nowrap">
-                        {getSellerName(row as SalesOrder)}
-                    </span>
-                ),
+                render: (row) => <span className="text-xs font-bold text-indigo-600 whitespace-nowrap">{sellerOf(row)}</span>,
             });
         }
 
@@ -1086,16 +810,14 @@ const SalesDashboardPage: React.FC = () => {
                 key: 'status',
                 label: 'Estatus',
                 render: (row) => {
-                    const order = row as SalesOrder;
+                    const reason = reasonOf(row);
                     return (
                         <>
-                            <Badge variant="outline" className={`bg-white whitespace-nowrap ${order.status === 'REJECTED' ? 'text-red-600 border-red-300 bg-red-50' : ''}`}>
-                                {getStatusLabel(order.status)}
-                            </Badge>
-                            {['REJECTED', 'CLIENT_REJECTED'].includes(order.status) && order.notes && (
-                                <p className="text-[10px] text-red-500 mt-1 max-w-[150px] truncate" title={order.notes}>
-                                    Razón: {order.notes}
-                                </p>
+                            <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold whitespace-nowrap ${quotationStatusBadgeClass(row.status)}`}>
+                                {QUOTATION_STATUS_LABELS[row.status]}
+                            </span>
+                            {reason && (
+                                <p className="text-[10px] text-red-500 mt-1 max-w-[180px] truncate" title={reason}>Motivo: {reason}</p>
                             )}
                         </>
                     );
@@ -1104,19 +826,20 @@ const SalesDashboardPage: React.FC = () => {
             {
                 key: 'total_price',
                 label: 'Monto de Venta',
-                render: (row) => (
-                    <span className="block text-right font-bold text-slate-700">
-                        {formatCurrency((row as SalesOrder).total_price || 0)}
-                    </span>
-                ),
+                render: (row) => <span className="block text-right font-bold text-slate-700">{formatCurrency(row.total_price || 0)}</span>,
             },
             {
                 key: 'actions',
                 label: 'Acción',
                 render: (row) => (
-                    <div className="flex justify-center items-center gap-2">
-                        {renderQuoteRowActions(row as SalesOrder)}
-                    </div>
+                    <QuotationRowActions
+                        quotation={row}
+                        onView={() => navigate(`/quotations/${row.id}`)}
+                        onEdit={() => navigate(`/quotations/edit/${row.id}`)}
+                        onReview={() => setReviewQuotationId(row.id)}
+                        onPdf={() => void handleQuotationPdf(row.id)}
+                        onAction={(kind) => openQuotationAction(kind, row)}
+                    />
                 ),
             },
         );
@@ -1140,7 +863,7 @@ const SalesDashboardPage: React.FC = () => {
                 <VTable
                     className="rounded-t-none border-t-0 shadow-sm"
                     columns={quoteColumns}
-                    data={filteredOrders as unknown as Record<string, unknown>[]}
+                    data={filtered}
                 />
             </div>
         );
@@ -1894,120 +1617,17 @@ const SalesDashboardPage: React.FC = () => {
                 />
             )}
 
-            {ocModalOpen && ocModalOrderId != null && (
-                <ClientOcCaptureModal
-                    key={ocModalOrderId}
-                    orderId={ocModalOrderId}
-                    isSubmitting={actionLoading}
-                    onCancel={() => {
-                        setOcModalOpen(false);
-                        setOcModalOrderId(null);
-                        setActionLoading(false);
-                    }}
-                    onConfirm={(oid, folio, dateStrYmd) => submitClientOcModal(oid, folio, dateStrYmd)}
-                />
-            )}
+            <QuotationActionDialogs
+                pending={quotationAction}
+                onClose={() => setQuotationAction(null)}
+                onDone={refreshAfterQuotationAction}
+            />
 
-            {pendingConfirm?.kind === 'REQUEST_AUTH' && (
-                <VConfirmDialog
-                    isOpen
-                    title="Enviar a autorización"
-                    message="¿Enviar esta cotización a Dirección para su revisión y autorización?"
-                    consequence="La cotización pasará a Esperando Autorización y quedará bloqueada para edición hasta la respuesta de Dirección."
-                    variant="default"
-                    confirmLabel="Sí, enviar"
-                    onConfirm={async () => {
-                        const { orderId } = pendingConfirm;
-                        setPendingConfirm(null);
-                        await executeRequestAuth(orderId);
-                    }}
-                    onCancel={() => setPendingConfirm(null)}
-                />
-            )}
-
-            {pendingConfirm?.kind === 'GENERATE_OV' && (
-                <VConfirmDialog
-                    isOpen
-                    title="Generar orden de venta"
-                    message="¿Generar la orden de venta (OV)? Deberás capturar el folio y la fecha de la OC del cliente."
-                    consequence="Después se validará el semáforo financiero (3%) antes de pasar a Esperando Anticipo."
-                    variant="default"
-                    confirmLabel="Continuar"
-                    onConfirm={() => {
-                        const { orderId } = pendingConfirm;
-                        setPendingConfirm(null);
-                        setOcModalOrderId(orderId);
-                        setOcModalOpen(true);
-                    }}
-                    onCancel={() => setPendingConfirm(null)}
-                />
-            )}
-
-            {pendingConfirm?.kind === 'DUPLICATE_OV' && (
-                <VConfirmDialog
-                    isOpen
-                    title="Posible OV duplicada"
-                    message={`Ya existe una OV activa para este cliente y proyecto "${pendingConfirm.projectName}" (OV #${pendingConfirm.duplicateId}). ¿Generar otra OV de todos modos?`}
-                    consequence="Si no es un duplicado real, puedes continuar; de lo contrario, cancela para evitar órdenes repetidas."
-                    variant="warning"
-                    confirmLabel="Sí, generar otra OV"
-                    onConfirm={async () => {
-                        const { orderId, folio, dateStrYmd } = pendingConfirm;
-                        setPendingConfirm(null);
-                        await executeAdvanceRequest(orderId, folio, dateStrYmd);
-                    }}
-                    onCancel={() => setPendingConfirm(null)}
-                />
-            )}
-
-            {pendingConfirm?.kind === 'REQUEST_CHANGES' && (
-                <VConfirmDialog
-                    isOpen
-                    title="Solicitar cambios"
-                    message="¿El cliente solicitó ajustes? La cotización regresará al estatus de Borrador (Desbloqueada) para que la edites."
-                    consequence="Podrás modificar partidas y condiciones desde la sección de Borradores."
-                    variant="default"
-                    confirmLabel="Sí, desbloquear"
-                    onConfirm={async () => {
-                        const { orderId } = pendingConfirm;
-                        setPendingConfirm(null);
-                        await executeRequestChanges(orderId);
-                    }}
-                    onCancel={() => setPendingConfirm(null)}
-                />
-            )}
-
-            {pendingConfirm?.kind === 'MARK_LOST' && (
-                <VConfirmDialog
-                    isOpen
-                    title="Marcar como perdida"
-                    message="¿Marcar esta cotización como PERDIDA?"
-                    consequence="Esta acción cerrará el proyecto y no podrás reactivarlo."
-                    variant="danger"
-                    confirmLabel="Sí, marcar perdida"
-                    onConfirm={async () => {
-                        const { orderId } = pendingConfirm;
-                        setPendingConfirm(null);
-                        await executeMarkLost(orderId);
-                    }}
-                    onCancel={() => setPendingConfirm(null)}
-                />
-            )}
-
-            {pendingConfirm?.kind === 'DELETE_DRAFT' && (
-                <VConfirmDialog
-                    isOpen
-                    title="Eliminar borrador"
-                    message="¿Eliminar este borrador de forma permanente?"
-                    consequence="Esta acción no se puede deshacer."
-                    variant="danger"
-                    confirmLabel="Sí, eliminar"
-                    onConfirm={async () => {
-                        const { orderId } = pendingConfirm;
-                        setPendingConfirm(null);
-                        await executeDeleteDraft(orderId);
-                    }}
-                    onCancel={() => setPendingConfirm(null)}
+            {reviewQuotationId !== null && (
+                <FinancialReviewModal
+                    quotationId={reviewQuotationId}
+                    onClose={() => setReviewQuotationId(null)}
+                    onOrderUpdated={() => void refreshAfterQuotationAction()}
                 />
             )}
 

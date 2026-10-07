@@ -102,17 +102,8 @@ function normalizeToCustomerPayment(row: unknown): CustomerPayment | null {
 
 export const salesService = {
     /**
-     * Crea una nueva Cotización/Orden.
-     * El Backend se encarga de generar el Snapshot de costos automáticamente.
-     */
-    createOrder: async (order: Omit<SalesOrder, 'id' | 'status' | 'created_at' | 'subtotal' | 'tax_amount' | 'total_price'>): Promise<SalesOrder> => {
-        const response = await axiosClient.post(API_ROUTES.SALES.ORDERS, order);
-        return response.data;
-    },
-
-    /**
      * Obtiene el listado de órdenes.
-     * @param status (Opcional) Filtrar por estatus (DRAFT, SENT, etc.)
+     * @param status (Opcional) Filtrar por estatus (WAITING_ADVANCE, SOLD, etc.)
      * @param clientId (Opcional) Filtrar por cliente
      */
     getOrders: async (status?: SalesOrderStatus, clientId?: number): Promise<SalesOrder[]> => {
@@ -136,22 +127,13 @@ export const salesService = {
     },
 
     /**
-     * Actualiza una orden.
-     * IMPORTANTE: Si se envía el campo 'items', el backend borrará los items anteriores
-     * y creará los nuevos (Edición Completa).
+     * Actualiza datos de cabecera de una OV (notas, condiciones, OC del cliente, anticipo).
+     * Las partidas se modifican con los flujos de "Modificar OV"; las cotizaciones viven en quotation-service.
      */
     updateOrder: async (orderId: number, data: Partial<SalesOrder>): Promise<SalesOrder> => {
         const url = API_ROUTES.SALES.ORDER_DETAIL(orderId); 
         const response = await axiosClient.patch(url, data);
         return response.data;
-    },
-
-    /**
-     * Elimina una orden de la base de datos.
-     */
-    deleteOrder: async (orderId: number): Promise<void> => {
-        const url = API_ROUTES.SALES.ORDER_DETAIL(orderId);
-        await axiosClient.delete(url);
     },
 
     deleteInstance: async (orderId: number, itemId: number, instanceId: number): Promise<void> => {
@@ -231,7 +213,6 @@ export const salesService = {
             link.remove();
             window.URL.revokeObjectURL(downloadUrl);
         } catch (error) {
-            console.error("Error descargando PDF:", error);
             throw error;
         }
     },
@@ -247,26 +228,6 @@ export const salesService = {
         return response.data; 
     },
 
-    // =========================================================
-    // --- FASE 1: AUTORIZACIÓN INTERNA (GERENCIA) ---
-    // =========================================================
-
-    /**
-     * VENDEDOR: Solicita autorización (Cambia DRAFT -> SENT)
-     */
-    requestAuth: async (orderId: number): Promise<void> => {
-        const url = `${API_ROUTES.SALES.ORDER_DETAIL(orderId)}/request-auth`;
-        await axiosClient.post(url);
-    },
-
-    /**
-     * DIRECTOR: Autoriza la cotización (Cambia SENT -> ACCEPTED)
-     */
-    authorizeOrder: async (orderId: number): Promise<void> => {
-        const url = `${API_ROUTES.SALES.ORDER_DETAIL(orderId)}/authorize`;
-        await axiosClient.post(url);
-    },
-
     /**
      * Cancela una OV en espera de anticipo (WAITING_ADVANCE -> CANCELLED_OV).
      * Solo si no tiene anticipo pagado. Es terminal.
@@ -274,46 +235,6 @@ export const salesService = {
     cancelOv: async (orderId: number, reversal?: ReversalPayload): Promise<void> => {
         const url = `${API_ROUTES.SALES.ORDER_DETAIL(orderId)}/cancel_ov`;
         await axiosClient.post(url, reversal ? { reversal } : null);
-    },
-
-    /**
-     * DIRECTOR: Rechaza la cotización (Cambia SENT -> REJECTED)
-     */
-    rejectOrder: async (orderId: number): Promise<void> => {
-        const url = `${API_ROUTES.SALES.ORDER_DETAIL(orderId)}/reject`;
-        await axiosClient.post(url);
-    },
-
-    // =========================================================
-    // --- FASE 2: CIERRE CON CLIENTE Y COBRANZA ---
-    // =========================================================
-
-    /**
-     * El cliente acepta la cotización → OC obligatoria → WAITING_ADVANCE (V5).
-     */
-    requestAdvance: async (
-        orderId: number,
-        payload: { client_po_folio: string; client_po_date: string }
-    ): Promise<SalesOrder> => {
-        const url = `${API_ROUTES.SALES.ORDER_DETAIL(orderId)}/mark_waiting_advance`;
-        const response = await axiosClient.post(url, payload);
-        return response.data;
-    },
-
-    /**
-     * VENTA PERDIDA: El cliente rechazó la propuesta (ACCEPTED -> CLIENT_REJECTED)
-     */
-    markAsLost: async (orderId: number): Promise<void> => {
-        const url = `${API_ROUTES.SALES.ORDER_DETAIL(orderId)}/mark_lost`;
-        await axiosClient.post(url);
-    },
-
-    /**
-     * SOLICITAR CAMBIOS: El cliente pide ajustes (ACCEPTED -> CHANGE_REQUESTED/DRAFT)
-     */
-    requestChanges: async (orderId: number): Promise<void> => {
-        const url = `${API_ROUTES.SALES.ORDER_DETAIL(orderId)}/request_changes`;
-        await axiosClient.post(url);
     },
 
     // =========================================================

@@ -1,12 +1,14 @@
 export type QuotationStatus =
   | 'DRAFT'
-  | 'SENT'
-  | 'ACCEPTED'
-  | 'REJECTED'
+  | 'PENDING_AUTH'
+  | 'CHANGES_REQUESTED'
+  | 'AUTHORIZED'
+  | 'CONVERTED'
+  | 'LOST'
   | 'EXPIRED'
   | 'CANCELLED';
 
-export interface QuotationItem {
+export type QuotationItem = {
   id?: number;
   quotation_id?: number;
   product_name: string;
@@ -19,17 +21,21 @@ export interface QuotationItem {
   is_resale?: boolean;
   resale_sku?: string | null;
   commercial_description?: string | null;
-  is_cancelled?: boolean;
-}
+};
 
 export interface QuotationClientBasic {
   id: number;
-  business_name: string;
-  trade_name?: string | null;
+  full_name: string;
 }
 
-export interface Quotation {
+export interface QuotationUserBasic {
   id: number;
+  full_name?: string | null;
+}
+
+export type Quotation = {
+  id: number;
+  folio: string;
   status: QuotationStatus;
   project_name: string;
   client_id: number;
@@ -54,17 +60,22 @@ export interface Quotation {
   commission_amount?: number;
   user_id?: number | null;
   sales_order_id?: number | null;
-  sent_at?: string | null;
-  accepted_at?: string | null;
-  rejected_at?: string | null;
-  reject_reason?: string | null;
-  rejected_by_user_id?: number | null;
+  auth_requested_at?: string | null;
+  authorized_at?: string | null;
+  authorized_by_user_id?: number | null;
+  director_notes?: string | null;
+  changes_requested_at?: string | null;
+  changes_requested_reason?: string | null;
+  lost_at?: string | null;
+  lost_reason?: string | null;
+  converted_at?: string | null;
   expired_at?: string | null;
   cancelled_at?: string | null;
   cancel_reason?: string | null;
   client?: QuotationClientBasic | null;
+  user?: QuotationUserBasic | null;
   items: QuotationItem[];
-}
+};
 
 export interface QuotationCreatePayload {
   project_name: string;
@@ -83,12 +94,27 @@ export interface QuotationCreatePayload {
   conditions?: string | null;
   external_invoice_ref?: string | null;
   is_warranty?: boolean;
-  items: Omit<QuotationItem, 'id' | 'quotation_id' | 'subtotal_price' | 'is_cancelled'>[];
+  items: Omit<QuotationItem, 'id' | 'quotation_id' | 'subtotal_price'>[];
 }
 
 export type QuotationUpdatePayload = Partial<Omit<QuotationCreatePayload, 'items'>> & {
   items?: QuotationCreatePayload['items'];
 };
+
+/** Director's financial review: final prices, margin, commission (%) and advance. */
+export interface QuotationAuthorizePayload {
+  items: QuotationCreatePayload['items'];
+  applied_margin_percent: number;
+  applied_commission_percent: number;
+  advance_percent: number;
+  advance_invoice_amount?: number | null;
+  director_notes?: string | null;
+}
+
+export interface ClientPurchaseOrder {
+  client_po_folio: string;
+  client_po_date: string;
+}
 
 export interface QuotationConvertResult {
   quotation_id: number;

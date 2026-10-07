@@ -1,6 +1,8 @@
 import axiosClient from './axios-client';
 import {
+  ClientPurchaseOrder,
   Quotation,
+  QuotationAuthorizePayload,
   QuotationCreatePayload,
   QuotationConvertResult,
   QuotationListFilters,
@@ -23,6 +25,11 @@ export const formatQuotationCurrency = (amount: number | undefined | null): stri
 export const formatQuotationFolio = (id: number): string =>
   `COT-${String(id).padStart(4, '0')}`;
 
+const post = async (id: number, action: string, body?: unknown): Promise<Quotation> => {
+  const response = await axiosClient.post(`${BASE}/${id}/${action}`, body);
+  return response.data;
+};
+
 export const quotationService = {
   listQuotations: async (filters?: QuotationListFilters): Promise<Quotation[]> => {
     const params: Record<string, string> = {};
@@ -32,10 +39,9 @@ export const quotationService = {
     const search = filters?.search?.trim().toLowerCase();
     if (search) {
       rows = rows.filter((q) => {
-        const clientName = (q.client?.business_name ?? q.client?.trade_name ?? '').toLowerCase();
+        const clientName = (q.client?.full_name ?? '').toLowerCase();
         const project = (q.project_name ?? '').toLowerCase();
-        const folio = formatQuotationFolio(q.id).toLowerCase();
-        return clientName.includes(search) || project.includes(search) || folio.includes(search);
+        return clientName.includes(search) || project.includes(search) || q.folio.toLowerCase().includes(search);
       });
     }
     return rows;
@@ -56,42 +62,21 @@ export const quotationService = {
     return response.data;
   },
 
-  sendQuotation: async (id: number): Promise<Quotation> => {
-    const response = await axiosClient.post(`${BASE}/${id}/send`);
-    return response.data;
-  },
+  requestAuthorization: (id: number): Promise<Quotation> => post(id, 'request-auth'),
 
-  acceptQuotation: async (id: number): Promise<Quotation> => {
-    const response = await axiosClient.post(`${BASE}/${id}/accept`);
-    return response.data;
-  },
+  authorize: (id: number, data: QuotationAuthorizePayload): Promise<Quotation> => post(id, 'authorize', data),
 
-  rejectQuotation: async (id: number, reason: string): Promise<Quotation> => {
-    const response = await axiosClient.post(`${BASE}/${id}/reject`, { reject_reason: reason });
-    return response.data;
-  },
+  requestChanges: (id: number, reason: string): Promise<Quotation> => post(id, 'request-changes', { reason }),
 
-  cancelQuotation: async (id: number, reason: string): Promise<Quotation> => {
-    const response = await axiosClient.post(`${BASE}/${id}/cancel`, { cancel_reason: reason });
-    return response.data;
-  },
+  markLost: (id: number, reason: string): Promise<Quotation> => post(id, 'mark-lost', { reason }),
 
-  convertToOrder: async (id: number): Promise<QuotationConvertResult> => {
-    const response = await axiosClient.post(`${BASE}/${id}/convert`);
-    return response.data;
-  },
+  cancelQuotation: (id: number, reason: string): Promise<Quotation> => post(id, 'cancel', { cancel_reason: reason }),
 
-  getQuotationPdf: async (id: number, fileName?: string): Promise<void> => {
-    const response = await axiosClient.get(`${BASE}/${id}/pdf`, { responseType: 'blob' });
-    const blob = new Blob([response.data], { type: 'application/pdf' });
-    const downloadUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = fileName ?? `Cotizacion_${id}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(downloadUrl);
+  renew: (id: number, validUntil: string): Promise<Quotation> => post(id, 'renew', { valid_until: validUntil }),
+
+  convertToOrder: async (id: number, po: ClientPurchaseOrder): Promise<QuotationConvertResult> => {
+    const response = await axiosClient.post(`${BASE}/${id}/convert`, po);
+    return response.data;
   },
 
   openQuotationPdf: async (id: number): Promise<void> => {
@@ -114,9 +99,14 @@ export const quotationService = {
 
 export const QUOTATION_STATUS_LABELS: Record<QuotationStatus, string> = {
   DRAFT: 'Borrador',
-  SENT: 'Enviada',
-  ACCEPTED: 'Aceptada',
-  REJECTED: 'Rechazada',
+  PENDING_AUTH: 'Esperando autorización',
+  CHANGES_REQUESTED: 'Cambios solicitados',
+  AUTHORIZED: 'Autorizada',
+  CONVERTED: 'Convertida en OV',
+  LOST: 'Perdida',
   EXPIRED: 'Vencida',
   CANCELLED: 'Cancelada',
 };
+
+/** Statuses in which the seller can edit the quotation. */
+export const EDITABLE_QUOTATION_STATUSES: QuotationStatus[] = ['DRAFT', 'CHANGES_REQUESTED'];

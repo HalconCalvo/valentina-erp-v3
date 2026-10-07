@@ -4,9 +4,11 @@ import {
     AlertTriangle, ChevronDown, ChevronRight, Layers, DollarSign, RefreshCcw, FileCheck, Lock, Percent, User 
 } from 'lucide-react';
 
-import { salesService } from '../../../api/sales-service'; 
-import axiosClient from '../../../api/axios-client'; 
-import { SalesOrder, SalesOrderStatus } from '../../../types/sales';
+import { salesService } from '../../../api/sales-service';
+import { quotationService, QUOTATION_STATUS_LABELS } from '../../../api/quotation-service';
+import { SalesOrder } from '../../../types/sales';
+import type { Quotation } from '../../../types/quotations';
+import { QuotationActionDialogs, canAuthorizeQuotations } from '../../sales/components/QuotationActions';
 import { useFoundations } from '../../foundations/hooks/useFoundations';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -15,7 +17,10 @@ import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 
 interface FinancialReviewModalProps {
-    orderId: number | null;
+    /** Sales order: always read-only (prices are decided when the quotation is authorized). */
+    orderId?: number | null;
+    /** Quotation under review: the Director authorizes it or returns it with a reason. */
+    quotationId?: number | null;
     onClose: () => void;
     onOrderUpdated?: () => void;
     readOnly?: boolean; // <-- NUEVO: Forzar modo solo lectura desde afuera
@@ -27,11 +32,13 @@ interface CostIngredient {
     frozen_unit_cost: number;
 }
 
-export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orderId, onClose, onOrderUpdated, readOnly = false }) => {
+export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orderId, quotationId, onClose, onOrderUpdated, readOnly = false }) => {
     const [loading, setLoading] = useState(false);
     const [processing, setProcessing] = useState(false);
     const [order, setOrder] = useState<SalesOrder | null>(null);
-    const [pendingConfirm, setPendingConfirm] = useState<'AUTHORIZE' | 'REJECT' | null>(null);
+    const [quotation, setQuotation] = useState<Quotation | null>(null);
+    const [pendingConfirm, setPendingConfirm] = useState<'AUTHORIZE' | null>(null);
+    const [returning, setReturning] = useState(false);
 
     // Catálogo de tasas de impuesto (misma fuente que CreateQuotePage) para leer la tasa REAL
     // de la cotización y respetar tasa cero (sin fallback hardcodeado a 0.16).
@@ -65,10 +72,9 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
     // Será true si se forzó desde afuera (readOnly === true) O si el estatus de la orden ya no es borrador/pendiente.
     const isReadOnly = useMemo(() => {
         if (readOnly) return true; // Forzado externamente
-        if (!order || !order.status) return true;
-        const currentStatus = String(order.status).trim().toUpperCase();
-        return ['SOLD', 'FINISHED', 'CANCELLED', 'ACCEPTED', 'CLIENT_REJECTED'].includes(currentStatus);
-    }, [order, readOnly]);
+        if (!quotation) return true; // Sales orders are only audited here
+        return quotation.status !== 'PENDING_AUTH' || !canAuthorizeQuotations();
+    }, [quotation, readOnly]);
 
     // Extraer el nombre del asesor
     const sellerName = useMemo(() => {
@@ -78,13 +84,22 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
     }, [order]);
 
     useEffect(() => {
-        if (orderId) loadOrderData(orderId);
-    }, [orderId]);
+        if (quotationId) void loadOrderData(quotationId, true);
+        else if (orderId) void loadOrderData(orderId, false);
+    }, [orderId, quotationId]);
 
-    const loadOrderData = async (id: number) => {
+    const loadOrderData = async (id: number, isQuotation: boolean) => {
         setLoading(true);
         try {
-            const data = await salesService.getOrderDetail(id);
+            let data: SalesOrder;
+            if (isQuotation) {
+                const q = await quotationService.getQuotation(id);
+                setQuotation(q);
+                // Same shape for the simulation (items, commission, tax rate, advance).
+                data = q as unknown as SalesOrder;
+            } else {
+                data = await salesService.getOrderDetail(id);
+            }
             setOrder(data);
             
             // Saneamiento de números para evitar que la UI se congele
@@ -379,7 +394,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
     };
 
     const executeAuthorize = async () => {
-        if (!order || !simulation || isReadOnly) return;
+        if (!order || !quotation || !simulation || isReadOnly) return;
 
         setProcessing(true);
         try {
@@ -396,18 +411,14 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                 resale_sku: i.resale_sku ?? null,
             }));
 
-            await salesService.updateOrder(order.id, {
-                applied_margin_percent: Number(simulation.realWeightedMargin.toFixed(2)), 
+            await quotationService.authorize(quotation.id, {
+                applied_margin_percent: Number(simulation.realWeightedMargin.toFixed(2)),
                 applied_commission_percent: Number(commissionPercent) || 0,
                 advance_percent: Number(advancePercentDerived.toFixed(2)),
                 advance_invoice_amount: Number(advanceAmount.toFixed(2)),
-                items: updatedItems,
-                subtotal: simulation.subtotal,
-                tax_amount: simulation.taxAmount,
-                total_price: simulation.total
+                items: updatedItems.map((i) => ({ ...i, origin_version_id: i.origin_version_id ?? null })),
             });
-
-            await axiosClient.post(`/sales/orders/${order.id}/authorize`);
+            toast.success(`${quotation.folio} autorizada.`);
 
             if(onOrderUpdated) onOrderUpdated();
             onClose();
@@ -420,23 +431,8 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
     };
 
     const handleReject = () => {
-        if (!order || isReadOnly) return;
-        setPendingConfirm('REJECT');
-    };
-
-    const executeReject = async () => {
-        if (!order || isReadOnly) return;
-        setProcessing(true);
-        try {
-            await axiosClient.post(`/sales/orders/${order.id}/request_changes`);
-            if(onOrderUpdated) onOrderUpdated();
-            onClose();
-        } catch (error: any) { 
-            toast.error(error?.response?.data?.detail || 'Error al rechazar cotización.'); 
-        } finally { 
-            setProcessing(false);
-            setPendingConfirm(null);
-        }
+        if (!quotation || isReadOnly) return;
+        setReturning(true);
     };
 
     const formatCurrency = (amount: number) => {
@@ -475,7 +471,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
         },
     ], []);
 
-    if (!orderId) return null;
+    if (!orderId && !quotationId) return null;
 
     if (loading || !order || !simulation || taxRates.length === 0) {
         return (
@@ -501,7 +497,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                             {isReadOnly && <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded ml-2 flex items-center gap-1"><Lock size={10}/> SOLO LECTURA</span>}
                         </h2>
                         <p className="text-xs text-slate-400 mt-1 flex items-center gap-3">
-                            <span>Folio #{order?.id} • Proyecto: <span className="text-white font-medium">{order?.project_name}</span></span>
+                            <span>Folio {quotation ? quotation.folio : `OV-${String(order?.id ?? '').padStart(4, '0')}`} • Proyecto: <span className="text-white font-medium">{order?.project_name}</span></span>
                             <span className="text-slate-500">|</span>
                             <span className="flex items-center gap-1"><User size={12} className="text-indigo-400"/> Asesor: <span className="text-indigo-300 font-medium">{sellerName}</span></span>
                         </p>
@@ -772,17 +768,15 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                         disabled={processing}
                                         className="w-full bg-white border-red-200 text-red-600 hover:bg-red-50 text-xs"
                                     >
-                                        <XCircle size={14} className="mr-2"/> Rechazar Cotización
+                                        <XCircle size={14} className="mr-2"/> Regresar para cambios
                                     </Button>
                                 </>
                             ) : (
                                 <div className="bg-slate-100 p-4 rounded-lg text-center text-slate-500 text-sm font-medium border border-slate-300 shadow-inner">
                                     <Lock size={20} className="mx-auto mb-2 text-slate-400"/>
-                                    {order?.status === SalesOrderStatus.ACCEPTED 
-                                        ? 'Cotización autorizada y en calle.' 
-                                        : order?.status === SalesOrderStatus.REJECTED 
-                                        ? 'Cotización rechazada por la Dirección.'
-                                        : 'Esta cotización se encuentra cerrada o inactiva.'}
+                                    {quotation
+                                        ? `Cotización ${QUOTATION_STATUS_LABELS[quotation.status].toLowerCase()}.`
+                                        : 'Orden de venta: los precios se definieron al autorizar la cotización.'}
                                     <br/><span className="text-xs font-normal">Modo de Auditoría (Solo Lectura).</span>
                                 </div>
                             )}
@@ -795,23 +789,24 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
         {pendingConfirm && (
             <VConfirmDialog
                 isOpen={pendingConfirm !== null}
-                title={pendingConfirm === 'AUTHORIZE' ? 'Autorizar cotización' : 'Rechazar cotización'}
-                message={
-                    pendingConfirm === 'AUTHORIZE'
-                        ? '¿Confirmar Autorización de Precios y Condiciones?'
-                        : '¿Rechazar cotización y enviar a borrador?'
-                }
-                consequence={
-                    pendingConfirm === 'AUTHORIZE'
-                        ? 'La cotización quedará autorizada y podrá enviarse al cliente.'
-                        : 'La cotización regresará a borrador para correcciones.'
-                }
-                variant={pendingConfirm === 'REJECT' ? 'danger' : 'default'}
-                confirmLabel={pendingConfirm === 'AUTHORIZE' ? 'Sí, autorizar' : 'Sí, rechazar'}
-                onConfirm={pendingConfirm === 'AUTHORIZE' ? executeAuthorize : executeReject}
+                title="Autorizar cotización"
+                message="¿Confirmar Autorización de Precios y Condiciones?"
+                consequence="La cotización quedará autorizada con estos precios y podrá enviarse al cliente."
+                variant="default"
+                confirmLabel="Sí, autorizar"
+                onConfirm={executeAuthorize}
                 onCancel={() => setPendingConfirm(null)}
             />
         )}
+
+        <QuotationActionDialogs
+            pending={returning && quotation ? { kind: 'REQUEST_CHANGES', quotation } : null}
+            onClose={() => setReturning(false)}
+            onDone={() => {
+                if (onOrderUpdated) onOrderUpdated();
+                onClose();
+            }}
+        />
     </div>
     );
 };

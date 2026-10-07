@@ -149,8 +149,7 @@ function AppRoutes() {
 
         {/* Ventas */}
         <Route path="/sales" element={<SalesDashboardPage key={key} />} />
-        <Route path="/sales/new" element={<CreateQuotePage key={key} />} />
-        <Route path="/sales/edit/:id" element={<CreateQuotePage key={key} />} />
+        <Route path="/sales/new" element={<Navigate to="/quotations/new" replace />} />
 
         {/* Cotizaciones (Fase 2) */}
         <Route path="/quotations" element={<Navigate to="/sales" replace />} />

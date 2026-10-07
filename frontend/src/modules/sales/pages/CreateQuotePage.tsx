@@ -7,11 +7,10 @@ import {
     Search
 } from 'lucide-react';
 
-import { useSales } from '../hooks/useSales';
 import { useClients } from '../../foundations/hooks/useClients';
 import { useFoundations } from '../../foundations/hooks/useFoundations';
 import { designService } from '../../../api/design-service';
-import { salesService } from '../../../api/sales-service';
+import { quotationService, formatQuotationFolio, EDITABLE_QUOTATION_STATUSES } from '../../../api/quotation-service';
 import client from '../../../api/axios-client'; 
 
 import { Button } from '@/components/ui/Button';
@@ -22,7 +21,8 @@ import { Card } from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
-import { SalesOrderItem, SalesOrderStatus } from '../../../types/sales';
+import { SalesOrderItem } from '../../../types/sales';
+import { QuotationStatus } from '../../../types/quotations';
 
 // --- HELPERS DE FORMATO ---
 const formatCurrency = (amount: number | undefined | null) => {
@@ -59,8 +59,6 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
     
     const isDirector = ['ADMIN', 'ADMINISTRADOR', 'DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
 
-    const salesHook = useSales();
-    const savingSales = salesHook?.loading || false;
     const clientHook = useClients();
     const foundationHook = useFoundations();
 
@@ -73,7 +71,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
     const [saving, setSaving] = useState(false); 
 
     const [selectedCategory, setSelectedCategory] = useState<string>('');
-    const [currentStatus, setCurrentStatus] = useState<SalesOrderStatus | null>(null);
+    const [currentStatus, setCurrentStatus] = useState<QuotationStatus | null>(null);
 
     const [hasAdvanceInvoice, setHasAdvanceInvoice] = useState(false);
     const [isUserSelectedTax, setIsUserSelectedTax] = useState(false);
@@ -170,7 +168,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
             setLoadingData(true);
             const loadOrder = async () => {
                 try {
-                    const data = await salesService.getOrderDetail(Number(id));
+                    const data = await quotationService.getQuotation(Number(id));
 
                     if (data) {
                         setHeader({
@@ -198,7 +196,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                                 cost_snapshot: item.cost_snapshot ?? {},
                             })),
                         );
-                        setCurrentStatus(data.status as SalesOrderStatus);
+                        setCurrentStatus(data.status);
                         setIsUserSelectedTax(true);
                         
                         setHasAdvanceInvoice(Boolean(data.has_advance_invoice));
@@ -236,16 +234,10 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
     const grossProfit = finalSubtotal - totalRealCost;
     const marginPercent = finalSubtotal > 0 ? (grossProfit / finalSubtotal) * 100 : 0;
 
-    const isSalesStatusLocked = isEditMode && (
-        currentStatus === SalesOrderStatus.ACCEPTED || 
-        currentStatus === SalesOrderStatus.WAITING_ADVANCE || 
-        currentStatus === SalesOrderStatus.SOLD ||
-        currentStatus === SalesOrderStatus.INSTALLED ||
-        currentStatus === SalesOrderStatus.FINISHED
-    );
+    // Only drafts and quotations returned for changes are editable; prices are adjusted by the Director in the review.
+    const isSalesStatusLocked = isEditMode && currentStatus !== null && !EDITABLE_QUOTATION_STATUSES.includes(currentStatus);
 
-    const isFormLocked = readOnly || (isSalesStatusLocked && !isDirector);
-    const isHistorical = readOnly || isSalesStatusLocked;
+    const isFormLocked = readOnly || isSalesStatusLocked;
     const isAdvanceLocked = hasAdvanceInvoice || isFormLocked;
 
     // IVA tasa cero: absorbe el IVA de los materiales subiendo SOLO su costo para el precio.
@@ -395,7 +387,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
         toast.success('Precios actualizados.');
     };
 
-    const handleSubmit = async (targetStatus?: SalesOrderStatus) => {
+    const handleSubmit = async (requestAuthorization = false) => {
         const missingFields = [];
         if (!header.client_id) missingFields.push("Cliente");
         if (!header.project_name) missingFields.push("Nombre del Proyecto");
@@ -437,24 +429,16 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                 items: cleanItems,
             };
 
-            const orderPayload = {
-                ...payload,
-                ...(targetStatus ? { status: targetStatus } : !isEditMode ? { status: SalesOrderStatus.DRAFT } : {}),
-            };
-
-            if (isEditMode && id) {
-                if (targetStatus === SalesOrderStatus.ACCEPTED) {
-                    await salesService.authorizeOrder(Number(id));
-                    toast.success('Cotización AUTORIZADA correctamente.');
-                } else {
-                    await salesService.updateOrder(Number(id), orderPayload);
-                    toast.success('Cotización actualizada.');
-                }
+            const saved = isEditMode && id
+                ? await quotationService.updateQuotation(Number(id), payload)
+                : await quotationService.createQuotation(payload);
+            if (requestAuthorization) {
+                await quotationService.requestAuthorization(saved.id);
+                toast.success(`${saved.folio} enviada a Dirección para autorización.`);
             } else {
-                await salesService.createOrder(orderPayload);
-                toast.success('Cotización creada exitosamente.');
+                toast.success(isEditMode ? 'Cotización actualizada.' : `Cotización ${saved.folio} creada.`);
             }
-            navigate('/sales'); 
+            navigate('/sales');
         } catch (error: any) {
             toast.error(error.response?.data?.detail || 'Error al guardar la cotización.');
         } 
@@ -540,7 +524,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                 <div className="flex flex-col">
                     <h1 className="text-2xl font-black text-slate-800 flex items-center gap-2">
                         {isEditMode ? <Edit className="text-indigo-600"/> : <Plus className="text-emerald-600"/>}
-                        {isEditMode ? `Editando Cotización #${id}` : 'Nueva Cotización'}
+                        {isEditMode ? `Editando Cotización ${formatQuotationFolio(Number(id))}` : 'Nueva Cotización'}
                     </h1>
                     {isDirector && <span className="text-xs font-bold text-amber-600 uppercase tracking-widest bg-amber-50 px-2 py-1 rounded w-fit mt-1">Modo Director Activo</span>}
                 </div>
@@ -887,16 +871,16 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                                     variant="outline"
                                     className="border-amber-300 text-amber-700 hover:bg-amber-50 font-black text-xs"
                                     onClick={handleRecalculatePrices}
-                                    disabled={saving || savingSales || items.length === 0}
+                                    disabled={saving || items.length === 0}
                                 >
                                     <TrendingUp size={16} className="mr-2"/> Recalcular Precios
                                 </Button>
                             )}
-                            {isDirector && (currentStatus === SalesOrderStatus.SENT || currentStatus === SalesOrderStatus.DRAFT) && (
-                                <Button className="bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-200" onClick={() => handleSubmit(SalesOrderStatus.ACCEPTED)} disabled={saving || savingSales || readOnly}><CheckCircle2 size={18} className="mr-2"/> Aprobar Cotización</Button>
+                            {!isFormLocked && (
+                                <Button variant="outline" className="border-indigo-300 text-indigo-700 hover:bg-indigo-50" onClick={() => handleSubmit(true)} disabled={saving}><CheckCircle2 size={18} className="mr-2"/> Guardar y solicitar autorización</Button>
                             )}
-                            {!readOnly && (
-                                <Button className="w-48 bg-emerald-600 hover:bg-emerald-700" onClick={() => handleSubmit()} disabled={saving || savingSales || isFormLocked}>{saving ? 'Guardando...' : (isEditMode ? 'Guardar Cambios' : 'Guardar Borrador')} <Save size={18} className="ml-2"/></Button>
+                            {!isFormLocked && (
+                                <Button className="w-48 bg-emerald-600 hover:bg-emerald-700" onClick={() => handleSubmit()} disabled={saving}>{saving ? 'Guardando...' : (isEditMode ? 'Guardar Cambios' : 'Guardar Borrador')} <Save size={18} className="ml-2"/></Button>
                             )}
                         </div>
                     </div>

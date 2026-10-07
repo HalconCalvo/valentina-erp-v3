@@ -198,10 +198,6 @@ class SalesOrderBase(SQLModel):
     default_retention_percent: float = 0.0
     default_retention_days: int = 90
 
-# INPUT: Creación inicial
-class SalesOrderCreate(SalesOrderBase):
-    items: List[SalesOrderItemCreate] = []
-
 # OUTPUT: Lectura completa
 # OUTPUT: Lectura completa
 class SalesOrderRead(SalesOrderBase):
@@ -219,6 +215,7 @@ class SalesOrderRead(SalesOrderBase):
     advance_invoice_amount: Optional[float] = None
     
     user_id: Optional[int] = None 
+    quotation_id: Optional[int] = None
     
     # Relaciones anidadas
     client: Optional[ClientReadBasic] = None  # <--- ¡EL ESLABÓN PERDIDO!
@@ -237,7 +234,6 @@ class SalesOrderUpdate(SQLModel):
     valid_until: Optional[datetime] = None 
     is_warranty: Optional[bool] = None     
     
-    status: Optional[SalesOrderStatus] = None
     delivery_date: Optional[datetime] = None
     external_invoice_ref: Optional[str] = None
 
@@ -255,13 +251,6 @@ class SalesOrderUpdate(SQLModel):
     advance_percent: Optional[float] = None
     has_advance_invoice: Optional[bool] = None
     advance_invoice_amount: Optional[float] = None
-
-    # Si Ventas re-cotiza o se ajustan manuales
-    subtotal: Optional[float] = None
-    tax_amount: Optional[float] = None
-    total_price: Optional[float] = None
-
-    items: Optional[List[SalesOrderItemCreate]] = None
 
 
 # ==========================================

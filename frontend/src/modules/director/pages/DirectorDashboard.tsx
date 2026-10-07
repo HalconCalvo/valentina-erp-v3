@@ -15,6 +15,9 @@ import { VTable, type VTableColumn } from '@/components/ui/VTable';
 
 // --- SERVICIOS ---
 import { FinancialReviewModal } from '../../management/components/FinancialReviewModal';
+import { quotationService } from '../../../api/quotation-service';
+import axiosClient from '../../../api/axios-client';
+import type { Quotation } from '../../../types/quotations';
 import { salesService } from '../../../api/sales-service';
 import { treasuryService } from '../../../api/treasury-service';
 import { financeService } from '../../../api/finance-service';
@@ -52,7 +55,7 @@ const DirectorDashboard: React.FC = () => {
     // --- ESTADOS BASE Y MEMORIA DE SESIÓN ---
     const [isLoading, setIsLoading] = useState(true);
     const [orders, setOrders] = useState<SalesOrder[]>([]);
-    const [reviewOrderId, setReviewOrderId] = useState<number | null>(null);
+    const [reviewQuotationId, setReviewQuotationId] = useState<number | null>(null);
 
     const [activeSection, setActiveSection] = useState<DirectorSection>(
         (sessionStorage.getItem('dir_activeSection') as DirectorSection) || null
@@ -73,8 +76,8 @@ const DirectorDashboard: React.FC = () => {
     }, [activeSalesView]);
 
     // --- MÉTRICAS REALES DE VENTAS ---
-    const [pendingAuthOrders, setPendingAuthOrders] = useState<SalesOrder[]>([]);
-    const [sentClientOrders, setSentClientOrders] = useState<SalesOrder[]>([]);
+    const [pendingAuthOrders, setPendingAuthOrders] = useState<Quotation[]>([]);
+    const [sentClientOrders, setSentClientOrders] = useState<Quotation[]>([]);
     const [moneySentClient, setMoneySentClient] = useState(0);
     const [battingRate, setBattingRate] = useState(0);
     const [realSalesAdvance, setRealSalesAdvance] = useState(0);
@@ -160,22 +163,14 @@ const DirectorDashboard: React.FC = () => {
     const loadData = async (silent = false) => {
         if (!silent) setIsLoading(true);
         try {
-            const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
-            let baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-            if (baseUrl.endsWith('/api/v1')) baseUrl = baseUrl.replace('/api/v1', '');
 
             // 1. OBTENER META ANUAL DINÁMICA DESDE LOS PARÁMETROS GLOBALES
             let fetchedTarget = 1; // Fallback de seguridad
             try {
-                const configRes = await fetch(`${baseUrl}/api/v1/foundations/config`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (configRes.ok) {
-                    const configData = await configRes.json();
-                    if (configData && configData.annual_sales_target) {
-                        fetchedTarget = Number(configData.annual_sales_target);
-                        setAnnualTarget(fetchedTarget);
-                    }
+                const { data: configData } = await axiosClient.get('/foundations/config');
+                if (configData && configData.annual_sales_target) {
+                    fetchedTarget = Number(configData.annual_sales_target);
+                    setAnnualTarget(fetchedTarget);
                 }
             } catch {
                 /* ignore optional config fetch errors */
@@ -185,35 +180,21 @@ const DirectorDashboard: React.FC = () => {
             const data = await salesService.getOrders();
             const uniqueOrders = data ? Array.from(new Map(data.map((o: SalesOrder) => [o.id, o])).values()) : [];
             setOrders(uniqueOrders);
-            calculateSalesMetrics(uniqueOrders, fetchedTarget);
+            const quotations = await quotationService.listQuotations().catch(() => [] as Quotation[]);
+            calculateSalesMetrics(uniqueOrders, quotations, fetchedTarget);
 
             // 3. Cargar Notificaciones de Compras en vivo
             try {
-                const notifRes = await fetch(`${baseUrl}/api/v1/purchases/notifications/pending-tasks`, {
-                    headers: { 
-                        'Authorization': `Bearer ${token}`,
-                        'Accept': 'application/json'
-                    }
-                });
-
-                if (notifRes.ok) {
-                    const notifData = await notifRes.json();
-                    setPendingPurchaseAuths(notifData.orders_to_authorize || 0);
-                }
+                const { data: notifData } = await axiosClient.get('/purchases/notifications/pending-tasks');
+                setPendingPurchaseAuths(notifData?.orders_to_authorize || 0);
             } catch {
                 /* ignore optional notifications fetch errors */
             }
 
             // COST KPI
             try {
-                const kpiRes = await fetch(
-                    `${baseUrl}/api/v1/treasury/cost-kpi`,
-                    { headers: { 'Authorization': `Bearer ${token}` } }
-                );
-                if (kpiRes.ok) {
-                    const kpiData = await kpiRes.json();
-                    setCostKpi(kpiData);
-                }
+                const { data: kpiData } = await axiosClient.get('/treasury/cost-kpi');
+                setCostKpi(kpiData);
             } catch {
                 /* ignore cost kpi errors */
             }
@@ -264,14 +245,8 @@ const DirectorDashboard: React.FC = () => {
             }
 
             try {
-                const healthRes = await fetch(
-                    `${baseUrl}/api/v1/planning/instances/health`,
-                    { headers: { 'Authorization': `Bearer ${token}` } }
-                );
-                if (healthRes.ok) {
-                    const healthJson = await healthRes.json();
-                    setHealthData(healthJson);
-                }
+                const { data: healthJson } = await axiosClient.get('/planning/instances/health');
+                setHealthData(healthJson);
             } catch {
                 /* ignore health errors */
             }
@@ -298,20 +273,16 @@ const DirectorDashboard: React.FC = () => {
         }
     };
     
-    const calculateSalesMetrics = (allOrders: SalesOrder[], target: number) => {
-        const pending = allOrders.filter(o => o.status === 'SENT');
-        setPendingAuthOrders(pending);
+    const calculateSalesMetrics = (allOrders: SalesOrder[], quotations: Quotation[], target: number) => {
+        setPendingAuthOrders(quotations.filter(q => q.status === 'PENDING_AUTH'));
 
-        const sent = allOrders.filter(o => o.status === 'ACCEPTED');
+        const sent = quotations.filter(q => q.status === 'AUTHORIZED');
         setSentClientOrders(sent);
-        const moneySent = sent.reduce((sum, o) => sum + (Number(o.total_price) || 0), 0);
+        const moneySent = sent.reduce((sum, q) => sum + (Number(q.total_price) || 0), 0);
         setMoneySentClient(moneySent);
 
-        let won = 0, lost = 0;
-        allOrders.forEach(o => {
-            if (['SOLD', 'INSTALLED', 'FINISHED'].includes(o.status)) won++;
-            if (o.status === 'CLIENT_REJECTED') lost++;
-        });
+        const won = allOrders.filter(o => ['SOLD', 'INSTALLED', 'FINISHED'].includes(o.status)).length;
+        const lost = quotations.filter(q => q.status === 'LOST').length;
         const totalResolved = won + lost;
         setBattingRate(totalResolved > 0 ? Math.round((won / totalResolved) * 100) : 0);
 
@@ -353,21 +324,21 @@ const DirectorDashboard: React.FC = () => {
         });
     }, [cxcAging]);
 
-    const salesDetailColumns: VTableColumn<SalesOrder>[] = useMemo(
+    const salesDetailColumns: VTableColumn<Quotation>[] = useMemo(
         () => [
             {
                 key: 'folio',
                 label: 'Folio / Proyecto',
-                render: (order) => (
+                render: (quotation) => (
                     <span className="font-bold text-slate-800">
-                        OV-{order.id!.toString().padStart(4, '0')} - {order.project_name}
+                        {quotation.folio} - {quotation.project_name}
                     </span>
                 ),
             },
             {
                 key: 'seller',
                 label: 'Vendedor',
-                render: () => <span className="text-slate-600">Comercial</span>,
+                render: (quotation) => <span className="text-slate-600">{quotation.user?.full_name || 'Comercial'}</span>,
             },
             {
                 key: 'valid_until',
@@ -396,7 +367,7 @@ const DirectorDashboard: React.FC = () => {
                             <Button
                                 size="sm"
                                 className="bg-indigo-600 text-white shadow-sm hover:bg-indigo-700"
-                                onClick={() => setReviewOrderId(order.id!)}
+                                onClick={() => setReviewQuotationId(order.id)}
                             >
                                 <FileSearch size={14} className="mr-1" /> Revisar / Autorizar
                             </Button>
@@ -405,7 +376,7 @@ const DirectorDashboard: React.FC = () => {
                                 variant="outline"
                                 size="sm"
                                 className="bg-white shadow-sm"
-                                onClick={() => setReviewOrderId(order.id!)}
+                                onClick={() => setReviewQuotationId(order.id)}
                             >
                                 <FileSearch size={14} className="mr-1" /> Auditar Detalle
                             </Button>
@@ -600,7 +571,7 @@ const DirectorDashboard: React.FC = () => {
     };
 
     const renderSalesDetailTable = () => {
-        let filteredOrders: SalesOrder[] = [];
+        let filteredOrders: Quotation[] = [];
         let emptyMessage = "No hay datos para mostrar.";
 
         if (activeSalesView === 'PENDING_AUTH') {
@@ -1504,12 +1475,12 @@ const DirectorDashboard: React.FC = () => {
                 </div>
             )}
             
-            {reviewOrderId && (
+            {reviewQuotationId && (
                 <FinancialReviewModal 
-                    orderId={reviewOrderId}
-                    onClose={() => setReviewOrderId(null)}
+                    quotationId={reviewQuotationId}
+                    onClose={() => setReviewQuotationId(null)}
                     onOrderUpdated={() => {
-                        setReviewOrderId(null);
+                        setReviewQuotationId(null);
                         loadData(); 
                     }}
                 />

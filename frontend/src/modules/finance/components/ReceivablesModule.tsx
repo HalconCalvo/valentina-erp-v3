@@ -188,8 +188,6 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
             case 'IN_PRODUCTION': return <span className="text-[10px] text-blue-700 font-bold border px-1.5 py-0.5 rounded bg-blue-50 border-blue-200 uppercase tracking-wider">En Producción</span>;
             case 'SOLD': return <span className="text-[10px] text-emerald-700 font-bold border px-1.5 py-0.5 rounded bg-emerald-50 border-emerald-200 uppercase tracking-wider">Vendido / En Proceso</span>;
             case 'FINISHED': return <span className="text-[10px] text-purple-700 font-bold border px-1.5 py-0.5 rounded bg-purple-50 border-purple-200 uppercase tracking-wider">Finalizado</span>;
-            case 'DRAFT': return <span className="text-[10px] text-slate-700 font-bold border px-1.5 py-0.5 rounded bg-slate-50 border-slate-200 uppercase tracking-wider">Borrador</span>;
-            case 'SENT': return <span className="text-[10px] text-indigo-700 font-bold border px-1.5 py-0.5 rounded bg-indigo-50 border-indigo-200 uppercase tracking-wider">Enviado (Cotización)</span>;
             default: return <span className="text-[10px] text-slate-700 font-bold border px-1.5 py-0.5 rounded bg-slate-50 border-slate-200 uppercase tracking-wider">{status}</span>;
         }
     };

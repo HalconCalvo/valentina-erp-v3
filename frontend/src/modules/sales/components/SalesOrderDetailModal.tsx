@@ -260,7 +260,7 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
     const canExpand =
         ['DIRECTOR', 'MANAGER', 'SALES', 'ADMIN', 'ADMINISTRADOR', 'DIRECCION'].includes(userRole)
         && order
-        && ['ACCEPTED', 'WAITING_ADVANCE', 'SOLD', 'IN_PRODUCTION'].includes((order as any).status);
+        && ['WAITING_ADVANCE', 'SOLD', 'IN_PRODUCTION'].includes((order as any).status);
 
     if (!orderId) return null;
 
