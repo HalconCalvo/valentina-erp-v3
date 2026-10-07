@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { VConfirmDialog } from "@/components/ui/VConfirmDialog";
 import { toast } from "@/components/ui/VToast";
 import { VersionRecipeForm } from "../components/VersionRecipeForm"; 
+import { RecordHistoryButton } from "@/components/audit/RecordHistoryButton";
 import { designService } from "../../../api/design-service"; 
 import axiosClient from "../../../api/axios-client"; 
 import { API_ROUTES } from "../../../api/endpoints"; 
@@ -247,6 +248,7 @@ export default function DesignBuilderPage() {
                     <span className="text-sm font-black text-indigo-700 px-2 tracking-wide">
                         {version.version_name || "V1.0"}
                     </span>
+                    <RecordHistoryButton tableName="design_product_versions" recordId={version.id} label={`Versión ${version.version_name || version.id}`} />
                     
                     {/* RENOMBRAR */}
                     <button 

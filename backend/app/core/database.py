@@ -2,6 +2,8 @@ import os
 from sqlmodel import SQLModel, create_engine, Session, select
 from passlib.context import CryptContext
 
+from app.core.audit_listener import register_audit_listeners
+
 # --- IMPORTANTE: Registramos todos los modelos ---
 from app.models import users, auth, foundations, inventory, sales, design, finance, audit
 from app.models.users import User 
@@ -29,6 +31,9 @@ engine = create_engine(
     echo=False,
     connect_args=connect_args
 )
+
+# Bitácora automática de cambios (todas las sesiones del ORM)
+register_audit_listeners()
 
 # Configuración de hash (BCRYPT)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

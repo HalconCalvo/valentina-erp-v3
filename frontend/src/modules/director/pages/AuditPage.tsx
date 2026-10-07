@@ -9,6 +9,7 @@ import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { VEmptyState } from '@/components/ui/VEmptyState';
 import { toast } from '@/components/ui/VToast';
+import FieldChangesPanel from '../components/FieldChangesPanel';
 
 const PAGE_SIZE = 50;
 
@@ -72,6 +73,8 @@ const AuditPage: React.FC = () => {
     const navigate = useNavigate();
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase().trim();
     const isDirector = ['DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
+    const canSeeChanges = isDirector || userRole === 'MANAGER';
+    const [tab, setTab] = useState<'events' | 'changes'>(isDirector ? 'events' : 'changes');
 
     const [users, setUsers] = useState<Array<{ id: number; full_name: string }>>([]);
     const [filterUserId, setFilterUserId] = useState('');
@@ -222,13 +225,13 @@ const AuditPage: React.FC = () => {
         },
     ], []);
 
-    if (!isDirector) {
+    if (!canSeeChanges) {
         return (
             <div className="p-8 max-w-3xl mx-auto">
                 <VEmptyState
                     icon={<Shield className="text-slate-300" />}
                     title="Acceso restringido"
-                    description="Esta sección está disponible solo para el Director."
+                    description="Esta sección está disponible solo para Dirección y Gerencia."
                     action={{ label: 'Volver al inicio', onClick: () => navigate('/') }}
                 />
             </div>
@@ -246,7 +249,7 @@ const AuditPage: React.FC = () => {
                         Auditoría del Sistema
                     </h1>
                     <p className="text-slate-500 mt-1 font-medium">
-                        Historial de acciones críticas: quién, qué y cuándo.
+                        Quién, qué y cuándo: eventos de negocio y cambios por campo en todo el sistema.
                     </p>
                 </div>
                 <button
@@ -258,6 +261,18 @@ const AuditPage: React.FC = () => {
                 </button>
             </div>
 
+            <div className="flex flex-wrap gap-2">
+                {isDirector && (
+                    <Button type="button" variant={tab === 'events' ? 'default' : 'outline'} onClick={() => setTab('events')}>
+                        Eventos de negocio
+                    </Button>
+                )}
+                <Button type="button" variant={tab === 'changes' ? 'default' : 'outline'} onClick={() => setTab('changes')}>
+                    Cambios por campo
+                </Button>
+            </div>
+
+            {tab === 'changes' ? <FieldChangesPanel /> : (<>
             <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                     <div>
@@ -345,6 +360,7 @@ const AuditPage: React.FC = () => {
                     </div>
                 )}
             </div>
+            </>)}
         </div>
     );
 };

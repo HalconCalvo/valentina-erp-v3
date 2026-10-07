@@ -45,6 +45,7 @@ from app.schemas.sales_schema import (
     RetentionAlertRead,
 )
 from app.services.cost_engine import CostEngine
+from app.core.audit_context import audit_reason
 from app.services import audit_service, production_inventory_service
 from app.schemas.production_inventory_schema import OVCancelCreate
 
@@ -645,17 +646,18 @@ def cancel_ov(
                 "Use Modificar OV para ajustar la cantidad."
             ),
         )
-    # Frees reserved material, or reverses it if a batch already discharged it from the warehouse
-    production_inventory_service.release_for_cancelled_order(
-        session, order.id, current_user, payload.reversal if payload else None
-    )
-    for item in sales_repo.get_items_by_order(session, order.id):
-        for inst in sales_repo.get_active_instances_by_item(session, item.id):
-            inst.is_cancelled = True
-            session.add(inst)
-    order.status = SalesOrderStatus.CANCELLED_OV
-    session.add(order)
-    session.commit()
+    with audit_reason(payload.reversal.reason if payload and payload.reversal else "Cancelación de OV"):
+        # Frees reserved material, or reverses it if a batch already discharged it from the warehouse
+        production_inventory_service.release_for_cancelled_order(
+            session, order.id, current_user, payload.reversal if payload else None
+        )
+        for item in sales_repo.get_items_by_order(session, order.id):
+            for inst in sales_repo.get_active_instances_by_item(session, item.id):
+                inst.is_cancelled = True
+                session.add(inst)
+        order.status = SalesOrderStatus.CANCELLED_OV
+        session.add(order)
+        session.commit()
     session.refresh(order)
     return order
 

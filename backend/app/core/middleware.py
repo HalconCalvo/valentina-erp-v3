@@ -6,6 +6,7 @@ from jose import JWTError, jwt
 from structlog.contextvars import bind_contextvars, clear_contextvars
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from app.core import audit_context
 from app.core.config import settings
 
 logger = structlog.get_logger("app.request")
@@ -41,6 +42,14 @@ def _extract_user_id(scope: Scope) -> int | None:
     return None
 
 
+def _client_ip(scope: Scope) -> str | None:
+    forwarded = _header(scope, "x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip() or None
+    client = scope.get("client")
+    return client[0] if client else None
+
+
 class RequestLoggingMiddleware:
     """Lightweight ASGI middleware — no thread pool, minimal overhead."""
 
@@ -63,6 +72,7 @@ class RequestLoggingMiddleware:
         method = scope.get("method", "")
 
         bind_contextvars(user_id=user_id, path=path)
+        actor_token = audit_context.set_actor(user_id, _client_ip(scope))
 
         async def send_wrapper(message: Message) -> None:
             nonlocal status_code
@@ -99,6 +109,7 @@ class RequestLoggingMiddleware:
             else:
                 logger.info("request_completed", **event)
         finally:
+            audit_context.reset_actor(actor_token)
             clear_contextvars()
 
 

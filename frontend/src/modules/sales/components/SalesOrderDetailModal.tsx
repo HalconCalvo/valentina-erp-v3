@@ -14,6 +14,7 @@ import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { CustomerPayment, SalesOrder } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
 import BaptismModal from './BaptismModal';
+import { RecordHistoryButton } from '@/components/audit/RecordHistoryButton';
 import AddItemsModal from './AddItemsModal';
 
 interface Props {
@@ -360,7 +361,10 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                                     )}
                                 </div>
                             )}
-                            <div className="text-xs text-slate-500 font-mono">Folio: #{order.id}</div>
+                            <div className="flex items-center gap-1 text-xs text-slate-500 font-mono">
+                                Folio: #{order.id}
+                                <RecordHistoryButton tableName="sales_orders" recordId={order.id} label={`OV #${order.id}`} />
+                            </div>
                         </div>
                         <div className="border-l border-slate-200 pl-4">
                             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1"><User size={12}/> Cliente</h3>

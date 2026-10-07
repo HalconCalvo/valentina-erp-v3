@@ -13,6 +13,7 @@ from typing import Optional
 from fastapi import HTTPException
 from sqlmodel import Session
 
+from app.core.audit_context import audit_reason
 from app.core.business_time import cut_end_utc, format_local_date, today_local
 from app.models.inventory import InventoryAudit, InventoryAuditItem, InventoryAuditItemRecount, InventoryPeriodLock
 from app.models.material import Material
@@ -358,16 +359,17 @@ def _append_note(audit: InventoryAudit, label: str, reason: str) -> None:
 def reject_audit(session: Session, audit_id: int, reason: str, current_user) -> dict:
     _assert_roles(current_user, AUDIT_APPROVE_ROLES)
     reason_text = _require_text(reason, "El motivo de rechazo")
-    audit = _get_audit(session, audit_id, {ESPERANDO})
-    _append_note(audit, "RECHAZO", reason_text)
-    audit.status = EN_CAPTURA
-    audit.authorized_by_id = None
-    for item in inventory_repo.get_audit_items(session, audit_id):
-        if item.requires_approval and item.approved_at is None:
-            item.counted_quantity, item.variance, item.requires_approval, item.approval_reason = None, None, False, None
-            session.add(item)
-    session.add(audit)
-    session.commit()
+    with audit_reason(reason_text):
+        audit = _get_audit(session, audit_id, {ESPERANDO})
+        _append_note(audit, "RECHAZO", reason_text)
+        audit.status = EN_CAPTURA
+        audit.authorized_by_id = None
+        for item in inventory_repo.get_audit_items(session, audit_id):
+            if item.requires_approval and item.approved_at is None:
+                item.counted_quantity, item.variance, item.requires_approval, item.approval_reason = None, None, False, None
+                session.add(item)
+        session.add(audit)
+        session.commit()
     session.refresh(audit)
     return _serialize_audit(session, audit, current_user, blind=True)
 
@@ -375,15 +377,16 @@ def reject_audit(session: Session, audit_id: int, reason: str, current_user) -> 
 def cancel_audit(session: Session, audit_id: int, reason: str, current_user) -> dict:
     _assert_roles(current_user, AUDIT_CANCEL_ROLES)
     reason_text = _require_text(reason, "El motivo de cancelación")
-    audit = inventory_repo.get_audit_by_id(session, audit_id)
-    if not audit:
-        raise HTTPException(status_code=404, detail="Sesión de inventario no encontrada.")
-    if audit.status not in {EN_CAPTURA, ESPERANDO}:
-        raise HTTPException(status_code=400, detail="Solo se pueden cancelar sesiones activas.")
-    _append_note(audit, "CANCELACIÓN", reason_text)
-    audit.status = CANCELADA
-    session.add(audit)
-    session.commit()
+    with audit_reason(reason_text):
+        audit = inventory_repo.get_audit_by_id(session, audit_id)
+        if not audit:
+            raise HTTPException(status_code=404, detail="Sesión de inventario no encontrada.")
+        if audit.status not in {EN_CAPTURA, ESPERANDO}:
+            raise HTTPException(status_code=400, detail="Solo se pueden cancelar sesiones activas.")
+        _append_note(audit, "CANCELACIÓN", reason_text)
+        audit.status = CANCELADA
+        session.add(audit)
+        session.commit()
     session.refresh(audit)
     return _serialize_audit(session, audit, current_user, blind=False)
 
@@ -395,18 +398,19 @@ def cancel_audit(session: Session, audit_id: int, reason: str, current_user) -> 
 def reopen_audit(session: Session, audit_id: int, payload: AuditReopenCreate, current_user) -> dict:
     _assert_roles(current_user, AUDIT_REOPEN_ROLES)
     reason = _require_text(payload.reason, "El motivo de reapertura")
-    audit = _get_audit(session, audit_id, {CERRADA})
-    lock = inventory_repo.get_active_lock_for_audit(session, audit.id)
-    later = [lk for lk in inventory_repo.get_active_locks(session) if lk.locked_until > audit.cut_at]
-    if later:
-        raise HTTPException(status_code=400, detail=f"Primero reabre el corte posterior al {format_local_date(later[0].locked_until)}.")
-    if lock:
-        lock.released_at, lock.released_by_user_id, lock.release_reason = datetime.utcnow(), current_user.id, reason
-        session.add(lock)
-    _append_note(audit, "REAPERTURA", reason)
-    audit.status = REABIERTA
-    session.add(audit)
-    session.commit()
+    with audit_reason(reason):
+        audit = _get_audit(session, audit_id, {CERRADA})
+        lock = inventory_repo.get_active_lock_for_audit(session, audit.id)
+        later = [lk for lk in inventory_repo.get_active_locks(session) if lk.locked_until > audit.cut_at]
+        if later:
+            raise HTTPException(status_code=400, detail=f"Primero reabre el corte posterior al {format_local_date(later[0].locked_until)}.")
+        if lock:
+            lock.released_at, lock.released_by_user_id, lock.release_reason = datetime.utcnow(), current_user.id, reason
+            session.add(lock)
+        _append_note(audit, "REAPERTURA", reason)
+        audit.status = REABIERTA
+        session.add(audit)
+        session.commit()
     session.refresh(audit)
     return _serialize_audit(session, audit, current_user, blind=False)
 
@@ -423,23 +427,24 @@ def close_again(session: Session, audit_id: int, current_user) -> dict:
 def recount_item(session: Session, audit_id: int, item_id: int, payload: AuditItemRecountCreate, current_user) -> dict:
     _assert_roles(current_user, AUDIT_APPROVE_ROLES)
     reason = _require_text(payload.reason, "El motivo del reconteo")
-    if payload.counted_quantity < 0:
-        raise HTTPException(status_code=422, detail="La cantidad contada no puede ser negativa.")
-    audit = _get_audit(session, audit_id, {REABIERTA})
-    item = _get_item(session, audit_id, item_id)
-    previous_counted, reversed_id = item.counted_quantity, None
-    if item.adjustment_movement_id:
-        previous = inventory_repo.get_movement(session, item.adjustment_movement_id)
-        reversed_id = _post_difference(session, audit, item, current_user, -float(previous.quantity),
-                                       float(previous.unit_cost or 0.0), reason, reverses_movement_id=previous.id)
-    item.counted_quantity, item.adjustment_movement_id = float(payload.counted_quantity), None
-    _apply_item_adjustment(session, audit, item, current_user, reason)
-    session.add(InventoryAuditItemRecount(
-        audit_item_id=item.id, previous_counted=previous_counted, new_counted=float(payload.counted_quantity),
-        reason=reason, user_id=current_user.id, reversed_movement_id=reversed_id,
-        new_movement_id=item.adjustment_movement_id,
-    ))
-    session.commit()
+    with audit_reason(reason):
+        if payload.counted_quantity < 0:
+            raise HTTPException(status_code=422, detail="La cantidad contada no puede ser negativa.")
+        audit = _get_audit(session, audit_id, {REABIERTA})
+        item = _get_item(session, audit_id, item_id)
+        previous_counted, reversed_id = item.counted_quantity, None
+        if item.adjustment_movement_id:
+            previous = inventory_repo.get_movement(session, item.adjustment_movement_id)
+            reversed_id = _post_difference(session, audit, item, current_user, -float(previous.quantity),
+                                           float(previous.unit_cost or 0.0), reason, reverses_movement_id=previous.id)
+        item.counted_quantity, item.adjustment_movement_id = float(payload.counted_quantity), None
+        _apply_item_adjustment(session, audit, item, current_user, reason)
+        session.add(InventoryAuditItemRecount(
+            audit_item_id=item.id, previous_counted=previous_counted, new_counted=float(payload.counted_quantity),
+            reason=reason, user_id=current_user.id, reversed_movement_id=reversed_id,
+            new_movement_id=item.adjustment_movement_id,
+        ))
+        session.commit()
     session.refresh(item)
     return _serialize_audit_item(item, inventory_repo.get_material_by_id(session, item.material_id), blind=False)
 

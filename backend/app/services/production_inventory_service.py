@@ -13,6 +13,7 @@ from fastapi import HTTPException
 from sqlmodel import Session
 
 from app.core import material_groups
+from app.core.audit_context import audit_reason
 from app.models.inventory import InventoryReservation, ProductionStockAuthorization
 from app.models.production import ProductionBatch, ProductionBatchStatus
 from app.models.sales import InstanceStatus, SalesOrderItemInstance
@@ -316,21 +317,22 @@ def change_batch_status(session: Session, batch_id: int, payload: BatchStatusUpd
         raise HTTPException(status_code=400, detail="Un lote DEAD lo marca el sistema y no cambia de estado.")
     instances = prod_inv_repo.get_batch_instances(session, batch)
     old_status = batch.status
-    try:
-        if batch.status in PRE_PRODUCTION and new_status in POST_PRODUCTION:
-            assert_advance_paid(session, [i for i in instances if not i.is_cancelled])
-            active = prod_inv_repo.get_reservations(session, [ACTIVE], batch_id=batch.id)
-            discharge_reservations(session, batch, active, user, payload.override_reason)
-            batch.started_at = batch.started_at or datetime.utcnow()
-        elif batch.status in POST_PRODUCTION and new_status in PRE_PRODUCTION:
-            _leave_production(session, batch, instances, user, payload)
-        batch.status = new_status
-        session.add(batch)
-        _sync_instances(session, batch, instances, old_status, new_status)
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
+    with audit_reason(payload.override_reason or (payload.reversal.reason if payload.reversal else None)):
+        try:
+            if batch.status in PRE_PRODUCTION and new_status in POST_PRODUCTION:
+                assert_advance_paid(session, [i for i in instances if not i.is_cancelled])
+                active = prod_inv_repo.get_reservations(session, [ACTIVE], batch_id=batch.id)
+                discharge_reservations(session, batch, active, user, payload.override_reason)
+                batch.started_at = batch.started_at or datetime.utcnow()
+            elif batch.status in POST_PRODUCTION and new_status in PRE_PRODUCTION:
+                _leave_production(session, batch, instances, user, payload)
+            batch.status = new_status
+            session.add(batch)
+            _sync_instances(session, batch, instances, old_status, new_status)
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
     session.refresh(batch)
     return batch
 
@@ -381,18 +383,19 @@ def remove_instance_from_batch(
     if instance.production_status in LOADED_STATUSES:
         raise HTTPException(status_code=400, detail="La instancia ya fue cargada; no puede salir del lote.")
     reason = _require_reason(payload.reason, "El motivo")
-    try:
-        consumed = prod_inv_repo.get_reservations(session, [CONSUMED], batch_id=batch.id, instance_ids=[instance.id])
-        if consumed:
-            reversal = _require_reversal(user, payload.reversal, "La instancia ya descargó material del almacén.")
-            reverse_reservations(session, consumed, user, reversal, recreate=False)
-        active = prod_inv_repo.get_reservations(session, [ACTIVE], batch_id=batch.id, instance_ids=[instance.id])
-        release_reservations(session, active, user, reason)
-        _detach_from_batch(session, instance, batch)
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
+    with audit_reason(reason):
+        try:
+            consumed = prod_inv_repo.get_reservations(session, [CONSUMED], batch_id=batch.id, instance_ids=[instance.id])
+            if consumed:
+                reversal = _require_reversal(user, payload.reversal, "La instancia ya descargó material del almacén.")
+                reverse_reservations(session, consumed, user, reversal, recreate=False)
+            active = prod_inv_repo.get_reservations(session, [ACTIVE], batch_id=batch.id, instance_ids=[instance.id])
+            release_reservations(session, active, user, reason)
+            _detach_from_batch(session, instance, batch)
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
     session.refresh(instance)
     return instance
 

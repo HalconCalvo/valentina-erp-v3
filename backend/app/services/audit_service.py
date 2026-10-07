@@ -8,6 +8,7 @@ from sqlmodel import Session, select, func
 
 from app.models.audit import AuditLog
 from app.models.users import User, UserRole
+from app.repositories import audit_repository as audit_repo
 
 CANCEL = "CANCEL"
 APPROVE = "APPROVE"
@@ -127,3 +128,53 @@ def list_audit_logs(
         ).all()
     )
     return rows, total
+
+
+# ---------------------------------------------------------------------------
+# Automatic change log (audit_field_changes): DIRECTOR and MANAGER
+# ---------------------------------------------------------------------------
+
+CHANGE_LOG_ROLES = {UserRole.DIRECTOR.value, UserRole.MANAGER.value}
+
+
+def _require_change_log_role(user: User) -> None:
+    if _user_role_str(user) not in CHANGE_LOG_ROLES:
+        raise HTTPException(status_code=403, detail="Solo Dirección y Gerencia consultan la bitácora de cambios.")
+
+
+def _change_row(change, user_name: Optional[str], user_role) -> dict:
+    data = change.model_dump()
+    data["user_name"] = user_name or ("Sistema" if change.user_id is None else "")
+    data["user_role"] = (user_role.value if hasattr(user_role, "value") else str(user_role or "")).upper()
+    return data
+
+
+def list_field_changes(
+    session: Session,
+    current_user: User,
+    table_name: Optional[str] = None,
+    record_id: Optional[str] = None,
+    user_id: Optional[int] = None,
+    field_name: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 100,
+) -> tuple[List[dict], int]:
+    _require_change_log_role(current_user)
+    rows, total = audit_repo.get_field_changes(
+        session, table_name=table_name, record_id=record_id, user_id=user_id, field_name=field_name,
+        date_from=_parse_filter_date(date_from, "date_from"), date_to=_parse_filter_date(date_to, "date_to"),
+        skip=skip, limit=min(limit, 500),
+    )
+    return [_change_row(change, name, role) for change, name, role in rows], total
+
+
+def record_history(session: Session, current_user: User, table_name: str, record_id: str) -> List[dict]:
+    rows, _ = list_field_changes(session, current_user, table_name=table_name, record_id=record_id, limit=500)
+    return rows
+
+
+def audited_tables(session: Session, current_user: User) -> List[str]:
+    _require_change_log_role(current_user)
+    return audit_repo.get_audited_tables(session)

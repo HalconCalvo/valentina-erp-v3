@@ -50,7 +50,7 @@ from .production import (
 from .petty_cash import PettyCashFund, PettyCashMovement
 
 # --- Audit Log ---
-from .audit import AuditLog
+from .audit import AuditFieldChange, AuditLog
 
 # Exportación explícita para Alembic/SQLModel
 __all__ = [

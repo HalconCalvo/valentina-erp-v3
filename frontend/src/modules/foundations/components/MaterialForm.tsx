@@ -6,6 +6,7 @@ import { VToggle } from '@/components/ui/VToggle';
 import Modal from '@/components/ui/Modal';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { Material } from '@/types/foundations';
+import { RecordHistoryButton } from '@/components/audit/RecordHistoryButton';
 
 interface MaterialFormProps {
     initialSku?: string;
@@ -172,6 +173,12 @@ export const MaterialForm: React.FC<MaterialFormProps> = ({
                     <p className="text-sm text-slate-500 py-8 text-center">Cargando material...</p>
                 ) : (
                     <>
+                        {isEditing && (
+                            <div className="flex justify-end -mt-2 mb-2 items-center gap-1 text-[10px] font-bold uppercase text-slate-400">
+                                Historial de cambios
+                                <RecordHistoryButton tableName="materials" recordId={materialId} label={form.sku || `Material #${materialId}`} />
+                            </div>
+                        )}
                         {error && (
                             <div className="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded px-3 py-2 mb-3">
                                 {error}
