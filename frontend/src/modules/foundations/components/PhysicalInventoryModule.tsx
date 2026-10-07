@@ -126,13 +126,16 @@ const uncapturedColumns: VTableColumn<UncapturedRow>[] = [
 ];
 
 const errorDetail = (e: unknown, fallback: string): string => {
-  const detail =
-    e && typeof e === 'object' && 'response' in e
-      ? (e as { response?: { data?: { detail?: unknown } } }).response?.data?.detail
-      : undefined;
+  const response = (e as { response?: { status?: number; data?: { detail?: unknown } } })?.response;
+  if (!response) return 'Sin conexión con el servidor. Revisa tu internet e intenta de nuevo.';
+  const detail = response.data?.detail;
   if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    const messages = detail.map((d) => (d && typeof d === 'object' && 'msg' in d ? String((d as { msg: string }).msg) : '')).filter(Boolean);
+    return messages.length ? `Datos inválidos: ${messages.join('; ')}` : fallback;
+  }
   if (detail && typeof detail === 'object' && 'message' in detail) return String((detail as { message: string }).message);
-  return fallback;
+  return `${fallback} (código ${response.status ?? '—'})`;
 };
 
 const formatQty = (value: number | null | undefined): string => {
@@ -261,11 +264,7 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
         setClosedAudit(null);
       }
     } catch (e: unknown) {
-      const detail =
-        e && typeof e === 'object' && 'response' in e
-          ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
-          : undefined;
-      toast.error(typeof detail === 'string' ? detail : 'Error al cargar sesión activa.');
+      toast.error(errorDetail(e, 'Error al cargar sesión activa.'));
     } finally {
       setLoading(false);
     }
@@ -278,6 +277,18 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
     void loadLockAndSettings();
   }, [loadMaterialMeta, refreshActive, loadHistory, loadLockAndSettings]);
 
+  // A session started by another user appears when this tab becomes visible again (only on the start
+  // screen, so nothing being captured is reloaded).
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && !audit && !viewingClosedId && !processing) {
+        void refreshActive();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [audit, viewingClosedId, processing, refreshActive]);
+
   const handleStartSession = async () => {
     setProcessing(true);
     try {
@@ -286,11 +297,13 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
       setDraftQty({});
       toast.success(`Sesión de conteo iniciada con corte al ${formatCutDate(cutDate)}.`);
     } catch (e: unknown) {
-      const detail =
-        e && typeof e === 'object' && 'response' in e
-          ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
-          : undefined;
-      toast.error(typeof detail === 'string' ? detail : 'No se pudo iniciar la sesión.');
+      if ((e as { response?: { status?: number } })?.response?.status === 409) {
+        // Another user already started (or reopened) a session: show it instead of the start screen.
+        toast.warning(errorDetail(e, 'Ya existe una sesión activa.'));
+        await refreshActive();
+      } else {
+        toast.error(errorDetail(e, 'No se pudo iniciar la sesión.'));
+      }
     } finally {
       setProcessing(false);
     }
@@ -311,11 +324,7 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
       setAudit(updated);
       toast.success(`${item.material_sku || item.material_name} guardado.`);
     } catch (e: unknown) {
-      const detail =
-        e && typeof e === 'object' && 'response' in e
-          ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
-          : undefined;
-      toast.error(typeof detail === 'string' ? detail : 'Error al guardar captura.');
+      toast.error(errorDetail(e, 'Error al guardar captura.'));
     } finally {
       setSavingItemId(null);
     }
@@ -365,11 +374,7 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
         toast.success('Material aprobado.');
       }
     } catch (e: unknown) {
-      const detail =
-        e && typeof e === 'object' && 'response' in e
-          ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
-          : undefined;
-      toast.error(typeof detail === 'string' ? detail : 'Error al aprobar material.');
+      toast.error(errorDetail(e, 'Error al aprobar material.'));
     } finally {
       setSavingItemId(null);
     }
@@ -386,11 +391,7 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
       await loadHistory();
       toast.success('Todos los materiales aprobados. Sesión cerrada.');
     } catch (e: unknown) {
-      const detail =
-        e && typeof e === 'object' && 'response' in e
-          ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
-          : undefined;
-      toast.error(typeof detail === 'string' ? detail : 'Error al aprobar sesión.');
+      toast.error(errorDetail(e, 'Error al aprobar sesión.'));
     } finally {
       setProcessing(false);
       setApproveAllConfirm(false);
@@ -417,11 +418,7 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
       setReasonModal({ open: false, kind: 'cancel' });
       setReasonText('');
     } catch (e: unknown) {
-      const detail =
-        e && typeof e === 'object' && 'response' in e
-          ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
-          : undefined;
-      toast.error(typeof detail === 'string' ? detail : 'Error al procesar la acción.');
+      toast.error(errorDetail(e, 'Error al procesar la acción.'));
     } finally {
       setProcessing(false);
     }
@@ -433,8 +430,8 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
       const detail = await inventoryService.getAuditDetail(entry.id);
       setClosedAudit(detail);
       setViewingClosedId(entry.id);
-    } catch {
-      toast.error('No se pudo cargar el detalle de la sesión.');
+    } catch (e: unknown) {
+      toast.error(errorDetail(e, 'No se pudo cargar el detalle de la sesión.'));
     } finally {
       setProcessing(false);
     }

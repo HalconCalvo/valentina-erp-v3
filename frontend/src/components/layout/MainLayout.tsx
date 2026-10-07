@@ -2,6 +2,7 @@ import React from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import NewVersionBanner from './NewVersionBanner';
 import { VToastContainer } from '@/components/ui/VToast';
 import { useHeartbeat } from '@/hooks/useHeartbeat';
 
@@ -23,6 +24,9 @@ export default function MainLayout() {
       {/* ml-64: Deja el espacio para que el Sidebar no tape nada */}
       <div className="flex-1 flex flex-col ml-64 transition-all duration-300 h-screen">
         
+        {/* Aviso de versión nueva (deploy mientras la pestaña estaba abierta) */}
+        <NewVersionBanner />
+
         {/* Header Superior */}
         <Header />
 

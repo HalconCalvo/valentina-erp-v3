@@ -15,8 +15,17 @@ const queryClient = new QueryClient({
 });
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  // When a new service worker takes control (new deploy), reload once so the page runs the new version.
+  const hadController = Boolean(navigator.serviceWorker.controller);
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloading) return;
+    reloading = true;
+    window.location.reload();
+  });
   window.addEventListener('load', () => {
-    void navigator.serviceWorker.register('/sw.js');
+    // updateViaCache 'none': the browser always checks sw.js against the server, never the HTTP cache.
+    void navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' });
   });
 }
 
