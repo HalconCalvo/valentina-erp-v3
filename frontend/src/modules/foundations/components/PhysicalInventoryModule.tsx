@@ -43,7 +43,7 @@ interface MaterialMeta {
 
 type MaterialMetaMap = Record<number, MaterialMeta>;
 
-type CaptureRow = AuditItemRead & { material_category: string; material_provider: string };
+type CaptureRow = AuditItemRead & { material_category: string; material_provider: string | null };
 
 type PrintSortKey = 'category' | 'sku' | 'name' | 'provider';
 
@@ -54,29 +54,36 @@ const PRINT_SORT_OPTIONS: { value: PrintSortKey; label: string }[] = [
   { value: 'provider', label: 'Proveedor' },
 ];
 
+const NO_PROVIDER = 'Sin proveedor';
+
 const compareText = (a: string, b: string): number => a.localeCompare(b, 'es', { sensitivity: 'base', numeric: true });
+
+/** Empty values (e.g. materials without supplier) always go last. */
+const compareWithBlanksLast = (a: string, b: string): number => {
+  if (!a && !b) return 0;
+  if (!a) return 1;
+  if (!b) return -1;
+  return compareText(a, b);
+};
 
 /** Blind count list order for printing: chosen field first, then SKU. */
 const sortForPrint = (rows: CaptureRow[], key: PrintSortKey): CaptureRow[] => {
   const field = (row: CaptureRow): string => {
     if (key === 'category') return row.material_category;
-    if (key === 'provider') return row.material_provider;
+    if (key === 'provider') return row.material_provider ?? '';
     if (key === 'name') return row.material_name || '';
     return row.material_sku || '';
   };
   return [...rows].sort(
-    (a, b) => compareText(field(a), field(b)) || compareText(a.material_sku || '', b.material_sku || ''),
+    (a, b) => compareWithBlanksLast(field(a), field(b)) || compareText(a.material_sku || '', b.material_sku || ''),
   );
 };
 
-const unitCellsForPrint = (meta: MaterialMeta | undefined): { usage: string; purchase: string } => {
-  const usage = meta?.usage_unit?.trim() || '—';
-  const purchase = meta?.purchase_unit?.trim() || '—';
-  if (usage === purchase) {
-    return { usage, purchase: '' };
-  }
-  return { usage, purchase };
-};
+// Printed list always shows both units (even when they are the same); "—" only when not captured.
+const unitCellsForPrint = (meta: MaterialMeta | undefined): { usage: string; purchase: string } => ({
+  usage: meta?.usage_unit?.trim() || '—',
+  purchase: meta?.purchase_unit?.trim() || '—',
+});
 
 const renderUnitsDisplay = (meta: MaterialMeta | undefined): React.ReactNode => {
   if (!meta) return '—';
@@ -234,7 +241,7 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
             usage_unit: m.usage_unit?.trim() || '—',
             purchase_unit: m.purchase_unit?.trim() || '—',
             category: m.category?.trim() || '—',
-            provider: m.provider_name?.trim() || '—',
+            provider: m.provider_name?.trim() || '',
           };
         },
       );
@@ -558,7 +565,7 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
       .map((item) => ({
         ...item,
         material_category: materialMetaMap[item.material_id]?.category ?? '—',
-        material_provider: materialMetaMap[item.material_id]?.provider ?? '—',
+        material_provider: materialMetaMap[item.material_id]?.provider || null,
       }));
   }, [audit, search, materialMetaMap]);
 
@@ -611,7 +618,12 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
       label: 'Proveedor',
       sortable: true,
       width: '160px',
-      render: (row) => <span className="text-xs text-slate-600">{row.material_provider}</span>,
+      render: (row) =>
+        row.material_provider ? (
+          <span className="text-xs text-slate-600">{row.material_provider}</span>
+        ) : (
+          <span className="text-xs italic text-slate-400">{NO_PROVIDER}</span>
+        ),
     },
     {
       key: 'units',
@@ -1129,7 +1141,7 @@ export const PhysicalInventoryModule: React.FC<PhysicalInventoryModuleProps> = (
                       <td className="border border-slate-300 px-3 py-2 text-xs uppercase">
                         {item.material_category}
                       </td>
-                      <td className="border border-slate-300 px-3 py-2 text-xs">{item.material_provider}</td>
+                      <td className="border border-slate-300 px-3 py-2 text-xs">{item.material_provider || NO_PROVIDER}</td>
                       <td className="border border-slate-300 px-3 py-2">{units.usage}</td>
                       <td className="border border-slate-300 px-3 py-2">{units.purchase}</td>
                       <td className="border border-slate-300 px-3 py-2 h-8" />
