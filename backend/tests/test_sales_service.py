@@ -23,6 +23,14 @@ def test_order_is_born_waiting_advance_with_instances(client_fixture, auth_heade
     assert order["total_price"] > 0
 
 
+def test_list_orders_route(client_fixture, auth_header_director, seed_client_and_tax):
+    client, tax = seed_client_and_tax
+    order = _create_order(client_fixture, auth_header_director, client.id, tax.id)
+    response = client_fixture.get(f"{settings.API_V1_STR}/sales/orders", headers=auth_header_director)
+    assert response.status_code == 200, response.text
+    assert order["id"] in [row["id"] for row in response.json()]
+
+
 def test_retired_order_endpoints(client_fixture, auth_header_director, seed_client_and_tax):
     client, tax = seed_client_and_tax
     order = _create_order(client_fixture, auth_header_director, client.id, tax.id)

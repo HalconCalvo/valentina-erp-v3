@@ -120,6 +120,10 @@ def normalize_commission(rate: float | None) -> float:
     return rate
 
 
+# ==========================================
+# 2. LISTAR ORDENES
+# ==========================================
+@router.get("/orders", response_model=List[SalesOrderRead])
 def read_sales_orders(
     status: SalesOrderStatus | None = None,
     client_id: int | None = None,
