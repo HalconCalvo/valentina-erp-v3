@@ -1341,6 +1341,17 @@ def _assert_order_editor(user: User) -> None:
         raise HTTPException(status_code=403, detail="No tienes permisos para editar órdenes de venta.")
 
 
+def get_order_for_line_edit(session: Session, order_id: int, current_user: User) -> SalesOrder:
+    """Order whose lines the user may change: editor role and, for sellers, only their own orders."""
+    _assert_order_editor(current_user)
+    order = sales_repo.get_sales_order_by_id(session, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    if _is_seller_scoped_role(current_user) and order.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Acceso denegado")
+    return order
+
+
 def _days_waiting(reference: Optional[datetime]) -> int:
     if not reference:
         return 0

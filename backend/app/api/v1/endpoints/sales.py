@@ -232,15 +232,14 @@ def add_items_to_order(
 def delete_order_instance(
     order_id: int, item_id: int, instance_id: int,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
 ):
     """
     Elimina UNA instancia de una partida de produccion.
     Candado: solo si PENDING y sin facturar (customer_payment_id null).
     Recalcula totales de la orden.
     """
-    order = session.get(SalesOrder, order_id)
-    if not order:
-        raise HTTPException(404, "Orden no encontrada")
+    order = sales_service.get_order_for_line_edit(session, order_id, current_user)
     item = session.get(SalesOrderItem, item_id)
     if not item or item.sales_order_id != order_id:
         raise HTTPException(404, "Partida no encontrada en esta orden")
@@ -329,15 +328,14 @@ def update_sales_order_instance(
 def delete_resale_item(
     order_id: int, item_id: int,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
 ):
     """
     Elimina una partida de reventa completa.
     Candado: la orden no debe estar cerrada/instalada.
     (El equivalente 'facturada' para reventa se afinará luego.)
     """
-    order = session.get(SalesOrder, order_id)
-    if not order:
-        raise HTTPException(404, "Orden no encontrada")
+    order = sales_service.get_order_for_line_edit(session, order_id, current_user)
     item = session.get(SalesOrderItem, item_id)
     if not item or item.sales_order_id != order_id:
         raise HTTPException(404, "Partida no encontrada en esta orden")
@@ -372,15 +370,14 @@ def delete_resale_item(
 def patch_resale_item(
     order_id: int, item_id: int, payload: ResaleItemPatch,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
 ):
     """
     Edita una partida de reventa. Candado: is_resale y orden no terminal.
     Si cambia resale_sku, actualiza frozen_unit_cost desde el material.
     Recalcula subtotal_price del item y totales de la orden.
     """
-    order = session.get(SalesOrder, order_id)
-    if not order:
-        raise HTTPException(404, "Orden no encontrada")
+    order = sales_service.get_order_for_line_edit(session, order_id, current_user)
     item = session.get(SalesOrderItem, item_id)
     if not item or item.sales_order_id != order_id:
         raise HTTPException(404, "Partida no encontrada en esta orden")
@@ -435,14 +432,13 @@ def patch_resale_item(
 def patch_production_item_price(
     order_id: int, item_id: int, payload: ProductionItemPatch,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
 ):
     """
     Edita el precio de una partida de produccion.
     Candado Opcion A: solo si TODAS sus instancias estan PENDING y sin facturar.
     """
-    order = session.get(SalesOrder, order_id)
-    if not order:
-        raise HTTPException(404, "Orden no encontrada")
+    order = sales_service.get_order_for_line_edit(session, order_id, current_user)
     item = session.get(SalesOrderItem, item_id)
     if not item or item.sales_order_id != order_id:
         raise HTTPException(404, "Partida no encontrada en esta orden")
@@ -491,14 +487,13 @@ def patch_production_item_price(
 def add_instance_to_item(
     order_id: int, item_id: int,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
 ):
     """
     Agrega UNA instancia a una partida de produccion (sube la cantidad en 1).
     La instancia nace PENDING con nombre generico; luego se bautiza.
     """
-    order = session.get(SalesOrder, order_id)
-    if not order:
-        raise HTTPException(404, "Orden no encontrada")
+    order = sales_service.get_order_for_line_edit(session, order_id, current_user)
     item = session.get(SalesOrderItem, item_id)
     if not item or item.sales_order_id != order_id:
         raise HTTPException(404, "Partida no encontrada en esta orden")
