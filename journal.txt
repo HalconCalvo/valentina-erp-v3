@@ -3942,3 +3942,88 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 
 ### Cómo retomar:
 - claude --continue
+
+---
+## SESIÓN 2026-10-07 — PUSH A PRODUCCIÓN, PLAN 3 (F1, F2, F2.5) E INVENTARIO DE SEPTIEMBRE
+
+### En producción hoy (push a main):
+- PLAN 1 (descarga de receta al entrar a producción + valuación en 3 cajones)
+- PLAN 2 (inventario físico con fecha de corte, candado de periodo y reconteos)
+- Modo local seguro (LOCAL_SAFE_MODE)
+- PLAN 1b (descarga por grupo de material + anticipo validado en backend)
+- Journal del 6 de octubre
+- Corrección del service worker (servía una versión vieja en caché) y header Cache-Control no-cache en Render (85b433f)
+- PLAN 3 F1: lista de conteo ordenable por proveedor (sin proveedor al final, unidad de compra siempre impresa) y descripción de la partida conservada al autorizar (690613d, ae80461)
+- PLAN 3 F2: bitácora automática de cambios por campo (b829ceb) y tarjeta de Auditoría en el tablero de Gerencia (52fc980)
+
+### Inventario de septiembre:
+- Sesión #2 en producción con corte al 30/09/2026; la contadora está capturando
+- Pendiente: capturar las recepciones de septiembre faltantes ANTES de aprobar
+- Aprueba el Director
+
+### F2.5 — Separación Cotización / OV:
+- Commit local 7582e1e, SIN push
+- Ciclo de cotización: Borrador → Esperando autorización → Autorizada → Convertida en OV; Cambios solicitados, Perdida, Vencida, Cancelada. Solo DIRECTOR autoriza
+- Generar OV exige folio y fecha de la OC del cliente; se bloquea si la vigencia venció o hay desviación de costos. La OV nace en WAITING_ADVANCE con sus instancias
+- Probado en pantalla en local: tablero, lista de cotizaciones COT-xxxx y diálogo Generar OV (pide folio y fecha de OC)
+- Falta confirmar en pantalla el resultado de Generar OV
+- Al hacer push, la migración k1l2m3n4o5p6 convierte en producción las OVs-cotización en cotizaciones (80 según conteo previo); esas OVs quedan CANCELLED con nota "Migrada a cotización COT-xxxx"
+- En la copia local quedan registros de prueba COT-0084 (CONVERTED) y OV-0155 (cancelada)
+
+### Hallazgos a corregir:
+1. Radar de Vigencia marca 65 de 84 (posiblemente cuenta las vencidas)
+2. Subtítulo "Desglose detallado de Cobranza" en la lista de cotizaciones autorizadas
+3. La lista de OVs devuelve el objeto completo del vendedor (posible hash de contraseña); corregir en F3
+
+### Catálogo para el arranque:
+- 177 materiales sin proveedor
+- 77 materiales sin unidad de compra
+
+### Siguiente paso:
+1. Terminar la prueba de F2.5 (resultado de Generar OV en pantalla)
+2. Autorizar push de F2.5
+3. F3: corrección de recetas y precios al autorizar + seguridad
+4. F4: cobertura total de la bitácora
+
+### Decisiones a validar (siguen abiertas):
+- PLAN 1: solo DIRECTOR mueve lotes en el Kanban (comportamiento existente); DEAD manual rechazado; reporte de valuación solo DIRECTOR/MANAGER/ADMIN
+- PLAN 2: ajustes por conteo pueden dejar stock negativo; estado REABIERTA impide iniciar otra sesión; sesiones sin fecha de corte deben cancelarse
+
+### Hallazgos pendientes (de sesiones anteriores):
+1. Borrar instancia desde el estado de cuenta la elimina físicamente, sin revisar permisos ni liberar reservas
+2. Devoluciones por NC e /inventory/reception no convierten la cantidad de millar a pieza
+3. Borrar un lote en borrador lo elimina físicamente
+4. Kanban: fetch directo (vista previa de herrajes y PDF) y detalle de lote con div fijo en vez de Modal
+5. Kárdex histórico (antes de PLAN 1) con costo por millar en materiales con factor ≠ 1 (ej. 0502-002); se limpia en el arranque
+
+### Detalles visuales pendientes:
+1. Montos negativos se ven como "$-60.00" en vez de "-$60.00"
+2. Filtro Desde/Hasta del kárdex
+3. Subtotal positivo en salidas del kárdex
+
+### Pendientes para el arranque (sin cambio):
+1. Crear tasa "Exento" 0% activa
+2. Clientes y usuario vendedor con el nombre exacto del Excel
+3. Contabilidad: folios de ZENARA (filas 15 y 16), abono de 2025 en ZENARA, fecha futura en HABITARE OT 100, anticipo de GALERÍAS PH 71, facturas de SPCH OC 58 2 y OC 65
+
+### Pendientes técnicos menores:
+1. Redondeo al editar retenciones en el estado de cuenta (recalcula el monto desde el %)
+2. CLAUDE_FULL.md desactualizado (sección "ROL DE CURSOR")
+3. console.error en frontend/src/api/sales-service.ts — corregido en F2.5 (pendiente de push)
+4. Imports dentro de funciones en backend/app/api/v1/endpoints/sales.py — corregidos en F2.5 (pendiente de push)
+5. ~245 errores de tipos preexistentes en frontend (el build no corre tsc); con F2.5 bajan a 176
+
+### Pendientes generales:
+1. PWA Campo — probar con instalador real
+2. Heartbeat 404 — bug menor
+3. Inventario físico — en producción; sesión de septiembre en captura
+4. Arranque en ceros
+5. Control de Déficit y Mermas — post-arranque
+
+### Entorno local (sin cambio):
+- PostgreSQL 16 en puerto 5433 se enciende a mano tras reiniciar la Mac (ver sesión 2026-10-06)
+- Conexión local en ~/.pgurl_valentina_local; ~/.pgurl_valentina es PRODUCCIÓN
+- Para probar la UI contra la copia local: VITE_API_URL=http://localhost:8000/api/v1 npx vite --port 3000 (el Vite de 5173 apunta a producción)
+
+### Cómo retomar:
+- claude --continue
