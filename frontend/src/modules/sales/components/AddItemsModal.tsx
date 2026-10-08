@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Plus, Trash2, Package, PenLine, ShoppingCart } from 'lucide-react';
+import { Plus, Trash2, Package, PenLine, ShoppingCart } from 'lucide-react';
 import { SalesOrder } from '../../../types/sales';
-import { salesService } from '../../../api/sales-service';
+import type { ChangeOrderLine } from '../../../types/quotations';
 import { designService } from '../../../api/design-service';
+import Modal from '@/components/ui/Modal';
 import axiosClient from '../../../api/axios-client';
 import { useFoundations } from '../../foundations/hooks/useFoundations';
 import { toast } from '@/components/ui/VToast';
@@ -13,7 +14,8 @@ interface AddItemsModalProps {
     isOpen: boolean;
     onClose: () => void;
     order: SalesOrder;
-    onSuccess: () => void;
+    /** New lines for the change order; nothing is saved until the change order is applied. */
+    onAdd: (lines: ChangeOrderLine[]) => void;
 }
 
 interface StagedItem {
@@ -25,6 +27,7 @@ interface StagedItem {
     frozen_unit_cost: number;
     is_resale?: boolean;
     resale_sku?: string | null;
+    commercial_description?: string | null;
 }
 
 const calcCostoParaPrecio = (estimatedCost: number, materialCost: number, taxRate: number) => {
@@ -37,7 +40,8 @@ const calcCostoParaPrecio = (estimatedCost: number, materialCost: number, taxRat
     return Number(estimatedCost) || 0;
 };
 
-export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, order, onSuccess }) => {
+/** Line picker (catalog, manual or resale) for the ADD operations of a change order. */
+export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, order, onAdd }) => {
     const foundationHook = useFoundations();
     const taxRates = foundationHook?.taxRates || [];
 
@@ -49,7 +53,6 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
     const [selectedResaleSku, setSelectedResaleSku] = useState('');
     const [resaleSearch, setResaleSearch] = useState('');
     const [staging, setStaging] = useState<StagedItem[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
     const [priceManual, setPriceManual] = useState(false);
 
     const [lineItem, setLineItem] = useState({
@@ -59,6 +62,7 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
         unit_price: 0,
         manual_name: '',
         frozen_cost: 0,
+        description: '',
     });
 
     const selectedTaxRate = useMemo(
@@ -81,7 +85,7 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
         setSelectedCategory('');
         setSelectedResaleSku('');
         setResaleSearch('');
-        setLineItem({ master_id: 0, version_id: 0, quantity: 1, unit_price: 0, manual_name: '', frozen_cost: 0 });
+        setLineItem({ master_id: 0, version_id: 0, quantity: 1, unit_price: 0, manual_name: '', frozen_cost: 0, description: '' });
         setPriceManual(false);
 
         const loadCatalog = async () => {
@@ -143,6 +147,7 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
                 version_id: selectedVersionId,
                 unit_price: 0,
                 frozen_cost: estimatedCost,
+                description: version?.commercial_description || '',
             });
             return;
         }
@@ -162,6 +167,7 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
             version_id: selectedVersionId,
             unit_price: Number(salesPrice.toFixed(2)),
             frozen_cost: estimatedCost,
+            description: version.commercial_description || '',
         });
     };
 
@@ -205,10 +211,11 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
             frozen_unit_cost: addMode === 'CATALOG' ? lineItem.frozen_cost : (addMode === 'RESALE' ? lineItem.frozen_cost : 0),
             is_resale: addMode === 'RESALE',
             resale_sku: addMode === 'RESALE' ? selectedResaleSku : null,
+            commercial_description: lineItem.description.trim() || null,
         };
 
         setStaging((prev) => [...prev, newItem]);
-        setLineItem({ master_id: 0, version_id: 0, quantity: 1, unit_price: 0, manual_name: '', frozen_cost: 0 });
+        setLineItem({ master_id: 0, version_id: 0, quantity: 1, unit_price: 0, manual_name: '', frozen_cost: 0, description: '' });
         setSelectedCategory('');
         setSelectedResaleSku('');
         setResaleSearch('');
@@ -220,43 +227,18 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
         setStaging((prev) => prev.filter((i) => i.tempId !== tempId));
     };
 
-    const handleSubmit = async () => {
-        if (!order.id || staging.length === 0) return;
-        setIsLoading(true);
-        try {
-            const payload = staging.map(({ tempId: _tempId, ...item }) => item);
-            await salesService.addItemsToOrder(order.id, payload);
-            onSuccess();
-            onClose();
-        } catch (error: any) {
-            toast.error(error.response?.data?.detail || 'No se pudieron agregar las partidas.');
-        } finally {
-            setIsLoading(false);
-        }
+    const handleSubmit = () => {
+        if (staging.length === 0) return;
+        onAdd(staging.map(({ tempId: _tempId, ...item }) => ({ change_type: 'ADD', ...item })));
+        onClose();
     };
 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
-                <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                    <div>
-                        <h2 className="text-lg font-black text-slate-800">Ampliar Orden de Venta</h2>
-                        <p className="text-xs text-slate-500 font-medium">
-                            {order.project_name} · OV #{order.id}
-                        </p>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="p-2 hover:bg-slate-200 rounded-lg text-slate-400 transition-colors"
-                    >
-                        <X size={20} />
-                    </button>
-                </div>
-
-                <div className="p-6 overflow-y-auto flex-1 space-y-6">
+        <Modal isOpen={isOpen} onClose={onClose} title={`Agregar partidas · ${order.project_name}`} size="xl" overlayZIndex={80}>
+            <div className="flex flex-col max-h-[75vh]">
+                <div className="overflow-y-auto flex-1 space-y-6 pr-1">
                     <div className="flex gap-2">
                         <button
                             type="button"
@@ -430,6 +412,17 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
                             </div>
                         )}
 
+                        <div className="space-y-1">
+                            <label className="text-[11px] font-bold text-slate-500 uppercase">Descripción comercial (opcional)</label>
+                            <Input
+                                type="text"
+                                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm h-auto"
+                                placeholder="Se imprime bajo el nombre del producto"
+                                value={lineItem.description}
+                                onChange={(e) => setLineItem({ ...lineItem, description: e.target.value })}
+                            />
+                        </div>
+
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1">
                                 <label className="text-[11px] font-bold text-slate-500 uppercase">Cantidad</label>
@@ -511,7 +504,7 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
                     </div>
                 </div>
 
-                <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+                <div className="pt-4 mt-4 border-t border-slate-100 flex justify-end gap-3">
                     <button
                         type="button"
                         onClick={onClose}
@@ -521,15 +514,15 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
                     </button>
                     <button
                         type="button"
-                        onClick={() => void handleSubmit()}
-                        disabled={isLoading || staging.length === 0}
+                        onClick={handleSubmit}
+                        disabled={staging.length === 0}
                         className="px-6 py-2 text-sm font-black text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm disabled:opacity-50"
                     >
-                        {isLoading ? 'Agregando…' : 'Agregar a la Orden'}
+                        Agregar a la orden de cambio
                     </button>
                 </div>
             </div>
-        </div>
+        </Modal>
     );
 };
 

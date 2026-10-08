@@ -44,6 +44,7 @@ export const quotationStatusBadgeClass = (status: QuotationStatus): string => {
     case 'LOST': return 'bg-rose-100 text-rose-700';
     case 'EXPIRED': return 'bg-amber-100 text-amber-800';
     case 'CANCELLED': return 'bg-red-100 text-red-700';
+    case 'APPLIED': return 'bg-indigo-100 text-indigo-700';
     default: return 'bg-slate-100 text-slate-600';
   }
 };

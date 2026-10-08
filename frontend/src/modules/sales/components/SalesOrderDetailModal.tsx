@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { 
     FileDown, Calendar, User, FileText, Hash, 
-    ClipboardList, Info, Percent, ShieldAlert, Lock, Unlock, Save, Tag, Pencil, Plus
+    ClipboardList, Info, Percent, ShieldAlert, Lock, Unlock, Save, Tag, Pencil
 } from 'lucide-react';
 
 // IMPORTACIONES CORREGIDAS (LA CAUSA DEL CORTO CIRCUITO)
@@ -15,7 +15,6 @@ import { CustomerPayment, SalesOrder } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
 import BaptismModal from './BaptismModal';
 import { RecordHistoryButton } from '@/components/audit/RecordHistoryButton';
-import AddItemsModal from './AddItemsModal';
 
 interface Props {
     orderId: number | null;
@@ -58,7 +57,6 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
     const [isSaving, setIsSaving] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
     const [showBaptism, setShowBaptism] = useState(false);
-    const [showAddItems, setShowAddItems] = useState(false);
 
     const [clientPoFolio, setClientPoFolio] = useState('');
     const [clientPoDate, setClientPoDate] = useState('');
@@ -100,7 +98,7 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
     const totals = useMemo(() => {
         if (!order || !order.items) return null;
 
-        const itemsSum = order.items.reduce((acc, item) => acc + (item.subtotal_price || 0), 0);
+        const itemsSum = order.items.filter((item) => !item.is_cancelled).reduce((acc, item) => acc + (item.subtotal_price || 0), 0);
         
         let rate = order.applied_commission_percent || 0;
         if (rate > 1) rate = rate / 100; // Normalizar porcentaje
@@ -256,11 +254,6 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
             },
         },
     ], []);
-
-    const canExpand =
-        ['DIRECTOR', 'MANAGER', 'SALES', 'ADMIN', 'ADMINISTRADOR', 'DIRECCION'].includes(userRole)
-        && order
-        && ['WAITING_ADVANCE', 'SOLD', 'IN_PRODUCTION'].includes((order as any).status);
 
     if (!orderId) return null;
 
@@ -460,10 +453,12 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                                 
                                 <div className="overflow-auto flex-1 min-h-[180px] p-2 space-y-2">
                                     {order.items?.map((item: any, idx: number) => (
-                                        <div key={idx} className="flex justify-between items-center p-2 hover:bg-slate-50 border-b border-slate-50 last:border-0 text-xs">
+                                        <div key={idx} className={`flex justify-between items-center p-2 hover:bg-slate-50 border-b border-slate-50 last:border-0 text-xs ${item.is_cancelled ? 'opacity-50' : ''}`}>
                                             <div>
-                                                <div className="font-bold text-slate-700">{item.product_name}</div>
-                                                <div className="text-slate-400">Qty: {item.quantity} | Unit: ${fmt(item.unit_price)}</div>
+                                                <div className={`font-bold text-slate-700 ${item.is_cancelled ? 'line-through' : ''}`}>{item.product_name}</div>
+                                                <div className="text-slate-400">
+                                                    {item.is_cancelled ? `Cancelada: ${item.cancel_reason || 'sin motivo'}` : `Qty: ${item.quantity} | Unit: $${fmt(item.unit_price)}`}
+                                                </div>
                                             </div>
                                             <div className="text-right font-mono font-bold text-slate-800">
                                                 ${fmt(item.subtotal_price)}
@@ -542,16 +537,6 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                                     <Tag size={13} /> Gestionar Identidad / Bautizar
                                 </button>
                             )}
-                            {canExpand && (
-                                <button
-                                    type="button"
-                                    onClick={() => setShowAddItems(true)}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors"
-                                    title="Agregar partidas nuevas sin borrar las existentes"
-                                >
-                                    <Plus size={13} /> Ampliar Orden
-                                </button>
-                            )}
                         </div>
                         
                         <div className="flex gap-3">
@@ -569,17 +554,6 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                             order={order}
                             onClose={() => setShowBaptism(false)}
                             onComplete={() => { setShowBaptism(false); }}
-                        />
-                    )}
-                    {order && (
-                        <AddItemsModal
-                            isOpen={showAddItems}
-                            onClose={() => setShowAddItems(false)}
-                            order={order}
-                            onSuccess={() => {
-                                setShowAddItems(false);
-                                void reloadOrderDetail();
-                            }}
                         />
                     )}
                 </div>

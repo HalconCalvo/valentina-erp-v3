@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import SQLModel
 from datetime import datetime
 
-from app.models.sales import QuotationStatus
+from app.models.sales import ChangeType, QuotationKind, QuotationStatus
 from app.schemas.sales_schema import ClientReadBasic
 
 
@@ -28,6 +28,11 @@ class QuotationItemRead(QuotationItemBase):
     id: int
     quotation_id: int
     subtotal_price: float
+    change_type: Optional[ChangeType] = None
+    target_order_item_id: Optional[int] = None
+    cancel_instance_ids: Optional[List[int]] = None
+    reversal_dispositions: Optional[Dict[str, str]] = None
+    change_reason: Optional[str] = None
 
 
 class QuotationBase(SQLModel):
@@ -51,6 +56,8 @@ class QuotationBase(SQLModel):
 
 class QuotationCreate(QuotationBase):
     items: List[QuotationItemCreate] = []
+    # Complementary OV: the original sales order this new quotation extends
+    parent_sales_order_id: Optional[int] = None
 
 
 class QuotationUpdate(SQLModel):
@@ -102,6 +109,15 @@ class QuotationRead(QuotationBase):
     expired_at: Optional[datetime] = None
     cancelled_at: Optional[datetime] = None
     cancel_reason: Optional[str] = None
+    kind: QuotationKind = QuotationKind.NEW
+    parent_sales_order_id: Optional[int] = None
+    change_number: Optional[int] = None
+    change_reason: Optional[str] = None
+    applied_at: Optional[datetime] = None
+    applied_by_user_id: Optional[int] = None
+    client_po_folio: Optional[str] = None
+    client_po_date: Optional[datetime] = None
+    complementary_advance_amount: float = 0.0
     client: Optional[ClientReadBasic] = None
     user: Optional[QuotationUserRead] = None
     items: List[QuotationItemRead] = []
@@ -139,3 +155,56 @@ class QuotationConvertRead(BaseModel):
     quotation_id: int
     sales_order_id: int
     message: str
+
+
+
+# ==========================================
+# ORDEN DE CAMBIO DE OV (CAM)
+# ==========================================
+class ChangeOrderLine(BaseModel):
+    """One operation of a change order.
+    ADD: new line (product_name, quantity, unit_price, ...). QUANTITY_UP: quantity = units to add.
+    QUANTITY_DOWN: production lines list the units in cancel_instance_ids; resale lines use quantity.
+    PRICE: unit_price = new price. CANCEL_LINE: the whole line."""
+    change_type: ChangeType
+    target_order_item_id: Optional[int] = None
+    product_name: Optional[str] = None
+    origin_version_id: Optional[int] = None
+    quantity: float = 0.0
+    unit_price: float = 0.0
+    cost_snapshot: Dict[str, Any] = {}
+    frozen_unit_cost: float = 0.0
+    is_resale: bool = False
+    resale_sku: Optional[str] = None
+    commercial_description: Optional[str] = None
+    cancel_instance_ids: List[int] = []
+    reversal_dispositions: Dict[str, str] = {}
+    change_reason: Optional[str] = None
+
+
+class ChangeOrderCreate(BaseModel):
+    sales_order_id: int
+    change_reason: str = Field(..., min_length=1)
+    lines: List[ChangeOrderLine] = Field(..., min_length=1)
+    advance_percent: Optional[float] = None
+    notes: Optional[str] = None
+
+
+class ChangeOrderUpdate(BaseModel):
+    change_reason: Optional[str] = None
+    lines: Optional[List[ChangeOrderLine]] = None
+    advance_percent: Optional[float] = None
+    notes: Optional[str] = None
+
+
+class ChangeOrderAuthorize(BaseModel):
+    """Director's review: final prices of the lines, advance percent and what happens to units in production."""
+    lines: List[ChangeOrderLine] = Field(..., min_length=1)
+    advance_percent: float
+    director_notes: Optional[str] = None
+
+
+class ChangeOrderApply(BaseModel):
+    """Client's complementary purchase order, optional."""
+    client_po_folio: Optional[str] = None
+    client_po_date: Optional[datetime] = None

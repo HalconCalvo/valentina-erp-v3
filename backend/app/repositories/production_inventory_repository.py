@@ -2,12 +2,13 @@
 from datetime import datetime
 from typing import Dict, List, Optional, Sequence
 
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.models.inventory import InventoryReservation, ProductionStockAuthorization
 from app.models.material import Material
 from app.models.production import ProductionBatch
-from app.models.sales import CustomerPayment, SalesOrder, SalesOrderItem, SalesOrderItemInstance
+from app.models.sales import CustomerPayment, Quotation, SalesOrder, SalesOrderItem, SalesOrderItemInstance
 from app.models.users import User
 
 
@@ -130,3 +131,21 @@ def get_orders_with_unpaid_advance(session: Session, order_ids: Sequence[int]) -
             )
         ).all()
     )
+
+
+def get_change_orders_by_ids(session: Session, change_ids: Sequence[int]) -> List[Quotation]:
+    ids = list({i for i in change_ids if i})
+    if not ids:
+        return []
+    return list(session.exec(select(Quotation).where(Quotation.id.in_(ids))).all())
+
+
+def sum_paid_change_advance(session: Session, change_id: int) -> float:
+    value = session.exec(
+        select(func.coalesce(func.sum(CustomerPayment.amount), 0.0)).where(
+            CustomerPayment.change_quotation_id == change_id,
+            CustomerPayment.payment_type == "ADVANCE",
+            CustomerPayment.status == "PAID",
+        )
+    ).one()
+    return float(value or 0.0)

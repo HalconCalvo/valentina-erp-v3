@@ -13,6 +13,9 @@ import {
   PaymentType,
   RetentionAlertRead,
   RetentionUpdatePayload,
+  OrderMoneySummary,
+  CustomerCreditNote,
+  CustomerCreditNotePayload,
 } from '../types/sales';
 
 export type LegacyImportOrderCreated = {
@@ -136,10 +139,6 @@ export const salesService = {
         return response.data;
     },
 
-    deleteInstance: async (orderId: number, itemId: number, instanceId: number): Promise<void> => {
-        await axiosClient.delete(`${API_ROUTES.SALES.ORDER_DETAIL(orderId)}/items/${itemId}/instances/${instanceId}`);
-    },
-
     patchInstanceDeliveryDeadline: async (
         orderId: number,
         instanceId: number,
@@ -158,35 +157,6 @@ export const salesService = {
             payload,
         );
         return response.data;
-    },
-
-    deleteResaleItem: async (orderId: number, itemId: number): Promise<void> => {
-        await axiosClient.delete(`${API_ROUTES.SALES.ORDER_DETAIL(orderId)}/items/${itemId}/resale`);
-    },
-
-    patchResaleItem: async (
-        orderId: number,
-        itemId: number,
-        payload: { quantity?: number; unit_price?: number; resale_sku?: string; product_name?: string }
-    ): Promise<void> => {
-        await axiosClient.patch(
-            `${API_ROUTES.SALES.ORDER_DETAIL(orderId)}/items/${itemId}/resale`,
-            payload
-        );
-    },
-
-    patchProductionPrice: async (orderId: number, itemId: number, unitPrice: number): Promise<void> => {
-        await axiosClient.patch(
-            `${API_ROUTES.SALES.ORDER_DETAIL(orderId)}/items/${itemId}/production`,
-            { unit_price: unitPrice }
-        );
-    },
-
-    addInstance: async (orderId: number, itemId: number): Promise<void> => {
-        await axiosClient.post(
-            `${API_ROUTES.SALES.ORDER_DETAIL(orderId)}/items/${itemId}/add-instance`,
-            {}
-        );
     },
 
     /**
@@ -261,7 +231,7 @@ export const salesService = {
      * Camino A: emite la factura de anticipo (crea un CustomerPayment ADVANCE PENDING).
      * Los abonos posteriores nacen en Tesorería al conciliar el ingreso.
      */
-    emitAdvanceInvoice: async (orderId: number, payload: { invoice_folio: string | null; amount: number; invoice_date?: string | null }) => {
+    emitAdvanceInvoice: async (orderId: number, payload: { invoice_folio: string | null; amount: number; invoice_date?: string | null; change_quotation_id?: number | null }) => {
         const response = await axiosClient.post(`/sales/orders/${orderId}/emit_advance_invoice`, payload);
         return response.data;
     },
@@ -282,19 +252,33 @@ export const salesService = {
         return response.data;
     },
 
-    /**
-     * Amplía una OV en curso agregando partidas nuevas (aditivo, sin borrar existentes).
-     */
-    addItemsToOrder: async (orderId: number, items: Array<{
-        product_name: string;
-        origin_version_id: number | null;
-        quantity: number;
-        unit_price: number;
-        frozen_unit_cost: number;
-        is_resale?: boolean;
-        resale_sku?: string | null;
-    }>): Promise<SalesOrder> => {
-        const response = await axiosClient.post(`/sales/orders/${orderId}/add-items`, { items });
+    /** Commercial description of a line: direct edit (no money involved), kept in the change log. */
+    updateItemDescription: async (orderId: number, itemId: number, description: string, reason?: string) => {
+        const response = await axiosClient.patch(`/sales/orders/${orderId}/items/${itemId}/description`, {
+            commercial_description: description,
+            reason: reason || null,
+        });
+        return response.data;
+    },
+
+    /** Credit notes to capture and complementary advances left by change orders. */
+    getMoneySummary: async (orderId: number): Promise<OrderMoneySummary> => {
+        const response = await axiosClient.get(`/sales/orders/${orderId}/money-summary`, { params: { t: Date.now() } });
+        return response.data;
+    },
+
+    createCreditNote: async (orderId: number, payload: CustomerCreditNotePayload): Promise<CustomerCreditNote> => {
+        const response = await axiosClient.post(`/sales/orders/${orderId}/credit-notes`, payload);
+        return response.data;
+    },
+
+    applyCreditNote: async (noteId: number, customerPaymentId: number): Promise<CustomerCreditNote> => {
+        const response = await axiosClient.post(`/sales/credit-notes/${noteId}/apply`, { customer_payment_id: customerPaymentId });
+        return response.data;
+    },
+
+    cancelCreditNote: async (noteId: number, reason: string): Promise<CustomerCreditNote> => {
+        const response = await axiosClient.post(`/sales/credit-notes/${noteId}/cancel`, { cancel_reason: reason });
         return response.data;
     },
 

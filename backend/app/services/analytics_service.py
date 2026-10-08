@@ -77,7 +77,7 @@ def _fetch_order_cost_rows(session: Session, statuses: Tuple[Any, ...]):
             func.coalesce(func.sum(SalesOrderItem.frozen_unit_cost * SalesOrderItem.quantity), 0.0),
         )
         .join(Client, SalesOrder.client_id == Client.id)
-        .outerjoin(SalesOrderItem, SalesOrderItem.sales_order_id == SalesOrder.id)
+        .outerjoin(SalesOrderItem, (SalesOrderItem.sales_order_id == SalesOrder.id) & (SalesOrderItem.is_cancelled == False))  # noqa: E712
         .where(SalesOrder.status.in_(statuses))
         .group_by(SalesOrder.id, SalesOrder.total_price, Client.full_name)
     ).all()
@@ -239,7 +239,7 @@ def get_top_clients(session: Session) -> List[TopClientItem]:
             func.coalesce(func.sum(SalesOrderItem.frozen_unit_cost * SalesOrderItem.quantity), 0.0),
         )
         .join(Client, SalesOrder.client_id == Client.id)
-        .outerjoin(SalesOrderItem, SalesOrderItem.sales_order_id == SalesOrder.id)
+        .outerjoin(SalesOrderItem, (SalesOrderItem.sales_order_id == SalesOrder.id) & (SalesOrderItem.is_cancelled == False))  # noqa: E712
         .where(
             SalesOrder.status.in_(_TOP_CLIENT_STATUSES),
             SalesOrder.created_at >= year_start,

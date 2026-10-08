@@ -72,6 +72,20 @@ class QuotationStatus(str, enum.Enum):
     LOST = "LOST"                            # The client did not accept
     EXPIRED = "EXPIRED"                      # Validity date passed
     CANCELLED = "CANCELLED"
+    APPLIED = "APPLIED"                      # Change order applied to its sales order
+
+
+class QuotationKind(str, enum.Enum):
+    NEW = "NEW"                    # Regular quotation; converts into a new sales order
+    CHANGE_ORDER = "CHANGE_ORDER"  # Change order (CAM) applied to an existing sales order
+
+
+class ChangeType(str, enum.Enum):
+    ADD = "ADD"                      # New line on the order
+    QUANTITY_UP = "QUANTITY_UP"      # More units of an existing line
+    QUANTITY_DOWN = "QUANTITY_DOWN"  # Cancel units of an existing line
+    PRICE = "PRICE"                  # New unit price for an existing line
+    CANCEL_LINE = "CANCEL_LINE"      # Cancel the whole line
 
 # ==========================================
 # 2. MODELO DE COMISIONES (REGISTRO DETALLADO)
@@ -144,6 +158,9 @@ class CustomerPayment(SQLModel, table=True):
     nc_advance_amount: float = Field(default=0.0)
     nc_retention_folio: Optional[str] = Field(default=None)
     nc_retention_amount: float = Field(default=0.0)
+
+    # Complementary advance invoice of a change order (CAM)
+    change_quotation_id: Optional[int] = Field(default=None, foreign_key="quotations.id")
     
     order: Optional["SalesOrder"] = Relationship(back_populates="payments")
     instances_paid: List["SalesOrderItemInstance"] = Relationship(back_populates="payment")
@@ -195,6 +212,11 @@ class SalesOrderItemInstance(SQLModel, table=True):
         foreign_key="production_batches.id",
     )
     is_cancelled: bool = Field(default=False) 
+    cancelled_at: Optional[datetime] = Field(default=None)
+    cancelled_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    cancel_reason: Optional[str] = Field(default=None)
+    # Change order (CAM) that created this unit; it waits for its complementary advance, if any
+    change_quotation_id: Optional[int] = Field(default=None, foreign_key="quotations.id")
     
     qr_code: Optional[str] = Field(default=None, unique=True, index=True) 
     current_location: Optional[str] = Field(default="Planeación") 
@@ -271,6 +293,14 @@ class QuotationItem(SQLModel, table=True):
     commercial_description: Optional[str] = Field(default=None)
     is_cancelled: bool = Field(default=False)
 
+    # Change order (CAM) operation; NULL on regular quotations
+    change_type: Optional[ChangeType] = Field(default=None)
+    target_order_item_id: Optional[int] = Field(default=None, foreign_key="sales_order_items.id")
+    cancel_instance_ids: Optional[List[int]] = Field(default=None, sa_column=Column(JSON))
+    # {instance_id: RETURN_TO_STOCK | WASTE} chosen by the Director for units already in production
+    reversal_dispositions: Optional[Dict[str, str]] = Field(default=None, sa_column=Column(JSON))
+    change_reason: Optional[str] = Field(default=None)
+
     quotation: Optional["Quotation"] = Relationship(back_populates="items")
 
 
@@ -335,6 +365,19 @@ class Quotation(SQLModel, table=True):
 
     sales_order_id: Optional[int] = Field(default=None, foreign_key="sales_orders.id")
 
+    # NEW: regular quotation (parent_sales_order_id = complementary OV of that order).
+    # CHANGE_ORDER: CAM applied to parent_sales_order_id.
+    kind: QuotationKind = Field(default=QuotationKind.NEW)
+    parent_sales_order_id: Optional[int] = Field(default=None, foreign_key="sales_orders.id")
+    change_number: Optional[int] = Field(default=None)
+    change_reason: Optional[str] = Field(default=None)
+    applied_at: Optional[datetime] = Field(default=None)
+    applied_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    client_po_folio: Optional[str] = Field(default=None)
+    client_po_date: Optional[datetime] = Field(default=None)
+    # Extra advance the client owes because of this change order (set when applied)
+    complementary_advance_amount: float = Field(default=0.0)
+
     items: List[QuotationItem] = Relationship(
         back_populates="quotation",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
@@ -367,6 +410,13 @@ class SalesOrderItem(SQLModel, table=True):
     category_breakdown_snapshot: Optional[str] = Field(default=None)
     commercial_description: Optional[str] = Field(default=None)
 
+    is_cancelled: bool = Field(default=False)
+    cancelled_at: Optional[datetime] = Field(default=None)
+    cancelled_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    cancel_reason: Optional[str] = Field(default=None)
+    # Change order (CAM) that added or last changed this line
+    change_quotation_id: Optional[int] = Field(default=None, foreign_key="quotations.id")
+
     order: Optional["SalesOrder"] = Relationship(back_populates="items")
     instances: List[SalesOrderItemInstance] = Relationship(
         back_populates="item", 
@@ -382,6 +432,8 @@ class SalesOrder(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
 
     quotation_id: Optional[int] = Field(default=None, foreign_key="quotations.id")
+    # Complementary OV: the original order it extends
+    parent_sales_order_id: Optional[int] = Field(default=None, foreign_key="sales_orders.id")
 
     client_id: int = Field(foreign_key="clients_v2.id")
     tax_rate_id: int = Field(foreign_key="tax_rates.id")
@@ -448,3 +500,32 @@ class SalesOrder(SQLModel, table=True):
         back_populates="order",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"}
     )
+
+
+# ==========================================
+# 6. NOTA DE CRÉDITO AL CLIENTE (emitida en Compaq, capturada aquí)
+# ==========================================
+class CustomerCreditNoteStatus(str, enum.Enum):
+    ACTIVE = "ACTIVE"
+    CANCELLED = "CANCELLED"
+
+
+class CustomerCreditNote(SQLModel, table=True):
+    """Credit note to a client. Linked to an invoice it lowers that invoice's balance;
+    without an invoice it is a credit in favour of the client, to apply to a later invoice."""
+    __tablename__ = "customer_credit_notes"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    sales_order_id: int = Field(foreign_key="sales_orders.id", index=True)
+    customer_payment_id: Optional[int] = Field(default=None, foreign_key="customer_payments.id", index=True)
+    change_quotation_id: Optional[int] = Field(default=None, foreign_key="quotations.id")
+    folio: str
+    note_date: datetime
+    amount: float
+    reason: str
+    status: CustomerCreditNoteStatus = Field(default=CustomerCreditNoteStatus.ACTIVE)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    cancelled_at: Optional[datetime] = Field(default=None)
+    cancelled_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    cancel_reason: Optional[str] = Field(default=None)

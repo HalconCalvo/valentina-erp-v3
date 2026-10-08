@@ -15,6 +15,8 @@ import { VTable, type VTableColumn } from '@/components/ui/VTable';
 
 // --- SERVICIOS ---
 import { FinancialReviewModal } from '../../management/components/FinancialReviewModal';
+import { ChangeOrderReviewModal } from '../../management/components/ChangeOrderReviewModal';
+import { changeOrderService } from '../../../api/change-order-service';
 import { quotationService } from '../../../api/quotation-service';
 import axiosClient from '../../../api/axios-client';
 import type { Quotation } from '../../../types/quotations';
@@ -56,6 +58,7 @@ const DirectorDashboard: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [orders, setOrders] = useState<SalesOrder[]>([]);
     const [reviewQuotationId, setReviewQuotationId] = useState<number | null>(null);
+    const [reviewChangeId, setReviewChangeId] = useState<number | null>(null);
 
     const [activeSection, setActiveSection] = useState<DirectorSection>(
         (sessionStorage.getItem('dir_activeSection') as DirectorSection) || null
@@ -181,7 +184,8 @@ const DirectorDashboard: React.FC = () => {
             const uniqueOrders = data ? Array.from(new Map(data.map((o: SalesOrder) => [o.id, o])).values()) : [];
             setOrders(uniqueOrders);
             const quotations = await quotationService.listQuotations().catch(() => [] as Quotation[]);
-            calculateSalesMetrics(uniqueOrders, quotations, fetchedTarget);
+            const pendingChanges = await changeOrderService.list({ status: 'PENDING_AUTH' }).catch(() => [] as Quotation[]);
+            calculateSalesMetrics(uniqueOrders, quotations, fetchedTarget, pendingChanges);
 
             // 3. Cargar Notificaciones de Compras en vivo
             try {
@@ -273,8 +277,9 @@ const DirectorDashboard: React.FC = () => {
         }
     };
     
-    const calculateSalesMetrics = (allOrders: SalesOrder[], quotations: Quotation[], target: number) => {
-        setPendingAuthOrders(quotations.filter(q => q.status === 'PENDING_AUTH'));
+    const calculateSalesMetrics = (allOrders: SalesOrder[], quotations: Quotation[], target: number, pendingChanges: Quotation[] = []) => {
+        // Change orders (CAM) waiting for the Director are reviewed in the same list as quotations.
+        setPendingAuthOrders([...quotations.filter(q => q.status === 'PENDING_AUTH'), ...pendingChanges]);
 
         const sent = quotations.filter(q => q.status === 'AUTHORIZED');
         setSentClientOrders(sent);
@@ -367,7 +372,7 @@ const DirectorDashboard: React.FC = () => {
                             <Button
                                 size="sm"
                                 className="bg-indigo-600 text-white shadow-sm hover:bg-indigo-700"
-                                onClick={() => setReviewQuotationId(order.id)}
+                                onClick={() => (order.kind === 'CHANGE_ORDER' ? setReviewChangeId(order.id) : setReviewQuotationId(order.id))}
                             >
                                 <FileSearch size={14} className="mr-1" /> Revisar / Autorizar
                             </Button>
@@ -1485,6 +1490,12 @@ const DirectorDashboard: React.FC = () => {
                     }}
                 />
             )}
+
+            <ChangeOrderReviewModal
+                changeId={reviewChangeId}
+                onClose={() => setReviewChangeId(null)}
+                onDone={() => { loadData(); }}
+            />
 
             {selectedHealthGroup && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">

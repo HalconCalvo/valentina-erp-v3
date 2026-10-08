@@ -220,7 +220,7 @@ class PDFGenerator:
         data = [['CONCEPTO / DESCRIPCIÓN', 'CANT.', 'P. UNIT.', 'IMPORTE']]
         
         if hasattr(order, 'items'):
-            for item in order.items:
+            for item in (i for i in order.items if not getattr(i, "is_cancelled", False)):
                 desc = f"<b>{item.product_name}</b>"
                 commercial_desc = getattr(item, 'commercial_description', None)
                 if commercial_desc and str(commercial_desc).strip():

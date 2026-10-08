@@ -2,11 +2,12 @@
 from datetime import datetime
 from typing import Iterable, List, Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from app.models.foundations import Client, GlobalConfig, TaxRate
-from app.models.sales import Quotation, QuotationItem, QuotationStatus
+from app.models.sales import Quotation, QuotationItem, QuotationKind, QuotationStatus
 from app.models.users import User
 
 
@@ -22,6 +23,7 @@ def get_quotations(
         selectinload(Quotation.items),
         selectinload(Quotation.user),
     )
+    stmt = stmt.where(Quotation.kind == QuotationKind.NEW)
     if status is not None:
         stmt = stmt.where(Quotation.status == status)
     if user_id is not None:
@@ -29,6 +31,33 @@ def get_quotations(
     return list(
         session.exec(stmt.order_by(Quotation.id.desc()).offset(skip).limit(limit)).unique().all()
     )
+
+
+def get_change_orders(
+    session: Session,
+    sales_order_id: Optional[int] = None,
+    statuses: Optional[Iterable[QuotationStatus]] = None,
+    user_id: Optional[int] = None,
+) -> List[Quotation]:
+    stmt = select(Quotation).where(Quotation.kind == QuotationKind.CHANGE_ORDER).options(
+        selectinload(Quotation.client), selectinload(Quotation.items), selectinload(Quotation.user),
+    )
+    if sales_order_id is not None:
+        stmt = stmt.where(Quotation.parent_sales_order_id == sales_order_id)
+    if statuses is not None:
+        stmt = stmt.where(Quotation.status.in_(list(statuses)))
+    if user_id is not None:
+        stmt = stmt.where(Quotation.user_id == user_id)
+    return list(session.exec(stmt.order_by(Quotation.id.desc())).unique().all())
+
+
+def get_max_change_number(session: Session, sales_order_id: int) -> int:
+    value = session.exec(
+        select(func.max(Quotation.change_number)).where(
+            Quotation.kind == QuotationKind.CHANGE_ORDER, Quotation.parent_sales_order_id == sales_order_id,
+        )
+    ).one()
+    return int(value or 0)
 
 
 def get_quotation_by_id(session: Session, quotation_id: int) -> Optional[Quotation]:

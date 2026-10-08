@@ -106,6 +106,7 @@ export const QUOTATION_STATUS_LABELS: Record<QuotationStatus, string> = {
   LOST: 'Perdida',
   EXPIRED: 'Vencida',
   CANCELLED: 'Cancelada',
+  APPLIED: 'Aplicada a la OV',
 };
 
 /** Statuses in which the seller can edit the quotation. */

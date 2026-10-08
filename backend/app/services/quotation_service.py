@@ -17,6 +17,7 @@ from app.models.sales import (
     PaymentStatus,
     Quotation,
     QuotationItem,
+    QuotationKind,
     QuotationStatus,
     SalesOrder,
     SalesOrderItem,
@@ -63,12 +64,25 @@ def format_folio(quotation_id: int) -> str:
     return f"COT-{quotation_id:04d}"
 
 
-def _to_read(quotation: Quotation) -> QuotationRead:
+def quotation_folio(quotation: Quotation) -> str:
+    """COT-0001 for quotations; CAM-<OV>-<n> for change orders ("OC" is reserved for purchase orders)."""
+    if quotation.kind == QuotationKind.CHANGE_ORDER:
+        return f"CAM-{quotation.parent_sales_order_id:04d}-{quotation.change_number or 0}"
+    return format_folio(quotation.id)
+
+
+def to_read(quotation: Quotation) -> QuotationRead:
     """Response without the logically cancelled items (the ORM collection itself is never mutated)."""
     data = QuotationRead.model_validate(quotation)
     data.items = [QuotationItemRead.model_validate(i) for i in quotation.items if not i.is_cancelled]
-    data.folio = format_folio(quotation.id)
+    data.folio = quotation_folio(quotation)
     return data
+
+
+
+def _assert_regular(quotation: Quotation) -> None:
+    if quotation.kind == QuotationKind.CHANGE_ORDER:
+        raise HTTPException(status_code=422, detail="Es una orden de cambio: usa las acciones de orden de cambio.")
 
 
 def _get_or_404(session: Session, quotation_id: int) -> Quotation:
@@ -114,7 +128,7 @@ def _is_overdue(quotation: Quotation) -> bool:
 def _commit_read(session: Session, quotation: Quotation) -> QuotationRead:
     session.add(quotation)
     session.commit()
-    return _to_read(_get_or_404(session, quotation.id))
+    return to_read(_get_or_404(session, quotation.id))
 
 
 def _persist_quotation_item(
@@ -155,6 +169,18 @@ def _apply_items_and_totals(session: Session, quotation: Quotation, items: List[
     quotation.total_price = items_sum + quotation.tax_amount
 
 
+def _parent_order_for(session: Session, order_id: Optional[int], current_user: User) -> Optional[SalesOrder]:
+    """Complementary OV: the original order must exist and, for sellers, be theirs."""
+    if order_id is None:
+        return None
+    parent = sales_repo.get_sales_order_by_id(session, order_id)
+    if not parent or parent.status in {SalesOrderStatus.CANCELLED, SalesOrderStatus.CANCELLED_OV}:
+        raise HTTPException(status_code=422, detail="La OV original no existe o está cancelada.")
+    if _is_seller_scoped_role(current_user) and parent.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Acceso denegado")
+    return parent
+
+
 def create_quotation(session: Session, data: QuotationCreate, current_user: User) -> QuotationRead:
     if _normalized_role(current_user) not in _EDIT_ROLES:
         raise HTTPException(status_code=403, detail="No tienes permisos para crear cotizaciones.")
@@ -162,9 +188,10 @@ def create_quotation(session: Session, data: QuotationCreate, current_user: User
         raise HTTPException(status_code=400, detail="Tasa de impuestos inválida")
     raw_commission = data.applied_commission_percent or current_user.commission_rate or 0.0
     header = data.model_dump(exclude={"items", "applied_commission_percent"})
+    parent = _parent_order_for(session, data.parent_sales_order_id, current_user)
     quotation = Quotation(
         **header,
-        user_id=current_user.id,
+        user_id=parent.user_id if parent and parent.user_id else current_user.id,
         applied_commission_percent=normalize_commission(raw_commission),
         status=QuotationStatus.DRAFT,
         created_at=datetime.utcnow(),
@@ -200,13 +227,13 @@ def list_quotations(
     expire_overdue_quotations(session)
     user_id = current_user.id if _is_seller_scoped_role(current_user) else None
     rows = quotation_repo.get_quotations(session, status=status, user_id=user_id, skip=skip, limit=limit)
-    return [_to_read(q) for q in rows]
+    return [to_read(q) for q in rows]
 
 
 def get_quotation(session: Session, quotation_id: int, current_user: User) -> QuotationRead:
     quotation = _get_or_404(session, quotation_id)
     _assert_scope(current_user, quotation)
-    return _to_read(quotation)
+    return to_read(quotation)
 
 
 def update_quotation(
@@ -220,6 +247,8 @@ def update_quotation(
         return _commit_read(session, quotation)
     _assert_status(quotation, EDITABLE_STATUSES,
                    "Solo se editan cotizaciones en borrador o regresadas para cambios.")
+    if "items" in update_data:
+        _assert_regular(quotation)
     items_data = update_data.pop("items", None)
     for key, value in update_data.items():
         setattr(quotation, key, value)
@@ -249,6 +278,7 @@ def authorize_quotation(
     if _normalized_role(current_user) not in _AUTHORIZE_ROLES:
         raise HTTPException(status_code=403, detail="Solo Dirección autoriza cotizaciones.")
     quotation = _get_or_404(session, quotation_id)
+    _assert_regular(quotation)
     _assert_status(quotation, {QuotationStatus.PENDING_AUTH}, "Solo se autorizan cotizaciones en revisión.")
     if _is_overdue(quotation):
         raise HTTPException(status_code=422, detail="La vigencia ya venció; el vendedor debe renovarla.")
@@ -358,6 +388,7 @@ def _create_order(session: Session, quotation: Quotation, active_items: list, da
     order = SalesOrder(
         **{f: getattr(quotation, f) for f in _ORDER_FIELDS_FROM_QUOTATION},
         quotation_id=quotation.id,
+        parent_sales_order_id=quotation.parent_sales_order_id,
         outstanding_balance=quotation.total_price,
         payment_status=PaymentStatus.PENDING,
         status=SalesOrderStatus.WAITING_ADVANCE,
@@ -381,6 +412,7 @@ def convert_quotation_to_order(
     session: Session, quotation_id: int, data: QuotationConvert, current_user: User
 ) -> QuotationConvertRead:
     quotation = _get_for_edit(session, quotation_id, current_user)
+    _assert_regular(quotation)
     _assert_status(quotation, {QuotationStatus.AUTHORIZED}, "Solo se convierten cotizaciones autorizadas.")
     if quotation.sales_order_id:
         raise HTTPException(status_code=409, detail="Esta cotización ya fue convertida en orden de venta.")
@@ -406,7 +438,8 @@ def convert_quotation_to_order(
 def generate_quotation_pdf(session: Session, quotation_id: int, current_user: User) -> tuple[BytesIO, str]:
     quotation = _get_or_404(session, quotation_id)
     _assert_scope(current_user, quotation)
-    data = _to_read(quotation)
+    _assert_regular(quotation)
+    data = to_read(quotation)
     client = quotation_repo.get_client_by_id(session, quotation.client_id)
     config = quotation_repo.get_global_config(session)
     seller = quotation_repo.get_user_by_id(session, quotation.user_id) if quotation.user_id else None

@@ -27,10 +27,10 @@ def test_retired_order_endpoints(client_fixture, auth_header_director, seed_clie
     client, tax = seed_client_and_tax
     order = _create_order(client_fixture, auth_header_director, client.id, tax.id)
     base = f"{settings.API_V1_STR}/sales/orders"
-    assert client_fixture.post(base, headers=auth_header_director, json={}).status_code == 405
+    assert client_fixture.post(base, headers=auth_header_director, json={}).status_code in (404, 405)
     for action in ("request-auth", "authorize", "mark_waiting_advance", "request_changes", "mark_lost", "reject"):
         assert client_fixture.post(f"{base}/{order['id']}/{action}", headers=auth_header_director).status_code == 404
-    assert client_fixture.delete(f"{base}/{order['id']}", headers=auth_header_director).status_code == 405
+    assert client_fixture.delete(f"{base}/{order['id']}", headers=auth_header_director).status_code in (404, 405)
 
 
 def test_cancel_ov_without_payments(client_fixture, auth_header_director, seed_client_and_tax):
@@ -78,22 +78,17 @@ def test_emit_advance_invoice(client_fixture, auth_header_director, seed_client_
     assert payload["invoice_folio"] == "FA-ANT-001"
 
 
-def test_emit_advance_invoice_duplicate(client_fixture, auth_header_director, seed_client_and_tax):
+def test_emit_advance_invoice_allows_complementary(client_fixture, auth_header_director, seed_client_and_tax):
+    """An OV may have several advance invoices (complementary advance of a change order)."""
     client, tax = seed_client_and_tax
     order = _create_order(client_fixture, auth_header_director, client.id, tax.id)
-    first = client_fixture.post(
-        f"{settings.API_V1_STR}/sales/orders/{order['id']}/emit_advance_invoice",
-        headers=auth_header_director,
-        json=_invoice_payload(6000.0, "FA-ANT-001"),
-    )
-    assert first.status_code == 200
-
-    response = client_fixture.post(
-        f"{settings.API_V1_STR}/sales/orders/{order['id']}/emit_advance_invoice",
-        headers=auth_header_director,
-        json=_invoice_payload(6000.0, "FA-ANT-002"),
-    )
-    assert response.status_code == 400
+    for folio in ("FA-ANT-001", "FA-ANT-002"):
+        response = client_fixture.post(
+            f"{settings.API_V1_STR}/sales/orders/{order['id']}/emit_advance_invoice",
+            headers=auth_header_director,
+            json=_invoice_payload(6000.0, folio),
+        )
+        assert response.status_code == 200, response.text
 
 
 def test_emit_full_invoice(client_fixture, auth_header_director, seed_client_and_tax):

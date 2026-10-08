@@ -46,6 +46,12 @@ export interface SalesOrderItem {
 
     // ---> NUEVO: Para el Monitor Post-Venta <---
     instances?: any[]; 
+
+    // Cancelación lógica (orden de cambio) y la orden de cambio que la agregó o cambió
+    is_cancelled?: boolean;
+    cancelled_at?: string | null;
+    cancel_reason?: string | null;
+    change_quotation_id?: number | null;
 }
 
 // Nivel 1: Cabecera de la Orden
@@ -99,6 +105,10 @@ export interface SalesOrder {
 
     default_retention_percent?: number;
     default_retention_days?: number;
+
+    /** OV complementaria: la OV original que amplía */
+    parent_sales_order_id?: number | null;
+    quotation_id?: number | null;
     
     // Lista de Partidas
     items: SalesOrderItem[];
@@ -155,6 +165,8 @@ export interface PaymentPayload {
     nc_advance_amount?: number;
     nc_retention_folio?: string | null;
     nc_retention_amount?: number;
+    /** Anticipo complementario de una orden de cambio */
+    change_quotation_id?: number | null;
 }
 
 export interface PayrollCommissionRow {
@@ -254,4 +266,51 @@ export interface RetentionUpdatePayload {
     retention_amount?: number;
     retention_due_date?: string | null;
     retention_notes?: string | null;
+}
+
+// ==========================================
+// Notas de crédito al cliente y resumen de cambios de la OV
+// ==========================================
+export type CustomerCreditNote = {
+    id: number;
+    sales_order_id: number;
+    customer_payment_id: number | null;
+    change_quotation_id: number | null;
+    folio: string;
+    note_date: string;
+    amount: number;
+    reason: string;
+    status: 'ACTIVE' | 'CANCELLED';
+    created_at: string;
+    cancelled_at?: string | null;
+    cancel_reason?: string | null;
+};
+
+export interface PendingComplementaryAdvance {
+    change_quotation_id: number;
+    folio: string;
+    amount: number;
+    invoiced: number;
+    paid: number;
+}
+
+export interface OrderMoneySummary {
+    total_price: number;
+    invoiced_net: number;
+    credit_notes_total: number;
+    credit_note_pending: number;
+    unapplied_credit: number;
+    advance_required: number;
+    advance_invoiced: number;
+    complementary_advances: PendingComplementaryAdvance[];
+    credit_notes: CustomerCreditNote[];
+}
+
+export interface CustomerCreditNotePayload {
+    folio: string;
+    note_date: string;
+    amount: number;
+    reason: string;
+    customer_payment_id?: number | null;
+    change_quotation_id?: number | null;
 }

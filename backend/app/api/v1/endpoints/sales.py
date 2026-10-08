@@ -25,7 +25,7 @@ from app.models.treasury import BankAccount, BankTransaction, TransactionType
 from app.services.pdf_generator import PDFGenerator
 
 # --- IMPORTAMOS LOS MOTORES (V3.5) ---
-from app.services import sales_service
+from app.services import credit_note_service, sales_service
 from app.services import inventory_service, legacy_import_service
 from app.schemas.legacy_import_schema import LegacyImportPreviewRead, LegacyImportRead
 from app.schemas.production_inventory_schema import OVCancelCreate
@@ -34,7 +34,13 @@ from app.repositories import sales_repository as sales_repo
 from app.schemas.sales_schema import (
     SalesOrderRead, SalesOrderUpdate,
     SalesOrderItemCreate,
-    AddItemsPayload,
+    SalesOrderItemRead,
+    OrderItemDescriptionUpdate,
+    OrderMoneySummaryRead,
+    CustomerCreditNoteApply,
+    CustomerCreditNoteCancel,
+    CustomerCreditNoteCreate,
+    CustomerCreditNoteRead,
     CustomerPaymentRead,
     CustomerPaymentUpdate,
     CustomerPaymentCancel,
@@ -44,8 +50,6 @@ from app.schemas.sales_schema import (
     SalesOrderItemInstanceRead,
     InstanceDeliveryDeadlineUpdate,
     PaymentPayload,
-    ResaleItemPatch,
-    ProductionItemPatch,
     RegisterProgressPayload,
     InvoicingRightAdvanceRow,
     InvoicingRightProgressRow,
@@ -116,41 +120,6 @@ def normalize_commission(rate: float | None) -> float:
     return rate
 
 
-def _recalculate_order_totals(session: Session, order: SalesOrder) -> None:
-    """
-    Recalcula subtotal, comision, IVA y total de una orden desde sus items
-    actuales. Ajusta outstanding_balance por el DELTA del total (preserva el
-    saldo vivo que se decrementa con pagos). Misma formula que add_items.
-    """
-    session.refresh(order)
-    items_sum = sum(float(it.subtotal_price or 0.0) for it in order.items)
-
-    tax_rate_obj = session.get(TaxRate, order.tax_rate_id)
-    tax_multiplier = tax_rate_obj.rate if tax_rate_obj else 0.16
-
-    comm_percent = order.applied_commission_percent or 0.0
-    nueva_comision = (
-        items_sum - (items_sum / (1 + comm_percent))
-        if comm_percent > 0 else 0.0
-    )
-    nuevo_tax = items_sum * tax_multiplier
-    nuevo_total = items_sum + nuevo_tax
-
-    total_anterior = order.total_price or 0.0
-    delta_total = nuevo_total - total_anterior
-
-    order.subtotal = items_sum
-    order.commission_amount = nueva_comision
-    order.tax_amount = nuevo_tax
-    order.total_price = nuevo_total
-    order.outstanding_balance = (order.outstanding_balance or 0.0) + delta_total
-    session.add(order)
-
-
-# ==========================================
-# 2. LISTAR ORDENES
-# ==========================================
-@router.get("/orders", response_model=List[SalesOrderRead])
 def read_sales_orders(
     status: SalesOrderStatus | None = None,
     client_id: int | None = None,
@@ -218,63 +187,54 @@ def update_sales_order(
     return sales_service.update_order(session, order_id, order_update, current_user)
 
 
-@router.post("/orders/{order_id}/add-items", response_model=SalesOrderRead)
-def add_items_to_order(
+@router.patch("/orders/{order_id}/items/{item_id}/description", response_model=SalesOrderItemRead)
+def update_order_item_description(
     order_id: int,
-    payload: AddItemsPayload,
+    item_id: int,
+    data: OrderItemDescriptionUpdate,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ):
-    return sales_service.add_items_to_order(session, order_id, payload, current_user)
+    return sales_service.update_item_description(session, order_id, item_id, data, current_user)
 
 
-@router.delete("/orders/{order_id}/items/{item_id}/instances/{instance_id}")
-def delete_order_instance(
-    order_id: int, item_id: int, instance_id: int,
+@router.get("/orders/{order_id}/money-summary", response_model=OrderMoneySummaryRead)
+def get_order_money_summary(
+    order_id: int,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ):
-    """
-    Elimina UNA instancia de una partida de produccion.
-    Candado: solo si PENDING y sin facturar (customer_payment_id null).
-    Recalcula totales de la orden.
-    """
-    order = sales_service.get_order_for_line_edit(session, order_id, current_user)
-    item = session.get(SalesOrderItem, item_id)
-    if not item or item.sales_order_id != order_id:
-        raise HTTPException(404, "Partida no encontrada en esta orden")
-    inst = session.get(SalesOrderItemInstance, instance_id)
-    if not inst or inst.sales_order_item_id != item_id:
-        raise HTTPException(404, "Instancia no encontrada en esta partida")
+    return credit_note_service.get_money_summary(session, order_id, current_user)
 
-    # CANDADO por-instancia
-    if inst.production_status != InstanceStatus.PENDING:
-        raise HTTPException(400, "La instancia ya entro a produccion, no se puede eliminar")
-    if inst.customer_payment_id is not None:
-        raise HTTPException(400, "La instancia ya fue facturada, no se puede eliminar")
 
-    try:
-        # bajar la cantidad de la partida en 1 (la linea suma quantity*price)
-        nueva_qty = int(item.quantity or 1) - 1
-        session.delete(inst)
-        session.flush()
-        if nueva_qty <= 0:
-            # era la ultima unidad: se elimina la partida completa
-            session.delete(item)
-        else:
-            item.quantity = nueva_qty
-            item.subtotal_price = float(nueva_qty) * float(item.unit_price or 0.0)
-            session.add(item)
-        session.flush()
-        _recalculate_order_totals(session, order)
-        session.commit()
-        session.refresh(order)
-        return {"ok": True, "deleted_instance": instance_id}
-    except HTTPException:
-        raise
-    except Exception as e:
-        session.rollback()
-        raise HTTPException(500, f"Error al eliminar instancia: {e}")
+@router.post("/orders/{order_id}/credit-notes", response_model=CustomerCreditNoteRead, status_code=201)
+def create_customer_credit_note(
+    order_id: int,
+    data: CustomerCreditNoteCreate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    return credit_note_service.create_credit_note(session, order_id, data, current_user)
+
+
+@router.post("/credit-notes/{note_id}/apply", response_model=CustomerCreditNoteRead)
+def apply_customer_credit_note(
+    note_id: int,
+    data: CustomerCreditNoteApply,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    return credit_note_service.apply_credit_note(session, note_id, data, current_user)
+
+
+@router.post("/credit-notes/{note_id}/cancel", response_model=CustomerCreditNoteRead)
+def cancel_customer_credit_note(
+    note_id: int,
+    data: CustomerCreditNoteCancel,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    return credit_note_service.cancel_credit_note(session, note_id, data, current_user)
 
 
 @router.patch("/orders/{order_id}/instances/{instance_id}/delivery-deadline")
@@ -324,226 +284,6 @@ def update_sales_order_instance(
     return instance
 
 
-@router.delete("/orders/{order_id}/items/{item_id}/resale")
-def delete_resale_item(
-    order_id: int, item_id: int,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
-):
-    """
-    Elimina una partida de reventa completa.
-    Candado: la orden no debe estar cerrada/instalada.
-    (El equivalente 'facturada' para reventa se afinará luego.)
-    """
-    order = sales_service.get_order_for_line_edit(session, order_id, current_user)
-    item = session.get(SalesOrderItem, item_id)
-    if not item or item.sales_order_id != order_id:
-        raise HTTPException(404, "Partida no encontrada en esta orden")
-    if not item.is_resale:
-        raise HTTPException(400, "Esta partida no es de reventa; usa el borrado por instancia")
-
-    # Candado de estado de orden (FINISHED/COMPLETED = cerrada; no existe CLOSED en SalesOrderStatus)
-    estados_bloqueados = {
-        SalesOrderStatus.FINISHED,
-        SalesOrderStatus.COMPLETED,
-        SalesOrderStatus.CANCELLED,
-        SalesOrderStatus.CANCELLED_OV,
-    }
-    if order.status in estados_bloqueados:
-        raise HTTPException(400, "La orden ya esta cerrada, no se puede modificar")
-
-    try:
-        session.delete(item)
-        session.flush()
-        _recalculate_order_totals(session, order)
-        session.commit()
-        session.refresh(order)
-        return {"ok": True, "deleted_item": item_id}
-    except HTTPException:
-        raise
-    except Exception as e:
-        session.rollback()
-        raise HTTPException(500, f"Error al eliminar partida de reventa: {e}")
-
-
-@router.patch("/orders/{order_id}/items/{item_id}/resale")
-def patch_resale_item(
-    order_id: int, item_id: int, payload: ResaleItemPatch,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
-):
-    """
-    Edita una partida de reventa. Candado: is_resale y orden no terminal.
-    Si cambia resale_sku, actualiza frozen_unit_cost desde el material.
-    Recalcula subtotal_price del item y totales de la orden.
-    """
-    order = sales_service.get_order_for_line_edit(session, order_id, current_user)
-    item = session.get(SalesOrderItem, item_id)
-    if not item or item.sales_order_id != order_id:
-        raise HTTPException(404, "Partida no encontrada en esta orden")
-    if not item.is_resale:
-        raise HTTPException(400, "Esta partida no es de reventa")
-
-    estados_terminales = {
-        SalesOrderStatus.FINISHED, SalesOrderStatus.COMPLETED,
-        SalesOrderStatus.CANCELLED, SalesOrderStatus.CANCELLED_OV,
-    }
-    if order.status in estados_terminales:
-        raise HTTPException(400, "La orden ya esta cerrada, no se puede modificar")
-
-    try:
-        if payload.resale_sku is not None and payload.resale_sku != item.resale_sku:
-            mat = session.exec(
-                select(Material).where(Material.sku == payload.resale_sku)
-            ).first()
-            if not mat:
-                raise HTTPException(404, f"Material {payload.resale_sku} no encontrado")
-            item.resale_sku = mat.sku
-            item.frozen_unit_cost = inventory_service.usage_unit_cost(mat)
-            if payload.product_name is None:
-                item.product_name = mat.name
-
-        if payload.product_name is not None:
-            item.product_name = payload.product_name
-        if payload.quantity is not None:
-            if payload.quantity <= 0:
-                raise HTTPException(400, "La cantidad debe ser mayor a 0")
-            item.quantity = payload.quantity
-        if payload.unit_price is not None:
-            if payload.unit_price < 0:
-                raise HTTPException(400, "El precio no puede ser negativo")
-            item.unit_price = payload.unit_price
-
-        item.subtotal_price = float(item.quantity or 1) * float(item.unit_price or 0.0)
-        session.add(item)
-        session.flush()
-        _recalculate_order_totals(session, order)
-        session.commit()
-        session.refresh(order)
-        return {"ok": True, "item_id": item_id}
-    except HTTPException:
-        raise
-    except Exception as e:
-        session.rollback()
-        raise HTTPException(500, f"Error al editar partida de reventa: {e}")
-
-
-@router.patch("/orders/{order_id}/items/{item_id}/production")
-def patch_production_item_price(
-    order_id: int, item_id: int, payload: ProductionItemPatch,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
-):
-    """
-    Edita el precio de una partida de produccion.
-    Candado Opcion A: solo si TODAS sus instancias estan PENDING y sin facturar.
-    """
-    order = sales_service.get_order_for_line_edit(session, order_id, current_user)
-    item = session.get(SalesOrderItem, item_id)
-    if not item or item.sales_order_id != order_id:
-        raise HTTPException(404, "Partida no encontrada en esta orden")
-    if item.is_resale:
-        raise HTTPException(400, "Esta partida es de reventa; usa el endpoint /resale")
-
-    estados_terminales = {
-        SalesOrderStatus.FINISHED, SalesOrderStatus.COMPLETED,
-        SalesOrderStatus.CANCELLED, SalesOrderStatus.CANCELLED_OV,
-    }
-    if order.status in estados_terminales:
-        raise HTTPException(400, "La orden ya esta cerrada, no se puede modificar")
-
-    if payload.unit_price < 0:
-        raise HTTPException(400, "El precio no puede ser negativo")
-
-    instances = session.exec(
-        select(SalesOrderItemInstance).where(
-            SalesOrderItemInstance.sales_order_item_id == item.id
-        )
-    ).all()
-    for inst in instances:
-        if inst.production_status != InstanceStatus.PENDING or inst.customer_payment_id is not None:
-            raise HTTPException(
-                400,
-                "No se puede cambiar el precio: la partida tiene unidades en produccion o facturadas."
-            )
-
-    try:
-        item.unit_price = payload.unit_price
-        item.subtotal_price = float(item.quantity or 1) * float(payload.unit_price)
-        session.add(item)
-        session.flush()
-        _recalculate_order_totals(session, order)
-        session.commit()
-        session.refresh(order)
-        return {"ok": True, "item_id": item_id, "unit_price": payload.unit_price}
-    except HTTPException:
-        raise
-    except Exception as e:
-        session.rollback()
-        raise HTTPException(500, f"Error al editar precio: {e}")
-
-
-@router.post("/orders/{order_id}/items/{item_id}/add-instance")
-def add_instance_to_item(
-    order_id: int, item_id: int,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
-):
-    """
-    Agrega UNA instancia a una partida de produccion (sube la cantidad en 1).
-    La instancia nace PENDING con nombre generico; luego se bautiza.
-    """
-    order = sales_service.get_order_for_line_edit(session, order_id, current_user)
-    item = session.get(SalesOrderItem, item_id)
-    if not item or item.sales_order_id != order_id:
-        raise HTTPException(404, "Partida no encontrada en esta orden")
-    if item.is_resale:
-        raise HTTPException(400, "Las partidas de reventa no tienen instancias")
-
-    estados_terminales = {
-        SalesOrderStatus.FINISHED, SalesOrderStatus.COMPLETED,
-        SalesOrderStatus.CANCELLED, SalesOrderStatus.CANCELLED_OV,
-    }
-    if order.status in estados_terminales:
-        raise HTTPException(400, "La orden ya esta cerrada, no se puede modificar")
-
-    try:
-        existing = session.exec(
-            select(SalesOrderItemInstance).where(
-                SalesOrderItemInstance.sales_order_item_id == item.id
-            )
-        ).all()
-        # Numerar por el mayor sufijo numerico existente + 1 (no por conteo,
-        # que duplica cuando hay huecos por instancias borradas).
-        max_n = 0
-        for inst in existing:
-            m = re.search(r'Instancia\s+(\d+)\s*$', inst.custom_name or '')
-            if m:
-                n = int(m.group(1))
-                if n > max_n:
-                    max_n = n
-        siguiente_n = max_n + 1
-
-        session.add(SalesOrderItemInstance(
-            sales_order_item_id=item.id,
-            custom_name=f"{item.product_name} - Instancia {siguiente_n}",
-            production_status=InstanceStatus.PENDING,
-        ))
-        item.quantity = int(item.quantity or 0) + 1
-        item.subtotal_price = float(item.quantity) * float(item.unit_price or 0.0)
-        session.add(item)
-        session.flush()
-        _recalculate_order_totals(session, order)
-        session.commit()
-        session.refresh(order)
-        return {"ok": True, "item_id": item_id, "nueva_cantidad": item.quantity}
-    except HTTPException:
-        raise
-    except Exception as e:
-        session.rollback()
-        raise HTTPException(500, f"Error al agregar instancia: {e}")
-
-
 # ==========================================
 # 5. CANCELACIÓN DE OV (las cotizaciones viven en /quotations)
 # ==========================================
@@ -590,6 +330,7 @@ def register_advance_payment(order_id: int, payload: PaymentPayload,
     if not order:
         raise HTTPException(404, "Orden no encontrada")
 
+    sales_service.assert_change_order_of(session, order, payload.change_quotation_id)
     objetivo = float(order.advance_invoice_amount or 0.0)
     if objetivo <= 0:
         raise HTTPException(400, "Esta OV no tiene importe de anticipo definido. Captúralo primero en Rayos X.")
@@ -624,6 +365,7 @@ def register_advance_payment(order_id: int, payload: PaymentPayload,
         reference=payload.reference,
         created_by_user_id=current_user.id,
         commission_paid=False,
+        change_quotation_id=payload.change_quotation_id,
     )
     session.add(nuevo)
 
@@ -633,20 +375,14 @@ def register_advance_payment(order_id: int, payload: PaymentPayload,
     pagados_despues = pagados_antes + aplica_anticipo
     anticipo_completo = pagados_despues >= objetivo - 0.01
 
-    # LIBERAR COMISIÓN SOLO AL COMPLETAR EL ANTICIPO, una sola vez.
-    # Verificar que no se haya liberado ya (ningún ADVANCE de esta OV con commission_paid=True).
-    ya_liberada = session.exec(
-        select(func.count(CustomerPayment.id)).where(
-            CustomerPayment.sales_order_id == order.id,
-            CustomerPayment.payment_type == PaymentType.ADVANCE,
-            CustomerPayment.commission_paid == True
-        )
-    ).one()
-
-    if anticipo_completo and int(ya_liberada or 0) == 0:
-        session.flush()  # asegurar id del nuevo pago
-        _liberar_comision_anticipo(session, order, nuevo, objetivo)
-        nuevo.commission_paid = True
+    # LIBERAR COMISIÓN AL COMPLETAR EL ANTICIPO, solo sobre la parte del anticipo que aún no generó
+    # comisión (un anticipo complementario de una orden de cambio libera solo su diferencia).
+    if anticipo_completo:
+        pendiente = sales_service.advance_pending_commission_base(session, order, objetivo)
+        if pendiente > 0.01:
+            session.flush()  # asegurar id del nuevo pago
+            _liberar_comision_anticipo(session, order, nuevo, pendiente)
+            nuevo.commission_paid = True
 
     # Opción 1: al completar el anticipo la OV pasa a SOLD (los abonos parciales la dejan en
     # WAITING_ADVANCE). Se coloca ANTES del check de FINISHED para que, si además se salda todo

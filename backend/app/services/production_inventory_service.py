@@ -191,12 +191,25 @@ def discharge_reservations(
     return _consume(session, to_consume, user, EXIT_REASON, negative_ok, authorized)
 
 
+def change_orders_with_unpaid_advance(session: Session, instances: list[SalesOrderItemInstance]) -> list:
+    """Units added by a change order wait for that change order's complementary advance (if it has one)."""
+    changes = prod_inv_repo.get_change_orders_by_ids(session, [i.change_quotation_id for i in instances])
+    return [
+        change for change in changes
+        if float(change.complementary_advance_amount or 0.0) > 0.01
+        and prod_inv_repo.sum_paid_change_advance(session, change.id) + 0.01 < change.complementary_advance_amount
+    ]
+
+
 def payment_cleared(session: Session, instances: list[SalesOrderItemInstance]) -> bool:
-    """Same rule as the Kanban padlock: not empty, and no OV with an agreed advance left unpaid."""
+    """Same rule as the Kanban padlock: not empty, no OV with an agreed advance left unpaid and no unit
+    waiting for the complementary advance of its change order."""
     if not instances:
         return False
     order_ids = list(prod_inv_repo.get_order_ids_by_instance(session, [i.id for i in instances]).values())
-    return not prod_inv_repo.get_orders_with_unpaid_advance(session, order_ids)
+    if prod_inv_repo.get_orders_with_unpaid_advance(session, order_ids):
+        return False
+    return not change_orders_with_unpaid_advance(session, instances)
 
 
 def assert_advance_paid(session: Session, instances: list[SalesOrderItemInstance]) -> None:
@@ -210,6 +223,17 @@ def assert_advance_paid(session: Session, instances: list[SalesOrderItemInstance
             status_code=409,
             detail={"code": "ADVANCE_REQUIRED", "orders": [o.id for o in pending],
                     "message": f"Anticipo pactado sin pagar: {folios}. No puede entrar a producción."},
+        )
+    changes = change_orders_with_unpaid_advance(session, instances)
+    if changes:
+        folios = ", ".join(
+            f"CAM-{str(c.parent_sales_order_id).zfill(4)}-{c.change_number}" for c in changes
+        )
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "ADVANCE_REQUIRED", "orders": sorted({c.parent_sales_order_id for c in changes}),
+                    "message": f"Anticipo complementario sin pagar: {folios}. Las unidades de esa orden de "
+                               "cambio no pueden entrar a producción."},
         )
 
 
@@ -398,6 +422,36 @@ def remove_instance_from_batch(
             raise
     session.refresh(instance)
     return instance
+
+
+def instance_needs_reversal(session: Session, instance: SalesOrderItemInstance) -> bool:
+    """True when the unit already took material from the warehouse (the Director picks its destination)."""
+    return bool(prod_inv_repo.get_reservations(session, [CONSUMED], instance_ids=[instance.id]))
+
+
+def cancel_instance(
+    session: Session, instance: SalesOrderItemInstance, user, reason: str, disposition: Optional[str]
+) -> None:
+    """Cancels one unit of a sales order (change order). Caller commits.
+    Consumed material goes back to stock or to waste as decided; active reservations are released."""
+    if instance.production_status in LOADED_STATUSES:
+        raise HTTPException(status_code=409, detail=f"{instance.custom_name} ya fue cargada; no se puede cancelar.")
+    consumed = prod_inv_repo.get_reservations(session, [CONSUMED], instance_ids=[instance.id])
+    if consumed:
+        if not disposition:
+            raise HTTPException(status_code=409, detail=f"{instance.custom_name} ya descargó material: falta "
+                                "indicar si regresa al almacén o es merma.")
+        reverse_reservations(session, consumed, user, ReversalCreate(reason=reason, disposition=disposition),
+                             recreate=False)
+    release_reservations(session, prod_inv_repo.get_reservations(session, [ACTIVE], instance_ids=[instance.id]),
+                         user, reason)
+    instance.production_batch_id = None
+    instance.stone_batch_id = None
+    instance.is_cancelled = True
+    instance.cancelled_at = datetime.utcnow()
+    instance.cancelled_by_user_id = getattr(user, "id", None)
+    instance.cancel_reason = reason
+    session.add(instance)
 
 
 def release_for_cancelled_order(session: Session, order_id: int, user, reversal: Optional[ReversalCreate]) -> None:

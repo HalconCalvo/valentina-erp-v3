@@ -74,6 +74,7 @@ class CustomerPaymentRead(CustomerPaymentBase):
     nc_advance_amount: float = 0.0
     nc_retention_folio: Optional[str] = None
     nc_retention_amount: float = 0.0
+    change_quotation_id: Optional[int] = None
 
     installments: List[CustomerPaymentInstallmentRead] = []
 
@@ -95,6 +96,9 @@ class SalesOrderItemInstanceRead(SalesOrderItemInstanceBase):
     id: int
     sales_order_item_id: int
     description_override: Optional[str] = None
+    cancelled_at: Optional[datetime] = None
+    cancel_reason: Optional[str] = None
+    change_quotation_id: Optional[int] = None
     delivery_deadline: Optional[str] = None  # YYYY-MM-DD en API
     semaphore: Optional[str] = None
     semaphore_label: Optional[str] = None
@@ -122,11 +126,9 @@ class InstanceDeliveryDeadlineUpdate(SQLModel):
     apply_to_all_without_date: bool = False
 
 class SalesOrderItemInstanceUpdate(SQLModel):
+    """Status, batch and cancellation are not editable here: they go through production and change orders."""
     custom_name: Optional[str] = None
     description_override: Optional[str] = None
-    production_status: Optional[InstanceStatus] = None
-    production_batch_id: Optional[int] = None
-    is_cancelled: Optional[bool] = None
     current_location: Optional[str] = None
     customer_payment_id: Optional[int] = None
     administration_invoice_folio: Optional[str] = None
@@ -148,14 +150,21 @@ class SalesOrderItemBase(SQLModel):
 class SalesOrderItemCreate(SalesOrderItemBase):
     pass
 
-class AddItemsPayload(SQLModel):
-    items: List[SalesOrderItemCreate]
-
 class SalesOrderItemRead(SalesOrderItemBase):
     id: int
     sales_order_id: int
     subtotal_price: float 
+    is_cancelled: bool = False
+    cancelled_at: Optional[datetime] = None
+    cancel_reason: Optional[str] = None
+    change_quotation_id: Optional[int] = None
     instances: List[SalesOrderItemInstanceRead] = []
+
+
+class OrderItemDescriptionUpdate(BaseModel):
+    """Commercial description of a sales order line; it does not move money, so no authorization is needed."""
+    commercial_description: Optional[str] = None
+    reason: Optional[str] = None
 
 # ==========================================
 # MINI-ESQUEMA PARA LEER EL CLIENTE EN LA ORDEN
@@ -216,6 +225,7 @@ class SalesOrderRead(SalesOrderBase):
     
     user_id: Optional[int] = None 
     quotation_id: Optional[int] = None
+    parent_sales_order_id: Optional[int] = None
     
     # Relaciones anidadas
     client: Optional[ClientReadBasic] = None  # <--- ¡EL ESLABÓN PERDIDO!
@@ -305,6 +315,8 @@ class PaymentPayload(BaseModel):
     nc_advance_amount: float = 0.0
     nc_retention_folio: Optional[str] = None
     nc_retention_amount: float = 0.0
+    # Complementary advance of a change order (CAM)
+    change_quotation_id: Optional[int] = None
 
 
 class ClientPurchaseOrderPayload(BaseModel):
@@ -493,3 +505,59 @@ class RetentionAlertRead(SQLModel):
     retention_status: Optional[str] = None
     days_until_due: int
     is_overdue: bool
+
+# ==========================================
+# NOTAS DE CRÉDITO AL CLIENTE Y RESUMEN DE CAMBIOS DE LA OV
+# ==========================================
+class CustomerCreditNoteCreate(BaseModel):
+    folio: str = Field(..., min_length=1)
+    note_date: datetime
+    amount: float = Field(..., gt=0)
+    reason: str = Field(..., min_length=1)
+    customer_payment_id: Optional[int] = None
+    change_quotation_id: Optional[int] = None
+
+
+class CustomerCreditNoteApply(BaseModel):
+    customer_payment_id: int
+
+
+class CustomerCreditNoteCancel(BaseModel):
+    cancel_reason: str = Field(..., min_length=1)
+
+
+class CustomerCreditNoteRead(SQLModel):
+    id: int
+    sales_order_id: int
+    customer_payment_id: Optional[int] = None
+    change_quotation_id: Optional[int] = None
+    folio: str
+    note_date: datetime
+    amount: float
+    reason: str
+    status: str
+    created_at: datetime
+    created_by_user_id: Optional[int] = None
+    cancelled_at: Optional[datetime] = None
+    cancel_reason: Optional[str] = None
+
+
+class PendingComplementaryAdvance(BaseModel):
+    change_quotation_id: int
+    folio: str
+    amount: float
+    invoiced: float
+    paid: float
+
+
+class OrderMoneySummaryRead(BaseModel):
+    """What the order still needs after its change orders: credit notes to capture and extra advances."""
+    total_price: float
+    invoiced_net: float
+    credit_notes_total: float
+    credit_note_pending: float
+    unapplied_credit: float
+    advance_required: float
+    advance_invoiced: float
+    complementary_advances: List[PendingComplementaryAdvance] = []
+    credit_notes: List[CustomerCreditNoteRead] = []

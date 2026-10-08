@@ -21,6 +21,7 @@ import { Card } from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
+import { salesService } from '../../../api/sales-service';
 import { SalesOrderItem } from '../../../types/sales';
 import { QuotationStatus } from '../../../types/quotations';
 
@@ -49,12 +50,15 @@ const CreateQuotePage: React.FC = () => {
     const { id } = useParams(); 
     const location = useLocation();
     const readOnly = location.state?.readOnly || false;
+    // Complementary OV: /quotations/new?parent=<sales order id>
+    const parentParam = Number(new URLSearchParams(location.search).get('parent')) || null;
 
-    return <CreateQuoteContent key={id || 'new'} id={id} navigate={navigate} readOnly={readOnly} />;
+    return <CreateQuoteContent key={id || `new-${parentParam ?? ''}`} id={id} navigate={navigate} readOnly={readOnly} parentOrderId={parentParam} />;
 };
 
-const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boolean}> = ({ id, navigate, readOnly = false }) => {
+const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boolean, parentOrderId?: number | null}> = ({ id, navigate, readOnly = false, parentOrderId = null }) => {
     const isEditMode = Boolean(id);
+    const [parentId, setParentId] = useState<number | null>(parentOrderId);
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase();
     
     const isDirector = ['ADMIN', 'ADMINISTRADOR', 'DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
@@ -164,6 +168,18 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
     }, [config, taxRates, isEditMode, isUserSelectedTax, header.tax_rate_id]);
 
     useEffect(() => {
+        // Complementary OV inherits client and project from the original order (both editable).
+        if (isEditMode || !parentOrderId) return;
+        salesService.getOrderDetail(parentOrderId)
+            .then((parent) => setHeader((prev) => ({
+                ...prev,
+                client_id: parent.client_id || prev.client_id,
+                project_name: prev.project_name || `${parent.project_name} (adicional)`,
+            })))
+            .catch(() => toast.error('No se pudo cargar la OV original.'));
+    }, [isEditMode, parentOrderId]);
+
+    useEffect(() => {
         if (isEditMode && id) {
             setLoadingData(true);
             const loadOrder = async () => {
@@ -197,6 +213,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                             })),
                         );
                         setCurrentStatus(data.status);
+                        setParentId(data.parent_sales_order_id ?? null);
                         setIsUserSelectedTax(true);
                         
                         setHasAdvanceInvoice(Boolean(data.has_advance_invoice));
@@ -427,6 +444,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                 notes: header.notes,
                 conditions: header.conditions,
                 items: cleanItems,
+                ...(isEditMode ? {} : { parent_sales_order_id: parentId }),
             };
 
             const saved = isEditMode && id
@@ -530,6 +548,13 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                 </div>
                 <Button variant="secondary" onClick={() => navigate('/sales')}><ArrowLeft size={18} className="mr-2"/> Regresar</Button>
             </div>
+
+            {parentId && (
+                <div className="bg-indigo-50 border-l-4 border-indigo-500 text-indigo-800 p-4 rounded shadow-sm">
+                    <p className="font-bold">OV complementaria de OV-{String(parentId).padStart(4, '0')}</p>
+                    <p className="text-sm">Al convertirse nace una OV propia (anticipo, facturas y saldo propios) ligada a la original.</p>
+                </div>
+            )}
 
             {hasAdvanceInvoice && (
                 <div className="bg-red-50 border-l-4 border-red-500 text-red-800 p-4 rounded shadow-sm flex items-center gap-3">

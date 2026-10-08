@@ -1,11 +1,11 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { X, Receipt, CheckCircle, Clock, FileText, Package, AlertCircle, PieChart, Users, Coins, Pencil, Plus, PlusCircle, Trash2, Check, XCircle, ChevronDown, ChevronRight, Shield } from 'lucide-react';
+import { X, Receipt, CheckCircle, Clock, FileText, Package, AlertCircle, PieChart, Users, Coins, Pencil, PlusCircle, XCircle, ChevronDown, ChevronRight, Shield } from 'lucide-react';
 import { SalesOrder, CustomerPayment, RetentionAlertRead } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
 import { getInventoryConflict } from '../../../api/production-service';
 import { ReversalDialog, type ReversalInput } from '../../production/components/BatchInventoryDialogs';
 import axiosClient from '../../../api/axios-client';
-import { AddItemsModal } from '../../sales/components/AddItemsModal';
+import { OrderChangesPanel } from '../../sales/components/OrderChangesPanel';
 import { toast } from '@/components/ui/VToast';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import Modal from '@/components/ui/Modal';
@@ -35,9 +35,6 @@ import {
 
 type OrderStatementPendingConfirm =
     | { kind: 'CANCEL_OV' }
-    | { kind: 'DELETE_INSTANCE'; itemId: number; inst: any }
-    | { kind: 'DELETE_RESALE'; item: any }
-    | { kind: 'ADD_INSTANCE'; item: any }
     | { kind: 'PAY_COMMISSION'; customerPaymentId: number };
 
 /** Días desde emisión hasta hoy; solo documentos sin pago registrado / no pagados. */
@@ -109,7 +106,7 @@ function calcSelectedInstancesValue(selectedInstanceIds: number[], uniqueItems: 
     uniqueItems.forEach((item: any) => {
         const qty = Number(item.quantity) || 1;
         const valuePerInstance = Number(item.unit_price || 0) / qty;
-        const realInstances = item.instances ? item.instances.slice(0, qty) : [];
+        const realInstances = (item.instances ?? []).filter((inst: any) => !inst.is_cancelled);
         realInstances.forEach((inst: any) => {
             if (idSet.has(inst.id)) total += valuePerInstance;
         });
@@ -420,9 +417,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const canEditAdvance = ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'MANAGER'].includes(userRole);
     const canRegisterInstallment = ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'MANAGER'].includes(userRole);
     const canManageRetention = ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'MANAGER'].includes(userRole);
-    const canExpandOrder =
-        ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'MANAGER', 'SALES', 'VENTAS', 'ADMIN', 'ADMINISTRADOR'].includes(userRole)
-        && ['WAITING_ADVANCE', 'SOLD', 'IN_PRODUCTION'].includes((order as any).status);
+    const canEditDescription = !readOnly && ['DIRECTOR', 'MANAGER', 'SALES'].includes(userRole);
     const canEditDeliveryDeadline = [
         'DIRECTOR',
         'DIRECCION',
@@ -431,16 +426,8 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         'DESIGN',
         'DISEÑO',
     ].includes(userRole);
-    const [showAddItems, setShowAddItems] = useState(false);
-    const [deletingId, setDeletingId] = useState<number | null>(null);
-    const [editingResaleId, setEditingResaleId] = useState<number | null>(null);
-    const [editQty, setEditQty] = useState<number>(1);
-    const [editPrice, setEditPrice] = useState<number>(0);
-    const [savingResale, setSavingResale] = useState(false);
-    const [editingPriceItemId, setEditingPriceItemId] = useState<number | null>(null);
-    const [editItemPrice, setEditItemPrice] = useState<number>(0);
-    const [savingItemPrice, setSavingItemPrice] = useState(false);
-    const [addingInstanceId, setAddingInstanceId] = useState<number | null>(null);
+    const [descriptionEdit, setDescriptionEdit] = useState<{ item: any; text: string; reason: string } | null>(null);
+    const [savingDescription, setSavingDescription] = useState(false);
     const [localOrder, setLocalOrder] = useState<SalesOrder>(order);
     const [deliverablesTab, setDeliverablesTab] = useState<'instancia' | 'casa'>('instancia');
     const prevIsOpenRef = useRef(false);
@@ -720,7 +707,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         const map = new Map<string, UnlinkedHouseGroup>();
         const UNASSIGNED = '__unassigned__';
         uniqueItems.forEach((item: any) => {
-            const realInstances = item.instances ? item.instances.slice(0, item.quantity || 1) : [];
+            const realInstances = (item.instances ?? []).filter((inst: any) => !inst.is_cancelled);
             realInstances.forEach((inst: any) => {
                 const isLinked =
                     !!inst.customer_payment_id || linkedInstanceIdsForInstallmentCxc.has(inst.id);
@@ -775,7 +762,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         const map = new Map<string, UnlinkedHouseGroup>();
         const UNASSIGNED = '__unassigned__';
         uniqueItems.forEach((item: any) => {
-            const realInstances = item.instances ? item.instances.slice(0, item.quantity || 1) : [];
+            const realInstances = (item.instances ?? []).filter((inst: any) => !inst.is_cancelled);
             realInstances.forEach((inst: any) => {
                 const isLinked =
                     !!inst.customer_payment_id || linkedInstanceIdsForEditCxc.has(inst.id);
@@ -822,7 +809,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         const map = new Map<string, { street: string; lot: string; key: string; items: any[] }>();
         const UNASSIGNED = '__unassigned__';
         uniqueItems.forEach((item: any) => {
-            const realInstances = item.instances ? item.instances.slice(0, item.quantity || 1) : [];
+            const realInstances = (item.instances ?? []).filter((inst: any) => !inst.is_cancelled);
             realInstances.forEach((inst: any) => {
                 const hasCasa = inst.street || inst.lot;
                 const key = hasCasa ? `${inst.street ?? ''}||${inst.lot ?? ''}` : UNASSIGNED;
@@ -1445,103 +1432,18 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         }
     };
 
-    const handleDeleteInstance = (itemId: number, inst: any) => {
-        if (inst.production_status !== 'PENDING' || inst.customer_payment_id) {
-            return;
-        }
-        setPendingConfirm({ kind: 'DELETE_INSTANCE', itemId, inst });
-    };
-
-    const executeDeleteInstance = async (itemId: number, inst: any) => {
+    const saveDescription = async () => {
+        if (!descriptionEdit || !(order as any).id) return;
+        setSavingDescription(true);
         try {
-            setDeletingId(inst.id);
-            await salesService.deleteInstance((order as any).id, itemId, inst.id);
+            await salesService.updateItemDescription((order as any).id, descriptionEdit.item.id, descriptionEdit.text, descriptionEdit.reason);
+            toast.success('Descripción actualizada.');
+            setDescriptionEdit(null);
             await refreshOrderInPlace();
         } catch (e: any) {
-            toast.error(e?.response?.data?.detail || 'No se pudo eliminar la unidad.');
+            toast.error(e?.response?.data?.detail || 'No se pudo actualizar la descripción.');
         } finally {
-            setDeletingId(null);
-            setPendingConfirm(null);
-        }
-    };
-
-    const handleDeleteResale = (item: any) => {
-        setPendingConfirm({ kind: 'DELETE_RESALE', item });
-    };
-
-    const executeDeleteResale = async (item: any) => {
-        try {
-            setDeletingId(item.id);
-            await salesService.deleteResaleItem((order as any).id, item.id);
-            await refreshOrderInPlace();
-        } catch (e: any) {
-            toast.error(e?.response?.data?.detail || 'No se pudo eliminar el accesorio.');
-        } finally {
-            setDeletingId(null);
-            setPendingConfirm(null);
-        }
-    };
-
-    const startEditResale = (item: any) => {
-        setEditingResaleId(item.id);
-        setEditQty(Number(item.quantity) || 1);
-        setEditPrice(Number(item.unit_price) || 0);
-    };
-    const cancelEditResale = () => {
-        setEditingResaleId(null);
-    };
-    const saveEditResale = async (item: any) => {
-        if (editQty <= 0 || editPrice < 0) {
-            toast.warning('Cantidad y precio deben ser válidos.');
-            return;
-        }
-        try {
-            setSavingResale(true);
-            await salesService.patchResaleItem((order as any).id, item.id, {
-                quantity: editQty,
-                unit_price: editPrice,
-            });
-            setEditingResaleId(null);
-            await refreshOrderInPlace();
-        } catch (e: any) {
-            toast.error(e?.response?.data?.detail || 'No se pudo editar el accesorio.');
-        } finally {
-            setSavingResale(false);
-        }
-    };
-
-    const startEditItemPrice = (item: any) => {
-        setEditingPriceItemId(item.id);
-        setEditItemPrice(Number(item.unit_price) || 0);
-    };
-    const cancelEditItemPrice = () => setEditingPriceItemId(null);
-    const saveEditItemPrice = async (item: any) => {
-        if (editItemPrice < 0) { toast.warning('El precio no puede ser negativo.'); return; }
-        try {
-            setSavingItemPrice(true);
-            await salesService.patchProductionPrice((order as any).id, item.id, editItemPrice);
-            setEditingPriceItemId(null);
-            await refreshOrderInPlace();
-        } catch (e: any) {
-            toast.error(e?.response?.data?.detail || 'No se pudo cambiar el precio.');
-        } finally {
-            setSavingItemPrice(false);
-        }
-    };
-    const handleAddInstance = (item: any) => {
-        setPendingConfirm({ kind: 'ADD_INSTANCE', item });
-    };
-
-    const executeAddInstance = async (item: any) => {
-        try {
-            setAddingInstanceId(item.id);
-            await salesService.addInstance((order as any).id, item.id);
-            await refreshOrderInPlace();
-        } catch (e: any) {
-            toast.error(e?.response?.data?.detail || 'No se pudo agregar la unidad.');
-        } finally {
-            setAddingInstanceId(null);
-            setPendingConfirm(null);
+            setSavingDescription(false);
         }
     };
 
@@ -1637,15 +1539,6 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                             >
                                 <AlertCircle size={14} />
                                 {cancelling ? "Cancelando..." : "Cancelar OV"}
-                            </button>
-                        )}
-                        {canExpandOrder && (
-                            <button
-                                type="button"
-                                onClick={() => setShowAddItems(true)}
-                                className="flex items-center gap-1 px-3 py-1.5 mr-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
-                            >
-                                <Plus size={14} /> Ampliar Orden
                             </button>
                         )}
                         <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors">
@@ -2341,6 +2234,17 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                         </div>
                     </div>
 
+                    {localOrder?.id && (
+                        <OrderChangesPanel
+                            order={localOrder}
+                            readOnly={readOnly}
+                            onChanged={async () => {
+                                await refreshOrderInPlace();
+                                onSuccess();
+                            }}
+                        />
+                    )}
+
                     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                         <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
                             <h3 className="text-sm font-black text-slate-700 flex items-center gap-2 mb-2">
@@ -2368,123 +2272,82 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                           {deliverablesTab === 'instancia' && (
                             <>
                             {/* ESCUDO: Cortamos las instancias a la cantidad real que marca la OV */}
-                            {uniqueItems.map((item: any) => {
-                                const realInstances = item.instances ? item.instances.slice(0, item.quantity || 1) : [];
-                                if (realInstances.length === 0) return null;
-                                const allEditable = realInstances.every(
-                                    (inst: any) => inst.production_status === 'PENDING' && !inst.customer_payment_id
-                                );
+                            {uniqueItems.filter((item: any) => !item.is_resale).map((item: any) => {
+                                const units = item.instances ?? [];
+                                if (units.length === 0 && !item.is_cancelled) return null;
+                                const cancelledLine = Boolean(item.is_cancelled);
                                 return (
-                                    <div key={item.id} className="border border-slate-200 rounded-lg overflow-hidden shadow-sm">
-                                        <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200 flex items-center justify-between" data-all-editable={allEditable}>
+                                    <div key={item.id} className={`border rounded-lg overflow-hidden shadow-sm ${cancelledLine ? 'border-slate-200 opacity-60' : 'border-slate-200'}`}>
+                                        <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200 flex items-center justify-between">
                                             <div className="min-w-0">
-                                                <p className="text-sm font-black text-slate-700 truncate">{item.product_name}</p>
+                                                <p className={`text-sm font-black text-slate-700 truncate ${cancelledLine ? 'line-through' : ''}`}>{item.product_name}</p>
+                                                {item.commercial_description && (
+                                                    <p className="text-[11px] text-slate-500 truncate" title={item.commercial_description}>{item.commercial_description}</p>
+                                                )}
                                                 <p className="text-[11px] text-slate-500">
-                                                    {item.quantity} {item.quantity === 1 ? 'unidad' : 'unidades'} × {formatCurrency(item.unit_price || 0)}
+                                                    {cancelledLine
+                                                        ? `Partida cancelada: ${item.cancel_reason || 'sin motivo'}`
+                                                        : `${item.quantity} ${item.quantity === 1 ? 'unidad' : 'unidades'} × ${formatCurrency(item.unit_price || 0)}`}
                                                 </p>
                                             </div>
                                             <div className="flex items-center gap-2 shrink-0">
-                                                {editingPriceItemId === item.id ? (
-                                                    <div className="flex items-center gap-1">
-                                                        <Input
-                                                            type="number"
-                                                            step="0.01"
-                                                            min={0}
-                                                            className="w-28 px-2 py-1 border border-slate-300 rounded text-sm text-right"
-                                                            value={editItemPrice}
-                                                            onChange={(e) => setEditItemPrice(Number(e.target.value))}
-                                                            autoFocus
-                                                        />
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => saveEditItemPrice(item)}
-                                                            disabled={savingItemPrice}
-                                                            className="p-1 text-emerald-600 hover:text-emerald-800 disabled:opacity-50"
-                                                            title="Guardar precio"
-                                                        >
-                                                            <Check size={16} />
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={cancelEditItemPrice}
-                                                            disabled={savingItemPrice}
-                                                            className="p-1 text-slate-400 hover:text-slate-600"
-                                                            title="Cancelar"
-                                                        >
-                                                            <X size={16} />
-                                                        </button>
-                                                    </div>
-                                                ) : (
-                                                    <>
-                                                        <span className="text-sm font-black text-slate-700">
-                                                            {formatCurrency((item.unit_price || 0) * (item.quantity || 1))}
-                                                        </span>
-                                                        {allEditable && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => startEditItemPrice(item)}
-                                                                className="p-1 text-slate-400 hover:text-indigo-600 transition-colors"
-                                                                title="Editar precio de la partida"
-                                                            >
-                                                                <Pencil size={14} />
-                                                            </button>
-                                                        )}
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleAddInstance(item)}
-                                                            disabled={addingInstanceId === item.id}
-                                                            className="p-1 text-slate-400 hover:text-emerald-600 transition-colors disabled:opacity-50"
-                                                            title="Agregar una unidad"
-                                                        >
-                                                            <Plus size={16} />
-                                                        </button>
-                                                    </>
+                                                {!cancelledLine && (
+                                                    <span className="text-sm font-black text-slate-700">
+                                                        {formatCurrency((item.unit_price || 0) * (item.quantity || 0))}
+                                                    </span>
+                                                )}
+                                                {canEditDescription && !cancelledLine && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setDescriptionEdit({ item, text: item.commercial_description || '', reason: '' })}
+                                                        className="p-1 text-slate-400 hover:text-indigo-600 transition-colors"
+                                                        title="Editar descripción comercial"
+                                                    >
+                                                        <Pencil size={14} />
+                                                    </button>
                                                 )}
                                             </div>
                                         </div>
                                         <div className="divide-y divide-slate-100 bg-white">
-                                            {realInstances.map((inst: any) => (
-                                                <div key={inst.id} className="py-2 pl-8 pr-4 flex flex-wrap gap-2 justify-between items-center hover:bg-slate-50 text-sm">
+                                            {units.map((inst: any) => (
+                                                <div key={inst.id} className={`py-2 pl-8 pr-4 flex flex-wrap gap-2 justify-between items-center text-sm ${inst.is_cancelled ? 'bg-slate-50 opacity-60' : 'hover:bg-slate-50'}`}>
                                                     <div className="flex items-start gap-3 min-w-0 flex-1 flex-wrap">
                                                         <div className="w-2 h-2 rounded-full mt-1.5 shrink-0 bg-slate-300" />
                                                         <div className="min-w-0">
-                                                            <span className="font-bold text-slate-700 block truncate">
+                                                            <span className={`font-bold text-slate-700 block truncate ${inst.is_cancelled ? 'line-through' : ''}`}>
                                                                 {inst.custom_name || inst.item_name}
                                                             </span>
                                                             <p className="text-[10px] text-slate-600 truncate">
-                                                                {formatInstanceCasaSubtitle(displayName, inst)}
+                                                                {inst.is_cancelled
+                                                                    ? `Cancelada: ${inst.cancel_reason || 'sin motivo'}`
+                                                                    : formatInstanceCasaSubtitle(displayName, inst)}
                                                             </p>
                                                         </div>
-                                                        <InstanceSemaphoreBadge
-                                                            semaphore={inst.semaphore}
-                                                            semaphoreLabel={inst.semaphore_label}
-                                                        />
-                                                        <InstanceDeliveryDeadlineCell
-                                                            deliveryDeadline={inst.delivery_deadline}
-                                                            canEdit={canEditDeliveryDeadline}
-                                                            disabled={savingDeliveryInstanceId === inst.id}
-                                                            onCommit={(dateKey) => handleDeliveryDeadlineCommit(inst.id, dateKey)}
-                                                        />
+                                                        {!inst.is_cancelled && (
+                                                            <>
+                                                                <InstanceSemaphoreBadge
+                                                                    semaphore={inst.semaphore}
+                                                                    semaphoreLabel={inst.semaphore_label}
+                                                                />
+                                                                <InstanceDeliveryDeadlineCell
+                                                                    deliveryDeadline={inst.delivery_deadline}
+                                                                    canEdit={canEditDeliveryDeadline}
+                                                                    disabled={savingDeliveryInstanceId === inst.id}
+                                                                    onCommit={(dateKey) => handleDeliveryDeadlineCommit(inst.id, dateKey)}
+                                                                />
+                                                            </>
+                                                        )}
                                                     </div>
                                                     <div className="text-right flex items-center justify-end gap-2 shrink-0 flex-wrap">
                                                         <span className={`text-xs font-bold px-2 py-1 rounded ${
-                                                            inst.customer_payment_id
+                                                            inst.is_cancelled
+                                                            ? 'bg-slate-200 text-slate-500'
+                                                            : inst.customer_payment_id
                                                             ? 'bg-blue-50 text-blue-600 border border-blue-100'
                                                             : 'bg-slate-100 text-slate-500'
                                                         }`}>
-                                                            {inst.customer_payment_id ? 'FACTURADO' : 'PENDIENTE'}
+                                                            {inst.is_cancelled ? 'CANCELADA' : inst.customer_payment_id ? 'FACTURADO' : 'PENDIENTE'}
                                                         </span>
-                                                        {inst.production_status === 'PENDING' && !inst.customer_payment_id && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleDeleteInstance(item.id, inst)}
-                                                                disabled={deletingId === inst.id}
-                                                                className="p-1 text-slate-400 hover:text-red-600 transition-colors disabled:opacity-50"
-                                                                title="Eliminar esta unidad"
-                                                            >
-                                                                <Trash2 size={14} />
-                                                            </button>
-                                                        )}
                                                     </div>
                                                 </div>
                                             ))}
@@ -2499,82 +2362,34 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                     </p>
                                     <div className="space-y-2">
                                         {resaleItems.map((item: any) => (
-                                            <div key={item.id} className="bg-emerald-50 border border-emerald-100 rounded-lg px-4 py-2">
-                                                {editingResaleId === item.id ? (
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="min-w-0 flex-1">
-                                                            <p className="text-sm font-bold text-slate-800 truncate">{item.product_name}</p>
-                                                            <div className="flex items-center gap-2 mt-1">
-                                                                <label className="text-[10px] text-slate-500 uppercase">Cant.</label>
-                                                                <Input
-                                                                    type="number"
-                                                                    min={1}
-                                                                    className="w-16 px-2 py-1 border border-slate-300 rounded text-sm"
-                                                                    value={editQty}
-                                                                    onChange={(e) => setEditQty(Number(e.target.value))}
-                                                                />
-                                                                <label className="text-[10px] text-slate-500 uppercase">Precio</label>
-                                                                <Input
-                                                                    type="number"
-                                                                    step="0.01"
-                                                                    min={0}
-                                                                    className="w-24 px-2 py-1 border border-slate-300 rounded text-sm text-right"
-                                                                    value={editPrice}
-                                                                    onChange={(e) => setEditPrice(Number(e.target.value))}
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => saveEditResale(item)}
-                                                            disabled={savingResale}
-                                                            className="p-1 text-emerald-600 hover:text-emerald-800 disabled:opacity-50"
-                                                            title="Guardar"
-                                                        >
-                                                            <Check size={16} />
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={cancelEditResale}
-                                                            disabled={savingResale}
-                                                            className="p-1 text-slate-400 hover:text-slate-600"
-                                                            title="Cancelar"
-                                                        >
-                                                            <X size={16} />
-                                                        </button>
+                                            <div key={item.id} className={`bg-emerald-50 border border-emerald-100 rounded-lg px-4 py-2 ${item.is_cancelled ? 'opacity-60' : ''}`}>
+                                                <div className="flex items-center justify-between">
+                                                    <div className="min-w-0">
+                                                        <p className={`text-sm font-bold text-slate-800 truncate ${item.is_cancelled ? 'line-through' : ''}`}>{item.product_name}</p>
+                                                        <p className="text-xs text-slate-500">
+                                                            {item.is_cancelled
+                                                                ? `Cancelado: ${item.cancel_reason || 'sin motivo'}`
+                                                                : `SKU ${item.resale_sku ?? '—'} · Cant. ${item.quantity}`}
+                                                        </p>
                                                     </div>
-                                                ) : (
-                                                    <div className="flex items-center justify-between">
-                                                        <div className="min-w-0">
-                                                            <p className="text-sm font-bold text-slate-800 truncate">{item.product_name}</p>
-                                                            <p className="text-xs text-slate-500">
-                                                                SKU {item.resale_sku ?? '—'} · Cant. {item.quantity}
-                                                            </p>
-                                                        </div>
-                                                        <div className="flex items-center shrink-0">
+                                                    <div className="flex items-center shrink-0">
+                                                        {!item.is_cancelled && (
                                                             <p className="text-sm font-black text-emerald-700">
                                                                 {formatCurrency((item.unit_price || 0) * (item.quantity || 1))}
                                                             </p>
+                                                        )}
+                                                        {canEditDescription && !item.is_cancelled && (
                                                             <button
                                                                 type="button"
-                                                                onClick={() => startEditResale(item)}
+                                                                onClick={() => setDescriptionEdit({ item, text: item.commercial_description || '', reason: '' })}
                                                                 className="ml-3 p-1 text-slate-400 hover:text-indigo-600 transition-colors"
-                                                                title="Editar accesorio"
+                                                                title="Editar descripción comercial"
                                                             >
                                                                 <Pencil size={14} />
                                                             </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleDeleteResale(item)}
-                                                                disabled={deletingId === item.id}
-                                                                className="ml-1 p-1 text-slate-400 hover:text-red-600 transition-colors disabled:opacity-50"
-                                                                title="Eliminar accesorio"
-                                                            >
-                                                                <Trash2 size={14} />
-                                                            </button>
-                                                        </div>
+                                                        )}
                                                     </div>
-                                                )}
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
@@ -2645,16 +2460,20 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
 
                 </div>
         </Modal>
-        {showAddItems && (
-            <AddItemsModal
-                isOpen={showAddItems}
-                onClose={() => setShowAddItems(false)}
-                order={order}
-                onSuccess={async () => {
-                    setShowAddItems(false);
-                    await refreshOrderInPlace();
-                }}
-            />
+        {descriptionEdit && (
+            <Modal isOpen onClose={() => !savingDescription && setDescriptionEdit(null)} title={`Descripción comercial · ${descriptionEdit.item.product_name}`} size="sm" overlayZIndex={70}>
+                <div className="space-y-3">
+                    <p className="text-sm text-slate-600">No mueve dinero: se guarda directo y queda en la bitácora.</p>
+                    <Input value={descriptionEdit.text} onChange={(e) => setDescriptionEdit({ ...descriptionEdit, text: e.target.value })} placeholder="Descripción que se imprime bajo el producto" />
+                    <Input value={descriptionEdit.reason} onChange={(e) => setDescriptionEdit({ ...descriptionEdit, reason: e.target.value })} placeholder="Motivo (opcional)" />
+                    <div className="flex justify-between gap-3 pt-2">
+                        <button type="button" disabled={savingDescription} onClick={() => setDescriptionEdit(null)} className="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-black rounded-lg disabled:opacity-50">Cerrar</button>
+                        <button type="button" disabled={savingDescription} onClick={() => void saveDescription()} className="px-5 py-2 font-bold rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">
+                            {savingDescription ? 'Guardando...' : 'Guardar'}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         )}
         {editPaymentModal.open && editPaymentModal.cxc && (
             <Modal
@@ -3388,50 +3207,29 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                 isOpen={pendingConfirm !== null}
                 title={
                     pendingConfirm.kind === 'CANCEL_OV' ? 'Cancelar orden de venta'
-                    : pendingConfirm.kind === 'DELETE_INSTANCE' ? 'Eliminar unidad'
-                    : pendingConfirm.kind === 'DELETE_RESALE' ? 'Eliminar accesorio'
-                    : pendingConfirm.kind === 'ADD_INSTANCE' ? 'Agregar unidad'
                     : 'Pagar comisión'
                 }
                 message={
                     pendingConfirm.kind === 'CANCEL_OV'
                         ? '¿Cancelar esta OV?'
-                        : pendingConfirm.kind === 'DELETE_INSTANCE'
-                        ? `¿Eliminar esta unidad (${pendingConfirm.inst.custom_name || 'instancia'})?`
-                        : pendingConfirm.kind === 'DELETE_RESALE'
-                        ? `¿Eliminar el accesorio "${pendingConfirm.item.product_name}"?`
-                        : pendingConfirm.kind === 'ADD_INSTANCE'
-                        ? `¿Agregar una unidad a "${pendingConfirm.item.product_name}"?`
                         : '¿Confirmar pago de comisión al vendedor?'
                 }
                 consequence={
                     pendingConfirm.kind === 'CANCEL_OV'
                         ? 'Las instancias se cancelarán y la OV no podrá reactivarse. Los productos cotizados se conservan.'
-                        : pendingConfirm.kind === 'DELETE_INSTANCE' || pendingConfirm.kind === 'DELETE_RESALE'
-                        ? 'Esta acción no se puede deshacer.'
-                        : pendingConfirm.kind === 'ADD_INSTANCE'
-                        ? 'Se agregará una nueva unidad al producto en la orden.'
                         : 'La comisión quedará marcada como pagada en nómina.'
                 }
                 variant={
                     pendingConfirm.kind === 'CANCEL_OV'
-                    || pendingConfirm.kind === 'DELETE_INSTANCE'
-                    || pendingConfirm.kind === 'DELETE_RESALE'
                         ? 'danger'
                         : 'default'
                 }
                 confirmLabel={
                     pendingConfirm.kind === 'CANCEL_OV' ? 'Sí, cancelar OV'
-                    : pendingConfirm.kind === 'DELETE_INSTANCE' ? 'Sí, eliminar'
-                    : pendingConfirm.kind === 'DELETE_RESALE' ? 'Sí, eliminar'
-                    : pendingConfirm.kind === 'ADD_INSTANCE' ? 'Sí, agregar'
                     : 'Sí, confirmar pago'
                 }
                 onConfirm={async () => {
                     if (pendingConfirm.kind === 'CANCEL_OV') await executeCancelOv();
-                    else if (pendingConfirm.kind === 'DELETE_INSTANCE') await executeDeleteInstance(pendingConfirm.itemId, pendingConfirm.inst);
-                    else if (pendingConfirm.kind === 'DELETE_RESALE') await executeDeleteResale(pendingConfirm.item);
-                    else if (pendingConfirm.kind === 'ADD_INSTANCE') await executeAddInstance(pendingConfirm.item);
                     else if (pendingConfirm.kind === 'PAY_COMMISSION') await executePayCommission(pendingConfirm.customerPaymentId);
                 }}
                 onCancel={() => setPendingConfirm(null)}

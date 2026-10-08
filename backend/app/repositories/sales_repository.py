@@ -10,6 +10,8 @@ from app.models.design import ProductVersion
 from app.models.foundations import Client, TaxRate
 from app.models.material import Material
 from app.models.sales import (
+    CustomerCreditNote,
+    CustomerCreditNoteStatus,
     CustomerPayment,
     CustomerPaymentInstallment,
     CXCStatus,
@@ -356,3 +358,68 @@ def get_commissions_payroll_overview_data(session: Session) -> dict:
         "ready": ready,
         "paid": paid,
     }
+
+
+def get_active_items_by_order(session: Session, order_id: int) -> List[SalesOrderItem]:
+    return list(
+        session.exec(
+            select(SalesOrderItem).where(
+                SalesOrderItem.sales_order_id == order_id,
+                SalesOrderItem.is_cancelled == False,  # noqa: E712
+            )
+        ).all()
+    )
+
+
+def get_instances_by_ids(session: Session, instance_ids: List[int]) -> List[SalesOrderItemInstance]:
+    if not instance_ids:
+        return []
+    return list(session.exec(select(SalesOrderItemInstance).where(SalesOrderItemInstance.id.in_(instance_ids))).all())
+
+
+def get_order_payments(session: Session, order_id: int) -> List[CustomerPayment]:
+    return list(
+        session.exec(
+            select(CustomerPayment).where(
+                CustomerPayment.sales_order_id == order_id,
+                CustomerPayment.status != CXCStatus.CANCELLED,
+            )
+        ).all()
+    )
+
+
+def get_credit_notes_by_order(session: Session, order_id: int) -> List[CustomerCreditNote]:
+    return list(
+        session.exec(
+            select(CustomerCreditNote)
+            .where(CustomerCreditNote.sales_order_id == order_id)
+            .order_by(CustomerCreditNote.id)
+        ).all()
+    )
+
+
+def get_credit_note_by_id(session: Session, note_id: int) -> Optional[CustomerCreditNote]:
+    return session.get(CustomerCreditNote, note_id)
+
+
+def sum_active_credit_notes(session: Session, cxc_id: int) -> float:
+    value = session.exec(
+        select(func.coalesce(func.sum(CustomerCreditNote.amount), 0.0)).where(
+            CustomerCreditNote.customer_payment_id == cxc_id,
+            CustomerCreditNote.status == CustomerCreditNoteStatus.ACTIVE,
+        )
+    ).one()
+    return float(value or 0.0)
+
+
+def sum_advance_commission_base(session: Session, order_id: int) -> float:
+    """Advance amount (without tax) already turned into commission rows for this order (one base per invoice)."""
+    per_payment = (
+        select(func.max(SalesCommission.base_amount).label("base"))
+        .join(CustomerPayment, CustomerPayment.id == SalesCommission.customer_payment_id)
+        .where(CustomerPayment.sales_order_id == order_id, SalesCommission.is_advance == True)  # noqa: E712
+        .group_by(SalesCommission.customer_payment_id)
+        .subquery()
+    )
+    value = session.exec(select(func.coalesce(func.sum(per_payment.c.base), 0.0))).one()
+    return float(value or 0.0)

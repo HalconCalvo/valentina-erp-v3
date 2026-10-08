@@ -6,7 +6,12 @@ export type QuotationStatus =
   | 'CONVERTED'
   | 'LOST'
   | 'EXPIRED'
-  | 'CANCELLED';
+  | 'CANCELLED'
+  | 'APPLIED';
+
+export type QuotationKind = 'NEW' | 'CHANGE_ORDER';
+
+export type ChangeType = 'ADD' | 'QUANTITY_UP' | 'QUANTITY_DOWN' | 'PRICE' | 'CANCEL_LINE';
 
 export type QuotationItem = {
   id?: number;
@@ -21,6 +26,11 @@ export type QuotationItem = {
   is_resale?: boolean;
   resale_sku?: string | null;
   commercial_description?: string | null;
+  change_type?: ChangeType | null;
+  target_order_item_id?: number | null;
+  cancel_instance_ids?: number[] | null;
+  reversal_dispositions?: Record<string, string> | null;
+  change_reason?: string | null;
 };
 
 export interface QuotationClientBasic {
@@ -75,6 +85,14 @@ export type Quotation = {
   client?: QuotationClientBasic | null;
   user?: QuotationUserBasic | null;
   items: QuotationItem[];
+  kind?: QuotationKind;
+  parent_sales_order_id?: number | null;
+  change_number?: number | null;
+  change_reason?: string | null;
+  applied_at?: string | null;
+  client_po_folio?: string | null;
+  client_po_date?: string | null;
+  complementary_advance_amount?: number;
 };
 
 export interface QuotationCreatePayload {
@@ -95,6 +113,8 @@ export interface QuotationCreatePayload {
   external_invoice_ref?: string | null;
   is_warranty?: boolean;
   items: Omit<QuotationItem, 'id' | 'quotation_id' | 'subtotal_price'>[];
+  /** OV complementaria: la OV original que amplía */
+  parent_sales_order_id?: number | null;
 }
 
 export type QuotationUpdatePayload = Partial<Omit<QuotationCreatePayload, 'items'>> & {
@@ -125,4 +145,35 @@ export interface QuotationConvertResult {
 export interface QuotationListFilters {
   status?: QuotationStatus;
   search?: string;
+}
+
+/** One operation of a change order (CAM). */
+export type ChangeOrderLine = {
+  change_type: ChangeType;
+  target_order_item_id?: number | null;
+  product_name?: string | null;
+  origin_version_id?: number | null;
+  quantity: number;
+  unit_price: number;
+  frozen_unit_cost?: number;
+  is_resale?: boolean;
+  resale_sku?: string | null;
+  commercial_description?: string | null;
+  cancel_instance_ids?: number[];
+  reversal_dispositions?: Record<string, string>;
+  change_reason?: string | null;
+};
+
+export interface ChangeOrderPayload {
+  sales_order_id: number;
+  change_reason: string;
+  lines: ChangeOrderLine[];
+  advance_percent?: number | null;
+  notes?: string | null;
+}
+
+export interface ChangeOrderAuthorizePayload {
+  lines: ChangeOrderLine[];
+  advance_percent: number;
+  director_notes?: string | null;
 }

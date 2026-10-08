@@ -17,14 +17,16 @@ from app.models.sales import (
     SalesOrderItemInstance,
     SalesOrderStatus,
     InstanceStatus,
+    QuotationKind,
+    QuotationStatus,
 )
 from app.models.production import InstallationAssignment, PayrollPayment, PayrollStatus
 from app.models.treasury import BankTransaction, TransactionType
 from app.models.users import User, UserRole
+from app.repositories import quotation_repository as quotation_repo
 from app.repositories import sales_repository as sales_repo
 from app.services.planning_service import compute_semaphore, compute_semaphore_label
 from app.schemas.sales_schema import (
-    AddItemsPayload,
     CommissionPaidUpdate,
     CommissionPayrollUpdate,
     CommissionsPayrollOverview,
@@ -32,6 +34,7 @@ from app.schemas.sales_schema import (
     CustomerPaymentUpdate,
     InstallmentCancel,
     InstallmentUpdate,
+    OrderItemDescriptionUpdate,
     PaymentPayload,
     RegisterProgressPayload,
     PayrollCommissionRow,
@@ -457,7 +460,7 @@ def list_pending_cxc(session: Session) -> list:
     result = []
     for cxc in rows:
         order = sales_repo.get_sales_order_by_id(session, cxc.sales_order_id)
-        abonado = sales_repo.sum_active_installments(session, cxc.id)
+        abonado = sales_repo.sum_active_installments(session, cxc.id) + sales_repo.sum_active_credit_notes(session, cxc.id)
         amortizado = float(cxc.amortized_advance or 0.0)
         monto = float(cxc.amount or 0.0)
         result.append({
@@ -509,9 +512,10 @@ def get_cxc_report(
         order = sales_repo.get_sales_order_by_id(session, cxc.sales_order_id)
         cli = sales_repo.get_client_by_id(session, order.client_id) if order and order.client_id else None
         abonado = round(sales_repo.sum_active_installments(session, cxc.id), 2)
+        acreditado = round(sales_repo.sum_active_credit_notes(session, cxc.id), 2)
         amortized_advance = round(float(cxc.amortized_advance or 0.0), 2)
         monto = round(float(cxc.amount or 0.0), 2)
-        saldo = round(max(monto - amortized_advance - abonado, 0.0), 2)
+        saldo = round(max(monto - amortized_advance - abonado - acreditado, 0.0), 2)
         if filter_zero_saldo and saldo <= 0.01:
             continue
         antiguedad = (ahora - cxc.invoice_date).days if cxc.invoice_date else None
@@ -855,6 +859,14 @@ def _adjust_bank_for_installment_diff(
     session.add(bank_tx)
 
 
+def advance_pending_commission_base(session: Session, order: SalesOrder, advance_with_tax: float) -> float:
+    """Part of the agreed advance (with tax) that has not produced commission rows yet."""
+    tax_rate = sales_repo.get_tax_rate_by_id(session, order.tax_rate_id)
+    multiplier = 1 + (tax_rate.rate if tax_rate else 0.16)
+    already = sales_repo.sum_advance_commission_base(session, order.id) * multiplier
+    return round(max(advance_with_tax - already, 0.0), 2)
+
+
 def liberar_comision_anticipo(
     session: Session, order: SalesOrder, payment: CustomerPayment, base_con_iva: float
 ) -> None:
@@ -878,7 +890,8 @@ def register_installment(
 
     order = sales_repo.get_sales_order_by_id(session, cxc.sales_order_id)
     abonado_antes = sales_repo.sum_active_installments(session, cxc.id)
-    saldo_factura = float(cxc.amount or 0.0) - abonado_antes
+    acreditado = sales_repo.sum_active_credit_notes(session, cxc.id)
+    saldo_factura = float(cxc.amount or 0.0) - abonado_antes - acreditado
     if monto > saldo_factura + 0.01:
         raise HTTPException(status_code=400, detail="El abono supera el saldo pendiente de la factura.")
     is_advance = bool(payload.is_advance) or cxc.payment_type == PaymentType.ADVANCE
@@ -941,7 +954,7 @@ def register_installment(
         order.outstanding_balance = float(order.outstanding_balance or 0.0) - monto
 
     abonado_despues = abonado_antes + monto
-    factura_saldada = abonado_despues + 0.01 >= float(cxc.amount or 0.0)
+    factura_saldada = abonado_despues + acreditado + 0.01 >= float(cxc.amount or 0.0)
 
     if factura_saldada and cxc.status != CXCStatus.PAID:
         cxc.status = CXCStatus.PAID
@@ -950,7 +963,7 @@ def register_installment(
             session.flush()
             is_advance = cxc.payment_type == PaymentType.ADVANCE
             _add_cxc_commissions(
-                session, order, cxc.id, float(cxc.amount or 0.0), is_advance=is_advance
+                session, order, cxc.id, float(cxc.amount or 0.0) - acreditado, is_advance=is_advance
             )
             cxc.commission_paid = True
             if is_advance and order.status == SalesOrderStatus.WAITING_ADVANCE:
@@ -1071,11 +1084,7 @@ def emit_advance_invoice(
     order = sales_repo.get_sales_order_by_id(session, order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Orden de venta no encontrada.")
-    if sales_repo.get_advance_payment_by_order(session, order_id):
-        raise HTTPException(
-            status_code=400,
-            detail="Ya existe una factura de anticipo para esta OV.",
-        )
+    assert_change_order_of(session, order, payload.change_quotation_id)
     monto = float(payload.amount or 0.0)
     if monto <= 0:
         raise HTTPException(status_code=422, detail="El monto de la factura de anticipo debe ser mayor a cero.")
@@ -1089,6 +1098,7 @@ def emit_advance_invoice(
         status=CXCStatus.PENDING,
         created_by_user_id=current_user.id,
         invoice_date=payload.invoice_date or datetime.utcnow(),
+        change_quotation_id=payload.change_quotation_id,
     )
     session.add(new_cxc)
     session.commit()
@@ -1115,7 +1125,7 @@ def register_progress_invoice(
 
     all_instances: List[SalesOrderItemInstance] = []
     for item in order.items or []:
-        all_instances.extend(item.instances or [])
+        all_instances.extend(i for i in (item.instances or []) if not i.is_cancelled)
 
     if payload.instance_ids:
         candidates = [
@@ -1352,6 +1362,79 @@ def get_order_for_line_edit(session: Session, order_id: int, current_user: User)
     return order
 
 
+_CLOSED_ORDER_STATUSES = {SalesOrderStatus.COMPLETED, SalesOrderStatus.CANCELLED, SalesOrderStatus.CANCELLED_OV}
+
+
+def update_item_description(
+    session: Session, order_id: int, item_id: int, data: OrderItemDescriptionUpdate, current_user: User
+) -> SalesOrderItem:
+    """The commercial description does not move money: direct edit, kept in the change log (reason optional)."""
+    order = get_order_for_line_edit(session, order_id, current_user)
+    if order.status in _CLOSED_ORDER_STATUSES:
+        raise HTTPException(status_code=409, detail="La orden está cerrada o cancelada.")
+    item = sales_repo.get_item_by_id(session, item_id)
+    if not item or item.sales_order_id != order.id:
+        raise HTTPException(status_code=404, detail="Partida no encontrada en esta orden")
+    if item.is_cancelled:
+        raise HTTPException(status_code=409, detail="La partida está cancelada.")
+    with audit_reason((data.reason or "").strip() or None):
+        item.commercial_description = (data.commercial_description or "").strip() or None
+        session.add(item)
+        session.commit()
+    session.refresh(item)
+    return item
+
+
+def assert_change_order_of(session: Session, order: SalesOrder, change_id: Optional[int]) -> None:
+    """A complementary advance must point to an applied change order of the same sales order."""
+    if change_id is None:
+        return
+    change = quotation_repo.get_quotation_by_id(session, change_id)
+    if (not change or change.kind != QuotationKind.CHANGE_ORDER or change.parent_sales_order_id != order.id
+            or change.status != QuotationStatus.APPLIED):
+        raise HTTPException(status_code=422, detail="La orden de cambio no es de esta OV o no se ha aplicado.")
+
+
+def required_advance(order: SalesOrder) -> float:
+    return round(float(order.total_price or 0.0) * float(order.advance_percent or 0.0) / 100.0, 2)
+
+
+def recalculate_order_totals(session: Session, order: SalesOrder) -> float:
+    """Totals from the active lines only. The balance moves by the change of the total (payments stay);
+    returns that change."""
+    items_sum = sum(float(i.subtotal_price or 0.0) for i in sales_repo.get_active_items_by_order(session, order.id))
+    tax_rate = sales_repo.get_tax_rate_by_id(session, order.tax_rate_id)
+    commission = order.applied_commission_percent or 0.0
+    old_total = float(order.total_price or 0.0)
+    order.subtotal = items_sum
+    order.commission_amount = items_sum - (items_sum / (1 + commission)) if commission > 0 else 0.0
+    order.tax_amount = items_sum * (tax_rate.rate if tax_rate else 0.0)
+    order.total_price = items_sum + order.tax_amount
+    delta = order.total_price - old_total
+    order.outstanding_balance = float(order.outstanding_balance or 0.0) + delta
+    session.add(order)
+    return delta
+
+
+def update_advance_requirement(session: Session, order: SalesOrder) -> float:
+    """After a change of total or percent. Without advance invoices the agreed advance just follows the total;
+    with invoices, a higher requirement becomes a complementary advance (another invoice). Returns its amount."""
+    if float(order.advance_percent or 0.0) <= 0:
+        return 0.0  # advance agreed as a fixed amount (or none): a change of total does not move it
+    required = required_advance(order)
+    advances = [p for p in sales_repo.get_order_payments(session, order.id) if p.payment_type == PaymentType.ADVANCE]
+    if not advances:
+        order.advance_invoice_amount = required if required > 0 else None
+        session.add(order)
+        return 0.0
+    current = max(float(order.advance_invoice_amount or 0.0), sum(float(p.amount or 0.0) for p in advances))
+    if required <= current + 0.01:
+        return 0.0
+    order.advance_invoice_amount = required
+    session.add(order)
+    return round(required - current, 2)
+
+
 def _days_waiting(reference: Optional[datetime]) -> int:
     if not reference:
         return 0
@@ -1444,62 +1527,6 @@ def update_order(
     session.commit()
     session.refresh(db_order)
     return db_order
-
-
-def add_items_to_order(
-    session: Session, order_id: int, payload: AddItemsPayload, current_user: User
-) -> SalesOrder:
-    _assert_order_editor(current_user)
-    order = sales_repo.get_sales_order_by_id(session, order_id)
-    if not order:
-        raise HTTPException(status_code=404, detail="Orden no encontrada.")
-    if _is_seller_scoped_role(current_user) and order.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Acceso denegado.")
-    if order.status not in _AMPLIABLE_STATUSES:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"No se puede ampliar una orden en estado {order.status}. "
-                "Solo órdenes en curso (ESPERANDO ANTICIPO, VENDIDA, EN PRODUCCIÓN)."
-            ),
-        )
-    if not payload.items:
-        raise HTTPException(status_code=422, detail="Debes enviar al menos una partida nueva.")
-
-    added_sum = 0.0
-    for item_in in payload.items:
-        snapshot_data, calculated_frozen_cost = _build_item_snapshot(session, item_in)
-        qty = item_in.quantity or 0
-        price = item_in.unit_price or 0
-        line_amount = qty * price
-        added_sum += line_amount
-        _persist_order_item(session, order.id, item_in, snapshot_data, calculated_frozen_cost, line_amount)
-
-    session.flush()
-    order = sales_repo.get_order_by_id(session, order_id)
-    create_instances_for_order(session, order)
-
-    tax_rate_obj = sales_repo.get_tax_rate_by_id(session, order.tax_rate_id)
-    tax_multiplier = tax_rate_obj.rate if tax_rate_obj else 0.16
-    nuevo_subtotal = (order.subtotal or 0.0) + added_sum
-    comm_percent = order.applied_commission_percent or 0.0
-    nueva_comision = (
-        nuevo_subtotal - (nuevo_subtotal / (1 + comm_percent)) if comm_percent > 0 else 0.0
-    )
-    nuevo_tax = nuevo_subtotal * tax_multiplier
-    nuevo_total = nuevo_subtotal + nuevo_tax
-    incremento_total = nuevo_total - (order.total_price or 0.0)
-
-    order.subtotal = nuevo_subtotal
-    order.commission_amount = nueva_comision
-    order.tax_amount = nuevo_tax
-    order.total_price = nuevo_total
-    order.outstanding_balance = (order.outstanding_balance or 0.0) + incremento_total
-
-    session.add(order)
-    session.commit()
-    session.refresh(order)
-    return order
 
 
 def get_commissions_overview(session: Session) -> CommissionsPayrollOverview:

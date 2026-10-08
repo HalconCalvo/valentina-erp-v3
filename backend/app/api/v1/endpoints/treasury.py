@@ -9,6 +9,7 @@ from app.core.deps import SessionDep, CurrentUser
 
 from app.models.treasury import BankAccount, BankTransaction, TransactionType, WeeklyFixedCost
 from app.models.sales import CustomerPayment
+from app.repositories import sales_repository as sales_repo
 from app.models.finance import SupplierPayment
 from app.schemas.treasury_schema import (
     BankAccountCreate, BankAccountResponse, 
@@ -180,13 +181,14 @@ def _aplicar_abono_a_factura(session, cxc_id, monto, bank_tx, current_user):
         order.outstanding_balance = round(float(order.outstanding_balance or 0.0) - monto_r, 2)
 
     abonado_despues = round(abonado_antes + monto_r, 2)
-    if abonado_despues + 0.01 >= round(float(cxc.amount or 0.0), 2):
+    acreditado = round(sales_repo.sum_active_credit_notes(session, cxc.id), 2)
+    if abonado_despues + acreditado + 0.01 >= round(float(cxc.amount or 0.0), 2):
         cxc.status = CXCStatus.PAID
         cxc.payment_date = bank_tx.transaction_date or datetime.utcnow()
         if cxc.payment_type == PaymentType.ADVANCE and not cxc.commission_paid and order:
             session.flush()
             from app.api.v1.endpoints.sales import _liberar_comision_anticipo
-            _liberar_comision_anticipo(session, order, cxc, float(cxc.amount or 0.0))
+            _liberar_comision_anticipo(session, order, cxc, float(cxc.amount or 0.0) - acreditado)
             cxc.commission_paid = True
             if order.status == SalesOrderStatus.WAITING_ADVANCE:
                 order.status = SalesOrderStatus.SOLD
