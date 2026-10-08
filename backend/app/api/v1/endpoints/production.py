@@ -221,6 +221,7 @@ def read_batches(current_user: CurrentUser, db: Session = Depends(get_session)):
                     .where(
                         SalesOrderItemInstance.stone_batch_id == batch.id,
                         SalesOrderItemInstance.production_status != InstanceStatus.READY,
+                        SalesOrderItemInstance.is_cancelled == False,  # noqa: E712
                     )
                 ).all()
             else:
@@ -229,17 +230,20 @@ def read_batches(current_user: CurrentUser, db: Session = Depends(get_session)):
                     .where(
                         SalesOrderItemInstance.production_batch_id == batch.id,
                         SalesOrderItemInstance.production_status != InstanceStatus.READY,
+                        SalesOrderItemInstance.is_cancelled == False,  # noqa: E712
                     )
                 ).all()
         elif batch.batch_type.upper() == "PIEDRA":
             instances = db.exec(
                 select(SalesOrderItemInstance)
-                .where(SalesOrderItemInstance.stone_batch_id == batch.id)
+                .where(SalesOrderItemInstance.stone_batch_id == batch.id,
+                       SalesOrderItemInstance.is_cancelled == False)  # noqa: E712
             ).all()
         else:
             instances = db.exec(
                 select(SalesOrderItemInstance)
-                .where(SalesOrderItemInstance.production_batch_id == batch.id)
+                .where(SalesOrderItemInstance.production_batch_id == batch.id,
+                       SalesOrderItemInstance.is_cancelled == False)  # noqa: E712
             ).all()
 
         # 2. Lógica Financiera: anticipo pactado y pagado (misma regla que el backend al entrar a producción)
@@ -516,12 +520,14 @@ def delete_production_batch(
     if batch.batch_type.upper() == "PIEDRA":
         instances = db.exec(
             select(SalesOrderItemInstance)
-            .where(SalesOrderItemInstance.stone_batch_id == batch_id)
+            .where(SalesOrderItemInstance.stone_batch_id == batch_id,
+                   SalesOrderItemInstance.is_cancelled == False)  # noqa: E712
         ).all()
     else:
         instances = db.exec(
             select(SalesOrderItemInstance)
-            .where(SalesOrderItemInstance.production_batch_id == batch_id)
+            .where(SalesOrderItemInstance.production_batch_id == batch_id,
+                   SalesOrderItemInstance.is_cancelled == False)  # noqa: E712
         ).all()
 
     for inst in instances:
@@ -834,6 +840,7 @@ def mark_instance_ready(
                 select(SalesOrderItemInstance)
                 .where(
                     SalesOrderItemInstance.stone_batch_id == batch_id,
+                    SalesOrderItemInstance.is_cancelled == False,  # noqa: E712
                     SalesOrderItemInstance.production_status.notin_([
                         InstanceStatus.READY,
                         InstanceStatus.CARGADO,
@@ -847,6 +854,7 @@ def mark_instance_ready(
                 select(SalesOrderItemInstance)
                 .where(
                     SalesOrderItemInstance.production_batch_id == batch_id,
+                    SalesOrderItemInstance.is_cancelled == False,  # noqa: E712
                     SalesOrderItemInstance.production_status.notin_([
                         InstanceStatus.READY,
                         InstanceStatus.CARGADO,

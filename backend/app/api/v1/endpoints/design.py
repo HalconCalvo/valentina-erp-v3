@@ -801,6 +801,7 @@ def list_label_requests(
         select(SalesOrderItemInstance)
         .outerjoin(ProductionBatch, SalesOrderItemInstance.production_batch_id == ProductionBatch.id)
         .where(
+            SalesOrderItemInstance.is_cancelled == False,  # noqa: E712
             or_(
                 SalesOrderItemInstance.declared_bundles > 0,
                 SalesOrderItemInstance.stone_pieces > 0,

@@ -423,3 +423,22 @@ def test_authorized_quotation_helper_still_regular(client_fixture, auth_header_d
     quotation = authorized_quotation(client_fixture, auth_header_director, seed_client_and_tax[0].id,
                                      seed_client_and_tax[1].id)
     assert quotation["kind"] == "NEW" and quotation["folio"].startswith("COT-")
+
+
+def test_cancelled_units_leave_batches_and_baptism(client_fixture, session_fixture, auth_header_director,
+                                                   seed_client_and_tax):
+    order = _order(client_fixture, auth_header_director, seed_client_and_tax)
+    item_id = order["items"][0]["id"]
+    unit_id = order["items"][0]["instances"][0]["id"]
+    _reserve(session_fixture, unit_id, _material(session_fixture, committed=4.0), "ACTIVA")
+    batch_id = session_fixture.get(SalesOrderItemInstance, unit_id).production_batch_id
+    _through_apply(client_fixture, auth_header_director, order["id"],
+                   [{"change_type": "CANCEL_LINE", "target_order_item_id": item_id}])
+
+    session_fixture.expire_all()
+    batch = session_fixture.get(ProductionBatch, batch_id)
+    assert production_inventory_service.prod_inv_repo.get_batch_instances(session_fixture, batch) == []
+    response = client_fixture.patch(f"{settings.API_V1_STR}/planning/orders/{order['id']}/baptize",
+                                    headers=auth_header_director,
+                                    json={"instances": [{"instance_id": unit_id, "custom_name": "Casa 1"}]})
+    assert response.status_code == 400

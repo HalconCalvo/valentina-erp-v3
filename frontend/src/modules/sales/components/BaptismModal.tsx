@@ -87,7 +87,7 @@ export default function BaptismModal({ orderId, order: orderProp, onClose, onCom
   function hydrateRows(data: any) {
     const all: InstanceRow[] = [];
     (data?.items ?? []).forEach((item: any) => {
-      (item.instances ?? []).forEach((inst: any) => {
+      (item.instances ?? []).filter((inst: any) => !inst.is_cancelled).forEach((inst: any) => {
         all.push({
           id: inst.id,
           product_name: item.product_name ?? 'Producto',

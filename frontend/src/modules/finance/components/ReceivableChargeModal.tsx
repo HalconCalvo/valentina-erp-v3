@@ -130,9 +130,7 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({
         }
         let hasUnlinkedPending = false;
         for (const item of order.items ?? []) {
-            const realInstances = item.instances
-                ? item.instances.slice(0, item.quantity || 1)
-                : [];
+            const realInstances = (item.instances ?? []).filter((inst: any) => !inst.is_cancelled);
             for (const inst of realInstances) {
                 if (!inst.customer_payment_id) {
                     hasUnlinkedPending = true;
@@ -252,8 +250,8 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({
         let instances: any[] = [];
         
         uniqueItems.forEach((item: any) => {
-            // ESCUDO 2: Si el backend manda 16 instancias pero la cantidad es 8, cortamos la lista a 8.
-            const realInstances = item.instances ? item.instances.slice(0, item.quantity || 1) : [];
+            // Only active units (cancelled ones stay visible in Rayos X but are never invoiced).
+            const realInstances = (item.instances ?? []).filter((inst: any) => !inst.is_cancelled);
             
             realInstances.forEach((inst: any) => {
                 const linkedToExisting =

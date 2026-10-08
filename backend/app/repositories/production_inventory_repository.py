@@ -26,7 +26,9 @@ def get_batch_instances(session: Session, batch: ProductionBatch) -> List[SalesO
         if (batch.batch_type or "").upper() == "PIEDRA"
         else SalesOrderItemInstance.production_batch_id
     )
-    return list(session.exec(select(SalesOrderItemInstance).where(column == batch.id)).all())
+    return list(session.exec(select(SalesOrderItemInstance).where(
+        column == batch.id, SalesOrderItemInstance.is_cancelled == False,  # noqa: E712
+    )).all())
 
 
 def get_reservations(

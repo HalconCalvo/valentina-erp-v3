@@ -997,7 +997,7 @@ const SalesDashboardPage: React.FC = () => {
                 </div>
 
                 {sortedOrders.map(order => {
-                    const instances: any[] = (order.items ?? []).flatMap((it: any) => it.instances ?? []);
+                    const instances: any[] = (order.items ?? []).flatMap((it: any) => (it.instances ?? []).filter((inst: any) => !inst.is_cancelled));
                     const isExpanded = expandedOrderId === order.id;
                     const colorClass = STATUS_COLORS[order.status] ?? 'bg-slate-50 text-slate-600 border-slate-200';
                     const hasUnnamed = instances.some((inst: any) =>

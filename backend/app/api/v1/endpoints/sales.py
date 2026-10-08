@@ -1038,6 +1038,7 @@ def update_instance_delivery_deadline(
             .where(SalesOrderItem.sales_order_id == order_id)
             .where(SalesOrderItemInstance.delivery_deadline == None)
             .where(SalesOrderItemInstance.id != instance_id)
+            .where(SalesOrderItemInstance.is_cancelled == False)  # noqa: E712
         )
         others = session.exec(stmt).all()
         for other in others:

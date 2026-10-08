@@ -589,6 +589,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         let count = 0;
         for (const item of localOrder?.items ?? []) {
             for (const inst of item.instances ?? []) {
+                if (inst.is_cancelled) continue;
                 if (inst.id !== instanceId && !inst.delivery_deadline) count += 1;
             }
         }

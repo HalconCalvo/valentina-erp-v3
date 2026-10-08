@@ -769,6 +769,7 @@ def baptize_instances(
               SalesOrderItemInstance.sales_order_item_id == SalesOrderItem.id)
         .where(SalesOrderItem.sales_order_id == order_id)
         .where(SalesOrderItemInstance.id.in_(instance_ids))
+        .where(SalesOrderItemInstance.is_cancelled == False)  # noqa: E712
     )
     db_instances = {inst.id: inst for inst in session.exec(stmt).all()}
 

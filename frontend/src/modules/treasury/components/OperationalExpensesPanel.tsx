@@ -137,7 +137,7 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
             const res = await axiosClient.get(`/sales/orders/${orderId}`);
             const order = res.data;
             const allInstances = (order.items ?? []).flatMap(
-                (item: any) => item.instances ?? []
+                (item: any) => (item.instances ?? []).filter((inst: any) => !inst.is_cancelled)
             );
             setInstances(allInstances);
         } catch {
