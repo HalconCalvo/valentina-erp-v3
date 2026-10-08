@@ -417,7 +417,8 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const canEditAdvance = ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'MANAGER'].includes(userRole);
     const canRegisterInstallment = ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'MANAGER'].includes(userRole);
     const canManageRetention = ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'MANAGER'].includes(userRole);
-    const canEditDescription = !readOnly && ['DIRECTOR', 'MANAGER', 'SALES'].includes(userRole);
+    // Role-based, not tied to readOnly (that flag only removes finance actions, e.g. Rayos X from the sales monitor).
+    const canEditDescription = ['DIRECTOR', 'MANAGER', 'SALES'].includes(userRole);
     const canEditDeliveryDeadline = [
         'DIRECTOR',
         'DIRECCION',

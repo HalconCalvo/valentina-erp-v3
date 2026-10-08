@@ -28,6 +28,8 @@ interface OrderChangesPanelProps {
     order: SalesOrder;
     /** Reloads the order after a change order is applied or money is captured. */
     onChanged: () => void | Promise<void>;
+    /** Rayos X without finance actions: hides credit notes and advance capture only.
+     *  Change orders depend on the role (the backend limits sellers to their own orders). */
     readOnly?: boolean;
 }
 
@@ -51,7 +53,7 @@ export const OrderChangesPanel: React.FC<OrderChangesPanelProps> = ({ order, onC
     const navigate = useNavigate();
     const orderId = order.id as number;
     const isFinance = FINANCE_ROLES.includes((localStorage.getItem('user_role') || '').toUpperCase());
-    const manage = !readOnly && canManageQuotations();
+    const manage = canManageQuotations();
     const [changes, setChanges] = useState<Quotation[]>([]);
     const [summary, setSummary] = useState<OrderMoneySummary | null>(null);
     const [editing, setEditing] = useState<{ change: Quotation | null } | null>(null);
@@ -166,7 +168,7 @@ export const OrderChangesPanel: React.FC<OrderChangesPanelProps> = ({ order, onC
                             {button('Solicitar autorización', () => setPendingAction({ kind: 'REQUEST_AUTH', quotation: c }), <Send size={TABLE_ACTION_ICON_SIZE} className="text-amber-500" />)}
                         </>
                     )}
-                    {c.status === 'PENDING_AUTH' && canAuthorizeQuotations() && !readOnly &&
+                    {c.status === 'PENDING_AUTH' && canAuthorizeQuotations() &&
                         button('Revisar y autorizar', () => setReviewId(c.id), <CheckCircle size={TABLE_ACTION_ICON_SIZE} className="text-indigo-600" />)}
                     {manage && c.status === 'AUTHORIZED' &&
                         button('Aplicar a la OV', () => openDialog({ kind: 'APPLY_CHANGE', change: c }), <Wrench size={TABLE_ACTION_ICON_SIZE} className="text-emerald-600" />)}
