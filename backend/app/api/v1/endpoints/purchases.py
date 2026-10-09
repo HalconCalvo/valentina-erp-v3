@@ -547,7 +547,7 @@ def correct_reception_item(*, db: Session = Depends(get_session), po_id: int, it
         costo = float(getattr(item, "expected_unit_cost", 0.0) or 0.0)
         if pii_rows:
             costo = float(pii_rows[0].unit_cost or costo)
-        if mat and (getattr(mat, 'production_route', 'MATERIAL') or 'MATERIAL').upper() == 'MATERIAL':
+        if mat and getattr(mat, 'is_inventoriable', True):
             factor = float(getattr(mat, 'conversion_factor', 1) or 1)
             qty_units = delta * factor
             from app.services import inventory_service

@@ -73,6 +73,8 @@ def _get_item(session: Session, audit_id: int, item_id: int) -> InventoryAuditIt
     item = inventory_repo.get_audit_item_by_id(session, item_id)
     if not item or item.audit_id != audit_id:
         raise HTTPException(status_code=404, detail="Línea de conteo no encontrada.")
+    if item.excluded_at is not None:
+        raise HTTPException(status_code=409, detail="El material ya no es inventariable; salió de la sesión.")
     return item
 
 

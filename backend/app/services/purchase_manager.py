@@ -22,12 +22,12 @@ class PurchaseManager:
                 AND (notes LIKE '%Valentina%' OR notes LIKE '%AUTO%'
                      OR custom_description = 'REPOSICIÓN AUTOMÁTICA')
                 AND material_id IN (
-                    SELECT id FROM materials WHERE physical_stock >= min_stock
+                    SELECT id FROM materials WHERE physical_stock >= min_stock AND is_inventoriable = true
                 )
             """))
             
             materials = db.execute(
-                text("SELECT id, name, physical_stock, min_stock, max_stock FROM materials WHERE min_stock > 0")
+                text("SELECT id, name, physical_stock, min_stock, max_stock FROM materials WHERE min_stock > 0 AND is_inventoriable = true")
             ).mappings().all()
             
             if not materials: return 0

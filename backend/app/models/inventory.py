@@ -262,6 +262,10 @@ class InventoryAuditItem(SQLModel, table=True):
     unit_cost_at_cut: Optional[float] = Field(default=None)  # per usage unit
     adjustment_movement_id: Optional[int] = Field(default=None, foreign_key="inventory_transactions.id")
     auto_zero: bool = Field(default=False, sa_column_kwargs={"server_default": "false"})
+    # Line taken out of an open session (material marked non-inventoriable): no count, no adjustment
+    excluded_at: Optional[datetime] = Field(default=None)
+    excluded_reason: Optional[str] = Field(default=None)
+    excluded_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
 
 
 class InventoryPeriodLock(SQLModel, table=True):

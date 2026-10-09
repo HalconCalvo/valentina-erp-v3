@@ -8,6 +8,7 @@ from app.core.deps import SessionDep, CurrentUser
 from app.models.inventory import InventoryReception, Product, ProductStockMovement
 from app.models.finance import PurchaseInvoice, InvoiceStatus
 from app.models.foundations import Provider
+from app.models.material import Material
 from app.schemas.inventory_schema import (
     ReceptionCreate,
     ReceptionRead,
@@ -52,6 +53,9 @@ def create_inventory_reception(
         # - Sumar stock físico
         # - Crear la transacción en el Kárdex
         
+        material = session.get(Material, item.material_id)
+        if material is not None and not material.is_inventoriable:
+            continue  # non-inventoriable: expense only, no stock
         inventory_service.register_movement(
             session=session,
             material_id=item.material_id,

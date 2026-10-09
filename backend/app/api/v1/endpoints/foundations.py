@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from app.core.database import get_session
 from app.core.deps import CurrentUser, SessionDep
 from app.services.cloud_storage import upload_to_gcs  # <--- LA TUBERÍA BLINDADA
-from app.services import inventory_audit_service, inventory_service, inventory_valuation_service
+from app.services import inventoriable_service, inventory_audit_service, inventory_service, inventory_valuation_service
 from app.schemas.production_inventory_schema import NegativeStockRead, ValuationSummaryRead
 from app.schemas.inventory_audit_schema import (
     AuditCreate,
@@ -27,6 +27,7 @@ from app.schemas.inventory_schema import (
     AuditCapturePayload,
     AuditReasonPayload,
     AuditItemApprovePayload,
+    InventoriableUpdate,
 )
 
 # --- MODELOS ---
@@ -660,6 +661,7 @@ def recount_inventory_audit_item(
 def read_materials(
     include_inactive: bool = False,
     is_resale: Optional[bool] = None,
+    is_inventoriable: Optional[bool] = None,
     session: Session = Depends(get_session),
 ):
     # Usamos un JOIN para traer el nombre del proveedor
@@ -671,6 +673,8 @@ def read_materials(
         query = query.where(Material.is_active == True)
     if is_resale is not None:
         query = query.where(Material.is_resale == is_resale)
+    if is_inventoriable is not None:
+        query = query.where(Material.is_inventoriable == is_inventoriable)
     results = session.exec(query).all()
     
     # Armamos la respuesta a mano para incluir el 'provider_name'
@@ -690,6 +694,8 @@ def create_material(material: Material, session: Session = Depends(get_session))
         if material.name:
             material.name = material.name.strip()
         material.is_active = True
+        # Consumables and services start as non-inventoriable (expense)
+        material.is_inventoriable = str(material.production_route or "MATERIAL").upper() in ("MATERIAL", "PROCESO")
         session.add(material)
         session.commit()
         session.refresh(material)
@@ -715,6 +721,7 @@ def update_material(material_id: int, material_in: Material, session: Session = 
     
     material_data = material_in.model_dump(exclude_unset=True)
     material_data.pop("id", None)
+    material_data.pop("is_inventoriable", None)  # changes only through PATCH /inventoriable (reason, write-off)
     if "sku" in material_data and material_data["sku"]:
         material_data["sku"] = material_data["sku"].strip()
     if "name" in material_data and material_data["name"]:
@@ -726,6 +733,15 @@ def update_material(material_id: int, material_in: Material, session: Session = 
     session.commit()
     session.refresh(db_material)
     return db_material
+
+@router.patch("/materials/{material_id}/inventoriable", response_model=Material)
+def update_material_inventoriable(
+    material_id: int,
+    data: InventoriableUpdate,
+    current_user: CurrentUser,
+    session: Session = Depends(get_session),
+):
+    return inventoriable_service.set_inventoriable(session, material_id, data, current_user)
 
 @router.delete("/materials/{material_id}")
 def delete_material(material_id: int, session: Session = Depends(get_session)):

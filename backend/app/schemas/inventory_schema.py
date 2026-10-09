@@ -187,3 +187,9 @@ class AuditReasonPayload(BaseModel):
 
 class AuditItemApprovePayload(BaseModel):
     notes: Optional[str] = None
+
+
+class InventoriableUpdate(BaseModel):
+    """Inventoriable yes/no; marking "no" a material with stock sends that stock to expense."""
+    is_inventoriable: bool
+    reason: str

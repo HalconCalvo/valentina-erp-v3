@@ -430,6 +430,8 @@ def assign_instance_to_batch(
             material = db.get(Material, comp.material_id)
             if material and (material.category or "").upper() in skip_categories:
                 continue
+            if material and not material.is_inventoriable:
+                continue  # consumables / services are not reserved nor discharged
 
             reservation = InventoryReservation(
                 production_batch_id=batch.id,

@@ -48,6 +48,9 @@ class Material(SQLModel, table=True):
     is_active: bool = Field(default=True)       # Borrado suave
     is_fictitious: bool = Field(default=False, sa_column_kwargs={"server_default": "false"})  # Material placeholder (ej. MDF-Sustituto): dispara alerta "actualizar antes de producir"
     is_resale: bool = Field(default=False)      # Producto de reventa (no receta)
+    # Inventoriable: counted, holds stock, reserved by production. Non-inventoriable (consumables, services):
+    # not counted, never holds stock and goes to expense when received.
+    is_inventoriable: bool = Field(default=True, sa_column_kwargs={"server_default": "true"})
     sale_price: float = Field(default=0.0)      # Precio de venta (solo reventa)
     
     # Lógica de Tapacanto

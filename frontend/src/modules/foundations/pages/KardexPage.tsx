@@ -31,6 +31,7 @@ const MOVEMENT_LABELS: Record<string, string> = {
   PRODUCTION_RETURN: 'Regreso de producción',
   INVENTORY_DIFF_IN: 'Diferencia de inventario (+)',
   INVENTORY_DIFF_OUT: 'Diferencia de inventario (−)',
+  EXPENSE_WRITE_OFF: 'Enviado a gasto (no inventariable)',
   PHYSICAL_COUNT: 'Conteo físico',
 };
 

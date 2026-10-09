@@ -990,12 +990,13 @@ def receive_purchase_order(db: Session, po_id: int, data: dict, current_user):
             mat = purchase_repo.get_material_by_id(db, item.material_id)
             if mat:
                 mat_sku = mat.sku or ""
-                route = (getattr(mat, "production_route", "MATERIAL") or "MATERIAL").upper()
+                # Only inventoriable materials hold stock; the rest goes to expense (invoice / payable only)
+                inventoriable = bool(getattr(mat, "is_inventoriable", True))
                 if item.id in received_by_item_id:
                     qty_this_delivery = received_by_item_id[item.id]
                 else:
                     qty_this_delivery = received_map.get(mat_sku, 0)
-                if route == "MATERIAL" and qty_this_delivery > 0:
+                if inventoriable and qty_this_delivery > 0:
                     factor = float(getattr(mat, "conversion_factor", 1) or 1)
                     qty_in_usage_units = qty_this_delivery * factor
                     _edited = edited_by_item_id.get(item.id) or edited_by_sku.get(mat_sku, {})

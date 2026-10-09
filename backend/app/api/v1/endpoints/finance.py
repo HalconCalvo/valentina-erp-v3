@@ -811,6 +811,8 @@ def create_credit_note(
         from app.services import inventory_service
 
         for material, qty, unit_cost in return_lines:
+            if not getattr(material, "is_inventoriable", True):
+                continue  # non-inventoriable: it never entered stock
             inventory_service.register_movement(
                 session,
                 material.id,

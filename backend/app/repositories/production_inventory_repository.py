@@ -74,11 +74,13 @@ def get_order_instances(session: Session, order_id: int) -> List[SalesOrderItemI
 
 
 def get_positive_stock_materials(session: Session) -> List[Material]:
-    return list(session.exec(select(Material).where(Material.physical_stock > 0).order_by(Material.sku)).all())
+    return list(session.exec(select(Material).where(
+        Material.physical_stock > 0, Material.is_inventoriable == True).order_by(Material.sku)).all())  # noqa: E712
 
 
 def get_negative_stock_materials(session: Session) -> List[Material]:
-    return list(session.exec(select(Material).where(Material.physical_stock < 0).order_by(Material.sku)).all())
+    return list(session.exec(select(Material).where(
+        Material.physical_stock < 0, Material.is_inventoriable == True).order_by(Material.sku)).all())  # noqa: E712
 
 
 def get_open_consumed_rows(session: Session) -> List[tuple]:
