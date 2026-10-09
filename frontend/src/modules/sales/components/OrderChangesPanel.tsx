@@ -1,13 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarClock, CheckCircle, FilePlus2, Link2, Plus, Send, Wrench } from 'lucide-react';
+import { CalendarClock, CheckCircle, FilePlus2, Link2, Pencil, Plus, Send, XCircle } from 'lucide-react';
 
 import Modal from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
-import { TableActionCancelIcon, TableActionEditIcon, TABLE_ACTION_ICON_SIZE } from '@/lib/tableActionIcons';
 import { changeOrderService } from '../../../api/change-order-service';
 import { QUOTATION_STATUS_LABELS } from '../../../api/quotation-service';
 import { salesService } from '../../../api/sales-service';
@@ -46,7 +45,6 @@ const FINANCE_ROLES = ['DIRECTOR', 'MANAGER', 'ADMIN'];
 const todayYmd = () => new Date().toLocaleDateString('en-CA');
 const money = (value: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value || 0);
-const iconBtn = 'group p-1.5 rounded transition-colors hover:bg-indigo-50 disabled:opacity-50';
 
 /** Change orders of an OV, the extra advance they require and the client credit notes they leave pending. */
 export const OrderChangesPanel: React.FC<OrderChangesPanelProps> = ({ order, onChanged, readOnly = false }) => {
@@ -137,8 +135,12 @@ export const OrderChangesPanel: React.FC<OrderChangesPanelProps> = ({ order, onC
         }
     };
 
-    const button = (title: string, onClick: () => void, icon: React.ReactNode) => (
-        <button type="button" title={title} aria-label={title} onClick={onClick} className={iconBtn}>{icon}</button>
+    // Change order actions carry a visible label (Director's request; exception to icon-only table actions).
+    const labelled = (label: string, title: string, onClick: () => void, icon: React.ReactNode, tone: string) => (
+        <button type="button" title={title} onClick={onClick}
+            className={`flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] font-bold whitespace-nowrap transition-colors ${tone}`}>
+            {icon}{label}
+        </button>
     );
 
     const columns: VTableColumn<Quotation>[] = [
@@ -162,21 +164,31 @@ export const OrderChangesPanel: React.FC<OrderChangesPanelProps> = ({ order, onC
         { key: 'total_price', label: 'Cambio con IVA', render: (c) => <span className={`font-bold ${c.total_price < 0 ? 'text-rose-600' : 'text-emerald-700'}`}>{money(c.total_price)}</span> },
         {
             key: 'actions', label: 'Acciones', render: (c) => (
-                <div className="flex items-center gap-1">
+                <div className="flex flex-wrap items-center gap-1.5">
                     {manage && ['DRAFT', 'CHANGES_REQUESTED'].includes(c.status) && (
                         <>
-                            {button('Editar', () => setEditing({ change: c }), <TableActionEditIcon />)}
-                            {button('Solicitar autorización', () => setPendingAction({ kind: 'REQUEST_AUTH', quotation: c }), <Send size={TABLE_ACTION_ICON_SIZE} className="text-amber-500" />)}
+                            {labelled('Editar', 'Editar la orden de cambio', () => setEditing({ change: c }),
+                                <Pencil size={12} />, 'border-slate-200 text-slate-600 hover:bg-slate-50')}
+                            {labelled('Solicitar autorización', 'Enviar a Dirección para autorizar', () => setPendingAction({ kind: 'REQUEST_AUTH', quotation: c }),
+                                <Send size={12} />, 'border-amber-200 text-amber-700 hover:bg-amber-50')}
                         </>
                     )}
                     {c.status === 'PENDING_AUTH' && canAuthorizeQuotations() &&
-                        button('Revisar y autorizar', () => setReviewId(c.id), <CheckCircle size={TABLE_ACTION_ICON_SIZE} className="text-indigo-600" />)}
-                    {manage && c.status === 'AUTHORIZED' &&
-                        button('Aplicar a la OV', () => openDialog({ kind: 'APPLY_CHANGE', change: c }), <Wrench size={TABLE_ACTION_ICON_SIZE} className="text-emerald-600" />)}
+                        labelled('Revisar', 'Revisar precios y autorizar o regresar', () => setReviewId(c.id),
+                            <CheckCircle size={12} />, 'border-indigo-200 text-indigo-700 hover:bg-indigo-50')}
+                    {manage && c.status === 'AUTHORIZED' && (
+                        <button type="button" title="Aplicar los cambios autorizados a la OV"
+                            onClick={() => openDialog({ kind: 'APPLY_CHANGE', change: c })}
+                            className="px-3 py-1 rounded-md text-[11px] font-black text-white bg-emerald-600 hover:bg-emerald-700 whitespace-nowrap">
+                            Aplicar cambio
+                        </button>
+                    )}
                     {manage && c.status === 'EXPIRED' &&
-                        button('Renovar vigencia', () => setPendingAction({ kind: 'RENEW', quotation: c }), <CalendarClock size={TABLE_ACTION_ICON_SIZE} className="text-amber-600" />)}
+                        labelled('Renovar', 'Renovar la vigencia (vuelve a borrador)', () => setPendingAction({ kind: 'RENEW', quotation: c }),
+                            <CalendarClock size={12} />, 'border-amber-200 text-amber-700 hover:bg-amber-50')}
                     {manage && OPEN.includes(c.status) &&
-                        button('Cancelar orden de cambio', () => setPendingAction({ kind: 'CANCEL', quotation: c }), <TableActionCancelIcon />)}
+                        labelled('Cancelar', 'Cancelar la orden de cambio (con motivo)', () => setPendingAction({ kind: 'CANCEL', quotation: c }),
+                            <XCircle size={12} />, 'border-rose-200 text-rose-600 hover:bg-rose-50')}
                 </div>
             ),
         },
@@ -191,8 +203,10 @@ export const OrderChangesPanel: React.FC<OrderChangesPanelProps> = ({ order, onC
         {
             key: 'actions', label: 'Acciones', render: (n) => n.status === 'ACTIVE' && isFinance && !readOnly ? (
                 <div className="flex items-center gap-1">
-                    {!n.customer_payment_id && button('Aplicar a una factura', () => openDialog({ kind: 'APPLY_NOTE', note: n }), <Link2 size={TABLE_ACTION_ICON_SIZE} className="text-indigo-600" />)}
-                    {button('Cancelar nota de crédito', () => openDialog({ kind: 'CANCEL_NOTE', note: n }), <TableActionCancelIcon />)}
+                    {!n.customer_payment_id && labelled('Aplicar a factura', 'Aplicar este saldo a favor a una factura con saldo',
+                        () => openDialog({ kind: 'APPLY_NOTE', note: n }), <Link2 size={12} />, 'border-indigo-200 text-indigo-700 hover:bg-indigo-50')}
+                    {labelled('Cancelar', 'Cancelar la nota de crédito (con motivo)', () => openDialog({ kind: 'CANCEL_NOTE', note: n }),
+                        <XCircle size={12} />, 'border-rose-200 text-rose-600 hover:bg-rose-50')}
                 </div>
             ) : null,
         },
