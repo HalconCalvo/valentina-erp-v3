@@ -109,6 +109,8 @@ export interface SalesOrder {
     /** OV complementaria: la OV original que amplía */
     parent_sales_order_id?: number | null;
     quotation_id?: number | null;
+    /** Tasa de IVA de la OV como fracción (0.16); viene en el detalle de la OV */
+    tax_rate_value?: number | null;
     
     // Lista de Partidas
     items: SalesOrderItem[];

@@ -226,6 +226,8 @@ class SalesOrderRead(SalesOrderBase):
     user_id: Optional[int] = None 
     quotation_id: Optional[int] = None
     parent_sales_order_id: Optional[int] = None
+    # Tax rate of the order as a fraction (0.16); filled on the order detail
+    tax_rate_value: Optional[float] = None
     
     # Relaciones anidadas
     client: Optional[ClientReadBasic] = None  # <--- ¡EL ESLABÓN PERDIDO!

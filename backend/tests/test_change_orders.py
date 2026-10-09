@@ -465,3 +465,8 @@ def test_quantity_operations_take_the_new_quantity(client_fixture, auth_header_d
     assert change["items"][0]["quantity"] == 2 and change["items"][0]["subtotal_price"] == -3000.0
     after = _get_order(client_fixture, auth_header_director, order["id"])
     assert next(i for i in after["items"] if i["id"] == resale_id)["quantity"] == 2
+
+
+def test_order_detail_carries_its_tax_rate(client_fixture, auth_header_director, seed_client_and_tax):
+    order = _order(client_fixture, auth_header_director, seed_client_and_tax)
+    assert order["tax_rate_value"] == 0.16

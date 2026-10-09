@@ -11,6 +11,7 @@ import { getErrorMessage } from '../../../hooks/useQuotations';
 import type { SalesOrder, SalesOrderItem } from '../../../types/sales';
 import type { ChangeOrderLine, ChangeType, Quotation } from '../../../types/quotations';
 import { AddItemsModal } from './AddItemsModal';
+import { computeChangeOrderTotals } from '../utils/changeOrderTotals';
 
 type LineOp = 'NONE' | Exclude<ChangeType, 'ADD'>;
 
@@ -41,22 +42,19 @@ const money = (value: number) =>
 
 /** Money summary of a change order. Line amounts are without tax; totals and advance include tax. */
 export const ChangeTotals: React.FC<{ order: SalesOrder; delta: number; advancePercent?: number }> = ({ order, delta, advancePercent }) => {
-    const subtotal = Number(order.subtotal || 0);
-    const taxRatio = subtotal > 0 ? Number(order.tax_amount || 0) / subtotal : 0;
-    const deltaTax = delta * taxRatio;
-    const newTotal = (subtotal + delta) * (1 + taxRatio);
+    const totals = computeChangeOrderTotals(order, delta, advancePercent);
     const cell = (label: string, value: number, tone = 'text-slate-700') => (
         <div><p className="text-[10px] font-bold text-slate-400 uppercase">{label}</p><p className={`font-black ${tone}`}>{money(value)}</p></div>
     );
     const signTone = delta < 0 ? 'text-rose-600' : 'text-emerald-700';
     return (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
-            {cell('Cambio sin IVA', delta, signTone)}
-            {cell('IVA del cambio', deltaTax, signTone)}
-            {cell('Cambio con IVA', delta + deltaTax, signTone)}
-            {cell('Total actual con IVA', Number(order.total_price || 0))}
-            {cell('Total nuevo con IVA', newTotal, 'text-indigo-700')}
-            {advancePercent !== undefined && cell(`Anticipo requerido ${advancePercent}% con IVA`, newTotal * advancePercent / 100)}
+            {cell('Cambio sin IVA', totals.delta, signTone)}
+            {cell(`IVA del cambio (${(Number(order.tax_rate_value ?? 0) * 100).toFixed(0)}%)`, totals.deltaTax, signTone)}
+            {cell('Cambio con IVA', totals.deltaWithTax, signTone)}
+            {cell('Total actual con IVA', totals.currentTotal)}
+            {cell('Total nuevo con IVA', totals.newTotal, 'text-indigo-700')}
+            {totals.advance !== null && cell(`Anticipo requerido ${advancePercent}% con IVA`, totals.advance)}
         </div>
     );
 };

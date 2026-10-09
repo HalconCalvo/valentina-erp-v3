@@ -380,6 +380,8 @@ def enrich_order_instances_with_semaphore(session: Session, order: SalesOrder) -
 
     order_payload = base.model_dump(mode="python")
     order_payload["items"] = items_payload
+    tax_rate = sales_repo.get_tax_rate_by_id(session, order.tax_rate_id)
+    order_payload["tax_rate_value"] = float(tax_rate.rate) if tax_rate else None
     return SalesOrderRead.model_validate(order_payload)
 
 
