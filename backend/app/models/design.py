@@ -57,6 +57,13 @@ class ProductVersion(SQLModel, table=True):
     blueprint_path: Optional[str] = Field(default=None)
     commercial_description: Optional[str] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    # Recipe correction lineage: a used recipe is never edited, a corrected copy replaces it
+    replaces_version_id: Optional[int] = Field(default=None, foreign_key="design_product_versions.id")
+    correction_note: Optional[str] = Field(default=None)
+    corrected_at: Optional[datetime] = Field(default=None)
+    corrected_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    corrected_in_quotation_id: Optional[int] = Field(default=None, foreign_key="quotations.id")
     
     # Relaciones
     master: Optional["ProductMaster"] = Relationship(back_populates="versions")

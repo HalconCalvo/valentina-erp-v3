@@ -53,6 +53,8 @@ class ProductVersionCreate(ProductVersionBase):
     master_id: int
     components: List[VersionComponentCreate] = []
     commercial_description: Optional[str] = None
+    # Clone: with no components, copy the recipe of this version (the one being viewed)
+    clone_from_version_id: Optional[int] = None
 
 class ProductVersionUpdate(SQLModel):
     commercial_description: Optional[str] = None
@@ -69,6 +71,12 @@ class ProductVersionRead(ProductVersionBase):
     # Aquí inyectamos el objeto completo del Producto Padre
     master: Optional[ProductMasterSummary] = None
     alerts: List[str] = []   # avisos al consultar (ej. materiales inactivos)
+    # Correction lineage and immutability
+    replaces_version_id: Optional[int] = None
+    correction_note: Optional[str] = None
+    corrected_at: Optional[datetime] = None
+    corrected_in_quotation_id: Optional[int] = None
+    is_locked: bool = False
 
 # ==========================================
 # 4. LECTURA MAESTRO COMPLETO (Para Catálogo)

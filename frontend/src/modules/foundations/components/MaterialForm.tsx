@@ -62,6 +62,10 @@ export const MaterialForm: React.FC<MaterialFormProps> = ({
     const canWriteOff = ['DIRECTOR', 'MANAGER'].includes(role);
     const [stockInfo, setStockInfo] = useState<{ route: string; stock: number; usageCost: number }>({ route: 'MATERIAL', stock: 0, usageCost: 0 });
     const [routeRequest, setRouteRequest] = useState<RouteDialogRequest | null>(null);
+    // Price and conversion factor: only Dirección, Gerencia and Administración (the backend answers 403 otherwise)
+    const canEditPrice = ['DIRECTOR', 'MANAGER', 'ADMIN'].includes((localStorage.getItem('user_role') || '').toUpperCase());
+    const [originalPrice, setOriginalPrice] = useState<{ cost: number; factor: number } | null>(null);
+    const [priceReason, setPriceReason] = useState('');
 
     useEffect(() => {
         if (!materialId) return;
@@ -99,6 +103,7 @@ export const MaterialForm: React.FC<MaterialFormProps> = ({
                     associated_element_sku: mat.associated_element_sku ?? '',
                     provider_id: mat.provider_id ?? 0,
                 });
+                setOriginalPrice({ cost: mat.current_cost ?? 0, factor: mat.conversion_factor ?? 1 });
             } catch {
                 setError('No se pudo cargar el material.');
             } finally {
@@ -140,6 +145,9 @@ export const MaterialForm: React.FC<MaterialFormProps> = ({
         max_stock: Number(form.max_stock) || 0,
     });
 
+    const priceChanged = Boolean(originalPrice)
+        && (Number(form.current_cost) !== originalPrice!.cost || Number(form.conversion_factor) !== originalPrice!.factor);
+
     const handleSave = async () => {
         if (!form.sku?.trim() || !form.name?.trim() || !form.category?.trim()) {
             setError('SKU, Nombre y Categoría son obligatorios.');
@@ -154,7 +162,9 @@ export const MaterialForm: React.FC<MaterialFormProps> = ({
         try {
             const payload = buildPayload();
             if (isEditing && materialId) {
-                const res = await axiosClient.put(`/foundations/materials/${materialId}`, payload);
+                const res = await axiosClient.put(`/foundations/materials/${materialId}`, payload, {
+                    params: priceChanged && priceReason.trim() ? { reason: priceReason.trim() } : undefined,
+                });
                 onCreated(res.data);
             } else {
                 const res = await axiosClient.post('/foundations/materials', payload);
@@ -286,6 +296,8 @@ export const MaterialForm: React.FC<MaterialFormProps> = ({
                                     step="0.01"
                                     className={inputCls}
                                     value={form.conversion_factor}
+                                    disabled={!canEditPrice}
+                                    title={canEditPrice ? undefined : 'Solo Dirección, Gerencia o Administración cambian el factor de conversión'}
                                     onChange={(e) => upd({ conversion_factor: parseFloat(e.target.value) || 1 })}
                                 />
                             </div>
@@ -296,9 +308,18 @@ export const MaterialForm: React.FC<MaterialFormProps> = ({
                                     step="0.01"
                                     className={inputCls}
                                     value={form.current_cost}
+                                    disabled={!canEditPrice}
+                                    title={canEditPrice ? undefined : 'Solo Dirección, Gerencia o Administración cambian el precio'}
                                     onChange={(e) => upd({ current_cost: parseFloat(e.target.value) || 0 })}
                                 />
                             </div>
+                            {priceChanged && (
+                                <div className="col-span-full">
+                                    <label className={labelCls}>Motivo del cambio de precio (opcional)</label>
+                                    <Input className={inputCls} value={priceReason} onChange={(e) => setPriceReason(e.target.value)}
+                                        placeholder="Queda en la bitácora del material" />
+                                </div>
+                            )}
                             <div>
                                 <label className={labelCls}>Stock Mínimo</label>
                                 <Input

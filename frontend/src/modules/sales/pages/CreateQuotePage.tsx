@@ -98,6 +98,8 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
 
     const [header, setHeader] = useState(INITIAL_HEADER);
     const [items, setItems] = useState<SalesOrderItem[]>([]);
+    // Lines whose recipe the Director corrected after they were quoted (item id → replacing version)
+    const [obsoleteRecipes, setObsoleteRecipes] = useState<Record<number, { id: number; name: string }>>({});
     
     const [lineItem, setLineItem] = useState({
         master_id: 0, version_id: 0, quantity: 1, unit_price: 0, manual_name: '', frozen_cost: 0,
@@ -212,6 +214,10 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                                 cost_snapshot: item.cost_snapshot ?? {},
                             })),
                         );
+                        setObsoleteRecipes(Object.fromEntries((Array.isArray(data.items) ? data.items : [])
+                            .map((item, idx) => [item.id ?? -idx, item] as const)
+                            .filter(([, item]) => item.recipe_obsolete && item.replacement_version_id)
+                            .map(([key, item]) => [key, { id: item.replacement_version_id as number, name: item.replacement_version_name ?? '' }])));
                         setCurrentStatus(data.status);
                         setParentId(data.parent_sales_order_id ?? null);
                         setIsUserSelectedTax(true);
@@ -357,6 +363,18 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
         setSelectedResaleSku('');
         setResaleSearch('');
         setAddMode('CATALOG');
+    };
+
+    /** Points the line to the corrected recipe; the price stays, the cost is recalculated when saving. */
+    const handleRefreshRecipe = (itemId: number) => {
+        const replacement = obsoleteRecipes[itemId];
+        if (!replacement) return;
+        const version = masters.flatMap((m: any) => m.versions ?? []).find((v: any) => v.id === replacement.id);
+        setItems(items.map((item) => item.id === itemId
+            ? { ...item, origin_version_id: replacement.id, frozen_unit_cost: version ? Number(version.estimated_cost) || item.frozen_unit_cost : item.frozen_unit_cost }
+            : item));
+        setObsoleteRecipes((prev) => { const next = { ...prev }; delete next[itemId]; return next; });
+        toast.success('Receta actualizada. Guarda la cotización para recalcular el costo.');
     };
 
     const handleRemoveItem = (id?: number) => { setItems(items.filter(i => i.id !== id)); if (editingIndex !== null) handleCancelEdit(); };
@@ -553,6 +571,24 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                 <div className="bg-indigo-50 border-l-4 border-indigo-500 text-indigo-800 p-4 rounded shadow-sm">
                     <p className="font-bold">OV complementaria de OV-{String(parentId).padStart(4, '0')}</p>
                     <p className="text-sm">Al convertirse nace una OV propia (anticipo, facturas y saldo propios) ligada a la original.</p>
+                </div>
+            )}
+
+            {Object.keys(obsoleteRecipes).length > 0 && (
+                <div className="bg-amber-50 border-l-4 border-amber-500 text-amber-900 p-4 rounded shadow-sm space-y-2">
+                    <p className="font-bold">Receta corregida — actualiza</p>
+                    <p className="text-sm">Dirección corrigió la receta de estas partidas después de cotizarlas. Al actualizar se usa la receta nueva; el precio de venta se conserva y el costo se recalcula al guardar.</p>
+                    {items.filter((item) => item.id !== undefined && obsoleteRecipes[item.id as number]).map((item) => (
+                        <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 bg-white/60 rounded px-3 py-2 text-sm">
+                            <span><b>{item.product_name}</b> → {obsoleteRecipes[item.id as number].name}</span>
+                            {!isFormLocked && (
+                                <button type="button" onClick={() => handleRefreshRecipe(item.id as number)}
+                                    className="px-3 py-1 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg">
+                                    Actualizar receta
+                                </button>
+                            )}
+                        </div>
+                    ))}
                 </div>
             )}
 

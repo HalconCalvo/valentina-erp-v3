@@ -31,6 +31,10 @@ export type QuotationItem = {
   cancel_instance_ids?: number[] | null;
   reversal_dispositions?: Record<string, string> | null;
   change_reason?: string | null;
+  /** Recipe corrected after quoting: this version is obsolete and replacement_version_id replaces it */
+  recipe_obsolete?: boolean;
+  replacement_version_id?: number | null;
+  replacement_version_name?: string | null;
 };
 
 export interface QuotationClientBasic {

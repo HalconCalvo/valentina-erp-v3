@@ -23,6 +23,7 @@ import { toast } from '@/components/ui/VToast';
 
 import { salesService } from '../../../api/sales-service';
 import { isCancelledOrder } from '../utils/orderStatus';
+import { isExpiringQuotation } from '../utils/quotationRadar';
 import { SalesOrder } from '../../../types/sales';
 import client from '../../../api/axios-client';
 
@@ -88,13 +89,6 @@ function isClientPoDateInCurrentMonth(clientPoDate: string | null | undefined): 
     const m = Number(seg[1]);
     const n = new Date();
     return y === n.getFullYear() && m === n.getMonth() + 1;
-}
-
-/** Open quotation whose validity ends within the radar window, or already expired (needs renewal). */
-function isExpiringQuotation(q: Quotation, limit: Date): boolean {
-    if (q.status === 'EXPIRED') return true;
-    if (!q.valid_until || !['DRAFT', 'CHANGES_REQUESTED', 'PENDING_AUTH', 'AUTHORIZED'].includes(q.status)) return false;
-    return new Date(q.valid_until) <= limit;
 }
 
 function quotaProgressToneClass(pct: number): string {
@@ -250,8 +244,6 @@ const SalesDashboardPage: React.FC = () => {
             monthlyQuota: Number(monthlyQuota) || 0,
         };
 
-        const fifteenDaysFromNow = new Date();
-        fifteenDaysFromNow.setDate(new Date().getDate() + 15);
 
         // Quotations: pipeline before the client's purchase order.
         let lostCount = 0;
@@ -263,7 +255,7 @@ const SalesDashboardPage: React.FC = () => {
             if (['DRAFT', 'CHANGES_REQUESTED'].includes(q.status)) { s.drafts++; s.draftsVal += price; }
             if (q.status === 'PENDING_AUTH') { s.inReview++; s.reviewVal += price; }
             if (q.status === 'AUTHORIZED') { s.authorized++; s.authVal += price; }
-            if (isExpiringQuotation(q, fifteenDaysFromNow)) { s.expiring++; s.expiringVal += price; }
+            if (isExpiringQuotation(q)) { s.expiring++; s.expiringVal += price; }
         });
 
         allOrders.forEach(o => {
@@ -739,8 +731,7 @@ const SalesDashboardPage: React.FC = () => {
             filtered = quotations.filter(row => row.status === 'AUTHORIZED');
             emptyMessage = "No tienes cotizaciones autorizadas pendientes de OC del cliente.";
         } else if (activeQuoteView === 'EXPIRING') {
-            const fifteenDaysFromNow = new Date(); fifteenDaysFromNow.setDate(new Date().getDate() + 15);
-            filtered = quotations.filter(row => isExpiringQuotation(row, fifteenDaysFromNow));
+            filtered = quotations.filter(row => isExpiringQuotation(row));
             emptyMessage = "¡Excelente! Tu cartera está sana. Ninguna cotización vence en los próximos 15 días.";
         } else if (activeQuoteView === 'HISTORY') {
             filtered = [...quotations];
@@ -1112,9 +1103,13 @@ const SalesDashboardPage: React.FC = () => {
                             ? 'Radar de ventas, comisiones y seguimiento de clientes.'
                             : activeCollectionView === 'AR_AGING'
                               ? 'Antigüedad de saldos — misma cartera que Administración y Tesorería (C).'
-                              : activeGoalView !== null || activeQuoteView !== null || activeCollectionView !== null
+                              : activeCollectionView !== null
                                 ? 'Desglose detallado de Cobranza.'
-                                : 'Ejecución y detalle operativo.'}
+                                : activeQuoteView !== null
+                                  ? 'Detalle de cotizaciones.'
+                                  : activeGoalView !== null
+                                    ? 'Detalle de metas y comisiones.'
+                                    : 'Ejecución y detalle operativo.'}
                     </p>
                 </div>
                 <div className="flex gap-3">

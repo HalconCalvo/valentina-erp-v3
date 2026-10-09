@@ -43,6 +43,13 @@ export interface ProductVersion {
 
     // Avisos del backend al consultar (ej. materiales inactivos)
     alerts?: string[];
+
+    // Corrección de recetas: una receta usada no se edita; la corrección crea una versión que la reemplaza
+    replaces_version_id?: number | null;
+    correction_note?: string | null;
+    corrected_at?: string | null;
+    corrected_in_quotation_id?: number | null;
+    is_locked?: boolean;
 }
 
 // Nivel 1: Maestro (La Familia del Producto)

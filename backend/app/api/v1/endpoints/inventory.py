@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Query
 from sqlmodel import select
 
 from app.core.deps import SessionDep, CurrentUser
+from app.core.permissions import require_roles
 from app.models.inventory import InventoryReception, Product, ProductStockMovement
 from app.models.finance import PurchaseInvoice, InvoiceStatus
 from app.models.foundations import Provider
@@ -21,12 +22,16 @@ from app.services import inventory_service
 
 router = APIRouter()
 
+RECEPTION_ROLES = {"WAREHOUSE", "ADMIN", "MANAGER", "DIRECTOR"}
+
 @router.post("/reception", response_model=ReceptionRead)
 def create_inventory_reception(
     *,
     session: SessionDep,
+    current_user: CurrentUser,
     reception_in: ReceptionCreate
 ):
+    require_roles(current_user, RECEPTION_ROLES, "No tienes permisos para registrar recepciones.")
     # 1. Validación de Proveedor (Seguimos tu lógica original)
     provider = session.get(Provider, reception_in.provider_id)
     if not provider:

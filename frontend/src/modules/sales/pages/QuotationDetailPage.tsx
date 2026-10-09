@@ -93,6 +93,11 @@ const QuotationDetailPage: React.FC = () => {
         <>
           <span className="font-bold text-slate-800">{row.product_name}</span>
           {row.commercial_description && <p className="text-xs text-slate-500 mt-0.5">{row.commercial_description}</p>}
+          {row.recipe_obsolete && (
+            <p className="text-xs font-bold text-amber-700 mt-0.5">
+              Receta corregida{row.replacement_version_name ? ` — la reemplaza ${row.replacement_version_name}` : ''}. Actualízala al editar la cotización.
+            </p>
+          )}
         </>
       ),
     },

@@ -1,6 +1,5 @@
 import csv
 import io
-import math
 from datetime import datetime
 from uuid import uuid4  # <--- AGREGADO PARA NOMBRES ÚNICOS
 from typing import List, Optional
@@ -11,8 +10,9 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.database import get_session
 from app.core.deps import CurrentUser, SessionDep
+from app.core.permissions import require_roles
 from app.services.cloud_storage import upload_to_gcs  # <--- LA TUBERÍA BLINDADA
-from app.services import material_route_service, inventory_audit_service, inventory_service, inventory_valuation_service
+from app.services import material_route_service, inventory_audit_service, inventory_service, inventory_valuation_service, material_service
 from app.schemas.production_inventory_schema import NegativeStockRead, ValuationSummaryRead
 from app.schemas.inventory_audit_schema import (
     AuditCreate,
@@ -36,6 +36,12 @@ from app.models.foundations import GlobalConfig, Provider, Client, TaxRate
 from app.models.material import Material
 
 router = APIRouter()
+
+# Who may change each catalog (reads only need a session)
+CONFIG_ROLES = {"DIRECTOR", "MANAGER"}
+TAX_ROLES = {"DIRECTOR", "MANAGER"}
+PROVIDER_ROLES = {"DIRECTOR", "MANAGER", "ADMIN", "WAREHOUSE"}
+CLIENT_ROLES = {"DIRECTOR", "MANAGER", "ADMIN", "SALES"}
 
 # ==========================================
 # 1. CONFIGURACIÓN GLOBAL & IDENTIDAD
@@ -86,7 +92,8 @@ def get_logo_base64(session: Session = Depends(get_session)):
 
 
 @router.put("/config", response_model=GlobalConfig)
-def update_global_config(config_in: GlobalConfig, session: Session = Depends(get_session)):
+def update_global_config(current_user: CurrentUser, config_in: GlobalConfig, session: Session = Depends(get_session)):
+    require_roles(current_user, CONFIG_ROLES)
     db_config = session.exec(select(GlobalConfig)).first()
     if not db_config:
         # Si no existe, lo creamos al vuelo
@@ -114,13 +121,13 @@ def update_global_config(config_in: GlobalConfig, session: Session = Depends(get
 
 # --- SUBIDA DE LOGO CORREGIDA (Igual que Design) ---
 @router.post("/config/upload-logo")
-async def upload_company_logo(
-    file: UploadFile = File(...),
+async def upload_company_logo(current_user: CurrentUser, file: UploadFile = File(...),
     session: Session = Depends(get_session)
 ):
     """
     Sube el logo a Google Cloud Storage y actualiza la configuración.
     """
+    require_roles(current_user, CONFIG_ROLES)
     # 1. Validar formato
     if file.content_type not in ["image/jpeg", "image/png", "image/webp", "image/svg+xml"]:
         raise HTTPException(status_code=400, detail="Formato inválido. Use PNG, JPG o SVG.")
@@ -157,11 +164,12 @@ async def upload_company_logo(
 # 2. PROVEEDORES
 # ==========================================
 @router.get("/providers", response_model=List[Provider])
-def read_providers(session: Session = Depends(get_session)):
+def read_providers(current_user: CurrentUser, session: Session = Depends(get_session)):
     return session.exec(select(Provider).where(Provider.is_active == True)).all()
 
 @router.post("/providers", response_model=Provider)
-def create_provider(provider: Provider, session: Session = Depends(get_session)):
+def create_provider(current_user: CurrentUser, provider: Provider, session: Session = Depends(get_session)):
+    require_roles(current_user, PROVIDER_ROLES)
     provider.is_active = True
     session.add(provider)
     session.commit()
@@ -169,7 +177,8 @@ def create_provider(provider: Provider, session: Session = Depends(get_session))
     return provider
 
 @router.put("/providers/{provider_id}", response_model=Provider)
-def update_provider(provider_id: int, provider_in: Provider, session: Session = Depends(get_session)):
+def update_provider(current_user: CurrentUser, provider_id: int, provider_in: Provider, session: Session = Depends(get_session)):
+    require_roles(current_user, PROVIDER_ROLES)
     db_provider = session.get(Provider, provider_id)
     if not db_provider:
         raise HTTPException(status_code=404, detail="Proveedor no encontrado")
@@ -185,7 +194,8 @@ def update_provider(provider_id: int, provider_in: Provider, session: Session = 
     return db_provider
 
 @router.delete("/providers/{provider_id}")
-def delete_provider(provider_id: int, session: Session = Depends(get_session)):
+def delete_provider(current_user: CurrentUser, provider_id: int, session: Session = Depends(get_session)):
+    require_roles(current_user, PROVIDER_ROLES)
     db_provider = session.get(Provider, provider_id)
     if not db_provider:
         raise HTTPException(status_code=404, detail="Proveedor no encontrado")
@@ -195,11 +205,11 @@ def delete_provider(provider_id: int, session: Session = Depends(get_session)):
     return {"ok": True}
 
 @router.post("/providers/import-csv")
-async def import_providers_csv(
-    file: UploadFile = File(...),
+async def import_providers_csv(current_user: CurrentUser, file: UploadFile = File(...),
     session: Session = Depends(get_session)
 ):
     """Importación masiva de proveedores desde CSV."""
+    require_roles(current_user, PROVIDER_ROLES)
     if not file.filename.endswith('.csv'):
         raise HTTPException(status_code=400, detail="El archivo debe ser un CSV.")
 
@@ -270,11 +280,12 @@ async def import_providers_csv(
 # 3. CLIENTES
 # ==========================================
 @router.get("/clients", response_model=List[Client])
-def read_clients(session: Session = Depends(get_session)):
+def read_clients(current_user: CurrentUser, session: Session = Depends(get_session)):
     return session.exec(select(Client).where(Client.is_active == True)).all()
 
 @router.post("/clients", response_model=Client)
-def create_client(client: Client, session: Session = Depends(get_session)):
+def create_client(current_user: CurrentUser, client: Client, session: Session = Depends(get_session)):
+    require_roles(current_user, CLIENT_ROLES)
     # Normalización del RFC: TRIM + UPPER. Vacío o solo espacios -> None (varios
     # clientes sin RFC son válidos y no se validan por duplicado).
     rfc_norm = (client.rfc_tax_id or "").strip().upper() or None
@@ -298,7 +309,8 @@ def create_client(client: Client, session: Session = Depends(get_session)):
     return client
 
 @router.put("/clients/{client_id}", response_model=Client)
-def update_client(client_id: int, client_in: Client, session: Session = Depends(get_session)):
+def update_client(current_user: CurrentUser, client_id: int, client_in: Client, session: Session = Depends(get_session)):
+    require_roles(current_user, CLIENT_ROLES)
     db_client = session.get(Client, client_id)
     if not db_client:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
@@ -334,7 +346,8 @@ def update_client(client_id: int, client_in: Client, session: Session = Depends(
     return db_client
 
 @router.delete("/clients/{client_id}")
-def delete_client(client_id: int, session: Session = Depends(get_session)):
+def delete_client(current_user: CurrentUser, client_id: int, session: Session = Depends(get_session)):
+    require_roles(current_user, CLIENT_ROLES)
     db_client = session.get(Client, client_id)
     if not db_client:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
@@ -344,11 +357,11 @@ def delete_client(client_id: int, session: Session = Depends(get_session)):
     return {"ok": True}
 
 @router.post("/clients/import-csv")
-async def import_clients_csv(
-    file: UploadFile = File(...),
+async def import_clients_csv(current_user: CurrentUser, file: UploadFile = File(...),
     session: Session = Depends(get_session)
 ):
     """Importación masiva de clientes desde CSV."""
+    require_roles(current_user, CLIENT_ROLES)
     if not file.filename.endswith('.csv'):
         raise HTTPException(status_code=400, detail="El archivo debe ser un CSV.")
 
@@ -429,11 +442,12 @@ async def import_clients_csv(
 # 4. TASAS DE IMPUESTOS
 # ==========================================
 @router.get("/tax-rates", response_model=List[TaxRate])
-def read_tax_rates(session: Session = Depends(get_session)):
+def read_tax_rates(current_user: CurrentUser, session: Session = Depends(get_session)):
     return session.exec(select(TaxRate).where(TaxRate.is_active == True)).all()
 
 @router.post("/tax-rates", response_model=TaxRate)
-def create_tax_rate(tax_rate: TaxRate, session: Session = Depends(get_session)):
+def create_tax_rate(current_user: CurrentUser, tax_rate: TaxRate, session: Session = Depends(get_session)):
+    require_roles(current_user, TAX_ROLES)
     tax_rate.is_active = True
     session.add(tax_rate)
     session.commit()
@@ -441,7 +455,8 @@ def create_tax_rate(tax_rate: TaxRate, session: Session = Depends(get_session)):
     return tax_rate
 
 @router.put("/tax-rates/{tax_id}", response_model=TaxRate)
-def update_tax_rate(tax_id: int, tax_in: TaxRate, session: Session = Depends(get_session)):
+def update_tax_rate(current_user: CurrentUser, tax_id: int, tax_in: TaxRate, session: Session = Depends(get_session)):
+    require_roles(current_user, TAX_ROLES)
     db_tax = session.get(TaxRate, tax_id)
     if not db_tax:
         raise HTTPException(status_code=404, detail="Impuesto no encontrado")
@@ -458,7 +473,8 @@ def update_tax_rate(tax_id: int, tax_in: TaxRate, session: Session = Depends(get
     return db_tax
 
 @router.delete("/tax-rates/{tax_id}")
-def delete_tax_rate(tax_id: int, session: Session = Depends(get_session)):
+def delete_tax_rate(current_user: CurrentUser, tax_id: int, session: Session = Depends(get_session)):
+    require_roles(current_user, TAX_ROLES)
     db_tax = session.get(TaxRate, tax_id)
     if not db_tax:
         raise HTTPException(status_code=404, detail="Impuesto no encontrado")
@@ -470,7 +486,8 @@ def delete_tax_rate(tax_id: int, session: Session = Depends(get_session)):
     return {"ok": True, "message": "Impuesto eliminado correctamente"}
 
 @router.put("/tax-rates/{tax_id}/toggle", response_model=TaxRate)
-def toggle_tax_rate(tax_id: int, session: Session = Depends(get_session)):
+def toggle_tax_rate(current_user: CurrentUser, tax_id: int, session: Session = Depends(get_session)):
+    require_roles(current_user, TAX_ROLES)
     tax = session.get(TaxRate, tax_id)
     if not tax:
         raise HTTPException(status_code=404, detail="Impuesto no encontrado")
@@ -659,8 +676,7 @@ def recount_inventory_audit_item(
 
 
 @router.get("/materials")
-def read_materials(
-    include_inactive: bool = False,
+def read_materials(current_user: CurrentUser, include_inactive: bool = False,
     is_resale: Optional[bool] = None,
     session: Session = Depends(get_session),
 ):
@@ -685,7 +701,8 @@ def read_materials(
     return materials_list
 
 @router.post("/materials", response_model=Material)
-def create_material(material: Material, session: Session = Depends(get_session)):
+def create_material(current_user: CurrentUser, material: Material, session: Session = Depends(get_session)):
+    material_service.check_new_material(material, current_user)
     try:
         if material.sku:
             material.sku = material.sku.strip()
@@ -710,29 +727,16 @@ def create_material(material: Material, session: Session = Depends(get_session))
         raise HTTPException(status_code=400, detail=f"El SKU '{material.sku}' ya está ocupado.")
 
 @router.put("/materials/{material_id}", response_model=Material)
-def update_material(material_id: int, material_in: Material, session: Session = Depends(get_session)):
-    db_material = session.get(Material, material_id)
-    if not db_material:
-        raise HTTPException(status_code=404, detail="Material no encontrado")
-    
-    material_data = material_in.model_dump(exclude_unset=True)
-    material_data.pop("id", None)
-    new_route = material_data.get("production_route")
-    if new_route is not None and str(getattr(new_route, "value", new_route)).upper() != str(
-            getattr(db_material.production_route, "value", db_material.production_route)).upper():
-        raise HTTPException(status_code=409, detail="La ruta se cambia con su propio diálogo (motivo; si deja de ser "
-                            "MATERIAL con existencia, esta se manda a gasto).")
-    if "sku" in material_data and material_data["sku"]:
-        material_data["sku"] = material_data["sku"].strip()
-    if "name" in material_data and material_data["name"]:
-        material_data["name"] = material_data["name"].strip()
-    for key, value in material_data.items():
-        setattr(db_material, key, value)
-        
-    session.add(db_material)
-    session.commit()
-    session.refresh(db_material)
-    return db_material
+def update_material(
+    current_user: CurrentUser,
+    material_id: int,
+    material_in: Material,
+    reason: Optional[str] = None,
+    session: Session = Depends(get_session),
+):
+    db_material = material_service.get_or_404(session, material_id)
+    data = material_in.model_dump(exclude_unset=True)
+    return material_service.update_material(session, db_material, data, current_user, reason)
 
 @router.patch("/materials/{material_id}/route", response_model=Material)
 def update_material_route(
@@ -753,7 +757,8 @@ def write_off_material_stock(
     return material_route_service.write_off_stock(session, material_id, data, current_user)
 
 @router.delete("/materials/{material_id}")
-def delete_material(material_id: int, session: Session = Depends(get_session)):
+def delete_material(current_user: CurrentUser, material_id: int, session: Session = Depends(get_session)):
+    material_service.assert_catalog_role(current_user)
     db_material = session.get(Material, material_id)
     if not db_material:
         raise HTTPException(status_code=404, detail="Material no encontrado")
@@ -767,9 +772,12 @@ def delete_material(material_id: int, session: Session = Depends(get_session)):
 # ==========================================
 @router.post("/materials/import-csv")
 async def import_materials_csv(
+    current_user: CurrentUser,
     file: UploadFile = File(...),
     session: Session = Depends(get_session)
 ):
+    # The file carries prices and conversion factors
+    material_service.assert_price_role(current_user)
     if not file.filename.endswith('.csv'):
         raise HTTPException(status_code=400, detail="El archivo debe ser un CSV.")
 
@@ -871,9 +879,8 @@ async def import_materials_csv(
             raw_factor = parse_money(clean_row.get('conversion_factor'))
             conversion_factor = raw_factor if raw_factor > 0 else 1.0
             
-            purchase_price = parse_money(clean_row.get('current_cost'))
-            raw_unit_cost = purchase_price / conversion_factor
-            final_unit_cost = math.ceil(raw_unit_cost * 100) / 100
+            # current_cost is per PURCHASE unit (same convention as the rest of the system)
+            final_unit_cost = round(parse_money(clean_row.get('current_cost')), 4)
             
             raw_route = clean_row.get('production_route', 'MATERIAL').upper()
             final_route = raw_route if raw_route in valid_routes else "MATERIAL"

@@ -24,6 +24,8 @@ from app.models.sales import (
     SalesOrderStatus,
 )
 from app.models.users import User
+from app.models.design import VersionStatus
+from app.repositories import design_repository as design_repo
 from app.repositories import quotation_repository as quotation_repo
 from app.repositories import sales_repository as sales_repo
 from app.schemas.quotation_schema import (
@@ -41,6 +43,7 @@ from app.schemas.quotation_schema import (
 )
 from app.schemas.sales_schema import SalesOrderItemCreate
 from app.services.cost_engine import CostEngine
+from app.services import recipe_correction_service
 from app.services.pdf_generator import PDFGenerator
 from app.services.sales_service import (
     _build_item_snapshot,
@@ -71,12 +74,30 @@ def quotation_folio(quotation: Quotation) -> str:
     return format_folio(quotation.id)
 
 
-def to_read(quotation: Quotation) -> QuotationRead:
-    """Response without the logically cancelled items (the ORM collection itself is never mutated)."""
+def to_read(quotation: Quotation, session: Optional[Session] = None) -> QuotationRead:
+    """Response without the logically cancelled items (the ORM collection itself is never mutated).
+    With a session, lines whose recipe was corrected say which version replaces it."""
     data = QuotationRead.model_validate(quotation)
     data.items = [QuotationItemRead.model_validate(i) for i in quotation.items if not i.is_cancelled]
     data.folio = quotation_folio(quotation)
+    if session is not None:
+        _mark_obsolete_recipes(session, data.items)
     return data
+
+
+def _mark_obsolete_recipes(session: Session, items: List[QuotationItemRead]) -> None:
+    versions = design_repo.get_versions_by_ids(session, [i.origin_version_id for i in items])
+    for item in items:
+        version = versions.get(item.origin_version_id)
+        if not version or version.status != VersionStatus.OBSOLETE:
+            continue
+        latest, replacement = version, design_repo.get_replacement(session, version.id)
+        while replacement is not None:
+            latest, replacement = replacement, design_repo.get_replacement(session, replacement.id)
+        item.recipe_obsolete = True
+        if latest.id != version.id:
+            item.replacement_version_id = latest.id
+            item.replacement_version_name = latest.version_name
 
 
 
@@ -128,7 +149,7 @@ def _is_overdue(quotation: Quotation) -> bool:
 def _commit_read(session: Session, quotation: Quotation) -> QuotationRead:
     session.add(quotation)
     session.commit()
-    return to_read(_get_or_404(session, quotation.id))
+    return to_read(_get_or_404(session, quotation.id), session)
 
 
 def _persist_quotation_item(
@@ -227,13 +248,13 @@ def list_quotations(
     expire_overdue_quotations(session)
     user_id = current_user.id if _is_seller_scoped_role(current_user) else None
     rows = quotation_repo.get_quotations(session, status=status, user_id=user_id, skip=skip, limit=limit)
-    return [to_read(q) for q in rows]
+    return [to_read(q, session) for q in rows]
 
 
 def get_quotation(session: Session, quotation_id: int, current_user: User) -> QuotationRead:
     quotation = _get_or_404(session, quotation_id)
     _assert_scope(current_user, quotation)
-    return to_read(quotation)
+    return to_read(quotation, session)
 
 
 def update_quotation(
@@ -282,12 +303,17 @@ def authorize_quotation(
     _assert_status(quotation, {QuotationStatus.PENDING_AUTH}, "Solo se autorizan cotizaciones en revisión.")
     if _is_overdue(quotation):
         raise HTTPException(status_code=422, detail="La vigencia ya venció; el vendedor debe renovarla.")
+    version_map = recipe_correction_service.apply_corrections(
+        session, quotation, data, format_folio(quotation.id), current_user)
+    items = [i.model_copy(update={"origin_version_id": version_map.get(i.origin_version_id, i.origin_version_id)})
+             for i in data.items]
     quotation.applied_margin_percent = data.applied_margin_percent
     quotation.applied_commission_percent = normalize_commission(data.applied_commission_percent)
     quotation.advance_percent = data.advance_percent
     quotation.advance_invoice_amount = data.advance_invoice_amount
-    quotation.director_notes = (data.director_notes or "").strip() or None
-    _apply_items_and_totals(session, quotation, data.items)
+    notes = [(data.director_notes or "").strip(), recipe_correction_service.summary(data, version_map)]
+    quotation.director_notes = ". ".join(n for n in notes if n) or None
+    _apply_items_and_totals(session, quotation, items)
     quotation.status = QuotationStatus.AUTHORIZED
     quotation.authorized_at = datetime.utcnow()
     quotation.authorized_by_user_id = current_user.id

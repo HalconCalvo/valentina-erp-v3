@@ -48,7 +48,7 @@ from app.schemas.sales_schema import (
     RetentionAlertRead,
 )
 from app.core.audit_context import audit_reason
-from app.services import audit_service, production_inventory_service
+from app.services import audit_service, production_inventory_service, recipe_cost_service
 from app.schemas.production_inventory_schema import OVCancelCreate
 
 
@@ -1446,35 +1446,19 @@ def _days_waiting(reference: Optional[datetime]) -> int:
 
 
 def _build_item_snapshot(session: Session, item_in: SalesOrderItemCreate) -> tuple[dict, float]:
-    snapshot_data: dict = {}
-    calculated_frozen_cost = 0.0
+    """Frozen cost of a line: from its recipe at today's prices (single cost rule), or as captured if manual."""
     if item_in.origin_version_id:
         version = sales_repo.get_product_version_with_components(session, item_in.origin_version_id)
         if version:
-            snapshot_data = {
+            cost = recipe_cost_service.version_cost(session, version.id)
+            snapshot = {
                 "source_version": version.version_name,
                 "captured_at": datetime.now().isoformat(),
-                "ingredients": [],
+                "ingredients": cost.ingredients,
             }
-            for component in version.components:
-                mat = sales_repo.get_material_by_id(session, component.material_id)
-                if mat:
-                    factor = float(mat.conversion_factor) if mat.conversion_factor and mat.conversion_factor > 0 else 1.0
-                    current_cost = mat.current_cost / factor
-                    line_cost = component.quantity * current_cost
-                    calculated_frozen_cost += line_cost
-                    snapshot_data["ingredients"].append({
-                        "material_id": mat.id,
-                        "sku": mat.sku,
-                        "name": mat.name,
-                        "qty_recipe": component.quantity,
-                        "frozen_unit_cost": current_cost,
-                        "line_total": line_cost,
-                    })
-    else:
-        snapshot_data = item_in.cost_snapshot or {"type": "MANUAL_ENTRY"}
-        calculated_frozen_cost = float(item_in.frozen_unit_cost or 0.0)
-    return snapshot_data, calculated_frozen_cost
+            return snapshot, cost.total
+        return {}, 0.0
+    return item_in.cost_snapshot or {"type": "MANUAL_ENTRY"}, float(item_in.frozen_unit_cost or 0.0)
 
 
 def _persist_order_item(

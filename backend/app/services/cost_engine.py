@@ -1,7 +1,7 @@
 from sqlmodel import Session, select
-from app.models.material import Material
-from app.models.design import ProductVersion
+
 from app.models.foundations import GlobalConfig
+from app.services import recipe_cost_service
 
 class CostEngine:
     @staticmethod
@@ -23,18 +23,9 @@ class CostEngine:
             qty = item.quantity
             total_frozen_cost += (item.frozen_unit_cost * qty)
             
-            current_item_cost = 0.0
-            # Si tiene receta técnica, recalculamos con precios de HOY
+            # Si tiene receta técnica, recalculamos con precios de HOY (misma regla que catálogo y cotización)
             if item.origin_version_id:
-                version = session.get(ProductVersion, item.origin_version_id)
-                if version:
-                    for comp in version.components:
-                        mat = session.get(Material, comp.material_id)
-                        if mat:
-                            factor = float(getattr(mat, 'conversion_factor', 1) or 1)
-                            if factor <= 0:
-                                factor = 1
-                            current_item_cost += (comp.quantity * (mat.current_cost / factor))
+                current_item_cost = recipe_cost_service.version_cost(session, item.origin_version_id).total
             else:
                 # Partida manual: no fluctúa (asumimos costo fijo capturado)
                 current_item_cost = item.frozen_unit_cost

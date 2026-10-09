@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { 
-    X, CheckCircle, XCircle, Calculator, 
+    X, XCircle, Calculator, 
     AlertTriangle, ChevronDown, ChevronRight, Layers, DollarSign, RefreshCcw, FileCheck, Lock, Percent, User 
 } from 'lucide-react';
 
@@ -15,6 +15,8 @@ import { Input } from '@/components/ui/Input';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
+import axiosClient from '../../../api/axios-client';
+import { RecipeCorrectionPanel, type CatalogMaterial, type RecipeLine } from './RecipeCorrectionPanel';
 
 interface FinancialReviewModalProps {
     /** Sales order: always read-only (prices are decided when the quotation is authorized). */
@@ -27,10 +29,16 @@ interface FinancialReviewModalProps {
 }
 
 interface CostIngredient {
+    material_id?: number;
     name: string;
     qty_recipe: number;
     frozen_unit_cost: number;
 }
+
+const snapshotLines = (item: any): RecipeLine[] =>
+    ((item?.cost_snapshot?.ingredients ?? []) as CostIngredient[])
+        .filter((ing) => ing.material_id)
+        .map((ing) => ({ material_id: Number(ing.material_id), quantity: Number(ing.qty_recipe) || 0 }));
 
 export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orderId, quotationId, onClose, onOrderUpdated, readOnly = false }) => {
     const [loading, setLoading] = useState(false);
@@ -68,6 +76,13 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
     // fuente de verdad; al hacer blur el precio vuelve al valor canónico del useMemo.
     const [editingPrice, setEditingPrice] = useState<{ index: number; value: string } | null>(null);
 
+    // --- CORRECCIÓN DE RECETAS Y PRECIOS (solo Dirección, cotización en revisión) ---
+    const [catalog, setCatalog] = useState<Map<number, CatalogMaterial>>(new Map());
+    const [recipeEdits, setRecipeEdits] = useState<Record<number, RecipeLine[]>>({});
+    const [recipeReasons, setRecipeReasons] = useState<Record<number, string>>({});
+    const [priceEdits, setPriceEdits] = useState<Record<number, number>>({});
+    const [manualCosts, setManualCosts] = useState<Record<number, number>>({});
+
     // --- MODO SOLO LECTURA ---
     // Será true si se forzó desde afuera (readOnly === true) O si el estatus de la orden ya no es borrador/pendiente.
     const isReadOnly = useMemo(() => {
@@ -75,6 +90,29 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
         if (!quotation) return true; // Sales orders are only audited here
         return quotation.status !== 'PENDING_AUTH' || !canAuthorizeQuotations();
     }, [quotation, readOnly]);
+
+    useEffect(() => {
+        if (isReadOnly) return;
+        axiosClient.get('/foundations/materials')
+            .then((res) => setCatalog(new Map((Array.isArray(res.data) ? res.data : []).map((m: CatalogMaterial) => [m.id, m]))))
+            .catch(() => toast.error('No se pudo cargar el catálogo de materiales.'));
+    }, [isReadOnly]);
+
+    const linesOf = (item: any): RecipeLine[] => recipeEdits[item.origin_version_id] ?? snapshotLines(item);
+    const isTouched = (item: any): boolean => Boolean(item?.origin_version_id) && (
+        recipeEdits[item.origin_version_id] !== undefined || linesOf(item).some((l) => priceEdits[l.material_id] !== undefined));
+
+    /** Cost per unit of a line: frozen cost, or recomputed with the Director's corrections (single rule: exact). */
+    const costOf = (item: any, index: number): number => {
+        if (!item?.origin_version_id) return manualCosts[index] ?? (Number(item?.frozen_unit_cost) || 0);
+        if (!isTouched(item)) return Number(item.frozen_unit_cost) || 0;
+        return linesOf(item).reduce((sum, l) => {
+            const material = catalog.get(l.material_id);
+            const factor = Number(material?.conversion_factor) > 0 ? Number(material?.conversion_factor) : 1;
+            const purchase = priceEdits[l.material_id] ?? Number(material?.current_cost ?? 0);
+            return sum + l.quantity * (purchase / factor);
+        }, 0);
+    };
 
     // Extraer el nombre del asesor
     const sellerName = useMemo(() => {
@@ -189,7 +227,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
 
         order.items.forEach((item, i) => {
             const qty = Number(item.quantity) || 1;
-            const cost = Number(item.frozen_unit_cost) || 0;
+            const cost = costOf(item, i);
             const margin = Number(newMargins[i]) || 0; 
             const price = cost * (1 + (margin / 100));
 
@@ -208,7 +246,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
         if (isReadOnly || !order || !order.items) return;
         const precio = isNaN(val) ? 0 : val;
         const item = order.items[index];
-        const cost = Number(item.frozen_unit_cost) || 0;
+        const cost = costOf(item, index);
         const commPercent = Number(commissionPercent) || 0;
         const precioSinComision = precio / (1 + commPercent / 100);
         const nuevoMargen = cost > 0 ? ((precioSinComision / cost) - 1) * 100 : 0;
@@ -223,7 +261,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
 
         order.items.forEach((it, i) => {
             const qty = Number(it.quantity) || 1;
-            const c = Number(it.frozen_unit_cost) || 0;
+            const c = costOf(it, i);
             const margin = Number(newMargins[i]) || 0;
             const price = c * (1 + (margin / 100));
 
@@ -252,7 +290,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
 
         const simulatedItems = itemsToSimulate.map((item, index) => {
             const qty = Number(item.quantity) || 1;
-            const cost = Number(item.frozen_unit_cost) || 0;
+            const cost = costOf(item, index);
             totalBaseCost += (cost * qty);
             
             const specificMargin = Number(itemMargins[index]) || 0;
@@ -275,6 +313,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
 
             return {
                 ...item,
+                effectiveCost: cost,
                 usedMargin: specificMargin,
                 baseUnitPrice: baseUnitPrice, 
                 newUnitPrice: finalUnitPrice,
@@ -305,7 +344,8 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
             totalBaseCost, sumOfItems, commissionAmount, subtotal,
             taxAmount, total, netUtility, realWeightedMargin, simulatedItems
         };
-    }, [order, itemMargins, itemPriceOverrides, commissionPercent, taxRates]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [order, itemMargins, itemPriceOverrides, commissionPercent, taxRates, recipeEdits, priceEdits, manualCosts, catalog]);
 
     // --- ANTICIPO: el IMPORTE es la fuente de verdad; el % se DERIVA de él y del total ---
     const advanceTotal = simulation?.total ?? 0;
@@ -384,6 +424,14 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
         setExpandedItems(newSet);
     };
 
+    /** Margin shown for a line: the one implied by its price and current cost (price is kept when cost changes). */
+    const displayMargin = (item: any, index: number): number => {
+        const cost = Number(item.effectiveCost ?? costOf(item, index)) || 0;
+        const price = Number(item.newUnitPrice) || 0;
+        if (cost <= 0 || price <= 0) return Number(itemMargins[index]) || 0;
+        return Number(((price / (1 + (Number(commissionPercent) || 0) / 100) / cost - 1) * 100).toFixed(2));
+    };
+
     const handleAuthorize = async () => {
         if (!order || !simulation || isReadOnly) return;
         if (taxRates.length === 0) {
@@ -393,8 +441,34 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
         setPendingConfirm('AUTHORIZE');
     };
 
+    /** Corrections to send: recipes edited and purchase prices changed, each with the reason of its line. */
+    const buildCorrections = (): { recipe_corrections: any[]; material_prices: any[] } | null => {
+        const items = order?.items ?? [];
+        const reasonForMaterial = (materialId: number) => {
+            const item = items.find((it: any) => it.origin_version_id && linesOf(it).some((l) => l.material_id === materialId));
+            return item ? (recipeReasons[item.origin_version_id as number] || '').trim() : '';
+        };
+        const recipe_corrections = Object.entries(recipeEdits).map(([versionId, lines]) => ({
+            origin_version_id: Number(versionId),
+            components: lines.filter((l) => l.quantity > 0),
+            reason: (recipeReasons[Number(versionId)] || '').trim(),
+        }));
+        const material_prices = Object.entries(priceEdits)
+            .filter(([materialId, cost]) => Number(catalog.get(Number(materialId))?.current_cost ?? -1) !== cost)
+            .map(([materialId, cost]) => ({ material_id: Number(materialId), current_cost: cost, reason: reasonForMaterial(Number(materialId)) }));
+        if ([...recipe_corrections, ...material_prices].some((c) => !c.reason)) return null;
+        if (recipe_corrections.some((c) => c.components.length === 0)) return null;
+        return { recipe_corrections, material_prices };
+    };
+
     const executeAuthorize = async () => {
         if (!order || !quotation || !simulation || isReadOnly) return;
+        const corrections = buildCorrections();
+        if (!corrections) {
+            toast.warning('Cada receta corregida o precio cambiado necesita motivo, y la receta al menos un material.');
+            setPendingConfirm(null);
+            return;
+        }
 
         setProcessing(true);
         try {
@@ -403,7 +477,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                 origin_version_id: i.origin_version_id,
                 quantity: Number(i.quantity) || 1,
                 unit_price: Number(i.newUnitPrice.toFixed(2)),
-                frozen_unit_cost: Number(i.frozen_unit_cost) || 0,
+                frozen_unit_cost: Number(i.effectiveCost.toFixed(4)) || 0,
                 cost_snapshot: i.cost_snapshot,
                 // Keep line text and resale data: authorizing must not erase them.
                 commercial_description: i.commercial_description,
@@ -417,6 +491,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                 advance_percent: Number(advancePercentDerived.toFixed(2)),
                 advance_invoice_amount: Number(advanceAmount.toFixed(2)),
                 items: updatedItems.map((i) => ({ ...i, origin_version_id: i.origin_version_id ?? null })),
+                ...corrections,
             });
             toast.success(`${quotation.folio} autorizada.`);
 
@@ -544,10 +619,10 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                                     type="number" 
                                                     step="0.01" 
                                                     disabled={isReadOnly || processing}
-                                                    value={itemMargins[index] === undefined ? 0 : itemMargins[index]}
+                                                    value={displayMargin(item, index)}
                                                     onChange={(e) => handleItemMarginChange(index, parseFloat(e.target.value))}
                                                     className={`w-full text-center font-bold text-sm py-1 focus-visible:ring-indigo-500 disabled:bg-slate-100 disabled:text-slate-500 ${
-                                                        !isReadOnly && (itemMargins[index] || 0) < 30 ? 'text-red-600 bg-red-50 border-red-200' : 'text-indigo-700 border-indigo-200'
+                                                        !isReadOnly && displayMargin(item, index) < 30 ? 'text-red-600 bg-red-50 border-red-200' : 'text-indigo-700 border-indigo-200'
                                                     }`}
                                                 />
                                             </div>
@@ -556,7 +631,10 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                         <div className="w-24 text-center hidden md:block border-l border-r border-slate-100 mx-2">
                                             <div className="text-[9px] text-slate-400 uppercase">Costo Unit.</div>
                                             <div className="font-mono font-bold text-slate-800 text-sm">
-                                                {formatCurrency(item.frozen_unit_cost)}
+                                                {formatCurrency(item.effectiveCost)}
+                                                {item.effectiveCost !== Number(item.frozen_unit_cost) && (
+                                                    <div className="text-[9px] text-amber-600 line-through">{formatCurrency(Number(item.frozen_unit_cost))}</div>
+                                                )}
                                             </div>
                                         </div>
 
@@ -583,7 +661,30 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
 
                                     {expandedItems.has(index) && (
                                         <div className="bg-slate-50 p-3 shadow-inner text-xs">
-                                            {item.cost_snapshot?.ingredients ? (
+                                            {(item as any).recipe_obsolete && (
+                                                <div className="mb-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-amber-800">
+                                                    Receta corregida después de cotizar{(item as any).replacement_version_name ? `: la reemplaza ${(item as any).replacement_version_name}` : ''}.
+                                                </div>
+                                            )}
+                                            {!isReadOnly && item.origin_version_id ? (
+                                                <RecipeCorrectionPanel
+                                                    lines={linesOf(item)}
+                                                    catalog={catalog}
+                                                    prices={priceEdits}
+                                                    reason={recipeReasons[item.origin_version_id] ?? ''}
+                                                    corrected={isTouched(item)}
+                                                    onLinesChange={(lines) => setRecipeEdits((prev) => ({ ...prev, [item.origin_version_id as number]: lines }))}
+                                                    onPriceChange={(materialId, cost) => setPriceEdits((prev) => ({ ...prev, [materialId]: cost }))}
+                                                    onReasonChange={(text) => setRecipeReasons((prev) => ({ ...prev, [item.origin_version_id as number]: text }))}
+                                                />
+                                            ) : !isReadOnly && !item.origin_version_id ? (
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-slate-500">Partida sin receta: costo capturado por unidad</span>
+                                                    <Input type="number" step="0.01" min={0} className="w-32 h-7 text-xs text-right"
+                                                        value={manualCosts[index] ?? (Number(item.frozen_unit_cost) || 0)}
+                                                        onChange={(e) => setManualCosts((prev) => ({ ...prev, [index]: Number(e.target.value) }))} />
+                                                </div>
+                                            ) : item.cost_snapshot?.ingredients ? (
                                                 <div className="max-h-40 overflow-y-auto">
                                                     <VTable
                                                         columns={ingredientColumns as unknown as VTableColumn<Record<string, unknown>>[]}

@@ -28,6 +28,10 @@ class QuotationItemRead(QuotationItemBase):
     id: int
     quotation_id: int
     subtotal_price: float
+    # Recipe corrected after this line was quoted: the version is OBSOLETE and this one replaces it
+    recipe_obsolete: bool = False
+    replacement_version_id: Optional[int] = None
+    replacement_version_name: Optional[str] = None
     change_type: Optional[ChangeType] = None
     target_order_item_id: Optional[int] = None
     cancel_instance_ids: Optional[List[int]] = None
@@ -123,14 +127,36 @@ class QuotationRead(QuotationBase):
     items: List[QuotationItemRead] = []
 
 
+class RecipeComponentInput(BaseModel):
+    material_id: int
+    quantity: float = Field(..., gt=0)
+
+
+class RecipeCorrection(BaseModel):
+    """Corrected recipe of a version used in the quotation: the full component list and why."""
+    origin_version_id: int
+    components: List[RecipeComponentInput] = Field(..., min_length=1)
+    reason: str = Field(..., min_length=1)
+
+
+class MaterialPriceCorrection(BaseModel):
+    """New catalog price of a material, per purchase unit."""
+    material_id: int
+    current_cost: float = Field(..., ge=0)
+    reason: str = Field(..., min_length=1)
+
+
 class QuotationAuthorize(BaseModel):
-    """Director's financial review: final prices, margin, commission and advance."""
+    """Director's financial review: final prices, margin, commission and advance.
+    Recipe and material price corrections are applied permanently when authorizing."""
     items: List[QuotationItemCreate] = Field(..., min_length=1)
     applied_margin_percent: float
     applied_commission_percent: float
     advance_percent: float
     advance_invoice_amount: Optional[float] = None
     director_notes: Optional[str] = None
+    recipe_corrections: List[RecipeCorrection] = []
+    material_prices: List[MaterialPriceCorrection] = []
 
 
 class QuotationReason(BaseModel):

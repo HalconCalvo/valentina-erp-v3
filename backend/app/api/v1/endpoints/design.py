@@ -1,5 +1,4 @@
 from typing import List, Any, Dict, Optional
-import math
 import time
 import uuid as uuid_lib
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
@@ -22,7 +21,7 @@ from app.models.users import User, UserRole
 from app.models.design import (
     ProductMaster, ProductVersion, VersionComponent, VersionStatus
 )
-from app.models.material import Material, ProductionRoute
+from app.models.material import Material
 from app.models.foundations import Client
 from app.models.production import ProductionBatch, ProductionBatchStatus, PrintJob
 from app.models.sales import (
@@ -34,6 +33,7 @@ from app.models.sales import (
 from app.services.cloud_storage import upload_to_gcs
 from app.services.label_printer import generate_all_labels, concatenate_zpl
 from app.services.design_service import build_pending_instance_rows
+from app.services import design_version_service
 from datetime import datetime
 
 # Schemas
@@ -62,7 +62,7 @@ def create_product_master(
     current_user: User = Depends(get_current_active_user) # Seguridad Agregada
 ):
     """Crea una nueva familia de productos."""
-    # Opcional: Podríamos validar rol aquí, pero por ahora lo dejamos abierto a usuarios activos
+    design_version_service.assert_design_role(current_user)
     master = ProductMaster.from_orm(master_in)
     session.add(master)
     session.commit()
@@ -160,6 +160,7 @@ def update_product_master(
     current_user: User = Depends(get_current_active_user)
 ):
     """Actualiza un Maestro existente."""
+    design_version_service.assert_design_role(current_user)
     master = session.get(ProductMaster, master_id)
     if not master:
         raise HTTPException(status_code=404, detail="Diseño no encontrado")
@@ -194,6 +195,7 @@ def delete_product_master(
     master = session.get(ProductMaster, master_id)
     if not master:
         raise HTTPException(status_code=404, detail="Diseño no encontrado")
+    design_version_service.assert_master_deletable(session, master_id)
 
     # 1. Obtener y borrar versiones y componentes
     versions = session.exec(
@@ -218,129 +220,13 @@ def delete_product_master(
 # 2. GESTIÓN DE VERSIONES (Recetas)
 # ==========================================
 
-MDF_CATEGORIES = material_groups.MAIN_MDF
-STONE_CATEGORIES = material_groups.MAIN_STONE
-
-
-def _update_version_flags(
-    version: ProductVersion,
-    components: list,
-    session: Session,
-) -> None:
-    """
-    Calcula y actualiza has_mdf_components y has_stone_components
-    según los materiales de la receta. Se llama al crear o editar.
-    """
-    has_mdf = False
-    has_stone = False
-    for comp in components:
-        material = session.get(Material, comp.material_id)
-        if not material:
-            continue
-        cat = (material.category or "").upper()
-        if cat in MDF_CATEGORIES:
-            has_mdf = True
-        if cat in STONE_CATEGORIES:
-            has_stone = True
-        if has_mdf and has_stone:
-            break
-    version.has_mdf_components = has_mdf
-    version.has_stone_components = has_stone
-
-
 @router.post("/versions", response_model=ProductVersionRead)
 def create_product_version(
     version_in: ProductVersionCreate,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user)
 ):
-    master = session.get(ProductMaster, version_in.master_id)
-    if not master:
-        raise HTTPException(status_code=404, detail="El Maestro de Producto no existe")
-
-    # 1. Crear la cabecera de la nueva versión
-    db_version = ProductVersion(
-        master_id=version_in.master_id,
-        version_name=version_in.version_name,
-        status=version_in.status,
-        is_active=version_in.is_active,
-        estimated_cost=0.0
-    )
-    session.add(db_version)
-    session.commit()
-    session.refresh(db_version)
-
-    total_estimated_cost = 0.0
-    total_material_cost = 0.0
-    
-    # 2. Lógica Condicional de Ingredientes
-    if version_in.components:
-        # Flujo A: El Frontend envió ingredientes específicos (comportamiento habitual)
-        for comp_in in version_in.components:
-            material = session.get(Material, comp_in.material_id)
-            if material and material.is_active:
-                factor = material.conversion_factor if material.conversion_factor and material.conversion_factor > 0 else 1.0
-                unit_cost = material.current_cost / factor
-                raw_line_cost = comp_in.quantity * unit_cost
-                cost_line = math.ceil(raw_line_cost * 100) / 100
-                total_estimated_cost += cost_line
-                if material.production_route == ProductionRoute.MATERIAL:
-                    total_material_cost += cost_line
-                
-                db_comp = VersionComponent(
-                    version_id=db_version.id,
-                    material_id=comp_in.material_id,
-                    quantity=comp_in.quantity
-                )
-                session.add(db_comp)
-    else:
-        # Flujo B: Deep Copy de la Versión Original (ID más bajo del mismo Maestro)
-        original_version = session.exec(
-            select(ProductVersion)
-            .where(ProductVersion.master_id == version_in.master_id)
-            # Excluimos la que acabamos de crear (aunque lógicamente tiene el ID más alto)
-            .where(ProductVersion.id != db_version.id) 
-            .order_by(ProductVersion.id.asc())
-        ).first()
-
-        if original_version:
-            original_components = session.exec(
-                select(VersionComponent)
-                .where(VersionComponent.version_id == original_version.id)
-            ).all()
-
-            for orig_comp in original_components:
-                material = session.get(Material, orig_comp.material_id)
-                if material and material.is_active:
-                    # Siempre re-cotizamos con el costo actual del material
-                    factor = material.conversion_factor if material.conversion_factor and material.conversion_factor > 0 else 1.0
-                    unit_cost = material.current_cost / factor
-                    raw_line_cost = orig_comp.quantity * unit_cost
-                    cost_line = math.ceil(raw_line_cost * 100) / 100
-                    total_estimated_cost += cost_line
-                    if material.production_route == ProductionRoute.MATERIAL:
-                        total_material_cost += cost_line
-                    
-                    new_comp = VersionComponent(
-                        version_id=db_version.id,
-                        material_id=orig_comp.material_id,
-                        quantity=orig_comp.quantity
-                    )
-                    session.add(new_comp)
-
-    # 3. Consolidar el costo y cerrar la transacción
-    db_version.estimated_cost = round(total_estimated_cost, 2)
-    db_version.material_cost = round(total_material_cost, 2)
-    all_comps = session.exec(
-        select(VersionComponent)
-        .where(VersionComponent.version_id == db_version.id)
-    ).all()
-    _update_version_flags(db_version, all_comps, session)
-    session.add(db_version)
-    session.commit()
-    session.refresh(db_version)
-    
-    return db_version
+    return design_version_service.create_version(session, version_in, current_user)
 
 @router.patch("/versions/{version_id}", response_model=ProductVersionRead)
 def patch_product_version(
@@ -372,57 +258,7 @@ def update_product_version(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user)
 ):
-    db_version = session.get(ProductVersion, version_id)
-    if not db_version:
-        raise HTTPException(status_code=404, detail="Versión no encontrada")
-
-    db_version.version_name = version_in.version_name
-    db_version.status = version_in.status
-    if version_in.commercial_description is not None:
-        db_version.commercial_description = version_in.commercial_description
-    
-    existing_comps = session.exec(
-        select(VersionComponent).where(VersionComponent.version_id == version_id)
-    ).all()
-    for comp in existing_comps:
-        session.delete(comp)
-    
-    total_estimated_cost = 0.0
-    total_material_cost = 0.0
-    
-    for comp_in in version_in.components:
-        if comp_in.quantity > 0:
-            material = session.get(Material, comp_in.material_id)
-            if not material or not material.is_active:
-                continue 
-
-            factor = material.conversion_factor if material.conversion_factor and material.conversion_factor > 0 else 1.0
-            unit_cost = material.current_cost / factor
-            raw_line_cost = comp_in.quantity * unit_cost
-            cost_line = math.ceil(raw_line_cost * 100) / 100
-            total_estimated_cost += cost_line
-            if material.production_route == ProductionRoute.MATERIAL:
-                total_material_cost += cost_line
-
-            new_comp = VersionComponent(
-                version_id=db_version.id,
-                material_id=comp_in.material_id,
-                quantity=comp_in.quantity
-            )
-            session.add(new_comp)
-
-    db_version.estimated_cost = round(total_estimated_cost, 2)
-    db_version.material_cost = round(total_material_cost, 2)
-    all_comps = session.exec(
-        select(VersionComponent)
-        .where(VersionComponent.version_id == db_version.id)
-    ).all()
-    _update_version_flags(db_version, all_comps, session)
-    session.add(db_version)
-
-    session.commit()
-    session.refresh(db_version)
-    return db_version
+    return design_version_service.update_version(session, version_id, version_in, current_user)
 
 @router.get("/versions/{version_id}", response_model=ProductVersionRead)
 def read_version_detail(
@@ -430,47 +266,7 @@ def read_version_detail(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user)
 ):
-    version = session.get(ProductVersion, version_id)
-    if not version:
-        raise HTTPException(status_code=404, detail="Versión no encontrada")
-
-    # Recalcular el costo en vivo desde componentes ACTIVOS y detectar alertas.
-    total_estimated_cost = 0.0
-    total_material_cost = 0.0
-    alerts = []
-    for comp in version.components:
-        material = session.get(Material, comp.material_id)
-        if not material:
-            continue
-        if not material.is_active:
-            alerts.append(f"Material inactivo en la receta: {material.name} (SKU {material.sku}). Se excluyó del costo.")
-            continue
-        if getattr(material, "is_fictitious", False):
-            alerts.append(f"Material ficticio pendiente de definir: {material.name} (SKU {material.sku}). Actualízalo con el material real antes de producir.")
-        factor = material.conversion_factor if material.conversion_factor and material.conversion_factor > 0 else 1.0
-        unit_cost = material.current_cost / factor
-        cost_line = math.ceil(comp.quantity * unit_cost * 100) / 100
-        total_estimated_cost += cost_line
-        if material.production_route == ProductionRoute.MATERIAL:
-            total_material_cost += cost_line
-
-    total_estimated_cost = round(total_estimated_cost, 2)
-    total_material_cost = round(total_material_cost, 2)
-
-    # Guardar solo si cambió (evita escrituras innecesarias). Transaccional.
-    if (round(version.estimated_cost or 0, 2) != total_estimated_cost or
-        round(version.material_cost or 0, 2) != total_material_cost):
-        version.estimated_cost = total_estimated_cost
-        version.material_cost = total_material_cost
-        session.add(version)
-        session.commit()
-        session.refresh(version)
-
-    # Construir la respuesta con el esquema de lectura (que tiene el campo alerts).
-    # No se puede asignar 'alerts' al objeto SQLModel de tabla directamente.
-    response = ProductVersionRead.model_validate(version)
-    response.alerts = alerts
-    return response
+    return design_version_service.read_version(session, version_id)
 
 @router.patch("/versions/{version_id}/status", response_model=ProductVersionRead)
 def update_version_status(
@@ -479,15 +275,7 @@ def update_version_status(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user)
 ):
-    version = session.get(ProductVersion, version_id)
-    if not version:
-        raise HTTPException(status_code=404, detail="Versión no encontrada")
-    
-    version.status = status
-    session.add(version)
-    session.commit()
-    session.refresh(version)
-    return version
+    return design_version_service.set_status(session, version_id, status, current_user)
 
 @router.patch("/versions/{version_id}/rename", response_model=ProductVersionRead)
 def rename_product_version(
@@ -497,15 +285,7 @@ def rename_product_version(
     current_user: User = Depends(get_current_active_user)
 ):
     """Renombra una versión específica sin afectar sus ingredientes."""
-    version = session.get(ProductVersion, version_id)
-    if not version:
-        raise HTTPException(status_code=404, detail="Versión no encontrada")
-    
-    version.version_name = new_name
-    session.add(version)
-    session.commit()
-    session.refresh(version)
-    return version
+    return design_version_service.rename(session, version_id, new_name, current_user)
 
 @router.delete("/versions/{version_id}")
 def delete_product_version(
@@ -513,36 +293,8 @@ def delete_product_version(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user)
 ):
-    """
-    Elimina una versión específica y sus ingredientes en cascada.
-    NO afecta al Producto Maestro ni a otras versiones existentes.
-    """
-    # 0. Validación de rol: solo Dirección y Diseño pueden eliminar versiones.
-    if current_user.role not in [UserRole.DIRECTOR, UserRole.DESIGN]:
-        raise HTTPException(status_code=403, detail="No tienes permisos para eliminar versiones")
-
-    # 1. Buscar la versión específica
-    version = session.get(ProductVersion, version_id)
-    if not version:
-        raise HTTPException(status_code=404, detail="Versión no encontrada")
-
-    # 1b. Protección: no borrar versiones ya usadas en órdenes de venta (trazabilidad).
-    en_uso = session.exec(
-        select(SalesOrderItem).where(SalesOrderItem.origin_version_id == version_id)
-    ).first()
-    if en_uso:
-        raise HTTPException(
-            status_code=409,
-            detail="Esta versión ya fue utilizada en una o más órdenes de venta y no se puede eliminar para preservar la trazabilidad."
-        )
-
-    # 2. Borrar la versión.
-    # Nota: SQLAlchemy automáticamente borrará los VersionComponent asociados 
-    # gracias a sa_relationship_kwargs={"cascade": "all, delete-orphan"}
-    session.delete(version)
-    session.commit()
-    
-    return {"ok": True, "message": "Versión y sus ingredientes eliminados correctamente."}
+    """Elimina una versión que nunca se usó ni se corrigió (las usadas se marcan obsoletas)."""
+    return design_version_service.delete_version(session, version_id, current_user)
 
 # ==========================================
 # 3. GESTIÓN DE CATEGORÍAS
@@ -556,6 +308,7 @@ def rename_product_category(
     new_name: str = Query(..., min_length=1),
     current_user: User = Depends(get_current_active_user)
 ):
+    design_version_service.assert_design_role(current_user)
     products = session.exec(
         select(ProductMaster).where(ProductMaster.category == old_name)
     ).all()
@@ -583,6 +336,7 @@ async def upload_version_blueprint_file(
     Sube el archivo de plano de una versión a GCS y devuelve la URL pública.
     NO guarda el path en la BD — el frontend llama a PATCH /blueprint después.
     """
+    design_version_service.assert_design_role(current_user)
     version = session.get(ProductVersion, version_id)
     if not version:
         raise HTTPException(status_code=404, detail="Versión no encontrada.")
@@ -606,8 +360,10 @@ def update_version_blueprint(
     version_id: int,
     body: BlueprintUpdate,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
 ):
     """Registra o actualiza la URL del plano de una versión."""
+    design_version_service.assert_design_role(current_user)
     version = session.get(ProductVersion, version_id)
     if not version:
         raise HTTPException(status_code=404, detail="Versión no encontrada.")

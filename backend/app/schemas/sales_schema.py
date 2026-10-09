@@ -169,6 +169,11 @@ class OrderItemDescriptionUpdate(BaseModel):
 # ==========================================
 # MINI-ESQUEMA PARA LEER EL CLIENTE EN LA ORDEN
 # ==========================================
+class SalesOrderUserRead(SQLModel):
+    id: int
+    full_name: Optional[str] = None
+
+
 class ClientReadBasic(SQLModel):
     id: int
     full_name: str
@@ -232,8 +237,8 @@ class SalesOrderRead(SalesOrderBase):
     # Relaciones anidadas
     client: Optional[ClientReadBasic] = None  # <--- ¡EL ESLABÓN PERDIDO!
     
-    # ---> ¡LA LLAVE MAESTRA PARA QUE PASE EL NOMBRE DEL ASESOR! <---
-    user: Optional[Any] = None 
+    # Seller: only id and name (never the full user: password hash, email, commissions)
+    user: Optional[SalesOrderUserRead] = None
     
     items: List[SalesOrderItemRead] = []
     payments: List[CustomerPaymentRead] = []

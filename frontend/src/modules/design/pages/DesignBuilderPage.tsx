@@ -177,23 +177,14 @@ export default function DesignBuilderPage() {
       
       const cleanComponents = componentsFromForm.filter(item => item.quantity > 0);
       
+      // One save with the chosen status (a used recipe cannot go back to draft; the backend answers 409)
       await designService.updateVersion(version.id, {
-          ...version,
-          status: VersionStatus.DRAFT, 
-          components: cleanComponents,
-          commercial_description: commercialDescription,
+        master_id: version.master.id,
+        version_name: version.version_name,
+        status: newStatus,
+        components: cleanComponents,
+        commercial_description: commercialDescription,
       });
-
-      if (newStatus !== VersionStatus.DRAFT) {
-          await new Promise(r => setTimeout(r, 200));
-          await designService.updateVersion(version.id, {
-            master_id: version.master.id,
-            version_name: version.version_name,
-            status: newStatus, 
-            components: cleanComponents,
-            commercial_description: commercialDescription,
-          });
-      }
 
       toast.success('Guardado correctamente.');
       window.location.reload(); 
@@ -285,7 +276,9 @@ export default function DesignBuilderPage() {
                                         master_id: version.master.id,
                                         version_name: newName.trim(),
                                         status: VersionStatus.DRAFT,
-                                        components: [] 
+                                        components: [],
+                                        // Clone the version being viewed (not the oldest of the product)
+                                        clone_from_version_id: version.id,
                                     };
                                     const response = await designService.createVersion(payload);
                                     const newVersionId = response?.id || response?.data?.id;
@@ -350,6 +343,17 @@ export default function DesignBuilderPage() {
                 </ul>
               </div>
             </div>
+          </div>
+        )}
+        {(version?.is_locked || version?.replaces_version_id || version?.status === VersionStatus.OBSOLETE) && (
+          <div className="max-w-6xl mx-auto mb-4 bg-sky-50 border border-sky-300 rounded-lg p-4 text-sm text-sky-900 space-y-1">
+            {version?.is_locked && (
+              <p className="font-semibold">Receta en uso (OV o cotización en revisión, autorizada o convertida): sus materiales no se pueden cambiar. Usa “Nueva versión” para clonarla.</p>
+            )}
+            {version?.status === VersionStatus.OBSOLETE && <p>Versión obsoleta: ya existe una receta corregida que la reemplaza.</p>}
+            {version?.replaces_version_id && (
+              <p>Corrección de la versión #{version.replaces_version_id}{version.correction_note ? `: ${version.correction_note}` : ''}{version.corrected_in_quotation_id ? ` (COT-${String(version.corrected_in_quotation_id).padStart(4, '0')})` : ''}.</p>
+            )}
           </div>
         )}
         <div className="max-w-6xl mx-auto bg-white rounded-xl shadow-sm border border-slate-200 p-0">
