@@ -43,7 +43,7 @@ from app.schemas.quotation_schema import (
 )
 from app.schemas.sales_schema import SalesOrderItemCreate
 from app.services.cost_engine import CostEngine
-from app.services import recipe_correction_service
+from app.services import margin_service, recipe_correction_service
 from app.services.pdf_generator import PDFGenerator
 from app.services.sales_service import (
     _build_item_snapshot,
@@ -188,6 +188,17 @@ def _apply_items_and_totals(session: Session, quotation: Quotation, items: List[
     quotation.subtotal = items_sum
     quotation.tax_amount = items_sum * (tax_rate.rate if tax_rate else 0.0)
     quotation.total_price = items_sum + quotation.tax_amount
+    _refresh_markup(session, quotation)
+
+
+def _refresh_markup(session: Session, quotation: Quotation) -> None:
+    """applied_margin_percent is always the real markup (sobreprecio %, without commission) of the lines."""
+    markup = margin_service.lines_markup_percent(
+        quotation_repo.get_active_quotation_items(session, quotation.id), quotation.applied_commission_percent)
+    if markup is not None:
+        quotation.applied_margin_percent = markup
+    elif 0 < float(quotation.applied_margin_percent or 0) <= 1:
+        quotation.applied_margin_percent = round(float(quotation.applied_margin_percent) * 100, 2)
 
 
 def _parent_order_for(session: Session, order_id: Optional[int], current_user: User) -> Optional[SalesOrder]:

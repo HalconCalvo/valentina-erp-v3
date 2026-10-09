@@ -19,7 +19,9 @@ const MODULE_CONTENT: Record<string, ModuleInfo> = {
     description: 'Define las reglas de negocio que se aplican automáticamente en toda la operación. Solo Dirección puede modificarlos. Un cambio aquí afecta cotizaciones, costeos y nómina.',
     cards: [
       { name: 'Identidad Corporativa', desc: 'Logo, nombre, RFC, dirección y contacto de Koloka. Aparece en todos los documentos emitidos.' },
-      { name: 'Margen (45%)', desc: 'Margen mínimo requerido en cada proyecto. El sistema lo usa para calcular el precio de venta desde el costo de la receta.' },
+      { name: 'Sobreprecio objetivo (45%)', desc: 'Sobreprecio % = (precio sin comisión − costo) / costo. Con él se fija el precio: costo × (1 + sobreprecio) × (1 + comisión).' },
+      { name: 'Sobreprecio mínimo (25%)', desc: 'Partidas o cotizaciones por debajo se marcan en rojo en la captura y en la revisión del Director. Solo Dirección lo cambia.' },
+      { name: 'Margen neto % sobre venta', desc: '(precio sin IVA − costo − comisión) / precio sin IVA. Es la cifra para analizar y comparar rentabilidad (después de comisión).' },
       { name: 'Tolerancia (3%)', desc: 'Variación máxima permitida sobre el precio antes de requerir autorización de Dirección.' },
       { name: 'Vigencia (15 días)', desc: 'Días de validez de una cotización antes de que el sistema la marque como próxima a vencer.' },
       { name: 'IVA Default (16%)', desc: 'Tasa de IVA aplicada por defecto al crear cotizaciones y facturas. Se puede cambiar por línea.' },
@@ -108,7 +110,7 @@ const MODULE_CONTENT: Record<string, ModuleInfo> = {
       { name: 'Simulador y Lotificación', desc: 'Agrupa instancias bautizadas en lotes de producción. Cruza la receta contra inventario para detectar faltantes.' },
       { name: 'Centro de Impresión', desc: 'Genera e imprime etiquetas QR para los bultos de producción.' },
     ],
-    tip: 'El costo total de la receta × margen del 45% = precio de venta sugerido en la cotización.',
+    tip: 'Costo de la receta × (1 + sobreprecio objetivo) × (1 + comisión) = precio de venta sugerido en la cotización.',
   },
   ventas: {
     id: 'ventas',

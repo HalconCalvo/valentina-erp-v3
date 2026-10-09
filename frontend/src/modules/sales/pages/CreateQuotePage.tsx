@@ -18,10 +18,12 @@ import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { Card } from '@/components/ui/Card';
-import Badge from '@/components/ui/Badge';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 import { salesService } from '../../../api/sales-service';
+import {
+    DEFAULT_MIN_MARKUP, formatPercent, isBelowMinimum, markupAsPercent, markupPercent, netMarginPercent, priceFromMarkup,
+} from '../utils/margins';
 import { SalesOrderItem } from '../../../types/sales';
 import { QuotationStatus } from '../../../types/quotations';
 
@@ -158,7 +160,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
 
     useEffect(() => {
         if (!isEditMode && config && !isUserSelectedTax) {
-            const defaultMargin = Number(config.target_profit_margin) || 0;
+            const defaultMargin = markupAsPercent(config.target_profit_margin);
             if (header.applied_margin_percent === 0 && defaultMargin > 0) {
                 setHeader(prev => ({ ...prev, applied_margin_percent: defaultMargin }));
             }
@@ -255,7 +257,10 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
     // La utilidad real = precio de venta - costo material - comisión (que ya está incluida en el precio)
     const totalRealCost = totalCost + commissionAmount;
     const grossProfit = finalSubtotal - totalRealCost;
-    const marginPercent = finalSubtotal > 0 ? (grossProfit / finalSubtotal) * 100 : 0;
+    const marginPercent = netMarginPercent(finalSubtotal, totalCost, commissionAmount);
+    const realMarkup = markupPercent(finalSubtotal, totalCost, commissionRate);
+    const minMarkup = Number(config?.min_markup_percent ?? DEFAULT_MIN_MARKUP);
+    const linesBelowMinimum = items.filter((item) => isBelowMinimum(markupPercent(item.unit_price, item.frozen_unit_cost || 0, commissionRate), minMarkup)).length;
 
     // Only drafts and quotations returned for changes are editable; prices are adjusted by the Director in the review.
     const isSalesStatusLocked = isEditMode && currentStatus !== null && !EDITABLE_QUOTATION_STATUSES.includes(currentStatus);
@@ -309,14 +314,8 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
             ? Number(selectedTaxRate.rate)
             : defaultTaxRate ? Number(defaultTaxRate.rate) : 0.16;
         const costoParaPrecio = calcCostoParaPrecio(estimatedCost, materialCost, taxRate);
-        const margin = Number(header.applied_margin_percent) || 0;
-        const commission = Number(commissionRate) || 0;
-        let marginMultiplier = 1;
-        if (margin > 0 && margin <= 1) marginMultiplier = 1 + margin;
-        else marginMultiplier = 1 + (margin / 100);
-        // Comisión siempre viene como decimal (0.05 = 5%)
-        const commissionMultiplier = 1 + commission;
-        const salesPrice = costoParaPrecio * marginMultiplier * commissionMultiplier;
+        // precio = costo × (1 + sobreprecio objetivo) × (1 + comisión)
+        const salesPrice = priceFromMarkup(costoParaPrecio, markupAsPercent(header.applied_margin_percent), commissionRate);
         // frozen_cost = estimatedCost puro de la receta (sin ajustes de IVA)
         // Es el costo base que se muestra en el catálogo de Diseño.
         setLineItem({...lineItem, version_id: selectedVersionId, unit_price: Number(salesPrice.toFixed(2)), frozen_cost: estimatedCost,
@@ -407,13 +406,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
     };
 
     const executeRecalculatePrices = () => {
-        const rawMargin = Number(header.applied_margin_percent) || 0;
-        const commission = Number(commissionRate) || 0;
-        let marginMultiplier = 1;
-        if (rawMargin > 0 && rawMargin <= 1) marginMultiplier = 1 + rawMargin;
-        else marginMultiplier = 1 + (rawMargin / 100);
-        const commissionMultiplier = 1 + commission;
-        const multiplier = marginMultiplier * commissionMultiplier;
+        const multiplier = priceFromMarkup(1, markupAsPercent(header.applied_margin_percent), commissionRate);
         const newItems = items.map(item => {
             if (item.frozen_unit_cost && item.frozen_unit_cost > 0) return { ...item, unit_price: Math.ceil(item.frozen_unit_cost * multiplier) };
             return item;
@@ -508,14 +501,14 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
         if (isDirector) {
             cols.push({
                 key: 'margin',
-                label: 'Margen',
+                label: 'Sobreprecio %',
                 render: (item) => {
-                    const cost = item.frozen_unit_cost || 0;
-                    const margin = cost > 0 ? (((item.unit_price - cost) / cost) * 100) : 0;
+                    const markup = markupPercent(item.unit_price, item.frozen_unit_cost || 0, commissionRate);
                     return (
-                        <Badge variant="outline" className={`${margin >= 20 ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : 'text-amber-600 bg-amber-50 border-amber-200'} py-0.5 px-1.5 text-[10px]`}>
-                            {margin.toFixed(1)}%
-                        </Badge>
+                        <span title="(precio sin comisión − costo) / costo"
+                            className={`px-1.5 py-0.5 rounded border text-[10px] font-bold ${isBelowMinimum(markup, minMarkup) ? 'text-red-700 bg-red-50 border-red-300' : 'text-emerald-600 bg-emerald-50 border-emerald-200'}`}>
+                            {formatPercent(markup)}
+                        </span>
                     );
                 },
             });
@@ -571,6 +564,12 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                 <div className="bg-indigo-50 border-l-4 border-indigo-500 text-indigo-800 p-4 rounded shadow-sm">
                     <p className="font-bold">OV complementaria de OV-{String(parentId).padStart(4, '0')}</p>
                     <p className="text-sm">Al convertirse nace una OV propia (anticipo, facturas y saldo propios) ligada a la original.</p>
+                </div>
+            )}
+
+            {linesBelowMinimum > 0 && (
+                <div className="bg-red-50 border-l-4 border-red-500 text-red-800 p-3 rounded shadow-sm text-sm font-bold">
+                    {linesBelowMinimum} {linesBelowMinimum === 1 ? 'partida queda' : 'partidas quedan'} por debajo del sobreprecio mínimo ({minMarkup}%).
                 </div>
             )}
 
@@ -675,7 +674,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                             <div className="text-xs mb-1">&nbsp;</div> {/* Espaciador invisible */}
                             <div className="bg-amber-50 p-2 rounded-lg border border-amber-300 flex justify-between items-center shadow-sm h-[38px]">
                                 <label className="text-[10px] font-black text-amber-900 uppercase flex items-center gap-1">
-                                    <TrendingUp size={14}/> Margen Empresa Configuración
+                                    <TrendingUp size={14}/> Sobreprecio objetivo %
                                 </label>
                                 <div className="relative">
                                     <Input 
@@ -684,7 +683,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                                         max="99"
                                         step="1"
                                         className="w-20 pr-5 text-right font-black h-[28px] text-sm bg-amber-100 text-amber-950 border-amber-400 opacity-100"
-                                        value={header.applied_margin_percent > 0 && header.applied_margin_percent <= 1 ? Number((header.applied_margin_percent * 100).toFixed(2)) : header.applied_margin_percent}
+                                        value={Number(markupAsPercent(header.applied_margin_percent).toFixed(2))}
                                         onChange={(e) => {
                                             const val = Number(e.target.value);
                                             if (val >= 1 && val <= 99) {
@@ -806,12 +805,12 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                                                     onClick={() => {
                                                         setSelectedResaleSku(m.sku);
                                                         const costo = Number(m.current_cost) || 0;
-                                                        const override = Number(m.sale_price) || 0;
+                                                        // sale_price del catálogo es el precio antes de comisión: se suma la comisión del vendedor
+                                                    const override = priceFromMarkup(Number(m.sale_price) || 0, 0, commissionRate);
                                                         let precio = override;
                                                         if (precio <= 0) {
-                                                            const mg = Number(header.applied_margin_percent) || 0;
-                                                            const mult = mg > 0 && mg <= 1 ? 1 + mg : 1 + (mg / 100);
-                                                            precio = Number((costo * mult).toFixed(2));
+                                                            // Reventa: misma regla que producción (incluye comisión)
+                                                            precio = Number(priceFromMarkup(costo, markupAsPercent(header.applied_margin_percent), commissionRate).toFixed(2));
                                                         }
                                                         setLineItem({ ...lineItem, manual_name: m.name, unit_price: precio, frozen_cost: costo });
                                                     }}
@@ -896,10 +895,11 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                         {isDirector && (
                             <div className="bg-white border border-slate-200 rounded-lg p-3 mb-4 text-xs shadow-sm">
                                 <div className="font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center justify-end gap-2"><Lock size={10}/> Análisis de Rentabilidad Total (Privado)</div>
-                                <div className="grid grid-cols-3 gap-4 text-right">
-                                    <div><div className="text-slate-500">Costo Material</div><div className="font-mono font-bold text-slate-700">{formatCurrency(totalCost)}</div></div>
-                                    <div><div className="text-slate-500">Utilidad Bruta</div><div className={`font-mono font-bold ${grossProfit > 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatCurrency(grossProfit)}</div></div>
-                                    <div><div className="text-slate-500">Margen sin Comisión</div><div className={`font-mono font-black ${marginPercent >= 20 ? 'text-emerald-600' : 'text-amber-600'}`}>{marginPercent.toFixed(1)}%</div></div>
+                                <div className="grid grid-cols-4 gap-4 text-right">
+                                    <div><div className="text-slate-500">Costo</div><div className="font-mono font-bold text-slate-700">{formatCurrency(totalCost)}</div></div>
+                                    <div><div className="text-slate-500">Sobreprecio real %</div><div className={`font-mono font-black ${isBelowMinimum(realMarkup, minMarkup) ? 'text-red-600' : 'text-emerald-600'}`}>{formatPercent(realMarkup)}</div></div>
+                                    <div><div className="text-slate-500">Utilidad neta (después de comisión)</div><div className={`font-mono font-bold ${grossProfit > 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatCurrency(grossProfit)}</div></div>
+                                    <div><div className="text-slate-500">Margen neto % sobre venta</div><div className="font-mono font-black text-slate-700">{formatPercent(marginPercent)}</div></div>
                                 </div>
                             </div>
                         )}

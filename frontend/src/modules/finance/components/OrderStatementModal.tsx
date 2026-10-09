@@ -6,6 +6,8 @@ import { getInventoryConflict } from '../../../api/production-service';
 import { ReversalDialog, type ReversalInput } from '../../production/components/BatchInventoryDialogs';
 import axiosClient from '../../../api/axios-client';
 import { OrderChangesPanel } from '../../sales/components/OrderChangesPanel';
+import { DEFAULT_MIN_MARKUP, formatPercent, isBelowMinimum, markupPercent, netMarginPercent } from '../../sales/utils/margins';
+import { useFoundations } from '../../foundations/hooks/useFoundations';
 import { toast } from '@/components/ui/VToast';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import Modal from '@/components/ui/Modal';
@@ -419,6 +421,8 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const canManageRetention = ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'MANAGER'].includes(userRole);
     // Role-based, not tied to readOnly (that flag only removes finance actions, e.g. Rayos X from the sales monitor).
     const canEditDescription = ['DIRECTOR', 'MANAGER', 'SALES'].includes(userRole);
+    const canSeeProfitability = ['DIRECTOR', 'MANAGER'].includes(userRole);
+    const minMarkup = Number(useFoundations()?.config?.min_markup_percent ?? DEFAULT_MIN_MARKUP);
     const canEditDeliveryDeadline = [
         'DIRECTOR',
         'DIRECCION',
@@ -2235,6 +2239,27 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                             })()}
                         </div>
                     </div>
+
+                    {canSeeProfitability && localOrder?.id && (() => {
+                        const activeItems = (localOrder.items ?? []).filter((it: any) => !it.is_cancelled);
+                        const cost = activeItems.reduce((sum: number, it: any) => sum + Number(it.quantity || 0) * Number(it.frozen_unit_cost || 0), 0);
+                        const sales = Number(localOrder.subtotal || 0);
+                        const commission = Number(localOrder.commission_amount || 0);
+                        const markup = markupPercent(sales, cost, localOrder.applied_commission_percent);
+                        return (
+                            <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
+                                <h3 className="text-sm font-black text-slate-700 uppercase tracking-wide mb-3">Rentabilidad (sin IVA)</h3>
+                                <div className="grid grid-cols-2 md:grid-cols-6 gap-3 text-sm">
+                                    <div><p className="text-[10px] font-bold text-slate-400 uppercase">Venta</p><p className="font-mono font-bold">{formatCurrency(sales)}</p></div>
+                                    <div><p className="text-[10px] font-bold text-slate-400 uppercase">Costo</p><p className="font-mono font-bold">{formatCurrency(cost)}</p></div>
+                                    <div><p className="text-[10px] font-bold text-slate-400 uppercase">Comisión incluida</p><p className="font-mono font-bold">{formatCurrency(commission)}</p></div>
+                                    <div><p className="text-[10px] font-bold text-slate-400 uppercase">Utilidad neta</p><p className={`font-mono font-bold ${sales - cost - commission >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{formatCurrency(sales - cost - commission)}</p></div>
+                                    <div title="(precio sin IVA − costo − comisión) / precio sin IVA"><p className="text-[10px] font-bold text-slate-400 uppercase">Margen neto % sobre venta</p><p className="font-mono font-black">{formatPercent(netMarginPercent(sales, cost, commission))}</p></div>
+                                    <div title="(precio sin comisión − costo) / costo"><p className="text-[10px] font-bold text-slate-400 uppercase">Sobreprecio %</p><p className={`font-mono font-black ${isBelowMinimum(markup, minMarkup) ? 'text-rose-600' : 'text-emerald-700'}`}>{formatPercent(markup)}</p></div>
+                                </div>
+                            </div>
+                        );
+                    })()}
 
                     {localOrder?.id && (
                         <OrderChangesPanel

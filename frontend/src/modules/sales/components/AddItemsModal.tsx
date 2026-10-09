@@ -4,6 +4,7 @@ import { SalesOrder } from '../../../types/sales';
 import type { ChangeOrderLine } from '../../../types/quotations';
 import { designService } from '../../../api/design-service';
 import Modal from '@/components/ui/Modal';
+import { markupAsPercent, priceFromMarkup } from '../utils/margins';
 import axiosClient from '../../../api/axios-client';
 import { useFoundations } from '../../foundations/hooks/useFoundations';
 import { toast } from '@/components/ui/VToast';
@@ -76,7 +77,7 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
         return rate;
     }, [order.applied_commission_percent]);
 
-    const marginPercent = Number(order.applied_margin_percent) || 0;
+    const marginPercent = markupAsPercent(order.applied_margin_percent);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -154,12 +155,8 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
 
         const taxRate = selectedTaxRate ? Number(selectedTaxRate.rate) : 0;
         const costoParaPrecio = calcCostoParaPrecio(estimatedCost, materialCost, taxRate);
-        const margin = marginPercent;
-        let marginMultiplier = 1;
-        if (margin > 0 && margin <= 1) marginMultiplier = 1 + margin;
-        else marginMultiplier = 1 + margin / 100;
-        const commissionMultiplier = 1 + commissionRate;
-        const salesPrice = costoParaPrecio * marginMultiplier * commissionMultiplier;
+        // precio = costo × (1 + sobreprecio de la OV) × (1 + comisión); el sobreprecio guardado ya no incluye comisión
+        const salesPrice = priceFromMarkup(costoParaPrecio, marginPercent, commissionRate);
 
         setPriceManual(false);
         setLineItem({
@@ -368,12 +365,12 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
                                                 onClick={() => {
                                                     setSelectedResaleSku(m.sku);
                                                     const costo = Number(m.current_cost) || 0;
-                                                    const override = Number(m.sale_price) || 0;
+                                                    // sale_price del catálogo es el precio antes de comisión: se suma la comisión del vendedor
+                                                    const override = priceFromMarkup(Number(m.sale_price) || 0, 0, commissionRate);
                                                     let precio = override;
                                                     if (precio <= 0) {
-                                                        const mg = Number(order.applied_margin_percent) || 0;
-                                                        const mult = mg > 0 && mg <= 1 ? 1 + mg : 1 + (mg / 100);
-                                                        precio = Number((costo * mult).toFixed(2));
+                                                        // Reventa: misma regla que producción (incluye comisión)
+                                                        precio = Number(priceFromMarkup(costo, marginPercent, commissionRate).toFixed(2));
                                                     }
                                                     setLineItem({
                                                         ...lineItem,

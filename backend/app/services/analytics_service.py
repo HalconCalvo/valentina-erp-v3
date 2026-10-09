@@ -9,6 +9,7 @@ from app.models.foundations import Client
 from app.models.sales import SalesOrder, SalesOrderItem, SalesOrderStatus
 from app.models.treasury import BankAccount, WeeklyFixedCost
 from app.repositories import sales_repository as sales_repo
+from app.services import margin_service
 from app.schemas.analytics_schema import (
     CashFlowEntry,
     CashFlowProjection,
@@ -30,10 +31,9 @@ def _order_folio(order_id: int) -> str:
     return f"OV-{str(order_id).zfill(4)}"
 
 
-def _margin_percent(total_price: float, estimated_cost: float) -> float:
-    if total_price <= 0:
-        return 0.0
-    return round(((total_price - estimated_cost) / total_price) * 100, 2)
+def _net_margin(sales: float, cost: float, commission: float) -> float:
+    """Margen neto % sobre venta: sales without tax, after commission."""
+    return margin_service.net_margin_percent(sales, cost, commission) or 0.0
 
 
 def _aging_bucket(days: int) -> str:
@@ -72,31 +72,33 @@ def _fetch_order_cost_rows(session: Session, statuses: Tuple[Any, ...]):
     return session.exec(
         select(
             SalesOrder.id,
-            SalesOrder.total_price,
+            SalesOrder.subtotal,
+            SalesOrder.commission_amount,
             Client.full_name,
             func.coalesce(func.sum(SalesOrderItem.frozen_unit_cost * SalesOrderItem.quantity), 0.0),
         )
         .join(Client, SalesOrder.client_id == Client.id)
         .outerjoin(SalesOrderItem, (SalesOrderItem.sales_order_id == SalesOrder.id) & (SalesOrderItem.is_cancelled == False))  # noqa: E712
         .where(SalesOrder.status.in_(statuses))
-        .group_by(SalesOrder.id, SalesOrder.total_price, Client.full_name)
+        .group_by(SalesOrder.id, SalesOrder.subtotal, SalesOrder.commission_amount, Client.full_name)
     ).all()
 
 
 def get_order_profitability(session: Session) -> List[OrderProfitabilityItem]:
     rows = _fetch_order_cost_rows(session, _PROFIT_STATUSES)
     ranked: List[OrderProfitabilityItem] = []
-    for order_id, total_price, client_name, estimated_cost in rows:
-        total = float(total_price or 0.0)
-        cost = float(estimated_cost or 0.0)
+    for order_id, subtotal, commission, client_name, estimated_cost in rows:
+        sales, cost, comm = float(subtotal or 0.0), float(estimated_cost or 0.0), float(commission or 0.0)
         ranked.append(
             OrderProfitabilityItem(
                 order_id=int(order_id),
                 folio=_order_folio(int(order_id)),
                 client_name=client_name or "—",
-                total_price=round(total, 2),
+                total_price=round(sales, 2),
                 estimated_cost=round(cost, 2),
-                margin_percent=_margin_percent(total, cost),
+                commission_amount=round(comm, 2),
+                net_profit=round(sales - cost - comm, 2),
+                margin_percent=_net_margin(sales, cost, comm),
             )
         )
     ranked.sort(key=lambda x: x.margin_percent, reverse=True)
@@ -235,7 +237,8 @@ def get_top_clients(session: Session) -> List[TopClientItem]:
             SalesOrder.client_id,
             Client.full_name,
             func.count(SalesOrder.id),
-            func.coalesce(func.sum(SalesOrder.total_price), 0.0),
+            func.coalesce(func.max(SalesOrder.subtotal), 0.0),
+            func.coalesce(func.max(SalesOrder.commission_amount), 0.0),
             func.coalesce(func.sum(SalesOrderItem.frozen_unit_cost * SalesOrderItem.quantity), 0.0),
         )
         .join(Client, SalesOrder.client_id == Client.id)
@@ -244,29 +247,26 @@ def get_top_clients(session: Session) -> List[TopClientItem]:
             SalesOrder.status.in_(_TOP_CLIENT_STATUSES),
             SalesOrder.created_at >= year_start,
         )
-        .group_by(SalesOrder.client_id, Client.full_name, SalesOrder.id, SalesOrder.total_price)
+        .group_by(SalesOrder.client_id, Client.full_name, SalesOrder.id)
     ).all()
     grouped: Dict[int, Dict[str, Any]] = {}
-    for client_id, client_name, _count, total_price, item_cost in rows:
+    for client_id, client_name, _count, subtotal, commission, item_cost in rows:
         cid = int(client_id)
         bucket = grouped.setdefault(
             cid,
-            {"client_name": client_name or "—", "orders": 0, "revenue": 0.0, "margins": []},
+            {"client_name": client_name or "—", "orders": 0, "revenue": 0.0, "cost": 0.0, "commission": 0.0},
         )
         bucket["orders"] += 1
-        revenue = float(total_price or 0.0)
-        cost = float(item_cost or 0.0)
-        bucket["revenue"] += revenue
-        bucket["margins"].append(_margin_percent(revenue, cost))
+        bucket["revenue"] += float(subtotal or 0.0)
+        bucket["cost"] += float(item_cost or 0.0)
+        bucket["commission"] += float(commission or 0.0)
     result = [
         TopClientItem(
             client_id=cid,
             client_name=data["client_name"],
             total_orders=int(data["orders"]),
             total_revenue=round(float(data["revenue"]), 2),
-            avg_margin_percent=round(sum(data["margins"]) / len(data["margins"]), 2)
-            if data["margins"]
-            else 0.0,
+            avg_margin_percent=_net_margin(data["revenue"], data["cost"], data["commission"]),
         )
         for cid, data in grouped.items()
     ]

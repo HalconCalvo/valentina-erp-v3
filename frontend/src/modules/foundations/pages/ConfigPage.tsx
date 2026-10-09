@@ -31,6 +31,9 @@ export default function ConfigPage() {
 
   // --- 2. ESTADOS: FINANCIEROS Y TÉCNICOS ---
   const [marginInput, setMarginInput] = useState('');
+  const [minMarkupInput, setMinMarkupInput] = useState('25');
+  // Only Dirección changes the minimum markup (the backend answers 403 otherwise)
+  const isDirector = (localStorage.getItem('user_role') || '').toUpperCase() === 'DIRECTOR';
   const [toleranceInput, setToleranceInput] = useState('');
   const [daysInput, setDaysInput] = useState('');
   const [edgeFactorInput, setEdgeFactorInput] = useState('');
@@ -71,6 +74,7 @@ export default function ConfigPage() {
 
       // Porcentajes: backend guarda decimal (0.45), mostramos entero (45)
       setMarginInput(String(Math.round((config.target_profit_margin || 0) * 100)));
+      setMinMarkupInput(String(config.min_markup_percent ?? 25));
       setToleranceInput(String(Math.round((config.cost_tolerance_percent || 0) * 100)));
       
       setDaysInput(String(config.quote_validity_days || 0));
@@ -144,6 +148,7 @@ export default function ConfigPage() {
         company_email: companyEmail,
         company_website: companyWebsite,
         target_profit_margin: margin,
+        ...(isDirector ? { min_markup_percent: Number(minMarkupInput) || 0 } : {}),
         cost_tolerance_percent: tolerance,
         quote_validity_days: days,
         default_edgebanding_factor: edgeFactor,
@@ -215,8 +220,16 @@ export default function ConfigPage() {
             <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Percent className="text-emerald-600" /> Reglas de Negocio</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="card-std">
-                    <div className="flex items-start justify-between mb-4"><h2 className="text-base font-bold text-slate-700">Margen</h2><span className="badge-blue">Finanzas</span></div>
+                    <div className="flex items-start justify-between mb-4"><h2 className="text-base font-bold text-slate-700">Sobreprecio objetivo</h2><span className="badge-blue">Finanzas</span></div>
                     <div className="relative"><Input type="number" value={marginInput} onChange={(e) => setMarginInput(e.target.value)} className="input-large border-blue-200 focus:border-blue-500" /><span className="unit-label">%</span></div>
+                    <p className="text-[11px] text-slate-500 mt-2">(precio sin comisión − costo) / costo. Con él se fija el precio de las cotizaciones.</p>
+                </div>
+                <div className="card-std">
+                    <div className="flex items-start justify-between mb-4"><h2 className="text-base font-bold text-slate-700">Sobreprecio mínimo</h2><span className="badge-orange">Dirección</span></div>
+                    <div className="relative"><Input type="number" value={minMarkupInput} disabled={!isDirector}
+                        title={isDirector ? undefined : 'Solo Dirección cambia el sobreprecio mínimo'}
+                        onChange={(e) => setMinMarkupInput(e.target.value)} className="input-large border-orange-200 focus:border-orange-500" /><span className="unit-label">%</span></div>
+                    <p className="text-[11px] text-slate-500 mt-2">Partidas o cotizaciones por debajo se marcan en rojo en la captura y en la revisión.</p>
                 </div>
                 <div className="card-std">
                     <div className="flex items-start justify-between mb-4"><h2 className="text-base font-bold text-slate-700">Tolerancia</h2><span className="badge-orange">Seguridad</span></div>

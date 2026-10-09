@@ -12,6 +12,10 @@ export interface OrderProfitabilityItem {
     client_name: string;
     total_price: number;
     estimated_cost: number;
+    /** Comisión incluida y utilidad neta (sin IVA) */
+    commission_amount?: number;
+    net_profit?: number;
+    /** Margen neto % sobre venta (sin IVA, después de comisión) */
     margin_percent: number;
 }
 

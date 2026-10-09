@@ -20,6 +20,7 @@ import { MaterialRouteDialog, type RouteDialogRequest } from '../components/Mate
 import { ColumnDef } from "@tanstack/react-table"
 import { DataTable } from "@/components/ui/DataTable"
 import { MaterialsTableToolbar } from "../components/MaterialsTableToolbar"
+import { markupAsPercent, priceFromMarkup } from '../../sales/utils/margins';
 
 type PendingConfirm =
   | { kind: 'delete'; id: number }
@@ -96,11 +97,9 @@ export default function MaterialsPage() {
   const isReadOnly = isDesign || isProduction; 
   const showFinancials = ['ADMIN', 'ADMINISTRADOR', 'DIRECTOR', 'DIRECCION', 'DIRECTION', 'PRODUCTION', 'PRODUCCION', 'MANAGER'].includes(userRole);
 
-  const precioSugeridoReventa = (costo: number): number => {
-    const m = targetMargin;
-    const mult = m > 0 && m <= 1 ? 1 + m : 1 + (m / 100);
-    return Number((costo * mult).toFixed(2));
-  };
+  /** Precio sugerido antes de comisión = costo × (1 + sobreprecio objetivo); al cotizar se suma la comisión del vendedor. */
+  const precioSugeridoReventa = (costo: number): number =>
+    Number(priceFromMarkup(costo, markupAsPercent(targetMargin), 0).toFixed(2));
 
   const columns = useMemo<ColumnDef<Material>[]>(() => {
     const cols: ColumnDef<Material>[] = [
@@ -872,7 +871,7 @@ export default function MaterialsPage() {
                     {form.is_resale && (
                         <div className="md:col-span-1">
                             <label className="block text-sm font-medium text-slate-700 mb-1">
-                                Precio de venta
+                                Precio de venta antes de comisión
                             </label>
                             <Input
                                 type="number"

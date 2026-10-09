@@ -9,11 +9,14 @@ class CxcAgingStats(SQLModel):
 
 
 class OrderProfitabilityItem(SQLModel):
+    """margin_percent = margen neto % sobre venta (sin IVA, después de comisión)."""
     order_id: int
     folio: str
     client_name: str
-    total_price: float
+    total_price: float  # venta sin IVA
     estimated_cost: float
+    commission_amount: float = 0.0
+    net_profit: float = 0.0
     margin_percent: float
 
 
@@ -36,5 +39,5 @@ class TopClientItem(SQLModel):
     client_id: int
     client_name: str
     total_orders: int
-    total_revenue: float
-    avg_margin_percent: float
+    total_revenue: float  # venta sin IVA
+    avg_margin_percent: float  # margen neto % sobre venta, ponderado por venta

@@ -52,7 +52,7 @@ def get_global_config(current_user: CurrentUser, session: Session = Depends(get_
     if not config:
         default_config = GlobalConfig(
             company_name="Mi Empresa SGP",
-            target_profit_margin=0.35,
+            target_profit_margin=0.45,
             cost_tolerance_percent=0.03,
             quote_validity_days=15,
             default_edgebanding_factor=1.10,
@@ -105,6 +105,9 @@ def update_global_config(current_user: CurrentUser, config_in: GlobalConfig, ses
     
     config_data = config_in.model_dump(exclude_unset=True)
     config_data.pop("id", None)
+    if ("min_markup_percent" in config_data
+            and float(config_data["min_markup_percent"]) != float(db_config.min_markup_percent or 0)):
+        require_roles(current_user, {"DIRECTOR"}, "Solo Dirección cambia el sobreprecio mínimo.")
     
     # PROTECCIÓN: Evitar borrar el logo si el frontend manda null
     if "logo_path" in config_data:

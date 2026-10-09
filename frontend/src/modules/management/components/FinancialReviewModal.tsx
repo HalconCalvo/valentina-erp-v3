@@ -17,6 +17,7 @@ import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 import axiosClient from '../../../api/axios-client';
 import { RecipeCorrectionPanel, type CatalogMaterial, type RecipeLine } from './RecipeCorrectionPanel';
+import { DEFAULT_MIN_MARKUP, formatPercent, isBelowMinimum, markupPercent, netMarginPercent } from '../../sales/utils/margins';
 
 interface FinancialReviewModalProps {
     /** Sales order: always read-only (prices are decided when the quotation is authorized). */
@@ -52,6 +53,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
     // de la cotización y respetar tasa cero (sin fallback hardcodeado a 0.16).
     const foundationHook = useFoundations();
     const taxRates = foundationHook?.taxRates || [];
+    const minMarkup = Number(foundationHook?.config?.min_markup_percent ?? DEFAULT_MIN_MARKUP);
 
     // --- VARIABLES DE NEGOCIO ---
     const [globalMargin, setGlobalMargin] = useState<number>(0); 
@@ -338,11 +340,13 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
         const total = subtotal + taxAmount;
 
         const netUtility = subtotal - commissionAmount - totalBaseCost;
-        const realWeightedMargin = totalBaseCost > 0 ? ((sumOfItems - totalBaseCost) / totalBaseCost) * 100 : 0;
+        // Sobreprecio real (sin comisión) con el costo actual y margen neto sobre venta (después de comisión)
+        const realWeightedMargin = markupPercent(sumOfItems, totalBaseCost, commPercent) ?? 0;
+        const netMargin = netMarginPercent(subtotal, totalBaseCost, commissionAmount);
 
         return {
             totalBaseCost, sumOfItems, commissionAmount, subtotal,
-            taxAmount, total, netUtility, realWeightedMargin, simulatedItems
+            taxAmount, total, netUtility, realWeightedMargin, netMargin, simulatedItems
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [order, itemMargins, itemPriceOverrides, commissionPercent, taxRates, recipeEdits, priceEdits, manualCosts, catalog]);
@@ -613,7 +617,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                         </div>
 
                                         <div className="flex flex-col items-center px-2 border-l border-slate-100">
-                                            <label className="text-[9px] font-bold text-slate-400 mb-1">MARGEN %</label>
+                                            <label className="text-[9px] font-bold text-slate-400 mb-1" title="(precio sin comisión − costo) / costo">SOBREPRECIO %</label>
                                             <div className="relative w-20">
                                                 <Input 
                                                     type="number" 
@@ -622,7 +626,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                                     value={displayMargin(item, index)}
                                                     onChange={(e) => handleItemMarginChange(index, parseFloat(e.target.value))}
                                                     className={`w-full text-center font-bold text-sm py-1 focus-visible:ring-indigo-500 disabled:bg-slate-100 disabled:text-slate-500 ${
-                                                        !isReadOnly && displayMargin(item, index) < 30 ? 'text-red-600 bg-red-50 border-red-200' : 'text-indigo-700 border-indigo-200'
+                                                        isBelowMinimum(displayMargin(item, index), minMarkup) ? 'text-red-600 bg-red-50 border-red-300' : 'text-indigo-700 border-indigo-200'
                                                     }`}
                                                 />
                                             </div>
@@ -718,7 +722,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                     <div className="flex justify-between items-center mb-1">
                                         <label className="text-xs font-bold text-slate-600 flex items-center gap-1">
                                             <RefreshCcw size={10} className="text-slate-400"/>
-                                            Aplicar Margen a Todo (%)
+                                            Sobreprecio objetivo % (aplica a todo)
                                         </label>
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -739,6 +743,13 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                                             className="w-16 p-1 text-right text-xs font-bold border-indigo-200 text-indigo-700"
                                         />
                                     </div>
+                                    <div className="mt-2 flex justify-between text-xs">
+                                        <span className="text-slate-500">Sobreprecio real % (costo actual)</span>
+                                        <span className={`font-mono font-black ${isBelowMinimum(simulation.realWeightedMargin, minMarkup) ? 'text-red-600' : 'text-emerald-600'}`}>
+                                            {formatPercent(simulation.realWeightedMargin)}
+                                        </span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 mt-1">Mínimo: {minMarkup}%. Sobreprecio = (precio sin comisión − costo) / costo.</p>
                                 </div>
 
                                 <div className={isReadOnly ? 'opacity-60' : ''}>
@@ -837,9 +848,9 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
 
                             <div className="mt-4 pt-2 border-t border-slate-100">
                                 <div className="flex justify-between items-center text-xs">
-                                    <span className="text-slate-400 uppercase font-bold">Utilidad Neta Real:</span>
+                                    <span className="text-slate-400 uppercase font-bold" title="(precio sin IVA − costo − comisión) / precio sin IVA">Utilidad neta · Margen neto % sobre venta (después de comisión):</span>
                                     <span className={`font-mono font-bold ${simulation.netUtility > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                        {formatCurrency(simulation.netUtility)} ({simulation.realWeightedMargin.toFixed(2)}%)
+                                        {formatCurrency(simulation.netUtility)} · {formatPercent(simulation.netMargin)}
                                     </span>
                                 </div>
                             </div>

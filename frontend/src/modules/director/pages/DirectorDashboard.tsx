@@ -407,7 +407,7 @@ const DirectorDashboard: React.FC = () => {
             },
             {
                 key: 'total_price',
-                label: 'Venta',
+                label: 'Venta sin IVA',
                 render: (row) => (
                     <span className="block text-right font-bold text-slate-800">
                         {formatCurrency(row.total_price)}
@@ -424,8 +424,17 @@ const DirectorDashboard: React.FC = () => {
                 ),
             },
             {
+                key: 'commission_amount',
+                label: 'Comisión',
+                render: (row) => (
+                    <span className="block text-right text-slate-600">
+                        {formatCurrency(row.commission_amount ?? 0)}
+                    </span>
+                ),
+            },
+            {
                 key: 'margin_percent',
-                label: 'Margen',
+                label: 'Margen neto % sobre venta',
                 render: (row) => (
                     <span className={`block text-right font-black ${row.margin_percent >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                         {formatPercent(row.margin_percent)}%
@@ -459,7 +468,7 @@ const DirectorDashboard: React.FC = () => {
             },
             {
                 key: 'total_revenue',
-                label: 'Revenue',
+                label: 'Venta sin IVA',
                 render: (row) => (
                     <span className="block text-right font-bold text-emerald-700">
                         {formatCurrency(row.total_revenue)}
@@ -468,7 +477,7 @@ const DirectorDashboard: React.FC = () => {
             },
             {
                 key: 'avg_margin_percent',
-                label: 'Margen Promedio',
+                label: 'Margen neto % sobre venta',
                 render: (row) => (
                     <span className="block text-right font-bold text-amber-700">
                         {formatPercent(row.avg_margin_percent)}%

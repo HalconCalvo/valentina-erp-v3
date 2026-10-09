@@ -29,7 +29,9 @@ class GlobalConfig(SQLModel, table=True):
     logo_path: Optional[str] = None 
     
     # Reglas de Negocio
-    target_profit_margin: float
+    target_profit_margin: float  # Sobreprecio objetivo (fraction, 0.45)
+    # Minimum markup (sobreprecio, percent): lines below it are flagged in red. Only DIRECTOR changes it.
+    min_markup_percent: float = Field(default=25.0)
     cost_tolerance_percent: float
     quote_validity_days: int
     default_edgebanding_factor: float

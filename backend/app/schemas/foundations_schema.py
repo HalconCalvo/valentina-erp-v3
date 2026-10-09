@@ -7,6 +7,7 @@ from sqlmodel import SQLModel
 # --- CONFIGURACIÓN ---
 class GlobalConfigBase(SQLModel):
     target_profit_margin: float
+    min_markup_percent: float = 25.0
     cost_tolerance_percent: float
     quote_validity_days: int
     default_edgebanding_factor: float # NUEVO CAMPO

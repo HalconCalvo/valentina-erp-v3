@@ -48,7 +48,7 @@ from app.schemas.sales_schema import (
     RetentionAlertRead,
 )
 from app.core.audit_context import audit_reason
-from app.services import audit_service, production_inventory_service, recipe_cost_service
+from app.services import audit_service, margin_service, production_inventory_service, recipe_cost_service
 from app.schemas.production_inventory_schema import OVCancelCreate
 
 
@@ -1412,6 +1412,9 @@ def recalculate_order_totals(session: Session, order: SalesOrder) -> float:
     order.commission_amount = items_sum - (items_sum / (1 + commission)) if commission > 0 else 0.0
     order.tax_amount = items_sum * (tax_rate.rate if tax_rate else 0.0)
     order.total_price = items_sum + order.tax_amount
+    markup = margin_service.lines_markup_percent(sales_repo.get_active_items_by_order(session, order.id), commission)
+    if markup is not None:
+        order.applied_margin_percent = markup
     delta = order.total_price - old_total
     order.outstanding_balance = float(order.outstanding_balance or 0.0) + delta
     session.add(order)
@@ -1523,9 +1526,8 @@ def get_commissions_overview(session: Session) -> CommissionsPayrollOverview:
 
     for o in raw["waiting_orders"]:
         seller = sales_repo.get_user_by_id(session, o.user_id) if o.user_id else None
-        est = float(o.commission_amount or 0.0)
-        if est <= 0 and o.applied_commission_percent and o.total_price:
-            est = float(o.total_price) * float(o.applied_commission_percent)
+        # Same base as the commission really paid: amount without tax × seller rate
+        est = float(o.subtotal or 0.0) * margin_service.normalize_rate(o.applied_commission_percent)
         retained.append(PayrollCommissionRow(
             kind="PROVISIONAL",
             id=None,

@@ -11,6 +11,8 @@ import type { SalesOrder } from '../../../types/sales';
 import type { ChangeOrderLine, Quotation } from '../../../types/quotations';
 import { QuotationActionDialogs, type PendingQuotationAction } from '../../sales/components/QuotationActions';
 import { ChangeTotals } from '../../sales/components/ChangeOrderModal';
+import { DEFAULT_MIN_MARKUP, formatPercent, isBelowMinimum, markupPercent } from '../../sales/utils/margins';
+import { useFoundations } from '../../foundations/hooks/useFoundations';
 
 interface ChangeOrderReviewModalProps {
     changeId: number | null;
@@ -32,6 +34,8 @@ export const ChangeOrderReviewModal: React.FC<ChangeOrderReviewModalProps> = ({ 
     const [notes, setNotes] = useState('');
     const [saving, setSaving] = useState(false);
     const [pendingAction, setPendingAction] = useState<PendingQuotationAction | null>(null);
+    const foundationHook = useFoundations();
+    const minMarkup = Number(foundationHook?.config?.min_markup_percent ?? DEFAULT_MIN_MARKUP);
     const onCloseRef = useRef(onClose);
     onCloseRef.current = onClose;
 
@@ -139,7 +143,7 @@ export const ChangeOrderReviewModal: React.FC<ChangeOrderReviewModalProps> = ({ 
                                 const item = itemsById.get(line.target_order_item_id as number);
                                 const priceEditable = editable && (line.change_type === 'ADD' || line.change_type === 'PRICE');
                                 const cost = Number(line.frozen_unit_cost || item?.frozen_unit_cost || 0);
-                                const margin = line.unit_price > 0 && cost > 0 ? (1 - cost / line.unit_price) * 100 : null;
+                                const margin = markupPercent(line.unit_price, cost, change.applied_commission_percent);
                                 return (
                                     <div key={`${line.change_type}-${index}`} className="border border-slate-200 rounded-lg p-3 space-y-2 bg-white">
                                         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -158,7 +162,7 @@ export const ChangeOrderReviewModal: React.FC<ChangeOrderReviewModalProps> = ({ 
                                                     <span className="text-sm text-slate-600">{money(line.unit_price)}</span>
                                                 )}
                                                 {margin !== null && (line.change_type === 'ADD' || line.change_type === 'PRICE') && (
-                                                    <span className={`text-xs font-bold ${margin < 20 ? 'text-rose-600' : 'text-emerald-700'}`}>Margen {margin.toFixed(1)}%</span>
+                                                    <span title="(precio sin comisión − costo) / costo" className={`text-xs font-bold ${isBelowMinimum(margin, minMarkup) ? 'text-rose-600' : 'text-emerald-700'}`}>Sobreprecio {formatPercent(margin)}</span>
                                                 )}
                                                 <span className={`text-sm font-black ${lineDelta(line) < 0 ? 'text-rose-600' : 'text-emerald-700'}`}>{money(lineDelta(line))} <span className="text-[10px] font-bold text-slate-400">sin IVA</span></span>
                                             </div>

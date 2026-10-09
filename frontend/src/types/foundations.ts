@@ -98,7 +98,8 @@ export interface GlobalConfig {
     id?: number;
     
     // --- VARIABLES DE NEGOCIO ---
-    target_profit_margin: number;
+    target_profit_margin: number; // Sobreprecio objetivo (fracción, 0.45)
+    min_markup_percent?: number; // Sobreprecio mínimo (%, 25); solo Dirección lo cambia
     cost_tolerance_percent: number;
     quote_validity_days: number;
     default_edgebanding_factor: number;
