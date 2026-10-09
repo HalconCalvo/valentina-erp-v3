@@ -2240,10 +2240,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                         <OrderChangesPanel
                             order={localOrder}
                             readOnly={readOnly}
-                            onChanged={async () => {
-                                await refreshOrderInPlace();
-                                onSuccess();
-                            }}
+                            onChanged={refreshOrderInPlace}
                         />
                     )}
 

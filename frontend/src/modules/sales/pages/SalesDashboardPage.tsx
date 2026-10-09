@@ -22,6 +22,7 @@ import {
 import { toast } from '@/components/ui/VToast';
 
 import { salesService } from '../../../api/sales-service';
+import { isCancelledOrder } from '../utils/orderStatus';
 import { SalesOrder } from '../../../types/sales';
 import client from '../../../api/axios-client';
 
@@ -1566,23 +1567,18 @@ const SalesDashboardPage: React.FC = () => {
                     order={rayosXOrder}
                     onSuccess={async () => {
                         const affectedId = rayosXOrder?.id;
-                        const cancelledId = rayosXOrder?.id;
-                        const wasWaiting = rayosXOrder?.status === 'WAITING_ADVANCE';
-                        if (cancelledId != null && wasWaiting) {
-                            setCancelledOvIds(prev => {
-                                const next = new Set(prev);
-                                next.add(cancelledId);
-                                return next;
-                            });
-                        }
                         setRayosXOrder(null);
                         await refetchOrders();
-                        // Refresco puntual de la OV afectada y mantenerla expandida
+                        // Refresco puntual de la OV afectada: solo sale del monitor si de verdad quedó cancelada
                         if (affectedId != null) {
                             try {
                                 const fresh = await salesService.getOrderDetail(affectedId);
-                                patchOrderInCache(affectedId, fresh as SalesOrder);
-                                setExpandedOrderId(affectedId);
+                                if (isCancelledOrder(fresh)) {
+                                    setCancelledOvIds(prev => new Set(prev).add(affectedId));
+                                } else {
+                                    patchOrderInCache(affectedId, fresh as SalesOrder);
+                                    setExpandedOrderId(affectedId);
+                                }
                             } catch {
                                 /* el listado ya se actualizó con refetchOrders */
                             }
