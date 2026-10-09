@@ -4027,3 +4027,101 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 
 ### Cómo retomar:
 - claude --continue
+
+---
+## SESIÓN 2026-10-08 — F2.5 Y F2.6 EN PRODUCCIÓN: COTIZACIÓN/OV Y ORDEN DE CAMBIO
+
+### En producción hoy:
+- F2.5 (separación Cotización / OV) probada en pantalla en local (COT-0080 → OV-0156) y subida; migración k1l2m3n4o5p6 aplicada en Render (80 OVs-cotización pasaron a cotizaciones)
+- Cierre de las rutas de partidas de OV que no verificaban rol ni vendedor dueño (3d860a4)
+- F2.6 Orden de cambio de OV completa, probada en pantalla de punta a punta (CAM-0156-1 y CAM-0156-2); migración l2m3n4o5p6q7 aplicada en Render
+- Commits: 3d860a4, 9619181, 4f42783, 0887aa3, 8cd96da, 87e65b6, 278fd26, 52687f8, 65b2cb9, e7f73dd
+
+### Decisiones F2.6:
+- Todo lo que mueve dinero (agregar partidas, cambiar cantidades, cambiar precios, cancelar partidas) pasa por orden de cambio CAM-<OV>-<n> autorizada por el Director ("OC" queda para orden de compra)
+- Descripción comercial editable directo, con motivo opcional y traza en bitácora
+- Autorizar y aplicar la orden de cambio en dos pasos
+- Varias facturas de anticipo por OV: si sube el anticipo requerido y ya se facturó, se emite anticipo complementario por la diferencia
+- Notas de crédito a clientes: se emiten en Compaq y se capturan en Valentina; si el total queda por debajo de lo facturado no se bloquea, se captura la NC ligada a la OV, la orden de cambio y la factura
+- Permitida en Esperando anticipo, Vendida y Finalizada mientras haya unidades sin firma de conformidad
+- Las unidades nuevas de una orden de cambio esperan su anticipo complementario para entrar a producción; las originales siguen su curso
+- NC sin factura con saldo queda como saldo a favor, aplicable a la siguiente factura
+- OV complementaria (cotización nueva ligada a la OV original) como alternativa a la orden de cambio
+- Las NC las capturan DIRECTOR, MANAGER y ADMIN
+- Una orden de cambio abierta a la vez por OV
+- Cantidad en "Más unidades" / "Cancelar unidades" = cantidad final de la partida
+- Nada se borra: partidas y unidades se cancelan con motivo; material en producción regresa al almacén o va a merma según decida el Director
+
+### CLAUDE.md:
+- Regla de acciones en todo el sistema: solo ícono (con title) para acciones universales (ver, editar, PDF); botón con texto para acciones de flujo o irreversibles (autorizar, aplicar, generar OV, cancelar). Las tablas existentes se ajustan conforme se toquen
+- Regla de pruebas: si un test falla se investiga la causa, nunca se relaja; toda funcionalidad nueva se verifica también en pantalla
+
+### Errores corregidos durante la prueba:
+1. Lista de OVs sin ruta (se borró el decorador al quitar el recálculo viejo) → Monitor Operativo no cargaba
+2. Botones de orden de cambio ocultos porque Ventas abre Rayos X en modo solo lectura
+3. "Más unidades" se interpretaba como incremento en vez de cantidad final
+4. Etiquetas de IVA incoherentes; el resumen ahora toma la tasa de la OV
+5. La OV desaparecía del Monitor al guardar una orden de cambio (se trataba como cancelación)
+6. Instancias canceladas visibles en Bautizo y otras listas de asignación, producción y planeación
+
+### Inventario de septiembre:
+- Sesión #2 en producción con corte al 30/09/2026, en captura
+- Capturar las recepciones de septiembre faltantes ANTES de aprobar; aprueba el Director
+
+### Siguiente paso:
+1. F3: corrección de recetas y precios al autorizar + seguridad
+2. F4: cobertura total de la bitácora
+
+### Pendientes nuevos:
+1. Radar de Vigencia cuenta de más (66 de 84)
+2. Subtítulo "Desglose detallado de Cobranza" en listas de cotizaciones
+3. La lista de OVs devuelve el objeto completo del vendedor (posible hash de contraseña) — corregir en F3
+4. "Finalizada" en la OV significa saldo cero, no obra terminada
+5. Catálogo para el arranque: 177 materiales sin proveedor y 77 sin unidad de compra
+6. Rayos X: el valor por unidad al facturar se calcula como precio unitario / cantidad (parece error previo)
+7. PDF de orden de cambio no existe (bloqueado para no imprimir diferencias como partidas)
+8. Copia local: el detalle de autorizaciones F2.5 de cotizaciones se perdió por un downgrade accidental; CAM-0156-1 guardó la cantidad con la regla vieja (solo dato de prueba)
+
+### Decisiones a validar (siguen abiertas):
+- PLAN 1: solo DIRECTOR mueve lotes en el Kanban (comportamiento existente); DEAD manual rechazado; reporte de valuación solo DIRECTOR/MANAGER/ADMIN
+- PLAN 2: ajustes por conteo pueden dejar stock negativo; estado REABIERTA impide iniciar otra sesión; sesiones sin fecha de corte deben cancelarse
+
+### Hallazgos pendientes (de sesiones anteriores):
+1. Borrar instancia desde el estado de cuenta la elimina físicamente — RESUELTO en F2.6 (ruta retirada; se cancela por orden de cambio)
+2. Devoluciones por NC e /inventory/reception no convierten la cantidad de millar a pieza
+3. Borrar un lote en borrador lo elimina físicamente
+4. Kanban: fetch directo (vista previa de herrajes y PDF) y detalle de lote con div fijo en vez de Modal
+5. Kárdex histórico (antes de PLAN 1) con costo por millar en materiales con factor ≠ 1 (ej. 0502-002); se limpia en el arranque
+
+### Detalles visuales pendientes:
+1. Montos negativos se ven como "$-60.00" en vez de "-$60.00"
+2. Filtro Desde/Hasta del kárdex
+3. Subtotal positivo en salidas del kárdex
+
+### Pendientes para el arranque (sin cambio):
+1. Crear tasa "Exento" 0% activa
+2. Clientes y usuario vendedor con el nombre exacto del Excel
+3. Contabilidad: folios de ZENARA (filas 15 y 16), abono de 2025 en ZENARA, fecha futura en HABITARE OT 100, anticipo de GALERÍAS PH 71, facturas de SPCH OC 58 2 y OC 65
+
+### Pendientes técnicos menores:
+1. Redondeo al editar retenciones en el estado de cuenta (recalcula el monto desde el %)
+2. CLAUDE_FULL.md desactualizado (sección "ROL DE CURSOR")
+3. console.error en frontend/src/api/sales-service.ts — corregido y en producción
+4. Imports dentro de funciones en backend/app/api/v1/endpoints/sales.py — corregidos y en producción
+5. 176 errores de tipos preexistentes en frontend (el build no corre tsc)
+
+### Pendientes generales:
+1. PWA Campo — probar con instalador real
+2. Heartbeat 404 — bug menor
+3. Inventario físico — en producción; sesión de septiembre en captura
+4. Arranque en ceros
+5. Control de Déficit y Mermas — post-arranque
+
+### Entorno local (sin cambio):
+- PostgreSQL 16 en puerto 5433 se enciende a mano tras reiniciar la Mac (ver sesión 2026-10-06)
+- Conexión local en ~/.pgurl_valentina_local; ~/.pgurl_valentina es PRODUCCIÓN
+- Para probar la UI contra la copia local: VITE_API_URL=http://localhost:8000/api/v1 npx vite --port 3000 (el Vite de 5173 apunta a producción)
+- El backend local con --reload crea tablas nuevas al recargar (create_all); antes de migrar la copia local revisar alembic current
+
+### Cómo retomar:
+- claude --continue
