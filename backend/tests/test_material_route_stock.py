@@ -148,6 +148,8 @@ def test_only_material_is_counted_valued_and_received(client_fixture, env):
 def test_material_edit_does_not_change_the_route(client_fixture, env):
     body = {"sku": env.tape.sku, "name": env.tape.name, "category": "Insumos", "production_route": "CONSUMIBLE",
             "purchase_unit": "Pz", "usage_unit": "Pz"}
-    assert client_fixture.put(f"{FOUNDATIONS}/materials/{env.tape.id}", json=body).status_code == 409
+    token = create_access_token(subject=env.director.email, user_id=env.director.id, user_role="DIRECTOR")
+    auth = {"Authorization": f"Bearer {token}"}
+    assert client_fixture.put(f"{FOUNDATIONS}/materials/{env.tape.id}", headers=auth, json=body).status_code == 409
     body["production_route"] = "MATERIAL"
-    assert client_fixture.put(f"{FOUNDATIONS}/materials/{env.tape.id}", json=body).status_code == 200
+    assert client_fixture.put(f"{FOUNDATIONS}/materials/{env.tape.id}", headers=auth, json=body).status_code == 200
