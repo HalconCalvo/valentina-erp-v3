@@ -4125,3 +4125,103 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 
 ### Cómo retomar:
 - claude --continue
+
+---
+## SESIÓN 2026-10-09 (parte 1) — F3, MÁRGENES, COMISIÓN E INVENTARIABLE
+
+### En producción hoy:
+- Marca "inventariable" por material (62822a7, 43a3c2c); migración p5q6r7s8t9u0 aplicada en Render
+  - Solo MATERIAL es inventariable; PROCESO (maquila e instalación), CONSUMIBLE y SERVICIO no
+  - No inventariables: no entran al conteo ni a la lista impresa, no suben existencia al recibirse (van a gasto), no se reservan en producción, fuera de valuación, negativos, existencias bajas y requisiciones automáticas
+  - Cambiar a "no" con existencia: motivo obligatorio; solo DIRECTOR/MANAGER (es la aprobación); la existencia se manda a gasto (movimiento "Enviado a gasto") y la línea sale de la sesión de inventario abierta sin diferencia, con fecha del corte
+  - Papel higiénico, Aguarrás y Thinner (consumibles con existencia) quedaron "sí" hasta marcarlos desde la app
+
+### Sin push (4 commits locales sobre producción):
+- 8085efb F3: corrección de recetas y precios al autorizar + seguridad (migración m3n4o5p6q7r8)
+- 4693cda Definición única de márgenes (migración n4o5p6q7r8s9)
+- 0759c48 Comisión = c × venta sin IVA en todo el sistema
+- 91f2e6d Ajuste de test (editar material exige sesión)
+- Pendiente: prueba en pantalla en local antes del push
+- Al hacer push, n4o5p6q7r8s9 recalcula en producción el sobreprecio y la comisión guardada de cotizaciones y OVs (no cambia precios)
+
+### Decisiones:
+- Sobreprecio % = (precio × (1 − c) − costo) / costo: para fijar precio
+- Margen neto % sobre venta (después de comisión) = (precio sin IVA − costo − comisión) / precio sin IVA: para análisis y comparativas
+- Sobreprecio mínimo 25%, configurable (solo DIRECTOR); se marca en rojo sin bloquear
+- Comisión = c × venta sin IVA (igual que el pago real); precio = costo × (1 + sobreprecio) ÷ (1 − c)
+- F3: corrección de receta crea versión nueva (la anterior OBSOLETE e intacta); solo DIRECTOR corrige; precio de venta se conserva; receta usada por OV o cotización en revisión/autorizada/convertida queda bloqueada (se clona); costo de receta exacto (sin redondear hacia arriba); endpoints de Fundamentos y recepción exigen sesión y rol
+- No inventariables: papel higiénico, cinta canela, pega azulejo, aguarrás, thinner (consumibles) y recolección de basura (servicio)
+
+### PROPUESTA EN REVISIÓN (no implementar hasta que Gabriel la apruebe):
+- Quitar la marca "inventariable" separada y que la ruta de producción decida (solo MATERIAL lleva existencia)
+- Al cambiar la ruta de un material con existencia: diálogo que la manda a gasto con motivo y fecha
+
+### Inventario de septiembre (sesión #2, producción):
+- Faltan 50 por capturar: 6 no inventariables por resolver (marcarlos desde Materiales; su existencia, $15,855.15, va a gasto con fecha 30/09) y 46 materiales físicos que la contadora debe capturar
+- Excel de faltantes: ~/Downloads/inventario_sesion2_faltantes_corte_2026-09-30.xlsx
+- Contexto: la existencia teórica no es confiable porque hasta el 6/oct no se descontaban consumos; este conteo es el punto de partida real
+- Aprueba el Director
+
+### Siguiente paso:
+1. Resolver la sesión #2 (6 no inventariables + 46 capturas) y aprobar
+2. Decidir la propuesta de ruta vs marca inventariable
+3. Probar F3 en pantalla en local y autorizar push
+4. F4: cobertura total de la bitácora
+
+### Pendientes nuevos:
+1. Borrar los dos respaldos más viejos de ~/valentina_local/dumps (quedan tres del 9/oct con datos reales)
+2. RecipeViewerModal no lo abre ninguna pantalla (código muerto)
+3. 20 OVs sin costo en sus partidas (probablemente importadas): su sobreprecio no se puede calcular
+4. Lecturas de clientes, proveedores, tasas y materiales exigen sesión con la F3 (revisar integraciones externas si las hay)
+
+### Pendientes anteriores:
+1. Radar de Vigencia cuenta de más — corregido en F3 (pendiente de push)
+2. Subtítulo "Desglose detallado de Cobranza" en listas de cotizaciones — corregido en F3 (pendiente de push)
+3. Lista de OVs devuelve el objeto completo del vendedor — corregido en F3 (pendiente de push)
+4. "Finalizada" en la OV significa saldo cero, no obra terminada
+5. Catálogo para el arranque: 177 materiales sin proveedor y 77 sin unidad de compra
+6. Rayos X: el valor por unidad al facturar se calcula como precio unitario / cantidad (parece error previo)
+7. PDF de orden de cambio no existe
+8. Importación de materiales por CSV guardaba costo por unidad de uso — corregido en F3 (pendiente de push)
+
+### Decisiones a validar (siguen abiertas):
+- PLAN 1: solo DIRECTOR mueve lotes en el Kanban (comportamiento existente); DEAD manual rechazado; reporte de valuación solo DIRECTOR/MANAGER/ADMIN
+- PLAN 2: ajustes por conteo pueden dejar stock negativo; estado REABIERTA impide iniciar otra sesión; sesiones sin fecha de corte deben cancelarse
+
+### Hallazgos pendientes (de sesiones anteriores):
+1. Devoluciones por NC e /inventory/reception no convierten la cantidad de millar a pieza
+2. Borrar un lote en borrador lo elimina físicamente
+3. Kanban: fetch directo (vista previa de herrajes y PDF) y detalle de lote con div fijo en vez de Modal
+4. Kárdex histórico (antes de PLAN 1) con costo por millar en materiales con factor ≠ 1 (ej. 0502-002); se limpia en el arranque
+
+### Detalles visuales pendientes:
+1. Montos negativos se ven como "$-60.00" en vez de "-$60.00"
+2. Filtro Desde/Hasta del kárdex
+3. Subtotal positivo en salidas del kárdex
+
+### Pendientes para el arranque (sin cambio):
+1. Crear tasa "Exento" 0% activa
+2. Clientes y usuario vendedor con el nombre exacto del Excel
+3. Contabilidad: folios de ZENARA (filas 15 y 16), abono de 2025 en ZENARA, fecha futura en HABITARE OT 100, anticipo de GALERÍAS PH 71, facturas de SPCH OC 58 2 y OC 65
+
+### Pendientes técnicos menores:
+1. Redondeo al editar retenciones en el estado de cuenta (recalcula el monto desde el %)
+2. CLAUDE_FULL.md desactualizado (sección "ROL DE CURSOR")
+3. 173 errores de tipos preexistentes en frontend con la F3 (176 en producción; el build no corre tsc)
+
+### Pendientes generales:
+1. PWA Campo — probar con instalador real
+2. Heartbeat 404 — bug menor
+3. Inventario físico — en producción; sesión de septiembre en captura
+4. Arranque en ceros
+5. Control de Déficit y Mermas — post-arranque
+
+### Entorno local:
+- PostgreSQL 16 en puerto 5433 se enciende a mano tras reiniciar la Mac (ver sesión 2026-10-06)
+- Conexión local en ~/.pgurl_valentina_local; ~/.pgurl_valentina es PRODUCCIÓN
+- Copia local rehecha hoy desde producción (13:48) con la F3 aplicada encima (n4o5p6q7r8s9)
+- Backend local (8000) y Vite (3000) contra la copia local: backend/scripts/run_local.sh y VITE_API_URL=http://localhost:8000/api/v1 npx vite --port 3000 (el Vite de 5173 apunta a producción)
+- Antes de migrar la copia local revisar alembic current (el backend con --reload crea tablas nuevas)
+
+### Cómo retomar:
+- claude --continue
