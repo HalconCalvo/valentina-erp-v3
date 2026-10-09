@@ -39,10 +39,12 @@
 | `div fixed` manual | `Modal` de `@/components/ui/Modal` |
 | Estado vacío ad-hoc | `VEmptyState` de `@/components/ui/VEmptyState` |
 
-### Botones de acción en tablas:
-Los botones de acción dentro de columnas de tablas (editar, cancelar,
-eliminar, ver) usan solo ícono — nunca texto. El tooltip (title)
-describe la acción al pasar el cursor.
+### Botones de acción (todo el sistema):
+- Acciones universales (ver, editar, descargar PDF): solo ícono, con
+  descripción al pasar el cursor (title).
+- Acciones de flujo o irreversibles (autorizar, aplicar, generar OV,
+  cancelar): botón con texto.
+- Las tablas existentes se ajustan conforme se toquen.
 
 ### Prohibido absolutamente:
 - `console.log`, `console.error`, `console.warn`
@@ -157,6 +159,7 @@ Si algún punto falla, lo corrige antes de reportar.
 - [ ] Listas vacías usan `VEmptyState`
 - [ ] Botones deshabilitados mientras procesan
 - [ ] Máximo 3 clics para llegar a cualquier acción
+- [ ] Acciones universales solo con ícono y title; acciones de flujo o irreversibles con texto
 
 ### Backend:
 - [ ] Cero lógica de negocio en endpoints
@@ -166,6 +169,10 @@ Si algún punto falla, lo corrige antes de reportar.
 - [ ] Operaciones financieras verifican rol (403 si no cumple)
 - [ ] Cancelaciones usan flag, no DELETE
 - [ ] Todo cambio de modelo tiene migración Alembic
+
+### Pruebas:
+- Si un test falla, se investiga la causa; nunca se relaja el test para que pase.
+- Toda funcionalidad nueva se verifica también en pantalla, no solo por API.
 
 ---
 

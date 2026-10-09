@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarClock, CheckCircle, FilePlus2, Link2, Pencil, Plus, Send, XCircle } from 'lucide-react';
+import { CalendarClock, CheckCircle, FilePlus2, Link2, Plus, Send, XCircle } from 'lucide-react';
+import { TableActionEditIcon } from '@/lib/tableActionIcons';
 
 import Modal from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
@@ -135,7 +136,7 @@ export const OrderChangesPanel: React.FC<OrderChangesPanelProps> = ({ order, onC
         }
     };
 
-    // Change order actions carry a visible label (Director's request; exception to icon-only table actions).
+    // Flow and irreversible actions show text (CLAUDE.md: action buttons).
     const labelled = (label: string, title: string, onClick: () => void, icon: React.ReactNode, tone: string) => (
         <button type="button" title={title} onClick={onClick}
             className={`flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] font-bold whitespace-nowrap transition-colors ${tone}`}>
@@ -167,8 +168,10 @@ export const OrderChangesPanel: React.FC<OrderChangesPanelProps> = ({ order, onC
                 <div className="flex flex-wrap items-center gap-1.5">
                     {manage && ['DRAFT', 'CHANGES_REQUESTED'].includes(c.status) && (
                         <>
-                            {labelled('Editar', 'Editar la orden de cambio', () => setEditing({ change: c }),
-                                <Pencil size={12} />, 'border-slate-200 text-slate-600 hover:bg-slate-50')}
+                            <button type="button" title="Editar la orden de cambio" aria-label="Editar la orden de cambio"
+                                onClick={() => setEditing({ change: c })} className="group p-1.5 rounded transition-colors hover:bg-indigo-50">
+                                <TableActionEditIcon />
+                            </button>
                             {labelled('Solicitar autorización', 'Enviar a Dirección para autorizar', () => setPendingAction({ kind: 'REQUEST_AUTH', quotation: c }),
                                 <Send size={12} />, 'border-amber-200 text-amber-700 hover:bg-amber-50')}
                         </>

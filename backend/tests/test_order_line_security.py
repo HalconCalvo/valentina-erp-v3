@@ -44,7 +44,7 @@ def test_direct_line_routes_are_retired(client_fixture, auth_header_director, se
         kwargs = {"headers": auth_header_director}
         if body is not None:
             kwargs["json"] = body
-        assert getattr(client_fixture, method)(url, **kwargs).status_code in (404, 405), url
+        assert getattr(client_fixture, method)(url, **kwargs).status_code == 404, url
 
 
 def test_instance_patch_cannot_cancel_or_move_units(client_fixture, session_fixture, auth_header_director,

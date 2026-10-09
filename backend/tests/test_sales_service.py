@@ -35,10 +35,10 @@ def test_retired_order_endpoints(client_fixture, auth_header_director, seed_clie
     client, tax = seed_client_and_tax
     order = _create_order(client_fixture, auth_header_director, client.id, tax.id)
     base = f"{settings.API_V1_STR}/sales/orders"
-    assert client_fixture.post(base, headers=auth_header_director, json={}).status_code in (404, 405)
+    assert client_fixture.post(base, headers=auth_header_director, json={}).status_code == 405
     for action in ("request-auth", "authorize", "mark_waiting_advance", "request_changes", "mark_lost", "reject"):
         assert client_fixture.post(f"{base}/{order['id']}/{action}", headers=auth_header_director).status_code == 404
-    assert client_fixture.delete(f"{base}/{order['id']}", headers=auth_header_director).status_code in (404, 405)
+    assert client_fixture.delete(f"{base}/{order['id']}", headers=auth_header_director).status_code == 405
 
 
 def test_cancel_ov_without_payments(client_fixture, auth_header_director, seed_client_and_tax):
