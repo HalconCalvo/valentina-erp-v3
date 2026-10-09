@@ -158,7 +158,8 @@ export const OrderChangesPanel: React.FC<OrderChangesPanelProps> = ({ order, onC
                 </div>
             ),
         },
-        { key: 'total_price', label: 'Cambio (con IVA)', render: (c) => <span className={`font-bold ${c.total_price < 0 ? 'text-rose-600' : 'text-emerald-700'}`}>{money(c.total_price)}</span> },
+        { key: 'subtotal', label: 'Cambio sin IVA', render: (c) => <span className={`font-bold ${c.subtotal < 0 ? 'text-rose-600' : 'text-emerald-700'}`}>{money(c.subtotal)}</span> },
+        { key: 'total_price', label: 'Cambio con IVA', render: (c) => <span className={`font-bold ${c.total_price < 0 ? 'text-rose-600' : 'text-emerald-700'}`}>{money(c.total_price)}</span> },
         {
             key: 'actions', label: 'Acciones', render: (c) => (
                 <div className="flex items-center gap-1">
@@ -184,7 +185,7 @@ export const OrderChangesPanel: React.FC<OrderChangesPanelProps> = ({ order, onC
     const noteColumns: VTableColumn<CustomerCreditNote>[] = [
         { key: 'folio', label: 'Folio', render: (n) => <span className={`font-mono font-bold ${n.status === 'CANCELLED' ? 'line-through text-slate-400' : ''}`}>{n.folio}</span> },
         { key: 'note_date', label: 'Fecha', render: (n) => n.note_date?.slice(0, 10) },
-        { key: 'amount', label: 'Monto', render: (n) => money(n.amount) },
+        { key: 'amount', label: 'Monto con IVA', render: (n) => money(n.amount) },
         { key: 'customer_payment_id', label: 'Factura', render: (n) => n.customer_payment_id ? (invoices.find((i) => i.value === String(n.customer_payment_id))?.label ?? `#${n.customer_payment_id}`) : 'Saldo a favor' },
         { key: 'reason', label: 'Motivo', render: (n) => <span className="text-xs" title={n.cancel_reason ?? n.reason}>{n.status === 'CANCELLED' ? `Cancelada: ${n.cancel_reason}` : n.reason}</span> },
         {
@@ -237,7 +238,7 @@ export const OrderChangesPanel: React.FC<OrderChangesPanelProps> = ({ order, onC
             <div className="p-4 space-y-3">
                 {summary?.complementary_advances.map((adv) => (
                     <div key={adv.change_quotation_id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-800">
-                        <span><b>Anticipo complementario por {money(adv.amount - adv.invoiced)}</b> ({adv.folio}; facturado {money(adv.invoiced)}, cobrado {money(adv.paid)}). Las unidades nuevas no entran a producción hasta pagarlo.</span>
+                        <span><b>Anticipo complementario por {money(adv.amount - adv.invoiced)} con IVA</b> ({adv.folio}; facturado {money(adv.invoiced)}, cobrado {money(adv.paid)}). Las unidades nuevas no entran a producción hasta pagarlo.</span>
                         {isFinance && !readOnly && adv.amount - adv.invoiced > 0.01 && (
                             <button type="button" onClick={() => openDialog({ kind: 'ADVANCE', changeId: adv.change_quotation_id, folio: adv.folio, amount: Number((adv.amount - adv.invoiced).toFixed(2)) })}
                                 className="px-3 py-1 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg">Registrar factura</button>
@@ -246,7 +247,7 @@ export const OrderChangesPanel: React.FC<OrderChangesPanelProps> = ({ order, onC
                 ))}
                 {summary && summary.credit_note_pending > 0.01 && (
                     <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-rose-300 bg-rose-50 px-4 py-2 text-sm text-rose-800">
-                        <span><b>Nota de crédito por capturar: {money(summary.credit_note_pending)}</b>. Lo facturado supera el total nuevo de la OV; emítela en Compaq y captúrala aquí.</span>
+                        <span><b>Nota de crédito por capturar: {money(summary.credit_note_pending)} con IVA</b>. Lo facturado supera el total nuevo de la OV; emítela en Compaq y captúrala aquí.</span>
                         {isFinance && !readOnly && (
                             <button type="button" onClick={() => openDialog({ kind: 'CREDIT_NOTE', amount: summary.credit_note_pending })}
                                 className="px-3 py-1 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg">Capturar nota de crédito</button>
@@ -255,7 +256,7 @@ export const OrderChangesPanel: React.FC<OrderChangesPanelProps> = ({ order, onC
                 )}
                 {summary && summary.unapplied_credit > 0.01 && (
                     <div className="rounded-lg border border-sky-300 bg-sky-50 px-4 py-2 text-sm text-sky-800">
-                        <b>Saldo a favor del cliente: {money(summary.unapplied_credit)}</b>. Aplícalo a su siguiente factura.
+                        <b>Saldo a favor del cliente: {money(summary.unapplied_credit)} con IVA</b>. Aplícalo a su siguiente factura.
                     </div>
                 )}
                 <VTable columns={columns} data={changes}
@@ -306,7 +307,7 @@ export const OrderChangesPanel: React.FC<OrderChangesPanelProps> = ({ order, onC
                         )}
                         {['ADVANCE', 'CREDIT_NOTE'].includes(dialog.kind) && (
                             <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Monto</label>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Monto con IVA</label>
                                 <Input type="number" step="0.01" min={0} className="text-right" value={form.amount}
                                     onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })} />
                             </div>

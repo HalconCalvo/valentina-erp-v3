@@ -39,22 +39,57 @@ const STATUS_LABELS: Record<string, string> = {
 const money = (value: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value || 0);
 
+/** Money summary of a change order. Line amounts are without tax; totals and advance include tax. */
+export const ChangeTotals: React.FC<{ order: SalesOrder; delta: number; advancePercent?: number }> = ({ order, delta, advancePercent }) => {
+    const subtotal = Number(order.subtotal || 0);
+    const taxRatio = subtotal > 0 ? Number(order.tax_amount || 0) / subtotal : 0;
+    const deltaTax = delta * taxRatio;
+    const newTotal = (subtotal + delta) * (1 + taxRatio);
+    const cell = (label: string, value: number, tone = 'text-slate-700') => (
+        <div><p className="text-[10px] font-bold text-slate-400 uppercase">{label}</p><p className={`font-black ${tone}`}>{money(value)}</p></div>
+    );
+    const signTone = delta < 0 ? 'text-rose-600' : 'text-emerald-700';
+    return (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+            {cell('Cambio sin IVA', delta, signTone)}
+            {cell('IVA del cambio', deltaTax, signTone)}
+            {cell('Cambio con IVA', delta + deltaTax, signTone)}
+            {cell('Total actual con IVA', Number(order.total_price || 0))}
+            {cell('Total nuevo con IVA', newTotal, 'text-indigo-700')}
+            {advancePercent !== undefined && cell(`Anticipo requerido ${advancePercent}% con IVA`, newTotal * advancePercent / 100)}
+        </div>
+    );
+};
+
 const activeUnits = (item: SalesOrderItem) => (item.instances ?? []).filter((u: any) => !u.is_cancelled);
 const isInvoiced = (unit: any) => Boolean(unit.customer_payment_id);
 const isCancellable = (unit: any) => !isInvoiced(unit) && !LOCKED_UNIT_STATUSES.includes(unit.production_status);
-const emptyOp = (item: SalesOrderItem): ItemOp => ({ type: 'NONE', quantity: 1, unitPrice: Number(item.unit_price) || 0, cancelIds: [], reason: '' });
+/** Quantity operations carry the NEW quantity of the line (production cancellations derive it from the units). */
+const defaultQuantity = (item: SalesOrderItem, type: LineOp) => {
+    const qty = Number(item.quantity) || 0;
+    if (type === 'QUANTITY_UP') return qty + 1;
+    if (type === 'QUANTITY_DOWN') return Math.max(qty - 1, 0);
+    return qty;
+};
+const emptyOp = (item: SalesOrderItem, type: LineOp = 'NONE'): ItemOp => ({
+    type, quantity: defaultQuantity(item, type), unitPrice: Number(item.unit_price) || 0, cancelIds: [], reason: '',
+});
 
-/** Money delta of one operation (same rule as the backend). */
+/** New quantity of the line after the operation. */
+function finalQuantity(item: SalesOrderItem, op: ItemOp): number {
+    const qty = Number(item.quantity) || 0;
+    if (op.type === 'QUANTITY_UP' || (op.type === 'QUANTITY_DOWN' && item.is_resale)) return op.quantity;
+    if (op.type === 'QUANTITY_DOWN') return qty - op.cancelIds.length;
+    if (op.type === 'CANCEL_LINE') return 0;
+    return qty;
+}
+
+/** Money delta of one operation, without tax (same rule as the backend). */
 function lineDelta(item: SalesOrderItem, op: ItemOp): number {
     const price = Number(item.unit_price) || 0;
     const qty = Number(item.quantity) || 0;
-    switch (op.type) {
-        case 'QUANTITY_UP': return op.quantity * price;
-        case 'QUANTITY_DOWN': return -(item.is_resale ? op.quantity : op.cancelIds.length) * price;
-        case 'PRICE': return qty * (op.unitPrice - price);
-        case 'CANCEL_LINE': return -qty * price;
-        default: return 0;
-    }
+    if (op.type === 'PRICE') return qty * (op.unitPrice - price);
+    return (finalQuantity(item, op) - qty) * price;
 }
 
 function opFromLine(item: SalesOrderItem, line: Quotation['items'][number]): ItemOp {
@@ -96,13 +131,10 @@ export const ChangeOrderModal: React.FC<ChangeOrderModalProps> = ({ isOpen, onCl
         setAdvancePercent(Number(change?.advance_percent ?? order.advance_percent ?? 60));
     }, [isOpen, change, items, order.advance_percent]);
 
-    const taxRatio = Number(order.subtotal) > 0 ? Number(order.tax_amount || 0) / Number(order.subtotal) : 0.16;
     const delta = useMemo(() => {
         const onLines = items.reduce((sum, item) => sum + lineDelta(item, ops[item.id as number] ?? emptyOp(item)), 0);
         return onLines + addLines.reduce((sum, l) => sum + l.quantity * l.unit_price, 0);
     }, [items, ops, addLines]);
-    const newSubtotal = Number(order.subtotal || 0) + delta;
-    const newTotal = newSubtotal * (1 + taxRatio);
 
     const setOp = (itemId: number, patch: Partial<ItemOp>) =>
         setOps((prev) => ({ ...prev, [itemId]: { ...prev[itemId], ...patch } }));
@@ -117,7 +149,7 @@ export const ChangeOrderModal: React.FC<ChangeOrderModalProps> = ({ isOpen, onCl
             const op = ops[item.id as number];
             if (!op || op.type === 'NONE') return [];
             return [{
-                change_type: op.type, target_order_item_id: item.id, quantity: op.quantity,
+                change_type: op.type, target_order_item_id: item.id, quantity: finalQuantity(item, op),
                 unit_price: op.type === 'PRICE' ? op.unitPrice : Number(item.unit_price) || 0,
                 cancel_instance_ids: op.type === 'QUANTITY_DOWN' && !item.is_resale ? op.cancelIds : [],
                 change_reason: op.reason.trim() || null,
@@ -154,13 +186,28 @@ export const ChangeOrderModal: React.FC<ChangeOrderModalProps> = ({ isOpen, onCl
             .map((t) => ({ value: t, label: t === 'NONE' ? 'Sin cambio' : CHANGE_TYPE_LABELS[t] }));
     };
 
+    const quantityChange = (item: SalesOrderItem, op: ItemOp, editable: boolean) => {
+        const current = Number(item.quantity) || 0;
+        const final = finalQuantity(item, op);
+        const diff = final - current;
+        return (
+            <div className="flex items-center gap-2 text-sm font-bold text-slate-600">
+                <span>Cantidad actual {current} →</span>
+                {editable ? (
+                    <Input type="number" min={0} className="w-24 text-right" value={op.quantity}
+                        onChange={(e) => setOp(item.id as number, { quantity: Number(e.target.value) })} />
+                ) : (
+                    <span className="text-slate-800">{final}</span>
+                )}
+                <span className={diff < 0 ? 'text-rose-600' : 'text-emerald-700'}>({diff > 0 ? '+' : ''}{diff})</span>
+            </div>
+        );
+    };
+
     const renderOpFields = (item: SalesOrderItem, op: ItemOp) => {
         const itemId = item.id as number;
         if (op.type === 'QUANTITY_UP' || (op.type === 'QUANTITY_DOWN' && item.is_resale)) {
-            return (
-                <Input type="number" min={1} className="w-28 text-right" value={op.quantity}
-                    onChange={(e) => setOp(itemId, { quantity: Number(e.target.value) })} />
-            );
+            return quantityChange(item, op, true);
         }
         if (op.type === 'PRICE') {
             return (
@@ -170,6 +217,8 @@ export const ChangeOrderModal: React.FC<ChangeOrderModalProps> = ({ isOpen, onCl
         }
         if (op.type === 'QUANTITY_DOWN') {
             return (
+                <div className="space-y-1.5">
+                {quantityChange(item, op, false)}
                 <div className="flex flex-wrap gap-1.5">
                     {activeUnits(item).map((unit: any) => {
                         const selected = op.cancelIds.includes(unit.id);
@@ -182,6 +231,7 @@ export const ChangeOrderModal: React.FC<ChangeOrderModalProps> = ({ isOpen, onCl
                             </button>
                         );
                     })}
+                </div>
                 </div>
             );
         }
@@ -219,11 +269,11 @@ export const ChangeOrderModal: React.FC<ChangeOrderModalProps> = ({ isOpen, onCl
                                         <div className="flex flex-wrap items-center justify-between gap-2">
                                             <div className="min-w-0">
                                                 <p className="text-sm font-black text-slate-700 truncate">{item.product_name}{item.is_resale ? ' (reventa)' : ''}</p>
-                                                <p className="text-[11px] text-slate-500">{item.quantity} × {money(Number(item.unit_price))} = {money(Number(item.quantity) * Number(item.unit_price))}</p>
+                                                <p className="text-[11px] text-slate-500">{item.quantity} × {money(Number(item.unit_price))} = {money(Number(item.quantity) * Number(item.unit_price))} sin IVA</p>
                                             </div>
                                             <div className="w-48">
                                                 <SearchableSelect items={opOptions(item)} value={op.type} getLabel={(o) => o.label} getValue={(o) => o.value}
-                                                    onChange={(v) => setOp(itemId, { ...emptyOp(item), type: (v || 'NONE') as LineOp })} />
+                                                    onChange={(v) => setOp(itemId, emptyOp(item, (v || 'NONE') as LineOp))} />
                                             </div>
                                         </div>
                                         {op.type !== 'NONE' && (
@@ -231,7 +281,7 @@ export const ChangeOrderModal: React.FC<ChangeOrderModalProps> = ({ isOpen, onCl
                                                 {renderOpFields(item, op)}
                                                 <Input className="flex-1 min-w-[12rem]" value={op.reason} placeholder="Motivo de esta partida (opcional)"
                                                     onChange={(e) => setOp(itemId, { reason: e.target.value })} />
-                                                <span className={`text-sm font-black ${itemDelta < 0 ? 'text-rose-600' : 'text-emerald-700'}`}>{money(itemDelta)}</span>
+                                                <span className={`text-sm font-black ${itemDelta < 0 ? 'text-rose-600' : 'text-emerald-700'}`} title="Cambio sin IVA">{money(itemDelta)} <span className="text-[10px] font-bold text-slate-400">sin IVA</span></span>
                                             </div>
                                         )}
                                     </div>
@@ -253,19 +303,14 @@ export const ChangeOrderModal: React.FC<ChangeOrderModalProps> = ({ isOpen, onCl
                                         <p className="text-sm font-bold text-slate-700 truncate">{line.product_name}</p>
                                         <p className="text-xs text-slate-500">{line.quantity} × {money(line.unit_price)}{line.commercial_description ? ` · ${line.commercial_description}` : ''}</p>
                                     </div>
-                                    <span className="text-sm font-black text-emerald-700">{money(line.quantity * line.unit_price)}</span>
+                                    <span className="text-sm font-black text-emerald-700">{money(line.quantity * line.unit_price)} <span className="text-[10px] font-bold text-slate-400">sin IVA</span></span>
                                     <button type="button" title="Quitar de la orden de cambio" onClick={() => setAddLines((prev) => prev.filter((_, i) => i !== index))}
                                         className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg"><Trash2 size={15} /></button>
                                 </div>
                             ))}
                         </div>
 
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
-                            <div><p className="text-[10px] font-bold text-slate-400 uppercase">Total actual</p><p className="font-black text-slate-700">{money(Number(order.total_price || 0))}</p></div>
-                            <div><p className="text-[10px] font-bold text-slate-400 uppercase">Cambio (sin IVA)</p><p className={`font-black ${delta < 0 ? 'text-rose-600' : 'text-emerald-700'}`}>{money(delta)}</p></div>
-                            <div><p className="text-[10px] font-bold text-slate-400 uppercase">Total nuevo</p><p className="font-black text-indigo-700">{money(newTotal)}</p></div>
-                            <div><p className="text-[10px] font-bold text-slate-400 uppercase">Anticipo requerido</p><p className="font-black text-slate-700">{money(newTotal * advancePercent / 100)}</p></div>
-                        </div>
+                        <ChangeTotals order={order} delta={delta} advancePercent={advancePercent} />
                     </div>
 
                     <div className="pt-4 mt-4 border-t border-slate-100 flex justify-end gap-3">

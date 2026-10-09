@@ -120,7 +120,7 @@ def test_change_order_adds_lines_and_units_and_recomputes(client_fixture, auth_h
     order = _order(client_fixture, auth_header_director, seed_client_and_tax)
     item_id = order["items"][0]["id"]
     balance_before = order["outstanding_balance"]
-    lines = [_add_line(), {"change_type": "QUANTITY_UP", "target_order_item_id": item_id, "quantity": 1}]
+    lines = [_add_line(), {"change_type": "QUANTITY_UP", "target_order_item_id": item_id, "quantity": 2}]
     change = _through_apply(client_fixture, auth_header_director, order["id"], lines)
 
     assert change["status"] == "APPLIED"
@@ -195,7 +195,7 @@ def test_quantity_down_cancels_unit_and_releases_reservations(client_fixture, se
     item_id = order["items"][0]["id"]
     client_fixture.post(f"{CHANGES}/", headers=auth_header_director, json={
         "sales_order_id": order["id"], "change_reason": "Más unidades",
-        "lines": [{"change_type": "QUANTITY_UP", "target_order_item_id": item_id, "quantity": 1}]})
+        "lines": [{"change_type": "QUANTITY_UP", "target_order_item_id": item_id, "quantity": 2}]})
     change_id = client_fixture.get(f"{CHANGES}/", headers=auth_header_director).json()[0]["id"]
     client_fixture.post(f"{QUOTATIONS}/{change_id}/cancel", headers=auth_header_director, json={"cancel_reason": "x"})
     unit_id = order["items"][0]["instances"][0]["id"]
@@ -442,3 +442,26 @@ def test_cancelled_units_leave_batches_and_baptism(client_fixture, session_fixtu
                                     headers=auth_header_director,
                                     json={"instances": [{"instance_id": unit_id, "custom_name": "Casa 1"}]})
     assert response.status_code == 400
+
+
+def test_quantity_operations_take_the_new_quantity(client_fixture, auth_header_director, seed_client_and_tax):
+    order = _order(client_fixture, auth_header_director, seed_client_and_tax)
+    item_id = order["items"][0]["id"]
+    same = [{"change_type": "QUANTITY_UP", "target_order_item_id": item_id, "quantity": 1}]
+    assert _create(client_fixture, auth_header_director, order["id"], same).status_code == 422
+
+    resale = {"change_type": "ADD", "product_name": "Parrilla", "quantity": 5, "unit_price": 1000.0, "is_resale": True}
+    lines = [{"change_type": "QUANTITY_UP", "target_order_item_id": item_id, "quantity": 3}, resale]
+    change = _through_apply(client_fixture, auth_header_director, order["id"], lines)
+    up = next(row for row in change["items"] if row["change_type"] == "QUANTITY_UP")
+    assert up["quantity"] == 3 and up["subtotal_price"] == 20000.0
+    after = _get_order(client_fixture, auth_header_director, order["id"])
+    item = next(i for i in after["items"] if i["id"] == item_id)
+    assert item["quantity"] == 3 and len([u for u in item["instances"] if not u["is_cancelled"]]) == 3
+
+    resale_id = next(i["id"] for i in after["items"] if i["is_resale"])
+    down = [{"change_type": "QUANTITY_DOWN", "target_order_item_id": resale_id, "quantity": 2}]
+    change = _through_apply(client_fixture, auth_header_director, order["id"], down)
+    assert change["items"][0]["quantity"] == 2 and change["items"][0]["subtotal_price"] == -3000.0
+    after = _get_order(client_fixture, auth_header_director, order["id"])
+    assert next(i for i in after["items"] if i["id"] == resale_id)["quantity"] == 2

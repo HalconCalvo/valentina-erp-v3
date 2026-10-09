@@ -163,8 +163,8 @@ class QuotationConvertRead(BaseModel):
 # ==========================================
 class ChangeOrderLine(BaseModel):
     """One operation of a change order.
-    ADD: new line (product_name, quantity, unit_price, ...). QUANTITY_UP: quantity = units to add.
-    QUANTITY_DOWN: production lines list the units in cancel_instance_ids; resale lines use quantity.
+    ADD: new line (product_name, quantity, unit_price, ...). QUANTITY_UP: quantity = NEW quantity of the line.
+    QUANTITY_DOWN: production lines list the units in cancel_instance_ids; resale lines give the NEW quantity.
     PRICE: unit_price = new price. CANCEL_LINE: the whole line."""
     change_type: ChangeType
     target_order_item_id: Optional[int] = None

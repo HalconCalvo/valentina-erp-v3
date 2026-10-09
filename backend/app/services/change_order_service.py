@@ -139,9 +139,11 @@ def _check_add(line: ChangeOrderLine) -> None:
 
 def _check_target(session: Session, item: SalesOrderItem, line: ChangeOrderLine, require_dispositions: bool) -> None:
     kind = line.change_type
+    current = float(item.quantity or 0)
     if kind == ChangeType.QUANTITY_UP:
-        if line.quantity <= 0 or (not item.is_resale and line.quantity != int(line.quantity)):
-            raise HTTPException(status_code=422, detail=f"Cantidad a agregar inválida en {item.product_name}.")
+        if line.quantity <= current or (not item.is_resale and line.quantity != int(line.quantity)):
+            raise HTTPException(status_code=422, detail=f"La cantidad nueva de {item.product_name} debe ser mayor "
+                                f"a la actual ({current:g}).")
     elif kind == ChangeType.PRICE:
         if line.unit_price < 0:
             raise HTTPException(status_code=422, detail="El precio no puede ser negativo.")
@@ -149,8 +151,9 @@ def _check_target(session: Session, item: SalesOrderItem, line: ChangeOrderLine,
             raise HTTPException(status_code=409, detail=f"{item.product_name} tiene unidades facturadas: no se cambia "
                                 "su precio. Cancela lo no facturado y agrega una partida con el precio nuevo.")
     elif item.is_resale:
-        if kind == ChangeType.QUANTITY_DOWN and not 0 < line.quantity < float(item.quantity or 0):
-            raise HTTPException(status_code=422, detail=f"Cantidad a cancelar inválida en {item.product_name}.")
+        if kind == ChangeType.QUANTITY_DOWN and not 0 < line.quantity < current:
+            raise HTTPException(status_code=422, detail=f"La cantidad nueva de {item.product_name} debe ser menor a la "
+                                f"actual ({current:g}) y mayor a cero; para quitarla toda cancela la partida.")
     else:
         _assert_cancellable(session, _units_to_cancel(item, line), line, require_dispositions)
 
@@ -176,16 +179,22 @@ def validate_lines(session: Session, order: SalesOrder, lines: List[ChangeOrderL
 # Storing the lines on the change order
 # ---------------------------------------------------------------------------
 
+def _final_quantity(item: SalesOrderItem, line: ChangeOrderLine) -> float:
+    """Quantity changes carry the NEW quantity of the line; production cancellations derive it from the units."""
+    if line.change_type == ChangeType.QUANTITY_DOWN and not item.is_resale:
+        return float(item.quantity or 0.0) - len(set(line.cancel_instance_ids))
+    return line.quantity
+
+
 def _line_values(item: Optional[SalesOrderItem], line: ChangeOrderLine) -> tuple[str, float, float, float]:
-    """(name, quantity, unit price, money delta) of an operation as shown on the change order."""
+    """(name, quantity, unit price, money delta without tax) of an operation as stored on the change order.
+    For quantity changes the stored quantity is the new quantity of the line."""
     if line.change_type == ChangeType.ADD:
         return line.product_name.strip(), line.quantity, line.unit_price, line.quantity * line.unit_price
     price, qty = float(item.unit_price or 0.0), float(item.quantity or 0.0)
-    if line.change_type == ChangeType.QUANTITY_UP:
-        return item.product_name, line.quantity, price, line.quantity * price
-    if line.change_type == ChangeType.QUANTITY_DOWN:
-        units = line.quantity if item.is_resale else len(set(line.cancel_instance_ids))
-        return item.product_name, units, price, -units * price
+    if line.change_type in (ChangeType.QUANTITY_UP, ChangeType.QUANTITY_DOWN):
+        final = _final_quantity(item, line)
+        return item.product_name, final, price, (final - qty) * price
     if line.change_type == ChangeType.PRICE:
         return item.product_name, qty, line.unit_price, qty * (line.unit_price - price)
     return item.product_name, qty, price, -qty * price
@@ -397,12 +406,12 @@ def _apply_on_line(session: Session, item: SalesOrderItem, line: ChangeOrderLine
     kind = line.change_type
     if kind == ChangeType.QUANTITY_UP:
         if not item.is_resale:
-            _add_units(session, item, int(line.quantity), change.id)
-        item.quantity = float(item.quantity or 0) + line.quantity
+            _add_units(session, item, int(line.quantity - float(item.quantity or 0)), change.id)
+        item.quantity = line.quantity
     elif kind == ChangeType.PRICE:
         item.unit_price = line.unit_price
     elif kind == ChangeType.QUANTITY_DOWN and item.is_resale:
-        item.quantity = float(item.quantity or 0) - line.quantity
+        item.quantity = line.quantity
     else:
         units = _units_to_cancel(item, line)
         for unit in units:

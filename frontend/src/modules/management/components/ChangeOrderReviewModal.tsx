@@ -10,6 +10,7 @@ import { getErrorMessage } from '../../../hooks/useQuotations';
 import type { SalesOrder } from '../../../types/sales';
 import type { ChangeOrderLine, Quotation } from '../../../types/quotations';
 import { QuotationActionDialogs, type PendingQuotationAction } from '../../sales/components/QuotationActions';
+import { ChangeTotals } from '../../sales/components/ChangeOrderModal';
 
 interface ChangeOrderReviewModalProps {
     changeId: number | null;
@@ -73,18 +74,29 @@ export const ChangeOrderReviewModal: React.FC<ChangeOrderReviewModalProps> = ({ 
         const item = itemsById.get(line.target_order_item_id as number);
         const price = Number(item?.unit_price ?? 0);
         const qty = Number(item?.quantity ?? 0);
+        // Quantity operations carry the NEW quantity of the line (stored that way by the backend).
         switch (line.change_type) {
             case 'ADD': return line.quantity * line.unit_price;
-            case 'QUANTITY_UP': return line.quantity * price;
-            case 'QUANTITY_DOWN': return -line.quantity * price;
+            case 'QUANTITY_UP':
+            case 'QUANTITY_DOWN': return (line.quantity - qty) * price;
             case 'PRICE': return qty * (line.unit_price - price);
             default: return -qty * price;
         }
     };
 
+    const lineDetail = (line: ChangeOrderLine) => {
+        const item = itemsById.get(line.target_order_item_id as number);
+        const current = Number(item?.quantity ?? 0);
+        if (line.change_type === 'QUANTITY_UP' || line.change_type === 'QUANTITY_DOWN') {
+            const diff = line.quantity - current;
+            return `Cantidad actual ${current} → nueva ${line.quantity} (${diff > 0 ? '+' : ''}${diff}) × ${money(Number(item?.unit_price ?? 0))}`;
+        }
+        if (line.change_type === 'PRICE') return `${current} × precio actual ${money(Number(item?.unit_price ?? 0))} → nuevo`;
+        if (line.change_type === 'CANCEL_LINE') return `Cantidad actual ${current} → 0`;
+        return `${line.quantity} × precio`;
+    };
+
     const delta = lines.reduce((sum, line) => sum + lineDelta(line), 0);
-    const taxRatio = Number(order?.subtotal) > 0 ? Number(order?.tax_amount || 0) / Number(order?.subtotal) : 0.16;
-    const newTotal = (Number(order?.subtotal || 0) + delta) * (1 + taxRatio);
 
     const patchLine = (index: number, patch: Partial<ChangeOrderLine>) =>
         setLines((prev) => prev.map((line, i) => (i === index ? { ...line, ...patch } : line)));
@@ -135,8 +147,7 @@ export const ChangeOrderReviewModal: React.FC<ChangeOrderReviewModalProps> = ({ 
                                                 <p className="text-[10px] font-black uppercase text-indigo-600">{CHANGE_TYPE_LABELS[line.change_type]}</p>
                                                 <p className="text-sm font-black text-slate-700 truncate">{line.product_name ?? item?.product_name}</p>
                                                 <p className="text-[11px] text-slate-500">
-                                                    {item ? `Actual: ${item.quantity} × ${money(Number(item.unit_price))} · ` : ''}
-                                                    Cantidad {line.quantity}{line.change_reason ? ` · ${line.change_reason}` : ''}
+                                                    {lineDetail(line)}{line.change_reason ? ` · ${line.change_reason}` : ''}
                                                 </p>
                                             </div>
                                             <div className="flex items-center gap-3">
@@ -149,7 +160,7 @@ export const ChangeOrderReviewModal: React.FC<ChangeOrderReviewModalProps> = ({ 
                                                 {margin !== null && (line.change_type === 'ADD' || line.change_type === 'PRICE') && (
                                                     <span className={`text-xs font-bold ${margin < 20 ? 'text-rose-600' : 'text-emerald-700'}`}>Margen {margin.toFixed(1)}%</span>
                                                 )}
-                                                <span className={`text-sm font-black ${lineDelta(line) < 0 ? 'text-rose-600' : 'text-emerald-700'}`}>{money(lineDelta(line))}</span>
+                                                <span className={`text-sm font-black ${lineDelta(line) < 0 ? 'text-rose-600' : 'text-emerald-700'}`}>{money(lineDelta(line))} <span className="text-[10px] font-bold text-slate-400">sin IVA</span></span>
                                             </div>
                                         </div>
                                         {unitsToCancel(line).filter((u: any) => IN_PRODUCTION.includes(u.production_status)).map((unit: any) => (
@@ -176,11 +187,7 @@ export const ChangeOrderReviewModal: React.FC<ChangeOrderReviewModalProps> = ({ 
                                     <Input value={notes} disabled={!editable} onChange={(e) => setNotes(e.target.value)} placeholder="Opcional" />
                                 </div>
                             </div>
-                            <div className="grid grid-cols-3 gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
-                                <div><p className="text-[10px] font-bold text-slate-400 uppercase">Total actual</p><p className="font-black">{money(Number(order.total_price || 0))}</p></div>
-                                <div><p className="text-[10px] font-bold text-slate-400 uppercase">Cambio (sin IVA)</p><p className={`font-black ${delta < 0 ? 'text-rose-600' : 'text-emerald-700'}`}>{money(delta)}</p></div>
-                                <div><p className="text-[10px] font-bold text-slate-400 uppercase">Total nuevo</p><p className="font-black text-indigo-700">{money(newTotal)}</p></div>
-                            </div>
+                            <ChangeTotals order={order} delta={delta} advancePercent={advancePercent} />
                         </div>
                         {editable && (
                             <div className="pt-4 mt-4 border-t border-slate-100 flex justify-between gap-3">
