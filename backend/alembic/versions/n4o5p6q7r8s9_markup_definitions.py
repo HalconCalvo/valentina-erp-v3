@@ -5,10 +5,12 @@ Revises: m3n4o5p6q7r8
 Create Date: 2026-10-09
 
 - global_config.min_markup_percent (default 25): lines below it are flagged in red.
+- Commission = c × sale price without tax (as really paid). Prices are NOT changed.
 - applied_margin_percent of quotations and sales orders held a fraction (0.45), a percent (45) or a markup
-  with the commission inside. It is recomputed from the active lines as sobreprecio % without commission:
-  (Σ qty × price / (1 + commission) − Σ qty × cost) / Σ qty × cost × 100. Without cost it is only normalized
-  to percent. The previous values are not kept (they had no consistent meaning).
+  with the commission inside. It is recomputed from the active lines as sobreprecio %:
+  (Σ qty × price × (1 − c) − Σ qty × cost) / Σ qty × cost × 100. Without cost it is only normalized to percent.
+- commission_amount is recomputed as c × subtotal (it was price − price / (1 + c)).
+The previous values are not kept (they had no consistent meaning).
 """
 import sqlalchemy as sa
 from alembic import op
@@ -34,11 +36,14 @@ def _recompute(conn, header: str, items: str, fk: str, cancelled: str) -> None:
         f"SELECT {fk}, SUM(quantity * unit_price), SUM(quantity * frozen_unit_cost) FROM {items} "
         f"WHERE {cancelled} = :no GROUP BY {fk}"), {"no": False}).fetchall()
     totals = {row[0]: (float(row[1] or 0), float(row[2] or 0)) for row in sums}
-    for row_id, margin, commission in conn.execute(sa.text(
-            f"SELECT id, applied_margin_percent, applied_commission_percent FROM {header}")).fetchall():
+    for row_id, margin, commission, subtotal in conn.execute(sa.text(
+            f"SELECT id, applied_margin_percent, applied_commission_percent, subtotal FROM {header}")).fetchall():
+        rate = _rate(commission)
+        conn.execute(sa.text(f"UPDATE {header} SET commission_amount = :c WHERE id = :id"),
+                     {"c": round(float(subtotal or 0) * rate, 6), "id": row_id})
         sales, cost = totals.get(row_id, (0.0, 0.0))
         if cost > 0:
-            value = round((sales / (1 + _rate(commission)) - cost) / cost * 100, 2)
+            value = round((sales * (1 - rate) - cost) / cost * 100, 2)
         elif 0 < float(margin or 0) <= 1:
             value = round(float(margin) * 100, 2)
         else:

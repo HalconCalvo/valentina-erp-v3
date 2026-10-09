@@ -1409,7 +1409,7 @@ def recalculate_order_totals(session: Session, order: SalesOrder) -> float:
     commission = order.applied_commission_percent or 0.0
     old_total = float(order.total_price or 0.0)
     order.subtotal = items_sum
-    order.commission_amount = items_sum - (items_sum / (1 + commission)) if commission > 0 else 0.0
+    order.commission_amount = margin_service.commission_amount(items_sum, commission)
     order.tax_amount = items_sum * (tax_rate.rate if tax_rate else 0.0)
     order.total_price = items_sum + order.tax_amount
     markup = margin_service.lines_markup_percent(sales_repo.get_active_items_by_order(session, order.id), commission)

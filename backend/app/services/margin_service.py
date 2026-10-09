@@ -1,7 +1,8 @@
 """The two margin figures used across the system.
 
-- Sobreprecio % (markup, sets the price) = (price without commission − cost) / cost,
-  price without commission = unit price / (1 + commission). Price = cost × (1 + markup) × (1 + commission).
+The seller earns commission = c × sale price without tax (same as the commission really paid).
+- Price = cost × (1 + markup) ÷ (1 − c); price without commission = price × (1 − c).
+- Sobreprecio % (markup, sets the price) = (price × (1 − c) − cost) / cost.
 - Margen neto % sobre venta (analysis, after commission) = (price without tax − cost − commission) / price without tax.
 Both are in percent. Prices never include tax here.
 """
@@ -17,8 +18,13 @@ def normalize_rate(rate: Optional[float]) -> float:
 def markup_percent(sales_without_tax: float, cost: float, commission_rate: Optional[float]) -> Optional[float]:
     if cost <= 0:
         return None
-    without_commission = float(sales_without_tax) / (1 + normalize_rate(commission_rate))
+    without_commission = float(sales_without_tax) * (1 - normalize_rate(commission_rate))
     return round((without_commission - cost) / cost * 100, 2)
+
+
+def commission_amount(sales_without_tax: float, commission_rate: Optional[float]) -> float:
+    """Seller commission: c × sale price without tax."""
+    return float(sales_without_tax or 0.0) * normalize_rate(commission_rate)
 
 
 def net_margin_percent(sales_without_tax: float, cost: float, commission: float) -> Optional[float]:

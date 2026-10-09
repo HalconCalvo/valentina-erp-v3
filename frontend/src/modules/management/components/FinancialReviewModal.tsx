@@ -17,7 +17,9 @@ import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 import axiosClient from '../../../api/axios-client';
 import { RecipeCorrectionPanel, type CatalogMaterial, type RecipeLine } from './RecipeCorrectionPanel';
-import { DEFAULT_MIN_MARKUP, formatPercent, isBelowMinimum, markupPercent, netMarginPercent } from '../../sales/utils/margins';
+import {
+    DEFAULT_MIN_MARKUP, formatPercent, includedCommission, isBelowMinimum, markupPercent, netMarginPercent, priceFromMarkup,
+} from '../../sales/utils/margins';
 
 interface FinancialReviewModalProps {
     /** Sales order: always read-only (prices are decided when the quotation is authorized). */
@@ -162,7 +164,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                 // primero le quitamos la comisión, luego derivamos el margen sobre el costo.
                 // Así el slider de margen arranca en el margen puro (ej. 40%), no mezclado (54%).
                 const commFraction = loadedCommission / 100; // loadedCommission ya está en %
-                const priceSinComision = price / (1 + commFraction);
+                const priceSinComision = price * (1 - commFraction);
                 const impliedMargin = cost > 0 ? ((priceSinComision / cost) - 1) * 100 : 40;
                 return Number(impliedMargin.toFixed(2)) || 0;
             });
@@ -250,7 +252,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
         const item = order.items[index];
         const cost = costOf(item, index);
         const commPercent = Number(commissionPercent) || 0;
-        const precioSinComision = precio / (1 + commPercent / 100);
+        const precioSinComision = precio * (1 - commPercent / 100);
         const nuevoMargen = cost > 0 ? ((precioSinComision / cost) - 1) * 100 : 0;
 
         const newMargins = [...itemMargins];
@@ -299,7 +301,6 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
             const commPercent = Number(commissionPercent) || 0;
 
             const marginMultiplier = 1 + (specificMargin / 100);
-            const commissionMultiplier = 1 + (commPercent / 100);
 
             // Precio base (sin comisión) solo como referencia visual.
             const baseUnitPrice = cost * marginMultiplier;
@@ -308,7 +309,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
             const override = itemPriceOverrides[index];
             const finalUnitPrice = (override != null && !isNaN(override))
                 ? override
-                : Number((cost * marginMultiplier * commissionMultiplier).toFixed(2));
+                : Number(priceFromMarkup(cost, specificMargin, commPercent).toFixed(2));
 
             // El subtotal suma el precio CON comisión incluida (no se vuelve a sumar aparte).
             sumOfItems += (finalUnitPrice * qty);
@@ -322,13 +323,10 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
             };
         });
 
-        // Regla de negocio: precio = costo × (1+margen) × (1+comisión). La comisión va
-        // DENTRO del precio (ya sumada en finalUnitPrice/sumOfItems). Aquí solo se EXTRAE
-        // de forma informativa; NO se vuelve a sumar (consistente con CreateQuotePage).
+        // Regla de negocio: precio = costo × (1 + sobreprecio) ÷ (1 − c); el vendedor cobra c × venta sin IVA.
+        // La comisión va DENTRO del precio; aquí solo se muestra (no se vuelve a sumar).
         const commPercent = Number(commissionPercent) || 0;
-        const commissionAmount = sumOfItems > 0
-            ? sumOfItems - (sumOfItems / (1 + commPercent / 100))
-            : 0;
+        const commissionAmount = includedCommission(sumOfItems, commPercent);
         const subtotal = sumOfItems; // la comisión NO se vuelve a sumar
         
         // Tasa REAL de la cotización desde el catálogo (rate es fracción: 0.16, 0, etc.).
@@ -433,7 +431,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
         const cost = Number(item.effectiveCost ?? costOf(item, index)) || 0;
         const price = Number(item.newUnitPrice) || 0;
         if (cost <= 0 || price <= 0) return Number(itemMargins[index]) || 0;
-        return Number(((price / (1 + (Number(commissionPercent) || 0) / 100) / cost - 1) * 100).toFixed(2));
+        return Number((markupPercent(price, cost, Number(commissionPercent) || 0) ?? 0).toFixed(2));
     };
 
     const handleAuthorize = async () => {
@@ -754,7 +752,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
 
                                 <div className={isReadOnly ? 'opacity-60' : ''}>
                                     <div className="flex justify-between items-center mb-1">
-                                        <label className="text-xs font-bold text-slate-600">Comisión Vendedor (incluida en precio)</label>
+                                        <label className="text-xs font-bold text-slate-600">Comisión vendedor (c × venta sin IVA, incluida en precio)</label>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <Input 

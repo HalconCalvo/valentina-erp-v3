@@ -18,24 +18,26 @@ def _headers(user: User) -> dict:
 
 
 def test_formulas():
-    assert margin_service.markup_percent(10500, 5000, 0.05) == 100.0
-    assert margin_service.markup_percent(10500, 5000, 5) == 100.0
+    price = 5000 * 2 / (1 - 0.05)  # cost × (1 + 100 %) ÷ (1 − c)
+    assert margin_service.markup_percent(price, 5000, 0.05) == 100.0
+    assert margin_service.markup_percent(price, 5000, 5) == 100.0
     assert margin_service.markup_percent(100, 0, 0.05) is None
-    assert margin_service.net_margin_percent(10500, 5000, 500) == round(5000 / 10500 * 100, 2)
+    assert margin_service.commission_amount(10000, 0.05) == 500.0
+    assert margin_service.net_margin_percent(10000, 5000, 500) == 45.0
     assert margin_service.net_margin_percent(0, 1, 0) is None
 
 
 def test_quotation_stores_real_markup_without_commission(client_fixture, auth_header_director, seed_client_and_tax):
     payload = quotation_payload(seed_client_and_tax[0].id, seed_client_and_tax[1].id,
-                                [{"product_name": "Cocina", "quantity": 2, "unit_price": 10500.0,
+                                [{"product_name": "Cocina", "quantity": 2, "unit_price": 10000.0,
                                   "cost_snapshot": {}, "frozen_unit_cost": 5000.0}])
     payload["applied_commission_percent"] = 5
     payload["applied_margin_percent"] = 0.45
     response = client_fixture.post(f"{QUOTATIONS}/", headers=auth_header_director, json=payload)
     assert response.status_code == 201, response.text
     quotation = response.json()
-    assert quotation["applied_margin_percent"] == 100.0
-    assert round(quotation["commission_amount"], 2) == 1000.0
+    assert quotation["applied_margin_percent"] == 90.0  # (10,000 × 0.95 − 5,000) / 5,000
+    assert round(quotation["commission_amount"], 2) == 1000.0  # 5 % of 20,000
 
 
 def test_profitability_is_after_commission_and_without_tax(client_fixture, session_fixture, auth_header_director,

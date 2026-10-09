@@ -103,9 +103,8 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
         let rate = order.applied_commission_percent || 0;
         if (rate > 1) rate = rate / 100; // Normalizar porcentaje
         
-        // Opción B: la comisión YA está incluida dentro de los precios de venta.
-        // Se EXTRAE de forma informativa, NO se vuelve a sumar (consistente con CreateQuotePage).
-        const commission = itemsSum > 0 ? itemsSum - (itemsSum / (1 + rate)) : 0;
+        // La comisión va dentro del precio de venta: c × venta sin IVA (informativa, no se vuelve a sumar)
+        const commission = itemsSum * rate;
         const subtotal = itemsSum; // la comisión NO se vuelve a sumar
         const total = order.total_price || 0;
         const iva = total - subtotal;

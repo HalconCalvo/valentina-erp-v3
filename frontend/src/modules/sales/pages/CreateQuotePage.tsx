@@ -22,7 +22,8 @@ import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 import { salesService } from '../../../api/sales-service';
 import {
-    DEFAULT_MIN_MARKUP, formatPercent, isBelowMinimum, markupAsPercent, markupPercent, netMarginPercent, priceFromMarkup,
+    DEFAULT_MIN_MARKUP, formatPercent, includedCommission, isBelowMinimum, markupAsPercent, markupPercent, netMarginPercent,
+    priceFromMarkup,
 } from '../utils/margins';
 import { SalesOrderItem } from '../../../types/sales';
 import { QuotationStatus } from '../../../types/quotations';
@@ -245,7 +246,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
     const itemsSum = useMemo(() => items.reduce((sum, i) => sum + (i.quantity * i.unit_price), 0), [items]);
     // El unit_price YA incluye la comisión (Costo × margen × comisión).
     // La comisión se extrae de forma informativa, NO se vuelve a sumar.
-    const commissionAmount = itemsSum > 0 ? itemsSum - (itemsSum / (1 + commissionRate)) : 0;
+    const commissionAmount = includedCommission(itemsSum, commissionRate);
     const finalSubtotal = itemsSum;
     const selectedTaxRate = taxRates.find(t => t.id === header.tax_rate_id);
     const taxAmount = selectedTaxRate ? finalSubtotal * selectedTaxRate.rate : 0;

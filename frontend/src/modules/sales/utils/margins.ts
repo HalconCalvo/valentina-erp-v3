@@ -1,7 +1,8 @@
 /**
  * The two margin figures used across the system (same rules as backend margin_service).
- * - Sobreprecio % (sets the price) = (price without commission − cost) / cost;
- *   price without commission = price / (1 + commission). Price = cost × (1 + markup) × (1 + commission).
+ * The seller earns commission = c × sale price without tax (same as the commission really paid).
+ * - Price = cost × (1 + markup) ÷ (1 − c); price without commission = price × (1 − c).
+ * - Sobreprecio % (sets the price) = (price × (1 − c) − cost) / cost.
  * - Margen neto % sobre venta (analysis, after commission) = (price without tax − cost − commission) / price without tax.
  * Percent values; prices never include tax; commission rate accepted as 0.05 or 5.
  */
@@ -15,13 +16,13 @@ export const normalizeRate = (rate?: number | null): number => {
 /** Sobreprecio %, or null when there is no cost. */
 export function markupPercent(salesWithoutTax: number, cost: number, commissionRate?: number | null): number | null {
     if (!(cost > 0)) return null;
-    const withoutCommission = salesWithoutTax / (1 + normalizeRate(commissionRate));
+    const withoutCommission = salesWithoutTax * (1 - normalizeRate(commissionRate));
     return ((withoutCommission - cost) / cost) * 100;
 }
 
-/** Commission included in a price (price = base × (1 + commission)). */
+/** Seller commission: c × sale price without tax. */
 export const includedCommission = (salesWithoutTax: number, commissionRate?: number | null): number =>
-    salesWithoutTax - salesWithoutTax / (1 + normalizeRate(commissionRate));
+    salesWithoutTax * normalizeRate(commissionRate);
 
 /** Margen neto % sobre venta (después de comisión), or null without sales. */
 export function netMarginPercent(salesWithoutTax: number, cost: number, commission: number): number | null {
@@ -29,9 +30,9 @@ export function netMarginPercent(salesWithoutTax: number, cost: number, commissi
     return ((salesWithoutTax - cost - commission) / salesWithoutTax) * 100;
 }
 
-/** Price that gives a markup (in percent) after adding the commission. */
+/** Price that gives a markup (in percent) once the commission (c × price) is paid: cost × (1 + markup) ÷ (1 − c). */
 export const priceFromMarkup = (cost: number, markup: number, commissionRate?: number | null): number =>
-    cost * (1 + (Number(markup) || 0) / 100) * (1 + normalizeRate(commissionRate));
+    (cost * (1 + (Number(markup) || 0) / 100)) / (1 - normalizeRate(commissionRate));
 
 /** Markup stored as 0.45 or 45 → 45. Config (target_profit_margin) is a fraction. */
 export const markupAsPercent = (value?: number | null): number => {

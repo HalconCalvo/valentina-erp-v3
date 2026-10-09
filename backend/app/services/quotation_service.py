@@ -184,7 +184,7 @@ def _apply_items_and_totals(session: Session, quotation: Quotation, items: List[
     session.flush()
     tax_rate = quotation_repo.get_tax_rate_by_id(session, quotation.tax_rate_id)
     commission = quotation.applied_commission_percent or 0.0
-    quotation.commission_amount = items_sum - (items_sum / (1 + commission)) if commission > 0 else 0.0
+    quotation.commission_amount = margin_service.commission_amount(items_sum, commission)
     quotation.subtotal = items_sum
     quotation.tax_amount = items_sum * (tax_rate.rate if tax_rate else 0.0)
     quotation.total_price = items_sum + quotation.tax_amount

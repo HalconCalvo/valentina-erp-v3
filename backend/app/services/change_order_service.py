@@ -38,7 +38,7 @@ from app.schemas.quotation_schema import (
     QuotationRead,
 )
 from app.schemas.sales_schema import SalesOrderItemCreate
-from app.services import production_inventory_service, quotation_service, sales_service
+from app.services import margin_service, production_inventory_service, quotation_service, sales_service
 from app.services.cost_engine import CostEngine
 
 _EDIT_ROLES = {"DIRECTOR", "MANAGER", "SALES"}
@@ -238,7 +238,7 @@ def _set_totals(session: Session, change: Quotation, delta_sum: float) -> None:
     tax_rate = quotation_repo.get_tax_rate_by_id(session, change.tax_rate_id)
     commission = change.applied_commission_percent or 0.0
     change.subtotal = round(delta_sum, 2)
-    change.commission_amount = delta_sum - (delta_sum / (1 + commission)) if commission > 0 else 0.0
+    change.commission_amount = margin_service.commission_amount(delta_sum, commission)
     change.tax_amount = round(delta_sum * (tax_rate.rate if tax_rate else 0.0), 2)
     change.total_price = round(change.subtotal + change.tax_amount, 2)
 
