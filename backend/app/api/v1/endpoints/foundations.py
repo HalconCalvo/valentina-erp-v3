@@ -694,8 +694,8 @@ def create_material(material: Material, session: Session = Depends(get_session))
         if material.name:
             material.name = material.name.strip()
         material.is_active = True
-        # Consumables and services start as non-inventoriable (expense)
-        material.is_inventoriable = str(material.production_route or "MATERIAL").upper() in ("MATERIAL", "PROCESO")
+        # Only MATERIAL starts inventoriable; PROCESO (maquila / installation), consumables and services go to expense
+        material.is_inventoriable = str(material.production_route or "MATERIAL").upper() == "MATERIAL"
         session.add(material)
         session.commit()
         session.refresh(material)

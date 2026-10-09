@@ -141,3 +141,26 @@ def test_new_consumables_start_as_non_inventoriable(client_fixture, env):
     assert created.status_code == 200 and created.json()["is_inventoriable"] is False
     put = client_fixture.put(f"{FOUNDATIONS}/materials/{created.json()['id']}", json={**body, "is_inventoriable": True})
     assert put.status_code == 200 and put.json()["is_inventoriable"] is False
+
+
+@pytest.mark.parametrize("route, expected", [("MATERIAL", True), ("PROCESO", False), ("CONSUMIBLE", False), ("SERVICIO", False)])
+def test_initial_value_by_route(client_fixture, env, route, expected):
+    token = create_access_token(subject=env.director.email, user_id=env.director.id, user_role="DIRECTOR")
+    body = {"sku": f"R-{route}", "name": route, "category": "Proceso", "production_route": route,
+            "purchase_unit": "Pz", "usage_unit": "Pz"}
+    created = client_fixture.post(f"{FOUNDATIONS}/materials", headers={"Authorization": f"Bearer {token}"}, json=body)
+    assert created.status_code == 200 and created.json()["is_inventoriable"] is expected
+
+
+def test_process_reception_does_not_raise_stock(client_fixture, env):
+    maquila = _material(env.s, "MAQUILA", route="PROCESO", inventoriable=False)
+    provider = Provider(business_name="Maquilador", rfc_tax_id="XAXX010101000")
+    env.s.add(provider)
+    env.s.commit()
+    token = create_access_token(subject=env.director.email, user_id=env.director.id, user_role="DIRECTOR")
+    response = client_fixture.post(f"{settings.API_V1_STR}/inventory/reception", headers={"Authorization": f"Bearer {token}"},
+                                   json={"provider_id": provider.id, "invoice_number": "F-M", "invoice_date": "2026-10-09T12:00:00",
+                                         "total_amount": 500, "items": [{"material_id": maquila.id, "quantity": 1, "line_total_cost": 500}]})
+    assert response.status_code == 200, response.text
+    env.s.refresh(maquila)
+    assert abs(maquila.physical_stock) < 1e-9

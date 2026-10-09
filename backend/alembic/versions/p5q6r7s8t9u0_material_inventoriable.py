@@ -4,8 +4,8 @@ Revision ID: p5q6r7s8t9u0
 Revises: l2m3n4o5p6q7
 Create Date: 2026-10-09
 
-- materials.is_inventoriable (default true). Initial value: yes for MATERIAL and PROCESO; no for CONSUMIBLE and
-  SERVICIO **without stock**. Materials with stock keep "yes" until marked "no" from the app, which sends their
+- materials.is_inventoriable (default true). Initial value: yes for MATERIAL; no for PROCESO (maquila and
+  installation services: cost in the recipe, no stock), CONSUMIBLE and SERVICIO **without stock**. Materials with stock keep "yes" until marked "no" from the app, which sends their
   stock to expense with a reason (it must not happen silently in a migration).
 - inventory_audit_items.excluded_at / excluded_reason / excluded_by_user_id.
 """
@@ -35,7 +35,8 @@ def upgrade() -> None:
             batch.add_column(sa.Column("excluded_by_user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=True))
     op.execute(
         "UPDATE materials SET is_inventoriable = false "
-        "WHERE CAST(production_route AS VARCHAR) IN ('CONSUMIBLE', 'SERVICIO') AND ABS(COALESCE(physical_stock, 0)) <= 0.0001"
+        "WHERE CAST(production_route AS VARCHAR) IN ('PROCESO', 'CONSUMIBLE', 'SERVICIO') "
+        "AND ABS(COALESCE(physical_stock, 0)) <= 0.0001"
     )
 
 
