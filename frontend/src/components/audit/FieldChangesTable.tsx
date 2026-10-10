@@ -1,3 +1,4 @@
+import { formatDateTime } from '@/utils/format';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import type { AuditFieldChange } from '@/api/audit-service';
 
@@ -44,15 +45,8 @@ const OPERATION_STYLES: Record<string, string> = {
   DELETE: 'bg-red-50 text-red-700 border-red-200',
 };
 
-/** The backend stores naive UTC; show it in business time (America/Merida). */
-export const formatChangeDate = (iso: string): string => {
-  const utc = /[zZ]|[+-]\d{2}:\d{2}$/.test(iso) ? iso : `${iso}Z`;
-  const date = new Date(utc);
-  if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleString('es-MX', {
-    timeZone: 'America/Merida', year: '2-digit', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
-  });
-};
+/** The backend stores naive UTC; shown as DD/MM/AAAA HH:MM in business time (America/Merida). */
+export const formatChangeDate = (iso: string): string => formatDateTime(iso);
 
 const valueCell = (value?: string | null) =>
   value == null ? <span className="text-slate-300">—</span> : <span className="break-all text-xs text-slate-700">{value}</span>;

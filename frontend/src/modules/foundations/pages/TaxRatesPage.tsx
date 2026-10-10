@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useFoundations } from '../hooks/useFoundations';
-import { Percent, Plus, Power, CheckCircle, XCircle, Pencil, Trash2 } from 'lucide-react';
+import { Percent, Plus, CheckCircle, XCircle, Pencil } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
@@ -177,19 +177,20 @@ export default function TaxRatesPage() {
           return [
             {
               label: '',
+              title: 'Editar tasa',
               icon: <Pencil size={18} />,
               onClick: () => handleEditClick(tax),
             },
             {
-              label: '',
-              icon: <Trash2 size={18} />,
-              variant: 'danger' as const,
-              onClick: () => handleDeleteClick(tax.id),
+              label: tax.is_active ? 'Desactivar' : 'Activar',
+              title: tax.is_active ? 'Desactivar tasa' : 'Activar tasa',
+              onClick: () => toggleTaxRate(tax.id),
             },
             {
-              label: '',
-              icon: <Power size={18} />,
-              onClick: () => toggleTaxRate(tax.id),
+              label: 'Eliminar',
+              title: 'Eliminar tasa',
+              variant: 'danger' as const,
+              onClick: () => handleDeleteClick(tax.id),
             },
           ];
         }}

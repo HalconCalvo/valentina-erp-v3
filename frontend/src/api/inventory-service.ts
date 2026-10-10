@@ -1,3 +1,4 @@
+import { formatAmount } from '@/utils/format';
 import axiosClient from './axios-client';
 
 export type AuditStatus = 'EN_CAPTURA' | 'ESPERANDO_AUTORIZACION' | 'CERRADA' | 'REABIERTA' | 'CANCELADA';
@@ -159,13 +160,8 @@ export type UncapturedWithStockDetail = {
 
 const AUDITS_BASE = '/foundations/inventory/audits';
 
-export const formatInventoryCurrency = (amount: number | undefined | null): string => {
-  if (amount === undefined || amount === null || Number.isNaN(amount)) return '0.00';
-  return new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
-};
+/** Amount without the $ sign (see utils/format). */
+export const formatInventoryCurrency = (amount: number | undefined | null): string => formatAmount(amount);
 
 export const inventoryService = {
   getValuationSummary: async (dateFrom?: string, dateTo?: string): Promise<ValuationSummary> => {

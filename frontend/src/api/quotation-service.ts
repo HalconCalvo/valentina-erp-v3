@@ -1,3 +1,4 @@
+import { formatMoney } from '@/utils/format';
 import axiosClient from './axios-client';
 import {
   ClientPurchaseOrder,
@@ -12,15 +13,7 @@ import {
 
 const BASE = '/quotations';
 
-export const formatQuotationCurrency = (amount: number | undefined | null): string => {
-  if (amount === undefined || amount === null || Number.isNaN(amount)) return '$0.00';
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
-};
+export const formatQuotationCurrency = (amount: number | undefined | null): string => formatMoney(amount);
 
 export const formatQuotationFolio = (id: number): string =>
   `COT-${String(id).padStart(4, '0')}`;

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, DollarSign, Pencil, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
-  formatInventoryCurrency,
   inventoryService,
   type InProcessLine,
   type NegativeStockReport,
@@ -12,6 +11,8 @@ import {
 } from '@/api/inventory-service';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { VSummaryCard } from '@/components/ui/VSummaryCard';
+import { formatMoney } from '@/utils/format';
 import { VEmptyState } from '@/components/ui/VEmptyState';
 import { VTable, VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
@@ -29,7 +30,7 @@ const SECTIONS: { key: Section; label: string }[] = [
 const formatQty = (value: number): string =>
   new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 
-const money = (value: number): string => `$${formatInventoryCurrency(value)}`;
+const money = (value: number): string => formatMoney(value);
 
 const inProcessColumns: VTableColumn<InProcessLine>[] = [
   { key: 'instance_name', label: 'Instancia', sortable: true, render: (r) => <span className="font-medium">{r.instance_name}</span> },
@@ -48,15 +49,6 @@ const authorizationColumns: VTableColumn<StockAuthorization>[] = [
     render: (r) => r.shortages.map((s) => `${s.sku}: ${formatQty(s.missing)} ${s.usage_unit}`).join(' · '),
   },
 ];
-
-function SummaryCard({ label, value, tone }: { label: string; value: number; tone: string }) {
-  return (
-    <div className={`rounded-2xl border p-5 ${tone}`}>
-      <p className="text-[10px] font-black uppercase tracking-widest">{label}</p>
-      <p className="text-2xl font-black">{money(value)}</p>
-    </div>
-  );
-}
 
 export default function InventoryValuationPage() {
   const navigate = useNavigate();
@@ -185,10 +177,10 @@ export default function InventoryValuationPage() {
       ) : summary ? (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <SummaryCard label="Materia prima" value={summary.raw_materials} tone="border-orange-200 bg-orange-50 text-orange-900" />
-            <SummaryCard label="Producción en proceso" value={summary.work_in_progress} tone="border-indigo-200 bg-indigo-50 text-indigo-900" />
-            <SummaryCard label="Producto terminado" value={summary.finished_goods} tone="border-emerald-200 bg-emerald-50 text-emerald-900" />
-            <SummaryCard label="Total inventario" value={summary.total} tone="border-slate-300 bg-slate-800 text-white" />
+            <VSummaryCard label="Materia prima" value={money(summary.raw_materials)} tone="orange" />
+            <VSummaryCard label="Producción en proceso" value={money(summary.work_in_progress)} tone="indigo" />
+            <VSummaryCard label="Producto terminado" value={money(summary.finished_goods)} tone="emerald" />
+            <VSummaryCard label="Total inventario" value={money(summary.total)} tone="total" />
           </div>
 
           <div className="flex flex-wrap items-end gap-4 rounded-2xl border border-slate-200 bg-white p-4">

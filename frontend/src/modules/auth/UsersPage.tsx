@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useUsers } from '../../hooks/useUsers'; 
 import { 
   Plus, UserCog, Shield, Mail, Key, X, 
-  CheckCircle, Trash2, Pencil, RefreshCw,
+  CheckCircle, Pencil, RefreshCw,
   Percent, Briefcase, PenTool, Package, Hammer, User,
   TrendingUp, Truck, Target
 } from 'lucide-react';
@@ -423,12 +423,13 @@ export default function UsersPage() {
           return [
             {
               label: '',
+              title: 'Editar usuario',
               icon: <Pencil size={16} />,
               onClick: () => handleEditClick(user),
             },
             {
-              label: '',
-              icon: <Trash2 size={16} />,
+              label: 'Eliminar',
+              title: 'Eliminar usuario',
               variant: 'danger' as const,
               onClick: () => user.id && handleDelete(user.id),
             },
