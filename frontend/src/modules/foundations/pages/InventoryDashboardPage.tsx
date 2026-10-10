@@ -61,7 +61,7 @@ export const InventoryDashboardPage = () => {
         }
     }, [location.state]);
     
-    const [inventoryValuation, setInventoryValuation] = useState<number>(0);
+    const [inventoryValuation, setInventoryValuation] = useState<number | null>(0);
     const [lowStockItems, setLowStockItems] = useState<LowStockMaterialRead[]>([]);
     const [lowStockCount, setLowStockCount] = useState<number | string>('...');
 
@@ -108,10 +108,11 @@ export const InventoryDashboardPage = () => {
             }
 
             try {
-                const valRes = await inventoryService.getInventoryValuation();
-                setInventoryValuation(valRes.total_valuation || 0);
+                // Same number as the valuation page (raw materials + in process + finished goods).
+                const summary = await inventoryService.getValuationSummary();
+                setInventoryValuation(summary.total || 0);
             } catch {
-                // silencioso
+                setInventoryValuation(null); // valuation is for Dirección, Gerencia and Administración only
             }
 
             try {
@@ -287,7 +288,7 @@ export const InventoryDashboardPage = () => {
                                 <div className="flex justify-between items-start"><p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">4. Inventario</p><Package size={16} className="text-orange-500" /></div>
                                 <div className="mt-4 flex justify-end">
                                     <div className="text-xl font-black text-orange-600 tracking-tight flex items-baseline gap-1">
-                                        {formatMoney(inventoryValuation)}
+                                        {inventoryValuation === null ? '—' : formatMoney(inventoryValuation)}
                                         <span className="text-sm font-bold text-orange-400 uppercase">Valuación</span>
                                     </div>
                                 </div>
@@ -392,7 +393,7 @@ export const InventoryDashboardPage = () => {
                                         </div>
                                         <div className="text-right">
                                             <p className="text-lg font-black leading-none tracking-tighter text-orange-600 tabular-nums">
-                                                {formatMoney(inventoryValuation)}
+                                                {inventoryValuation === null ? '—' : formatMoney(inventoryValuation)}
                                             </p>
                                             <p className="text-xs font-bold text-slate-500 mt-1">Valor del inventario por artículo</p>
                                         </div>

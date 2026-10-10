@@ -25,6 +25,33 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 - **Reversible:** sí (aplicada la recomendación en la guía; cambiarla es una clase por pantalla).
 - **Estado:** pendiente
 
+### D3. Estado "Finalizada" de la OV — 2026-10-10 — ROADMAP tarea 6
+- **Contexto:** la OV pasa a FINISHED cuando su saldo llega a cero, aunque la obra siga en producción o instalación;
+  la pantalla decía "Finalizada Cerrada" y se leía como obra terminada.
+- **Opciones:** A) solo cambiar la etiqueta a "Pagada (saldo cero)". B) FINISHED solo cuando el saldo es cero Y todas
+  las instancias tienen firma de conformidad (cambia la lógica y los reportes que filtran por FINISHED).
+- **Recomendación:** A ahora (no cambia lógica); B si Gabriel quiere que "Finalizada" signifique obra entregada.
+- **Reversible:** sí (aplicada A: etiqueta "Pagada (saldo cero)" en el monitor de Ventas).
+- **Estado:** pendiente
+
+### D4. IVA de las órdenes de compra — 2026-10-10 — ROADMAP tarea 6
+- **Contexto:** la OC no guarda tasa de IVA; "Todas las OCs" y el detalle calculan el total con 16% fijo. La recepción
+  sí pide la tasa (16%, 8% o 0%), así que una OC exenta o de frontera se ve con un total equivocado hasta recibirse.
+- **Opciones:** A) agregar tasa de IVA a la OC (por defecto 16%, editable al emitir; migración con 0.16 en las
+  existentes). B) dejar 16% fijo en la OC y que solo la factura/recepción lleve la tasa real.
+- **Recomendación:** A.
+- **Reversible:** no aplicado (requiere migración); la tarea sigue con lo demás.
+- **Estado:** pendiente
+
+### D5. Valor del inventario en el tablero de Inventario — 2026-10-10 — ROADMAP tarea 6
+- **Contexto:** el tablero mostraba $2,259,249.11 (suma de existencias incluyendo negativas, sin producción en
+  proceso) y Valuación $2,283,776.16 (materia prima positiva + en proceso + terminado).
+- **Opciones:** A) el tablero muestra el mismo total que Valuación; Almacén ve "—" porque la valuación es solo para
+  Dirección, Gerencia y Administración (decisión del PLAN 1). B) mantener un número propio para Almacén.
+- **Recomendación:** A.
+- **Reversible:** sí (aplicada A).
+- **Estado:** pendiente
+
 ## Resueltas
 
 ### D1. Aprobar la guía de pantallas — 2026-10-10 — ROADMAP tarea 3

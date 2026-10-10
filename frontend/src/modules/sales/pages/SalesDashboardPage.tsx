@@ -390,7 +390,7 @@ const SalesDashboardPage: React.FC = () => {
             'INSTALLED': 'Instalada',
             'CANCELLED': 'Cancelada',
             'CANCELLED_OV': 'OV cancelada',
-            'FINISHED': 'Finalizada Cerrada',
+            'FINISHED': 'Pagada (saldo cero)',
             'COMPLETED': 'Completada',
             'IN_PRODUCTION': 'En Producción'
         };
