@@ -52,6 +52,15 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 - **Reversible:** sí (aplicada A).
 - **Estado:** pendiente
 
+### D6. Quién administra usuarios — 2026-10-10 — ROADMAP tarea 6 (seguridad)
+- **Contexto:** crear, editar y borrar usuarios no revisaba rol: cualquier usuario con sesión podía crear un DIRECTOR,
+  cambiar el rol o la contraseña de otro, o borrarlo. Está así en producción hasta el próximo push.
+- **Opciones:** A) DIRECTOR y ADMIN administran usuarios; cada quien cambia solo su nombre, teléfono y contraseña.
+  B) solo DIRECTOR. C) DIRECTOR y MANAGER.
+- **Recomendación:** A (es lo que el código ya sugería con la meta mensual: ADMIN y DIRECTOR).
+- **Reversible:** sí (aplicada A). "Eliminar" pasa a "Dar de baja" con motivo obligatorio (nunca se borra).
+- **Estado:** pendiente
+
 ## Resueltas
 
 ### D1. Aprobar la guía de pantallas — 2026-10-10 — ROADMAP tarea 3

@@ -9,9 +9,9 @@ import {
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
-import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 import { RecordHistoryButton } from '@/components/audit/RecordHistoryButton';
+import { VReasonDialog } from '@/components/ui/VReasonDialog';
 
 // --- 1. CONFIGURACIÓN DE ROLES (Nombres visuales) ---
 const ROLE_OPTIONS = {
@@ -28,7 +28,7 @@ const ROLE_OPTIONS = {
 const ROLE_SELECT_ITEMS = Object.entries(ROLE_OPTIONS).map(([value, label]) => ({ value, label }));
 
 export default function UsersPage() {
-  const { users, loading, createUser, updateUser, deleteUser, fetchUsers } = useUsers();
+  const { users, loading, createUser, updateUser, deactivateUser, fetchUsers } = useUsers();
 
   const editorRole = (localStorage.getItem('user_role') || '').toUpperCase();
   const canEditMonthlyQuota = ['ADMIN', 'DIRECTOR'].includes(editorRole);
@@ -105,9 +105,14 @@ export default function UsersPage() {
     setPendingDeleteId(id);
   };
 
-  const executeDelete = async (id: number) => {
-    await deleteUser(id);
-    setPendingDeleteId(null);
+  const executeDeactivate = async (id: number, reason: string): Promise<boolean> => {
+    const result = await deactivateUser(id, reason);
+    if (!result.success) {
+      toast.error(result.error || 'No se pudo dar de baja.');
+      return false;
+    }
+    toast.success('Usuario dado de baja.');
+    return true;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -428,8 +433,8 @@ export default function UsersPage() {
               onClick: () => handleEditClick(user),
             },
             {
-              label: 'Eliminar',
-              title: 'Eliminar usuario',
+              label: 'Dar de baja',
+              title: 'Dar de baja usuario',
               variant: 'danger' as const,
               onClick: () => user.id && handleDelete(user.id),
             },
@@ -438,15 +443,15 @@ export default function UsersPage() {
       />
 
       {pendingDeleteId !== null && (
-        <VConfirmDialog
-          isOpen={pendingDeleteId !== null}
-          title="Eliminar usuario"
-          message="¿Estás seguro de eliminar este usuario permanentemente?"
-          consequence="Esta acción no se puede deshacer. El usuario perderá acceso al sistema."
-          variant="danger"
-          confirmLabel="Sí, eliminar"
-          onConfirm={() => executeDelete(pendingDeleteId)}
-          onCancel={() => setPendingDeleteId(null)}
+        <VReasonDialog
+          title="Dar de baja usuario"
+          description="El usuario queda inactivo y pierde el acceso al sistema. No se elimina: su historial se conserva y puede reactivarse."
+          label="Motivo de la baja *"
+          requiredMessage="El motivo de la baja es obligatorio."
+          confirmLabel="Dar de baja"
+          danger
+          onConfirm={(reason) => executeDeactivate(pendingDeleteId, reason)}
+          onClose={() => setPendingDeleteId(null)}
         />
       )}
     </div>

@@ -4,13 +4,13 @@ from sqlmodel import Session, select
 
 # 1. Importaciones de Core
 from app.core.database import get_session
-from app.core.security import get_password_hash
 # --- IMPORTANTE: Necesitamos esto para identificar al usuario logueado ---
 from app.core.deps import get_current_active_user 
 
 # 2. Importaciones de tus Modelos
-from app.models.users import User, UserCreate, UserUpdate, UserPublic, UserRole
-from app.services import active_session_service
+from app.models.users import User, UserCreate, UserUpdate, UserPublic
+from app.schemas.user_schema import UserDeactivateUpdate
+from app.services import active_session_service, user_service
 
 router = APIRouter()
 
@@ -60,94 +60,36 @@ def read_users(
     return users
 
 # ==========================================
-# 2. CREAR (POST)
+# 2. CREAR (POST) — solo DIRECTOR / ADMIN
 # ==========================================
 @router.post("/", response_model=UserPublic)
 def create_user(
-    user_in: UserCreate, 
+    user_in: UserCreate,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user) # Descomentar para proteger creación
+    current_user: User = Depends(get_current_active_user),
 ) -> Any:
-    # Validar si existe
-    user_exists = session.exec(select(User).where(User.email == user_in.email)).first()
-    if user_exists:
-        raise HTTPException(status_code=400, detail="El email ya está registrado.")
-    
-    # Hashear password
-    hashed_pw = get_password_hash(user_in.password)
-    
-    # Crear objeto (excluyendo el password plano)
-    extra_data = user_in.model_dump(exclude={"password"})
-    if "monthly_quota" in extra_data and current_user.role not in (UserRole.ADMIN, UserRole.DIRECTOR):
-        extra_data.pop("monthly_quota", None)
-    
-    user = User(
-        **extra_data, 
-        hashed_password=hashed_pw
-    )
-    
-    session.add(user)
-    session.commit()
-    session.refresh(user)
-    return user
+    return user_service.create_user(session, user_in, current_user)
 
 # ==========================================
-# 3. ACTUALIZAR (PUT)
+# 3. ACTUALIZAR (PUT) — DIRECTOR / ADMIN; cada quien su nombre, teléfono y contraseña
 # ==========================================
 @router.put("/{user_id}", response_model=UserPublic)
 def update_user(
-    user_id: int, 
-    user_in: UserUpdate, 
+    user_id: int,
+    user_in: UserUpdate,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ) -> Any:
-    # Seguridad básica: Solo Admin puede editar otros, o uno mismo
-    # if current_user.role != "ADMIN" and current_user.id != user_id:
-    #     raise HTTPException(400, "No tienes permiso")
-
-    user_db = session.get(User, user_id)
-    if not user_db:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-
-    # Limpiar datos vacíos
-    update_data = user_in.model_dump(exclude_unset=True)
-    if "monthly_quota" in update_data and current_user.role not in (UserRole.ADMIN, UserRole.DIRECTOR):
-        update_data.pop("monthly_quota", None)
-
-    # Si viene password, hashear y reemplazar
-    if "password" in update_data:
-        password = update_data.pop("password")
-        if password: 
-            user_db.hashed_password = get_password_hash(password)
-
-    # Actualizar campos restantes
-    user_db.sqlmodel_update(update_data)
-
-    session.add(user_db)
-    session.commit()
-    session.refresh(user_db)
-    return user_db
+    return user_service.update_user(session, user_id, user_in, current_user)
 
 # ==========================================
-# 4. ELIMINAR (DELETE)
+# 4. DAR DE BAJA (nunca se elimina) — DIRECTOR / ADMIN, con motivo
 # ==========================================
-@router.delete("/{user_id}")
-def delete_user(
-    user_id: int, 
+@router.patch("/{user_id}/deactivate", response_model=UserPublic)
+def deactivate_user(
+    user_id: int,
+    data: UserDeactivateUpdate,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ) -> Any:
-    # Seguridad: Solo Admin
-    # if current_user.role != "ADMIN": raise HTTPException(400, "No tienes permiso")
-
-    user = session.get(User, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    
-    # Protección de seguridad para el Admin Principal (ID 1)
-    if user.id == 1:
-        raise HTTPException(status_code=400, detail="No se puede eliminar al Super Administrador.")
-    
-    session.delete(user)
-    session.commit()
-    return {"ok": True}
+    return user_service.deactivate_user(session, user_id, data, current_user)

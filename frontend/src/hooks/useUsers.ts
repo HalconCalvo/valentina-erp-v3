@@ -30,7 +30,6 @@ export function useUsers() {
             setUsers(res.data);
             setError(null);
         } catch (err: any) {
-            console.error(err);
             // Evitamos mostrar error si es solo que está vacío al inicio
             setError('Error al cargar usuarios.');
         } finally {
@@ -46,7 +45,6 @@ export function useUsers() {
             await fetchUsers(); 
             return { success: true };
         } catch (err: any) {
-            console.error("Error creating user:", err.response?.data);
             const msg = err.response?.data?.detail || 'Error al crear usuario';
             return { success: false, error: msg };
         }
@@ -60,26 +58,22 @@ export function useUsers() {
             await fetchUsers();
             return { success: true };
         } catch (err: any) {
-            console.error("Error updating user:", err);
             const msg = err.response?.data?.detail || 'Error al actualizar';
             return { success: false, error: msg };
         }
     };
 
-    // DELETE: Eliminar
-    const deleteUser = async (id: number) => {
+    // Baja lógica (nunca se elimina): motivo obligatorio
+    const deactivateUser = async (id: number, reason: string) => {
         try {
-            // FIX: Ruta correcta
-            await client.delete(`/users/${id}`);
+            await client.patch(`/users/${id}/deactivate`, { reason });
             await fetchUsers();
             return { success: true };
         } catch (err: any) {
-            console.error("Error deleting user:", err);
-            const msg = err.response?.data?.detail || 'Error al eliminar';
+            const msg = err.response?.data?.detail || 'Error al dar de baja';
             return { success: false, error: msg };
         }
     };
-
     useEffect(() => {
         fetchUsers();
     }, [fetchUsers]);
@@ -91,6 +85,6 @@ export function useUsers() {
         fetchUsers,
         createUser,
         updateUser,
-        deleteUser
+        deactivateUser
     };
 }
