@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/Button";
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VTable, VTableColumn } from '@/components/ui/VTable';
+import Modal from '@/components/ui/Modal';
+import { formatDate, formatMoney } from '@/utils/format';
 
 interface AllPurchaseOrdersModuleProps {
     onDetailChange?: (open: boolean) => void;
@@ -131,7 +133,7 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
                 label: 'P. Unit',
                 render: (row) => (
                     <span className="text-center block text-xs font-bold text-slate-400">
-                        ${Number(row.expected_cost || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                        {formatMoney(Number(row.expected_cost || 0))}
                     </span>
                 ),
             },
@@ -149,7 +151,7 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
                 label: 'Importe',
                 render: (row) => (
                     <span className="text-right block text-xs font-black text-slate-800">
-                        ${Number(row.subtotal || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                        {formatMoney(Number(row.subtotal || 0))}
                     </span>
                 ),
             },
@@ -201,11 +203,7 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
                 render: (row) => (
                     <span className="text-xs font-bold text-slate-500">
                         {row.created_at
-                            ? new Date(String(row.created_at)).toLocaleDateString('es-MX', {
-                                  day: '2-digit',
-                                  month: 'short',
-                                  year: 'numeric',
-                              })
+                            ? formatDate(String(row.created_at))
                             : '—'}
                     </span>
                 ),
@@ -250,9 +248,7 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
                 label: 'Total (c/IVA)',
                 render: (row) => (
                     <span className="text-right block text-xs font-black text-slate-800">
-                        ${Number((Number(row.total_estimated_amount || 0)) * 1.16).toLocaleString('es-MX', {
-                            minimumFractionDigits: 2,
-                        })}
+                        {formatMoney(Number((Number(row.total_estimated_amount || 0)) * 1.16))}
                     </span>
                 ),
             },
@@ -277,7 +273,7 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
                                 <p className="text-[9px] font-black uppercase text-emerald-600 mt-1 tracking-widest leading-none">FOLIO: {selected.folio}</p>
                                 <p className="text-[8px] font-black uppercase text-slate-400 mt-1 tracking-tighter leading-none">ESTADO: {selected.status}</p>
                                 <p className="text-[8px] font-black uppercase text-slate-400 mt-1 tracking-tighter leading-none">
-                                    FECHA: {selected.created_at ? new Date(selected.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'}
+                                    FECHA: {formatDate(selected.created_at)}
                                 </p>
                             </div>
                         </div>
@@ -303,16 +299,15 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
                     />
                     <div className="p-8 bg-slate-50/50 flex justify-end items-center border-t border-slate-100">
                         <div className="w-80 space-y-1 pr-14">
-                            <div className="flex justify-between items-center text-slate-500"><span className="text-[10px] font-black uppercase">Subtotal</span><span className="text-sm font-bold">${subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                            <div className="flex justify-between items-center text-slate-500 border-b border-slate-200 pb-2"><span className="text-[10px] font-black uppercase">IVA (16%)</span><span className="text-sm font-bold">${iva.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                            <div className="flex justify-between items-center pt-2"><span className="text-[11px] font-black text-emerald-600 uppercase">Total</span><span className="text-3xl font-black text-slate-900">${total.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                            <div className="flex justify-between items-center text-slate-500"><span className="text-[10px] font-black uppercase">Subtotal</span><span className="text-sm font-bold">{formatMoney(subtotal)}</span></div>
+                            <div className="flex justify-between items-center text-slate-500 border-b border-slate-200 pb-2"><span className="text-[10px] font-black uppercase">IVA (16%)</span><span className="text-sm font-bold">{formatMoney(iva)}</span></div>
+                            <div className="flex justify-between items-center pt-2"><span className="text-[11px] font-black text-emerald-600 uppercase">Total</span><span className="text-3xl font-black text-slate-900">{formatMoney(total)}</span></div>
                         </div>
                     </div>
                 </div>
 
                 {correctModal && (
-                    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-                        <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
+                    <Modal isOpen bare size="custom" overlayZIndex={50} onClose={() => setCorrectModal(null)} className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
                             <h3 className="font-black text-slate-800 text-sm uppercase mb-2">Corregir recepción</h3>
                             <p className="text-xs text-slate-500 mb-4">
                                 {correctModal.item.sku} — registrado como recibido: <b>{Number(correctModal.item.quantity_received || 0)}</b>.
@@ -338,8 +333,7 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
                                     {saving ? 'Corrigiendo...' : 'Confirmar corrección'}
                                 </button>
                             </div>
-                        </div>
-                    </div>
+                        </Modal>
                 )}
             </div>
         );

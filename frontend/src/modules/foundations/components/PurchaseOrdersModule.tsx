@@ -28,6 +28,7 @@ import {
     purchaseOrdersQueryKeys,
 } from '../../../hooks/usePurchaseOrders';
 import { AllPurchaseOrdersModule } from './AllPurchaseOrdersModule';
+import { formatMoney } from '@/utils/format';
 
 type PendingConfirm =
     | { kind: 'emit'; group: any }
@@ -1017,7 +1018,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                             const isSelected = selectedItems[`${group.provider_id}-${item.material_id}`];
                                             const isCritical = !!item.project_name;
                                             return (
-                                                <span className={`block text-center text-xs font-bold text-slate-400 ${!isSelected ? 'opacity-40' : ''} ${isCritical ? 'bg-rose-50/20' : ''}`}>${Number(item.expected_cost || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                                                <span className={`block text-center text-xs font-bold text-slate-400 ${!isSelected ? 'opacity-40' : ''} ${isCritical ? 'bg-rose-50/20' : ''}`}>{formatMoney(Number(item.expected_cost || 0))}</span>
                                             );
                                         },
                                     },
@@ -1046,7 +1047,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                             const isSelected = selectedItems[`${group.provider_id}-${item.material_id}`];
                                             const isCritical = !!item.project_name;
                                             return (
-                                                <span className={`block text-right text-xs font-black text-slate-800 ${!isSelected ? 'opacity-40' : ''} ${isCritical ? 'bg-rose-50/20' : ''}`}>${((Number(item.qty) || 0) * (Number(item.expected_cost) || 0)).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                                                <span className={`block text-right text-xs font-black text-slate-800 ${!isSelected ? 'opacity-40' : ''} ${isCritical ? 'bg-rose-50/20' : ''}`}>{formatMoney(((Number(item.qty) || 0) * (Number(item.expected_cost) || 0)))}</span>
                                             );
                                         },
                                     },
@@ -1129,11 +1130,11 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                     </Button>
                                 </div>
                                 <div className="w-80 space-y-1 pr-14">
-                                    <div className="flex justify-between items-center px-2 py-1 text-slate-500"><span className="text-[10px] font-black uppercase tracking-widest">Subtotal</span><span className="text-sm font-bold">${subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                                    <div className="flex justify-between items-center px-2 py-1 border-b border-slate-100 pb-3 text-slate-500"><span className="text-[10px] font-black uppercase tracking-widest">IVA (16%)</span><span className="text-sm font-bold">${iva.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                    <div className="flex justify-between items-center px-2 py-1 text-slate-500"><span className="text-[10px] font-black uppercase tracking-widest">Subtotal</span><span className="text-sm font-bold">{formatMoney(subtotal)}</span></div>
+                                    <div className="flex justify-between items-center px-2 py-1 border-b border-slate-100 pb-3 text-slate-500"><span className="text-[10px] font-black uppercase tracking-widest">IVA (16%)</span><span className="text-sm font-bold">{formatMoney(iva)}</span></div>
                                     <div className="flex justify-between items-center pt-4 px-2">
                                         <span className="text-[11px] font-black text-indigo-600 uppercase tracking-[0.25em]">Total Neto</span>
-                                        <div className="text-right"><span className="text-3xl font-black text-slate-900 leading-none">${total.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                        <div className="text-right"><span className="text-3xl font-black text-slate-900 leading-none">{formatMoney(total)}</span></div>
                                     </div>
                                 </div>
                             </div>
@@ -1196,9 +1197,9 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                     },
                                 },
                             ] : []),
-                            { key: 'expected_cost', label: 'P. Unit', render: (item: Record<string, unknown>) => <span className="block text-center text-xs font-bold text-slate-400">${Number(item.expected_cost || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span> },
+                            { key: 'expected_cost', label: 'P. Unit', render: (item: Record<string, unknown>) => <span className="block text-center text-xs font-bold text-slate-400">{formatMoney(Number(item.expected_cost || 0))}</span> },
                             { key: 'project_name', label: 'Proyecto', render: (item: Record<string, unknown>) => <span className="block text-right text-[10px] font-black text-rose-600 uppercase">{String(item.project_name || 'GENERAL')}</span> },
-                            { key: 'subtotal', label: 'Importe', render: (item: Record<string, unknown>) => <span className="block text-right text-xs font-black text-slate-800">${Number(item.subtotal || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span> },
+                            { key: 'subtotal', label: 'Importe', render: (item: Record<string, unknown>) => <span className="block text-right text-xs font-black text-slate-800">{formatMoney(Number(item.subtotal || 0))}</span> },
                         ];
                         return (
                             <div key={idx} className={`bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden border-l-4 animate-in fade-in duration-300 ${isPartial ? 'border-l-amber-500' : 'border-l-rose-500'}`}>
@@ -1248,9 +1249,9 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                     )}
                                     {isPartial && <div />}
                                     <div className="w-80 space-y-1 pr-14">
-                                        <div className="flex justify-between items-center px-2 py-1 text-slate-500"><span className="text-[10px] font-black uppercase tracking-widest">Subtotal</span><span className="text-sm font-bold">${subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                                        <div className="flex justify-between items-center px-2 py-1 border-b border-slate-100 pb-3 text-slate-500"><span className="text-[10px] font-black uppercase tracking-widest">IVA (16%)</span><span className="text-sm font-bold">${iva.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                                        <div className="flex justify-between items-center pt-4 px-2"><span className="text-[11px] font-black text-rose-600 uppercase tracking-[0.25em]">Total Neto</span><div className="text-right"><span className="text-3xl font-black text-slate-900 leading-none">${total.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div></div>
+                                        <div className="flex justify-between items-center px-2 py-1 text-slate-500"><span className="text-[10px] font-black uppercase tracking-widest">Subtotal</span><span className="text-sm font-bold">{formatMoney(subtotal)}</span></div>
+                                        <div className="flex justify-between items-center px-2 py-1 border-b border-slate-100 pb-3 text-slate-500"><span className="text-[10px] font-black uppercase tracking-widest">IVA (16%)</span><span className="text-sm font-bold">{formatMoney(iva)}</span></div>
+                                        <div className="flex justify-between items-center pt-4 px-2"><span className="text-[11px] font-black text-rose-600 uppercase tracking-[0.25em]">Total Neto</span><div className="text-right"><span className="text-3xl font-black text-slate-900 leading-none">{formatMoney(total)}</span></div></div>
                                     </div>
                                 </div>
                             </div>
@@ -1319,9 +1320,9 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                     { key: 'sku', label: 'SKU', render: (item) => <span className="font-black text-indigo-600 text-[11px] uppercase">{String(item.sku ?? '')}</span> },
                                     { key: 'name', label: 'Descripción', render: (item) => <span className="font-bold text-slate-700 text-xs uppercase">{String(item.name ?? '')}</span> },
                                     { key: 'qty', label: 'Cant.', render: (item) => <span className="block text-center text-xs font-black text-slate-600">{String(item.qty ?? '')}</span> },
-                                    { key: 'expected_cost', label: 'P. Unit', render: (item) => <span className="block text-center text-xs font-bold text-slate-400">${Number(item.expected_cost || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span> },
+                                    { key: 'expected_cost', label: 'P. Unit', render: (item) => <span className="block text-center text-xs font-bold text-slate-400">{formatMoney(Number(item.expected_cost || 0))}</span> },
                                     { key: 'project_name', label: 'Proyecto', render: (item) => <span className="block text-right text-[10px] font-black text-rose-600 uppercase">{String(item.project_name || 'GENERAL')}</span> },
-                                    { key: 'subtotal', label: 'Importe', render: (item) => <span className="block text-right text-xs font-black text-slate-800">${Number(item.subtotal || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span> },
+                                    { key: 'subtotal', label: 'Importe', render: (item) => <span className="block text-right text-xs font-black text-slate-800">{formatMoney(Number(item.subtotal || 0))}</span> },
                                 ]}
                                 data={(order.items || []) as Record<string, unknown>[]}
                                 className="border-0 shadow-none rounded-none"
@@ -1355,9 +1356,9 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                     )}
                                 </div>
                                 <div className="w-80 space-y-1 pr-14">
-                                    <div className="flex justify-between items-center text-slate-500"><span className="text-[10px] font-black uppercase">Subtotal</span><span className="text-sm font-bold">${subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                                    <div className="flex justify-between items-center text-slate-500 border-b border-slate-200 pb-2"><span className="text-[10px] font-black uppercase">IVA (16%)</span><span className="text-sm font-bold">${iva.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                                    <div className="flex justify-between items-center pt-2"><span className="text-[11px] font-black text-amber-700 uppercase">Total Autorizado</span><span className="text-3xl font-black text-slate-900">${total.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                    <div className="flex justify-between items-center text-slate-500"><span className="text-[10px] font-black uppercase">Subtotal</span><span className="text-sm font-bold">{formatMoney(subtotal)}</span></div>
+                                    <div className="flex justify-between items-center text-slate-500 border-b border-slate-200 pb-2"><span className="text-[10px] font-black uppercase">IVA (16%)</span><span className="text-sm font-bold">{formatMoney(iva)}</span></div>
+                                    <div className="flex justify-between items-center pt-2"><span className="text-[11px] font-black text-amber-700 uppercase">Total Autorizado</span><span className="text-3xl font-black text-slate-900">{formatMoney(total)}</span></div>
                                 </div>
                             </div>
                         </div>
@@ -1405,9 +1406,9 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                         { key: 'sku', label: 'SKU', render: (item) => <span className="font-black text-indigo-600 text-[11px] uppercase">{String(item.sku ?? '')}</span> },
                                         { key: 'name', label: 'Descripción', render: (item) => <span className="font-bold text-slate-700 text-xs uppercase">{String(item.name ?? '')}</span> },
                                         { key: 'qty', label: 'Cant.', render: (item) => <span className="block text-center text-xs font-black text-slate-600">{String(item.qty ?? '')}</span> },
-                                        { key: 'expected_cost', label: 'P. Unit', render: (item) => <span className="block text-center text-xs font-bold text-slate-400">${Number(item.expected_cost || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span> },
+                                        { key: 'expected_cost', label: 'P. Unit', render: (item) => <span className="block text-center text-xs font-bold text-slate-400">{formatMoney(Number(item.expected_cost || 0))}</span> },
                                         { key: 'project_name', label: 'Proyecto', render: (item) => <span className="block text-right text-[10px] font-black text-rose-600 uppercase">{String(item.project_name || 'GENERAL')}</span> },
-                                        { key: 'subtotal', label: 'Importe', render: (item) => <span className="block text-right text-xs font-black text-slate-800">${Number(item.subtotal || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span> },
+                                        { key: 'subtotal', label: 'Importe', render: (item) => <span className="block text-right text-xs font-black text-slate-800">{formatMoney(Number(item.subtotal || 0))}</span> },
                                     ]}
                                     data={(order.items || []) as Record<string, unknown>[]}
                                     className="border-0 shadow-none rounded-none"
@@ -1443,9 +1444,9 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                         )}
                                     </div>
                                     <div className="w-80 space-y-1 pr-14">
-                                        <div className="flex justify-between items-center text-slate-500"><span className="text-[10px] font-black uppercase">Subtotal</span><span className="text-sm font-bold">${subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                                        <div className="flex justify-between items-center text-slate-500 border-b border-slate-200 pb-2"><span className="text-[10px] font-black uppercase">IVA (16%)</span><span className="text-sm font-bold">${iva.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                                        <div className="flex justify-between items-center pt-2"><span className="text-[11px] font-black text-emerald-600 uppercase">Total Autorizado</span><span className="text-3xl font-black text-slate-900">${total.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                        <div className="flex justify-between items-center text-slate-500"><span className="text-[10px] font-black uppercase">Subtotal</span><span className="text-sm font-bold">{formatMoney(subtotal)}</span></div>
+                                        <div className="flex justify-between items-center text-slate-500 border-b border-slate-200 pb-2"><span className="text-[10px] font-black uppercase">IVA (16%)</span><span className="text-sm font-bold">{formatMoney(iva)}</span></div>
+                                        <div className="flex justify-between items-center pt-2"><span className="text-[11px] font-black text-emerald-600 uppercase">Total Autorizado</span><span className="text-3xl font-black text-slate-900">{formatMoney(total)}</span></div>
                                     </div>
                                 </div>
                             </div>
@@ -1581,8 +1582,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
 
             {/* Modal "Fast Track" */}
             {isManualModalOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-6xl overflow-hidden border-t-8 border-t-emerald-500 animate-in zoom-in-95 duration-200 flex flex-col max-h-[95vh]">
+                <Modal isOpen bare size="custom" overlayZIndex={100} onClose={() => setIsManualModalOpen(false)} className="bg-white rounded-[2rem] shadow-2xl w-full max-w-6xl overflow-hidden border-t-8 border-t-emerald-500 animate-in zoom-in-95 duration-200 flex flex-col max-h-[95vh]">
                         
                         {/* Cabecera Principal */}
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-emerald-50/10 shrink-0">
@@ -1849,7 +1849,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                             if (!item) return null;
                                             return (
                                                 <span className="block text-right text-xs font-black text-slate-800">
-                                                    ${(item.qty * (parseFloat(item.expected_cost as string) || 0)).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                                                    {formatMoney((item.qty * (parseFloat(item.expected_cost as string) || 0)))}
                                                 </span>
                                             );
                                         },
@@ -1897,11 +1897,11 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                             <div className="w-80 space-y-2 pr-6">
                                 <div className="flex justify-between items-center text-slate-600">
                                     <span className="text-[11px] font-black uppercase tracking-widest">SUBTOTAL</span>
-                                    <span className="text-sm font-bold">${manualSubtotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    <span className="text-sm font-bold">{formatMoney(manualSubtotal)}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-slate-600 border-b border-slate-100 pb-3">
                                     <span className="text-[11px] font-black uppercase tracking-widest">IVA (16%)</span>
-                                    <span className="text-sm font-bold">${manualIva.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    <span className="text-sm font-bold">{formatMoney(manualIva)}</span>
                                 </div>
                                 <div className="flex justify-between items-end pt-2">
                                     <div className="flex flex-col">
@@ -1909,19 +1909,17 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                         <span className="text-[11px] font-black text-emerald-700 uppercase tracking-widest leading-tight">AUTORIZADO</span>
                                     </div>
                                     <div className="text-right">
-                                        <span className="text-2xl font-black text-slate-900 tracking-tighter">${manualTotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                        <span className="text-2xl font-black text-slate-900 tracking-tighter">{formatMoney(manualTotal)}</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                    </div>
-                </div>
+                    </Modal>
             )}
 
             {isReqModalOpen && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border-t-4 border-t-indigo-500 animate-in zoom-in-95 duration-200">
+                <Modal isOpen bare size="custom" overlayZIndex={200} onClose={() => setIsReqModalOpen(false)} className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border-t-4 border-t-indigo-500 animate-in zoom-in-95 duration-200">
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center">
                             <div>
                                 <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
@@ -2043,14 +2041,12 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 <Plus size={14} className="mr-2" /> Enviar Solicitud
                             </Button>
                         </div>
-                    </div>
-                </div>
+                    </Modal>
             )}
 
             {/* Mini-modal: Alta rápida de material */}
             {newMatModal.open && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border-t-4 border-t-emerald-500 animate-in zoom-in-95 duration-200">
+                <Modal isOpen bare size="custom" overlayZIndex={200} onClose={() => setNewMatModal({ open: false, rowIndex: null })} className="bg-white rounded-2xl shadow-2xl w-full max-w-md border-t-4 border-t-emerald-500 animate-in zoom-in-95 duration-200">
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center">
                             <div className="flex items-center gap-3">
                                 <div className="p-2 rounded-xl bg-emerald-100 text-emerald-600"><Plus size={20} strokeWidth={2.5} /></div>
@@ -2191,13 +2187,11 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 Guardar y Agregar
                             </button>
                         </div>
-                    </div>
-                </div>
+                    </Modal>
             )}
 
             {assignModal.open && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border-t-4 border-t-indigo-500 animate-in zoom-in-95 duration-200">
+                <Modal isOpen bare size="custom" overlayZIndex={200} onClose={() => setAssignModal({ open: false, requisitionId: null, itemName: '', currentQty: 0 })} className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border-t-4 border-t-indigo-500 animate-in zoom-in-95 duration-200">
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center">
                             <div>
                                 <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
@@ -2305,12 +2299,10 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 <Building2 size={14} className="mr-2" /> Asignar
                             </Button>
                         </div>
-                    </div>
-                </div>
+                    </Modal>
             )}
         {editItemModal.open && (
-            <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border-t-4 border-t-indigo-500 animate-in zoom-in-95 duration-200">
+            <Modal isOpen bare size="custom" overlayZIndex={300} onClose={() => setEditItemModal({ open: false, orderId: null, item: null })} className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border-t-4 border-t-indigo-500 animate-in zoom-in-95 duration-200">
                     <div className="p-6 border-b border-slate-100 flex justify-between items-center">
                         <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Editar Partida</h3>
                         <button onClick={() => setEditItemModal({ open: false, orderId: null, item: null })} className="text-slate-400 hover:text-slate-600">
@@ -2375,13 +2367,11 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                             Guardar cambios
                         </Button>
                     </div>
-                </div>
-            </div>
+                </Modal>
         )}
 
         {cancelItemModal.open && (
-            <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border-t-4 border-t-rose-500 animate-in zoom-in-95 duration-200">
+            <Modal isOpen bare size="custom" overlayZIndex={300} onClose={() => setCancelItemModal({ open: false, orderId: null, item: null })} className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border-t-4 border-t-rose-500 animate-in zoom-in-95 duration-200">
                     <div className="p-6 border-b border-slate-100 flex justify-between items-center">
                         <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Cancelar Partida</h3>
                         <button onClick={() => setCancelItemModal({ open: false, orderId: null, item: null })} className="text-slate-400 hover:text-slate-600">
@@ -2413,13 +2403,11 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                             Confirmar cancelación
                         </Button>
                     </div>
-                </div>
-            </div>
+                </Modal>
         )}
 
         {emailModal.open && (
-            <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border-t-4 border-t-emerald-500 animate-in zoom-in-95 duration-200">
+            <Modal isOpen bare size="custom" overlayZIndex={300} onClose={() => setEmailModal({ open: false, orderId: null, folio: '', providerEmail: '' })} className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border-t-4 border-t-emerald-500 animate-in zoom-in-95 duration-200">
                     <div className="p-6 border-b border-slate-100 flex justify-between items-center">
                         <div>
                             <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
@@ -2479,8 +2467,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                             }
                         </Button>
                     </div>
-                </div>
-            </div>
+                </Modal>
         )}
         {advanceModal?.open && (
             <Modal

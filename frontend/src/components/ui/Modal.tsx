@@ -10,6 +10,8 @@ interface ModalProps {
   className?: string;
   /** Por encima de modales anidados (p. ej. confirmaciones sobre InstanceEditModal z-55). */
   overlayZIndex?: number;
+  /** Sin encabezado ni relleno: la ventana trae su propio encabezado (overlay, Escape y bloqueo de scroll siguen aquí). */
+  bare?: boolean;
 }
 
 const Modal: React.FC<ModalProps> = ({ 
@@ -20,6 +22,7 @@ const Modal: React.FC<ModalProps> = ({
   size = 'md',
   className = '',
   overlayZIndex = 50,
+  bare = false,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -64,19 +67,14 @@ const Modal: React.FC<ModalProps> = ({
         onClick={onClose}
       />
       
-      {/* Contenedor del Modal */}
+      {/* Contenedor del Modal (max-h de seguridad; className puede traer ancho/alto propios, p. ej. pantalla completa) */}
       <div 
         ref={modalRef}
-        className={`
-            relative bg-white rounded-xl shadow-2xl w-full flex flex-col
-            max-h-[90vh] /* Altura máxima de seguridad */
-            animate-in fade-in zoom-in duration-200
-            ${size !== 'custom' ? sizeClasses[size] : ''} 
-            ${className} /* Aquí entra el w-[95vw] y h-[90vh] que mandamos desde fuera */
-        `}
+        className={`relative bg-white rounded-xl shadow-2xl w-full flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-200 ${size !== 'custom' ? sizeClasses[size] : ''} ${className}`}
         role="dialog"
         aria-modal="true"
       >
+        {bare ? children : (<>
         {/* Header (Fijo) */}
         <div className="flex justify-between items-center p-4 border-b border-slate-100 shrink-0">
           <h3 className="font-bold text-lg text-slate-800">{title}</h3>
@@ -93,6 +91,7 @@ const Modal: React.FC<ModalProps> = ({
         <div className="p-6 overflow-y-auto flex-1 h-full flex flex-col">
           {children}
         </div>
+        </>)}
       </div>
     </div>
   );
