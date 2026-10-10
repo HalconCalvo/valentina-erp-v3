@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
-from sqlmodel import Session, select, text, Field, SQLModel
+from sqlmodel import Session, select, Field, SQLModel
 from typing import List, Optional
 from datetime import datetime, timedelta, date
 from sqlalchemy import func, or_
@@ -13,7 +13,7 @@ from app.models.finance import PurchaseInvoice
 from app.models.users import UserRole
 from app.core.deps import get_session, CurrentUser
 from app.services.purchase_manager import PurchaseManager
-from app.services import purchase_service
+from app.services import payable_service, purchase_service
 from app.services.pdf_generator import PDFGenerator
 from app.services.email_service import send_purchase_order_email
 from app.services.inventory_manager import registrar_movimiento_inventario
@@ -573,41 +573,11 @@ def correct_reception_item(*, db: Session = Depends(get_session), po_id: int, it
                 continue
             r.quantity_received = float(r.quantity_received or 0) - quitar
             restante -= quitar
-            if r.quantity_received <= 0:
-                db.delete(r)
-            else:
-                db.add(r)
+            db.add(r)  # a line that drops to zero stays (traceability), it is never deleted
         for _ap_id in ap_ids:
-            _row = db.exec(text("SELECT subtotal, tax_rate, total_amount FROM accounts_payable WHERE id = :i").bindparams(i=_ap_id)).first()
-            if not _row:
-                continue
-            _sub_actual = float(_row[0] or 0)
-            _rate = float(_row[1] or 0.16)
-            _nuevo_sub = max(_sub_actual - monto_revertido, 0.0)
-            _nuevo_tax = round(_nuevo_sub * _rate, 2)
-            _nuevo_total = round(_nuevo_sub + _nuevo_tax, 2)
-            if _nuevo_total <= 0.01:
-                # Total llegó a cero — eliminar el registro para liberar el folio
-                db.exec(text("""
-                    DELETE FROM purchase_invoices
-                    WHERE accounts_payable_id = :ap_id
-                """).bindparams(ap_id=_ap_id))
-                db.exec(text("""
-                    DELETE FROM accounts_payable
-                    WHERE id = :i
-                """).bindparams(i=_ap_id))
-            else:
-                db.exec(text("""
-                    UPDATE accounts_payable
-                    SET subtotal = :s, tax_amount = :t, total_amount = :tot, status = 'PENDIENTE'
-                    WHERE id = :i
-                """).bindparams(s=round(_nuevo_sub, 2), t=_nuevo_tax, tot=_nuevo_total, i=_ap_id))
-                db.exec(text("""
-                    UPDATE purchase_invoices
-                    SET subtotal = :s, tax_amount = :t, total_amount = :tot
-                    WHERE accounts_payable_id = :ap_id
-                """).bindparams(s=round(_nuevo_sub, 2), t=_nuevo_tax, tot=_nuevo_total, ap_id=_ap_id))
-            break  # solo la factura más reciente involucrada
+            if payable_service.reduce_for_reception_correction(
+                    db, _ap_id, monto_revertido, f"Corrección de recepción: {reason}"):
+                break  # solo la factura más reciente involucrada
 
         # --- 3) Reabrir el renglón en la OC ---
         item.quantity_received = real_qty

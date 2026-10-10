@@ -1,5 +1,5 @@
 """Purchase domain — database queries only (no business logic)."""
-from datetime import datetime
+from datetime import date, datetime
 from typing import Dict, List, Optional
 
 from sqlalchemy import func, or_
@@ -7,7 +7,7 @@ from sqlmodel import Session, select, text
 
 from app.models.foundations import GlobalConfig, Provider
 from app.models.inventory import PurchaseOrder, PurchaseOrderItem, PurchaseRequisition
-from app.models.material import Material
+from app.models.material import STOCK_ROUTE, Material
 from app.models.finance import InvoiceStatus, PaymentStatus, PurchaseInvoice, SupplierPayment
 from app.models.users import User
 
@@ -300,6 +300,13 @@ def get_operational_expense_payments_sum(db: Session, expense_id: int) -> float:
     return float(row[0] if row else 0)
 
 
+def _as_datetime(value):
+    """accounts_payable.due_date is a timestamp; the API sends a date."""
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return datetime.combine(value, datetime.min.time())
+    return value
+
+
 def insert_operational_expense(
     db: Session,
     *,
@@ -312,52 +319,54 @@ def insert_operational_expense(
     notes: Optional[str],
     now: datetime,
 ) -> None:
-    db.exec(text("""
-        INSERT INTO accounts_payable (
-            provider_id, purchase_order_id, invoice_folio,
-            total_amount, due_date, status, created_at,
-            overhead_category, instance_id, notes
-        ) VALUES (
-            :prov_id, NULL, :folio, :total, :due, 'PENDIENTE', :now,
-            :category, :instance_id, :notes
-        )
-    """).bindparams(
-        prov_id=provider_id,
-        folio=folio,
-        total=total,
-        due=due_date,
-        now=now,
-        category=overhead_category,
-        instance_id=instance_id,
-        notes=notes,
+    db.add(AccountsPayable(
+        provider_id=provider_id, purchase_order_id=None, invoice_folio=folio, total_amount=total,
+        due_date=_as_datetime(due_date), status="PENDIENTE", created_at=now, overhead_category=overhead_category,
+        instance_id=instance_id, notes=notes,
     ))
+    db.flush()
+
+
+def _get_operational_expense_row(db: Session, expense_id: int) -> Optional[AccountsPayable]:
+    return db.exec(select(AccountsPayable).where(
+        AccountsPayable.id == expense_id, AccountsPayable.purchase_order_id.is_(None))).first()
 
 
 def update_operational_expense_fields(db: Session, expense_id: int, updates: dict) -> None:
     allowed_fields = ("invoice_folio", "total_amount", "due_date", "overhead_category", "notes")
-    set_clauses = []
-    params: dict = {"expense_id": expense_id}
+    row = _get_operational_expense_row(db, expense_id)
+    if row is None:
+        return
     for field in allowed_fields:
         if field in updates:
-            set_clauses.append(f"{field} = :{field}")
-            params[field] = updates[field]
-    if not set_clauses:
-        return
-    db.execute(
-        text(
-            f"UPDATE accounts_payable SET {', '.join(set_clauses)} "
-            "WHERE id = :expense_id AND purchase_order_id IS NULL"
-        ),
-        params,
-    )
+            setattr(row, field, _as_datetime(updates[field]) if field == "due_date" else updates[field])
+    db.add(row)
+    db.flush()
 
 
 def cancel_operational_expense_row(db: Session, expense_id: int, notes: str) -> None:
-    db.exec(text("""
-        UPDATE accounts_payable
-        SET status = 'CANCELADO', notes = :notes
-        WHERE id = :expense_id AND purchase_order_id IS NULL
-    """).bindparams(notes=notes, expense_id=expense_id))
+    row = _get_operational_expense_row(db, expense_id)
+    if row is None:
+        return
+    row.status = "CANCELADO"
+    row.notes = notes
+    db.add(row)
+    db.flush()
+
+
+def get_payables_by_folio(db: Session, folio: str, provider_id: Optional[int] = None) -> List[AccountsPayable]:
+    query = select(AccountsPayable).where(AccountsPayable.invoice_folio == folio)
+    if provider_id is not None:
+        query = query.where(AccountsPayable.provider_id == provider_id)
+    return list(db.exec(query).all())
+
+
+def get_payable(db: Session, payable_id: int) -> Optional[AccountsPayable]:
+    return db.get(AccountsPayable, payable_id)
+
+
+def get_invoices_by_payable(db: Session, payable_id: int) -> List[PurchaseInvoice]:
+    return list(db.exec(select(PurchaseInvoice).where(PurchaseInvoice.accounts_payable_id == payable_id)).all())
 
 
 def get_global_config(db: Session) -> Optional[GlobalConfig]:
@@ -441,29 +450,14 @@ def insert_reception_accounts_payable(
     now: datetime,
     overhead_category: Optional[str],
 ) -> int:
-    result_ap = db.exec(text("""
-        INSERT INTO accounts_payable (
-            provider_id, purchase_order_id, invoice_folio,
-            total_amount, subtotal, tax_rate, tax_amount,
-            due_date, status, created_at, overhead_category
-        ) VALUES (
-            :prov_id, :po_id, :folio, :total, :subtotal, :tax_rate, :tax_amount,
-            :due, 'PENDIENTE', :now, :category
-        )
-        RETURNING id
-    """).bindparams(
-        prov_id=provider_id,
-        po_id=po_id,
-        folio=folio,
-        total=total,
-        subtotal=subtotal,
-        tax_rate=tax_rate,
-        tax_amount=tax_amount,
-        due=due_date,
-        now=now,
-        category=overhead_category,
-    ))
-    return result_ap.scalar() if hasattr(result_ap, "scalar") else result_ap.first()[0]
+    row = AccountsPayable(
+        provider_id=provider_id, purchase_order_id=po_id, invoice_folio=folio, total_amount=total,
+        subtotal=subtotal, tax_rate=tax_rate, tax_amount=tax_amount, due_date=_as_datetime(due_date), status="PENDIENTE",
+        created_at=now, overhead_category=overhead_category,
+    )
+    db.add(row)
+    db.flush()
+    return row.id
 
 
 def find_purchase_invoice_by_number_and_provider(
@@ -473,5 +467,49 @@ def find_purchase_invoice_by_number_and_provider(
         select(PurchaseInvoice).where(
             PurchaseInvoice.invoice_number == invoice_number,
             PurchaseInvoice.provider_id == provider_id,
+            PurchaseInvoice.status != InvoiceStatus.CANCELLED,  # a cancelled invoice frees its folio
         )
     ).first()
+
+
+# --- Automatic requisitions (stock below minimum) ---
+AUTO_REQUISITION_DESCRIPTION = "REPOSICIÓN AUTOMÁTICA"
+ACTIVE_REQUISITION_STATUSES = ("PENDIENTE", "EN_COMPRA", "APLAZADA")
+TRANSIT_PO_STATUSES = ("DRAFT", "AUTORIZADA", "ENVIADA")
+
+
+def get_requisitions_by_status(db: Session, status: str) -> List[PurchaseRequisition]:
+    return list(db.exec(select(PurchaseRequisition).where(PurchaseRequisition.status == status)).all())
+
+
+def get_open_auto_requisitions_with_stock(db: Session) -> List[PurchaseRequisition]:
+    """Pending automatic requisitions whose stock material is already at or above its minimum."""
+    covered = select(Material.id).where(
+        Material.physical_stock >= Material.min_stock, Material.production_route == STOCK_ROUTE)
+    return list(db.exec(select(PurchaseRequisition).where(
+        func.upper(PurchaseRequisition.status) == "PENDIENTE",
+        or_(PurchaseRequisition.notes.like("%Valentina%"), PurchaseRequisition.notes.like("%AUTO%"),
+            PurchaseRequisition.custom_description == AUTO_REQUISITION_DESCRIPTION),
+        PurchaseRequisition.material_id.in_(covered),
+    )).all())
+
+
+def get_stock_materials_with_minimum(db: Session) -> List[Material]:
+    return list(db.exec(select(Material).where(Material.min_stock > 0, Material.production_route == STOCK_ROUTE)).all())
+
+
+def get_transit_by_material(db: Session) -> Dict[int, float]:
+    rows = db.exec(
+        select(PurchaseOrderItem.material_id, func.sum(PurchaseOrderItem.quantity_ordered))
+        .join(PurchaseOrder, PurchaseOrder.id == PurchaseOrderItem.purchase_order_id)
+        .where(PurchaseOrder.status.in_(TRANSIT_PO_STATUSES), PurchaseOrderItem.material_id.is_not(None))
+        .group_by(PurchaseOrderItem.material_id)
+    ).all()
+    return {material_id: float(total or 0.0) for material_id, total in rows}
+
+
+def has_active_requisition(db: Session, material_id: int) -> bool:
+    return db.exec(select(PurchaseRequisition.id).where(
+        PurchaseRequisition.material_id == material_id,
+        func.upper(PurchaseRequisition.status).in_(ACTIVE_REQUISITION_STATUSES),
+    )).first() is not None

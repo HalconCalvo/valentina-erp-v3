@@ -5,6 +5,7 @@ from typing import List, Optional
 from fastapi import HTTPException
 from sqlmodel import Session
 
+from app.core.audit_context import audit_reason
 from app.models.finance import InvoiceStatus, PurchaseInvoice, SupplierPayment
 
 AccountsPayable = SupplierPayment.AccountsPayable
@@ -735,7 +736,8 @@ def cancel_operational_expense(
         if existing_notes
         else f"CANCELADO: {data.cancel_reason}"
     )
-    purchase_repo.cancel_operational_expense_row(db, expense_id, new_notes)
+    with audit_reason(data.cancel_reason):
+        purchase_repo.cancel_operational_expense_row(db, expense_id, new_notes)
     db.commit()
     refreshed = purchase_repo.get_operational_expense_by_id(db, expense_id)
     return refreshed or expense_row

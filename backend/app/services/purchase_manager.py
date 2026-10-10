@@ -1,99 +1,65 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import select, text
+from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
+from app.core.logger import log_error
 from app.models.inventory import PurchaseRequisition, PurchaseOrder, PurchaseOrderItem
 from app.models.material import Material 
 from app.models.foundations import Provider
+from app.repositories import purchase_repository as purchase_repo
 from typing import List, Dict
-import traceback
+
+AUTO_REQUISITION_NOTE = "Generado por Valentina (Stock bajo mínimo)"
+
+
+def _reorder_quantity(material: Material, transit: float) -> float:
+    """Anti-loop math: the order always takes the stock above the minimum (at least by one unit)."""
+    phys = float(material.physical_stock or 0.0)
+    min_s = float(material.min_stock or 0.0)
+    max_s = float(material.max_stock or 0.0)
+    target_stock = max_s if max_s > min_s else (min_s + 1.0)
+    qty = target_stock - (phys + transit)
+    return round(qty if qty > 0 else 1.0, 2)
+
+
+def _refresh_automatic_requisitions(db: Session) -> None:
+    for req in purchase_repo.get_requisitions_by_status(db, "AUTOMATICA"):
+        req.status = "PENDIENTE"
+        db.add(req)
+    # Auto-close: alarms whose stock is already above the minimum
+    for req in purchase_repo.get_open_auto_requisitions_with_stock(db):
+        req.status = "PROCESADA"
+        db.add(req)
+    db.flush()
+
+
+def _create_missing_requisitions(db: Session) -> int:
+    transit_by_material = purchase_repo.get_transit_by_material(db)
+    created = 0
+    for material in purchase_repo.get_stock_materials_with_minimum(db):
+        transit = transit_by_material.get(material.id, 0.0)
+        if float(material.physical_stock or 0.0) + transit > float(material.min_stock or 0.0):
+            continue
+        if purchase_repo.has_active_requisition(db, material.id):
+            continue
+        db.add(PurchaseRequisition(
+            material_id=material.id, custom_description=purchase_repo.AUTO_REQUISITION_DESCRIPTION,
+            requested_quantity=_reorder_quantity(material, transit), status="PENDIENTE", notes=AUTO_REQUISITION_NOTE,
+        ))
+        created += 1
+    return created
+
 
 class PurchaseManager:
     @staticmethod
     def evaluate_and_create_automatic_requisitions(db: Session) -> int:
-        """
-        EL CEREBRO DE VALENTINA (V4.0 - MATEMÁTICA ANTI-BUCLES)
-        """
+        """Automatic requisitions for stock materials below their minimum (counting stock in transit)."""
         try:
-            db.execute(text("UPDATE purchase_requisitions SET status = 'PENDIENTE' WHERE status = 'AUTOMATICA'"))
-            # AUTO-CIERRE: Cerrar alarmas cuyo stock ya supera el mínimo
-            db.execute(text("""
-                UPDATE purchase_requisitions
-                SET status = 'PROCESADA'
-                WHERE UPPER(status) = 'PENDIENTE'
-                AND (notes LIKE '%Valentina%' OR notes LIKE '%AUTO%'
-                     OR custom_description = 'REPOSICIÓN AUTOMÁTICA')
-                AND material_id IN (
-                    SELECT id FROM materials WHERE physical_stock >= min_stock AND CAST(production_route AS VARCHAR) = 'MATERIAL'
-                )
-            """))
-            
-            materials = db.execute(
-                text("SELECT id, name, physical_stock, min_stock, max_stock FROM materials WHERE min_stock > 0 AND CAST(production_route AS VARCHAR) = 'MATERIAL'")
-            ).mappings().all()
-            
-            if not materials: return 0
-
-            # Calcular Tránsito (OCs Vivas)
-            active_pos = db.execute(
-                text("SELECT id FROM purchase_orders WHERE status IN ('DRAFT', 'AUTORIZADA', 'ENVIADA')")
-            ).mappings().all()
-            active_po_ids = [str(po['id']) for po in active_pos]
-            
-            transit_dict = {}
-            if active_po_ids:
-                items = db.execute(
-                    text("SELECT material_id, quantity_ordered FROM purchase_order_items WHERE purchase_order_id = ANY(:ids)"),
-                    {"ids": list(active_po_ids)}
-                ).mappings().all()
-                for item in items:
-                    m_id = item['material_id']
-                    if m_id is not None:
-                        transit_dict[m_id] = transit_dict.get(m_id, 0.0) + float(item['quantity_ordered'] or 0.0)
-
-            created_count = 0
-            
-            for mat in materials:
-                m_id = mat['id']
-                phys = float(mat['physical_stock'] or 0.0)
-                min_s = float(mat['min_stock'] or 0.0)
-                transit = transit_dict.get(m_id, 0.0)
-
-                # REGLA: ¿Realmente falta material proyectado?
-                if (phys + transit) <= min_s:
-                    
-                    check_sql = text("""
-                        SELECT id FROM purchase_requisitions 
-                        WHERE material_id = :m_id 
-                        AND UPPER(status) IN ('PENDIENTE', 'EN_COMPRA', 'APLAZADA')
-                    """)
-                    existing = db.execute(check_sql, {"m_id": m_id}).first()
-
-                    if not existing:
-                        max_s = float(mat['max_stock'] or 0.0)
-                        
-                        # MATEMÁTICA ANTI-BUCLES: 
-                        # Aseguramos que el pedido rebase el mínimo (aunque sea por 1 unidad) para romper el empate (<=)
-                        target_stock = max_s if max_s > min_s else (min_s + 1.0)
-                        qty_to_order = target_stock - (phys + transit)
-                        
-                        if qty_to_order <= 0: qty_to_order = 1.0
-                        qty_to_order = round(qty_to_order, 2)
-                        
-                        db.execute(
-                            text("""
-                            INSERT INTO purchase_requisitions 
-                            (material_id, custom_description, requested_quantity, status, notes, created_at) 
-                            VALUES 
-                            (:m_id, 'REPOSICIÓN AUTOMÁTICA', :qty, 'PENDIENTE', 'Generado por Valentina (Stock bajo mínimo)', CURRENT_TIMESTAMP)
-                            """),
-                            {"m_id": m_id, "qty": qty_to_order}
-                        )
-                        created_count += 1
+            _refresh_automatic_requisitions(db)
+            created = _create_missing_requisitions(db)
             db.commit()
-            return created_count
-
-        except Exception as e:
-            print(f"\n🚨 ERROR CRÍTICO EN VALENTINA: {e}")
-            traceback.print_exc()
+            return created
+        except SQLAlchemyError as exc:
+            log_error("evaluate_automatic_requisitions", exc)
             db.rollback()
             return 0
 

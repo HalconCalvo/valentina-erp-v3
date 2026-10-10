@@ -161,6 +161,7 @@ class SupplierPayment(SQLModel, table=True):
         status: str = Field(default="PENDIENTE")
         overhead_category: Optional[str] = None
         instance_id: Optional[int] = None
+        notes: Optional[str] = None  # column added by e0f1a2b3c4d5 (operational expense observations)
         created_at: datetime = Field(default_factory=datetime.utcnow)
 
 

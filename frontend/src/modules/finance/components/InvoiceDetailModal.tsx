@@ -7,6 +7,7 @@ import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { VEmptyState } from '@/components/ui/VEmptyState';
 import { toast } from '@/components/ui/VToast';
+import { RecordHistoryButton } from '@/components/audit/RecordHistoryButton';
 
 const cleanInvoiceFolio = (folio: string | null | undefined): string => {
     const safe = String(folio ?? '').trim();
@@ -384,9 +385,12 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                             )}
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 bg-white border border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-50 rounded-full transition-colors shadow-sm">
-                        <X size={20} />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <RecordHistoryButton tableName="purchase_invoices" recordId={invoice.id} label={`Factura ${invoice.invoice_number || invoice.id}`} />
+                        <button onClick={onClose} className="p-2 bg-white border border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-50 rounded-full transition-colors shadow-sm">
+                            <X size={20} />
+                        </button>
+                    </div>
                 </div>
 
                 {/* CUERPO - LA TABLA CLONADA */}

@@ -31,6 +31,7 @@ from app.schemas.finance_schema import (
     CreditNoteCreate,
     CreditNoteRead,
 )
+from app.services import payable_service
 from app.services.purchase_service import resolve_po_authorizer_display
 
 router = APIRouter()
@@ -101,7 +102,7 @@ def _sync_pos_to_invoices(session: SessionDep):
                 session.add(pp)
                 
             # C) Limpiamos la tabla de cuentas por pagar cruda por seguridad
-            session.exec(text("UPDATE accounts_payable SET status = 'CANCELADO' WHERE invoice_folio = :folio AND provider_id = :prov").bindparams(folio=inv_str, prov=inv.provider_id))
+            payable_service.set_status_by_folio(session, inv_str, payable_service.PAYABLE_CANCELLED, inv.provider_id)
 
     # -------------------------------------------------------------------------
     # 2. CREACIÓN REAL: Registrar facturas SOLO cuando Almacén recibe el material
@@ -118,6 +119,7 @@ def _sync_pos_to_invoices(session: SessionDep):
             select(PurchaseInvoice).where(
                 PurchaseInvoice.invoice_number == safe_folio,
                 PurchaseInvoice.provider_id == prov_id,
+                PurchaseInvoice.status != InvoiceStatus.CANCELLED,  # a cancelled invoice frees its folio
             )
         ).first()
         
@@ -228,7 +230,7 @@ def request_supplier_payment(
                 po.payment_status = "PAID"
                 session.add(po)
             elif invoice.outstanding_balance <= 0.01:
-                session.exec(text("UPDATE accounts_payable SET status = 'PAGADO' WHERE invoice_folio = :folio").bindparams(folio=inv_str))
+                payable_service.set_status_by_folio(session, inv_str, payable_service.PAYABLE_PAID)
 
     session.commit()
     session.refresh(payment)
@@ -304,9 +306,7 @@ def cancel_invoice(
     # Cancelar en accounts_payable
     inv_str = clean_invoice_folio(invoice.invoice_number)
     if inv_str:
-        session.exec(text(
-            "UPDATE accounts_payable SET status = 'CANCELADO' WHERE invoice_folio = :folio"
-        ).bindparams(folio=inv_str))
+        payable_service.set_status_by_folio(session, inv_str, payable_service.PAYABLE_CANCELLED)
 
     # Marcar factura como CANCELLED
     invoice.status = getattr(InvoiceStatus, "CANCELLED", "CANCELLED")
@@ -449,7 +449,7 @@ def execute_supplier_payment(*, session: SessionDep, current_user: CurrentUser, 
         po.payment_status = "PAID"
         session.add(po)
     elif invoice.outstanding_balance <= 0.01:
-        session.exec(text("UPDATE accounts_payable SET status = 'PAGADO' WHERE invoice_folio = :folio").bindparams(folio=inv_str))
+        payable_service.set_status_by_folio(session, inv_str, payable_service.PAYABLE_PAID)
 
     session.add(payment)
     session.add(account)

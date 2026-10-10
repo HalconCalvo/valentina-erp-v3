@@ -28,6 +28,11 @@ export const TABLE_LABELS: Record<string, string> = {
   inventory_audit_items: 'Líneas de conteo',
   purchase_orders: 'Órdenes de compra',
   purchase_order_items: 'Partidas de OC',
+  purchase_requisitions: 'Requisiciones',
+  purchase_invoices: 'Facturas de compra',
+  purchase_invoice_items: 'Partidas de factura de compra',
+  accounts_payable: 'Cuentas por pagar',
+  supplier_payments: 'Pagos a proveedores',
   global_config: 'Configuración',
 };
 

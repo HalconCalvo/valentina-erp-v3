@@ -11,6 +11,7 @@ import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { TableActionCancelIcon, TableActionEditIcon } from '@/lib/tableActionIcons';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
+import { RecordHistoryButton } from '@/components/audit/RecordHistoryButton';
 
 export default function ClientsPage() {
   const { clients, loading, createClient, updateClient, deleteClient } = useClients();
@@ -313,7 +314,10 @@ export default function ClientsPage() {
                     <h2 className="text-lg font-bold text-slate-800">
                         {isEditing ? 'Editar Cliente' : 'Nuevo Cliente'}
                     </h2>
-                    <button onClick={closeModal} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
+                    <div className="flex items-center gap-1">
+                        {isEditing && form.id && <RecordHistoryButton tableName="clients_v2" recordId={form.id} label={form.full_name || `Cliente #${form.id}`} />}
+                        <button onClick={closeModal} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
+                    </div>
                 </div>
                 
                 {/* Tabs */}

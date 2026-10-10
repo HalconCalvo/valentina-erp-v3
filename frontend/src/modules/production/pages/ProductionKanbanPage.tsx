@@ -7,6 +7,7 @@ import { Lock, Package, AlertCircle, ArrowRight, CheckCircle2, Boxes, LogOut } f
 import { jsPDF } from 'jspdf';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
+import { RecordHistoryButton } from '@/components/audit/RecordHistoryButton';
 import { Input } from '@/components/ui/Input';
 import { VTable, VTableColumn } from '@/components/ui/VTable';
 import { ReversalDialog, ShortageDialog, type ReversalInput } from '../components/BatchInventoryDialogs';
@@ -1275,13 +1276,16 @@ export default function ProductionKanbanPage() {
                   {batchStatusLabel(selectedBatch.status)}
                 </p>
               </div>
-              <button
-                onClick={() => setSelectedBatch(null)}
-                className="text-slate-400 hover:text-slate-600
-                           text-lg leading-none p-1"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-1">
+                <RecordHistoryButton tableName="production_batches" recordId={selectedBatch.id} label={selectedBatch.folio} />
+                <button
+                  onClick={() => setSelectedBatch(null)}
+                  className="text-slate-400 hover:text-slate-600
+                             text-lg leading-none p-1"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             {/* Instancias */}

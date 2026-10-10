@@ -10,6 +10,7 @@ import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { TableActionCancelIcon, TableActionEditIcon } from '@/lib/tableActionIcons';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
+import { RecordHistoryButton } from '@/components/audit/RecordHistoryButton';
 
 export default function ProvidersPage() {
   const { providers, loading, createProvider, updateProvider, deleteProvider } = useProviders();
@@ -273,9 +274,12 @@ export default function ProvidersPage() {
                         <Building2 className="text-indigo-500"/>
                         {editingId ? 'Editar Proveedor' : 'Alta de Nuevo Proveedor'}
                     </h3>
-                    <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors">
-                        <X size={20} />
-                    </button>
+                    <div className="flex items-center gap-1">
+                        {editingId && <RecordHistoryButton tableName="providers" recordId={editingId} label={formData.business_name || `Proveedor #${editingId}`} />}
+                        <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors">
+                            <X size={20} />
+                        </button>
+                    </div>
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-6 space-y-6">

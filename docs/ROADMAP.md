@@ -22,7 +22,7 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
   los 46 restantes, envía y el Director autoriza.
 - Ensayado en copia de producción (2026-10-10): resultado idéntico al esperado.
 
-## 2. F3 + márgenes + comisión: prueba en pantalla y push — en espera (extensión Claude in Chrome sin conectar)
+## 2. F3 + márgenes + comisión: prueba en pantalla y push — en curso (Chrome conectado)
 - 4 commits locales sobre producción (corrección de recetas y precios al autorizar, definición única de
   márgenes, comisión = c × venta sin IVA, ajuste de test). Migraciones m3n4o5p6q7r8 → n4o5p6q7r8s9.
 - Falta: prueba en pantalla en la copia local; push según reglas (fuera de horario).
@@ -43,13 +43,25 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
   - Páginas huérfanas sin ruta: AccountsPayablePage, InstanceBaptismPage, auth/pages/LoginPage.tsx (vacío);
     routes/ProtectedRoute.tsx sin uso (las rutas solo validan sesión, no rol, salvo legacy-import y campo).
 
-## 4. F4: bitácora en todo el sistema — en curso
+## 4. F4: bitácora en todo el sistema — hecha (2026-10-10, commit local; push fuera de horario)
+- SQL directo → ORM: cuentas por pagar en finanzas (pagado/cancelado por folio), corrección de recepción
+  (el DELETE físico pasa a cancelación de la CxP y su factura, con motivo; renglones de factura quedan en 0),
+  gastos operativos (alta, edición, cancelación con motivo), alta de CxP en recepción, requisiciones automáticas.
+- Una factura cancelada libera su folio (sincronización de finanzas y recepción la ignoran).
+- Botón "Historial" en proveedor, cliente, usuario, lote de producción y factura de compra (cotización, OV,
+  material y versión ya lo tenían).
+- Probado: 6 tests nuevos (208 en total), en PostgreSQL local por API y botones en pantalla.
 
 ## 5. Aplicar la guía por módulos — pendiente (después de la F4, por decisión de Gabriel)
 - Primero Ventas, Inventario y Compras.
 
 
 ## 6. Pendientes del journal — pendiente
+- Borrados físicos que quedan (la bitácora los registra, pero sin el contenido): usuarios, productos y versiones
+  de diseño, solicitud de pago a proveedor, movimiento de caja chica, lote en borrador y sus reservas,
+  asignaciones de logística y planeación.
+- Corrección de recepción parcial no ajusta el saldo pendiente de la factura (total 937, saldo 1,874);
+  y lee una tasa 0% (exento) como 16%. Encontrado en la F4 (2026-10-10), se conservó el comportamiento.
 - Kárdex: filtro Desde/Hasta, subtotal positivo en salidas, montos negativos "-$60.00", histórico con costo por millar.
 - "Finalizada" en la OV (significa saldo cero, no obra terminada).
 - Borrados físicos (p. ej. lote en borrador).

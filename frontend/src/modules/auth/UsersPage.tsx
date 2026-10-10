@@ -11,6 +11,7 @@ import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
+import { RecordHistoryButton } from '@/components/audit/RecordHistoryButton';
 
 // --- 1. CONFIGURACIÓN DE ROLES (Nombres visuales) ---
 const ROLE_OPTIONS = {
@@ -250,9 +251,12 @@ export default function UsersPage() {
                         {isEditing ? <Pencil size={18}/> : <Plus size={18}/>}
                         {isEditing ? 'Editar Usuario' : 'Registrar Usuario'}
                     </h3>
-                    <button onClick={resetForm} className="text-slate-400 hover:text-red-500 transition-colors">
-                        <X size={20} />
-                    </button>
+                    <div className="flex items-center gap-1">
+                        {isEditing && editingId && <RecordHistoryButton tableName="users" recordId={editingId} label={form.full_name || `Usuario #${editingId}`} />}
+                        <button onClick={resetForm} className="text-slate-400 hover:text-red-500 transition-colors">
+                            <X size={20} />
+                        </button>
+                    </div>
                 </div>
                 
                 <form onSubmit={handleSubmit} className="p-6 space-y-5">
