@@ -45,8 +45,9 @@ export const pettyCashService = {
     return res.data;
   },
 
-  deleteMovement: async (id: number): Promise<void> => {
-    await client.delete(`/petty-cash/movements/${id}`);
+  /** Never deleted: cancelled with a reason; the fund balance is reverted. */
+  cancelMovement: async (id: number, reason: string): Promise<void> => {
+    await client.patch(`/petty-cash/movements/${id}/cancel`, { reason });
   },
 
   uploadReceipt: async (movementId: number, file: File): Promise<{ receipt_url: string }> => {

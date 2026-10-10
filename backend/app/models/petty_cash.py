@@ -26,3 +26,8 @@ class PettyCashMovement(SQLModel, table=True):
     movement_date: datetime = Field(default_factory=datetime.utcnow)
     created_by_id: int = Field(foreign_key="users.id")
     notes: Optional[str] = Field(default=None)
+    # Cancellation (never deleted): reason, when and who; the fund balance is reverted
+    is_cancelled: bool = Field(default=False)
+    cancel_reason: Optional[str] = Field(default=None)
+    cancelled_at: Optional[datetime] = Field(default=None)
+    cancelled_by_id: Optional[int] = Field(default=None, foreign_key="users.id")

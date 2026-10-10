@@ -11,14 +11,16 @@ from app.schemas.petty_cash_schema import (
     PettyCashFundUpdate,
     PettyCashMovementCreate,
     PettyCashMovementRead,
+    PettyCashMovementCancel,
     PettyCashMovementUpdate,
 )
+from app.services import petty_cash_service
 from app.services.cloud_storage import upload_to_gcs
 
 router = APIRouter()
 
-ALLOWED_ROLES = {"DIRECTOR", "GERENCIA", "ADMIN"}
-MANAGER_ROLES = {"DIRECTOR", "GERENCIA"}
+ALLOWED_ROLES = {"DIRECTOR", "MANAGER", "ADMIN"}
+MANAGER_ROLES = {"DIRECTOR", "MANAGER"}
 
 
 def _check_role(current_user: User, allowed: set = ALLOWED_ROLES):
@@ -161,6 +163,7 @@ def update_movement(
     movement = db.get(PettyCashMovement, movement_id)
     if not movement:
         raise HTTPException(status_code=404, detail="Movimiento no encontrado.")
+    petty_cash_service.assert_editable(movement)
 
     fund = _get_or_create_fund(db)
 
@@ -226,30 +229,14 @@ async def upload_receipt(
 
 
 # ─────────────────────────────────────────
-# DELETE /petty-cash/movements/{id}
+# PATCH /petty-cash/movements/{id}/cancel — nunca se elimina
 # ─────────────────────────────────────────
-@router.delete("/movements/{movement_id}")
-def delete_movement(
+@router.patch("/movements/{movement_id}/cancel", response_model=PettyCashMovementRead)
+def cancel_movement(
     movement_id: int,
+    body: PettyCashMovementCancel,
     current_user: CurrentUser,
     db: Session = Depends(get_session),
 ):
-    _check_role(current_user, MANAGER_ROLES)
-    movement = db.get(PettyCashMovement, movement_id)
-    if not movement:
-        raise HTTPException(status_code=404, detail="Movimiento no encontrado.")
-
-    fund = _get_or_create_fund(db)
-
-    # Revertir efecto en el saldo
-    if movement.movement_type == "EGRESO":
-        fund.current_balance += movement.amount
-    elif movement.movement_type == "REPOSICION":
-        fund.current_balance -= movement.amount
-
-    fund.updated_at = datetime.utcnow()
-    fund.updated_by_id = current_user.id
-    db.add(fund)
-    db.delete(movement)
-    db.commit()
-    return {"ok": True}
+    movement = petty_cash_service.cancel_movement(db, movement_id, body, current_user)
+    return _movement_to_read(movement, db)

@@ -128,3 +128,6 @@ class OperationalExpenseUpdate(BaseModel):
 
 class OperationalExpenseCancel(BaseModel):
     cancel_reason: str
+
+class PaymentRequestCancel(SQLModel):
+    reason: str

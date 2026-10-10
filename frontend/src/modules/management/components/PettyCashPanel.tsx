@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { pettyCashService } from '../../../api/petty-cash-service';
-import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import { VReasonDialog } from '@/components/ui/VReasonDialog';
+import { TableActionEditIcon } from '@/lib/tableActionIcons';
 import { toast } from '@/components/ui/VToast';
 import { Input } from '@/components/ui/Input';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
@@ -159,13 +160,16 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
     }
   };
 
-  const executeDelete = async (id: number) => {
+  const executeCancel = async (id: number, reason: string): Promise<boolean> => {
     try {
-      await pettyCashService.deleteMovement(id);
+      await pettyCashService.cancelMovement(id, reason);
+      toast.success('Movimiento cancelado; el saldo del fondo se revirtió.');
       await load();
       onRefresh();
+      return true;
     } catch (e: any) {
-      toast.error(e?.response?.data?.detail || 'Error al eliminar el movimiento.');
+      toast.error(e?.response?.data?.detail || 'Error al cancelar el movimiento.');
+      return false;
     }
   };
 
@@ -231,7 +235,13 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
     {
       key: 'concept',
       label: 'Concepto',
-      render: (m) => <span className="text-slate-800 font-medium max-w-xs truncate block">{m.concept}</span>,
+      render: (m) => (
+        <span className={`font-medium max-w-xs truncate block ${m.is_cancelled ? 'text-slate-400 line-through' : 'text-slate-800'}`}
+          title={m.is_cancelled ? `Cancelado: ${m.cancel_reason ?? ''}` : undefined}>
+          {m.is_cancelled && <span className="mr-2 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 no-underline">Cancelado</span>}
+          {m.concept}
+        </span>
+      ),
     },
     {
       key: 'amount',
@@ -339,10 +349,12 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
           emptyState={{ title: 'No hay movimientos registrados.' }}
           actions={isManager ? (row) => {
             const m = row as unknown as PettyCashMovement;
+            if (m.is_cancelled) return [];
             return [
               {
                 label: '',
-                icon: <span title="Editar movimiento">✏️</span>,
+                title: 'Editar movimiento',
+                icon: <TableActionEditIcon />,
                 onClick: () => {
                   setEditingMovement(m);
                   setEditForm({
@@ -355,8 +367,8 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
                 },
               },
               {
-                label: '',
-                icon: <span title="Eliminar">🗑️</span>,
+                label: 'Cancelar',
+                title: 'Cancelar movimiento',
                 variant: 'danger' as const,
                 onClick: () => handleDelete(m.id),
               },
@@ -572,21 +584,18 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
           </div>
         </Modal>
       )}
-      <VConfirmDialog
-        isOpen={pendingDeleteId !== null}
-        title="Eliminar movimiento"
-        message="¿Eliminar este movimiento de caja chica?"
-        consequence="El saldo del fondo será revertido según el monto del movimiento."
-        variant="danger"
-        confirmLabel="Sí, eliminar"
-        onConfirm={async () => {
-          if (pendingDeleteId !== null) {
-            await executeDelete(pendingDeleteId);
-            setPendingDeleteId(null);
-          }
-        }}
-        onCancel={() => setPendingDeleteId(null)}
-      />
+      {pendingDeleteId !== null && (
+        <VReasonDialog
+          title="Cancelar movimiento"
+          description="El movimiento no se elimina: queda cancelado con su motivo, fecha y usuario, y el saldo del fondo se revierte."
+          label="Motivo de la cancelación *"
+          requiredMessage="El motivo de la cancelación es obligatorio."
+          confirmLabel="Cancelar movimiento"
+          danger
+          onConfirm={(reason) => executeCancel(pendingDeleteId, reason)}
+          onClose={() => setPendingDeleteId(null)}
+        />
+      )}
     </div>
   );
 }

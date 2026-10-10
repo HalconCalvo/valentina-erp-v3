@@ -21,6 +21,7 @@ class PaymentStatus(str, Enum):
     APPROVED = "APPROVED"   # Autorizado (Dirección dictamina cuenta)
     REJECTED = "REJECTED"   # Rechazado
     PAID = "PAID"           # Ejecutado (Dinero salió de Tesorería)
+    CANCELLED = "CANCELLED" # Cancelada por quien la pidió, con motivo (nunca se elimina)
 
 class PaymentMethod(str, Enum):
     TRANSFER = "TRANSFER"

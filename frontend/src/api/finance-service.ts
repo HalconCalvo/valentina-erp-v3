@@ -34,10 +34,10 @@ export const financeService = {
     },
 
     /**
-     * Cancela/Elimina una solicitud de pago (Solo si está PENDING o REJECTED)
+     * Cancela una solicitud de pago con motivo (solo PENDING o REJECTED); nunca se elimina
      */
-    cancelPaymentRequest: async (id: number): Promise<void> => {
-        await client.delete(`/finance/payments/request/${id}`);
+    cancelPaymentRequest: async (id: number, reason: string): Promise<void> => {
+        await client.patch(`/finance/payments/request/${id}/cancel`, { reason });
     },
 
     /**

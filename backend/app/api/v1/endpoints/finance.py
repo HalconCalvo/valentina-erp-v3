@@ -30,6 +30,7 @@ from app.schemas.finance_schema import (
     AccountsPayableDashboardStats,
     CreditNoteCreate,
     CreditNoteRead,
+    PaymentRequestCancel,
 )
 from app.services import payable_service
 from app.services.purchase_service import resolve_po_authorizer_display
@@ -319,23 +320,15 @@ def cancel_invoice(
 
 # 1.2 ELIMINAR SOLICITUD DE PAGO
 # ------------------------------------------------------------------
-@router.delete("/payments/request/{payment_id}")
+@router.patch("/payments/request/{payment_id}/cancel", response_model=SupplierPaymentRead)
 def cancel_payment_request(
     *,
     session: SessionDep,
     current_user: CurrentUser,
-    payment_id: int
+    payment_id: int,
+    data: PaymentRequestCancel,
 ) -> Any:
-    payment = session.get(SupplierPayment, payment_id)
-    if not payment:
-        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
-
-    if payment.status not in [PaymentStatus.PENDING, PaymentStatus.REJECTED]:
-        raise HTTPException(status_code=400, detail="No se puede eliminar una solicitud ya autorizada")
-
-    session.delete(payment)
-    session.commit()
-    return {"message": "Solicitud eliminada correctamente"}
+    return payable_service.cancel_payment_request(session, payment_id, data, current_user)
 
 # ------------------------------------------------------------------
 # 2. APROBAR Y EJECUTAR PAGO 

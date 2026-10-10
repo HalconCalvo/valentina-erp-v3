@@ -40,6 +40,9 @@ class PettyCashMovementRead(BaseModel):
     created_by_id: int
     notes: Optional[str] = None
     created_by_name: Optional[str] = None
+    is_cancelled: bool = False
+    cancel_reason: Optional[str] = None
+    cancelled_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -51,3 +54,7 @@ class PettyCashMovementUpdate(BaseModel):
     category: Optional[str] = None
     notes: Optional[str] = None
     movement_date: Optional[datetime] = None
+
+
+class PettyCashMovementCancel(BaseModel):
+    reason: str

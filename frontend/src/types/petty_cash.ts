@@ -31,6 +31,9 @@ export interface PettyCashMovement {
   created_by_id: number;
   created_by_name: string | null;
   notes: string | null;
+  is_cancelled?: boolean;
+  cancel_reason?: string | null;
+  cancelled_at?: string | null;
 }
 
 export interface PettyCashMovementCreate {

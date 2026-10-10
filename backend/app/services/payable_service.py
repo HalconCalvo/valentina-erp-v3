@@ -3,11 +3,14 @@ reaches the change log. Nothing is deleted: a payable that drops to zero is canc
 """
 from typing import Optional
 
+from fastapi import HTTPException
 from sqlmodel import Session
 
 from app.core.audit_context import audit_reason
-from app.models.finance import InvoiceStatus
+from app.core.permissions import require_roles
+from app.models.finance import InvoiceStatus, PaymentStatus, SupplierPayment
 from app.repositories import purchase_repository as purchase_repo
+from app.schemas.finance_schema import PaymentRequestCancel
 
 PAYABLE_PENDING = "PENDIENTE"
 PAYABLE_PAID = "PAGADO"
@@ -65,3 +68,27 @@ def reduce_for_reception_correction(session: Session, payable_id: int, amount: f
             _set_amounts(session, payable, round(new_subtotal, 2), new_tax, new_total)
         session.flush()
     return True
+
+
+PAYMENT_ROLES = {"DIRECTOR", "MANAGER", "ADMIN"}
+CANCELLABLE_PAYMENT_STATUSES = {PaymentStatus.PENDING, PaymentStatus.REJECTED}
+
+
+def cancel_payment_request(session: Session, payment_id: int, data: PaymentRequestCancel, user) -> SupplierPayment:
+    """A pending or rejected payment request is cancelled with its reason (it was deleted before)."""
+    require_roles(user, PAYMENT_ROLES, "Solo Dirección, Gerencia o Administración cancelan solicitudes de pago.")
+    reason = (data.reason or "").strip()
+    if not reason:
+        raise HTTPException(status_code=422, detail="El motivo de la cancelación es obligatorio.")
+    payment = session.get(SupplierPayment, payment_id)
+    if not payment:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    if payment.status not in CANCELLABLE_PAYMENT_STATUSES:
+        raise HTTPException(status_code=400, detail="No se puede cancelar una solicitud ya autorizada o pagada")
+    with audit_reason(reason):
+        payment.status = PaymentStatus.CANCELLED
+        payment.notes = "; ".join(x for x in (payment.notes, f"Cancelada: {reason}") if x)
+        session.add(payment)
+        session.commit()
+    session.refresh(payment)
+    return payment
