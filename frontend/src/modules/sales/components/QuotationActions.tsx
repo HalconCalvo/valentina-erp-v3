@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { CalendarClock, CheckCircle, FileDown, Send, ThumbsDown, Unlock } from 'lucide-react';
+import { FileDown } from 'lucide-react';
 
 import Modal from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 import {
-    TableActionCancelIcon,
     TableActionEditIcon,
     TableActionViewIcon,
     TABLE_ACTION_ICON_SIZE,
@@ -67,39 +66,52 @@ interface RowActionsProps {
 const iconBtn = 'group p-1.5 rounded transition-colors hover:bg-indigo-50 disabled:opacity-50';
 
 /** Icon-only actions available for a quotation in its current status (tooltip describes each one). */
+const TEXT_TONES = {
+    neutral: 'border-slate-300 text-slate-700 hover:bg-slate-50',
+    primary: 'border-indigo-600 bg-indigo-600 text-white hover:bg-indigo-700',
+    create: 'border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700',
+    danger: 'border-rose-200 text-rose-700 hover:bg-rose-50',
+} as const;
+
+/** Universal actions (view, PDF, edit) are icons with a description; flow actions are text buttons. */
 export const QuotationRowActions: React.FC<RowActionsProps> = ({ quotation, onView, onEdit, onReview, onPdf, onAction, hideView = false }) => {
     const manage = canManageQuotations();
     const st = quotation.status;
-    const button = (title: string, onClick: () => void, icon: React.ReactNode, extra = '') => (
-        <button type="button" title={title} aria-label={title} onClick={onClick} className={`${iconBtn} ${extra}`}>{icon}</button>
+    const icon = (title: string, onClick: () => void, node: React.ReactNode) => (
+        <button type="button" title={title} aria-label={title} onClick={onClick} className={iconBtn}>{node}</button>
+    );
+    const text = (label: string, onClick: () => void, tone: keyof typeof TEXT_TONES = 'neutral', title?: string) => (
+        <button type="button" title={title ?? label} onClick={onClick}
+            className={`whitespace-nowrap rounded-lg border px-2.5 py-1 text-xs font-bold transition-colors ${TEXT_TONES[tone]}`}>
+            {label}
+        </button>
     );
     return (
-        <div className="flex items-center justify-center gap-1">
-            {!hideView && button('Ver cotización', onView, <TableActionViewIcon />)}
-            {button('Descargar PDF', onPdf, <FileDown size={TABLE_ACTION_ICON_SIZE} className="text-slate-500 group-hover:text-indigo-600" />)}
+        <div className="flex flex-wrap items-center justify-center gap-1">
+            {!hideView && icon('Ver cotización', onView, <TableActionViewIcon />)}
+            {icon('Descargar PDF', onPdf, <FileDown size={TABLE_ACTION_ICON_SIZE} className="text-slate-500 group-hover:text-indigo-600" />)}
             {manage && ['DRAFT', 'CHANGES_REQUESTED'].includes(st) && (
                 <>
-                    {button('Editar', onEdit, <TableActionEditIcon />)}
-                    {button('Solicitar autorización', () => onAction('REQUEST_AUTH'), <Send size={TABLE_ACTION_ICON_SIZE} className="text-amber-500" />, 'hover:bg-amber-50')}
+                    {icon('Editar', onEdit, <TableActionEditIcon />)}
+                    {text('Enviar a Dirección', () => onAction('REQUEST_AUTH'), 'primary', 'Solicitar autorización a Dirección')}
                 </>
             )}
-            {st === 'PENDING_AUTH' && canAuthorizeQuotations() &&
-                button('Revisar y autorizar', onReview, <CheckCircle size={TABLE_ACTION_ICON_SIZE} className="text-indigo-600" />)}
+            {st === 'PENDING_AUTH' && canAuthorizeQuotations() && text('Revisar y autorizar', onReview, 'primary')}
             {manage && st === 'AUTHORIZED' && (
                 <>
-                    {button('Desbloquear para editar', () => onAction('REQUEST_CHANGES'), <Unlock size={TABLE_ACTION_ICON_SIZE} className="text-slate-500 group-hover:text-indigo-600" />)}
-                    {button('Marcar como perdida', () => onAction('MARK_LOST'), <ThumbsDown size={TABLE_ACTION_ICON_SIZE} className="text-slate-500 group-hover:text-rose-600" />, 'hover:bg-rose-50')}
-                    {button('Generar OV (OC del cliente)', () => onAction('CONVERT'), <CheckCircle size={TABLE_ACTION_ICON_SIZE} className="text-emerald-600" />, 'hover:bg-emerald-50')}
+                    {text('Generar OV', () => onAction('CONVERT'), 'create', 'Generar OV (OC del cliente)')}
+                    {text('Desbloquear', () => onAction('REQUEST_CHANGES'), 'neutral', 'Desbloquear para editar')}
+                    {text('Perdida', () => onAction('MARK_LOST'), 'neutral', 'Marcar como perdida')}
                 </>
             )}
             {manage && st === 'EXPIRED' && (
                 <>
-                    {button('Renovar vigencia', () => onAction('RENEW'), <CalendarClock size={TABLE_ACTION_ICON_SIZE} className="text-amber-600" />, 'hover:bg-amber-50')}
-                    {button('Marcar como perdida', () => onAction('MARK_LOST'), <ThumbsDown size={TABLE_ACTION_ICON_SIZE} className="text-slate-500 group-hover:text-rose-600" />, 'hover:bg-rose-50')}
+                    {text('Renovar vigencia', () => onAction('RENEW'))}
+                    {text('Perdida', () => onAction('MARK_LOST'), 'neutral', 'Marcar como perdida')}
                 </>
             )}
             {manage && ['DRAFT', 'CHANGES_REQUESTED', 'PENDING_AUTH', 'AUTHORIZED'].includes(st) &&
-                button('Cancelar cotización', () => onAction('CANCEL'), <TableActionCancelIcon />, 'hover:bg-rose-50')}
+                text('Cancelar', () => onAction('CANCEL'), 'danger', 'Cancelar cotización')}
         </div>
     );
 };

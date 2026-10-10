@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
 import { RecordHistoryButton } from '@/components/audit/RecordHistoryButton';
+import { formatDate, formatDateTime } from '@/utils/format';
 
 import {
   quotationService,
@@ -26,18 +27,6 @@ import {
   quotationStatusBadgeClass,
 } from '../components/QuotationActions';
 import { FinancialReviewModal } from '../../management/components/FinancialReviewModal';
-
-const formatDateTime = (iso: string | null | undefined): string => {
-  if (!iso) return '—';
-  const utc = /[zZ]|[+-]\d{2}:\d{2}$/.test(iso) ? iso : `${iso}Z`;
-  const date = new Date(utc);
-  if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleString('es-MX', {
-    timeZone: 'America/Merida', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-  });
-};
-
-const formatDate = (iso: string | null | undefined): string => (iso ? formatDateTime(iso).split(',')[0] : '—');
 
 /** Who/when/why of each step of the quotation's life. */
 const timeline = (q: Quotation): Array<{ label: string; value: string; tone?: string }> => [
@@ -146,22 +135,24 @@ const QuotationDetailPage: React.FC = () => {
   };
 
   return (
-    <div className="p-6 max-w-[1200px] mx-auto space-y-6">
-      <div className="flex items-center gap-3">
-        <button type="button" onClick={() => navigate('/sales')} className="p-2 rounded-lg hover:bg-slate-100 text-slate-500" title="Volver">
-          <ArrowLeft size={20} />
-        </button>
-        <div className="flex-1">
+    <div className="p-8 max-w-7xl mx-auto space-y-6 pb-24 animate-fadeIn">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4">
+        <div>
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-black text-slate-800">{quotation.folio}</h1>
+            <h1 className="text-3xl font-black text-slate-800 tracking-tight">{quotation.folio}</h1>
             <span className={`rounded-full px-3 py-1 text-xs font-bold ${quotationStatusBadgeClass(quotation.status)}`}>{QUOTATION_STATUS_LABELS[quotation.status]}</span>
             <RecordHistoryButton tableName="quotations" recordId={quotation.id} label={quotation.folio} />
           </div>
-          <p className="text-sm text-slate-500 mt-1">{quotation.project_name}</p>
+          <p className="text-slate-500 mt-1 font-medium">{quotation.project_name}</p>
         </div>
-        <Button variant="outline" onClick={handlePdf} className="gap-2">
-          <FileDown size={16} /> PDF
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handlePdf} className="gap-2" title="Descargar PDF">
+            <FileDown size={16} /> PDF
+          </Button>
+          <Button variant="outline" onClick={() => navigate('/sales')} className="gap-2">
+            <ArrowLeft size={16} /> Regresar
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -224,15 +215,15 @@ const QuotationDetailPage: React.FC = () => {
           <Card className="p-6 space-y-3">
             <h2 className="text-sm font-black uppercase text-slate-500 tracking-wider">Totales</h2>
             <div className="flex justify-between text-sm">
-              <span className="text-slate-500">Subtotal</span>
-              <span className="font-bold">{formatQuotationCurrency(quotation.subtotal)}</span>
+              <span className="text-slate-500">Subtotal (sin IVA)</span>
+              <span className="font-bold tabular-nums">{formatQuotationCurrency(quotation.subtotal)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-slate-500">IVA</span>
-              <span className="font-bold">{formatQuotationCurrency(quotation.tax_amount)}</span>
+              <span className="font-bold tabular-nums">{formatQuotationCurrency(quotation.tax_amount)}</span>
             </div>
             <div className="flex justify-between text-lg pt-2 border-t border-slate-100">
-              <span className="font-black text-slate-700">Total</span>
+              <span className="font-black text-slate-700">Total (con IVA)</span>
               <span className="font-black text-indigo-700">{formatQuotationCurrency(quotation.total_price)}</span>
             </div>
           </Card>
