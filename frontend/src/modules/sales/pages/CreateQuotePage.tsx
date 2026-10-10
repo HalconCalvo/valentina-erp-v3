@@ -897,11 +897,13 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                                 return [
                                     {
                                         label: '',
+                                        title: 'Editar partida',
                                         icon: <Pencil size={14} />,
                                         onClick: () => handleEditItem(idx),
                                     },
                                     {
                                         label: '',
+                                        title: 'Quitar partida',
                                         icon: <Trash2 size={14} />,
                                         variant: 'danger' as const,
                                         onClick: () => handleRemoveItem((row as SalesOrderItem).id),

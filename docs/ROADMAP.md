@@ -47,7 +47,7 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
   - `<input>` nativo visible: Login, catálogo de diseño, pantalla de campo.
   - 35 modales hechos a mano (`fixed inset-0`), 7 en Órdenes de compra.
   - `console.*` en hooks: useDesign, useFoundations, useMaterials, useClients, useProviders.
-  - Acciones de solo ícono sin descripción (sin tooltip): Usuarios y Tasas de IVA.
+  - Acciones de solo ícono sin descripción: resuelto (VTable usa title; partidas de la cotización con descripción, 10/10).
   - Páginas huérfanas sin ruta: AccountsPayablePage, InstanceBaptismPage, auth/pages/LoginPage.tsx (vacío);
     routes/ProtectedRoute.tsx sin uso (las rutas solo validan sesión, no rol, salvo legacy-import y campo).
 
@@ -74,13 +74,13 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
 - Pendiente (conforme se toquen): Finanzas, Tesorería, Dirección, Producción (Kanban con `fetch()`), Diseño,
   Logística; tablero de Ventas (archivo de 1,600 líneas) y cuerpo de Rayos X (tabla de facturas).
 
-## 6. Pendientes del journal — en curso
+## 6. Pendientes del journal — hecha (2026-10-10)
 - Hecho (2026-10-10, commits locales): Heartbeat 404; redondeo del costo de compra; requisiciones duplicadas
   (candado); corrección de recepción (saldo de factura y tasa exenta); devoluciones por NC y /inventory/reception
   en unidad de uso (millar → pieza); kárdex con salidas negativas; tablero de Inventario = Valuación (D5);
   "Finalizada" → "Pagada (saldo cero)" (D3); usuarios, caja chica y solicitudes de pago se cancelan, no se borran.
 - **Seguridad (hecho, commit 4d0963b + 2597aff):** sesión y rol en todas las escrituras de dinero, compras,
-  inventario y usuarios (D6, D7). En producción sigue abierto hasta el push.
+  inventario y usuarios (D6, D7). En producción desde el push del 10/10 (cd103bd).
 - D2–D7 resueltas por Gabriel y aplicadas (D4: IVA en la OC, migración t9u0v1w2x3y4; D7: pagos solo DIRECTOR con interruptor para MANAGER, s8t9u0v1w2x3).
 - Borrados físicos (hecho): diseño (producto/versión se desactivan), lote en borrador (CANCELLED), nómina pendiente
   de firma al cambiar equipo (CANCELLED); migración u0v1w2x3y4z5.
@@ -92,23 +92,12 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
 - Guía (hecho 2026-10-10): sin console.* en el frontend; login, buscador del encabezado, selectores de archivo y el
   estatus de la receta usan los componentes. Excepción documentada: tabla de impresión del inventario físico
   (@media print). Campo no se tocó (EN ESPERA, D15).
-- Hallazgos de la tarea 5 (2026-10-10):
-  - El tablero de Inventario muestra $2,259,249.11 y Valuación $2,283,776.16: dos cálculos distintos del mismo valor.
-  - Requisiciones automáticas duplicadas (0502-004 tiene dos PENDIENTE): tres pantallas las evalúan a la vez al
-    cargar y la revisión "¿ya existe?" no es atómica.
-  - "Todas las OCs": el total con IVA se calcula con 16% fijo.
-- Borrados físicos que quedan (la bitácora los registra, pero sin el contenido): usuarios, productos y versiones
-  de diseño, solicitud de pago a proveedor, movimiento de caja chica, lote en borrador y sus reservas,
-  asignaciones de logística y planeación.
-- Corrección de recepción parcial no ajusta el saldo pendiente de la factura (total 937, saldo 1,874);
-  y lee una tasa 0% (exento) como 16%. Encontrado en la F4 (2026-10-10), se conservó el comportamiento.
-- Kárdex: filtro Desde/Hasta, subtotal positivo en salidas, montos negativos "-$60.00", histórico con costo por millar.
-- "Finalizada" en la OV (significa saldo cero, no obra terminada).
-- Borrados físicos (p. ej. lote en borrador).
-- Conversión millar/pieza en devoluciones por NC e /inventory/reception.
-- Heartbeat 404.
-- Costo de compra se redondea hacia arriba por punto flotante en `inventory_service._apply_purchase_cost`
-  (34.45 → 34.46). Encontrado 2026-10-10.
+- Revisión 2026-10-10 (noche) de los hallazgos anteriores: todos resueltos — tablero de Inventario = Valuación (D5),
+  candado de requisiciones duplicadas, IVA de cada OC en "Todas las OCs" (D4), corrección de recepción parcial y tasa
+  exenta, kárdex (filtro Desde/Hasta, salidas en negativo, costo por millar), "Finalizada" (D3), conversión
+  millar/pieza, Heartbeat, redondeo del costo de compra. Borrados físicos: solo quedan la asignación provisional de
+  Planeación (decidido dejarla) y los componentes de una receta en borrador (antes de cualquier efecto externo).
+- Tarea 6 cerrada salvo lo que dependa de decisiones (DECISIONES_PENDIENTES).
 
 ## 7. Saneamiento de producción (reemplaza el arranque en ceros, D8) — en curso
 - 2026-10-10: reporte en `docs/SANEAMIENTO.md`; Excel de materiales incompletos en ~/Downloads. Decisión D14 pendiente.
