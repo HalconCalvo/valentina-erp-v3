@@ -11,6 +11,8 @@ import { toast } from '@/components/ui/VToast';
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { formatMoney } from '@/utils/format';
+import { canSeeCosts } from '@/utils/costVisibility';
+import { quotationService, type PriceSuggestionItem } from '../../../api/quotation-service';
 
 interface AddItemsModalProps {
     isOpen: boolean;
@@ -56,6 +58,8 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
     const [resaleSearch, setResaleSearch] = useState('');
     const [staging, setStaging] = useState<StagedItem[]>([]);
     const [priceManual, setPriceManual] = useState(false);
+    const [pricing, setPricing] = useState(false);
+    const showCosts = canSeeCosts();
 
     const [lineItem, setLineItem] = useState({
         master_id: 0,
@@ -134,10 +138,31 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
 
     const formatCurrency = (value: number) => formatMoney(value);
 
+    /** D13: the seller gets the suggested price from the server, never the cost. */
+    const setServerPrice = async (item: PriceSuggestionItem, changes: Partial<typeof lineItem>) => {
+        setPriceManual(false);
+        setLineItem((prev) => ({ ...prev, ...changes, unit_price: 0, frozen_cost: 0 }));
+        setPricing(true);
+        try {
+            const [price] = await quotationService.suggestPrices([item], order.tax_rate_id, commissionRate);
+            setLineItem((prev) => ({ ...prev, unit_price: price }));
+            if (!(price > 0)) setPriceManual(true);
+        } catch {
+            toast.error('No se pudo calcular el precio sugerido.');
+        } finally {
+            setPricing(false);
+        }
+    };
+
     const handleVersionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const selectedVersionId = Number(e.target.value);
         const master = masters.find((m) => m.id === lineItem.master_id);
         const version = master?.versions?.find((v: any) => v.id === selectedVersionId);
+        if (!showCosts) {
+            void setServerPrice({ origin_version_id: selectedVersionId },
+                { version_id: selectedVersionId, description: version?.commercial_description || '' });
+            return;
+        }
         const estimatedCost = version ? Number(version.estimated_cost ?? version.total_cost ?? version.cost ?? 0) : 0;
         const materialCost = version ? Number(version.material_cost ?? 0) : 0;
 
@@ -364,6 +389,10 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
                                                 type="button"
                                                 onClick={() => {
                                                     setSelectedResaleSku(m.sku);
+                                                    if (!showCosts) {
+                                                        void setServerPrice({ resale_sku: m.sku }, { manual_name: m.name });
+                                                        return;
+                                                    }
                                                     const costo = Number(m.current_cost) || 0;
                                                     // sale_price del catálogo es el precio antes de comisión: se suma la comisión del vendedor
                                                     const override = priceFromMarkup(Number(m.sale_price) || 0, 0, commissionRate);
@@ -453,6 +482,7 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
                         <button
                             type="button"
                             onClick={handleAddToStaging}
+                            disabled={pricing}
                             className="w-full px-4 py-2 text-sm font-black text-white bg-slate-700 hover:bg-slate-800 rounded-lg transition-colors flex items-center justify-center gap-2"
                         >
                             <Plus size={16} /> Agregar a la lista

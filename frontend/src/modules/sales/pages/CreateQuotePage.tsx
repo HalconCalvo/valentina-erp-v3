@@ -10,7 +10,7 @@ import {
 import { useClients } from '../../foundations/hooks/useClients';
 import { useFoundations } from '../../foundations/hooks/useFoundations';
 import { designService } from '../../../api/design-service';
-import { quotationService, formatQuotationFolio, EDITABLE_QUOTATION_STATUSES } from '../../../api/quotation-service';
+import { quotationService, formatQuotationFolio, EDITABLE_QUOTATION_STATUSES, type PriceSuggestionItem } from '../../../api/quotation-service';
 import client from '../../../api/axios-client'; 
 
 import { Button } from '@/components/ui/Button';
@@ -28,6 +28,7 @@ import {
 import { SalesOrderItem } from '../../../types/sales';
 import { QuotationStatus } from '../../../types/quotations';
 import { formatMoney } from '@/utils/format';
+import { canSeeCosts } from '@/utils/costVisibility';
 
 // --- HELPERS DE FORMATO ---
 const formatCurrency = (amount: number | undefined | null) => formatMoney(amount);
@@ -58,6 +59,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase();
     
     const isDirector = ['ADMIN', 'ADMINISTRADOR', 'DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
+    const showCosts = canSeeCosts(userRole);
 
     const clientHook = useClients();
     const foundationHook = useFoundations();
@@ -274,10 +276,30 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
         return Number(estimatedCost) || 0;
     };
 
+    /** D13: the seller gets the suggested price from the server, never the cost. */
+    const setServerPrice = async (item: PriceSuggestionItem, changes: Partial<typeof lineItem>) => {
+        setLineItem((prev) => ({ ...prev, ...changes, unit_price: 0, frozen_cost: 0 }));
+        setLoadingCost(true);
+        try {
+            const taxRateId = header.tax_rate_id || config?.default_tax_rate_id || null;
+            const [price] = await quotationService.suggestPrices([item], taxRateId, commissionRate);
+            setLineItem((prev) => ({ ...prev, unit_price: price }));
+        } catch {
+            toast.error('No se pudo calcular el precio sugerido.');
+        } finally {
+            setLoadingCost(false);
+        }
+    };
+
     const handleVersionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const selectedVersionId = Number(e.target.value);
         const master = masters.find(m => m.id === lineItem.master_id);
         const version = master?.versions?.find((v: any) => v.id === selectedVersionId);
+        if (!showCosts) {
+            void setServerPrice({ origin_version_id: selectedVersionId },
+                { version_id: selectedVersionId, commercial_description: version?.commercial_description || '' });
+            return;
+        }
         // Calcular costo en tiempo real desde componentes con precios actuales
         // Replica la lógica del backend: SUM(quantity × current_cost / conversion_factor)
         // con Math.ceil al centavo por línea — igual que design.py
@@ -428,8 +450,8 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                 origin_version_id: item.origin_version_id || null, 
                 quantity: Number(item.quantity),
                 unit_price: Number(item.unit_price),
-                frozen_unit_cost: Number(item.frozen_unit_cost || 0),
-                cost_snapshot: item.cost_snapshot || {},
+                // The seller never sends costs: the server sets them (D13)
+                ...(showCosts ? { frozen_unit_cost: Number(item.frozen_unit_cost || 0), cost_snapshot: item.cost_snapshot || {} } : {}),
                 is_resale: item.is_resale || false,
                 resale_sku: item.resale_sku || null,
                 commercial_description: item.commercial_description || null,
@@ -441,7 +463,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                 valid_until: header.valid_until
                     ? new Date(header.valid_until + 'T12:00:00').toISOString()
                     : new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
-                applied_margin_percent: Number(header.applied_margin_percent), 
+                ...(showCosts ? { applied_margin_percent: Number(header.applied_margin_percent) } : {}),
                 advance_percent: Number(header.advance_percent),
                 applied_commission_percent: commissionRate * 100, 
                 currency: 'MXN',
@@ -561,7 +583,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                 </div>
             )}
 
-            {linesBelowMinimum > 0 && (
+            {showCosts && linesBelowMinimum > 0 && (
                 <div className="bg-red-50 border-l-4 border-red-500 text-red-800 p-3 rounded shadow-sm text-sm font-bold">
                     {linesBelowMinimum} {linesBelowMinimum === 1 ? 'partida queda' : 'partidas quedan'} por debajo del sobreprecio mínimo ({minMarkup}%).
                 </div>
@@ -798,6 +820,10 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                                                     type="button"
                                                     onClick={() => {
                                                         setSelectedResaleSku(m.sku);
+                                                        if (!showCosts) {
+                                                            void setServerPrice({ resale_sku: m.sku }, { manual_name: m.name });
+                                                            return;
+                                                        }
                                                         const costo = Number(m.current_cost) || 0;
                                                         // sale_price del catálogo es el precio antes de comisión: se suma la comisión del vendedor
                                                     const override = priceFromMarkup(Number(m.sale_price) || 0, 0, commissionRate);
@@ -852,7 +878,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                                 </div>
                             </div>
                             <div className="flex gap-2">
-                                <Button className="flex-1" onClick={handleAddItem}>{editingIndex !== null ? 'Actualizar' : 'Agregar'}</Button>
+                                <Button className="flex-1" onClick={handleAddItem} disabled={loadingCost}>{editingIndex !== null ? 'Actualizar' : 'Agregar'}</Button>
                                 {editingIndex !== null && <Button variant="secondary" onClick={handleCancelEdit}><X size={16}/></Button>}
                             </div>
                         </div>

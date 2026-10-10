@@ -38,7 +38,9 @@ from app.schemas.quotation_schema import (
     QuotationRead,
 )
 from app.schemas.sales_schema import SalesOrderItemCreate
-from app.services import margin_service, production_inventory_service, quotation_service, sales_service
+from app.services import (
+    margin_service, production_inventory_service, quotation_service, sales_service, seller_pricing_service,
+)
 from app.services.cost_engine import CostEngine
 
 _EDIT_ROLES = {"DIRECTOR", "MANAGER", "SALES"}
@@ -279,7 +281,7 @@ def create_change_order(session: Session, data: ChangeOrderCreate, current_user:
     )
     session.add(change)
     session.flush()
-    _store_lines(session, change, targets, data.lines)
+    _store_lines(session, change, targets, seller_pricing_service.with_server_costs(session, data.lines, current_user))
     session.add(change)
     session.commit()
     return quotation_service.to_read(_get_change(session, change.id))
@@ -301,7 +303,8 @@ def update_change_order(session: Session, change_id: int, data: ChangeOrderUpdat
     if data.lines is not None:
         if not data.lines:
             raise HTTPException(status_code=422, detail="La orden de cambio necesita al menos una operación.")
-        _store_lines(session, change, validate_lines(session, order, data.lines, False), data.lines)
+        lines = seller_pricing_service.with_server_costs(session, data.lines, current_user, change.id)
+        _store_lines(session, change, validate_lines(session, order, lines, False), lines)
     session.add(change)
     session.commit()
     return quotation_service.to_read(_get_change(session, change.id))

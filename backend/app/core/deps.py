@@ -1,5 +1,5 @@
 from typing import Generator, Annotated
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from pydantic import ValidationError
@@ -7,6 +7,7 @@ from sqlmodel import Session, select
 
 from app.core.database import engine
 from app.core.config import settings
+from app.core.cost_visibility import STATE_KEY, hides_costs
 from app.models.users import User
 
 # 1. Generador de Sesión de Base de Datos
@@ -27,6 +28,7 @@ reusable_oauth2 = OAuth2PasswordBearer(
 
 # 3. Obtener Usuario Actual (Base)
 def get_current_user(
+    request: Request,
     session: Session = Depends(get_session),
     token: str = Depends(reusable_oauth2)
 ) -> User:
@@ -73,7 +75,9 @@ def get_current_user(
 
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
-        
+
+    role = user.role.value if hasattr(user.role, "value") else str(user.role or "")
+    setattr(request.state, STATE_KEY, hides_costs(role))  # D13: responses without costs or margins
     return user
 
 # 4. Obtener Usuario Activo

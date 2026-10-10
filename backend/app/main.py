@@ -32,6 +32,7 @@ if settings.SENTRY_DSN:
 from app.core.database import create_db_and_tables, engine
 from app.core.logging import configure_logging
 from app.core.middleware import add_request_logging_middleware
+from app.core.cost_visibility import CostVisibilityMiddleware
 from app.core.scheduler import shutdown_scheduler, start_scheduler
 from app.models.foundations import GlobalConfig, TaxRate
 from app.models.users import User
@@ -145,6 +146,7 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "Accept", "Origin"],
 )
 
+app.add_middleware(CostVisibilityMiddleware)
 add_request_logging_middleware(app)
 
 app.include_router(api_router, prefix=settings.API_V1_STR)

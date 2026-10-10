@@ -43,7 +43,7 @@ from app.schemas.quotation_schema import (
 )
 from app.schemas.sales_schema import SalesOrderItemCreate
 from app.services.cost_engine import CostEngine
-from app.services import margin_service, recipe_correction_service
+from app.services import margin_service, recipe_correction_service, seller_pricing_service
 from app.services.pdf_generator import PDFGenerator
 from app.services.sales_service import (
     _build_item_snapshot,
@@ -231,7 +231,8 @@ def create_quotation(session: Session, data: QuotationCreate, current_user: User
     session.add(quotation)
     session.flush()
     if data.items:
-        _apply_items_and_totals(session, quotation, data.items)
+        items = seller_pricing_service.with_server_costs(session, data.items, current_user)
+        _apply_items_and_totals(session, quotation, items)
     return _commit_read(session, quotation)
 
 
@@ -272,7 +273,7 @@ def update_quotation(
     session: Session, quotation_id: int, data: QuotationUpdate, current_user: User
 ) -> QuotationRead:
     quotation = _get_for_edit(session, quotation_id, current_user)
-    update_data = data.model_dump(exclude_unset=True)
+    update_data = seller_pricing_service.drop_cost_fields(data.model_dump(exclude_unset=True), current_user)
     if quotation.status == QuotationStatus.AUTHORIZED and set(update_data) <= AUTHORIZED_TEXT_FIELDS:
         for key, value in update_data.items():
             setattr(quotation, key, value)
@@ -287,7 +288,8 @@ def update_quotation(
     if "applied_commission_percent" in update_data:
         quotation.applied_commission_percent = normalize_commission(update_data["applied_commission_percent"])
     if items_data is not None:
-        _apply_items_and_totals(session, quotation, data.items)
+        items = seller_pricing_service.with_server_costs(session, data.items, current_user, quotation.id)
+        _apply_items_and_totals(session, quotation, items)
     return _commit_read(session, quotation)
 
 

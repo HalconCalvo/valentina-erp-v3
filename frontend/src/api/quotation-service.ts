@@ -23,7 +23,19 @@ const post = async (id: number, action: string, body?: unknown): Promise<Quotati
   return response.data;
 };
 
+export type PriceSuggestionItem = { origin_version_id?: number | null; resale_sku?: string | null };
+
 export const quotationService = {
+  /** Suggested unit prices computed by the server (the seller gets the target markup without seeing costs). */
+  suggestPrices: async (
+    items: PriceSuggestionItem[], taxRateId?: number | null, commissionRate?: number | null,
+  ): Promise<number[]> => {
+    const response = await axiosClient.post(`${BASE}/price-suggestions`, {
+      items, tax_rate_id: taxRateId || null, commission_percent: commissionRate ?? null,
+    });
+    return (response.data as { unit_price: number }[]).map((row) => row.unit_price);
+  },
+
   listQuotations: async (filters?: QuotationListFilters): Promise<Quotation[]> => {
     const params: Record<string, string> = {};
     if (filters?.status) params.status_filter = filters.status;

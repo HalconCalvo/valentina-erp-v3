@@ -8,6 +8,8 @@ from app.core.deps import get_current_active_user, get_session
 from app.models.sales import QuotationStatus
 from app.models.users import User
 from app.schemas.quotation_schema import (
+    PriceSuggestionRead,
+    PriceSuggestionRequest,
     QuotationAuthorize,
     QuotationCancel,
     QuotationConvert,
@@ -18,7 +20,7 @@ from app.schemas.quotation_schema import (
     QuotationRenew,
     QuotationUpdate,
 )
-from app.services import quotation_service
+from app.services import quotation_service, seller_pricing_service
 from app.core.permissions import allow, SALES_READ_ROLES
 
 router = APIRouter()
@@ -32,6 +34,17 @@ def create_quotation(
     current_user: User = Depends(get_current_active_user),
 ):
     return quotation_service.create_quotation(session, data, current_user)
+
+
+@router.post("/price-suggestions", response_model=List[PriceSuggestionRead], dependencies=[allow(SALES_READ_ROLES)])
+def suggest_prices(
+    *,
+    session: Session = Depends(get_session),
+    data: PriceSuggestionRequest,
+    current_user: User = Depends(get_current_active_user),
+):
+    """Suggested unit prices; the seller gets them at the target markup without seeing costs (D13)."""
+    return seller_pricing_service.suggest_prices(session, data, current_user)
 
 
 @router.get("/", response_model=List[QuotationRead], dependencies=[allow(SALES_READ_ROLES)])

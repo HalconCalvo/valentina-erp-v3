@@ -4354,3 +4354,16 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 - D14: saneamiento (preguntas para contabilidad: OVs finalizadas con parte sin facturar, OV-0045 vs OV-0123, OVs exentas, diferencia de $2,397.72 en Santander)
 
 ### Siguiente: D13 (respuestas reducidas para SALES) y herramienta de recálculo de saldos
+
+---
+## SESIÓN 2026-10-10 (parte 8) — D13 Y CAMPO EN ESPERA
+
+### Hecho:
+- D13: el vendedor (SALES) ya no recibe costos ni márgenes en ninguna respuesta (middleware general en el servidor); precio sugerido calculado en el servidor (POST /quotations/price-suggestions); las partidas del vendedor toman el costo del servidor
+- Pantalla: captura de cotización y orden de cambio piden el precio al servidor; probado como vendedor en la copia local (COT-0087: precio 26,806.12 = costo 18,486.98 × 1.45; Dirección ve el costo, el vendedor no)
+- Pruebas: 266 backend, 17 frontend, build OK
+
+### Pendiente (EN ESPERA por Gabriel):
+- Campo: no se toca. D15: la nómina de cuadrilla solo se libera con la firma de recibido del cliente
+
+### Siguiente: tarea 7, herramienta de recálculo de estados y saldos (SANEAMIENTO §6.1)

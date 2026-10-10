@@ -113,6 +113,13 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
 - Gabriel corrige desde la app lo que se pueda; Claude Code construye: recálculo de estados y saldos de CxC/OV,
   pago Fast-Track con registro de pago, corrección de IVA de OVs legacy, importación masiva del catálogo.
 
-## 8. D13: el vendedor solo ve precio de venta — en curso
-- SALES nunca ve costos ni márgenes en ninguna pantalla ni PDF (captura de cotización, detalle, Rayos X, órdenes de
-  cambio, catálogo, materiales). El precio sugerido se calcula en el servidor.
+## 8. D13: el vendedor solo ve precio de venta — hecha (2026-10-10)
+- Servidor: toda respuesta JSON a SALES sale con costos y márgenes en nulo (middleware general, cubre pantallas
+  futuras); precio sugerido en `POST /quotations/price-suggestions` (sobreprecio objetivo, tasa cero); las partidas
+  del vendedor toman el costo del servidor (receta, catálogo de reventa o el costo que ya tenía la partida manual).
+- Pantalla: captura de cotización y partidas de orden de cambio piden el precio al servidor. Los PDF de cotización y
+  OV no llevan costos (revisado). Probado en pantalla como vendedor (COT-0087 en la copia local).
+
+## 9. Campo — EN ESPERA (Gabriel, D15)
+- No se toca hasta nueva indicación. Regla ya decidida: la nómina de cuadrilla solo se libera con la firma de
+  recibido del cliente.

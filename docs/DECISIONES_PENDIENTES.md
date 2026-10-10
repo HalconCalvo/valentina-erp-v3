@@ -26,6 +26,11 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 
 ## Resueltas
 
+### D15. Campo: cuándo se libera la nómina de cuadrilla — 2026-10-10 — ROADMAP tarea 9
+- **Contexto:** módulo de Campo (instalación y nómina de cuadrilla).
+- **Estado:** resuelta por Gabriel (2026-10-10): la nómina de cuadrilla solo se libera con la firma de recibido del
+  cliente. El módulo de Campo queda EN ESPERA: no se toca hasta nueva indicación.
+
 ### D<n>. <título corto> — <fecha AAAA-MM-DD> — <tarea del ROADMAP>
 - **Contexto:** qué se encontró y por qué hace falta decidir.
 - **Opciones:** A) … B) … C) …

@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from app.models.foundations import Client, GlobalConfig, TaxRate
+from app.models.material import Material
 from app.models.sales import Quotation, QuotationItem, QuotationKind, QuotationStatus
 from app.models.users import User
 
@@ -115,3 +116,7 @@ def get_overdue_quotations(
 ) -> List[Quotation]:
     stmt = select(Quotation).where(Quotation.status.in_(list(statuses)), Quotation.valid_until < before)
     return list(session.exec(stmt).all())
+
+
+def get_material_by_sku(session: Session, sku: str) -> Optional[Material]:
+    return session.exec(select(Material).where(Material.sku == sku)).first()

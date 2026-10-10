@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlmodel import SQLModel
 from datetime import datetime
 
@@ -18,6 +18,10 @@ class QuotationItemBase(SQLModel):
     is_resale: bool = False
     resale_sku: Optional[str] = None
     commercial_description: Optional[str] = None
+
+    # The seller (SALES) receives costs as null and may send them back that way (D13): the server sets them
+    _null_snapshot = field_validator("cost_snapshot", mode="before")(lambda v: {} if v is None else v)
+    _null_cost = field_validator("frozen_unit_cost", mode="before")(lambda v: 0.0 if v is None else v)
 
 
 class QuotationItemCreate(QuotationItemBase):
@@ -56,6 +60,9 @@ class QuotationBase(SQLModel):
     conditions: Optional[str] = None
     external_invoice_ref: Optional[str] = None
     is_warranty: bool = False
+
+    _null_margins = field_validator("applied_margin_percent", "applied_tolerance_percent", mode="before")(
+        lambda v: 0.0 if v is None else v)  # null for the seller (D13)
 
 
 class QuotationCreate(QuotationBase):
@@ -187,6 +194,23 @@ class QuotationConvertRead(BaseModel):
 # ==========================================
 # ORDEN DE CAMBIO DE OV (CAM)
 # ==========================================
+class PriceSuggestionItem(BaseModel):
+    origin_version_id: Optional[int] = None
+    resale_sku: Optional[str] = None
+
+
+class PriceSuggestionRequest(BaseModel):
+    """Suggested unit prices (D13). markup_percent is ignored for the seller (configured target markup)."""
+    tax_rate_id: Optional[int] = None
+    markup_percent: Optional[float] = None
+    commission_percent: Optional[float] = None
+    items: List[PriceSuggestionItem] = Field(..., min_length=1)
+
+
+class PriceSuggestionRead(BaseModel):
+    unit_price: float
+
+
 class ChangeOrderLine(BaseModel):
     """One operation of a change order.
     ADD: new line (product_name, quantity, unit_price, ...). QUANTITY_UP: quantity = NEW quantity of the line.
@@ -206,6 +230,9 @@ class ChangeOrderLine(BaseModel):
     cancel_instance_ids: List[int] = []
     reversal_dispositions: Dict[str, str] = {}
     change_reason: Optional[str] = None
+
+    _null_snapshot = field_validator("cost_snapshot", mode="before")(lambda v: {} if v is None else v)
+    _null_cost = field_validator("frozen_unit_cost", mode="before")(lambda v: 0.0 if v is None else v)
 
 
 class ChangeOrderCreate(BaseModel):
