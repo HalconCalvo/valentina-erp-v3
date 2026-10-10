@@ -58,7 +58,11 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
   material y versión ya lo tenían).
 - Probado: 6 tests nuevos (208 en total), en PostgreSQL local por API y botones en pantalla.
 
-## 5. Aplicar la guía por módulos — pendiente (después de la F4, por decisión de Gabriel)
+## 5. Aplicar la guía por módulos — en curso
+- Hecho (2026-10-10): base común (utils/format.ts, VSummaryCard, botón primario índigo, acciones con descripción en
+  Usuarios y Tasas); Ventas: acciones de flujo de cotización como botones con texto, detalle de cotización con
+  encabezado estándar, moneda y fechas únicas en todo el módulo.
+- Sigue: Ventas (tablero, captura de cotización, Rayos X dividido), Inventario, Compras.
 - Primero Ventas, Inventario y Compras.
 
 
