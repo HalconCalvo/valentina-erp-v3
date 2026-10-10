@@ -13,7 +13,6 @@ import { VTable } from '@/components/ui/VTable';
 import {
     TableActionCancelIcon,
     TableActionEditIcon,
-    TableActionRejectIcon,
 } from '@/lib/tableActionIcons';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { VCurrencyInput } from '@/components/ui/VCurrencyInput';
@@ -1248,21 +1247,19 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                         {canAuthorize && (
                                             <Button
                                                 onClick={() => handleAuthorizeOrder(order.id, order.folio)}
-                                                className="group bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-200 h-12 px-3 shadow-lg"
-                                                title="Autorizar firma"
-                                                aria-label="Autorizar firma"
+                                                className="h-12 px-6 gap-2"
+                                                title="Autorizar firma de la orden"
                                             >
-                                                <CheckCircle2 size={15} className="text-emerald-700 shrink-0" />
+                                                <CheckCircle2 size={15} className="shrink-0" /> Autorizar
                                             </Button>
                                         )}
                                         <Button
                                             onClick={() => handleRejectOrder(order.id, order.folio)}
                                             variant="outline"
-                                            className="group h-12 px-3 border-slate-200"
-                                            title="Rechazar"
-                                            aria-label="Rechazar"
+                                            className="h-12 px-6 border-rose-200 text-rose-700 hover:bg-rose-50"
+                                            title="Rechazar la orden"
                                         >
-                                            <TableActionRejectIcon />
+                                            Rechazar
                                         </Button>
                                     </div>
                                     )}
