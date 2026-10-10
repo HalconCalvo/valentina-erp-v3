@@ -12,13 +12,11 @@ import { toast } from '@/components/ui/VToast';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import Modal from '@/components/ui/Modal';
 import { EditPaymentDialog, TextConfirmDialog, type PaymentEditForm } from './rayos-x/RayosXDialogs';
-import { HouseInstancePicker, type UnlinkedHouseGroup } from './rayos-x/HouseInstancePicker';
+import { type UnlinkedHouseGroup } from './rayos-x/HouseInstancePicker';
+import { EditInstallmentDialog, RegisterInstallmentDialog, type InstallmentPayload } from './rayos-x/InstallmentDialogs';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
-import { SearchableSelect } from '@/components/ui/SearchableSelect';
-import { VCurrencyInput } from '@/components/ui/VCurrencyInput';
-import { VToggle } from '@/components/ui/VToggle';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useOrderDetail,
@@ -433,15 +431,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const [editPaymentModal, setEditPaymentModal] = useState<{ open: boolean; cxc: any | null }>({ open: false, cxc: null });
     const [cancelPaymentModal, setCancelPaymentModal] = useState<{ open: boolean; cxc: any | null }>({ open: false, cxc: null });
 
-    const [installmentModal, setInstallmentModal] = useState<{ open: boolean; cxc: any | null }>({ open: false, cxc: null });
-    const [installmentAmount, setInstallmentAmount] = useState<number>(0);
-    const [installmentDate, setInstallmentDate] = useState('');
-    const [installmentReference, setInstallmentReference] = useState('');
-    const [installmentNotes, setInstallmentNotes] = useState('');
-    const [installmentAccountId, setInstallmentAccountId] = useState('');
-    const [installmentInstanceIds, setInstallmentInstanceIds] = useState<number[]>([]);
-    const [installmentIsAdvance, setInstallmentIsAdvance] = useState(false);
-    const [submittingInstallment, setSubmittingInstallment] = useState(false);
+    const [installmentModal, setInstallmentModal] = useState<{ open: boolean; cxc: any | null; amount: number }>({ open: false, cxc: null, amount: 0 });
 
     const [editInstallmentModal, setEditInstallmentModal] = useState<{
         open: boolean;
@@ -450,13 +440,6 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         linkedInstanceIds: number[];
         preservedCxcLinkedIds: number[];
     }>({ open: false, abono: null, cxc: null, linkedInstanceIds: [], preservedCxcLinkedIds: [] });
-    const [editInstallmentAmount, setEditInstallmentAmount] = useState(0);
-    const [editInstallmentDate, setEditInstallmentDate] = useState('');
-    const [editInstallmentReference, setEditInstallmentReference] = useState('');
-    const [editInstallmentNotes, setEditInstallmentNotes] = useState('');
-    const [editInstallmentInstanceIds, setEditInstallmentInstanceIds] = useState<number[]>([]);
-    const [editInstallmentIsAdvance, setEditInstallmentIsAdvance] = useState(false);
-    const [savingInstallmentEdit, setSavingInstallmentEdit] = useState(false);
     const [loadingEditInstallmentOpen, setLoadingEditInstallmentOpen] = useState(false);
 
     const [cancelInstallmentModal, setCancelInstallmentModal] = useState<{
@@ -702,10 +685,6 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         return groups;
     }, [uniqueItems, linkedInstanceIdsForInstallmentCxc]);
 
-    const unlinkedInstancesCount = useMemo(
-        () => unlinkedInstancesByHouse.reduce((sum, house) => sum + house.instances.length, 0),
-        [unlinkedInstancesByHouse],
-    );
 
     const activeBankAccounts = useMemo(
         () => bankAccounts.filter((a) => a.is_active),
@@ -862,14 +841,6 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     };
 
     const handleOpenInstallmentModal = async (cxc: any) => {
-        setInstallmentModal({ open: true, cxc });
-        setInstallmentReference('');
-        setInstallmentNotes('');
-        setInstallmentAccountId('');
-        setInstallmentInstanceIds([]);
-        setInstallmentIsAdvance(false);
-        setInstallmentDate(new Date().toISOString().slice(0, 10));
-
         await refreshOrderInPlace();
 
         let saldo = Number(cxc.amount || 0);
@@ -882,66 +853,25 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         } catch {
             // keep saldo from invoice amount
         }
-        setInstallmentAmount(saldo > 0 ? saldo : Number(cxc.amount || 0));
+        setInstallmentModal({ open: true, cxc, amount: saldo > 0 ? saldo : Number(cxc.amount || 0) });
     };
 
-    const handleSubmitInstallment = async () => {
+    const handleSubmitInstallment = async (payload: InstallmentPayload): Promise<boolean> => {
         const cxc = installmentModal.cxc;
-        if (!cxc?.id) return;
-        if (installmentAmount <= 0) {
-            toast.warning('El importe del abono debe ser mayor a cero.');
-            return;
-        }
-        if (!installmentAccountId) {
-            toast.warning('Selecciona la cuenta bancaria destino.');
-            return;
-        }
-
-        setSubmittingInstallment(true);
+        if (!cxc?.id) return false;
         try {
-            const payload: {
-                amount: number;
-                payment_date?: string | null;
-                notes?: string | null;
-                reference?: string | null;
-                account_id?: number | null;
-                instance_ids?: number[];
-                is_advance?: boolean;
-            } = {
-                amount: installmentAmount,
-                payment_date: installmentDate ? `${installmentDate}T12:00:00` : null,
-                reference: installmentReference.trim() || null,
-                notes: installmentNotes.trim() || null,
-                account_id: Number(installmentAccountId),
-                is_advance: installmentIsAdvance,
-            };
-            if (!installmentIsAdvance && cxc.payment_type !== 'ADVANCE' && installmentInstanceIds.length > 0) {
-                payload.instance_ids = installmentInstanceIds;
-            }
-            await registerInstallmentMutation.mutateAsync({
-                cxcId: cxc.id,
-                orderId: orderId!,
-                payload,
-            });
+            await registerInstallmentMutation.mutateAsync({ cxcId: cxc.id, orderId: orderId!, payload });
             toast.success('Abono registrado correctamente.');
-            setInstallmentModal({ open: false, cxc: null });
             await refreshOrderInPlace();
             await onSuccess();
+            return true;
         } catch {
-            /* toast en hook */
-        } finally {
-            setSubmittingInstallment(false);
+            return false; /* toast en hook */
         }
     };
 
     const handleOpenEditInstallment = async (abono: any, cxc: any, data: any) => {
         setLoadingEditInstallmentOpen(true);
-        setEditInstallmentAmount(Number(abono.amount || 0));
-        setEditInstallmentDate(abono.payment_date ? abono.payment_date.slice(0, 10) : '');
-        setEditInstallmentReference(abono.reference || '');
-        setEditInstallmentNotes(abono.notes || '');
-        setEditInstallmentInstanceIds([]);
-        setEditInstallmentIsAdvance(Boolean(abono.is_advance) || cxc.payment_type === 'ADVANCE');
         setEditInstallmentModal({
             open: false,
             abono,
@@ -972,55 +902,17 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         setLoadingEditInstallmentOpen(false);
     };
 
-    const handleSaveEditInstallment = async () => {
+    const handleSaveEditInstallment = async (payload: InstallmentPayload): Promise<boolean> => {
         const { abono, cxc } = editInstallmentModal;
-        if (!abono?.id || !cxc?.id) return;
-        if (editInstallmentAmount <= 0) {
-            toast.warning('El importe del abono debe ser mayor a cero.');
-            return;
-        }
-        setSavingInstallmentEdit(true);
+        if (!abono?.id || !cxc?.id) return false;
         try {
-            const payload: {
-                amount: number;
-                payment_date?: string | null;
-                notes?: string | null;
-                reference?: string | null;
-                instance_ids?: number[];
-                is_advance?: boolean;
-            } = {
-                amount: editInstallmentAmount,
-                payment_date: editInstallmentDate ? `${editInstallmentDate}T12:00:00` : null,
-                reference: editInstallmentReference.trim() || null,
-                notes: editInstallmentNotes.trim() || null,
-                is_advance: editInstallmentIsAdvance,
-            };
-            if (cxc.payment_type !== 'ADVANCE') {
-                const preserved = editInstallmentModal.preservedCxcLinkedIds ?? [];
-                payload.instance_ids = editInstallmentIsAdvance
-                    ? []
-                    : [...new Set([...preserved, ...editInstallmentInstanceIds])];
-            }
-            await updateInstallmentMutation.mutateAsync({
-                installmentId: abono.id,
-                cxcId: cxc.id,
-                orderId: orderId!,
-                payload,
-            });
+            await updateInstallmentMutation.mutateAsync({ installmentId: abono.id, cxcId: cxc.id, orderId: orderId!, payload });
             toast.success('Abono actualizado correctamente.');
-            setEditInstallmentModal({
-                open: false,
-                abono: null,
-                cxc: null,
-                linkedInstanceIds: [],
-                preservedCxcLinkedIds: [],
-            });
             await refreshOrderInPlace();
             await onSuccess();
+            return true;
         } catch {
-            /* toast en hook */
-        } finally {
-            setSavingInstallmentEdit(false);
+            return false; /* toast en hook */
         }
     };
 
@@ -2311,240 +2203,34 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                 onClose={() => setEditPaymentModal({ open: false, cxc: null })} />
         )}
         {installmentModal.open && installmentModal.cxc && (
-            <Modal
-                isOpen={installmentModal.open}
-                onClose={() => {
-                    if (submittingInstallment) return;
-                    setInstallmentModal({ open: false, cxc: null });
-                }}
-                title="Registrar Abono"
-                size="md"
-            >
-                <div className="flex flex-col gap-4">
-                    <p className="text-xs text-slate-500">
-                        Factura {installmentModal.cxc.invoice_folio || 'S/F'} — {formatCurrency(Number(installmentModal.cxc.amount || 0))}
-                    </p>
-                    <VCurrencyInput
-                        label="Importe del abono *"
-                        value={installmentAmount}
-                        onChange={setInstallmentAmount}
-                        min={0.01}
-                        error={installmentAmount <= 0 ? 'El importe debe ser mayor a cero' : undefined}
-                    />
-                    <InstallmentCongruenceCompare
-                        selectedInstanceIds={installmentInstanceIds}
-                        capturedAmount={installmentAmount}
-                        cxcId={installmentModal.cxc?.id}
-                        uniqueItems={uniqueItems}
-                        installmentsByInvoice={installmentsByInvoice}
-                        totalOrder={totalOrder}
-                        formatCurrency={formatCurrency}
-                    />
-                    <div>
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
-                            Fecha *
-                        </label>
-                        <Input
-                            type="date"
-                            value={installmentDate}
-                            onChange={(e) => setInstallmentDate(e.target.value)}
-                        />
-                    </div>
-                    <div>
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
-                            Referencia
-                        </label>
-                        <Input
-                            type="text"
-                            placeholder="Referencia bancaria o comprobante"
-                            value={installmentReference}
-                            onChange={(e) => setInstallmentReference(e.target.value)}
-                        />
-                    </div>
-                    <div>
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
-                            Notas
-                        </label>
-                        <Input
-                            type="text"
-                            placeholder="Concepto del abono"
-                            value={installmentNotes}
-                            onChange={(e) => setInstallmentNotes(e.target.value)}
-                        />
-                    </div>
-                    <div>
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
-                            Cuenta bancaria destino *
-                        </label>
-                        {loadingBankAccounts ? (
-                            <p className="text-xs text-slate-500 italic">Cargando cuentas…</p>
-                        ) : (
-                            <SearchableSelect
-                                items={activeBankAccounts}
-                                value={installmentAccountId}
-                                onChange={setInstallmentAccountId}
-                                getLabel={(a) => `${a.name} (${a.account_number}) — ${formatCurrency(a.current_balance)}`}
-                                getValue={(a) => String(a.id)}
-                                placeholder="Buscar cuenta bancaria..."
-                            />
-                        )}
-                    </div>
-                    {installmentModal.cxc.payment_type !== 'ADVANCE' && unlinkedInstancesCount > 0 && (
-                        <VToggle
-                            label="¿Es anticipo?"
-                            checked={installmentIsAdvance}
-                            onCheckedChange={(checked) => {
-                                setInstallmentIsAdvance(checked);
-                                if (checked) setInstallmentInstanceIds([]);
-                            }}
-                        />
-                    )}
-                    {!installmentIsAdvance && installmentModal.cxc.payment_type !== 'ADVANCE' && unlinkedInstancesCount > 0 && (
-                        <div>
-                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">
-                                Instancias cubiertas por este abono
-                            </label>
-                            <HouseInstancePicker houses={unlinkedInstancesByHouse} paymentType={installmentModal.cxc.payment_type}
-                                selectedIds={installmentInstanceIds} onChange={setInstallmentInstanceIds} />
-                        </div>
-                    )}
-                    <div className="flex items-center justify-between gap-4 pt-2">
-                        <Button
-                            variant="outline"
-                            onClick={() => setInstallmentModal({ open: false, cxc: null })}
-                            disabled={submittingInstallment}
-                        >
-                            Cancelar
-                        </Button>
-                        <Button
-                            onClick={() => void handleSubmitInstallment()}
-                            disabled={submittingInstallment || loadingBankAccounts}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
-                        >
-                            {submittingInstallment ? 'Registrando…' : 'Confirmar abono'}
-                        </Button>
-                    </div>
-                </div>
-            </Modal>
+            <RegisterInstallmentDialog
+                cxc={installmentModal.cxc}
+                initialAmount={installmentModal.amount}
+                bankAccounts={activeBankAccounts}
+                loadingBankAccounts={loadingBankAccounts}
+                houses={unlinkedInstancesByHouse}
+                formatCurrency={formatCurrency}
+                renderCongruence={(selectedIds, amount) => (
+                    <InstallmentCongruenceCompare selectedInstanceIds={selectedIds} capturedAmount={amount} cxcId={installmentModal.cxc?.id}
+                        uniqueItems={uniqueItems} installmentsByInvoice={installmentsByInvoice} totalOrder={totalOrder} formatCurrency={formatCurrency} />
+                )}
+                onSubmit={handleSubmitInstallment}
+                onClose={() => setInstallmentModal({ open: false, cxc: null, amount: 0 })}
+            />
         )}
         {editInstallmentModal.open && editInstallmentModal.abono && editInstallmentModal.cxc && (
-            <Modal
-                isOpen={editInstallmentModal.open}
-                onClose={() => {
-                    if (savingInstallmentEdit) return;
-                    setEditInstallmentModal({
-                        open: false,
-                        abono: null,
-                        cxc: null,
-                        linkedInstanceIds: [],
-                        preservedCxcLinkedIds: [],
-                    });
-                }}
-                title="Editar Abono"
-                size="md"
-            >
-                <div className="flex flex-col gap-4">
-                    <VCurrencyInput
-                        label="Importe del abono *"
-                        value={editInstallmentAmount}
-                        onChange={setEditInstallmentAmount}
-                        min={0.01}
-                    />
-                    <InstallmentCongruenceCompare
-                        selectedInstanceIds={editInstallmentInstanceIds}
-                        capturedAmount={editInstallmentAmount}
-                        cxcId={editInstallmentModal.cxc?.id}
-                        uniqueItems={uniqueItems}
-                        installmentsByInvoice={installmentsByInvoice}
-                        totalOrder={totalOrder}
-                        formatCurrency={formatCurrency}
-                    />
-                    <div>
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
-                            Fecha *
-                        </label>
-                        <Input
-                            type="date"
-                            value={editInstallmentDate}
-                            onChange={(e) => setEditInstallmentDate(e.target.value)}
-                        />
-                    </div>
-                    <div>
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
-                            Referencia
-                        </label>
-                        <Input
-                            type="text"
-                            value={editInstallmentReference}
-                            onChange={(e) => setEditInstallmentReference(e.target.value)}
-                        />
-                    </div>
-                    <div>
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
-                            Notas
-                        </label>
-                        <Input
-                            type="text"
-                            value={editInstallmentNotes}
-                            onChange={(e) => setEditInstallmentNotes(e.target.value)}
-                        />
-                    </div>
-                    {editInstallmentModal.cxc.payment_type !== 'ADVANCE' && (() => {
-                        const editInstancesCount = unlinkedInstancesForEditByHouse.reduce(
-                            (sum, house) => sum + house.instances.length,
-                            0,
-                        );
-                        if (editInstancesCount === 0) return null;
-                        return (
-                        <>
-                            <VToggle
-                                label="¿Es anticipo?"
-                                checked={editInstallmentIsAdvance}
-                                onCheckedChange={(checked) => {
-                                    setEditInstallmentIsAdvance(checked);
-                                    if (checked) {
-                                        setEditInstallmentInstanceIds([]);
-                                    }
-                                }}
-                            />
-                            {!editInstallmentIsAdvance && (
-                                <div>
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">
-                                        Instancias adicionales sin vínculo
-                                    </label>
-                                    <HouseInstancePicker houses={unlinkedInstancesForEditByHouse} paymentType={editInstallmentModal.cxc.payment_type}
-                                        selectedIds={editInstallmentInstanceIds} onChange={setEditInstallmentInstanceIds} />
-                                </div>
-                            )}
-                        </>
-                        );
-                    })()}
-                    <div className="flex items-center justify-between gap-4 pt-2">
-                        <Button
-                            variant="outline"
-                            onClick={() =>
-                                setEditInstallmentModal({
-                                    open: false,
-                                    abono: null,
-                                    cxc: null,
-                                    linkedInstanceIds: [],
-                                    preservedCxcLinkedIds: [],
-                                })
-                            }
-                            disabled={savingInstallmentEdit}
-                        >
-                            Cancelar
-                        </Button>
-                        <Button
-                            onClick={() => void handleSaveEditInstallment()}
-                            disabled={savingInstallmentEdit}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
-                        >
-                            {savingInstallmentEdit ? 'Guardando…' : 'Guardar cambios'}
-                        </Button>
-                    </div>
-                </div>
-            </Modal>
+            <EditInstallmentDialog
+                abono={editInstallmentModal.abono}
+                cxc={editInstallmentModal.cxc}
+                preservedLinkedIds={editInstallmentModal.preservedCxcLinkedIds ?? []}
+                houses={unlinkedInstancesForEditByHouse}
+                renderCongruence={(selectedIds, amount) => (
+                    <InstallmentCongruenceCompare selectedInstanceIds={selectedIds} capturedAmount={amount} cxcId={editInstallmentModal.cxc?.id}
+                        uniqueItems={uniqueItems} installmentsByInvoice={installmentsByInvoice} totalOrder={totalOrder} formatCurrency={formatCurrency} />
+                )}
+                onSave={handleSaveEditInstallment}
+                onClose={() => setEditInstallmentModal({ open: false, abono: null, cxc: null, linkedInstanceIds: [], preservedCxcLinkedIds: [] })}
+            />
         )}
         {cancelInstallmentModal.open && cancelInstallmentModal.abono && cancelInstallmentModal.cxc && (
             <TextConfirmDialog
