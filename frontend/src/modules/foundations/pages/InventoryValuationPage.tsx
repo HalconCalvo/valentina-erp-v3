@@ -12,7 +12,7 @@ import {
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { VSummaryCard } from '@/components/ui/VSummaryCard';
-import { formatMoney } from '@/utils/format';
+import { formatDateTime, formatMoney } from '@/utils/format';
 import { VEmptyState } from '@/components/ui/VEmptyState';
 import { VTable, VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
@@ -39,7 +39,7 @@ const inProcessColumns: VTableColumn<InProcessLine>[] = [
 ];
 
 const authorizationColumns: VTableColumn<StockAuthorization>[] = [
-  { key: 'created_at', label: 'Fecha', render: (r) => new Date(r.created_at).toLocaleString('es-MX') },
+  { key: 'created_at', label: 'Fecha', render: (r) => formatDateTime(r.created_at) },
   { key: 'batch_folio', label: 'Lote', render: (r) => <span className="font-mono text-xs">{r.batch_folio}</span> },
   { key: 'authorized_by', label: 'Autorizó', render: (r) => r.authorized_by },
   { key: 'reason', label: 'Motivo', render: (r) => r.reason },

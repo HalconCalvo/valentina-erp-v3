@@ -4,6 +4,7 @@ import { Plus, Layers, Square, Package, Activity, Lock, Unlock, Save, EyeOff } f
 import { Input } from "@/components/ui/Input";
 import { VersionComponent, VersionStatus } from "../../../types/design";
 import { Material } from "../../../types/foundations";
+import { formatMoney as formatSharedMoney } from '@/utils/format';
 
 const STATUS_SELECT_ITEMS = [
     { value: VersionStatus.DRAFT, label: '🔴 Draft (Editable)' },
@@ -392,14 +393,7 @@ export const VersionRecipeForm = ({
       });
   }
 
-  const formatMoney = (amount: number) => {
-    return amount.toLocaleString('es-MX', {
-        style: 'currency',
-        currency: 'MXN',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-    });
-  };
+  const formatMoney = (amount: number) => formatSharedMoney(amount);
 
   return (
     // BLOQUEO MAESTRO DEL ENTER: onKeyDown intercepta el enter y le da preventDefault()

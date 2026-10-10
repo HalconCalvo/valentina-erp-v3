@@ -14,6 +14,7 @@ import {
   type SyncPayload,
 } from '@/field/field-service';
 import { readDraft, saveDraft } from '@/field/field-db';
+import { formatDateTime } from '@/utils/format';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 
@@ -286,7 +287,7 @@ export default function FieldInstancePage() {
           <div className="space-y-3">
             {row.signed_received_at ? (
               <p className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm font-medium text-emerald-800">
-                Firmado: {new Date(row.signed_received_at).toLocaleString('es-MX')}
+                Firmado: {formatDateTime(row.signed_received_at)}
               </p>
             ) : (
               <>
