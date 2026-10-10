@@ -4307,3 +4307,18 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 ### Push pendiente (después de las 19:00):
 - 35+ commits: F3, F4, guía, pendientes, seguridad, D2–D7. Migraciones q6 → m3 → n4 → r7 → s8 → t9
 - Después del push: Gerencia ya no ejecuta pagos hasta que Dirección encienda el interruptor
+
+---
+## SESIÓN 2026-10-10 (parte 5) — LECTURAS POR ROL, BORRADOS FÍSICOS Y GUÍA
+
+### Hecho (commits locales, 42 sobre producción):
+- Borrados físicos → cancelación: diseño (producto/versión se desactivan), lote en borrador (CANCELLED con motivo), nómina pendiente al cambiar equipo (CANCELLED); migración u0v1w2x3y4z5
+- Seguridad, lecturas: finanzas solo D/M/A; cotizaciones/OVs/cobros D/M/A + Ventas (solo lo suyo, incluidos PDF, abonos y comisiones); recorrido de pantallas por rol repetido sin 401/403
+- Guía: formato único de moneda y fecha en Finanzas, Tesorería, Gerencia, Dirección y el resto; autorizar/rechazar OC con texto; sin fetch() directo (salvo el logout con keepalive)
+- Cadena de migraciones del push (q6 → m3 → n4 → r7 → s8 → t9 → u0) probada en copia de producción de las 13:20
+
+### Decisiones nuevas para Gabriel:
+- D8–D12 plan del arranque en ceros (docs/PLAN_ARRANQUE.md)
+- D13 costos y márgenes visibles fuera de Finanzas (respuestas reducidas por rol)
+
+### Push pendiente: después de las 19:00 (requiere que la sesión siga activa)
