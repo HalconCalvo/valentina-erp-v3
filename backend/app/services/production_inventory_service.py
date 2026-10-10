@@ -339,6 +339,8 @@ def change_batch_status(session: Session, batch_id: int, payload: BatchStatusUpd
     new_status = _parse_status(payload.status)
     if ProductionBatchStatus.DEAD in (new_status, batch.status):
         raise HTTPException(status_code=400, detail="Un lote DEAD lo marca el sistema y no cambia de estado.")
+    if ProductionBatchStatus.CANCELLED in (new_status, batch.status):
+        raise HTTPException(status_code=400, detail="Un lote cancelado no cambia de estado.")
     instances = prod_inv_repo.get_batch_instances(session, batch)
     old_status = batch.status
     with audit_reason(payload.override_reason or (payload.reversal.reason if payload.reversal else None)):

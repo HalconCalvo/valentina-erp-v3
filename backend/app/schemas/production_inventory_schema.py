@@ -73,3 +73,8 @@ class StockAuthorizationRead(BaseModel):
 class NegativeStockRead(BaseModel):
     materials: list[RawMaterialLineRead]
     authorizations: list[StockAuthorizationRead]
+
+
+class BatchCancel(BaseModel):
+    """Stop a draft batch: it is cancelled with its reason, never deleted."""
+    reason: str

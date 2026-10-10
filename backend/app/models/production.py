@@ -29,6 +29,7 @@ class ProductionBatchStatus(str, Enum):
     READY_TO_INSTALL = "READY_TO_INSTALL"
     FINISHED = "FINISHED"
     DEAD = "DEAD"
+    CANCELLED = "CANCELLED"  # draft batch stopped before production (reason in the change log); never deleted
 
 
 class ProductionBatch(SQLModel, table=True):

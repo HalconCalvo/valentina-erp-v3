@@ -119,12 +119,13 @@ export const productionService = {
     return response.data;
   },
 
-  deleteBatch: async (batchId: number): Promise<{
+  /** Stops a draft batch: cancelled with a reason, never deleted. */
+  cancelBatch: async (batchId: number, reason: string): Promise<{
     message: string;
     instances_reset: number;
     reservations_cancelled: number;
   }> => {
-    const response = await axiosClient.delete(`/production/${batchId}`);
+    const response = await axiosClient.patch(`/production/${batchId}/cancel`, { reason });
     return response.data;
   },
 

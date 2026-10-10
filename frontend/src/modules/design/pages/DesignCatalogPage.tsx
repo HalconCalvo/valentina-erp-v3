@@ -20,6 +20,7 @@ import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import ExportButton from '@/components/ui/ExportButton';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import { VReasonDialog } from '@/components/ui/VReasonDialog';
 import { toast } from '@/components/ui/VToast';
 
 import * as XLSX from 'xlsx';
@@ -600,14 +601,16 @@ const DesignCatalogPage: React.FC = () => {
         setPendingConfirm({ kind: 'DELETE_BATCH', batchId, folio });
     };
 
-    const executeDeleteBatch = async (batchId: number) => {
+    const executeDeleteBatch = async (batchId: number, reason: string): Promise<boolean> => {
         setDeletingBatchId(batchId);
         try {
-            const result = await productionService.deleteBatch(batchId);
+            const result = await productionService.cancelBatch(batchId, reason);
             toast.success(result.message || 'Lote detenido correctamente.');
             await loadLiveBatches();
+            return true;
         } catch (e: any) {
-            toast.error(e?.response?.data?.detail || 'Error al eliminar el lote.');
+            toast.error(e?.response?.data?.detail || 'Error al detener el lote.');
+            return false;
         } finally {
             setDeletingBatchId(null);
         }
@@ -1606,19 +1609,15 @@ const DesignCatalogPage: React.FC = () => {
             )}
 
             {pendingConfirm?.kind === 'DELETE_BATCH' && (
-                <VConfirmDialog
-                    isOpen
-                    title="Detener lote"
-                    message={`¿Detener el lote ${pendingConfirm.folio}?`}
-                    consequence="Las instancias regresarán a PENDIENTE y el material comprometido quedará liberado. Esta acción no se puede deshacer."
-                    variant="danger"
-                    confirmLabel="Sí, detener lote"
-                    onConfirm={async () => {
-                        const { batchId } = pendingConfirm;
-                        setPendingConfirm(null);
-                        await executeDeleteBatch(batchId);
-                    }}
-                    onCancel={() => setPendingConfirm(null)}
+                <VReasonDialog
+                    title={`Detener lote ${pendingConfirm.folio}`}
+                    description="Las instancias regresan a PENDIENTE y el material comprometido se libera. El lote no se elimina: queda cancelado con su motivo."
+                    label="Motivo *"
+                    requiredMessage="El motivo es obligatorio."
+                    confirmLabel="Detener lote"
+                    danger
+                    onConfirm={(reason) => executeDeleteBatch(pendingConfirm.batchId, reason)}
+                    onClose={() => setPendingConfirm(null)}
                 />
             )}
         </div>

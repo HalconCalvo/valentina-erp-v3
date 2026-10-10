@@ -20,7 +20,9 @@ from app.models.material import Material, holds_stock
 from app.services.planning_service import compute_semaphore
 from app.services import production_inventory_service
 from app.core.permissions import allow, PRODUCTION_ROLES
+from app.core.audit_context import audit_reason
 from app.schemas.production_inventory_schema import (
+    BatchCancel,
     BatchStatusUpdate,
     InstanceRemovalCreate,
     ProductionOverrideCreate,
@@ -206,7 +208,7 @@ def create_production_batch(
 def read_batches(current_user: CurrentUser, db: Session = Depends(get_session)):
     batches = db.exec(
         select(ProductionBatch)
-        .where(ProductionBatch.status != ProductionBatchStatus.DEAD)
+        .where(ProductionBatch.status.notin_([ProductionBatchStatus.DEAD, ProductionBatchStatus.CANCELLED]))
         .order_by(ProductionBatch.id.asc())
     ).all()
     result = []
@@ -489,18 +491,22 @@ def remove_instance_from_batch(
     return {"instance_id": instance.id, "production_status": instance.production_status}
 
 
-@router.delete("/{batch_id}", status_code=200)
-def delete_production_batch(
+@router.patch("/{batch_id}/cancel", status_code=200)
+def cancel_production_batch(
     batch_id: int,
+    data: BatchCancel,
     current_user: CurrentUser,
     db: Session = Depends(get_session),
 ):
     """
-    BOTÓN DE ALTO — Solo disponible si el lote está en DRAFT.
+    BOTÓN DE ALTO — Solo disponible si el lote está en DRAFT. Nunca se elimina:
     1. Regresa todas las instancias a PENDING
-    2. Cancela reservas ACTIVA → libera committed_stock
-    3. Elimina el lote
+    2. Cancela reservas ACTIVA → libera committed_stock (las reservas quedan CANCELADA)
+    3. El lote queda CANCELLED con su motivo en la bitácora
     """
+    reason = (data.reason or "").strip()
+    if not reason:
+        raise HTTPException(status_code=422, detail="El motivo de la cancelación es obligatorio.")
     allowed = {"DESIGN", "ADMIN", "MANAGER", "DIRECTOR"}
     role = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
     if role.upper() not in allowed:
@@ -560,14 +566,15 @@ def delete_production_batch(
                 (material.committed_stock or 0.0) - res.quantity_reserved
             )
             db.add(material)
-        db.delete(res)
 
-    # 3. Eliminar el lote
-    db.delete(batch)
-    db.commit()
+    # 3. Cancelar el lote (nunca se elimina)
+    with audit_reason(reason):
+        batch.status = ProductionBatchStatus.CANCELLED
+        db.add(batch)
+        db.commit()
 
     return {
-        "message": f"Lote {folio} eliminado. "
+        "message": f"Lote {folio} cancelado. "
                    f"{len(instances)} instancia(s) regresadas a PENDING. "
                    f"{len(reservations)} reserva(s) canceladas.",
         "instances_reset": len(instances),
