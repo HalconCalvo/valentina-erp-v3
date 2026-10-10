@@ -4415,3 +4415,17 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 - <input>/<select> nativos → Input/SearchableSelect: login, buscador del encabezado, selectores de archivo (diseño, caja chica, materiales, parámetros), estatus de la receta
 - Queda como excepción documentada la tabla de impresión del inventario físico; Campo sin tocar (en espera)
 - Revisado en pantalla: login y receta (estatus). Pruebas frontend 17, build OK
+
+---
+## SESIÓN 2026-10-10 (parte 13) — CIERRE DE LA NOCHE
+
+### Hecho:
+- Tarea 6 cerrada: hallazgos viejos revisados uno por uno (todos resueltos); ROADMAP depurado
+- Partidas de la cotización con descripción en sus acciones de ícono
+- CxP: Gerencia ve "Pagar" / "Pago Urgente" solo si Dirección encendió el interruptor (D7); con él apagado ve "Se Solicita Pago" (probado en pantalla)
+- Producción revisada (solo lectura): backend arriba y con las rutas nuevas (/sanitation, /material-import responden 401 sin sesión)
+
+### Queda para Gabriel / contabilidad:
+- D14: preguntas 1–4, 6 y 7 (OVs Finalizadas con parte sin facturar, OV-0045 vs OV-0123, OVs exentas, diferencia Santander, comisión de facturas saneadas, OV-0041/0053)
+- Saneamiento desde la app (Gerencia → Saneamiento; Materiales → Actualización masiva) cuando se confirme
+- Campo EN ESPERA (D15)

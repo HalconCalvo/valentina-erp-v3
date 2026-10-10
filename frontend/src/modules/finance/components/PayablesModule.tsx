@@ -20,6 +20,7 @@ import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { TableActionCancelIcon, TableActionEditIcon } from '@/lib/tableActionIcons';
 import { formatMoney } from '@/utils/format';
+import { useFoundations } from '../../foundations/hooks/useFoundations';
 
 type PayableFilter =
  | 'ALL'
@@ -64,6 +65,9 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
     const navigate = useNavigate();
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase().trim();
     const isChecker = ['DIRECTOR', 'MANAGER'].includes(userRole);
+    // D7: money leaves only with DIRECTOR, or MANAGER when Dirección turned the switch on (the server enforces it too)
+    const managerCanPay = Boolean(useFoundations()?.config?.manager_can_execute_payments);
+    const canPay = userRole === 'DIRECTOR' || (userRole === 'MANAGER' && managerCanPay);
 
     const [stats, setStats] = useState<AccountsPayableStats | null>(null);
     const [invoices, setInvoices] = useState<PendingInvoice[]>([]);
@@ -354,7 +358,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
     const handleModalSubmit = async (payload: PaymentRequestPayload) => {
         try {
             if (editingRequest) {
-                if (isChecker) {
+                if (canPay) {
                     if (!payload.suggested_account_id) {
                         toast.warning('Selecciona una cuenta bancaria de origen para efectuar el pago.');
                         return;
@@ -544,7 +548,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                 return (
                     <div className="flex items-center justify-center gap-2">
                         {hasActive ? (
-                            isChecker ? (
+                            canPay ? (
                                 <Button
                                     size="sm"
                                     className="bg-amber-500 hover:bg-amber-600 text-white font-bold shadow-sm transition-colors"
@@ -571,7 +575,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                 className={`${theme.btnAction} font-bold shadow-sm transition-colors`}
                                 onClick={() => setSelectedInvoice(inv)}
                             >
-                                <CheckCircle2 size={16} className="mr-1" /> {isChecker ? 'Pagar' : 'Se Solicita Pago'}
+                                <CheckCircle2 size={16} className="mr-1" /> {canPay ? 'Pagar' : 'Se Solicita Pago'}
                             </Button>
                         )}
                         {isChecker
@@ -605,7 +609,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                 );
             },
         },
-    ], [theme, sentRequests, approvedRequests, isChecker, cancellingId]);
+    ], [theme, sentRequests, approvedRequests, isChecker, canPay, cancellingId]);
 
     const renderSortableHeader = (label: string, key: SortKey, align: 'left' | 'right' = 'left', className = 'flex-1') => {
         const isActive = sortConfig?.key === key;
@@ -871,7 +875,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                     existingRequest={editingRequest || undefined} 
                     onClose={() => { setSelectedInvoice(null); setEditingRequest(null); }} 
                     onSubmit={handleModalSubmit} 
-                    isChecker={isChecker} 
+                    isChecker={canPay} 
                 />
             )}
             

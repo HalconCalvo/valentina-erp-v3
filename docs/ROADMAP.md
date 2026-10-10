@@ -111,8 +111,10 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
   factura pagada o cancelada.
 - Herramienta 4 hecha (2026-10-10): actualización masiva del catálogo desde Excel (Materiales → Actualización masiva).
 - Herramienta 3 (IVA de OVs legacy) en espera de la lista de contabilidad (D14 punto 3).
-- Pendiente (fuera de alcance): el botón "Pagar" de CxP se muestra a Gerencia aunque el interruptor esté apagado (el
-  servidor ya solo registra la solicitud); la lógica de pagos de `finance.py` vive en el endpoint.
+- CxP (hecho 10/10 noche): Gerencia ve "Pagar"/"Pago Urgente" solo con el interruptor de D7 encendido.
+- Pendiente de refactor (fuera de alcance): la lógica de pagos de `finance.py` vive en el endpoint.
+- Se deja: guardia de rutas por rol en el frontend (el servidor ya valida rol en cada ruta; un guardia por módulo
+  rompería enlaces profundos legítimos, p. ej. Gerencia → /director/audit).
 - Pendiente de refactor (fuera de alcance): `sales_service.register_installment` mide ~110 líneas (máx. 50).
 
 ## 8. D13: el vendedor solo ve precio de venta — hecha (2026-10-10)
