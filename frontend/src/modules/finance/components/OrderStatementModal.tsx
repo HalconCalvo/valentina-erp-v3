@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { X, Receipt, CheckCircle, Clock, FileText, Package, AlertCircle, PieChart, Users, Coins, Pencil, PlusCircle, XCircle, Shield } from 'lucide-react';
+import { X, Receipt, CheckCircle, Clock, FileText, AlertCircle, PieChart, Users, Coins, Pencil, PlusCircle, XCircle, Shield } from 'lucide-react';
 import { SalesOrder, CustomerPayment, RetentionAlertRead } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
 import { getInventoryConflict } from '../../../api/production-service';
@@ -11,9 +11,12 @@ import { useFoundations } from '../../foundations/hooks/useFoundations';
 import { toast } from '@/components/ui/VToast';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import Modal from '@/components/ui/Modal';
+import { VSummaryCard } from '@/components/ui/VSummaryCard';
+import { formatDate, formatMoney } from '@/utils/format';
 import { EditPaymentDialog, TextConfirmDialog, type PaymentEditForm } from './rayos-x/RayosXDialogs';
 import { type UnlinkedHouseGroup } from './rayos-x/HouseInstancePicker';
 import { EditInstallmentDialog, RegisterInstallmentDialog, type InstallmentPayload } from './rayos-x/InstallmentDialogs';
+import { DeliverablesSection } from './rayos-x/DeliverablesSection';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
@@ -31,8 +34,6 @@ import {
 } from '../../../hooks/useOrderStatement';
 import {
   getLocalTodayDateKey,
-  getSemaphoreBadgeMark,
-  getSemaphoreConfig,
 } from '../../planning/hooks/usePlanning';
 
 type OrderStatementPendingConfirm =
@@ -237,140 +238,6 @@ const RayosXOcQuickEdit: React.FC<{
     );
 };
 
-/** Texto del badge sin emoji inicial (el dot de color ya identifica el estado). */
-function semaphoreBadgeDisplayText(semaphoreLabel: string | null | undefined, cfgLabel: string): string {
-  let text = (semaphoreLabel?.trim() || cfgLabel).trim();
-  text = text.replace(/^⚪⚠️\s*/u, '').replace(/^🔵🟢\s*/u, '').replace(/^🔵🔵\s*/u, '').replace(/^🟢🟢\s*/u, '');
-  text = text.replace(/^[\s]*(?:🔴|🟡|🔵|🟢|⚪|⬜|⚠️|🔘|🟣)\s*/u, '');
-  return text.trim();
-}
-
-function InstanceSemaphoreBadge({
-  semaphore,
-  semaphoreLabel,
-}: {
-  semaphore?: string | null;
-  semaphoreLabel?: string | null;
-}) {
-  const sem = semaphore ?? 'GRAY';
-  const cfg = getSemaphoreConfig(sem);
-  const mark = getSemaphoreBadgeMark(sem);
-  const text = semaphoreBadgeDisplayText(semaphoreLabel, cfg.label);
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 max-w-[12rem] text-[10px] font-bold shrink-0 ${cfg.text}`}
-      title={text}
-    >
-      {mark.kind === 'icon' ? (
-        <span className="text-sm leading-none shrink-0" aria-hidden>{mark.icon}</span>
-      ) : (
-        <span className={mark.dotClass} aria-hidden />
-      )}
-      <span className="truncate leading-tight">{text}</span>
-    </span>
-  );
-}
-
-function formatInstanceCasaSubtitle(projectName: string, inst: { street?: string | null; lot?: string | null }) {
-  const casa = [inst.street?.trim(), inst.lot?.trim()].filter(Boolean).join(', ');
-  return [projectName?.trim(), casa].filter(Boolean).join(' · ');
-}
-
-function formatDeliveryDeadlineDisplay(iso: string | null | undefined): string {
-  const raw = typeof iso === 'string' ? iso.trim() : '';
-  if (!raw) return 'Sin fecha estimada';
-  const d = new Date(raw.includes('T') ? raw : `${raw.slice(0, 10)}T12:00:00`);
-  if (Number.isNaN(d.getTime())) return 'Sin fecha estimada';
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = d
-    .toLocaleDateString('es-MX', { month: 'short' })
-    .replace(/\./g, '')
-    .trim();
-  return `${day}/${month}/${d.getFullYear()}`;
-}
-
-function deliveryDeadlineInputValue(iso: string | null | undefined): string {
-  if (!iso) return '';
-  return iso.slice(0, 10);
-}
-
-function InstanceDeliveryDeadlineCell({
-  deliveryDeadline,
-  canEdit,
-  disabled,
-  onCommit,
-}: {
-  deliveryDeadline?: string | null;
-  canEdit: boolean;
-  disabled?: boolean;
-  onCommit: (dateKey: string) => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
-  const display = formatDeliveryDeadlineDisplay(deliveryDeadline);
-  const todayMin = getLocalTodayDateKey();
-
-  if (!canEdit) {
-    return (
-      <span className="text-[10px] font-semibold text-slate-600 shrink-0" title={display}>
-        {display}
-      </span>
-    );
-  }
-
-  if (editing) {
-    return (
-      <Input
-        type="date"
-        min={todayMin}
-        value={draft}
-        disabled={disabled}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && draft && draft >= todayMin) {
-            onCommit(draft);
-            setEditing(false);
-          }
-          if (e.key === 'Escape') setEditing(false);
-        }}
-        onBlur={() => {
-          if (draft && draft >= todayMin) {
-            onCommit(draft);
-          }
-          setEditing(false);
-        }}
-        className="h-7 w-[9.5rem] text-[10px] px-2 py-0 rounded-lg"
-        autoFocus
-      />
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={() => {
-        setDraft(deliveryDeadlineInputValue(deliveryDeadline));
-        setEditing(true);
-      }}
-      className="text-[10px] font-semibold text-indigo-700 hover:text-indigo-900 hover:underline shrink-0 disabled:opacity-50 text-left"
-      title="Editar fecha estimada de entrega"
-    >
-      {display}
-    </button>
-  );
-}
-
-const INSTANCE_STATUS_META: Record<string, { label: string; cls: string }> = {
-    PENDING:       { label: 'Pendiente',     cls: 'bg-slate-100 text-slate-600' },
-    IN_PRODUCTION: { label: 'En Producción', cls: 'bg-blue-50 text-blue-700' },
-    READY:         { label: 'Empacado',      cls: 'bg-cyan-50 text-cyan-700' },
-    CARGADO:       { label: 'Cargado',       cls: 'bg-indigo-50 text-indigo-700' },
-    INSTALLED:     { label: 'Instalado',     cls: 'bg-green-50 text-green-700' },
-    CLOSED:        { label: 'Cerrado',       cls: 'bg-emerald-100 text-emerald-800' },
-    WARRANTY:      { label: 'Garantía',      cls: 'bg-amber-50 text-amber-700' },
-};
-
 export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     isOpen,
     onClose,
@@ -402,7 +269,6 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const [descriptionEdit, setDescriptionEdit] = useState<{ item: any; text: string; reason: string } | null>(null);
     const [savingDescription, setSavingDescription] = useState(false);
     const [localOrder, setLocalOrder] = useState<SalesOrder>(order);
-    const [deliverablesTab, setDeliverablesTab] = useState<'instancia' | 'casa'>('instancia');
     const prevIsOpenRef = useRef(false);
 
     const [editingAdvance, setEditingAdvance] = useState(false);
@@ -806,13 +672,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
 
     if (!isOpen || !order) return null;
 
-    const formatCurrency = (value: number) => {
-        return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value);
-    };
-
-    const formatDate = (dateString: string) => {
-        return new Date(dateString).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
-    };
+    const formatCurrency = (value: number) => formatMoney(value);
 
     const clientName = (order as any).client_name || (order as any).client?.full_name || (order as any).client?.name || (order as any).customer?.name || 'Cliente por Defecto';
 
@@ -1301,7 +1161,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                     <span className="text-[10px] font-bold text-slate-500 uppercase">Fecha</span>
                                     <p className="text-slate-900 mt-0.5">
                                         {(order as any).client_po_date
-                                            ? new Date((order as any).client_po_date).toLocaleDateString('es-MX')
+                                            ? formatDate((order as any).client_po_date)
                                             : '—'}
                                     </p>
                                 </div>
@@ -1389,26 +1249,11 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                     </div>
 
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Valor del Proyecto c/IVA</p>
-                            <p className="text-lg font-black text-slate-800">{formatCurrency(totalOrder)}</p>
-                        </div>
-                        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-                            <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-1">Total Facturado</p>
-                            <p className="text-lg font-black text-blue-700">{formatCurrency(totalInvoiced)}</p>
-                        </div>
-                        <div className="bg-white p-3 rounded-xl border border-indigo-200 shadow-sm bg-indigo-50">
-                            <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider mb-1">Pendiente de Facturar</p>
-                            <p className="text-lg font-black text-indigo-700">{formatCurrency(pendingToInvoice)}</p>
-                        </div>
-                        <div className="bg-white p-3 rounded-xl border border-emerald-200 shadow-sm bg-emerald-50">
-                            <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-1 flex items-center gap-1"><CheckCircle size={12}/> Total Cobrado</p>
-                            <p className="text-lg font-black text-emerald-700">{formatCurrency(totalPaidInBank)}</p>
-                        </div>
-                        <div className="bg-white p-3 rounded-xl border border-amber-200 shadow-sm bg-amber-50">
-                            <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1 flex items-center gap-1"><Clock size={12}/> Saldo por Cobrar</p>
-                            <p className="text-lg font-black text-amber-700">{formatCurrency(balanceDue)}</p>
-                        </div>
+                        <VSummaryCard label="Valor del proyecto (con IVA)" value={formatCurrency(totalOrder)} tone="slate" />
+                        <VSummaryCard label="Total facturado" value={formatCurrency(totalInvoiced)} tone="indigo" />
+                        <VSummaryCard label="Pendiente de facturar" value={formatCurrency(pendingToInvoice)} tone="amber" />
+                        <VSummaryCard label="Total cobrado" value={formatCurrency(totalPaidInBank)} tone="emerald" />
+                        <VSummaryCard label="Saldo por cobrar" value={formatCurrency(balanceDue)} tone="total" />
                     </div>
 
                     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
@@ -1968,218 +1813,18 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                         />
                     )}
 
-                    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                        <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
-                            <h3 className="text-sm font-black text-slate-700 flex items-center gap-2 mb-2">
-                                <Package size={16} className="text-slate-400"/>
-                                Desglose de Entregables
-                            </h3>
-                            <div className="flex gap-1">
-                                <button
-                                    type="button"
-                                    onClick={() => setDeliverablesTab('instancia')}
-                                    className={`px-3 py-1 text-xs font-bold rounded-lg transition ${deliverablesTab === 'instancia' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
-                                >
-                                    Por Instancia
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setDeliverablesTab('casa')}
-                                    className={`px-3 py-1 text-xs font-bold rounded-lg transition ${deliverablesTab === 'casa' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
-                                >
-                                    Por Casa
-                                </button>
-                            </div>
-                        </div>
-                        <div className="max-h-72 overflow-y-auto p-3 space-y-3">
-                          {deliverablesTab === 'instancia' && (
-                            <>
-                            {/* ESCUDO: Cortamos las instancias a la cantidad real que marca la OV */}
-                            {uniqueItems.filter((item: any) => !item.is_resale).map((item: any) => {
-                                const units = item.instances ?? [];
-                                if (units.length === 0 && !item.is_cancelled) return null;
-                                const cancelledLine = Boolean(item.is_cancelled);
-                                return (
-                                    <div key={item.id} className={`border rounded-lg overflow-hidden shadow-sm ${cancelledLine ? 'border-slate-200 opacity-60' : 'border-slate-200'}`}>
-                                        <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200 flex items-center justify-between">
-                                            <div className="min-w-0">
-                                                <p className={`text-sm font-black text-slate-700 truncate ${cancelledLine ? 'line-through' : ''}`}>{item.product_name}</p>
-                                                {item.commercial_description && (
-                                                    <p className="text-[11px] text-slate-500 truncate" title={item.commercial_description}>{item.commercial_description}</p>
-                                                )}
-                                                <p className="text-[11px] text-slate-500">
-                                                    {cancelledLine
-                                                        ? `Partida cancelada: ${item.cancel_reason || 'sin motivo'}`
-                                                        : `${item.quantity} ${item.quantity === 1 ? 'unidad' : 'unidades'} × ${formatCurrency(item.unit_price || 0)}`}
-                                                </p>
-                                            </div>
-                                            <div className="flex items-center gap-2 shrink-0">
-                                                {!cancelledLine && (
-                                                    <span className="text-sm font-black text-slate-700">
-                                                        {formatCurrency((item.unit_price || 0) * (item.quantity || 0))}
-                                                    </span>
-                                                )}
-                                                {canEditDescription && !cancelledLine && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setDescriptionEdit({ item, text: item.commercial_description || '', reason: '' })}
-                                                        className="p-1 text-slate-400 hover:text-indigo-600 transition-colors"
-                                                        title="Editar descripción comercial"
-                                                    >
-                                                        <Pencil size={14} />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className="divide-y divide-slate-100 bg-white">
-                                            {units.map((inst: any) => (
-                                                <div key={inst.id} className={`py-2 pl-8 pr-4 flex flex-wrap gap-2 justify-between items-center text-sm ${inst.is_cancelled ? 'bg-slate-50 opacity-60' : 'hover:bg-slate-50'}`}>
-                                                    <div className="flex items-start gap-3 min-w-0 flex-1 flex-wrap">
-                                                        <div className="w-2 h-2 rounded-full mt-1.5 shrink-0 bg-slate-300" />
-                                                        <div className="min-w-0">
-                                                            <span className={`font-bold text-slate-700 block truncate ${inst.is_cancelled ? 'line-through' : ''}`}>
-                                                                {inst.custom_name || inst.item_name}
-                                                            </span>
-                                                            <p className="text-[10px] text-slate-600 truncate">
-                                                                {inst.is_cancelled
-                                                                    ? `Cancelada: ${inst.cancel_reason || 'sin motivo'}`
-                                                                    : formatInstanceCasaSubtitle(displayName, inst)}
-                                                            </p>
-                                                        </div>
-                                                        {!inst.is_cancelled && (
-                                                            <>
-                                                                <InstanceSemaphoreBadge
-                                                                    semaphore={inst.semaphore}
-                                                                    semaphoreLabel={inst.semaphore_label}
-                                                                />
-                                                                <InstanceDeliveryDeadlineCell
-                                                                    deliveryDeadline={inst.delivery_deadline}
-                                                                    canEdit={canEditDeliveryDeadline}
-                                                                    disabled={savingDeliveryInstanceId === inst.id}
-                                                                    onCommit={(dateKey) => handleDeliveryDeadlineCommit(inst.id, dateKey)}
-                                                                />
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                    <div className="text-right flex items-center justify-end gap-2 shrink-0 flex-wrap">
-                                                        <span className={`text-xs font-bold px-2 py-1 rounded ${
-                                                            inst.is_cancelled
-                                                            ? 'bg-slate-200 text-slate-500'
-                                                            : inst.customer_payment_id
-                                                            ? 'bg-blue-50 text-blue-600 border border-blue-100'
-                                                            : 'bg-slate-100 text-slate-500'
-                                                        }`}>
-                                                            {inst.is_cancelled ? 'CANCELADA' : inst.customer_payment_id ? 'FACTURADO' : 'PENDIENTE'}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                            {resaleItems.length > 0 && (
-                                <div className="mt-4 px-5 pb-3">
-                                    <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider mb-2 flex items-center gap-1">
-                                        Accesorios de reventa
-                                    </p>
-                                    <div className="space-y-2">
-                                        {resaleItems.map((item: any) => (
-                                            <div key={item.id} className={`bg-emerald-50 border border-emerald-100 rounded-lg px-4 py-2 ${item.is_cancelled ? 'opacity-60' : ''}`}>
-                                                <div className="flex items-center justify-between">
-                                                    <div className="min-w-0">
-                                                        <p className={`text-sm font-bold text-slate-800 truncate ${item.is_cancelled ? 'line-through' : ''}`}>{item.product_name}</p>
-                                                        <p className="text-xs text-slate-500">
-                                                            {item.is_cancelled
-                                                                ? `Cancelado: ${item.cancel_reason || 'sin motivo'}`
-                                                                : `SKU ${item.resale_sku ?? '—'} · Cant. ${item.quantity}`}
-                                                        </p>
-                                                    </div>
-                                                    <div className="flex items-center shrink-0">
-                                                        {!item.is_cancelled && (
-                                                            <p className="text-sm font-black text-emerald-700">
-                                                                {formatCurrency((item.unit_price || 0) * (item.quantity || 1))}
-                                                            </p>
-                                                        )}
-                                                        {canEditDescription && !item.is_cancelled && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setDescriptionEdit({ item, text: item.commercial_description || '', reason: '' })}
-                                                                className="ml-3 p-1 text-slate-400 hover:text-indigo-600 transition-colors"
-                                                                title="Editar descripción comercial"
-                                                            >
-                                                                <Pencil size={14} />
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                            </>
-                          )}
-
-                          {deliverablesTab === 'casa' && (
-                            <div className="space-y-3">
-                              {housesInOrder.length === 0 ? (
-                                <p className="text-sm text-slate-400 text-center py-4">No hay instancias.</p>
-                              ) : (
-                                housesInOrder.map((house: any) => (
-                                  <div key={house.key} className="border border-slate-200 rounded-lg overflow-hidden shadow-sm">
-                                    <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200 flex items-center justify-between">
-                                      <p className="text-sm font-black text-slate-700">
-                                        {house.key === '__unassigned__'
-                                          ? '⬜ Sin asignar'
-                                          : `🏠 ${house.street}${house.street && house.lot ? ', ' : ''}${house.lot}`}
-                                      </p>
-                                      <span className="text-[11px] text-slate-500">{house.items.length} mueble{house.items.length !== 1 ? 's' : ''}</span>
-                                    </div>
-                                    <div className="divide-y divide-slate-100 bg-white">
-                                      {house.items.map((mueble: any) => {
-                                        const meta = INSTANCE_STATUS_META[mueble.production_status] ?? { label: mueble.production_status, cls: 'bg-slate-100 text-slate-500' };
-                                        return (
-                                          <div key={mueble.id} className="py-2 px-4 flex flex-wrap gap-2 justify-between items-center hover:bg-slate-50 text-sm">
-                                            <div className="flex items-start gap-3 min-w-0 flex-1 flex-wrap">
-                                              <div className="w-2 h-2 rounded-full mt-1.5 shrink-0 bg-slate-300" />
-                                              <div className="min-w-0">
-                                                <span className="font-bold text-slate-700 block truncate">
-                                                  {mueble.custom_name || mueble.product_name}
-                                                </span>
-                                                <p className="text-[10px] text-slate-600 truncate">
-                                                  {formatInstanceCasaSubtitle(displayName, mueble)}
-                                                </p>
-                                              </div>
-                                              <InstanceSemaphoreBadge
-                                                semaphore={mueble.semaphore}
-                                                semaphoreLabel={mueble.semaphore_label}
-                                              />
-                                              <InstanceDeliveryDeadlineCell
-                                                deliveryDeadline={mueble.delivery_deadline}
-                                                canEdit={canEditDeliveryDeadline}
-                                                disabled={savingDeliveryInstanceId === mueble.id}
-                                                onCommit={(dateKey) => handleDeliveryDeadlineCommit(mueble.id, dateKey)}
-                                              />
-                                            </div>
-                                            <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-                                              {mueble.customer_payment_id ? (
-                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-100">FACTURADO</span>
-                                              ) : (
-                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${meta.cls}`}>{meta.label}</span>
-                                              )}
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                ))
-                              )}
-                            </div>
-                          )}
-                        </div>
-                    </div>
+                    <DeliverablesSection
+                        uniqueItems={uniqueItems}
+                        resaleItems={resaleItems}
+                        housesInOrder={housesInOrder}
+                        projectName={displayName}
+                        canEditDescription={canEditDescription}
+                        canEditDeliveryDeadline={canEditDeliveryDeadline}
+                        savingDeliveryInstanceId={savingDeliveryInstanceId}
+                        onDeliveryDeadlineCommit={handleDeliveryDeadlineCommit}
+                        onEditDescription={(item) => setDescriptionEdit({ item, text: item.commercial_description || '', reason: '' })}
+                        formatCurrency={formatCurrency}
+                    />
 
                 </div>
         </Modal>
