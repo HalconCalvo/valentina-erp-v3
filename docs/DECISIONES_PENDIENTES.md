@@ -16,7 +16,14 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 
 ## Pendientes
 
-_(ninguna)_
+### D8–D12. Plan del arranque en ceros — 2026-10-10 — ROADMAP tarea 7
+- **Contexto:** `docs/PLAN_ARRANQUE.md`. Producción ya se usa para operar (compras, recepciones, pagos, caja chica,
+  inventario físico), así que el arranque no puede ser borrar todo.
+- **Decisiones:** D8 qué es real hoy; D9 fecha de corte (recomiendo 31/10/2026); D10 lo de prueba se marca y oculta,
+  no se borra; D11 multiempresa fuera del arranque; D12 saldos de apertura de CxP y bancos por Excel validado.
+- **Recomendación:** la de cada punto en el documento.
+- **Reversible:** no se aplica nada hasta la aprobación (tarea 7 en espera).
+- **Estado:** pendiente
 
 ## Resueltas
 

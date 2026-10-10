@@ -103,4 +103,5 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
 - Costo de compra se redondea hacia arriba por punto flotante en `inventory_service._apply_purchase_cost`
   (34.45 → 34.46). Encontrado 2026-10-10.
 
-## 7. Plan del arranque en ceros — pendiente
+## 7. Plan del arranque en ceros — en espera (Gabriel, D8–D12)
+- 2026-10-10: propuesta en `docs/PLAN_ARRANQUE.md` (saldos de apertura, 4 caminos, pasos técnicos, decisiones).
