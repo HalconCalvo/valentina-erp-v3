@@ -18,7 +18,11 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
   2. OV-0045 vs OV-0123 (Puerto Palmeras): ¿cuál es la buena?
   3. ¿Qué OVs legacy debían ser exentas?
   4. Santander: ¿el estado de cuenta coincide con $243,109.92 o con $245,507.64?
-  5. Regla de saldo de la OV para la herramienta: total − abonos vigentes (recomendado).
+  5. Regla de saldo de la OV para la herramienta: total − abonos vigentes (recomendado; reversible, aplicada en la
+     herramienta del 2026-10-10).
+  6. Facturas que la herramienta marca PAGADAS: no generan comisión (las de legacy se pagaron fuera del sistema).
+     Recomendado; reversible.
+  7. OV-0041 y OV-0053: anticipo amortizado mayor que la factura (SANEAMIENTO 3.4): ¿cuál es el monto correcto?
 - **Recomendación:** aprobar el plan; Claude Code construye la herramienta de recálculo (punto 6.1) mientras contabilidad
   responde 1–4.
 - **Reversible:** las correcciones se hacen con motivo y quedan en bitácora.

@@ -40,6 +40,7 @@ Todas tienen tasa "IVA Estándar" (16%). No hay en el catálogo una tasa llamada
 | 3.1 | OV-0019 Santa Loreto Etapa 2 (Finalizada) | Anticipo $81,517.50 marcado PAGADO sin abono ni movimiento bancario; saldo −$34,690.50 | Confirmar si el anticipo se cobró: si sí, registrar el abono con fecha y cuenta reales; luego recalcular saldo | App (abono) + **Herramienta** (recálculo) |
 | 3.2 | OV-0045 "Puerto Palmeras" (Vendida, 14 partidas) vs **OV-0123** "PUERTO PALMERAS, 18 LOTES" (legacy) | Misma obra y cliente, totales casi iguales; OV-0045 tiene dos anticipos PAGADOS ($1,311,381.50) sin abonos | Probable duplicado: confirmar cuál es la buena. Si es OV-0123, cancelar OV-0045 con motivo (sin efecto en bancos: no hay abonos) | Decisión → App (cancelar OV) |
 | 3.3 | OV-0066 Casa NADIRA 33A | Anticipo cobrado ($76,748.98) pero el saldo guardado es el total | Recalcular saldo | **Herramienta** |
+| 3.4 | OV-0041 (factura 481) y OV-0053 (facturas 591 y 615) | Facturas de avance con anticipo amortizado **mayor** que la factura (p. ej. $82,419.50 sobre $74,177.55; parece capturado con IVA) | Corregir el anticipo amortizado de cada factura | App (Rayos X: editar factura con motivo); la herramienta las lista como anomalía |
 
 ## 4. Proveedores, bancos y caja chica
 
@@ -62,9 +63,13 @@ Todas tienen tasa "IVA Estándar" (16%). No hay en el catálogo una tasa llamada
 
 ## 6. Herramientas que construye Claude Code (en orden)
 
-1. **Recalcular estado y saldo de facturas y OVs** (2.1, 2.3, 2.4, 3.3 y lo que resulte de 2.2/3.1): vista previa de
-   cada cambio (antes → después), motivo obligatorio, solo DIRECTOR/MANAGER, todo en bitácora. Regla: saldo de la OV =
-   total − abonos vigentes; factura PAGADA cuando lo cobrado cubre su monto neto de anticipo amortizado.
+1. **Recalcular estado y saldo de facturas y OVs** — **hecha (2026-10-10)**: Gerencia → tarjeta "Saneamiento".
+   Vista previa (antes → después), se eligen las filas, motivo obligatorio, solo DIRECTOR/MANAGER, todo en bitácora.
+   Regla: saldo de la OV = total − abonos vigentes; factura PAGADA cuando abonos + notas de crédito + anticipo
+   amortizado la cubren. No crea abonos, movimientos bancarios ni comisiones. Se corrigió además la causa de 2.1: al
+   registrar un abono ya se descuenta el anticipo amortizado (y la comisión se calcula sobre el neto).
+   Antes de aplicar: 2.2 (OVs Finalizadas que regresarían a Vendida) y 3.1/3.2 (anticipos "pagados" sin abono, que
+   regresarían a Pendiente) esperan la respuesta de contabilidad (D14); 2.1, 2.3, 2.4 y 3.3 se pueden aplicar ya.
 2. **Pago Fast-Track registra el pago a proveedor** (4.1), para que no se repita.
 3. **Corrección de tasa de IVA de una OV legacy y sus facturas** (2.5), cuando contabilidad entregue la lista.
 4. **Importación masiva del catálogo** (5.3) desde el Excel completado, si se prefiere a capturar uno por uno.

@@ -808,7 +808,9 @@ def _assert_installment_manager(user: User) -> None:
 
 
 def _recalc_cxc_status(session: Session, cxc: CustomerPayment, order: Optional[SalesOrder]) -> None:
-    total = sales_repo.sum_active_installments(session, cxc.id)
+    # Settled when payments, credit notes and the advance amortized cover the invoice (same rule as invoice_balance)
+    total = (sales_repo.sum_active_installments(session, cxc.id) + sales_repo.sum_active_credit_notes(session, cxc.id)
+             + float(cxc.amortized_advance or 0.0))
     monto = float(cxc.amount or 0.0)
     if total + 0.01 >= monto:
         if cxc.status != CXCStatus.PAID:
@@ -893,7 +895,7 @@ def register_installment(
     order = sales_repo.get_sales_order_by_id(session, cxc.sales_order_id)
     abonado_antes = sales_repo.sum_active_installments(session, cxc.id)
     acreditado = sales_repo.sum_active_credit_notes(session, cxc.id)
-    saldo_factura = float(cxc.amount or 0.0) - abonado_antes - acreditado
+    saldo_factura = float(cxc.amount or 0.0) - float(cxc.amortized_advance or 0.0) - abonado_antes - acreditado
     if monto > saldo_factura + 0.01:
         raise HTTPException(status_code=400, detail="El abono supera el saldo pendiente de la factura.")
     is_advance = bool(payload.is_advance) or cxc.payment_type == PaymentType.ADVANCE
@@ -956,7 +958,8 @@ def register_installment(
         order.outstanding_balance = float(order.outstanding_balance or 0.0) - monto
 
     abonado_despues = abonado_antes + monto
-    factura_saldada = abonado_despues + acreditado + 0.01 >= float(cxc.amount or 0.0)
+    amortizado = float(cxc.amortized_advance or 0.0)
+    factura_saldada = abonado_despues + acreditado + amortizado + 0.01 >= float(cxc.amount or 0.0)
 
     if factura_saldada and cxc.status != CXCStatus.PAID:
         cxc.status = CXCStatus.PAID
@@ -965,7 +968,7 @@ def register_installment(
             session.flush()
             is_advance = cxc.payment_type == PaymentType.ADVANCE
             _add_cxc_commissions(
-                session, order, cxc.id, float(cxc.amount or 0.0) - acreditado, is_advance=is_advance
+                session, order, cxc.id, float(cxc.amount or 0.0) - acreditado - amortizado, is_advance=is_advance
             )
             cxc.commission_paid = True
             if is_advance and order.status == SalesOrderStatus.WAITING_ADVANCE:

@@ -4367,3 +4367,18 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 - Campo: no se toca. D15: la nómina de cuadrilla solo se libera con la firma de recibido del cliente
 
 ### Siguiente: tarea 7, herramienta de recálculo de estados y saldos (SANEAMIENTO §6.1)
+
+---
+## SESIÓN 2026-10-10 (parte 9) — SANEAMIENTO: HERRAMIENTA 1
+
+### Hecho:
+- Herramienta "Saneamiento de saldos" (Gerencia → tarjeta Saneamiento; D/M): vista previa de facturas de cliente con estado distinto, OVs con saldo o estado distinto y anomalías; se eligen filas y se aplica con motivo (bitácora "Saneamiento de saldos: …")
+- Regla: saldo OV = total − abonos vigentes; factura pagada cuando abonos + NC + anticipo amortizado la cubren
+- Causa raíz de SANEAMIENTO 2.1 corregida: el abono ya descuenta el anticipo amortizado (tope y "saldada"); la comisión se calcula sobre el neto (antes duplicaba la parte del anticipo)
+- En la copia local: 15 facturas, 11 OVs y 3 anomalías (OV-0041 y OV-0053: anticipo amortizado mayor que la factura → SANEAMIENTO 3.4); probado aplicando la factura de OV-0115 como Gerencia
+- Pruebas: 270 backend, 17 frontend, build OK
+
+### Para Gabriel / contabilidad:
+- D14 puntos 6 y 7 nuevos. Se puede aplicar ya en producción: 2.1, 2.3, 2.4 y 3.3. Esperar respuesta para 2.2, 3.1 y 3.2
+
+### Siguiente: herramienta 2 (Fast-Track registra el pago a proveedor)

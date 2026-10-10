@@ -18,6 +18,7 @@ import {
     FileText,
     FileSpreadsheet,
     Shield,
+    Scale,
 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
@@ -514,6 +515,33 @@ const ManagementDashboard: React.FC = () => {
                                 <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
                                     <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
                                         Excel → CxC sin producción
+                                    </p>
+                                </div>
+                            </div>
+                        </Card>
+                    </div>
+
+                    <div className="w-full relative h-40">
+                        <Card
+                            onClick={() => navigate('/director/sanitation')}
+                            className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-amber-500 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white overflow-hidden group"
+                        >
+                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-amber-50 text-amber-700 border-r border-amber-100 font-black transition-colors group-hover:bg-amber-100">
+                                <Scale size={28} />
+                            </div>
+                            <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                                <div className="flex justify-between items-start">
+                                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">
+                                        Saneamiento
+                                    </p>
+                                    <Scale size={16} className="text-amber-500" />
+                                </div>
+                                <div className="text-lg font-bold text-slate-700 tracking-tight leading-none truncate text-right">
+                                    Saldos de OVs y facturas
+                                </div>
+                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
+                                        Recalcular con lo cobrado
                                     </p>
                                 </div>
                             </div>

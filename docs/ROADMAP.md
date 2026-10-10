@@ -112,6 +112,10 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
 - 2026-10-10: reporte en `docs/SANEAMIENTO.md`; Excel de materiales incompletos en ~/Downloads. Decisión D14 pendiente.
 - Gabriel corrige desde la app lo que se pueda; Claude Code construye: recálculo de estados y saldos de CxC/OV,
   pago Fast-Track con registro de pago, corrección de IVA de OVs legacy, importación masiva del catálogo.
+- Herramienta 1 hecha (2026-10-10): recálculo de estados de factura y saldos de OV (Gerencia → Saneamiento); causa de
+  2.1 corregida en el registro de abonos (anticipo amortizado; comisión sobre el neto). Probada en pantalla como
+  Gerencia en la copia local. Sigue: herramienta 2 (pago Fast-Track registra el pago a proveedor).
+- Pendiente de refactor (fuera de alcance): `sales_service.register_installment` mide ~110 líneas (máx. 50).
 
 ## 8. D13: el vendedor solo ve precio de venta — hecha (2026-10-10)
 - Servidor: toda respuesta JSON a SALES sale con costos y márgenes en nulo (middleware general, cubre pantallas

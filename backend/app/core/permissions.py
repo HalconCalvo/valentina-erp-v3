@@ -16,6 +16,7 @@ PURCHASING_ROLES = {"DIRECTOR", "MANAGER", "ADMIN", "WAREHOUSE"}
 REQUISITION_ROLES = PURCHASING_ROLES | {"PRODUCTION", "DESIGN"}
 STOCK_ROLES = {"DIRECTOR", "MANAGER", "ADMIN", "WAREHOUSE"}
 SALES_ORDER_ROLES = {"DIRECTOR", "MANAGER"}                # cancel an OV (releases material)
+BALANCE_FIX_ROLES = {"DIRECTOR", "MANAGER"}                # sanitation: recalculate invoice states and OV balances
 PRODUCTION_ROLES = {"DIRECTOR", "MANAGER", "ADMIN", "PRODUCTION", "DESIGN"}
 PLANNING_ROLES = {"DIRECTOR", "DESIGN"}                    # plan and reschedule (D7)
 INSTANCE_LIFECYCLE_ROLES = {"DIRECTOR", "MANAGER", "ADMIN", "PRODUCTION", "DESIGN", "LOGISTICS"}  # close, warranty

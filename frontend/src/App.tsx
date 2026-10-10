@@ -41,6 +41,7 @@ import InventoryValuationPage from './modules/foundations/pages/InventoryValuati
 import DirectorDashboard from './modules/director/pages/DirectorDashboard';
 import AuditPage from './modules/director/pages/AuditPage';
 import LegacyImportPage from './modules/director/pages/LegacyImportPage'; 
+import BalanceSanitationPage from './modules/management/pages/BalanceSanitationPage';
 import ManagementDashboard from './modules/management/pages/ManagementDashboard';
 
 // 8. Tesorería
@@ -73,8 +74,8 @@ import FieldInstancePage from './modules/field/pages/FieldInstancePage';
 
 /** Rutas accesibles por rol (deep links fuera del menú principal) */
 const roleAccessiblePaths: Record<string, string[]> = {
-  DIRECTOR: ['/director/legacy-import', '/field'],
-  MANAGER: ['/director/legacy-import', '/field'],
+  DIRECTOR: ['/director/legacy-import', '/director/sanitation', '/field'],
+  MANAGER: ['/director/legacy-import', '/director/sanitation', '/field'],
   LOGISTICS: ['/field'],
   PRODUCTION: ['/field'],
   DESIGN: ['/field'],
@@ -177,6 +178,7 @@ function AppRoutes() {
         <Route path="/director" element={<DirectorDashboard key={key} />} />
         <Route path="/director/audit" element={<AuditPage key={key} />} />
         <Route path="/director/legacy-import" element={<LegacyImportPage key={key} />} />
+        <Route path="/director/sanitation" element={<BalanceSanitationPage key={key} />} />
         <Route path="/management" element={<ManagementDashboard key={key} />} />
 
         {/* --- PRODUCCIÓN V3.5 --- */}

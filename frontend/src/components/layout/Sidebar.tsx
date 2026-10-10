@@ -60,8 +60,8 @@ const rolePriorities: Record<string, string[]> = {
 
 /** Rutas permitidas por rol (deep links fuera del menú principal) */
 const roleAllowedPaths: Record<string, string[]> = {
-  DIRECTOR: ['/director/legacy-import', '/field'],
-  MANAGER: ['/director/legacy-import', '/field'],
+  DIRECTOR: ['/director/legacy-import', '/director/sanitation', '/field'],
+  MANAGER: ['/director/legacy-import', '/director/sanitation', '/field'],
   LOGISTICS: ['/field'],
   PRODUCTION: ['/field'],
   DESIGN: ['/field'],

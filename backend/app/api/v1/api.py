@@ -7,6 +7,7 @@ from app.api.v1.endpoints import planning
 from app.api.v1.endpoints import petty_cash
 from app.api.v1.endpoints import admin
 from app.api.v1.endpoints import field
+from app.api.v1.endpoints import sanitation
 
 api_router = APIRouter()
 
@@ -39,6 +40,7 @@ api_router.include_router(analytics.router, prefix="/analytics", tags=["analytic
 api_router.include_router(audit.router, prefix="/audit", tags=["audit"])
 api_router.include_router(finance.router, prefix="/finance", tags=["finance"])
 api_router.include_router(reports.router, prefix="/reports", tags=["reports"])
+api_router.include_router(sanitation.router, prefix="/sanitation", tags=["sanitation"])
 api_router.include_router(treasury.router, prefix="/treasury", tags=["Treasury"])
 
 # --- PLANEACIÓN ESTRATÉGICA: MATRIZ DE 4 CARRILES ---
