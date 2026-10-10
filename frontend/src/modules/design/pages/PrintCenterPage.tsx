@@ -4,6 +4,7 @@ import { ArrowLeft, Printer } from 'lucide-react';
 import { designService, LabelRequestItem } from '../../../api/design-service';
 import { toast } from '@/components/ui/VToast';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
+import axiosClient from '@/api/axios-client';
 
 function localeCompareEs(a: string, b: string): number {
   return a.localeCompare(b, 'es', { sensitivity: 'base', numeric: true });
@@ -77,22 +78,8 @@ export default function PrintCenterPage() {
 
   const handleGenerateLabels = async (instanceId: number) => {
     try {
-      const token = localStorage.getItem('token');
-      const baseUrl = import.meta.env.VITE_API_URL
-        || 'http://localhost:8000/api/v1';
-      const response = await fetch(
-        `${baseUrl}/design/instances/${instanceId}/labels_pdf`,
-        {
-          method: 'GET',
-          headers: { 'Authorization': `Bearer ${token}` },
-        }
-      );
-      if (!response.ok) {
-        const err = await response.json();
-        toast.error(err.detail || 'Error al generar las etiquetas.');
-        return;
-      }
-      const blob = await response.blob();
+      const response = await axiosClient.get(`/design/instances/${instanceId}/labels_pdf`, { responseType: 'blob' });
+      const blob = response.data as Blob;
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -108,22 +95,8 @@ export default function PrintCenterPage() {
 
   const handleDownloadManifest = async (instanceId: number) => {
     try {
-      const token = localStorage.getItem('token');
-      const baseUrl = import.meta.env.VITE_API_URL
-        || 'http://localhost:8000/api/v1';
-      const response = await fetch(
-        `${baseUrl}/design/instances/${instanceId}/stone_manifest`,
-        {
-          method: 'GET',
-          headers: { 'Authorization': `Bearer ${token}` },
-        }
-      );
-      if (!response.ok) {
-        const err = await response.json();
-        toast.error(err.detail || 'Error al generar el manifiesto.');
-        return;
-      }
-      const blob = await response.blob();
+      const response = await axiosClient.get(`/design/instances/${instanceId}/stone_manifest`, { responseType: 'blob' });
+      const blob = response.data as Blob;
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;

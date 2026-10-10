@@ -55,8 +55,6 @@ async function generateHerrajesPDF(
   config?: { company_name: string; logo_path?: string | null } | null,
   logoB64?: string | null
 ) {
-  const token = localStorage.getItem('token');
-  const baseUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000/api/v1';
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -132,10 +130,7 @@ async function generateHerrajesPDF(
 
     let herrajesData: any = null;
     try {
-      const res = await fetch(`${baseUrl}/production/instances/${inst.id}/herrajes`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      herrajesData = await res.json();
+      herrajesData = (await axiosClient.get(`/production/instances/${inst.id}/herrajes`)).data;
     } catch {
       herrajesData = null;
     }
@@ -233,18 +228,12 @@ async function generateHerrajesPDF(
 }
 
 async function openBlueprintLinks(batch: any) {
-  const token = localStorage.getItem('token');
-  const baseUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000/api/v1';
   const instances = batch.instances || [];
   const opened: Set<string> = new Set();
 
   for (const inst of instances) {
     try {
-      const res = await fetch(`${baseUrl}/production/instances/${inst.id}/blueprint`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      if (!res.ok) continue;
-      const data = await res.json();
+      const { data } = await axiosClient.get(`/production/instances/${inst.id}/blueprint`);
       if (data.blueprint_path && !opened.has(data.blueprint_path)) {
         opened.add(data.blueprint_path);
         window.open(data.blueprint_path, '_blank');
@@ -307,19 +296,11 @@ export default function ProductionKanbanPage() {
     loadBatches();
     loadReadyInstances();
     // Cargar config de empresa para el PDF
-    const token = localStorage.getItem('token');
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
-    fetch(`${baseUrl}/foundations/config`, {
-      headers: { 'Authorization': `Bearer ${token}` },
-    })
-      .then(r => r.json())
-      .then(data => setCompanyConfig({ company_name: data.company_name, logo_path: data.logo_path }))
+    axiosClient.get('/foundations/config')
+      .then(({ data }) => setCompanyConfig({ company_name: data.company_name, logo_path: data.logo_path }))
       .catch(() => setCompanyConfig({ company_name: 'VALENTINA ERP', logo_path: null }));
-    fetch(`${baseUrl}/foundations/logo-base64`, {
-      headers: { 'Authorization': `Bearer ${token}` },
-    })
-      .then(r => r.json())
-      .then(data => { if (data.base64) setLogoBase64(data.base64); })
+    axiosClient.get('/foundations/logo-base64')
+      .then(({ data }) => { if (data.base64) setLogoBase64(data.base64); })
       .catch(() => {});
   }, []);
 
@@ -509,19 +490,13 @@ export default function ProductionKanbanPage() {
   const loadHerrajesPreview = async (inst: any) => {
     setLoadingHerrajesPreview(true);
     setHerrajesPreview(null);
-    const token = localStorage.getItem('token');
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
     try {
-      const [herrajesRes, blueprintRes] = await Promise.all([
-        fetch(`${baseUrl}/production/instances/${inst.id}/herrajes`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-        }),
-        fetch(`${baseUrl}/production/instances/${inst.id}/blueprint`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-        }),
+      const [herrajesRes, blueprintRes] = await Promise.allSettled([
+        axiosClient.get(`/production/instances/${inst.id}/herrajes`),
+        axiosClient.get(`/production/instances/${inst.id}/blueprint`),
       ]);
-      const herrajesData = herrajesRes.ok ? await herrajesRes.json() : null;
-      const blueprintData = blueprintRes.ok ? await blueprintRes.json() : null;
+      const herrajesData = herrajesRes.status === 'fulfilled' ? herrajesRes.value.data : null;
+      const blueprintData = blueprintRes.status === 'fulfilled' ? blueprintRes.value.data : null;
       setHerrajesPreview({
         instId: inst.id,
         instName: inst.custom_name || '—',
@@ -773,28 +748,10 @@ export default function ProductionKanbanPage() {
       return;
     }
     try {
-      const token = localStorage.getItem('token');
-      const baseUrl = import.meta.env.VITE_API_URL
-        || 'http://localhost:8000/api/v1';
-      const response = await fetch(
-        `${baseUrl}/production/instances/${instanceId}/stone_pieces`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ stone_pieces: pieces }),
-        }
-      );
-      if (!response.ok) {
-        const err = await response.json();
-        toast.error(err.detail || 'Error al declarar piezas de piedra.');
-        return;
-      }
+      await axiosClient.patch(`/production/instances/${instanceId}/stone_pieces`, { stone_pieces: pieces });
       toast.success(`${pieces} piezas de piedra declaradas correctamente.`);
-    } catch {
-      toast.error('Error al declarar piezas. Verifica la conexión.');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || 'Error al declarar piezas de piedra.');
     }
   };
 
@@ -1384,14 +1341,8 @@ export default function ProductionKanbanPage() {
                           <button
                             type="button"
                             onClick={async () => {
-                              const token = localStorage.getItem('token');
-                              const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
                               try {
-                                const res = await fetch(
-                                  `${baseUrl}/production/instances/${inst.id}/blueprint`,
-                                  { headers: { 'Authorization': `Bearer ${token}` } }
-                                );
-                                const data = await res.json();
+                                const { data } = await axiosClient.get(`/production/instances/${inst.id}/blueprint`);
                                 if (data.blueprint_path) {
                                   window.open(data.blueprint_path, '_blank');
                                 } else {

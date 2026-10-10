@@ -212,26 +212,12 @@ const DesignCatalogPage: React.FC = () => {
         try {
             const formData = new FormData();
             formData.append('blueprint', file);
-            const token = localStorage.getItem('token');
-            const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
-            const uploadRes = await fetch(
-                `${baseUrl}/design/versions/${uploadingVersionId}/blueprint-file`,
-                {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` },
-                    body: formData,
-                }
-            );
-            if (!uploadRes.ok) {
-                const err = await uploadRes.json();
-                throw new Error(err.detail || 'Error al subir el archivo');
-            }
-            const { path } = await uploadRes.json();
+            const { data: { path } } = await axiosClient.post(`/design/versions/${uploadingVersionId}/blueprint-file`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
             await designService.updateVersionBlueprint(uploadingVersionId, path);
             toast.success('Plano adjuntado a la versión.');
             await loadMasters();
         } catch (error: any) {
-            toast.error(error?.message || error?.response?.data?.detail || 'Error al subir el archivo.');
+            toast.error(error?.response?.data?.detail || 'Error al subir el archivo.');
         } finally {
             if (fileInputRef.current) fileInputRef.current.value = '';
             setUploadingVersionId(null);

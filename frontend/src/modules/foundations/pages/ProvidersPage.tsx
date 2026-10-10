@@ -11,6 +11,7 @@ import { TableActionCancelIcon, TableActionEditIcon } from '@/lib/tableActionIco
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 import { RecordHistoryButton } from '@/components/audit/RecordHistoryButton';
+import axiosClient from '@/api/axios-client';
 
 export default function ProvidersPage() {
   const { providers, loading, createProvider, updateProvider, deleteProvider } = useProviders();
@@ -157,20 +158,13 @@ export default function ProvidersPage() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const token = localStorage.getItem('token');
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
-      const res = await fetch(`${baseUrl}/foundations/providers/import-csv`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: formData,
-      });
-      const result = await res.json();
+      const { data: result } = await axiosClient.post('/foundations/providers/import-csv', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       toast.success(
         `Importación completada: ${result.created} creados, ${result.updated} actualizados, ${result.errors?.length ?? 0} errores.`,
       );
       window.location.reload();
-    } catch {
-      toast.error('Error al importar el CSV.');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || 'Error al importar el CSV.');
     } finally {
       setImportingCsv(false);
       if (csvInputRef.current) csvInputRef.current.value = '';
