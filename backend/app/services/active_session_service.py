@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.models.active_session import ActiveSession
@@ -92,8 +93,14 @@ def touch_heartbeat(session: Session, user_id: int) -> None:
     the same, still valid, token registers it again instead of answering 404."""
     row = _get_row(session, user_id)
     if not row:
-        upsert_active_session(session, user_id, None, None)
-        return
+        try:
+            upsert_active_session(session, user_id, None, None)
+            return
+        except IntegrityError:  # two heartbeats at once: the other one registered it first
+            session.rollback()
+            row = _get_row(session, user_id)
+            if not row:
+                raise
     row.last_heartbeat = datetime.utcnow()
     session.add(row)
     session.commit()

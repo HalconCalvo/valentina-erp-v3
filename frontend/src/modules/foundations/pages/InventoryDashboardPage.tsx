@@ -107,12 +107,17 @@ export const InventoryDashboardPage = () => {
                 setPurchasingCount('!');
             }
 
-            try {
-                // Same number as the valuation page (raw materials + in process + finished goods).
-                const summary = await inventoryService.getValuationSummary();
-                setInventoryValuation(summary.total || 0);
-            } catch {
-                setInventoryValuation(null); // valuation is for Dirección, Gerencia and Administración only
+            // Same number as the valuation page; valuation is for Dirección, Gerencia and Administración only (D5)
+            const role = (localStorage.getItem('user_role') || '').toUpperCase();
+            if (['DIRECTOR', 'MANAGER', 'ADMIN'].includes(role)) {
+                try {
+                    const summary = await inventoryService.getValuationSummary();
+                    setInventoryValuation(summary.total || 0);
+                } catch {
+                    setInventoryValuation(null);
+                }
+            } else {
+                setInventoryValuation(null);
             }
 
             try {
