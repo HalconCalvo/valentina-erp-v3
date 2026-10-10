@@ -71,6 +71,14 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
   Logística; tablero de Ventas (archivo de 1,600 líneas) y cuerpo de Rayos X (tabla de facturas).
 
 ## 6. Pendientes del journal — en curso
+- Hecho (2026-10-10, commits locales): Heartbeat 404; redondeo del costo de compra; requisiciones duplicadas
+  (candado); corrección de recepción (saldo de factura y tasa exenta); devoluciones por NC y /inventory/reception
+  en unidad de uso (millar → pieza); kárdex con salidas negativas; tablero de Inventario = Valuación (D5);
+  "Finalizada" → "Pagada (saldo cero)" (D3); usuarios, caja chica y solicitudes de pago se cancelan, no se borran.
+- **Seguridad (hecho, commit 4d0963b + 2597aff):** sesión y rol en todas las escrituras de dinero, compras,
+  inventario y usuarios (D6, D7). En producción sigue abierto hasta el push.
+- Siguen: borrados físicos de diseño (productos/versiones), lote en borrador, logística y planeación; IVA de OC (D4);
+  revisión de lecturas (GET) por rol.
 - Hallazgos de la tarea 5 (2026-10-10):
   - El tablero de Inventario muestra $2,259,249.11 y Valuación $2,283,776.16: dos cálculos distintos del mismo valor.
   - Requisiciones automáticas duplicadas (0502-004 tiene dos PENDIENTE): tres pantallas las evalúan a la vez al

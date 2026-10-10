@@ -4275,3 +4275,22 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 
 ### Lecciones:
 - En la prueba en pantalla se entra con un token de prueba generado en local (sin contraseñas)
+
+---
+## SESIÓN 2026-10-10 (parte 3) — GUÍA DE PANTALLAS, PENDIENTES Y SEGURIDAD
+
+### Hecho (commits locales, sin push: en horario laboral):
+- Guía de pantallas, primera ola: formatos únicos, Modal (arreglo de altura 90vh y opción bare), Rayos X dividido (3,263 → ~2,000 líneas en 5 archivos), Ventas, Inventario y Compras
+- Pendientes: Heartbeat 404 (recarga liberaba la sesión), redondeo de costo, requisiciones duplicadas (candado), corrección de recepción (saldo y tasa 0%), millar → pieza en NC y recepción antigua, kárdex con salidas negativas, tablero de Inventario = Valuación
+- Cancelar en vez de borrar: usuarios (baja con motivo), caja chica, solicitudes de pago (migración r7s8t9u0v1w2)
+- SEGURIDAD: auditoría de rutas — 20 sin sesión y ~50 escrituras sin rol (tesorería, pagos, facturación, comisiones, compras, usuarios). Corregido con grupos de roles (app/core/permissions.py) y tests
+
+### Decisiones registradas (DECISIONES_PENDIENTES): D2–D7
+- Aplicadas por ser reversibles: D2 títulos sin color, D3 "Pagada (saldo cero)", D5 valuación, D6 usuarios DIRECTOR/ADMIN, D7 matriz de roles
+- En espera: D4 IVA de la OC (requiere migración)
+
+### Push pendiente:
+- F3 + F4 + guía + pendientes + seguridad, fuera de horario. La seguridad está abierta en producción hasta entonces
+
+### Lecciones:
+- Comentarios dentro de un template de className se vuelven clases de Tailwind (h-[90vh] en todos los Modal)
