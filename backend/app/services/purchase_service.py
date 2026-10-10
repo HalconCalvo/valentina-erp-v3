@@ -9,6 +9,7 @@ from app.models.finance import InvoiceStatus, PurchaseInvoice, SupplierPayment
 
 AccountsPayable = SupplierPayment.AccountsPayable
 from app.models.foundations import Provider
+from app.models.material import holds_stock
 from app.models.inventory import PurchaseOrder, PurchaseOrderItem, PurchaseRequisition
 from app.repositories import purchase_repository as purchase_repo
 from app.schemas.finance_schema import (
@@ -991,7 +992,7 @@ def receive_purchase_order(db: Session, po_id: int, data: dict, current_user):
             if mat:
                 mat_sku = mat.sku or ""
                 # Only inventoriable materials hold stock; the rest goes to expense (invoice / payable only)
-                inventoriable = bool(getattr(mat, "is_inventoriable", True))
+                inventoriable = holds_stock(mat)
                 if item.id in received_by_item_id:
                     qty_this_delivery = received_by_item_id[item.id]
                 else:

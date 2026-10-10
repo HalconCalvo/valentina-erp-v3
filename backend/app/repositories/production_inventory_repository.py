@@ -6,7 +6,7 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.models.inventory import InventoryReservation, ProductionStockAuthorization
-from app.models.material import Material
+from app.models.material import STOCK_ROUTE, Material
 from app.models.production import ProductionBatch
 from app.models.sales import CustomerPayment, Quotation, SalesOrder, SalesOrderItem, SalesOrderItemInstance
 from app.models.users import User
@@ -75,12 +75,12 @@ def get_order_instances(session: Session, order_id: int) -> List[SalesOrderItemI
 
 def get_positive_stock_materials(session: Session) -> List[Material]:
     return list(session.exec(select(Material).where(
-        Material.physical_stock > 0, Material.is_inventoriable == True).order_by(Material.sku)).all())  # noqa: E712
+        Material.physical_stock > 0, Material.production_route == STOCK_ROUTE).order_by(Material.sku)).all())  # noqa: E712
 
 
 def get_negative_stock_materials(session: Session) -> List[Material]:
     return list(session.exec(select(Material).where(
-        Material.physical_stock < 0, Material.is_inventoriable == True).order_by(Material.sku)).all())  # noqa: E712
+        Material.physical_stock < 0, Material.production_route == STOCK_ROUTE).order_by(Material.sku)).all())  # noqa: E712
 
 
 def get_open_consumed_rows(session: Session) -> List[tuple]:

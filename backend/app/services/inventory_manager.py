@@ -1,3 +1,4 @@
+from app.models.material import holds_stock
 from app.services import inventory_service
 
 
@@ -14,7 +15,7 @@ class InventoryManager:
         from app.repositories import inventory_repository as inventory_repo
 
         material = inventory_repo.get_material_by_id(session, material_id)
-        if material is not None and not material.is_inventoriable:
+        if material is not None and not holds_stock(material):
             return material  # non-inventoriable: expense only, no stock
         unit_cost = total_line_cost / quantity_usage_units if quantity_usage_units > 0 else 0.0
         inventory_service.register_movement(

@@ -15,6 +15,7 @@ import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 import { TableActionCancelIcon, TableActionEditIcon } from '@/lib/tableActionIcons';
+import { MaterialRouteDialog, type RouteDialogRequest } from '../components/MaterialRouteDialog';
 
 import { ColumnDef } from "@tanstack/react-table"
 import { DataTable } from "@/components/ui/DataTable"
@@ -51,6 +52,8 @@ export default function MaterialsPage() {
   const [showInactive, setShowInactive] = useState(false);
   const [targetMargin, setTargetMargin] = useState<number>(0);
   const [salePriceTouched, setSalePriceTouched] = useState(false);
+  // While editing, the route changes only through its dialog (reason; stock goes to expense when leaving MATERIAL)
+  const [routeRequest, setRouteRequest] = useState<RouteDialogRequest | null>(null);
   
   const initialFormState: Partial<Material> = {
     sku: '', name: '', category: '', 
@@ -401,6 +404,24 @@ export default function MaterialsPage() {
     } else {
       toast.error(res.error || 'Error al reactivar el material.');
     }
+  };
+
+  const handleRouteSelect = (route: string) => {
+    const saved = isEditing && editingId ? materials.find((m) => m.id === editingId) : undefined;
+    if (!saved) {
+      setForm({ ...form, production_route: route as Material['production_route'] });
+      return;
+    }
+    if (route === saved.production_route) return;
+    if (!['DIRECTOR', 'MANAGER', 'ADMIN'].includes(userRole)) {
+      toast.error('Solo Dirección, Gerencia o Administración cambian la ruta.');
+      return;
+    }
+    setRouteRequest({
+      kind: 'ROUTE', materialId: saved.id as number, fromRoute: saved.production_route, toRoute: route,
+      stock: Number(saved.physical_stock) || 0,
+      usageCost: (Number(saved.current_cost) || 0) / (Number(saved.conversion_factor) || 1),
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -766,7 +787,7 @@ export default function MaterialsPage() {
                         <SearchableSelect
                             items={PRODUCTION_ROUTES}
                             value={form.production_route || 'MATERIAL'}
-                            onChange={(v) => setForm({ ...form, production_route: v as Material['production_route'] })}
+                            onChange={(v) => handleRouteSelect(String(v))}
                             getLabel={(o) => o.label}
                             getValue={(o) => o.value}
                             className="input-std h-[42px]"
@@ -889,6 +910,12 @@ export default function MaterialsPage() {
       </div>
 
       <style>{`.input-std { width: 100%; padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 0.375rem; font-size: 0.875rem; color: #1e293b; transition: all 0.2s; } .input-std:focus { outline: none; border-color: #6366f1; ring: 2px solid #e0e7ff; }`}</style>
+
+      <MaterialRouteDialog
+        request={routeRequest}
+        onClose={() => setRouteRequest(null)}
+        onDone={(mat) => { setForm((f) => ({ ...f, production_route: mat.production_route })); void fetchMaterials(showInactive); }}
+      />
 
       {confirmDialogProps && (
         <VConfirmDialog

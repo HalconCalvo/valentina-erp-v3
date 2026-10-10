@@ -7,7 +7,7 @@ from sqlalchemy import func, or_
 from types import SimpleNamespace
 
 from app.models.inventory import PurchaseRequisition, PurchaseOrder, PurchaseOrderItem
-from app.models.material import Material
+from app.models.material import Material, holds_stock
 from app.models.foundations import Provider, GlobalConfig
 from app.models.finance import PurchaseInvoice
 from app.models.users import UserRole
@@ -547,7 +547,7 @@ def correct_reception_item(*, db: Session = Depends(get_session), po_id: int, it
         costo = float(getattr(item, "expected_unit_cost", 0.0) or 0.0)
         if pii_rows:
             costo = float(pii_rows[0].unit_cost or costo)
-        if mat and getattr(mat, 'is_inventoriable', True):
+        if mat and holds_stock(mat):
             factor = float(getattr(mat, 'conversion_factor', 1) or 1)
             qty_units = delta * factor
             from app.services import inventory_service

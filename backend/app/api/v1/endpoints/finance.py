@@ -20,7 +20,7 @@ from app.models.finance import (
 from app.models.foundations import Provider
 from app.models.treasury import BankAccount, BankTransaction, TransactionType
 from app.models.inventory import PurchaseOrder
-from app.models.material import Material
+from app.models.material import Material, holds_stock
 
 from app.schemas.finance_schema import (
     PaymentRequestCreate, 
@@ -811,7 +811,7 @@ def create_credit_note(
         from app.services import inventory_service
 
         for material, qty, unit_cost in return_lines:
-            if not getattr(material, "is_inventoriable", True):
+            if not holds_stock(material):
                 continue  # non-inventoriable: it never entered stock
             inventory_service.register_movement(
                 session,

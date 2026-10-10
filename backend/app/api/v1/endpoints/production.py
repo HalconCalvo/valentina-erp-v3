@@ -16,7 +16,7 @@ from app.models.foundations import Client
 from app.models.sales import SalesOrderItemInstance, SalesOrderItem, SalesOrder, PaymentStatus, InstanceStatus
 from app.models.inventory import InventoryReservation
 from app.models.design import VersionComponent, ProductVersion
-from app.models.material import Material
+from app.models.material import Material, holds_stock
 from app.services.planning_service import compute_semaphore
 from app.services import production_inventory_service
 from app.schemas.production_inventory_schema import (
@@ -430,7 +430,7 @@ def assign_instance_to_batch(
             material = db.get(Material, comp.material_id)
             if material and (material.category or "").upper() in skip_categories:
                 continue
-            if material and not material.is_inventoriable:
+            if material and not holds_stock(material):
                 continue  # consumables / services are not reserved nor discharged
 
             reservation = InventoryReservation(

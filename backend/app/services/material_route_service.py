@@ -1,10 +1,10 @@
-"""Inventoriable yes/no per material.
+"""Production route of a material, which decides whether it holds stock (only MATERIAL does).
 
-Non-inventoriable materials (consumables, services) are not counted, never hold stock and go to expense when
-received. Marking one "no" while it has stock sends that stock to expense in one documented movement
-(EXPENSE_WRITE_OFF, "Enviado a gasto"); that change is the approval, so it is reserved to DIRECTOR / MANAGER.
-If the material is in an open physical inventory session its line leaves the session (no count, no difference)
-and the write-off is dated at the session cut, so the period closes without that stock.
+Leaving MATERIAL with stock sends that stock to expense in one documented movement (EXPENSE_WRITE_OFF,
+"Enviado a gasto"); that change is the approval, so it is reserved to DIRECTOR / MANAGER. The same write-off
+is available for materials that are already not MATERIAL but still show stock. If the material is in an open
+physical inventory session its line leaves the session (no count, no difference) and the write-off is dated
+at the session cut, so the period closes without that stock.
 """
 from datetime import datetime
 from typing import Optional
@@ -13,13 +13,13 @@ from fastapi import HTTPException
 from sqlmodel import Session
 
 from app.core.audit_context import audit_reason
-from app.models.material import Material
+from app.models.material import Material, ProductionRoute, holds_stock
 from app.repositories import inventory_repository as inventory_repo
 from app.repositories import production_inventory_repository as prod_inv_repo
-from app.schemas.inventory_schema import InventoriableUpdate
+from app.schemas.inventory_schema import MaterialRouteUpdate, StockWriteOffCreate
 from app.services import inventory_service, production_inventory_service
 
-FLAG_ROLES = {"DIRECTOR", "MANAGER", "ADMIN"}
+ROUTE_ROLES = {"DIRECTOR", "MANAGER", "ADMIN"}
 WRITE_OFF_ROLES = {"DIRECTOR", "MANAGER"}
 QTY_TOLERANCE = 0.0001
 
@@ -67,39 +67,63 @@ def _exclude_from_open_sessions(session: Session, material: Material, reason: st
     return cut_at
 
 
-def _mark_not_inventoriable(session: Session, material: Material, reason: str, user) -> None:
+def _send_stock_to_expense(session: Session, material: Material, reason: str, user) -> None:
     if abs(float(material.physical_stock or 0.0)) > QTY_TOLERANCE:
-        _require(user, WRITE_OFF_ROLES, "El material tiene existencia: solo Dirección o Gerencia lo mandan a gasto.")
+        _require(user, WRITE_OFF_ROLES, "El material tiene existencia: solo Dirección o Gerencia la mandan a gasto.")
     cut_at = _exclude_from_open_sessions(session, material, reason, user)
     active = [r for r in prod_inv_repo.get_reservations(session, ["ACTIVA"]) if r.material_id == material.id]
     production_inventory_service.release_reservations(session, active, user, reason)
     _write_off(session, material, cut_at, reason, user)
-    material.is_inventoriable = False
 
 
-def _mark_inventoriable(session: Session, material: Material, user) -> None:
-    """Back to inventoriable: open session lines come back to be counted; stock starts from zero."""
-    for item in inventory_repo.get_excluded_open_audit_items(session, material.id):
-        item.excluded_at, item.excluded_reason, item.excluded_by_user_id = None, None, None
-        session.add(item)
-    material.is_inventoriable = True
-
-
-def set_inventoriable(session: Session, material_id: int, data: InventoriableUpdate, user) -> Material:
-    _require(user, FLAG_ROLES, "Solo Dirección, Gerencia o Administración cambian si un material es inventariable.")
-    reason = (data.reason or "").strip()
-    if not reason:
+def _clean_reason(reason: str) -> str:
+    text = (reason or "").strip()
+    if not text:
         raise HTTPException(status_code=422, detail="El motivo es obligatorio.")
+    return text
+
+
+def _get_material(session: Session, material_id: int) -> Material:
     material = inventory_repo.get_material_by_id(session, material_id)
     if not material:
         raise HTTPException(status_code=404, detail="Material no encontrado.")
-    if bool(material.is_inventoriable) == data.is_inventoriable:
+    return material
+
+
+def change_route(session: Session, material_id: int, data: MaterialRouteUpdate, user) -> Material:
+    """Leaving MATERIAL with stock sends it to expense; any other change just records the reason."""
+    _require(user, ROUTE_ROLES, "Solo Dirección, Gerencia o Administración cambian la ruta de un material.")
+    reason = _clean_reason(data.reason)
+    material = _get_material(session, material_id)
+    try:
+        new_route = ProductionRoute(str(data.production_route).upper())
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Ruta de producción inválida.") from None
+    if new_route == ProductionRoute(material.production_route):
         return material
     with audit_reason(reason):
-        if data.is_inventoriable:
-            _mark_inventoriable(session, material, user)
-        else:
-            _mark_not_inventoriable(session, material, reason, user)
+        if holds_stock(material) and new_route != ProductionRoute.MATERIAL:
+            _send_stock_to_expense(session, material, reason, user)
+        material.production_route = new_route
+        session.add(material)
+        session.commit()
+    session.refresh(material)
+    return material
+
+
+def write_off_stock(session: Session, material_id: int, data: StockWriteOffCreate, user) -> Material:
+    """Stock left on a material that does not hold stock (not MATERIAL) goes to expense."""
+    _require(user, WRITE_OFF_ROLES, "Solo Dirección o Gerencia mandan existencia a gasto.")
+    reason = _clean_reason(data.reason)
+    material = _get_material(session, material_id)
+    if holds_stock(material):
+        raise HTTPException(status_code=409, detail="El material es de ruta MATERIAL: su existencia se cuenta. "
+                            "Cambia primero la ruta si no debe llevar existencia.")
+    if (abs(float(material.physical_stock or 0.0)) <= QTY_TOLERANCE
+            and not inventory_repo.get_open_audit_items_for_material(session, material.id)):
+        return material
+    with audit_reason(reason):
+        _send_stock_to_expense(session, material, reason, user)
         session.add(material)
         session.commit()
     session.refresh(material)

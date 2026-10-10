@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from app.core.database import get_session
 from app.core.deps import CurrentUser, SessionDep
 from app.services.cloud_storage import upload_to_gcs  # <--- LA TUBERÍA BLINDADA
-from app.services import inventoriable_service, inventory_audit_service, inventory_service, inventory_valuation_service
+from app.services import material_route_service, inventory_audit_service, inventory_service, inventory_valuation_service
 from app.schemas.production_inventory_schema import NegativeStockRead, ValuationSummaryRead
 from app.schemas.inventory_audit_schema import (
     AuditCreate,
@@ -27,7 +27,8 @@ from app.schemas.inventory_schema import (
     AuditCapturePayload,
     AuditReasonPayload,
     AuditItemApprovePayload,
-    InventoriableUpdate,
+    MaterialRouteUpdate,
+    StockWriteOffCreate,
 )
 
 # --- MODELOS ---
@@ -661,7 +662,6 @@ def recount_inventory_audit_item(
 def read_materials(
     include_inactive: bool = False,
     is_resale: Optional[bool] = None,
-    is_inventoriable: Optional[bool] = None,
     session: Session = Depends(get_session),
 ):
     # Usamos un JOIN para traer el nombre del proveedor
@@ -673,8 +673,6 @@ def read_materials(
         query = query.where(Material.is_active == True)
     if is_resale is not None:
         query = query.where(Material.is_resale == is_resale)
-    if is_inventoriable is not None:
-        query = query.where(Material.is_inventoriable == is_inventoriable)
     results = session.exec(query).all()
     
     # Armamos la respuesta a mano para incluir el 'provider_name'
@@ -694,8 +692,6 @@ def create_material(material: Material, session: Session = Depends(get_session))
         if material.name:
             material.name = material.name.strip()
         material.is_active = True
-        # Only MATERIAL starts inventoriable; PROCESO (maquila / installation), consumables and services go to expense
-        material.is_inventoriable = str(material.production_route or "MATERIAL").upper() == "MATERIAL"
         session.add(material)
         session.commit()
         session.refresh(material)
@@ -721,7 +717,11 @@ def update_material(material_id: int, material_in: Material, session: Session = 
     
     material_data = material_in.model_dump(exclude_unset=True)
     material_data.pop("id", None)
-    material_data.pop("is_inventoriable", None)  # changes only through PATCH /inventoriable (reason, write-off)
+    new_route = material_data.get("production_route")
+    if new_route is not None and str(getattr(new_route, "value", new_route)).upper() != str(
+            getattr(db_material.production_route, "value", db_material.production_route)).upper():
+        raise HTTPException(status_code=409, detail="La ruta se cambia con su propio diálogo (motivo; si deja de ser "
+                            "MATERIAL con existencia, esta se manda a gasto).")
     if "sku" in material_data and material_data["sku"]:
         material_data["sku"] = material_data["sku"].strip()
     if "name" in material_data and material_data["name"]:
@@ -734,14 +734,23 @@ def update_material(material_id: int, material_in: Material, session: Session = 
     session.refresh(db_material)
     return db_material
 
-@router.patch("/materials/{material_id}/inventoriable", response_model=Material)
-def update_material_inventoriable(
+@router.patch("/materials/{material_id}/route", response_model=Material)
+def update_material_route(
     material_id: int,
-    data: InventoriableUpdate,
+    data: MaterialRouteUpdate,
     current_user: CurrentUser,
     session: Session = Depends(get_session),
 ):
-    return inventoriable_service.set_inventoriable(session, material_id, data, current_user)
+    return material_route_service.change_route(session, material_id, data, current_user)
+
+@router.post("/materials/{material_id}/write-off", response_model=Material)
+def write_off_material_stock(
+    material_id: int,
+    data: StockWriteOffCreate,
+    current_user: CurrentUser,
+    session: Session = Depends(get_session),
+):
+    return material_route_service.write_off_stock(session, material_id, data, current_user)
 
 @router.delete("/materials/{material_id}")
 def delete_material(material_id: int, session: Session = Depends(get_session)):

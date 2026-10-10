@@ -189,7 +189,12 @@ class AuditItemApprovePayload(BaseModel):
     notes: Optional[str] = None
 
 
-class InventoriableUpdate(BaseModel):
-    """Inventoriable yes/no; marking "no" a material with stock sends that stock to expense."""
-    is_inventoriable: bool
+class MaterialRouteUpdate(BaseModel):
+    """New production route; leaving MATERIAL with stock sends that stock to expense."""
+    production_route: str
+    reason: str
+
+
+class StockWriteOffCreate(BaseModel):
+    """Stock of a material that does not hold stock (not MATERIAL), sent to expense."""
     reason: str

@@ -26,7 +26,6 @@ export interface Material {
     is_active: boolean;
     is_resale?: boolean;
     /** Inventariable: se cuenta y tiene existencia. No inventariable: va a gasto al recibirse. */
-    is_inventoriable?: boolean;
     sale_price?: number;
 }
 

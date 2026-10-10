@@ -14,7 +14,7 @@ from app.models.inventory import (
     PurchaseOrderItem,
 )
 from app.models.foundations import GlobalConfig
-from app.models.material import Material
+from app.models.material import STOCK_ROUTE, Material
 from app.models.users import User
 
 
@@ -80,7 +80,7 @@ def get_low_stock_materials(db: Session, threshold_percent: float = 0.20) -> Lis
         .outerjoin(transit_subq, Material.id == transit_subq.c.material_id)
         .where(Material.min_stock > 0)
         .where(Material.is_active == True)  # noqa: E712
-        .where(Material.is_inventoriable == True)  # noqa: E712
+        .where(Material.production_route == STOCK_ROUTE)
         .where(
             (Material.physical_stock + func.coalesce(transit_subq.c.en_transito, 0))
             <= (Material.min_stock * (1 + threshold_percent))
@@ -91,7 +91,7 @@ def get_low_stock_materials(db: Session, threshold_percent: float = 0.20) -> Lis
 
 def get_inventory_valuation(db: Session) -> float:
     materials = db.exec(select(Material).where(
-        Material.is_active == True, Material.is_inventoriable == True)).all()  # noqa: E712
+        Material.is_active == True, Material.production_route == STOCK_ROUTE)).all()  # noqa: E712
     return sum(
         float(m.physical_stock or 0.0) * (float(m.current_cost or 0.0) / (float(m.conversion_factor or 1.0) or 1.0))
         for m in materials
@@ -127,7 +127,7 @@ def get_audit_item_by_id(db: Session, item_id: int) -> Optional[InventoryAuditIt
 
 def get_all_active_materials(db: Session) -> List[Material]:
     return list(db.exec(select(Material).where(
-        Material.is_active == True, Material.is_inventoriable == True)).all())  # noqa: E712
+        Material.is_active == True, Material.production_route == STOCK_ROUTE)).all())  # noqa: E712
 
 
 def get_all_audits(db: Session, status: Optional[str] = None) -> List[InventoryAudit]:
@@ -217,18 +217,6 @@ def get_open_audit_items_for_material(db: Session, material_id: int) -> List[Inv
         .where(
             InventoryAuditItem.material_id == material_id,
             InventoryAuditItem.excluded_at == None,  # noqa: E711
-            InventoryAudit.status.in_(["EN_CAPTURA", "ESPERANDO_AUTORIZACION", "REABIERTA"]),
-        )
-    ).all())
-
-
-def get_excluded_open_audit_items(db: Session, material_id: int) -> List[InventoryAuditItem]:
-    return list(db.exec(
-        select(InventoryAuditItem)
-        .join(InventoryAudit, InventoryAudit.id == InventoryAuditItem.audit_id)
-        .where(
-            InventoryAuditItem.material_id == material_id,
-            InventoryAuditItem.excluded_at != None,  # noqa: E711
             InventoryAudit.status.in_(["EN_CAPTURA", "ESPERANDO_AUTORIZACION", "REABIERTA"]),
         )
     ).all())

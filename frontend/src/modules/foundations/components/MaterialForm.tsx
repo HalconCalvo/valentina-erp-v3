@@ -8,6 +8,7 @@ import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { Material } from '@/types/foundations';
 import { RecordHistoryButton } from '@/components/audit/RecordHistoryButton';
 import { toast } from '@/components/ui/VToast';
+import { MaterialRouteDialog, type RouteDialogRequest } from './MaterialRouteDialog';
 
 interface MaterialFormProps {
     initialSku?: string;
@@ -55,13 +56,12 @@ export const MaterialForm: React.FC<MaterialFormProps> = ({
     const [error, setError] = useState('');
     const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
     const [deactivating, setDeactivating] = useState(false);
-    // Inventariable yes/no: changed only with a reason (DIRECTOR/MANAGER/ADMIN); stock goes to expense
+    // Only the MATERIAL route holds stock; the route changes with a reason through its own dialog
     const role = (localStorage.getItem('user_role') || '').toUpperCase();
-    const canChangeInventoriable = ['DIRECTOR', 'MANAGER', 'ADMIN'].includes(role);
-    const [stockInfo, setStockInfo] = useState<{ inventoriable: boolean; stock: number; usageCost: number }>({ inventoriable: true, stock: 0, usageCost: 0 });
-    const [inventoriableDialog, setInventoriableDialog] = useState(false);
-    const [inventoriableReason, setInventoriableReason] = useState('');
-    const [changingInventoriable, setChangingInventoriable] = useState(false);
+    const canChangeRoute = ['DIRECTOR', 'MANAGER', 'ADMIN'].includes(role);
+    const canWriteOff = ['DIRECTOR', 'MANAGER'].includes(role);
+    const [stockInfo, setStockInfo] = useState<{ route: string; stock: number; usageCost: number }>({ route: 'MATERIAL', stock: 0, usageCost: 0 });
+    const [routeRequest, setRouteRequest] = useState<RouteDialogRequest | null>(null);
 
     useEffect(() => {
         if (!materialId) return;
@@ -79,7 +79,7 @@ export const MaterialForm: React.FC<MaterialFormProps> = ({
                     return;
                 }
                 setStockInfo({
-                    inventoriable: mat.is_inventoriable !== false,
+                    route: mat.production_route,
                     stock: Number((mat as Material & { physical_stock?: number }).physical_stock) || 0,
                     usageCost: (Number(mat.current_cost) || 0) / (Number(mat.conversion_factor) || 1),
                 });
@@ -108,23 +108,22 @@ export const MaterialForm: React.FC<MaterialFormProps> = ({
         void loadMaterial();
     }, [materialId]);
 
-    const handleInventoriable = async () => {
-        if (!materialId) return;
-        setChangingInventoriable(true);
-        try {
-            const res = await axiosClient.patch(`/foundations/materials/${materialId}/inventoriable`, {
-                is_inventoriable: !stockInfo.inventoriable,
-                reason: inventoriableReason.trim(),
-            });
-            setStockInfo({ ...stockInfo, inventoriable: res.data.is_inventoriable !== false, stock: Number(res.data.physical_stock) || 0 });
-            setInventoriableDialog(false);
-            toast.success(res.data.is_inventoriable === false ? 'Material no inventariable; su existencia se envió a gasto.' : 'Material inventariable.');
-        } catch (err: unknown) {
-            const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-            toast.error(typeof detail === 'string' ? detail : 'No se pudo cambiar.');
-        } finally {
-            setChangingInventoriable(false);
+    const handleRouteSelect = (route: string) => {
+        if (!isEditing || !materialId) {
+            upd({ production_route: route as Material['production_route'] });
+            return;
         }
+        if (route === stockInfo.route) return;
+        if (!canChangeRoute) {
+            toast.error('Solo Dirección, Gerencia o Administración cambian la ruta.');
+            return;
+        }
+        setRouteRequest({ kind: 'ROUTE', materialId, fromRoute: stockInfo.route, toRoute: route, stock: stockInfo.stock, usageCost: stockInfo.usageCost });
+    };
+
+    const handleRouteDone = (mat: Material) => {
+        setStockInfo((info) => ({ ...info, route: mat.production_route, stock: Number((mat as Material & { physical_stock?: number }).physical_stock) || 0 }));
+        upd({ production_route: mat.production_route });
     };
 
     const upd = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
@@ -250,7 +249,7 @@ export const MaterialForm: React.FC<MaterialFormProps> = ({
                                 <SearchableSelect
                                     items={ROUTES}
                                     value={form.production_route}
-                                    onChange={(v) => upd({ production_route: v as Material['production_route'] })}
+                                    onChange={(v) => handleRouteSelect(String(v))}
                                     getLabel={(r) => r.label}
                                     getValue={(r) => r.value}
                                     placeholder="Seleccionar ruta..."
@@ -320,16 +319,17 @@ export const MaterialForm: React.FC<MaterialFormProps> = ({
                                     onChange={(e) => upd({ max_stock: parseFloat(e.target.value) || 0 })}
                                 />
                             </div>
-                            {isEditing && (
+                            {isEditing && (stockInfo.route === 'MATERIAL' || Math.abs(stockInfo.stock) > 0.0001) && (
                                 <div className="col-span-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                                     <span className="text-sm text-slate-700">
-                                        Inventariable: <b>{stockInfo.inventoriable ? 'Sí' : 'No (va a gasto)'}</b>
-                                        {stockInfo.inventoriable && ` · existencia ${stockInfo.stock.toLocaleString('en-US', { maximumFractionDigits: 4 })}`}
+                                        Existencia: <b>{stockInfo.stock.toLocaleString('en-US', { maximumFractionDigits: 4 })}</b>
+                                        {stockInfo.route !== 'MATERIAL' && ' · su ruta no lleva existencia'}
                                     </span>
-                                    {canChangeInventoriable && (
-                                        <button type="button" onClick={() => { setInventoriableReason(''); setInventoriableDialog(true); }}
+                                    {stockInfo.route !== 'MATERIAL' && canWriteOff && materialId && (
+                                        <button type="button"
+                                            onClick={() => setRouteRequest({ kind: 'WRITE_OFF', materialId, route: stockInfo.route, stock: stockInfo.stock, usageCost: stockInfo.usageCost })}
                                             className="px-3 py-1 text-xs font-bold rounded-lg border border-amber-300 text-amber-800 hover:bg-amber-50">
-                                            {stockInfo.inventoriable ? 'Marcar no inventariable' : 'Marcar inventariable'}
+                                            Enviar existencia a gasto
                                         </button>
                                     )}
                                 </div>
@@ -391,34 +391,7 @@ export const MaterialForm: React.FC<MaterialFormProps> = ({
                 )}
             </Modal>
 
-            <Modal isOpen={inventoriableDialog} onClose={() => !changingInventoriable && setInventoriableDialog(false)}
-                title={stockInfo.inventoriable ? 'Marcar como no inventariable' : 'Marcar como inventariable'} size="sm" overlayZIndex={70}>
-                <div className="space-y-3">
-                    {stockInfo.inventoriable ? (
-                        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 space-y-1">
-                            <p>Deja de contarse en el inventario físico (sale de la sesión abierta sin diferencia), no se reserva en producción y al recibirse va a gasto.</p>
-                            {Math.abs(stockInfo.stock) > 0.0001 && (
-                                <p className="font-bold">
-                                    Su existencia ({stockInfo.stock.toLocaleString('en-US', { maximumFractionDigits: 4 })}, valor{' '}
-                                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(stockInfo.stock * stockInfo.usageCost)})
-                                    se manda a gasto. Solo Dirección o Gerencia pueden hacerlo.
-                                </p>
-                            )}
-                        </div>
-                    ) : (
-                        <p className="text-sm text-slate-600">Vuelve a contarse y a tener existencia desde cero.</p>
-                    )}
-                    <Input value={inventoriableReason} onChange={(e) => setInventoriableReason(e.target.value)} placeholder="Motivo obligatorio..." />
-                    <div className="flex justify-between gap-3 pt-2">
-                        <button type="button" disabled={changingInventoriable} onClick={() => setInventoriableDialog(false)}
-                            className="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-black rounded-lg disabled:opacity-50">Cerrar</button>
-                        <button type="button" disabled={changingInventoriable || !inventoriableReason.trim()} onClick={() => void handleInventoriable()}
-                            className="px-5 py-2 font-bold rounded-lg text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50">
-                            {changingInventoriable ? 'Procesando...' : 'Confirmar'}
-                        </button>
-                    </div>
-                </div>
-            </Modal>
+            <MaterialRouteDialog request={routeRequest} onClose={() => setRouteRequest(null)} onDone={handleRouteDone} />
 
             <VConfirmDialog
                 isOpen={showDeactivateConfirm}
