@@ -5,7 +5,7 @@ import { useProviders } from '../hooks/useProviders';
 import { Material } from '@/types/foundations';
 import { 
   Plus, Link2, Upload, DollarSign, ArrowRight, 
-  ChevronDown, Pencil, X, Lock, ArrowUpDown, EyeOff, Building2, AlertTriangle, ShieldCheck, RotateCcw
+  ChevronDown, Pencil, X, Lock, ArrowUpDown, EyeOff, Building2, AlertTriangle, ShieldCheck, RotateCcw, FileSpreadsheet
 } from 'lucide-react';
 import client from '@/api/axios-client'; 
 
@@ -16,6 +16,8 @@ import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 import { TableActionCancelIcon, TableActionEditIcon } from '@/lib/tableActionIcons';
 import { MaterialRouteDialog, type RouteDialogRequest } from '../components/MaterialRouteDialog';
+import { MaterialBulkUpdateModal } from '../components/MaterialBulkUpdateModal';
+import { Button } from '@/components/ui/Button';
 
 import { ColumnDef } from "@tanstack/react-table"
 import { DataTable } from "@/components/ui/DataTable"
@@ -38,6 +40,7 @@ export default function MaterialsPage() {
   const { materials, loading, fetchMaterials, createMaterial, updateMaterial, deleteMaterial, reactivateMaterial } = useMaterials();
   const { providers, fetchProviders } = useProviders(); 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showBulkUpdate, setShowBulkUpdate] = useState(false);
   const pendingImportFileRef = useRef<File | null>(null);
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
 
@@ -587,6 +590,9 @@ export default function MaterialsPage() {
                     >
                         <Upload size={16} /> Importar CSV
                     </button>
+                    <Button variant="outline" onClick={() => setShowBulkUpdate(true)}>
+                        <FileSpreadsheet size={16} className="mr-2" /> Actualización masiva
+                    </Button>
                     <button 
                         onClick={() => {
                             if (showForm) resetForm();
@@ -915,6 +921,9 @@ export default function MaterialsPage() {
         onClose={() => setRouteRequest(null)}
         onDone={(mat) => { setForm((f) => ({ ...f, production_route: mat.production_route })); void fetchMaterials(showInactive); }}
       />
+      {showBulkUpdate && (
+        <MaterialBulkUpdateModal onClose={() => setShowBulkUpdate(false)} onDone={() => void fetchMaterials(showInactive)} />
+      )}
 
       {confirmDialogProps && (
         <VConfirmDialog

@@ -117,8 +117,9 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
   Gerencia en la copia local.
 - Herramienta 2 hecha (2026-10-10): anticipos a proveedor "pagados" sin pago (17) se absorben con motivo; la recepción
   ya no los marca pagados; Fast-Track respeta D7 (Gerencia sin interruptor solo solicita); no se ejecuta un pago sobre
-  factura pagada o cancelada. Sigue: herramienta 3 (IVA de OVs legacy) cuando contabilidad entregue la lista (D14);
-  mientras, herramienta 4 (importación masiva del catálogo).
+  factura pagada o cancelada.
+- Herramienta 4 hecha (2026-10-10): actualización masiva del catálogo desde Excel (Materiales → Actualización masiva).
+- Herramienta 3 (IVA de OVs legacy) en espera de la lista de contabilidad (D14 punto 3).
 - Pendiente (fuera de alcance): el botón "Pagar" de CxP se muestra a Gerencia aunque el interruptor esté apagado (el
   servidor ya solo registra la solicitud); la lógica de pagos de `finance.py` vive en el endpoint.
 - Pendiente de refactor (fuera de alcance): `sales_service.register_installment` mide ~110 líneas (máx. 50).

@@ -4396,3 +4396,13 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 - Probado como Gerencia en la copia local (ANT-OC-M260512161716). Pruebas: 273 backend, 17 frontend, build OK
 
 ### Nuevo para revisar: folio 30899 duplicado (#315 y #324) — SANEAMIENTO 4.5
+
+---
+## SESIÓN 2026-10-10 (parte 11) — SANEAMIENTO: HERRAMIENTA 4 (CATÁLOGO)
+
+### Hecho:
+- Materiales → "Actualización masiva": plantilla prellenada con los activos incompletos (sin proveedor, sin unidades o MATERIAL con costo 0); proveedor por nombre o id; celda vacía = sin cambio; vista previa antes → después y errores por fila; aplica todo o nada con motivo (bitácora "Importación masiva del catálogo: …"); costo y factor solo D/M/A
+- Probado como Gerencia en la copia local (archivo con error bloquea; archivo correcto actualiza 0001-0001). Pruebas: 277 backend, 17 frontend, build OK
+
+### Saneamiento — estado:
+- Herramientas 1, 2 y 4 hechas y en producción tras el push; la 3 (IVA legacy) espera la lista de contabilidad (D14)

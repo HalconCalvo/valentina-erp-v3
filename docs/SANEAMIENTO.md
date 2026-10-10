@@ -74,4 +74,7 @@ Todas tienen tasa "IVA Estándar" (16%). No hay en el catálogo una tasa llamada
 2. **Anticipos a proveedor sin pago** (4.1) — **hecha (2026-10-10)**: Gerencia → Saneamiento, sección "Anticipos";
    y el código ya no los marca pagados en la recepción (ver 4.1).
 3. **Corrección de tasa de IVA de una OV legacy y sus facturas** (2.5), cuando contabilidad entregue la lista.
-4. **Importación masiva del catálogo** (5.3) desde el Excel completado, si se prefiere a capturar uno por uno.
+4. **Importación masiva del catálogo** (5.3) — **hecha (2026-10-10)**: Compras y Almacén → Materiales →
+   "Actualización masiva". La plantilla se descarga ya llena con los materiales activos incompletos (185 en la copia
+   del 10/10); celda vacía = sin cambio; validar → vista previa → aplicar todo o nada con motivo. Costo y factor solo
+   Dirección, Gerencia o Administración.
