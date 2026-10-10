@@ -1,6 +1,6 @@
 from typing import List, Optional, Dict
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlmodel import SQLModel
 
 # --- INPUTS (Lo que recibimos del Frontend) ---
@@ -133,11 +133,23 @@ class PurchaseOrderItemCancel(BaseModel):
     cancel_reason: str
 
 
+PO_TAX_RATES = (0.16, 0.08, 0.0)
+
+
+def _valid_tax_rate(value):
+    if value is not None and round(float(value), 4) not in PO_TAX_RATES:
+        raise ValueError("La tasa de IVA de la OC debe ser 16%, 8% o 0%.")
+    return value
+
+
 class PurchaseOrderUpdate(BaseModel):
     """Campos editables de una OC (todos opcionales — PATCH)."""
     provider_id: Optional[int] = None
     exchange_rate: Optional[float] = None
     overhead_category: Optional[str] = None
+    tax_rate: Optional[float] = None
+
+    _tax = field_validator("tax_rate")(_valid_tax_rate)
 
 
 # ==========================================
@@ -155,6 +167,9 @@ class ManualOrderCreate(BaseModel):
     provider_name: str
     items: List[ManualOrderItemCreate]
     overhead_category: Optional[str] = None
+    tax_rate: float = 0.16
+
+    _tax = field_validator("tax_rate")(_valid_tax_rate)
 
 
 class RequisitionCreate(BaseModel):
@@ -169,6 +184,9 @@ class POCreateFromPlanning(BaseModel):
     provider_id: int | None
     items: List[dict]
     overhead_category: Optional[str] = None
+    tax_rate: float = 0.16
+
+    _tax = field_validator("tax_rate")(_valid_tax_rate)
 
 
 class ManualAdjustDelta(BaseModel):

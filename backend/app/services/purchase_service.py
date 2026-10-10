@@ -133,6 +133,7 @@ def list_purchase_orders(
             "provider_email": getattr(prov, "contact_email", None) if prov else None,
             "credit_days": getattr(prov, "credit_days", 0) if prov else 0,
             "total_estimated_amount": o.total_estimated_amount or 0,
+            "tax_rate": o.tax_rate if o.tax_rate is not None else 0.16,
             "items": items_formatted,
             "authorized_by": resolve_po_authorizer_display(db, o),
             "authorized_at": o.authorized_at.isoformat() if getattr(o, "authorized_at", None) else None,
@@ -924,6 +925,14 @@ def _reception_effective_at(db: Session, received_at) -> datetime:
     return effective_at
 
 
+def _reception_tax_rate(data: dict, po) -> float:
+    """Tax rate of the received invoice; the PO's rate when not sent. 0% (exempt) stays 0%."""
+    value = data.get("tax_rate")
+    if value is None or value == "":
+        value = po.tax_rate if po.tax_rate is not None else 0.16
+    return float(value)
+
+
 def receive_purchase_order(db: Session, po_id: int, data: dict, current_user):
     from datetime import timedelta
 
@@ -1069,7 +1078,7 @@ def receive_purchase_order(db: Session, po_id: int, data: dict, current_user):
         ant.outstanding_balance = 0
         db.add(ant)
 
-    tax_rate = float(data.get("tax_rate", 0.16) or 0.16)
+    tax_rate = _reception_tax_rate(data, po)
     _subtotal_detalle = sum(r["quantity_received"] * r["unit_cost"] for r in invoice_detail_rows)
     if _subtotal_detalle > 0:
         total_recibido_con_iva = round(_subtotal_detalle * (1 + tax_rate), 2)
@@ -1088,7 +1097,7 @@ def receive_purchase_order(db: Session, po_id: int, data: dict, current_user):
         prov = purchase_repo.get_provider_by_id(db, po.provider_id)
         credit_days = getattr(prov, "credit_days", 0) or 0 if prov else 0
         due_date = datetime.now() + timedelta(days=credit_days)
-        tax_rate = float(data.get("tax_rate", 0.16) or 0.16)
+        tax_rate = _reception_tax_rate(data, po)
         _subtotal = round(saldo_restante / (1 + tax_rate), 2) if (1 + tax_rate) != 0 else saldo_restante
         _tax_amount = round(saldo_restante - _subtotal, 2)
         new_ap_id = purchase_repo.insert_reception_accounts_payable(
@@ -1127,7 +1136,7 @@ def receive_purchase_order(db: Session, po_id: int, data: dict, current_user):
                     status_code=400,
                     detail=f"La factura {invoice_folio} ya está registrada para este proveedor.",
                 )
-            tax_rate = float(data.get("tax_rate", 0.16) or 0.16)
+            tax_rate = _reception_tax_rate(data, po)
             _subtotal = round(invoice_total / (1 + tax_rate), 2)
             _tax_amount = round(invoice_total - _subtotal, 2)
             db.add(PurchaseInvoice(

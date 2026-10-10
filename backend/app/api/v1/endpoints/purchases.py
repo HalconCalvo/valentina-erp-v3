@@ -132,7 +132,8 @@ def emit_bulk_purchase_order(*, db: Session = Depends(get_session), data: POCrea
         total_estimated_amount=0.0,
         is_advance=False,
         created_by_user_id=current_user.id,
-        overhead_category=data.overhead_category
+        overhead_category=data.overhead_category,
+        tax_rate=data.tax_rate,
     )
     db.add(po)
     db.flush() 
@@ -282,7 +283,8 @@ def create_manual_order(
             total_estimated_amount=subtotal,
             created_by_user_id=current_user.id,
             is_advance=False,
-            overhead_category=order_in.overhead_category
+            overhead_category=order_in.overhead_category,
+            tax_rate=order_in.tax_rate,
         )
         db.add(new_order)
         db.flush()

@@ -248,7 +248,7 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
                 label: 'Total (c/IVA)',
                 render: (row) => (
                     <span className="text-right block text-xs font-black text-slate-800">
-                        {formatMoney(Number((Number(row.total_estimated_amount || 0)) * 1.16))}
+                        {formatMoney(Number(row.total_estimated_amount || 0) * (1 + Number(row.tax_rate ?? 0.16)))}
                     </span>
                 ),
             },
@@ -259,7 +259,8 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
     if (selected) {
         const items = selected.items || [];
         const subtotal = items.reduce((s: number, it: any) => s + Number(it.subtotal || 0), 0);
-        const iva = subtotal * 0.16;
+        const rate = Number(selected.tax_rate ?? 0.16);
+        const iva = subtotal * rate;
         const total = subtotal + iva;
         return (
             <div className="space-y-4">
@@ -300,7 +301,7 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
                     <div className="p-8 bg-slate-50/50 flex justify-end items-center border-t border-slate-100">
                         <div className="w-80 space-y-1 pr-14">
                             <div className="flex justify-between items-center text-slate-500"><span className="text-[10px] font-black uppercase">Subtotal</span><span className="text-sm font-bold">{formatMoney(subtotal)}</span></div>
-                            <div className="flex justify-between items-center text-slate-500 border-b border-slate-200 pb-2"><span className="text-[10px] font-black uppercase">IVA (16%)</span><span className="text-sm font-bold">{formatMoney(iva)}</span></div>
+                            <div className="flex justify-between items-center text-slate-500 border-b border-slate-200 pb-2"><span className="text-[10px] font-black uppercase">IVA ({Math.round(rate * 100)}%)</span><span className="text-sm font-bold">{formatMoney(iva)}</span></div>
                             <div className="flex justify-between items-center pt-2"><span className="text-[11px] font-black text-emerald-600 uppercase">Total</span><span className="text-3xl font-black text-slate-900">{formatMoney(total)}</span></div>
                         </div>
                     </div>

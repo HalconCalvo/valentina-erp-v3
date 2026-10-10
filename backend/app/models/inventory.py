@@ -146,7 +146,8 @@ class PurchaseOrder(SQLModel, table=True):
     payment_status: str = Field(default="PENDING") 
     is_advance: bool = Field(default=True) 
 
-    total_estimated_amount: float = Field(default=0.0)
+    total_estimated_amount: float = Field(default=0.0)  # without tax
+    tax_rate: float = Field(default=0.16)  # 0.16, 0.08 or 0.0 (exempt); D4
     created_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
     
     # ---> ¡AQUÍ ESTÁ EL CAMPO RESCATADO! <---

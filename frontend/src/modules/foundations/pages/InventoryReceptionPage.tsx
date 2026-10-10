@@ -126,12 +126,13 @@ const InventoryReceptionPage: React.FC = () => {
             const qty = Number(received[idx]) || 0;
             return sum + (qty * price);
         }, 0);
-        return subtotal * (1 + 0.16);
+        return subtotal * (1 + Number(po?.tax_rate ?? 0.16));
     };
 
     const handleSelectPO = (po: any) => {
         if (!po) return;
         setSelectedPO(po);
+        setTaxRate(Number(po.tax_rate ?? 0.16));  // the PO's rate (D4); the invoice may still differ
         setInvoiceFolio('');
         setReceivedAt(todayIso());
 
@@ -525,13 +526,13 @@ const InventoryReceptionPage: React.FC = () => {
                                         
                                         <div className="flex items-center gap-4 mt-4 md:mt-0 w-full md:w-auto justify-end">
                                             <div className="text-right">
-                                                <p className="font-black text-emerald-600 text-lg">{formatCurrency((po.total_estimated_amount || 0) * 1.16)}</p>
+                                                <p className="font-black text-emerald-600 text-lg">{formatCurrency((po.total_estimated_amount || 0) * (1 + Number(po.tax_rate ?? 0.16)))}</p>
                                             </div>
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     const subtotal = po.total_estimated_amount || 0;
-                                                    setAdvanceAmount(formatInitialAmount(subtotal * 1.16));
+                                                    setAdvanceAmount(formatInitialAmount(subtotal * (1 + Number(po.tax_rate ?? 0.16))));
                                                     setAdvanceModal({ open: true, po });
                                                 }}
                                                 className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase text-orange-600 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors whitespace-nowrap"
@@ -583,7 +584,7 @@ const InventoryReceptionPage: React.FC = () => {
                                     />
                                 </div>
                                 <p className="text-[10px] text-slate-400 font-bold mt-1">
-                                    Total OC c/IVA: {formatCurrency((advanceModal.po.total_estimated_amount || 0) * 1.16)}
+                                    Total OC c/IVA: {formatCurrency((advanceModal.po.total_estimated_amount || 0) * (1 + Number(advanceModal.po.tax_rate ?? 0.16)))}
                                 </p>
                             </div>
                         </div>

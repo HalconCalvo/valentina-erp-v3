@@ -49,6 +49,12 @@ interface PurchaseOrdersModuleProps {
     onExternalBack?: () => void;
 }
 
+const PO_TAX_RATES = [
+    { value: '0.16', label: 'IVA 16%' },
+    { value: '0.08', label: 'IVA 8% (frontera)' },
+    { value: '0', label: 'IVA 0% (exento)' },
+];
+
 export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSubSectionChange, targetTab, onExternalBack }) => {
     const [activeSubSection, setActiveSubSection] = useState<SubSection>(targetTab as SubSection || null);
     const [allOrdersDetailOpen, setAllOrdersDetailOpen] = useState(false);
@@ -82,6 +88,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     const [manualOrderForm, setManualOrderForm] = useState({ 
         provider_name: '',
         overhead_category: '',
+        tax_rate: '0.16',
         items: [{ sku: '', material_name: '', qty: 1, expected_cost: '0.00' }] 
     });
 
@@ -143,6 +150,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     const [sendingEmail, setSendingEmail] = useState(false);
 
     const [pendingCategory, setPendingCategory] = useState<string>('');
+    const [pendingTaxRate, setPendingTaxRate] = useState<string>('0.16');
     const [categoryError, setCategoryError] = useState<string | null>(null);
     const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
     const [advanceModal, setAdvanceModal] = useState<{
@@ -293,6 +301,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                     await axiosClient.post('/purchases/orders/bulk-emit', {
                         provider_id: group.provider_id,
                         overhead_category: pendingCategory,
+                        tax_rate: Number(pendingTaxRate),
                         items: itemsToEmit.map((item: any) => ({
                             requisition_id: item.requisition_id,
                             material_id: item.material_id,
@@ -519,6 +528,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
             const payload = {
                 provider_name: manualOrderForm.provider_name,
                 overhead_category: manualOrderForm.overhead_category,
+                tax_rate: Number(manualOrderForm.tax_rate),
                 items: validItems.map(it => ({
                     sku: it.sku,
                     name: it.material_name,
@@ -529,7 +539,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
             await axiosClient.post('/purchases/orders/manual', payload);
             
             setIsManualModalOpen(false);
-            setManualOrderForm({ provider_name: '', overhead_category: '', items: [{ sku: '', material_name: '', qty: 1, expected_cost: '0.00' }] });
+            setManualOrderForm({ provider_name: '', overhead_category: '', tax_rate: '0.16', items: [{ sku: '', material_name: '', qty: 1, expected_cost: '0.00' }] });
             toast.success('Orden manual creada correctamente.');
             void refetchOrders();
         } catch (error: any) {
@@ -799,7 +809,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     };
 
     const manualSubtotal = manualOrderForm.items.reduce((sum, it) => sum + (it.qty * (parseFloat(it.expected_cost as string) || 0)), 0);
-    const manualIva = manualSubtotal * 0.16;
+    const manualIva = manualSubtotal * Number(manualOrderForm.tax_rate);
     const manualTotal = manualSubtotal + manualIva;
 
     const getProvName = (p: any) => String(p?.business_name || p?.legal_name || '').trim();
@@ -914,7 +924,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                     const isUnassigned = !group.provider_id;
                     const selectedInGroup = group.items.filter((it: any) => selectedItems[`${group.provider_id}-${it.material_id}`]);
                     const subtotal = selectedInGroup.reduce((acc: number, it: any) => acc + (it.qty * it.expected_cost), 0);
-                    const iva = subtotal * 0.16;
+                    const iva = subtotal * Number(pendingTaxRate);
                     const total = subtotal + iva;
                     
                     return (
@@ -1124,6 +1134,15 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                         {categoryError && (
                                             <p className="text-xs text-red-600 font-bold">{categoryError}</p>
                                         )}
+                                        <SearchableSelect
+                                            items={PO_TAX_RATES}
+                                            value={pendingTaxRate}
+                                            onChange={(value) => setPendingTaxRate(value)}
+                                            getLabel={(t) => t.label}
+                                            getValue={(t) => t.value}
+                                            placeholder="IVA de la OC"
+                                            className="w-full"
+                                        />
                                     </div>
                                     <Button onClick={() => handleEmitPurchaseOrder(group)} className="bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-200 shadow-sm font-black uppercase text-xs h-12 px-10" disabled={isUnassigned || loading || selectedInGroup.length === 0}>
                                         Generar Orden de Compra ({selectedInGroup.length})
@@ -1131,7 +1150,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 </div>
                                 <div className="w-80 space-y-1 pr-14">
                                     <div className="flex justify-between items-center px-2 py-1 text-slate-500"><span className="text-[10px] font-black uppercase tracking-widest">Subtotal</span><span className="text-sm font-bold">{formatMoney(subtotal)}</span></div>
-                                    <div className="flex justify-between items-center px-2 py-1 border-b border-slate-100 pb-3 text-slate-500"><span className="text-[10px] font-black uppercase tracking-widest">IVA (16%)</span><span className="text-sm font-bold">{formatMoney(iva)}</span></div>
+                                    <div className="flex justify-between items-center px-2 py-1 border-b border-slate-100 pb-3 text-slate-500"><span className="text-[10px] font-black uppercase tracking-widest">IVA ({Math.round(Number(pendingTaxRate) * 100)}%)</span><span className="text-sm font-bold">{formatMoney(iva)}</span></div>
                                     <div className="flex justify-between items-center pt-4 px-2">
                                         <span className="text-[11px] font-black text-indigo-600 uppercase tracking-[0.25em]">Total Neto</span>
                                         <div className="text-right"><span className="text-3xl font-black text-slate-900 leading-none">{formatMoney(total)}</span></div>
@@ -1155,7 +1174,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                 ) : (
                     draftOrders.map((order, idx) => {
                         const subtotal = order.total_estimated_amount || 0;
-                        const iva = subtotal * 0.16;
+                        const iva = subtotal * (order.tax_rate ?? 0.16);
                         const total = subtotal + iva;
                         const canAuthorize = role === 'DIRECTOR' || role === 'MANAGER';
                         const columns = [
@@ -1250,7 +1269,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                     {isPartial && <div />}
                                     <div className="w-80 space-y-1 pr-14">
                                         <div className="flex justify-between items-center px-2 py-1 text-slate-500"><span className="text-[10px] font-black uppercase tracking-widest">Subtotal</span><span className="text-sm font-bold">{formatMoney(subtotal)}</span></div>
-                                        <div className="flex justify-between items-center px-2 py-1 border-b border-slate-100 pb-3 text-slate-500"><span className="text-[10px] font-black uppercase tracking-widest">IVA (16%)</span><span className="text-sm font-bold">{formatMoney(iva)}</span></div>
+                                        <div className="flex justify-between items-center px-2 py-1 border-b border-slate-100 pb-3 text-slate-500"><span className="text-[10px] font-black uppercase tracking-widest">IVA ({Math.round((order.tax_rate ?? 0.16) * 100)}%)</span><span className="text-sm font-bold">{formatMoney(iva)}</span></div>
                                         <div className="flex justify-between items-center pt-4 px-2"><span className="text-[11px] font-black text-rose-600 uppercase tracking-[0.25em]">Total Neto</span><div className="text-right"><span className="text-3xl font-black text-slate-900 leading-none">{formatMoney(total)}</span></div></div>
                                     </div>
                                 </div>
@@ -1285,7 +1304,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                 </div>
                 {waitingAdvanceOrders.map((order, idx) => {
                     const subtotal = order.total_estimated_amount || 0;
-                    const iva = subtotal * 0.16;
+                    const iva = subtotal * (order.tax_rate ?? 0.16);
                     const total = subtotal + iva;
                     return (
                         <div key={idx} className="bg-white rounded-3xl border border-amber-200 shadow-md overflow-hidden border-t-8 border-t-amber-500 animate-in slide-in-from-bottom-4 duration-500">
@@ -1357,7 +1376,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 </div>
                                 <div className="w-80 space-y-1 pr-14">
                                     <div className="flex justify-between items-center text-slate-500"><span className="text-[10px] font-black uppercase">Subtotal</span><span className="text-sm font-bold">{formatMoney(subtotal)}</span></div>
-                                    <div className="flex justify-between items-center text-slate-500 border-b border-slate-200 pb-2"><span className="text-[10px] font-black uppercase">IVA (16%)</span><span className="text-sm font-bold">{formatMoney(iva)}</span></div>
+                                    <div className="flex justify-between items-center text-slate-500 border-b border-slate-200 pb-2"><span className="text-[10px] font-black uppercase">IVA ({Math.round((order.tax_rate ?? 0.16) * 100)}%)</span><span className="text-sm font-bold">{formatMoney(iva)}</span></div>
                                     <div className="flex justify-between items-center pt-2"><span className="text-[11px] font-black text-amber-700 uppercase">Total Autorizado</span><span className="text-3xl font-black text-slate-900">{formatMoney(total)}</span></div>
                                 </div>
                             </div>
@@ -1382,7 +1401,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                 ) : (
                     authorizedOrders.map((order, idx) => {
                         const subtotal = order.total_estimated_amount || 0;
-                        const iva = subtotal * 0.16;
+                        const iva = subtotal * (order.tax_rate ?? 0.16);
                         const total = subtotal + iva;
                         return (
                             <div key={idx} className="bg-white rounded-3xl border border-emerald-200 shadow-md overflow-hidden border-t-8 border-t-emerald-500 animate-in slide-in-from-bottom-4 duration-500">
@@ -1445,7 +1464,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                     </div>
                                     <div className="w-80 space-y-1 pr-14">
                                         <div className="flex justify-between items-center text-slate-500"><span className="text-[10px] font-black uppercase">Subtotal</span><span className="text-sm font-bold">{formatMoney(subtotal)}</span></div>
-                                        <div className="flex justify-between items-center text-slate-500 border-b border-slate-200 pb-2"><span className="text-[10px] font-black uppercase">IVA (16%)</span><span className="text-sm font-bold">{formatMoney(iva)}</span></div>
+                                        <div className="flex justify-between items-center text-slate-500 border-b border-slate-200 pb-2"><span className="text-[10px] font-black uppercase">IVA ({Math.round((order.tax_rate ?? 0.16) * 100)}%)</span><span className="text-sm font-bold">{formatMoney(iva)}</span></div>
                                         <div className="flex justify-between items-center pt-2"><span className="text-[11px] font-black text-emerald-600 uppercase">Total Autorizado</span><span className="text-3xl font-black text-slate-900">{formatMoney(total)}</span></div>
                                     </div>
                                 </div>
@@ -1666,6 +1685,16 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                     getValue={(c) => c}
                                     placeholder="— Seleccionar categoría —"
                                     className={`flex-1 ${!manualOrderForm.overhead_category ? 'ring-1 ring-red-300' : ''}`}
+                                />
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest whitespace-nowrap">IVA</label>
+                                <SearchableSelect
+                                    items={PO_TAX_RATES}
+                                    value={manualOrderForm.tax_rate}
+                                    onChange={(value) => setManualOrderForm({ ...manualOrderForm, tax_rate: value })}
+                                    getLabel={(t) => t.label}
+                                    getValue={(t) => t.value}
+                                    placeholder="IVA"
+                                    className="w-44"
                                 />
                             </div>
                         </div>
@@ -1900,7 +1929,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                     <span className="text-sm font-bold">{formatMoney(manualSubtotal)}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-slate-600 border-b border-slate-100 pb-3">
-                                    <span className="text-[11px] font-black uppercase tracking-widest">IVA (16%)</span>
+                                    <span className="text-[11px] font-black uppercase tracking-widest">IVA ({Math.round(Number(manualOrderForm.tax_rate) * 100)}%)</span>
                                     <span className="text-sm font-bold">{formatMoney(manualIva)}</span>
                                 </div>
                                 <div className="flex justify-between items-end pt-2">
