@@ -22,7 +22,13 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
   los 46 restantes, envía y el Director autoriza.
 - Ensayado en copia de producción (2026-10-10): resultado idéntico al esperado.
 
-## 2. F3 + márgenes + comisión: prueba en pantalla y push — en curso (Chrome conectado)
+## 2. F3 + márgenes + comisión: prueba en pantalla y push — lista para push (fuera de horario: hoy después de 19:00 o domingo)
+- 2026-10-10 probada en pantalla (copia local): COT-0086 enviada a Dirección, corrección de precio del tapacanto
+  (5.33 → 6.00) con motivo; costo 9,866.06 → 9,933.06, precio de venta conservado, sobreprecio 29.68% → 28.80%,
+  comisión $673.36 (5% de la venta sin IVA), anticipo 50%; catálogo actualizado y bitácora con
+  "COT-0086: <motivo>". Sobreprecio mínimo (25) visible en Configuración.
+- Migraciones m3/n4 probadas en local: bajar y subir; una sola cabeza. Tests: backend 208, frontend 14, build.
+- El push sube también la F4 (commits locales en orden: F3, márgenes, comisión, ajuste de test, docs, F4).
 - 4 commits locales sobre producción (corrección de recetas y precios al autorizar, definición única de
   márgenes, comisión = c × venta sin IVA, ajuste de test). Migraciones m3n4o5p6q7r8 → n4o5p6q7r8s9.
 - Falta: prueba en pantalla en la copia local; push según reglas (fuera de horario).

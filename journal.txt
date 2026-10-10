@@ -4255,3 +4255,23 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 
 ### Entorno local:
 - Copia local rehecha desde producción (2026-10-10 10:51) con q6 + F3 encima (n4o5p6q7r8s9)
+
+---
+## SESIÓN 2026-10-10 (parte 2) — F4 BITÁCORA COMPLETA Y F3 PROBADA EN PANTALLA
+
+### Hecho (commits locales, sin push: en horario laboral):
+- Gabriel resolvió en producción los 6 materiales de la sesión #2 (verificado: 6 fuera, $15,855.15 a gasto, 46 por capturar)
+- D1 aprobada (guía de pantallas); D2 pendiente (títulos sin color, aplicada la recomendación)
+- F4 (4af463d): SQL directo → ORM en cuentas por pagar, corrección de recepción (DELETE físico → cancelación lógica con motivo), gastos operativos, CxP de recepción y requisiciones automáticas; botón Historial en proveedor, cliente, usuario, lote y factura de compra
+- F3 probada en pantalla con COT-0086 (corrección de precio con motivo al autorizar, sobreprecio y comisión correctos); migraciones bajar/subir en local
+
+### Push pendiente:
+- F3 + F4 juntas, fuera de horario (después de las 19:00 o domingo); al subir, n4o5p6q7r8s9 recalcula sobreprecio y comisión guardados
+
+### Hallazgos (ROADMAP tarea 6):
+- Corrección de recepción parcial no ajusta el saldo pendiente de la factura; tasa 0% se lee como 16%
+- Borrados físicos que quedan: usuarios, diseño, solicitud de pago, caja chica, lote en borrador, logística y planeación
+- Acciones de solo ícono sin nombre en Usuarios (confirmado en pantalla); "Enviar a Dirección" es ícono (debe ser botón con texto)
+
+### Lecciones:
+- En la prueba en pantalla se entra con un token de prueba generado en local (sin contraseñas)
