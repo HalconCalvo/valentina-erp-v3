@@ -84,7 +84,10 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
   de firma al cambiar equipo (CANCELLED); migración u0v1w2x3y4z5.
 - Se deja: limpiar una asignación provisional de equipo en Planeación sigue borrando la fila (plan sin efecto externo;
   la bitácora registra el borrado). Cancelarla exige filtrar por estado en 3 consultas (diseño, logística, campo).
-- Siguen: revisión de lecturas (GET) por rol; botones de autorizar/rechazar OC como texto (guía).
+- Lecturas (GET) por rol (hecho, 2026-10-10): finanzas solo D/M/A; cotizaciones/OVs/cobros D/M/A + Ventas (lo suyo);
+  logo con sesión. Campos de costo/margen fuera de Finanzas: D13.
+- Botones de autorizar/rechazar OC con texto (hecho). fetch() directo: reportes de Finanzas hecho; quedan Kanban,
+  centro de impresión, catálogo de diseño, importación CSV de clientes/proveedores.
 - Hallazgos de la tarea 5 (2026-10-10):
   - El tablero de Inventario muestra $2,259,249.11 y Valuación $2,283,776.16: dos cálculos distintos del mismo valor.
   - Requisiciones automáticas duplicadas (0502-004 tiene dos PENDIENTE): tres pantallas las evalúan a la vez al

@@ -120,12 +120,18 @@ export const InventoryDashboardPage = () => {
                 setInventoryValuation(null);
             }
 
-            try {
-                const lowStock = await inventoryService.getLowStock();
-                setLowStockItems(lowStock);
-                setLowStockCount(lowStock.length);
-            } catch {
-                setLowStockCount('!');
+            // Low stock is for Dirección, Gerencia, Administración and Almacén (kardex roles)
+            if (['DIRECTOR', 'MANAGER', 'ADMIN', 'WAREHOUSE'].includes(role)) {
+                try {
+                    const lowStock = await inventoryService.getLowStock();
+                    setLowStockItems(lowStock);
+                    setLowStockCount(lowStock.length);
+                } catch {
+                    setLowStockCount('!');
+                    setLowStockItems([]);
+                }
+            } else {
+                setLowStockCount('—');
                 setLowStockItems([]);
             }
         };

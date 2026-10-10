@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.database import get_session
 from app.core.deps import CurrentUser, SessionDep
-from app.core.permissions import require_roles
+from app.core.permissions import allow, ANY_ROLE, require_roles
 from app.services.cloud_storage import upload_to_gcs  # <--- LA TUBERÍA BLINDADA
 from app.services import material_route_service, inventory_audit_service, inventory_service, inventory_valuation_service, material_service
 from app.schemas.production_inventory_schema import NegativeStockRead, ValuationSummaryRead
@@ -65,7 +65,7 @@ def get_global_config(current_user: CurrentUser, session: Session = Depends(get_
         return default_config
     return config
 
-@router.get("/logo-base64")
+@router.get("/logo-base64", dependencies=[allow(ANY_ROLE)])
 def get_logo_base64(session: Session = Depends(get_session)):
     """
     Descarga el logo de la empresa desde GCS y lo devuelve como base64.

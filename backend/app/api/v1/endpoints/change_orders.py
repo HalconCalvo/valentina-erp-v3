@@ -15,6 +15,7 @@ from app.schemas.quotation_schema import (
     QuotationRead,
 )
 from app.services import change_order_service
+from app.core.permissions import allow, SALES_READ_ROLES
 
 router = APIRouter()
 
@@ -28,7 +29,7 @@ def create_change_order(
     return change_order_service.create_change_order(session, data, current_user)
 
 
-@router.get("/", response_model=List[QuotationRead])
+@router.get("/", response_model=List[QuotationRead], dependencies=[allow(SALES_READ_ROLES)])
 def list_change_orders(
     sales_order_id: Optional[int] = None,
     status_filter: Optional[QuotationStatus] = None,
@@ -38,7 +39,7 @@ def list_change_orders(
     return change_order_service.list_change_orders(session, current_user, sales_order_id, status_filter)
 
 
-@router.get("/{change_id}", response_model=QuotationRead)
+@router.get("/{change_id}", response_model=QuotationRead, dependencies=[allow(SALES_READ_ROLES)])
 def get_change_order(
     change_id: int,
     session: Session = Depends(get_session),

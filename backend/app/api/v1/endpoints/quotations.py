@@ -19,6 +19,7 @@ from app.schemas.quotation_schema import (
     QuotationUpdate,
 )
 from app.services import quotation_service
+from app.core.permissions import allow, SALES_READ_ROLES
 
 router = APIRouter()
 
@@ -33,7 +34,7 @@ def create_quotation(
     return quotation_service.create_quotation(session, data, current_user)
 
 
-@router.get("/", response_model=List[QuotationRead])
+@router.get("/", response_model=List[QuotationRead], dependencies=[allow(SALES_READ_ROLES)])
 def list_quotations(
     *,
     session: Session = Depends(get_session),
@@ -45,7 +46,7 @@ def list_quotations(
     return quotation_service.list_quotations(session, current_user, status=status_filter, skip=skip, limit=limit)
 
 
-@router.get("/{quotation_id}", response_model=QuotationRead)
+@router.get("/{quotation_id}", response_model=QuotationRead, dependencies=[allow(SALES_READ_ROLES)])
 def get_quotation_detail(
     quotation_id: int,
     session: Session = Depends(get_session),
@@ -133,7 +134,7 @@ def convert_quotation(
     return quotation_service.convert_quotation_to_order(session, quotation_id, data, current_user)
 
 
-@router.get("/{quotation_id}/pdf")
+@router.get("/{quotation_id}/pdf", dependencies=[allow(SALES_READ_ROLES)])
 def download_quotation_pdf(
     quotation_id: int,
     session: Session = Depends(get_session),

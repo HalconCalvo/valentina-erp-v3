@@ -30,7 +30,7 @@ from app.services import inventory_service, legacy_import_service
 from app.schemas.legacy_import_schema import LegacyImportPreviewRead, LegacyImportRead
 from app.schemas.production_inventory_schema import OVCancelCreate
 from app.repositories import sales_repository as sales_repo
-from app.core.permissions import allow, allow_payment_execution, FINANCE_ROLES, SALES_ORDER_ROLES
+from app.core.permissions import allow, FINANCE_ROLES, SALES_ORDER_ROLES, SALES_READ_ROLES, allow_payment_execution
 
 from app.schemas.sales_schema import (
     SalesOrderRead, SalesOrderUpdate,
@@ -124,7 +124,7 @@ def normalize_commission(rate: float | None) -> float:
 # ==========================================
 # 2. LISTAR ORDENES
 # ==========================================
-@router.get("/orders", response_model=List[SalesOrderRead])
+@router.get("/orders", response_model=List[SalesOrderRead], dependencies=[allow(SALES_READ_ROLES)])
 def read_sales_orders(
     status: SalesOrderStatus | None = None,
     client_id: int | None = None,
@@ -137,7 +137,7 @@ def read_sales_orders(
 # ==========================================
 # 3. DETALLE ORDEN
 # ==========================================
-@router.get("/orders/{order_id}", response_model=SalesOrderRead)
+@router.get("/orders/{order_id}", response_model=SalesOrderRead, dependencies=[allow(SALES_READ_ROLES)])
 def read_order_detail(
     order_id: int,
     session: Session = Depends(get_session),
@@ -150,7 +150,7 @@ def read_order_detail(
 # ==========================================
 # 3b. CXC — LECTURA V4.4 (Vendedor read-only, filtrado por user_id de la OV)
 # ==========================================
-@router.get("/customer-payments/pending", response_model=List[CustomerPaymentRead])
+@router.get("/customer-payments/pending", response_model=List[CustomerPaymentRead], dependencies=[allow(SALES_READ_ROLES)])
 def get_my_pending_customer_payments(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
@@ -158,7 +158,7 @@ def get_my_pending_customer_payments(
     return sales_service.list_customer_payments(session, current_user, status=CXCStatus.PENDING)
 
 
-@router.get("/customer-payments", response_model=List[CustomerPaymentRead])
+@router.get("/customer-payments", response_model=List[CustomerPaymentRead], dependencies=[allow(SALES_READ_ROLES)])
 def list_customer_payments(
     status: Optional[str] = Query(
         default=None,
@@ -170,7 +170,7 @@ def list_customer_payments(
     return sales_service.list_customer_payments(session, current_user, status=status)
 
 
-@router.get("/payments", response_model=List[CustomerPaymentRead])
+@router.get("/payments", response_model=List[CustomerPaymentRead], dependencies=[allow(SALES_READ_ROLES)])
 def list_sales_payments(
     status: Optional[str] = Query(default=None, description="Filtrar por CXCStatus, ej. PENDING"),
     session: Session = Depends(get_session),
@@ -403,18 +403,16 @@ def register_advance_payment(order_id: int, payload: PaymentPayload,
     session.refresh(order)
     return order
 
-@router.get("/orders/{order_id}/pdf")
+@router.get("/orders/{order_id}/pdf", dependencies=[allow(SALES_READ_ROLES)])
 def download_quote_pdf(
     order_id: int,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ):
     """
-    DESCARGA DE PDF DE COTIZACIÓN
+    DESCARGA DE PDF DE COTIZACIÓN (un vendedor solo descarga sus propias OVs)
     """
-    order = session.get(SalesOrder, order_id)
-    if not order: 
-        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    order = sales_service.get_order(session, order_id, current_user)
 
     client = session.get(Client, order.client_id) if order.client_id else None
     config = session.exec(select(GlobalConfig)).first()
@@ -482,7 +480,7 @@ def _instance_to_progress_dict(inst: SalesOrderItemInstance) -> Dict[str, Any]:
     }
 
 
-@router.get("/invoicing-rights", response_model=InvoicingRightsRead)
+@router.get("/invoicing-rights", response_model=InvoicingRightsRead, dependencies=[allow(FINANCE_ROLES)])
 def get_invoicing_rights(
     session: Session = Depends(get_session),
     _current_user: User = Depends(get_current_active_user),
@@ -590,12 +588,13 @@ def register_installment(
     return sales_service.register_installment(session, cxc_id, payload, current_user)
 
 
-@router.get("/invoices/{cxc_id}/installments", response_model=dict)
+@router.get("/invoices/{cxc_id}/installments", response_model=dict, dependencies=[allow(SALES_READ_ROLES)])
 def list_installments(cxc_id: int, session: Session = Depends(get_session),
                       current_user: User = Depends(get_current_active_user)):
     cxc = session.get(CustomerPayment, cxc_id)
     if not cxc:
         raise HTTPException(404, "Factura no encontrada.")
+    sales_service.get_order(session, cxc.sales_order_id, current_user)  # a seller only sees their own orders
 
     rows = session.exec(
         select(CustomerPaymentInstallment)
@@ -659,7 +658,7 @@ def cancel_installment(
     return sales_service.cancel_installment(session, installment_id, data, current_user)
 
 
-@router.get("/invoices/pending-cxc", response_model=list)
+@router.get("/invoices/pending-cxc", response_model=list, dependencies=[allow(FINANCE_ROLES)])
 def list_pending_cxc(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
@@ -667,7 +666,7 @@ def list_pending_cxc(
     return sales_service.list_pending_cxc(session)
 
 
-@router.get("/invoices/cxc-report", response_model=list)
+@router.get("/invoices/cxc-report", response_model=list, dependencies=[allow(FINANCE_ROLES)])
 def cxc_report(
     client_id: Optional[int] = Query(None),
     date_from: Optional[str] = Query(None),
@@ -688,7 +687,7 @@ def cxc_report(
     )
 
 
-@router.get("/orders/pending-progress")
+@router.get("/orders/pending-progress", dependencies=[allow(FINANCE_ROLES)])
 def get_pending_progress_instances(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
@@ -810,7 +809,7 @@ def patch_order_retention_defaults(
 # 8. REPORTE DE COMISIONES
 # ==========================================
 
-@router.get("/commissions/payroll-overview", response_model=CommissionsPayrollOverview)
+@router.get("/commissions/payroll-overview", response_model=CommissionsPayrollOverview, dependencies=[allow(FINANCE_ROLES)])
 def get_commissions_payroll_overview(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
@@ -828,7 +827,7 @@ def update_commission_payroll_fields(
     return sales_service.update_commission_payroll(session, commission_id, payload, current_user)
 
 
-@router.get("/commissions", response_model=List[SalesCommissionRead])
+@router.get("/commissions", response_model=List[SalesCommissionRead], dependencies=[allow(SALES_READ_ROLES)])
 def get_commissions_report(
     user_id: Optional[int] = None,
     commission_type: Optional[str] = None,

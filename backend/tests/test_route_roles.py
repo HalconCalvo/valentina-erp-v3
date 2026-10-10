@@ -81,3 +81,24 @@ def test_only_director_and_design_plan(client_fixture, session_fixture):
     for role in ("SALES", "MANAGER", "PRODUCTION"):
         assert client_fixture.patch(url, headers=_token_for(session_fixture, role), json={}).status_code == 403
     assert client_fixture.patch(url, headers=_token_for(session_fixture, "DESIGN"), json={}).status_code != 403
+
+
+READ_FORBIDDEN = [
+    ("DESIGN", "/sales/orders"), ("PRODUCTION", "/quotations/"), ("WAREHOUSE", "/change-orders/"),
+    ("LOGISTICS", "/sales/customer-payments"), ("SALES", "/sales/invoices/cxc-report"),
+    ("SALES", "/sales/invoices/pending-cxc"), ("SALES", "/sales/commissions/payroll-overview"),
+    ("SALES", "/treasury/accounts"), ("SALES", "/treasury/cost-kpi"), ("DESIGN", "/sales/invoicing-rights"),
+]
+
+
+@pytest.mark.parametrize("role,path", READ_FORBIDDEN)
+def test_financial_reads_are_role_limited(client_fixture, session_fixture, role, path):
+    response = client_fixture.get(f"{API}{path}", headers=_token_for(session_fixture, role))
+    assert response.status_code == 403, (role, path, response.status_code)
+
+
+def test_seller_reads_own_orders_and_quotations(client_fixture, sales_token):
+    headers = {"Authorization": f"Bearer {sales_token}"}
+    assert client_fixture.get(f"{API}/sales/orders", headers=headers).status_code == 200
+    assert client_fixture.get(f"{API}/quotations/", headers=headers).status_code == 200
+    assert client_fixture.get(f"{API}/sales/commissions", headers=headers).status_code == 200

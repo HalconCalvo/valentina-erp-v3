@@ -11,7 +11,7 @@ from app.models.treasury import BankAccount, BankTransaction, TransactionType, W
 from app.models.sales import CustomerPayment
 from app.repositories import sales_repository as sales_repo
 from app.models.finance import SupplierPayment
-from app.core.permissions import allow, allow_payment_execution, FINANCE_ROLES
+from app.core.permissions import allow, FINANCE_ROLES, allow_payment_execution
 from app.schemas.treasury_schema import (
     BankAccountCreate, BankAccountResponse, 
     BankTransactionCreate, BankTransactionResponse,
@@ -60,7 +60,7 @@ def create_bank_account(
     session.refresh(account)
     return account
 
-@router.get("/accounts", response_model=List[BankAccountResponse])
+@router.get("/accounts", response_model=List[BankAccountResponse], dependencies=[allow(FINANCE_ROLES)])
 def get_bank_accounts(session: SessionDep, current_user: CurrentUser) -> Any:
     """Listar todas las cuentas bancarias.
     Saldos visibles solo para DIRECTOR y GERENCIA; el resto recibe current_balance = 0.
@@ -321,7 +321,7 @@ def transfer_funds(
 # ------------------------------------------------------------------
 # 4. HISTORIAL DE UNA CUENTA (NUEVO)
 # ------------------------------------------------------------------
-@router.get("/accounts/{account_id}/transactions", response_model=List[BankTransactionResponse])
+@router.get("/accounts/{account_id}/transactions", response_model=List[BankTransactionResponse], dependencies=[allow(FINANCE_ROLES)])
 def get_account_transactions(
     account_id: int,
     session: SessionDep,
@@ -399,7 +399,7 @@ def create_weekly_fixed_cost(
     return row
 
 
-@router.get("/weekly-fixed-costs/latest", response_model=Optional[WeeklyFixedCostRead])
+@router.get("/weekly-fixed-costs/latest", response_model=Optional[WeeklyFixedCostRead], dependencies=[allow(FINANCE_ROLES)])
 def get_latest_weekly_fixed_cost(session: SessionDep, current_user: CurrentUser) -> Any:
     stmt = select(WeeklyFixedCost).order_by(WeeklyFixedCost.week_reference_date.desc())
     row = session.exec(stmt).first()
@@ -449,7 +449,7 @@ def update_weekly_fixed_cost(
 # ------------------------------------------------------------------
 # COST KPI
 # ------------------------------------------------------------------
-@router.get("/cost-kpi")
+@router.get("/cost-kpi", dependencies=[allow(FINANCE_ROLES)])
 def get_cost_kpi(
     session: SessionDep,
     current_user: CurrentUser,

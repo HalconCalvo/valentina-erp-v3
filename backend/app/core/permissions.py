@@ -9,6 +9,7 @@ from app.models.foundations import GlobalConfig
 
 # Role groups (CLAUDE.md §4; reviewed by Gabriel in DECISIONES_PENDIENTES D7)
 FINANCE_ROLES = {"DIRECTOR", "MANAGER", "ADMIN"}          # money: invoices, payments, bank, receivables
+SALES_READ_ROLES = FINANCE_ROLES | {"SALES"}              # quotations/OVs/receivables; SALES scoped to its own
 # Money actually leaves: DIRECTOR; MANAGER only with GlobalConfig.manager_can_execute_payments (D7). ADMIN requests.
 EXECUTE_PAYMENT_ROLES = {"DIRECTOR", "MANAGER"}
 PURCHASING_ROLES = {"DIRECTOR", "MANAGER", "ADMIN", "WAREHOUSE"}

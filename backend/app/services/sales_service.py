@@ -1642,7 +1642,8 @@ def get_commissions_report(
     commission_type: Optional[str] = None,
     is_paid: Optional[bool] = None,
 ) -> List[SalesCommissionRead]:
-    _ = current_user
+    if _is_seller_scoped_role(current_user):
+        user_id = current_user.id  # a seller only sees their own commissions
     commissions = sales_repo.get_commissions_by_filters(
         session, user_id=user_id, commission_type=commission_type, is_paid=is_paid
     )

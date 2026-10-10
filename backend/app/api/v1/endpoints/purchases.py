@@ -108,7 +108,7 @@ def read_purchase_orders(
         date_to=date_to, skip=skip, limit=limit,
     )
 
-@router.get("/orders/{po_id}/check-invoice-folio")
+@router.get("/orders/{po_id}/check-invoice-folio", dependencies=[allow(PURCHASING_ROLES)])
 def check_invoice_folio(
     *,
     db: Session = Depends(get_session),

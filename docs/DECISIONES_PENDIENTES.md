@@ -25,6 +25,23 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 - **Reversible:** no se aplica nada hasta la aprobación (tarea 7 en espera).
 - **Estado:** pendiente
 
+### D13. Costos y márgenes visibles fuera de Finanzas — 2026-10-10 — ROADMAP tarea 6 (seguridad, lecturas)
+- **Contexto:** la auditoría de lecturas (GET) ya se aplicó en lo seguro: bancos, CxC de todos, comisiones de otros,
+  costos semanales y KPIs de costo quedan solo para DIRECTOR/MANAGER/ADMIN; cotizaciones, OVs y cobros para
+  DIRECTOR/MANAGER/ADMIN y Ventas (solo lo suyo, incluidos PDF, abonos y comisiones). Quedan datos que hoy ven otros
+  roles y que cortar requiere quitar campos de la respuesta (no bloquear la ruta):
+  1. Ventas ve costo congelado, costo de receta y sobreprecio de sus propias cotizaciones/OVs.
+  2. Ventas y operativos ven `current_cost` de materiales y costo estimado de recetas en el catálogo de diseño.
+  3. Producción y Diseño ven montos de OCs y requisiciones (las necesitan para conteos de su tablero).
+  4. `/foundations/config` (metas de venta, tarifas de instaladores, sobreprecio objetivo) lo carga todo rol.
+  5. `/users/` muestra comisión y meta de ventas de cada usuario a todos.
+  6. Almacén ve la valuación en dinero y el kárdex con costos.
+- **Opciones por punto:** A) quitar el campo para quien no lo necesita (respuesta reducida). B) dejarlo como está.
+- **Recomendación:** A en 4 y 5 (datos de la empresa y de personas); A en 2 para Ventas solo si el precio de la
+  cotización se calcula en el servidor (hoy el navegador lo calcula con el costo); B en 1, 3 y 6 (los usan para trabajar).
+- **Reversible:** sí, pero no aplicado (cambia lo que muestran varias pantallas).
+- **Estado:** pendiente
+
 ## Resueltas
 
 ### D2. Títulos de pantalla: sin color o un color por módulo — 2026-10-10 — ROADMAP tarea 4
