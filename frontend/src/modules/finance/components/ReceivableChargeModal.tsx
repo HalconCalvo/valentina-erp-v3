@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/Input';
 import { VCurrencyInput } from '@/components/ui/VCurrencyInput';
 import { toast } from '@/components/ui/VToast';
 import { formatMoney } from '@/utils/format';
+import Modal from '@/components/ui/Modal';
 
 interface ReceivableChargeModalProps {
     isOpen: boolean;
@@ -465,8 +466,7 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <Modal isOpen bare size="custom" overlayZIndex={50} onClose={onClose} className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
                 
                 <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                     <div>
@@ -799,7 +799,6 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({
                     </button>
                     )}
                 </div>
-            </div>
-        </div>
+            </Modal>
     );
 };

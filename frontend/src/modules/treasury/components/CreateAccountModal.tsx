@@ -6,6 +6,7 @@ import { treasuryService } from '../../../api/treasury-service';
 import { Input } from '@/components/ui/Input';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import { toast } from '@/components/ui/VToast';
+import Modal from '@/components/ui/Modal';
 
 const CURRENCY_OPTIONS = [
   { value: 'MXN', label: 'MXN - Pesos' },
@@ -41,8 +42,7 @@ export const CreateAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+    <Modal isOpen bare size="custom" overlayZIndex={50} onClose={onClose} className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
         
         {/* Encabezado */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
@@ -119,7 +119,6 @@ export const CreateAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess
           </div>
 
         </form>
-      </div>
-    </div>
+      </Modal>
   );
 };

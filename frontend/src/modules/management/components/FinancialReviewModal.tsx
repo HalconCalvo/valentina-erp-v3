@@ -21,6 +21,7 @@ import {
     DEFAULT_MIN_MARKUP, formatPercent, includedCommission, isBelowMinimum, markupPercent, netMarginPercent, priceFromMarkup,
 } from '../../sales/utils/margins';
 import { formatMoney } from '@/utils/format';
+import Modal from '@/components/ui/Modal';
 
 interface FinancialReviewModalProps {
     /** Sales order: always read-only (prices are decided when the quotation is authorized). */
@@ -547,18 +548,15 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
 
     if (loading || !order || !simulation || taxRates.length === 0) {
         return (
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm transition-opacity">
-                <div className="bg-white p-6 rounded-xl shadow-2xl flex flex-col items-center gap-4">
+            <Modal isOpen bare size="custom" overlayZIndex={9999} onClose={onClose} className="bg-white p-6 rounded-xl shadow-2xl flex flex-col items-center gap-4">
                     <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
                     <p className="text-slate-600 font-bold tracking-tight">Cargando mesa financiera...</p>
-                </div>
-            </div>
+                </Modal>
         );
     }
 
     return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="bg-slate-50 rounded-xl shadow-2xl w-full max-w-7xl h-[88vh] max-h-[88vh] flex flex-col overflow-hidden relative border border-slate-700">
+        <><Modal isOpen bare size="custom" overlayZIndex={9999} onClose={onClose} className="bg-slate-50 rounded-xl shadow-2xl w-full max-w-7xl h-[88vh] max-h-[88vh] flex flex-col overflow-hidden relative border border-slate-700">
                 
                 {/* HEADER */}
                 <div className="bg-slate-900 text-white p-4 flex justify-between items-center shrink-0">
@@ -889,7 +887,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
 
                     </div>
             </div>
-        </div>
+        </Modal>
 
         {pendingConfirm && (
             <VConfirmDialog
@@ -912,6 +910,6 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                 onClose();
             }}
         />
-    </div>
+    </>
     );
 };

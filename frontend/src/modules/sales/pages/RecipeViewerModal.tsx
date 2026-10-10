@@ -3,6 +3,7 @@ import { X, FileText, Package, DollarSign, Layers } from 'lucide-react';
 import { SalesOrderItem } from '../../../types/sales';
 import { toast } from '@/components/ui/VToast';
 import { formatMoney } from '@/utils/format';
+import Modal from '@/components/ui/Modal';
 
 interface RecipeViewerModalProps {
     item: SalesOrderItem | null;
@@ -30,8 +31,7 @@ export const RecipeViewerModal: React.FC<RecipeViewerModalProps> = ({ item, onCl
     const margin = item.unit_price > 0 ? (((item.unit_price - (item.frozen_unit_cost || 0)) / item.unit_price) * 100) : 0;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh] overflow-hidden">
+        <Modal isOpen bare size="custom" overlayZIndex={50} onClose={onClose} className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh] overflow-hidden">
                 
                 {/* HEADER */}
                 <div className="bg-slate-800 p-5 flex justify-between items-center text-white">
@@ -87,7 +87,6 @@ export const RecipeViewerModal: React.FC<RecipeViewerModalProps> = ({ item, onCl
                     )}
                 </div>
 
-            </div>
-        </div>
+            </Modal>
     );
 };

@@ -9,6 +9,7 @@ import { toast } from '@/components/ui/VToast';
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { formatMoney } from '@/utils/format';
+import Modal from '@/components/ui/Modal';
 
 interface Props {
   isOpen: boolean;
@@ -117,8 +118,7 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-5xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <Modal isOpen bare size="custom" overlayZIndex={50} onClose={onClose} className="bg-white rounded-xl shadow-xl w-full max-w-5xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         
         {/* ENCABEZADO */}
         <div className="flex items-start justify-between px-6 py-5 border-b border-slate-100 bg-slate-50/80">
@@ -382,7 +382,6 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
           </div>
 
         </form>
-      </div>
-    </div>
+      </Modal>
   );
 };

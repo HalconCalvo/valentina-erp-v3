@@ -12,6 +12,7 @@ import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
 import { RecordHistoryButton } from '@/components/audit/RecordHistoryButton';
 import { VReasonDialog } from '@/components/ui/VReasonDialog';
+import Modal from '@/components/ui/Modal';
 
 // --- 1. CONFIGURACIÓN DE ROLES (Nombres visuales) ---
 const ROLE_OPTIONS = {
@@ -249,8 +250,7 @@ export default function UsersPage() {
 
       {/* FORMULARIO MODAL */}
       {showForm && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <Modal isOpen bare size="custom" overlayZIndex={50} onClose={resetForm} className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                 <div className="bg-indigo-50 p-4 border-b border-indigo-100 flex justify-between items-center">
                     <h3 className="font-bold text-indigo-900 flex items-center gap-2">
                         {isEditing ? <Pencil size={18}/> : <Plus size={18}/>}
@@ -410,8 +410,7 @@ export default function UsersPage() {
                         </button>
                     </div>
                 </form>
-            </div>
-        </div>
+            </Modal>
       )}
 
       {/* LISTADO */}

@@ -13,6 +13,7 @@ import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 import { formatDate, formatMoney } from '@/utils/format';
+import Modal from '@/components/ui/Modal';
 
 type PendingConfirm =
     | { kind: 'cancel' }
@@ -551,8 +552,7 @@ const InventoryReceptionPage: React.FC = () => {
 
             {/* Mini-modal: Registrar Anticipo */}
             {advanceModal.open && advanceModal.po && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm border-t-4 border-t-orange-400 animate-in zoom-in-95 duration-200">
+                <Modal isOpen bare size="custom" overlayZIndex={200} onClose={() => setAdvanceModal({ open: false, po: null })} className="bg-white rounded-2xl shadow-2xl w-full max-w-sm border-t-4 border-t-orange-400 animate-in zoom-in-95 duration-200">
                         <div className="p-5 border-b border-slate-100 flex justify-between items-center">
                             <div className="flex items-center gap-3">
                                 <div className="p-2 rounded-xl bg-orange-100 text-orange-600">
@@ -604,8 +604,7 @@ const InventoryReceptionPage: React.FC = () => {
                                 Solicitar Anticipo
                             </button>
                         </div>
-                    </div>
-                </div>
+                    </Modal>
             )}
 
             </>

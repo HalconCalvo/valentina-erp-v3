@@ -7,6 +7,7 @@ import { planningService } from '../../../api/planning-service';
 import { Input } from '@/components/ui/Input';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { Package, CheckSquare, Square, AlertTriangle, ShieldCheck, Factory, Beaker, ArrowLeft, Calculator, RefreshCw, Pencil, Check, X, Tag } from 'lucide-react';
+import Modal from '@/components/ui/Modal';
 
 /** Devuelve el emoji del foco según el color del semáforo. */
 function semaphoreDot(color?: string | null): string {
@@ -755,8 +756,7 @@ export default function SimulatorPage() {
 
       {/* ── Modal de Bautizo Masivo ─────────────────────────────────── */}
       {showMassBaptism && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg mx-4 overflow-hidden">
+        <Modal isOpen bare size="custom" overlayZIndex={50} onClose={() => setShowMassBaptism(false)} className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg mx-4 overflow-hidden">
             {/* Header */}
             <div className="px-6 pt-6 pb-4 border-b border-slate-100">
               <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
@@ -807,8 +807,7 @@ export default function SimulatorPage() {
                 {savingName ? 'Guardando...' : `Guardar ${selectedIds.length} aliases`}
               </button>
             </div>
-          </div>
-        </div>
+          </Modal>
       )}
     </div>
   );

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 import { formatMoney } from '@/utils/format';
+import Modal from '@/components/ui/Modal';
 
 interface PaymentExecutionModalProps {
     onClose: () => void;
@@ -91,8 +92,7 @@ export const PaymentExecutionModal: React.FC<PaymentExecutionModalProps> = ({ on
     };
 
     return (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
+        <><Modal isOpen bare size="custom" overlayZIndex={50} onClose={onClose} className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
                 
                 <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
                     <div>
@@ -194,7 +194,7 @@ export const PaymentExecutionModal: React.FC<PaymentExecutionModalProps> = ({ on
                 <div className="bg-white p-4 border-t border-slate-100 flex justify-end">
                     <Button variant="secondary" onClick={onClose}>Cerrar</Button>
                 </div>
-            </div>
+            </Modal>
 
             {pendingExecuteId !== null && (
                 <VConfirmDialog
@@ -221,6 +221,6 @@ export const PaymentExecutionModal: React.FC<PaymentExecutionModalProps> = ({ on
                     onCancel={() => setPendingRevokeId(null)}
                 />
             )}
-        </div>
+        </>
     );
 };

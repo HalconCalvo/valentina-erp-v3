@@ -12,6 +12,7 @@ import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 import { RecordHistoryButton } from '@/components/audit/RecordHistoryButton';
 import axiosClient from '@/api/axios-client';
+import Modal from '@/components/ui/Modal';
 
 export default function ProvidersPage() {
   const { providers, loading, createProvider, updateProvider, deleteProvider } = useProviders();
@@ -261,8 +262,7 @@ export default function ProvidersPage() {
 
       {/* MODAL / FORMULARIO */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+        <Modal isOpen bare size="custom" overlayZIndex={50} onClose={() => setIsModalOpen(false)} className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
                 <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                     <h3 className="font-black text-slate-800 text-lg flex items-center gap-2">
                         <Building2 className="text-indigo-500"/>
@@ -391,8 +391,7 @@ export default function ProvidersPage() {
                         </button>
                     </div>
                 </form>
-            </div>
-        </div>
+            </Modal>
       )}
 
       <style>{`

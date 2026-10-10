@@ -8,6 +8,7 @@ import { PaymentMethod, PaymentRequestPayload, SupplierPayment, PendingInvoice }
 import { treasuryService } from '../../../api/treasury-service';
 import { BankAccount } from '../../../types/treasury';
 import { formatMoney } from '@/utils/format';
+import Modal from '@/components/ui/Modal';
 
 interface PaymentRequestModalProps {
     invoice?: PendingInvoice; 
@@ -142,8 +143,7 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
     const displayBalance = invoice ? invoice.outstanding_balance : 0;
 
     return (
-        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-50 backdrop-blur-sm p-4 animate-fadeIn">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+        <Modal isOpen bare size="custom" overlayZIndex={50} onClose={onClose} className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
                 <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
                     <div>
                         {/* ---> TÍTULO DINÁMICO <--- */}
@@ -284,7 +284,6 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
                         </Button>
                     </div>
                 </form>
-            </div>
-        </div>
+            </Modal>
     );
 };

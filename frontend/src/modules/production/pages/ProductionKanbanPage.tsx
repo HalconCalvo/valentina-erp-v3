@@ -11,6 +11,7 @@ import { RecordHistoryButton } from '@/components/audit/RecordHistoryButton';
 import { Input } from '@/components/ui/Input';
 import { VTable, VTableColumn } from '@/components/ui/VTable';
 import { ReversalDialog, ShortageDialog, type ReversalInput } from '../components/BatchInventoryDialogs';
+import Modal from '@/components/ui/Modal';
 const STATUS_READY_TO_INSTALL = 'READY';
 const STATUS_PACKING = 'PACKING';
 
@@ -1209,17 +1210,9 @@ export default function ProductionKanbanPage() {
       )}
 
       {selectedBatch && (
-        <div
-          className="fixed inset-0 z-50 flex items-center 
-                     justify-center bg-black/40 backdrop-blur-sm"
-          onClick={() => setSelectedBatch(null)}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-2xl border
+        <Modal isOpen bare size="custom" overlayZIndex={50} onClose={() => setSelectedBatch(null)} className="bg-white rounded-2xl shadow-2xl border
                        border-slate-200 w-full max-w-2xl mx-4
-                       overflow-hidden"
-            onClick={e => e.stopPropagation()}
-          >
+                       overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between
                             px-6 py-4 bg-slate-50
@@ -1397,21 +1390,13 @@ export default function ProductionKanbanPage() {
                 Cerrar
               </button>
             </div>
-          </div>
-        </div>
+          </Modal>
       )}
 
       {/* Modal de vista previa de herrajes */}
       {herrajesPreview && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm"
-          onClick={() => setHerrajesPreview(null)}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-2xl border border-slate-200
-                       w-full max-w-2xl mx-4 overflow-hidden max-h-[85vh] flex flex-col"
-            onClick={e => e.stopPropagation()}
-          >
+        <Modal isOpen bare size="custom" overlayZIndex={60} onClose={() => setHerrajesPreview(null)} className="bg-white rounded-2xl shadow-2xl border border-slate-200
+                       w-full max-w-2xl mx-4 overflow-hidden max-h-[85vh] flex flex-col">
             {/* Header */}
             <div className="px-6 py-4 bg-amber-50 border-b border-amber-100 flex items-start justify-between">
               <div>
@@ -1521,8 +1506,7 @@ export default function ProductionKanbanPage() {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
+          </Modal>
       )}
 
       {pendingDispatchInst && (

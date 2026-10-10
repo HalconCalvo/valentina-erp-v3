@@ -22,7 +22,7 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
   los 46 restantes, envía y el Director autoriza.
 - Ensayado en copia de producción (2026-10-10): resultado idéntico al esperado.
 
-## 2. Push a producción — listo (fuera de horario: hoy después de 19:00 o domingo)
+## 2. Push a producción — hecho (2026-10-10 14:22, cd103bd; producción en u0v1w2x3y4z5)
 - 2026-10-10 13:25: cadena de migraciones q6 → m3 → n4 → r7 → s8 → t9 probada (subir, bajar, subir) en copia fresca de producción; 244 tests backend, 17 frontend, build.
 - Prueba en pantalla por rol (7 usuarios de prueba): todas las pantallas cargan; lo prohibido responde 403; MANAGER captura el inventario físico.
 - 2026-10-10 probada en pantalla (copia local): COT-0086 enviada a Dirección, corrección de precio del tapacanto
@@ -69,6 +69,8 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
 - Inventario: tablero con valuación completa, kárdex, recepción, inventario físico y requisiciones con formatos
   únicos, encabezados estándar, esqueleto de carga y estado vacío.
 - Compras: las 8 ventanas hechas a mano pasan a Modal (cierran con Escape); 30 montos es-MX → $1,234.56.
+- 2026-10-10 tarde: las 25 ventanas hechas a mano restantes (Finanzas, Tesorería, Dirección, Producción, Diseño,
+  Clientes, Proveedores, Usuarios) pasan a Modal; formato único de moneda y fecha en todo el sistema; sin fetch() directo.
 - Pendiente (conforme se toquen): Finanzas, Tesorería, Dirección, Producción (Kanban con `fetch()`), Diseño,
   Logística; tablero de Ventas (archivo de 1,600 líneas) y cuerpo de Rayos X (tabla de facturas).
 

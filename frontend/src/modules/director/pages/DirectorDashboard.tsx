@@ -33,6 +33,7 @@ import {
 import { SalesOrder } from '../../../types/sales';
 import { BankAccount } from '../../../types/treasury';
 import { formatDate, formatMoney } from '@/utils/format';
+import Modal from '@/components/ui/Modal';
 
 // Posibles vistas desplegables (Nivel 1)
 type DirectorSection = 'SALES' | 'OPERATIONS' | 'LIQUIDITY' | 'PROFITABILITY' | 'EFFICIENCY' | 'CXC_AGING' | 'TOP_CLIENTS' | null;
@@ -1508,8 +1509,7 @@ const DirectorDashboard: React.FC = () => {
             />
 
             {selectedHealthGroup && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[80vh]">
+                <Modal isOpen bare size="custom" overlayZIndex={200} onClose={() => setSelectedHealthGroup(null)} className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[80vh]">
 
                         {/* Header */}
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
@@ -1542,8 +1542,7 @@ const DirectorDashboard: React.FC = () => {
                                 />
                             )}
                         </div>
-                    </div>
-                </div>
+                    </Modal>
             )}
         </div>
     );

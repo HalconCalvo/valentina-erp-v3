@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/Input';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { formatMoney } from '@/utils/format';
+import Modal from '@/components/ui/Modal';
 
 interface Transaction {
   id: number;
@@ -549,8 +550,7 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
       </div>
 
       {showTransferModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border-t-4 border-t-blue-500 animate-in zoom-in-95 duration-200">
+          <Modal isOpen bare size="custom" overlayZIndex={50} onClose={() => setShowTransferModal(false)} className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border-t-4 border-t-blue-500 animate-in zoom-in-95 duration-200">
                   <div className="p-6 border-b border-slate-100 flex justify-between items-center">
                       <div>
                           <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
@@ -640,8 +640,7 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
                           {transferring ? 'Transfiriendo...' : 'Confirmar Transferencia'}
                       </button>
                   </div>
-              </div>
-          </div>
+              </Modal>
       )}
 
       <VConfirmDialog
@@ -658,8 +657,7 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
       />
 
       {cancelTxModal.open && cancelTxModal.tx && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border-t-4 border-t-rose-500 animate-in zoom-in-95 duration-200">
+        <Modal isOpen bare size="custom" overlayZIndex={50} onClose={() => { setCancelTxModal({ open: false, tx: null }); setCancelTxReason(''); }} className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border-t-4 border-t-rose-500 animate-in zoom-in-95 duration-200">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center">
               <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Cancelar Movimiento</h3>
               <button
@@ -709,8 +707,7 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
                 {cancellingTx ? 'Cancelando...' : 'Confirmar cancelación'}
               </button>
             </div>
-          </div>
-        </div>
+          </Modal>
       )}
     </div>
   );

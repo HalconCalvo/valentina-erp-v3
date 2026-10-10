@@ -9,6 +9,7 @@ import { VEmptyState } from '@/components/ui/VEmptyState';
 import { toast } from '@/components/ui/VToast';
 import { RecordHistoryButton } from '@/components/audit/RecordHistoryButton';
 import { formatDate, formatMoney } from '@/utils/format';
+import Modal from '@/components/ui/Modal';
 
 const cleanInvoiceFolio = (folio: string | null | undefined): string => {
     const safe = String(folio ?? '').trim();
@@ -355,9 +356,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
     );
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            {/* EL CLON EXACTO DE LA TARJETA "POR ENVIAR" DE COMPRAS */}
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl overflow-hidden border-t-8 border-t-emerald-500 flex flex-col max-h-[90vh]">
+        <Modal isOpen bare size="custom" overlayZIndex={50} onClose={onClose} className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl overflow-hidden border-t-8 border-t-emerald-500 flex flex-col max-h-[90vh]">
                 
                 {/* CABECERA CLONADA */}
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-emerald-50/30">
@@ -541,7 +540,6 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                     </div>
                 </div>
 
-            </div>
-        </div>
+            </Modal>
     );
 };

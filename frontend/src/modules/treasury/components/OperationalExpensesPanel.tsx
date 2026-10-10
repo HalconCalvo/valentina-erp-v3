@@ -8,6 +8,7 @@ import SearchableSelect from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { TableActionCancelIcon, TableActionEditIcon } from '@/lib/tableActionIcons';
 import { formatDate, formatMoney } from '@/utils/format';
+import Modal from '@/components/ui/Modal';
 
 const OVERHEAD_CATEGORIES_BASE = [
     'PLANTA', 'COMUNICACIONES', 'COMBUSTIBLES', 'TRANSPORTE',
@@ -385,8 +386,7 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
 
             {/* Modal nuevo gasto */}
             {showModal && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border-t-4 border-t-rose-500 animate-in zoom-in-95 duration-200">
+                <Modal isOpen bare size="custom" overlayZIndex={200} onClose={() => setShowModal(false)} className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border-t-4 border-t-rose-500 animate-in zoom-in-95 duration-200">
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center">
                             <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">
                                 Nuevo Gasto Operativo
@@ -562,13 +562,11 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
                                 <Plus size={14} /> Registrar Gasto
                             </Button>
                         </div>
-                    </div>
-                </div>
+                    </Modal>
             )}
 
             {editExpenseModal.open && editExpenseModal.expense && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border-t-4 border-t-indigo-500 animate-in zoom-in-95 duration-200">
+                <Modal isOpen bare size="custom" overlayZIndex={200} onClose={() => setEditExpenseModal({ open: false, expense: null })} className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border-t-4 border-t-indigo-500 animate-in zoom-in-95 duration-200">
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center">
                             <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">
                                 Editar Gasto Operativo
@@ -655,13 +653,11 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
                                 {savingExpense ? 'Guardando...' : 'Guardar cambios'}
                             </Button>
                         </div>
-                    </div>
-                </div>
+                    </Modal>
             )}
 
             {cancelExpenseModal.open && cancelExpenseModal.expense && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border-t-4 border-t-rose-500 animate-in zoom-in-95 duration-200">
+                <Modal isOpen bare size="custom" overlayZIndex={200} onClose={() => { setCancelExpenseModal({ open: false, expense: null }); setCancelExpenseReason(''); }} className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border-t-4 border-t-rose-500 animate-in zoom-in-95 duration-200">
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center">
                             <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">
                                 Cancelar Gasto Operativo
@@ -711,8 +707,7 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
                                 {cancellingExpense ? 'Cancelando...' : 'Confirmar cancelación'}
                             </Button>
                         </div>
-                    </div>
-                </div>
+                    </Modal>
             )}
         </div>
     );

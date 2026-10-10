@@ -13,6 +13,7 @@ import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 import { RecordHistoryButton } from '@/components/audit/RecordHistoryButton';
 import axiosClient from '@/api/axios-client';
+import Modal from '@/components/ui/Modal';
 
 export default function ClientsPage() {
   const { clients, loading, createClient, updateClient, deleteClient } = useClients();
@@ -296,8 +297,7 @@ export default function ClientsPage() {
 
       {/* MODAL AVANZADO CON PESTAÑAS */}
       {showModal && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl w-full max-w-2xl shadow-2xl animate-in zoom-in duration-200 overflow-hidden flex flex-col max-h-[90vh]">
+        <Modal isOpen bare size="custom" overlayZIndex={50} onClose={closeModal} className="bg-white rounded-xl w-full max-w-2xl shadow-2xl animate-in zoom-in duration-200 overflow-hidden flex flex-col max-h-[90vh]">
                 
                 {/* Header Modal */}
                 <div className="flex justify-between items-center p-5 border-b border-slate-100 bg-white">
@@ -389,8 +389,7 @@ export default function ClientsPage() {
                         {isEditing ? 'Guardar Cambios' : 'Crear Cliente'}
                     </button>
                 </div>
-            </div>
-        </div>
+            </Modal>
       )}
       
       <style>{`
