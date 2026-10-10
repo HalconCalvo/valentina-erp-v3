@@ -1,3 +1,5 @@
+> **HISTÓRICO — no vigente.** Las reglas vigentes están en `CLAUDE.md`; si este archivo lo contradice, manda `CLAUDE.md`.
+
 # Valentina ERP v3 — Reglas de Arquitectura para Cursor
 
 ## ROL DE CURSOR

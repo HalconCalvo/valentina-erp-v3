@@ -4225,3 +4225,33 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 
 ### Cómo retomar:
 - claude --continue
+
+---
+## SESIÓN 2026-10-10 — LA RUTA DECIDE EL INVENTARIO, CLAUDE.md NUEVO Y ROADMAP
+
+### En producción hoy:
+- 72d8d23: se quitó la marca "inventariable"; solo la ruta MATERIAL lleva existencia (conteo, valuación, reservas). Migración q6r7s8t9u0v1 aplicada en Render (elimina materials.is_inventoriable; la bitácora se conserva)
+  - Cambio de ruta con diálogo y motivo obligatorio (DIRECTOR/MANAGER/ADMIN); si sale de MATERIAL con existencia, solo DIRECTOR/MANAGER y la existencia va a gasto, se liberan reservas y la línea sale de la sesión abierta con fecha del corte
+  - "Enviar existencia a gasto" para materiales no MATERIAL con existencia (DIRECTOR/MANAGER, motivo)
+  - Guardar el material ya no cambia la ruta (409)
+- Ensayo en copia de producción: los 6 materiales de la sesión #2 quedan en 0, $15,855.15 a gasto fechado 30/09 23:59:59, quedan 46 por capturar
+
+### Sin push (5 commits locales, reacomodados encima de 72d8d23):
+- F3, márgenes, comisión y ajuste de test; m3n4o5p6q7r8 ahora depende de q6r7s8t9u0v1
+- Backend 202 tests, frontend 14, build OK, una sola cabeza (n4o5p6q7r8s9)
+
+### Decisiones:
+- CLAUDE.md nuevo aprobado por Gabriel (autonomía, DECISIONES_PENDIENTES, push fuera de horario, pruebas en pantalla); CLAUDE_FULL.md marcado como histórico
+- Orden de trabajo en docs/ROADMAP.md; decisiones de negocio en docs/DECISIONES_PENDIENTES.md
+
+### Pendiente de Gabriel (producción):
+- Resolver los 6 materiales de la sesión #2 (pasos en docs/ROADMAP.md, tarea 1)
+
+### Hallazgos:
+- Costo de compra se redondea hacia arriba por punto flotante en inventory_service._apply_purchase_cost (34.45 → 34.46); anotado en ROADMAP tarea 6
+
+### Lecciones:
+- El pg_restore del PATH es de otra versión; usar /opt/homebrew/opt/postgresql@16/bin
+
+### Entorno local:
+- Copia local rehecha desde producción (2026-10-10 10:51) con q6 + F3 encima (n4o5p6q7r8s9)
