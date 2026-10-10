@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { 
     Save, Plus, Trash2, Edit, 
-    ArrowLeft, X, Pencil, RefreshCw, Loader,
+    ArrowLeft, X, Pencil, RefreshCw,
     CheckCircle2, TrendingUp, Lock, Wallet, Percent, ShieldAlert,
     Search
 } from 'lucide-react';
@@ -537,21 +537,21 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
         if (m && Array.isArray(m.versions)) availableVersions = m.versions;
     }
 
-    if (loadingData) return <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50"><Loader className="animate-spin text-indigo-600 mb-4" size={32}/><p className="text-slate-500 font-medium">Cargando cotización...</p></div>;
+    if (loadingData) return <div className="p-8 max-w-7xl mx-auto space-y-4 animate-pulse"><div className="h-10 w-1/3 rounded bg-slate-200" /><div className="h-40 rounded-xl bg-slate-200" /><div className="h-64 rounded-xl bg-slate-200" /></div>;
 
     const lockedInputClass = "bg-slate-100 text-slate-500 font-bold border-slate-200 cursor-not-allowed disabled:opacity-100";
 
     return (
-        <div className="p-6 max-w-7xl mx-auto space-y-6 pb-20 bg-slate-50 min-h-full">
-            <div className="flex justify-between items-center">
-                <div className="flex flex-col">
-                    <h1 className="text-2xl font-black text-slate-800 flex items-center gap-2">
-                        {isEditMode ? <Edit className="text-indigo-600"/> : <Plus className="text-emerald-600"/>}
+        <div className="p-8 max-w-7xl mx-auto space-y-6 pb-24 animate-fadeIn">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4">
+                <div>
+                    <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+                        {isEditMode ? <Edit size={32} className="text-indigo-600"/> : <Plus size={32} className="text-indigo-600"/>}
                         {isEditMode ? `Editando Cotización ${formatQuotationFolio(Number(id))}` : 'Nueva Cotización'}
                     </h1>
-                    {isDirector && <span className="text-xs font-bold text-amber-600 uppercase tracking-widest bg-amber-50 px-2 py-1 rounded w-fit mt-1">Modo Director Activo</span>}
+                    {isDirector && <span className="text-xs font-bold text-amber-600 uppercase tracking-widest bg-amber-50 px-2 py-1 rounded w-fit mt-1 inline-block">Modo Director Activo</span>}
                 </div>
-                <Button variant="secondary" onClick={() => navigate('/sales')}><ArrowLeft size={18} className="mr-2"/> Regresar</Button>
+                <Button variant="outline" onClick={() => navigate('/sales')} className="gap-2"><ArrowLeft size={16}/> Regresar</Button>
             </div>
 
             {parentId && (
