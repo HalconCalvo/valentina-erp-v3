@@ -35,6 +35,7 @@ from app.services.label_printer import generate_all_labels, concatenate_zpl
 from app.services.design_service import build_pending_instance_rows
 from app.services import design_version_service
 from datetime import datetime
+from app.core.permissions import allow, PRODUCTION_ROLES
 
 # Schemas
 from app.schemas.design_schema import (
@@ -397,7 +398,7 @@ class SimulateBatchResponse(BaseModel):
     suggested_status: str  # "DRAFT" (Pasa a Fábrica) o "ON_HOLD" (Frenado)
     materials: List[SimulatedMaterial]
 
-@router.post("/simulate_batch", response_model=SimulateBatchResponse)
+@router.post("/simulate_batch", response_model=SimulateBatchResponse, dependencies=[allow(PRODUCTION_ROLES)])
 def simulate_batch(
     request: SimulateBatchRequest,
     session: Session = Depends(get_session),
@@ -614,6 +615,7 @@ class GenerateLabelsResponse(BaseModel):
 @router.post(
     "/instances/{instance_id}/generate_labels",
     response_model=GenerateLabelsResponse,
+    dependencies=[allow(PRODUCTION_ROLES)],
 )
 def generate_labels(
     instance_id: int,

@@ -30,6 +30,7 @@ from app.services import inventory_service, legacy_import_service
 from app.schemas.legacy_import_schema import LegacyImportPreviewRead, LegacyImportRead
 from app.schemas.production_inventory_schema import OVCancelCreate
 from app.repositories import sales_repository as sales_repo
+from app.core.permissions import allow, EXECUTE_PAYMENT_ROLES, FINANCE_ROLES, SALES_ORDER_ROLES
 
 from app.schemas.sales_schema import (
     SalesOrderRead, SalesOrderUpdate,
@@ -291,7 +292,7 @@ def update_sales_order_instance(
 # ==========================================
 # 5. CANCELACIÓN DE OV (las cotizaciones viven en /quotations)
 # ==========================================
-@router.post("/orders/{order_id}/cancel_ov", response_model=SalesOrderRead)
+@router.post("/orders/{order_id}/cancel_ov", response_model=SalesOrderRead, dependencies=[allow(SALES_ORDER_ROLES)])
 def cancel_ov(
     order_id: int,
     session: Session = Depends(get_session),
@@ -303,7 +304,7 @@ def cancel_ov(
 # ==========================================
 # 6. PAGOS Y COMISIONES (CÓDIGO HÍBRIDO)
 # ==========================================
-@router.post("/orders/{order_id}/mark_sold", response_model=SalesOrderRead)
+@router.post("/orders/{order_id}/mark_sold", response_model=SalesOrderRead, dependencies=[allow(FINANCE_ROLES)])
 def register_advance(
     order_id: int,
     payload: PaymentPayload,
@@ -313,7 +314,7 @@ def register_advance(
     return sales_service.mark_sold(session, order_id, payload.amount)
 
 
-@router.post("/orders/{order_id}/confirm_payment/{cxc_id}", response_model=SalesOrderRead)
+@router.post("/orders/{order_id}/confirm_payment/{cxc_id}", response_model=SalesOrderRead, dependencies=[allow(FINANCE_ROLES)])
 def confirm_cxc_payment(
     order_id: int,
     cxc_id: int,
@@ -326,7 +327,7 @@ def confirm_cxc_payment(
 def _liberar_comision_anticipo(session, order, payment, base_con_iva):
     sales_service.liberar_comision_anticipo(session, order, payment, base_con_iva)
 
-@router.post("/orders/{order_id}/advance_payments", response_model=SalesOrderRead)
+@router.post("/orders/{order_id}/advance_payments", response_model=SalesOrderRead, dependencies=[allow(FINANCE_ROLES)])
 def register_advance_payment(order_id: int, payload: PaymentPayload,
                              session: Session = Depends(get_session),
                              current_user: User = Depends(get_current_active_user)):
@@ -541,7 +542,7 @@ def get_invoicing_rights(
     )
 
 
-@router.post("/orders/{order_id}/register_progress")
+@router.post("/orders/{order_id}/register_progress", dependencies=[allow(FINANCE_ROLES)])
 def register_progress_invoice(
     order_id: int,
     payload: RegisterProgressPayload,
@@ -555,7 +556,7 @@ def register_progress_invoice(
     return sales_service.register_progress_invoice(session, order_id, payload, current_user)
 
 
-@router.post("/orders/{order_id}/emit_advance_invoice", response_model=dict)
+@router.post("/orders/{order_id}/emit_advance_invoice", response_model=dict, dependencies=[allow(FINANCE_ROLES)])
 def emit_advance_invoice(
     order_id: int,
     payload: PaymentPayload,
@@ -565,7 +566,7 @@ def emit_advance_invoice(
     return sales_service.emit_advance_invoice(session, order_id, payload, current_user)
 
 
-@router.post("/orders/{order_id}/emit_full_invoice", response_model=dict)
+@router.post("/orders/{order_id}/emit_full_invoice", response_model=dict, dependencies=[allow(FINANCE_ROLES)])
 def emit_full_invoice(
     order_id: int,
     payload: PaymentPayload,
@@ -579,7 +580,7 @@ def _sum_active_installments(session: Session, cxc_id: int) -> float:
     return sales_repo.sum_active_installments(session, cxc_id)
 
 
-@router.post("/invoices/{cxc_id}/installments", response_model=dict)
+@router.post("/invoices/{cxc_id}/installments", response_model=dict, dependencies=[allow(FINANCE_ROLES)])
 def register_installment(
     cxc_id: int,
     payload: PaymentPayload,
@@ -705,7 +706,7 @@ def get_pending_progress_instances(
 # 7. CONTROL DE NÓMINA (TESORERÍA)
 # ==========================================
 
-@router.patch("/payments/{payment_id}")
+@router.patch("/payments/{payment_id}", dependencies=[allow(FINANCE_ROLES)])
 def update_payment_commission(
     payment_id: int, 
     payload: PaymentCommissionUpdate, 
@@ -817,7 +818,7 @@ def get_commissions_payroll_overview(
     return sales_service.get_commissions_overview(session)
 
 
-@router.patch("/commissions/{commission_id}/payroll")
+@router.patch("/commissions/{commission_id}/payroll", dependencies=[allow(EXECUTE_PAYMENT_ROLES)])
 def update_commission_payroll_fields(
     commission_id: int,
     payload: CommissionPayrollUpdate,
@@ -840,7 +841,7 @@ def get_commissions_report(
     )
 
 
-@router.patch("/commissions/{commission_id}/mark-paid")
+@router.patch("/commissions/{commission_id}/mark-paid", dependencies=[allow(EXECUTE_PAYMENT_ROLES)])
 def mark_commission_paid(
     commission_id: int,
     payload: CommissionPaidUpdate,

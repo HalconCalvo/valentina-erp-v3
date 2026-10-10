@@ -61,6 +61,30 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 - **Reversible:** sí (aplicada A). "Eliminar" pasa a "Dar de baja" con motivo obligatorio (nunca se borra).
 - **Estado:** pendiente
 
+### D7. Matriz de permisos por rol (auditoría de seguridad) — 2026-10-10 — ROADMAP tarea 6
+- **Contexto:** la auditoría encontró 20 rutas sin sesión y ~50 escrituras sin revisión de rol (tesorería,
+  pagos, facturación a clientes, comisiones, compras, inventario). Cualquier usuario con sesión —y en algunas,
+  cualquiera sin sesión— podía mover dinero entre cuentas, ejecutar pagos, marcar comisiones pagadas o recibir
+  mercancía. Está así en producción hasta el próximo push.
+- **Aplicado (grupos en `app/core/permissions.py`):**
+  | Grupo | Roles | Rutas |
+  |---|---|---|
+  | Finanzas | DIRECTOR, MANAGER, ADMIN | movimientos y abonos bancarios, solicitudes de pago, cancelar factura de proveedor, facturar a clientes, abonos, anticipos, marcar vendida, corrección de recepción, solicitar anticipo de OC, consultas de CxP |
+  | Ejecutar dinero | DIRECTOR, MANAGER | ejecutar pago, transferencias, crear cuentas bancarias, pagar/diferir comisiones |
+  | Compras | DIRECTOR, MANAGER, ADMIN, WAREHOUSE | emitir/editar/cancelar/recibir OCs, PDF de OC |
+  | Requisiciones | Compras + PRODUCTION, DESIGN | crear/editar/cancelar requisiciones, listas de compras |
+  | Almacén | DIRECTOR, MANAGER, ADMIN, WAREHOUSE | productos terminados y su existencia |
+  | Cancelar OV | DIRECTOR, MANAGER | cancelar orden de venta |
+  | Producción | DIRECTOR, MANAGER, ADMIN, PRODUCTION, DESIGN | etiquetas, piedra, listo, impresión |
+  | Planeación | DIRECTOR, MANAGER, ADMIN, PRODUCTION, DESIGN, LOGISTICS | reprogramar, cerrar, reabrir garantía |
+  | Instalación | DIRECTOR, MANAGER, LOGISTICS | marcar instalado (alimenta nómina) |
+  | Campo | DIRECTOR, MANAGER, LOGISTICS, PRODUCTION, DESIGN | firma del cliente |
+  | Nómina de instaladores (consulta) | DIRECTOR, MANAGER, ADMIN | |
+- **Puntos a confirmar:** Ventas ya no puede reprogramar en Planeación ni cancelar su OV; Administración no ejecuta
+  pagos ni transfiere (CLAUDE.md: "pagos (sin ejecutar)"); Producción ya no emite OCs (solo requisiciones).
+- **Reversible:** sí (aplicada; cambiar un grupo es una línea).
+- **Estado:** pendiente
+
 ## Resueltas
 
 ### D1. Aprobar la guía de pantallas — 2026-10-10 — ROADMAP tarea 3

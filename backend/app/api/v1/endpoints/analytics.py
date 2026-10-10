@@ -14,6 +14,7 @@ from app.schemas.analytics_schema import (
     TopClientItem,
 )
 from app.services import analytics_service
+from app.core.permissions import allow, FINANCE_ROLES
 
 
 class AccountsPayableStats(SQLModel):
@@ -36,7 +37,7 @@ def _require_director(current_user: CurrentUser) -> None:
         raise HTTPException(status_code=403, detail="Acceso restringido al Director.")
 
 
-@router.get("/accounts-payable-summary", response_model=AccountsPayableStats)
+@router.get("/accounts-payable-summary", response_model=AccountsPayableStats, dependencies=[allow(FINANCE_ROLES)])
 def get_accounts_payable_summary(session: SessionDep) -> Any:
     statement = select(PurchaseInvoice).where(
         PurchaseInvoice.status != InvoiceStatus.PAID,

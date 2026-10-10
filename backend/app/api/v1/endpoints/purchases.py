@@ -28,32 +28,33 @@ from app.schemas.inventory_schema import (
 )
 from app.schemas.finance_schema import PurchaseInvoiceUpdate, OperationalExpenseUpdate, OperationalExpenseCancel
 from app.schemas.treasury_schema import OperationalExpenseCreate
+from app.core.permissions import allow, ANY_ROLE, FINANCE_ROLES, PURCHASING_ROLES, REQUISITION_ROLES
 
 router = APIRouter()
 
-@router.post("/requisitions/", response_model=PurchaseRequisition, status_code=status.HTTP_201_CREATED)
+@router.post("/requisitions/", response_model=PurchaseRequisition, status_code=status.HTTP_201_CREATED, dependencies=[allow(REQUISITION_ROLES)])
 def create_requisition(*, db: Session = Depends(get_session), req_in: RequisitionCreate):
     return purchase_service.create_requisition(db, req_in)
 
-@router.get("/requisitions/", response_model=List[dict])
+@router.get("/requisitions/", response_model=List[dict], dependencies=[allow(REQUISITION_ROLES)])
 def read_requisitions(db: Session = Depends(get_session), skip: int = 0, limit: int = 100):
     return purchase_service.list_requisitions(db, skip=skip, limit=limit)
 
-@router.put("/requisitions/{req_id}/cancel")
+@router.put("/requisitions/{req_id}/cancel", dependencies=[allow(REQUISITION_ROLES)])
 def cancel_requisition(
     *, db: Session = Depends(get_session), req_id: int, current_user: CurrentUser
 ):
     return purchase_service.cancel_requisition(db, req_id, current_user)
 
 
-@router.delete("/requisitions/{req_id}")
+@router.delete("/requisitions/{req_id}", dependencies=[allow(REQUISITION_ROLES)])
 def delete_purchase_requisition(
     *, db: Session = Depends(get_session), req_id: int, current_user: CurrentUser
 ):
     return purchase_service.delete_requisition(db, req_id, current_user)
 
 
-@router.patch("/requisitions/{req_id}")
+@router.patch("/requisitions/{req_id}", dependencies=[allow(REQUISITION_ROLES)])
 def update_requisition(
     *,
     db: Session = Depends(get_session),
@@ -64,21 +65,21 @@ def update_requisition(
     return purchase_service.update_requisition(db, req_id, data, current_user)
 
 
-@router.put("/requisitions/{req_id}/transfer")
+@router.put("/requisitions/{req_id}/transfer", dependencies=[allow(PURCHASING_ROLES)])
 def transfer_critical_requisition(
     *, db: Session = Depends(get_session), req_id: int, current_user: CurrentUser
 ):
     return purchase_service.transfer_requisition(db, req_id, current_user)
 
 
-@router.put("/requisitions/{req_id}/status")
+@router.put("/requisitions/{req_id}/status", dependencies=[allow(PURCHASING_ROLES)])
 def update_requisition_status(
     *, db: Session = Depends(get_session), req_id: int, status: str, current_user: CurrentUser
 ):
     return purchase_service.update_requisition_status(db, req_id, status, current_user)
 
 
-@router.put("/requisitions/{req_id}/assign")
+@router.put("/requisitions/{req_id}/assign", dependencies=[allow(PURCHASING_ROLES)])
 def assign_requisition_provider(
     *,
     db: Session = Depends(get_session),
@@ -91,7 +92,7 @@ def assign_requisition_provider(
         db, req_id, provider_id, expected_unit_cost, current_user
     )
 
-@router.get("/orders/", response_model=List[dict])
+@router.get("/orders/", response_model=List[dict], dependencies=[allow(REQUISITION_ROLES)])
 def read_purchase_orders(
     *,
     db: Session = Depends(get_session),
@@ -117,7 +118,7 @@ def check_invoice_folio(
 ):
     return purchase_service.check_invoice_folio(db, po_id, folio)
 
-@router.post("/orders/bulk-emit")
+@router.post("/orders/bulk-emit", dependencies=[allow(PURCHASING_ROLES)])
 def emit_bulk_purchase_order(*, db: Session = Depends(get_session), data: POCreateFromPlanning, current_user: CurrentUser):
     if not data.provider_id: raise HTTPException(status_code=400)
     if not data.items or len(data.items) == 0:
@@ -167,41 +168,41 @@ def authorize_purchase_order(
     return purchase_service.authorize_po(db, po_id, current_user)
 
 
-@router.put("/orders/{po_id}/revoke")
+@router.put("/orders/{po_id}/revoke", dependencies=[allow(PURCHASING_ROLES)])
 def revoke_purchase_order(
     *, db: Session = Depends(get_session), po_id: int, current_user: CurrentUser
 ):
     return purchase_service.revoke_po(db, po_id, current_user)
 
 
-@router.post("/orders/{po_id}/reject")
+@router.post("/orders/{po_id}/reject", dependencies=[allow(PURCHASING_ROLES)])
 def reject_purchase_order(
     *, db: Session = Depends(get_session), po_id: int, action: str, current_user: CurrentUser
 ):
     return purchase_service.reject_po(db, po_id, action, current_user)
 
 
-@router.delete("/orders/{po_id}/items/{item_id}")
+@router.delete("/orders/{po_id}/items/{item_id}", dependencies=[allow(PURCHASING_ROLES)])
 def remove_item_from_purchase_order(
     *, db: Session = Depends(get_session), po_id: int, item_id: int, current_user: CurrentUser
 ):
     return purchase_service.remove_po_item(db, po_id, item_id, current_user)
 
 
-@router.put("/orders/{po_id}/dispatch")
+@router.put("/orders/{po_id}/dispatch", dependencies=[allow(PURCHASING_ROLES)])
 def dispatch_purchase_order(
     *, db: Session = Depends(get_session), po_id: int, current_user: CurrentUser
 ):
     return purchase_service.dispatch_po(db, po_id, current_user)
 
 
-@router.put("/orders/{po_id}/cancel")
+@router.put("/orders/{po_id}/cancel", dependencies=[allow(PURCHASING_ROLES)])
 def cancel_dispatched_order(
     *, db: Session = Depends(get_session), po_id: int, current_user: CurrentUser
 ):
     return purchase_service.cancel_dispatched_po(db, po_id, current_user)
 
-@router.put("/orders/{po_id}/receive")
+@router.put("/orders/{po_id}/receive", dependencies=[allow(PURCHASING_ROLES)])
 def receive_purchase_order(
     *,
     db: Session = Depends(get_session),
@@ -211,7 +212,7 @@ def receive_purchase_order(
 ):
     return purchase_service.receive_purchase_order(db, po_id, data, current_user)
 
-@router.put("/orders/{po_id}/items/{item_id}/no-more")
+@router.put("/orders/{po_id}/items/{item_id}/no-more", dependencies=[allow(PURCHASING_ROLES)])
 def mark_item_no_more(
     *,
     db: Session = Depends(get_session),
@@ -230,7 +231,7 @@ def declare_order_satisfied(
     return purchase_service.declare_po_satisfied(db, po_id, current_user)
 
 
-@router.put("/orders/{po_id}/report-discrepancy")
+@router.put("/orders/{po_id}/report-discrepancy", dependencies=[allow(PURCHASING_ROLES)])
 def report_cost_discrepancy(
     *,
     db: Session = Depends(get_session),
@@ -240,20 +241,20 @@ def report_cost_discrepancy(
 ):
     return purchase_service.report_cost_discrepancy(db, po_id, data, current_user)
 
-@router.get("/planning/consolidated", response_model=List[dict])
+@router.get("/planning/consolidated", response_model=List[dict], dependencies=[allow(REQUISITION_ROLES)])
 def get_purchase_planning(db: Session = Depends(get_session)):
     return purchase_service.get_purchase_planning(db)
 
 
-@router.get("/notifications/pending-tasks")
+@router.get("/notifications/pending-tasks", dependencies=[allow(ANY_ROLE)])
 def get_admin_pending_tasks(db: Session = Depends(get_session)):
     return purchase_service.get_pending_tasks(db)
 
-@router.get("/orders/{po_id}/pdf")
+@router.get("/orders/{po_id}/pdf", dependencies=[allow(PURCHASING_ROLES)])
 def download_purchase_order_pdf(po_id: int, db: Session = Depends(get_session)):
     return purchase_service.generate_po_pdf(db, po_id)
 
-@router.post("/orders/manual")
+@router.post("/orders/manual", dependencies=[allow(PURCHASING_ROLES)])
 def create_manual_order(
     *,
     order_in: ManualOrderCreate,
@@ -323,7 +324,7 @@ def create_manual_order(
 
     return {"message": "Orden manual creada con éxito", "order_id": new_order.id}
 
-@router.post("/orders/{po_id}/request-advance")
+@router.post("/orders/{po_id}/request-advance", dependencies=[allow(FINANCE_ROLES)])
 def request_order_advance(
     *,
     db: Session = Depends(get_session),
@@ -381,7 +382,7 @@ def cancel_operational_expense(
     return purchase_service.cancel_operational_expense(db, expense_id, data, current_user)
 
 
-@router.post("/orders/{po_id}/send-email")
+@router.post("/orders/{po_id}/send-email", dependencies=[allow(PURCHASING_ROLES)])
 def send_purchase_order_by_email(
     *,
     db: Session = Depends(get_session),
@@ -486,7 +487,7 @@ def send_purchase_order_by_email(
     }
 
 
-@router.put("/orders/{po_id}/items/{item_id}/correct-reception")
+@router.put("/orders/{po_id}/items/{item_id}/correct-reception", dependencies=[allow(FINANCE_ROLES)])
 def correct_reception_item(*, db: Session = Depends(get_session), po_id: int, item_id: int, current_user: CurrentUser, data: dict = Body(...)):
     """
     5e — Corrige una recepción mal capturada, por renglón.

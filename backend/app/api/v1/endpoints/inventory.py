@@ -19,6 +19,7 @@ from app.schemas.inventory_schema import (
     StockMovementCreate,
 )
 from app.services import inventory_service
+from app.core.permissions import allow, ANY_ROLE, STOCK_ROLES
 
 router = APIRouter()
 
@@ -98,7 +99,7 @@ def create_inventory_reception(
 #        Cloud SQL en producción vía DATABASE_URL).
 # ==================================================================
 
-@router.post("/products", response_model=ProductRead, status_code=201)
+@router.post("/products", response_model=ProductRead, status_code=201, dependencies=[allow(STOCK_ROLES)])
 def create_product(
     *,
     session: SessionDep,
@@ -124,7 +125,7 @@ def create_product(
     return db_product
 
 
-@router.get("/products", response_model=List[ProductRead])
+@router.get("/products", response_model=List[ProductRead], dependencies=[allow(ANY_ROLE)])
 def list_products(
     *,
     session: SessionDep,
@@ -143,7 +144,7 @@ def list_products(
     return session.exec(query).all()
 
 
-@router.get("/products/{product_id}", response_model=ProductRead)
+@router.get("/products/{product_id}", response_model=ProductRead, dependencies=[allow(ANY_ROLE)])
 def get_product(*, session: SessionDep, product_id: int):
     """Obtiene el detalle de un producto por su ID."""
     product = session.get(Product, product_id)
@@ -152,7 +153,7 @@ def get_product(*, session: SessionDep, product_id: int):
     return product
 
 
-@router.patch("/products/{product_id}", response_model=ProductRead)
+@router.patch("/products/{product_id}", response_model=ProductRead, dependencies=[allow(STOCK_ROLES)])
 def update_product(
     *,
     session: SessionDep,
@@ -175,7 +176,7 @@ def update_product(
     return product
 
 
-@router.post("/products/{product_id}/stock", response_model=ProductRead)
+@router.post("/products/{product_id}/stock", response_model=ProductRead, dependencies=[allow(STOCK_ROLES)])
 def register_stock_movement(
     *,
     session: SessionDep,

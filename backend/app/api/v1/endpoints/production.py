@@ -19,6 +19,7 @@ from app.models.design import VersionComponent, ProductVersion
 from app.models.material import Material, holds_stock
 from app.services.planning_service import compute_semaphore
 from app.services import production_inventory_service
+from app.core.permissions import allow, PRODUCTION_ROLES
 from app.schemas.production_inventory_schema import (
     BatchStatusUpdate,
     InstanceRemovalCreate,
@@ -108,7 +109,7 @@ def dispatch_hardware(
     return production_inventory_service.dispatch_instance_hardware(db, instance_id, current_user)
 
 
-@router.post("/instances/{instance_id}/request_labels", response_model=RequestLabelsResponse)
+@router.post("/instances/{instance_id}/request_labels", response_model=RequestLabelsResponse, dependencies=[allow(PRODUCTION_ROLES)])
 def request_labels(
     instance_id: int,
     body: RequestLabelsBody,
@@ -578,7 +579,7 @@ class DeclareStonePiecesBody(BaseModel):
     stone_pieces: int
 
 
-@router.patch("/instances/{instance_id}/stone_pieces")
+@router.patch("/instances/{instance_id}/stone_pieces", dependencies=[allow(PRODUCTION_ROLES)])
 def declare_stone_pieces(
     instance_id: int,
     body: DeclareStonePiecesBody,
@@ -789,7 +790,7 @@ def get_ready_instances(current_user: CurrentUser, db: Session = Depends(get_ses
     return result
 
 
-@router.patch("/instances/{instance_id}/ready")
+@router.patch("/instances/{instance_id}/ready", dependencies=[allow(PRODUCTION_ROLES)])
 def mark_instance_ready(
     instance_id: int,
     current_user: CurrentUser,
@@ -921,7 +922,7 @@ def list_pending_print_jobs(
     ]
 
 
-@router.post("/print_jobs/{job_id}/mark_printed")
+@router.post("/print_jobs/{job_id}/mark_printed", dependencies=[allow(PRODUCTION_ROLES)])
 def mark_print_job_printed(
     job_id: int,
     current_user: CurrentUser,
@@ -937,7 +938,7 @@ def mark_print_job_printed(
     return {"ok": True, "job_id": job_id, "status": job.status}
 
 
-@router.post("/print_jobs/{job_id}/reprint", response_model=PrintJobCreatedRead)
+@router.post("/print_jobs/{job_id}/reprint", response_model=PrintJobCreatedRead, dependencies=[allow(PRODUCTION_ROLES)])
 def reprint_print_job(
     job_id: int,
     current_user: CurrentUser,

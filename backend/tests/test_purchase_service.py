@@ -73,10 +73,16 @@ def _dispatch_po(client_fixture, headers, po_id: int) -> None:
     assert response.status_code == 200
 
 
-def test_create_requisition_success(client_fixture, session_fixture):
+def test_create_requisition_success(client_fixture, session_fixture, auth_header_director):
     _, material = _seed_provider_and_material(session_fixture)
+    without_session = client_fixture.post(
+        f"{settings.API_V1_STR}/purchases/requisitions/",
+        json=_requisition_payload(material_id=material.id),
+    )
+    assert without_session.status_code == 401
     response = client_fixture.post(
         f"{settings.API_V1_STR}/purchases/requisitions/",
+        headers=auth_header_director,
         json=_requisition_payload(material_id=material.id),
     )
     assert response.status_code in (200, 201)
@@ -91,6 +97,7 @@ def test_delete_requisition_marks_cancelled(
     _, material = _seed_provider_and_material(session_fixture)
     create_response = client_fixture.post(
         f"{settings.API_V1_STR}/purchases/requisitions/",
+        headers=auth_header_director,
         json=_requisition_payload(material_id=material.id),
     )
     req_id = create_response.json()["id"]

@@ -23,6 +23,7 @@ from app.models.treasury import BankAccount, BankTransaction, TransactionType
 from app.services.planning_service import trigger_double_green
 from app.services.cloud_storage import upload_to_gcs
 from app.services import logistics_service, production_inventory_service
+from app.core.permissions import allow, FIELD_ROLES, FINANCE_ROLES, INSTALLATION_ROLES
 from app.schemas.logistics_schema import (
     TeamAgendaRead,
     DayTeamUpdate,
@@ -186,7 +187,7 @@ def _get_installation_days(session: SessionDep, instance: SalesOrderItemInstance
 # ==========================================
 # 2. GATILLO DE FIRMA — Libera nómina a READY_TO_PAY
 # ==========================================
-@router.patch("/equipos/{assignment_id}/firma")
+@router.patch("/equipos/{assignment_id}/firma", dependencies=[allow(FIELD_ROLES)])
 def register_client_signature(
     assignment_id: int,
     payload: SignaturePayload,
@@ -237,7 +238,7 @@ def register_client_signature(
     }
 
 
-@router.put("/assignments/{assignment_id}/mark-installed")
+@router.put("/assignments/{assignment_id}/mark-installed", dependencies=[allow(INSTALLATION_ROLES)])
 def mark_assignment_installed(
     assignment_id: int,
     session: SessionDep,
@@ -277,7 +278,7 @@ def mark_assignment_installed(
 # ==========================================
 # 3. BANDEJA DE NÓMINA (Gerencia / Admin)
 # ==========================================
-@router.get("/payroll/overview", response_model=InstallerPayrollOverview)
+@router.get("/payroll/overview", response_model=InstallerPayrollOverview, dependencies=[allow(FINANCE_ROLES)])
 def get_installer_payroll_overview(session: SessionDep):
     """
     Tres bandejas independientes (totales sin duplicar):
@@ -309,7 +310,7 @@ def get_installer_payroll_overview(session: SessionDep):
     )
 
 
-@router.get("/payroll/", response_model=List[PayrollPaymentRead])
+@router.get("/payroll/", response_model=List[PayrollPaymentRead], dependencies=[allow(FINANCE_ROLES)])
 def get_payroll_payments(
     session: SessionDep,
     payroll_status: Optional[str] = None,

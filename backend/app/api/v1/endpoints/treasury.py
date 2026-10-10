@@ -11,6 +11,7 @@ from app.models.treasury import BankAccount, BankTransaction, TransactionType, W
 from app.models.sales import CustomerPayment
 from app.repositories import sales_repository as sales_repo
 from app.models.finance import SupplierPayment
+from app.core.permissions import allow, EXECUTE_PAYMENT_ROLES, FINANCE_ROLES
 from app.schemas.treasury_schema import (
     BankAccountCreate, BankAccountResponse, 
     BankTransactionCreate, BankTransactionResponse,
@@ -43,7 +44,7 @@ def _revert_account_balance(account: BankAccount, transaction: BankTransaction) 
 # ------------------------------------------------------------------
 # 1. CUENTAS BANCARIAS
 # ------------------------------------------------------------------
-@router.post("/accounts", response_model=BankAccountResponse)
+@router.post("/accounts", response_model=BankAccountResponse, dependencies=[allow(EXECUTE_PAYMENT_ROLES)])
 def create_bank_account(
     *,
     session: SessionDep,
@@ -88,7 +89,7 @@ def get_bank_accounts(session: SessionDep, current_user: CurrentUser) -> Any:
 # ------------------------------------------------------------------
 # 2. TRANSACCIONES MANUALES (INGRESOS/EGRESOS)
 # ------------------------------------------------------------------
-@router.post("/transactions", response_model=BankTransactionResponse)
+@router.post("/transactions", response_model=BankTransactionResponse, dependencies=[allow(FINANCE_ROLES)])
 def create_transaction(
     *,
     session: SessionDep,
@@ -214,7 +215,7 @@ class BulkCxcPayload(BaseModel):
     description: Optional[str] = None
     items: List[BulkCxcItem]  # lista de {cxc_id, amount}
 
-@router.post("/transactions/bulk-cxc")
+@router.post("/transactions/bulk-cxc", dependencies=[allow(FINANCE_ROLES)])
 def create_bulk_cxc_payment(
     payload: BulkCxcPayload,
     session: SessionDep,
@@ -269,7 +270,7 @@ def create_bulk_cxc_payment(
 # ------------------------------------------------------------------
 # 3. TRANSFERENCIAS ENTRE CUENTAS
 # ------------------------------------------------------------------
-@router.post("/transfer")
+@router.post("/transfer", dependencies=[allow(EXECUTE_PAYMENT_ROLES)])
 def transfer_funds(
     *,
     session: SessionDep,
@@ -581,7 +582,7 @@ def get_cost_kpi(
     }
 
 
-@router.put("/transactions/{transaction_id}/description")
+@router.put("/transactions/{transaction_id}/description", dependencies=[allow(FINANCE_ROLES)])
 def update_transaction_description(
     *,
     session: SessionDep,

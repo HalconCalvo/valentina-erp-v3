@@ -34,6 +34,7 @@ from app.models.sales import (
 )
 from app.models.foundations import Client
 from app.models.design import ProductMaster, ProductVersion
+from app.core.permissions import allow, PLANNING_ROLES
 from app.services.planning_service import (
     compute_semaphore,
     compute_semaphore_label,
@@ -645,7 +646,7 @@ def update_instance_schedule(
 # 4. DRAG & DROP — REPROGRAMAR PÍLDORA
 # ============================================================
 
-@router.patch("/instances/{instance_id}/reschedule")
+@router.patch("/instances/{instance_id}/reschedule", dependencies=[allow(PLANNING_ROLES)])
 def reschedule_pill(
     instance_id: int,
     payload: ReschedulePayload,
@@ -689,7 +690,7 @@ def reschedule_pill(
 # 5. EVENTO MAESTRO: DOBLE VERDE 🟢🟢
 # ============================================================
 
-@router.post("/instances/{instance_id}/close")
+@router.post("/instances/{instance_id}/close", dependencies=[allow(PLANNING_ROLES)])
 def close_instance(
     instance_id: int,
     payload: CloseInstancePayload,
@@ -717,7 +718,7 @@ def close_instance(
 # 6. REABRIR COMO GARANTÍA ⚠️
 # ============================================================
 
-@router.post("/instances/{instance_id}/reopen-warranty")
+@router.post("/instances/{instance_id}/reopen-warranty", dependencies=[allow(PLANNING_ROLES)])
 def reopen_warranty(
     instance_id: int,
     session: Session = Depends(get_session),

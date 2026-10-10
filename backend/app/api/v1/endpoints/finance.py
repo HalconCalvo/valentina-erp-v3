@@ -34,6 +34,7 @@ from app.schemas.finance_schema import (
 )
 from app.services import payable_service
 from app.services.purchase_service import resolve_po_authorizer_display
+from app.core.permissions import allow, EXECUTE_PAYMENT_ROLES, FINANCE_ROLES
 
 router = APIRouter()
 
@@ -155,7 +156,7 @@ def _sync_pos_to_invoices(session: SessionDep):
 # ------------------------------------------------------------------
 # 1. SOLICITAR UN PAGO
 # ------------------------------------------------------------------
-@router.post("/payments/request", response_model=SupplierPaymentRead)
+@router.post("/payments/request", response_model=SupplierPaymentRead, dependencies=[allow(FINANCE_ROLES)])
 def request_supplier_payment(
     *,
     session: SessionDep,
@@ -240,7 +241,7 @@ def request_supplier_payment(
 # ------------------------------------------------------------------
 # 1.1 EDITAR SOLICITUD DE PAGO
 # ------------------------------------------------------------------
-@router.put("/payments/request/{payment_id}", response_model=SupplierPaymentRead)
+@router.put("/payments/request/{payment_id}", response_model=SupplierPaymentRead, dependencies=[allow(FINANCE_ROLES)])
 def update_payment_request(
     *,
     session: SessionDep,
@@ -281,7 +282,7 @@ def update_payment_request(
     return payment
 
 # ------------------------------------------------------------------
-@router.put("/invoices/{invoice_id}/cancel")
+@router.put("/invoices/{invoice_id}/cancel", dependencies=[allow(FINANCE_ROLES)])
 def cancel_invoice(
     invoice_id: int,
     session: SessionDep,
@@ -379,7 +380,7 @@ def update_payment_status(
     session.refresh(payment)
     return payment
 
-@router.post("/payments/{payment_id}/execute", response_model=SupplierPaymentRead)
+@router.post("/payments/{payment_id}/execute", response_model=SupplierPaymentRead, dependencies=[allow(EXECUTE_PAYMENT_ROLES)])
 def execute_supplier_payment(*, session: SessionDep, current_user: CurrentUser, payment_id: int) -> Any:
     """
     TESORERÍA: Ejecuta el pago bancario de un SupplierPayment previamente APROBADO.
@@ -454,7 +455,7 @@ def execute_supplier_payment(*, session: SessionDep, current_user: CurrentUser, 
 # ------------------------------------------------------------------
 # 4. KPI / DASHBOARD
 # ------------------------------------------------------------------
-@router.get("/payable-stats", response_model=AccountsPayableDashboardStats)
+@router.get("/payable-stats", response_model=AccountsPayableDashboardStats, dependencies=[allow(FINANCE_ROLES)])
 def get_payable_dashboard_stats(session: SessionDep) -> Any:
     _sync_pos_to_invoices(session)
 
@@ -514,7 +515,7 @@ def get_payable_dashboard_stats(session: SessionDep) -> Any:
 # ------------------------------------------------------------------
 # 5. LISTADOS
 # ------------------------------------------------------------------
-@router.get("/payments/pending-approvals", response_model=List[SupplierPaymentRead])
+@router.get("/payments/pending-approvals", response_model=List[SupplierPaymentRead], dependencies=[allow(FINANCE_ROLES)])
 def get_pending_approvals(session: SessionDep) -> Any:
     statement = select(SupplierPayment).where(SupplierPayment.status == getattr(PaymentStatus, "PENDING", "PENDING"))
     payments = session.exec(statement).all()
@@ -543,7 +544,7 @@ def get_pending_approvals(session: SessionDep) -> Any:
         ))
     return results
 
-@router.get("/payments/approved", response_model=List[SupplierPaymentRead])
+@router.get("/payments/approved", response_model=List[SupplierPaymentRead], dependencies=[allow(FINANCE_ROLES)])
 def get_approved_payments(session: SessionDep) -> Any:
     statement = select(SupplierPayment).where(SupplierPayment.status == getattr(PaymentStatus, "APPROVED", "APPROVED"))
     payments = session.exec(statement).all()
@@ -572,7 +573,7 @@ def get_approved_payments(session: SessionDep) -> Any:
         ))
     return results
 
-@router.get("/invoices/pending", response_model=List[PendingInvoiceRead])
+@router.get("/invoices/pending", response_model=List[PendingInvoiceRead], dependencies=[allow(FINANCE_ROLES)])
 def get_pending_invoices(session: SessionDep) -> Any:
     _sync_pos_to_invoices(session)
 
@@ -656,7 +657,7 @@ def get_pending_invoices(session: SessionDep) -> Any:
     return results
 
 
-@router.get("/invoices/{purchase_invoice_id}/received-items")
+@router.get("/invoices/{purchase_invoice_id}/received-items", dependencies=[allow(FINANCE_ROLES)])
 def get_invoice_received_items(purchase_invoice_id: int, session: SessionDep) -> Any:
     """
     Devuelve el detalle RECEPCIONADO de una factura (Camino B): qué materiales,
