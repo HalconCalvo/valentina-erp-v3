@@ -3,7 +3,6 @@ import { ArrowLeft, BookOpen, Loader2, Pencil } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axiosClient from '@/api/axios-client';
 import {
-  formatInventoryCurrency,
   inventoryService,
   KardexEntryRead,
 } from '@/api/inventory-service';
@@ -14,7 +13,7 @@ import { Button } from '@/components/ui/Button';
 import { VTable, VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
 import { MaterialForm } from '../components/MaterialForm';
-import { formatDateTime, formatMoney } from '@/utils/format';
+import { formatDateTime, formatMoney, formatQty } from '@/utils/format';
 
 interface MaterialOption {
   id: number;
@@ -162,7 +161,7 @@ export default function KardexPage() {
         sortable: true,
         render: (row) => {
           const color = (row.quantity ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-600';
-          return <span className={`font-bold ${color}`}>{formatInventoryCurrency(row.quantity)}</span>;
+          return <span className={`font-bold tabular-nums ${color}`}>{formatQty(row.quantity)}</span>;
         },
       },
       {
@@ -173,14 +172,15 @@ export default function KardexPage() {
       {
         key: 'subtotal',
         label: 'Subtotal',
-        render: (row) => formatMoney(row.subtotal),
+        // Outflows carry a negative quantity: the subtotal shows the same sign (-$60.00)
+        render: (row) => formatMoney(Number(row.quantity) < 0 ? -Math.abs(Number(row.subtotal)) : Number(row.subtotal)),
       },
       {
         key: 'saldo_acumulado',
         label: 'Saldo acum.',
         sortable: true,
         render: (row) => (
-          <span className="font-bold text-slate-800">{formatInventoryCurrency(row.saldo_acumulado)}</span>
+          <span className="font-bold text-slate-800 tabular-nums">{formatQty(row.saldo_acumulado)}</span>
         ),
       },
       {
