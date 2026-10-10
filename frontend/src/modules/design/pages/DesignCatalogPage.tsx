@@ -34,6 +34,7 @@ type CatalogPendingConfirm =
     | { kind: 'DELETE_BLUEPRINT'; versionId: number }
     | { kind: 'IMPORT_RECIPES'; data: { products: unknown[]; client_name?: string; client_id?: number }; clientId: number | null }
     | { kind: 'DELETE_VERSION'; versionId: number; versionName: string; productName: string }
+    | { kind: 'DELETE_MASTER'; productId: number; productName: string }
     | { kind: 'DELETE_BATCH'; batchId: number; folio: string };
 
 type CatalogTableRow = Record<string, unknown> & {
@@ -491,15 +492,7 @@ const DesignCatalogPage: React.FC = () => {
     const handleDelete = async (e: React.MouseEvent, id: number, productName: string) => {
         e.stopPropagation(); 
         if(isSales) return;
-        const confirmacion = window.prompt(`⚠ ALERTA CRÍTICA: BORRADO EN CASCADA ⚠\n\nEstás a punto de eliminar "${productName}".\nPara confirmar, escribe: ELIMINAR`);
-        if (confirmacion === "ELIMINAR") { 
-            try {
-                await deleteMaster(id);
-                toast.success('Producto eliminado.');
-            } catch {
-                toast.error('Error al eliminar el producto.');
-            }
-        }
+        setPendingConfirm({ kind: 'DELETE_MASTER', productId: id, productName });
     };
 
     const handleDeleteVersion = async (
@@ -516,19 +509,7 @@ const DesignCatalogPage: React.FC = () => {
         if (esUltimaVersion) {
             // Última versión → borrar la versión ELIMINA EL PRODUCTO COMPLETO
             // → alerta fuerte (escribir ELIMINAR), y se borra el MASTER.
-            const confirmacion = window.prompt(
-                `⚠ Esta es la ÚNICA versión de "${product.name}".\n\n` +
-                `Al eliminarla se borrará el PRODUCTO COMPLETO y no se puede deshacer.\n\n` +
-                `Para confirmar, escribe: ELIMINAR`
-            );
-            if (confirmacion === "ELIMINAR") {
-                try {
-                    await deleteMaster(product.id);
-                    toast.success('Producto eliminado.');
-                } catch {
-                    toast.error('Error al eliminar el producto.');
-                }
-            }
+            setPendingConfirm({ kind: 'DELETE_MASTER', productId: product.id, productName: product.name });
             return;
         }
 
@@ -540,13 +521,22 @@ const DesignCatalogPage: React.FC = () => {
         });
     };
 
+    const executeDeactivateMaster = async (productId: number) => {
+        try {
+            await deleteMaster(productId);
+            toast.success('Producto dado de baja.');
+        } catch (err: any) {
+            toast.error(err?.response?.data?.detail || 'Error al dar de baja el producto.');
+        }
+    };
+
     const executeDeleteVersionOnly = async (versionId: number) => {
         try {
             await designService.deleteVersion(versionId);
-            toast.success('Versión eliminada.');
+            toast.success('Versión descartada.');
             await loadMasters();
         } catch (err: any) {
-            toast.error(err?.response?.data?.detail || 'Error al eliminar la versión.');
+            toast.error(err?.response?.data?.detail || 'Error al descartar la versión.');
         }
     };
 
@@ -744,7 +734,7 @@ const DesignCatalogPage: React.FC = () => {
                             <>
                                 <div className="w-px h-4 bg-slate-200 mx-1"></div>
                                 <button onClick={(e) => openEditModal(e, product)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="Editar Nombre"><Edit size={16}/></button>
-                                {v && !esUnicaVersion && <button onClick={(e) => handleDeleteVersion(e, product, v)} className="p-1.5 text-orange-500 hover:text-orange-600 hover:bg-orange-50 rounded" title="Eliminar esta versión"><Trash2 size={16}/></button>}
+                                {v && !esUnicaVersion && <button onClick={(e) => handleDeleteVersion(e, product, v)} className="p-1.5 text-orange-500 hover:text-orange-600 hover:bg-orange-50 rounded" title="Descartar esta versión"><Trash2 size={16}/></button>}
                                 {idx === 0 && <button onClick={(e) => handleDelete(e, product.id, product.name)} className="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded" title="ELIMINAR PRODUCTO Y TODAS SUS VERSIONES"><Trash2 size={16}/></button>}
                             </>
                         )}
@@ -1582,14 +1572,30 @@ const DesignCatalogPage: React.FC = () => {
                 />
             )}
 
+            {pendingConfirm?.kind === 'DELETE_MASTER' && (
+                <VConfirmDialog
+                    isOpen
+                    title="Dar de baja producto"
+                    message={`¿Dar de baja "${pendingConfirm.productName}" y todas sus versiones?`}
+                    consequence="Deja de aparecer en el catálogo. Solo se puede si ninguna cotización u OV lo usa. No se elimina: queda en la bitácora."
+                    variant="danger"
+                    confirmLabel="Sí, dar de baja"
+                    onConfirm={async () => {
+                        const { productId } = pendingConfirm;
+                        setPendingConfirm(null);
+                        await executeDeactivateMaster(productId);
+                    }}
+                    onCancel={() => setPendingConfirm(null)}
+                />
+            )}
             {pendingConfirm?.kind === 'DELETE_VERSION' && (
                 <VConfirmDialog
                     isOpen
-                    title="Eliminar versión"
-                    message={`¿Eliminar la versión "${pendingConfirm.versionName}" de "${pendingConfirm.productName}"?`}
-                    consequence="Esta acción no se puede deshacer."
+                    title="Descartar versión"
+                    message={`¿Descartar la versión "${pendingConfirm.versionName}" de "${pendingConfirm.productName}"?`}
+                    consequence="Deja de aparecer en el catálogo y no se puede cotizar. No se elimina: queda en la bitácora. Las versiones ya usadas no se descartan, se marcan obsoletas."
                     variant="danger"
-                    confirmLabel="Sí, eliminar versión"
+                    confirmLabel="Sí, descartar versión"
                     onConfirm={async () => {
                         const { versionId } = pendingConfirm;
                         setPendingConfirm(null);

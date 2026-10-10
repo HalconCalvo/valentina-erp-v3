@@ -12,8 +12,8 @@ from sqlmodel import Session
 
 from app.core import material_groups
 from app.core.audit_context import audit_reason
-from app.core.permissions import require_roles
-from app.models.design import ProductVersion, VersionComponent, VersionStatus
+from app.core.permissions import require_roles, role_of
+from app.models.design import ProductMaster, ProductVersion, VersionComponent, VersionStatus
 from app.models.sales import QuotationStatus
 from app.repositories import design_repository as design_repo
 from app.schemas.design_schema import ProductVersionCreate, ProductVersionRead
@@ -165,9 +165,30 @@ def delete_version(session: Session, version_id: int, user) -> dict:
     if is_locked(session, version_id) or design_repo.get_replacement(session, version_id):
         raise HTTPException(status_code=409, detail="Esta versión ya se usó o fue corregida; no se puede eliminar "
                             "para preservar la trazabilidad. Márcala como obsoleta.")
-    session.delete(version)
-    session.commit()
-    return {"ok": True, "message": "Versión y sus ingredientes eliminados correctamente."}
+    with audit_reason("Versión descartada (sin uso)"):
+        version.is_active = False
+        version.status = VersionStatus.OBSOLETE
+        session.add(version)
+        session.commit()
+    return {"ok": True, "message": "Versión descartada: ya no aparece en el catálogo (se conserva en la bitácora)."}
+
+
+def deactivate_master(session: Session, master_id: int, user) -> dict:
+    """A master no quotation or OV uses is deactivated with its versions (it used to be deleted in cascade)."""
+    if role_of(user) not in {"DIRECTOR", "ADMIN", "DESIGN"}:
+        raise HTTPException(status_code=403, detail="No tienes permisos para eliminar diseños")
+    master = session.get(ProductMaster, master_id)
+    if not master:
+        raise HTTPException(status_code=404, detail="Diseño no encontrado")
+    assert_master_deletable(session, master_id)
+    with audit_reason("Producto dado de baja (sin uso)"):
+        master.is_active = False
+        session.add(master)
+        for version in design_repo.get_versions_of_master(session, master_id):
+            version.is_active = False
+            session.add(version)
+        session.commit()
+    return {"ok": True, "message": "Diseño dado de baja; se conserva en la bitácora."}
 
 
 def assert_master_deletable(session: Session, master_id: int) -> None:

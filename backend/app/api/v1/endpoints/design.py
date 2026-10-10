@@ -125,6 +125,8 @@ def read_product_masters(
         )
         m_dict['versions'] = []
         for version in master.versions:
+            if version.is_active is False:
+                continue  # discarded drafts stay in the database (never deleted) but leave the catalog
             v_dict = version.model_dump()
             v_dict['components'] = []
             for comp in version.components:
@@ -179,47 +181,15 @@ def update_product_master(
     session.refresh(master)
     return master
 
-# === BORRADO EN CASCADA ===
+# === BAJA (nunca se elimina): el producto y sus versiones quedan inactivos ===
 @router.delete("/masters/{master_id}")
 def delete_product_master(
     master_id: int,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user)
 ):
-    """
-    Elimina un Producto Maestro, sus recetas y su plano en la Nube.
-    """
-    # Seguridad Extra: Solo Admin o Director pueden borrar (Opcional, pero recomendado)
-    if current_user.role not in [UserRole.ADMIN, UserRole.DIRECTOR, UserRole.DESIGN]:
-         raise HTTPException(status_code=403, detail="No tienes permisos para eliminar diseños")
-
-    master = session.get(ProductMaster, master_id)
-    if not master:
-        raise HTTPException(status_code=404, detail="Diseño no encontrado")
-    design_version_service.assert_master_deletable(session, master_id)
-
-    # 1. Obtener y borrar versiones y componentes
-    versions = session.exec(
-        select(ProductVersion).where(ProductVersion.master_id == master_id)
-    ).all()
-
-    for version in versions:
-        components = session.exec(
-            select(VersionComponent).where(VersionComponent.version_id == version.id)
-        ).all()
-        for comp in components:
-            session.delete(comp)
-        session.delete(version)
-    
-    # 3. Eliminar Maestro
-    session.delete(master)
-    
-    session.commit()
-    return {"ok": True, "message": "Producto y archivos eliminados correctamente."}
-
-# ==========================================
-# 2. GESTIÓN DE VERSIONES (Recetas)
-# ==========================================
+    """Da de baja un Producto Maestro sin uso: él y sus versiones quedan inactivos (trazables en la bitácora)."""
+    return design_version_service.deactivate_master(session, master_id, current_user)
 
 @router.post("/versions", response_model=ProductVersionRead)
 def create_product_version(
