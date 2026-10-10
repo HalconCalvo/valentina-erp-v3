@@ -291,7 +291,7 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
   return (
     <div className="space-y-6">
       {/* Hidden receipt input */}
-      <input type="file" ref={receiptRef} className="hidden" accept="image/*,.pdf" onChange={handleUploadReceipt} />
+      <Input type="file" ref={receiptRef} className="hidden" accept="image/*,.pdf" onChange={handleUploadReceipt} />
 
       {/* ── ACTION BAR ────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap gap-3 justify-end">

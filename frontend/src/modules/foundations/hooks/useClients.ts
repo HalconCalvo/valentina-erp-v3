@@ -21,11 +21,9 @@ export const useClients = () => {
       if (Array.isArray(response.data)) {
         setClients(response.data);
       } else {
-        console.warn("Respuesta inesperada de Clientes:", response.data);
         setClients([]);
       }
     } catch (error) {
-      console.error("Error cargando clientes:", error);
       setClients([]); 
     } finally {
       setLoading(false);
@@ -43,7 +41,6 @@ export const useClients = () => {
       await fetchClients(); 
       return { success: true };
     } catch (error: any) {
-      console.error(error);
       return { success: false, error: error.response?.data?.detail || "Error al crear cliente" };
     }
   };
@@ -55,7 +52,6 @@ export const useClients = () => {
       await fetchClients();
       return { success: true };
     } catch (error: any) {
-      console.error(error);
       return { success: false, error: error.response?.data?.detail || "Error al actualizar cliente" };
     }
   };
@@ -67,7 +63,6 @@ export const useClients = () => {
       await fetchClients();
       return { success: true };
     } catch (error: any) {
-      console.error(error);
       return { success: false, error: error.response?.data?.detail || "Error al eliminar cliente" };
     }
   };

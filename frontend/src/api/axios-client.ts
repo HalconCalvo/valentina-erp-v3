@@ -27,7 +27,6 @@ client.interceptors.response.use(
     error => {
         // Si el token expiró, podríamos redirigir al login
         if (error.response && error.response.status === 401) {
-             console.warn("Sesión expirada o no autorizada");
              // Opcional: window.location.href = '/login';
         }
         return Promise.reject(error);

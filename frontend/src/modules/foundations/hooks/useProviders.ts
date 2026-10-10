@@ -30,7 +30,6 @@ export const useProviders = () => {
         setProviders([]);
       }
     } catch (error) {
-      console.error("Error cargando proveedores:", error);
       setProviders([]); 
     } finally {
       setLoading(false);

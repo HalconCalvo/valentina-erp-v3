@@ -552,7 +552,7 @@ export default function MaterialsPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".csv" className="hidden" />
+      <Input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".csv" className="hidden" />
 
       {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

@@ -21,7 +21,6 @@ export const useDesign = () => {
             const data = await designService.getMasters(clientId);
             setMasters(data);
         } catch (err: any) {
-            console.error("Error loading masters:", err);
             setError(err.response?.data?.detail || 'Error al cargar los diseños.');
         } finally {
             setLoading(false);
@@ -40,7 +39,6 @@ export const useDesign = () => {
             setMasters(prev => [newMaster, ...prev]);
             return newMaster;
         } catch (err: any) {
-            console.error("Error creating master:", err);
             setError(err.response?.data?.detail || 'Error al crear el diseño.');
             throw err;
         } finally {
@@ -69,7 +67,6 @@ export const useDesign = () => {
             
             return updatedMaster;
         } catch (err: any) {
-            console.error("Error updating master:", err);
             setError(err.response?.data?.detail || 'Error al actualizar el diseño.');
             throw err;
         } finally {
@@ -96,7 +93,6 @@ export const useDesign = () => {
                 setCurrentMaster(null);
             }
         } catch (err: any) {
-            console.error("Error deleting master:", err);
             setError(err.response?.data?.detail || 'No se pudo eliminar. Verifica que no tenga recetas activas.');
             throw err;
         } finally {
@@ -114,7 +110,6 @@ export const useDesign = () => {
             const data = await designService.getMasterDetail(masterId);
             setCurrentMaster(data);
         } catch (err: any) {
-            console.error("Error loading master detail:", err);
             setError(err.response?.data?.detail || 'Error al cargar detalles.');
         } finally {
             setLoading(false);
@@ -137,7 +132,6 @@ export const useDesign = () => {
             }
             return newVersion;
         } catch (err: any) {
-            console.error("Error creating version:", err);
             setError(err.response?.data?.detail || 'Error al guardar la versión.');
             throw err;
         } finally {

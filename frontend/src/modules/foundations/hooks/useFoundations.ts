@@ -22,7 +22,6 @@ export const useFoundations = () => {
             setTaxRates(taxRes.data);
             setError(null);
         } catch (err) {
-            console.error("Error cargando datos:", err);
             setError('Error cargando configuración del servidor.');
         } finally {
             setLoading(false);
@@ -42,7 +41,6 @@ export const useFoundations = () => {
             setConfig(data);
             return { success: true };
         } catch (err) {
-            console.error("Error guardando config:", err);
             return { success: false };
         } finally {
             setSaving(false);
@@ -58,7 +56,6 @@ export const useFoundations = () => {
             await refreshData(); // Recargamos la lista para ver el nuevo
             return { success: true };
         } catch (err) {
-            console.error("Error creando impuesto:", err);
             return { success: false, error: 'Error al crear impuesto' };
         } finally {
             setSaving(false);
@@ -73,7 +70,6 @@ export const useFoundations = () => {
             await refreshData(); // Recargamos la lista
             return { success: true };
         } catch (err) {
-            console.error("Error actualizando impuesto:", err);
             return { success: false, error: 'Error al actualizar impuesto' };
         } finally {
             setSaving(false);
@@ -88,7 +84,6 @@ export const useFoundations = () => {
             await refreshData(); // Recargamos la lista
             return { success: true };
         } catch (err) {
-            console.error("Error eliminando impuesto:", err);
             return { success: false, error: 'Error al eliminar impuesto' };
         } finally {
             setSaving(false);
@@ -101,7 +96,6 @@ export const useFoundations = () => {
             await refreshData(); // Recargamos para ver el cambio de estatus
             return { success: true };
         } catch (err) {
-            console.error("Error cambiando estado impuesto:", err);
             return { success: false };
         }
     };
@@ -122,7 +116,6 @@ export const useFoundations = () => {
             }
             return true;
         } catch (err) {
-            console.error("Error subiendo logo:", err);
             return false;
         } finally {
             setSaving(false);

@@ -17,11 +17,9 @@ export const useMaterials = () => {
       if (Array.isArray(data)) {
         setMaterials(data);
       } else {
-        console.warn("API Materiales no devolvió un array:", data);
         setMaterials([]);
       }
     } catch (error) {
-      console.error("Error cargando materiales:", error);
       setMaterials([]); // Fallback seguro
     } finally {
       setLoading(false);

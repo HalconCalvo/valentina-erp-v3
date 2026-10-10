@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, ArrowRight, Loader, AlertCircle, LayoutGrid } from 'lucide-react';
 import client from '../../api/axios-client';
+import { Input } from '@/components/ui/Input';
 
 interface AuthResponse {
     access_token: string;
@@ -119,18 +120,18 @@ export default function LoginPage() {
                 <div className="space-y-4">
                     <div>
                         <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Correo</label>
-                        <input 
+                        <Input 
                             type="text" required
-                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                            className="h-auto w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                             placeholder="usuario@valentina.com"
                             value={email} onChange={e => setEmail(e.target.value)}
                         />
                     </div>
                     <div>
                         <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Contraseña</label>
-                        <input 
+                        <Input 
                             type="password" required
-                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                            className="h-auto w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                             placeholder="••••••••"
                             value={password} onChange={e => setPassword(e.target.value)}
                         />

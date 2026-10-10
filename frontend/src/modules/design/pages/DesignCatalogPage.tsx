@@ -743,8 +743,8 @@ const DesignCatalogPage: React.FC = () => {
 
     return (
         <div className="p-8 max-w-7xl mx-auto space-y-6 pb-24 animate-in fade-in duration-300">
-            <input type="file" ref={fileInputRef} className="hidden" accept=".pdf,image/*" onChange={handleFileChange} />
-            <input
+            <Input type="file" ref={fileInputRef} className="hidden" accept=".pdf,image/*" onChange={handleFileChange} />
+            <Input
                 type="file"
                 ref={importInputRef}
                 className="hidden"

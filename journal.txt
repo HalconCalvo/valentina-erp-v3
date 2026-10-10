@@ -4406,3 +4406,12 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 
 ### Saneamiento — estado:
 - Herramientas 1, 2 y 4 hechas y en producción tras el push; la 3 (IVA legacy) espera la lista de contabilidad (D14)
+
+---
+## SESIÓN 2026-10-10 (parte 12) — GUÍA: RESTOS DEL CHECKLIST
+
+### Hecho:
+- Frontend sin console.* (hooks de diseño, materiales, proveedores, clientes, parámetros y axios)
+- <input>/<select> nativos → Input/SearchableSelect: login, buscador del encabezado, selectores de archivo (diseño, caja chica, materiales, parámetros), estatus de la receta
+- Queda como excepción documentada la tabla de impresión del inventario físico; Campo sin tocar (en espera)
+- Revisado en pantalla: login y receta (estatus). Pruebas frontend 17, build OK

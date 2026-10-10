@@ -203,7 +203,7 @@ export default function ConfigPage() {
                         {uploading && <div className="absolute inset-0 bg-white/80 flex items-center justify-center rounded-md"><span className="text-xs font-bold text-blue-600 animate-pulse">Subiendo...</span></div>}
                     </div>
                     <div className="w-full text-center">
-                        <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
+                        <Input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
                         <button onClick={() => fileInputRef.current?.click()} disabled={uploading} className="text-xs flex items-center justify-center gap-2 mx-auto bg-white border border-slate-300 text-slate-700 font-bold py-1.5 px-3 rounded hover:bg-slate-50 transition-all shadow-sm">
                            <UploadCloud size={14} /> {uploading ? 'Cargando...' : 'Cambiar Logo'}
                         </button>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Bell, Factory, Wifi, HelpCircle } from 'lucide-react';
+import { Input } from '@/components/ui/Input';
 
 export default function Header() {
     const navigate = useNavigate();
@@ -11,10 +12,10 @@ export default function Header() {
             <div className="flex-1 max-w-lg">
                 <div className="relative group">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={16} />
-                    <input 
+                    <Input 
                         type="text" 
                         placeholder="Buscar orden, cliente o material..." 
-                        className="w-full pl-9 pr-4 py-1.5 bg-slate-100 border-none rounded-full text-xs font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all outline-none placeholder:text-slate-400"
+                        className="h-auto w-full pl-9 pr-4 py-1.5 bg-slate-100 border-none rounded-full text-xs font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all outline-none placeholder:text-slate-400"
                     />
                 </div>
             </div>
