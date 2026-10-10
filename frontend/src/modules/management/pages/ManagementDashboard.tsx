@@ -44,6 +44,7 @@ import {
 } from '../../treasury/components/PayrollAuditPanel';
 import { OrderStatementModal } from '../../finance/components/OrderStatementModal';
 import { SalesOrder } from '../../../types/sales';
+import { formatMoney } from '@/utils/format';
 
 /** Raíz del tablero Administración / Gerencia V4.0 */
 type AdminV4Root = null | 'PENDING' | 'BANKS' | 'CXC' | 'CXP' | 'PAYROLL' | 'OV_FACTURACION';
@@ -199,7 +200,7 @@ const ManagementDashboard: React.FC = () => {
     }, [root]);
 
     const formatCurrency = (n: number) =>
-        n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+        formatMoney(n);
 
     const getCountSize = (count: number) => {
         const len = String(count).length;

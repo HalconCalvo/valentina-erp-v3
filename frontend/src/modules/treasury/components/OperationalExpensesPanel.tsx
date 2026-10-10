@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { TableActionCancelIcon, TableActionEditIcon } from '@/lib/tableActionIcons';
+import { formatDate, formatMoney } from '@/utils/format';
 
 const OVERHEAD_CATEGORIES_BASE = [
     'PLANTA', 'COMUNICACIONES', 'COMBUSTIBLES', 'TRANSPORTE',
@@ -98,7 +99,7 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
     const [cancellingExpense, setCancellingExpense] = useState<boolean>(false);
 
     const fmt = (n: number) =>
-        n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+        formatMoney(n);
 
     const load = async () => {
         try {
@@ -313,7 +314,7 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
             sortable: true,
             render: (e) => (
                 <span className="text-slate-500 text-xs">
-                    {e.due_date ? new Date(e.due_date).toLocaleDateString('es-MX') : '—'}
+                    {e.due_date ? formatDate(e.due_date) : '—'}
                 </span>
             ),
         },

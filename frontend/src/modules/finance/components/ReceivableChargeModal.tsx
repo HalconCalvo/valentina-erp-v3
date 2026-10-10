@@ -5,6 +5,7 @@ import { salesService } from '../../../api/sales-service';
 import { Input } from '@/components/ui/Input';
 import { VCurrencyInput } from '@/components/ui/VCurrencyInput';
 import { toast } from '@/components/ui/VToast';
+import { formatMoney } from '@/utils/format';
 
 interface ReceivableChargeModalProps {
     isOpen: boolean;
@@ -226,7 +227,7 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({
     }, [tipoFactura, totalOrder]);
 
     const formatCurrency = (value: number) => {
-        return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value);
+        return formatMoney(value);
     };
 
     // ESCUDO 1: Deduplicar Items por si el backend los manda dobles

@@ -20,6 +20,7 @@ import { RecipeCorrectionPanel, type CatalogMaterial, type RecipeLine } from './
 import {
     DEFAULT_MIN_MARKUP, formatPercent, includedCommission, isBelowMinimum, markupPercent, netMarginPercent, priceFromMarkup,
 } from '../../sales/utils/margins';
+import { formatMoney } from '@/utils/format';
 
 interface FinancialReviewModalProps {
     /** Sales order: always read-only (prices are decided when the quotation is authorized). */
@@ -512,13 +513,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
         setReturning(true);
     };
 
-    const formatCurrency = (amount: number) => {
-        const safeAmount = Number(amount) || 0;
-        return safeAmount.toLocaleString('es-MX', {
-            style: 'currency', currency: 'MXN',
-            minimumFractionDigits: 2, maximumFractionDigits: 2
-        });
-    };
+    const formatCurrency = (amount: number) => formatMoney(Number(amount) || 0);
 
     const ingredientColumns = useMemo((): VTableColumn<CostIngredient>[] => [
         {

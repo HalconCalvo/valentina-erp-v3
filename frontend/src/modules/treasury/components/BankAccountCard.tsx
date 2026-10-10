@@ -1,6 +1,7 @@
 import React from 'react';
 import { Building2, Wallet } from 'lucide-react';
 import { BankAccount } from '../../../types/treasury';
+import { formatMoney } from '@/utils/format';
 
 interface Props {
   account: BankAccount;
@@ -35,7 +36,7 @@ export const BankAccountCard: React.FC<Props> = ({ account, onClick }) => {
         <div className="flex items-center gap-2">
           <Wallet className="text-gray-400" size={20} />
           <span className="text-2xl font-bold text-gray-900">
-            ${account.current_balance?.toLocaleString('es-MX', { minimumFractionDigits: 2 })} 
+            {formatMoney(account.current_balance)} 
             <span className="text-sm text-gray-500 font-normal ml-1">{account.currency}</span>
           </span>
         </div>

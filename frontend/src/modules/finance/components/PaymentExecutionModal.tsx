@@ -7,6 +7,7 @@ import { BankAccount } from '../../../types/treasury';
 import { Button } from '@/components/ui/Button';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
+import { formatMoney } from '@/utils/format';
 
 interface PaymentExecutionModalProps {
     onClose: () => void;
@@ -142,7 +143,7 @@ export const PaymentExecutionModal: React.FC<PaymentExecutionModalProps> = ({ on
                                                 <div className="text-right">
                                                     <p className="text-xs text-slate-500 font-bold uppercase">Saldo en Cuenta</p>
                                                     <p className={`font-bold ${hasFunds ? 'text-slate-700' : 'text-red-600'}`}>
-                                                        ${account.balance.toLocaleString('es-MX', {minimumFractionDigits: 2})}
+                                                        {formatMoney(account.balance)}
                                                     </p>
                                                 </div>
                                             </div>
@@ -158,7 +159,7 @@ export const PaymentExecutionModal: React.FC<PaymentExecutionModalProps> = ({ on
                                             <div className="text-right mb-1">
                                                 <div className="text-xs text-slate-400 font-bold uppercase">A Transferir</div>
                                                 <div className="text-3xl font-black text-slate-800">
-                                                    ${payment.amount.toLocaleString('es-MX', {minimumFractionDigits: 2})}
+                                                    {formatMoney(payment.amount)}
                                                 </div>
                                             </div>
                                             

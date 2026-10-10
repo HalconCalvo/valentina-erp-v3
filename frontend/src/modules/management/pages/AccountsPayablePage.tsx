@@ -12,6 +12,7 @@ import { AccountsPayableStats, PendingInvoice, PaymentRequestPayload } from '../
 import { PaymentRequestModal } from '../../finance/components/PaymentRequestModal';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
+import { formatMoney } from '@/utils/format';
 
 const AccountsPayablePage: React.FC = () => {
     const [stats, setStats] = useState<AccountsPayableStats | null>(null);
@@ -103,7 +104,7 @@ const AccountsPayablePage: React.FC = () => {
         return true;
     });
 
-    const formatCurrency = (amount: number) => amount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+    const formatCurrency = (amount: number) => formatMoney(amount);
     
     const formatDate = (dateStr: string) => {
         if (!dateStr) return "-";

@@ -88,7 +88,7 @@ const formatPaymentTypeLabel = (type: string | null | undefined): string => {
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
 const formatCurrency = (amount: number) =>
-    (Number.isFinite(amount) ? amount : 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+    formatMoney(amount);
 
 const formatInvoiceDate = (iso: string | null | undefined) => {
     if (!iso) return '—';

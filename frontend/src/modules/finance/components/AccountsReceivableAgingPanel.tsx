@@ -9,6 +9,7 @@ import { ReceivableChargeModal } from './ReceivableChargeModal';
 import { Input } from '@/components/ui/Input';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
+import { formatDate, formatMoney } from '@/utils/format';
 
 // =============================================================================
 // V5.6 — Lógica única de antigüedad / monitor de cartera (carga + filas)
@@ -284,7 +285,7 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
         return () => clearInterval(intervalId);
     }, []);
 
-    const formatCurrency = (amount: number) => amount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+    const formatCurrency = (amount: number) => formatMoney(amount);
 
     const carteraRows = useMemo(() => buildCarteraMonitorRows(orders), [orders]);
 
@@ -393,7 +394,7 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
             label: 'Fecha OV',
             render: (inv) => (
                 <span className="text-sm text-slate-600 font-medium whitespace-nowrap">
-                    {new Date(inv.ovDateYmd).toLocaleDateString('es-MX')}
+                    {formatDate(inv.ovDateYmd)}
                 </span>
             ),
         },

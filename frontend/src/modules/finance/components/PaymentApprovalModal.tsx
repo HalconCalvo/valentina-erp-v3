@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import { toast } from '@/components/ui/VToast';
+import { formatMoney } from '@/utils/format';
 
 interface PaymentApprovalModalProps {
     onClose: () => void;
@@ -159,7 +160,7 @@ export const PaymentApprovalModal: React.FC<PaymentApprovalModalProps> = ({ onCl
                                                 items={accounts}
                                                 value={selectedAccounts[req.id] ? String(selectedAccounts[req.id]) : ''}
                                                 onChange={(value) => handleAccountChange(req.id, value ? Number(value) : '')}
-                                                getLabel={(acc) => `${acc.name} - Saldo: $${acc.current_balance.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`}
+                                                getLabel={(acc) => `${acc.name} - Saldo: ${formatMoney(acc.current_balance)}`}
                                                 getValue={(acc) => String(acc.id)}
                                                 placeholder="-- Asignar cuenta para el pago --"
                                                 className="bg-transparent text-sm font-medium text-slate-700 w-full border-0 shadow-none"
@@ -178,7 +179,7 @@ export const PaymentApprovalModal: React.FC<PaymentApprovalModalProps> = ({ onCl
                                         <div className="text-right">
                                             <div className="text-xs text-slate-400 font-bold uppercase">Monto Autorizado</div>
                                             <div className="text-2xl font-black text-slate-800">
-                                                ${req.amount.toLocaleString('es-MX', {minimumFractionDigits: 2})}
+                                                {formatMoney(req.amount)}
                                             </div>
                                         </div>
                                         

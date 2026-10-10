@@ -7,6 +7,7 @@ import { toast } from '@/components/ui/VToast';
 import { PaymentMethod, PaymentRequestPayload, SupplierPayment, PendingInvoice } from '../../../types/finance';
 import { treasuryService } from '../../../api/treasury-service';
 import { BankAccount } from '../../../types/treasury';
+import { formatMoney } from '@/utils/format';
 
 interface PaymentRequestModalProps {
     invoice?: PendingInvoice; 
@@ -224,7 +225,7 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
                                 items={accounts}
                                 value={suggestedAccount ? String(suggestedAccount) : ''}
                                 onChange={(value) => setSuggestedAccount(value ? Number(value) : '')}
-                                getLabel={(acc) => `${acc.name} (${acc.currency}) - Saldo: $${acc.current_balance.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`}
+                                getLabel={(acc) => `${acc.name} (${acc.currency}) - Saldo: ${formatMoney(acc.current_balance)}`}
                                 getValue={(acc) => String(acc.id)}
                                 placeholder={isChecker ? 'Selecciona una cuenta...' : 'Dejar que Dirección decida...'}
                                 className="pl-9 text-sm font-medium text-slate-700"

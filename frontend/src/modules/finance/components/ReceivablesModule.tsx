@@ -8,6 +8,7 @@ import { ReceivableChargeModal } from './ReceivableChargeModal';
 import { OrderStatementModal } from './OrderStatementModal';
 import { toast } from '@/components/ui/VToast';
 import { useSalesOrders, useInvoicingRights } from '../../../hooks/useReceivables';
+import { formatMoney } from '@/utils/format';
 
 // ---> 1. AGREGAMOS EL FILTRO 'ALL' <---
 type ReceivableFilter = 'ALL' | 'ADVANCES' | null;
@@ -93,7 +94,7 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
         return o.client_name || o.client?.full_name || o.client?.name || o.customer?.name || 'Cliente por Defecto';
     }, []);
 
-    const formatCurrency = (amount: number) => amount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+    const formatCurrency = (amount: number) => formatMoney(amount);
 
     const ACTIVE_STATUSES = ['WAITING_ADVANCE', 'SOLD', 'IN_PRODUCTION', 'FINISHED', 'COMPLETED'];
 

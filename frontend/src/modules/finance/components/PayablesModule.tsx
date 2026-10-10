@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { TableActionCancelIcon, TableActionEditIcon } from '@/lib/tableActionIcons';
+import { formatMoney } from '@/utils/format';
 
 type PayableFilter =
  | 'ALL'
@@ -256,7 +257,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
         return { count, totalFacturado, totalAbonado, totalSaldo };
     }, [doublyFiltered]);
 
-    const formatCurrency = (amount: number) => amount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+    const formatCurrency = (amount: number) => formatMoney(amount);
     const formatDate = (dateStr: string) => {
         if (!dateStr) return "-";
         if (dateStr.includes('T')) return new Date(dateStr).toLocaleDateString('es-MX', {day: '2-digit', month: '2-digit'});

@@ -26,6 +26,7 @@ import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
+import { formatDateTime, formatMoney } from '@/utils/format';
 
 export type PayrollLevel1 = 'COMMISSIONS' | 'INSTALLATIONS' | 'WEEKLY' | null;
 type SubView = 'RETAINED' | 'PAYABLE' | 'PAID';
@@ -133,7 +134,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
   }, [loadOverviews]);
 
   const fmt = (n: number) =>
-    n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+    formatMoney(n);
 
   const commissionRows = useMemo(() => {
     if (!coOverview) return { RETAINED: [] as PayrollCommissionRow[], PAYABLE: [] as PayrollCommissionRow[], PAID: [] as PayrollCommissionRow[] };
@@ -291,7 +292,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
     }
   };
 
-  const fmtMoney = (n: number) => (n || 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+  const fmtMoney = (n: number) => formatMoney(n);
 
   const historyColumns = useMemo((): VTableColumn<WeeklyFixedCostRecord>[] => [
     {
@@ -621,7 +622,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
         label: 'Pagado',
         render: (r) => (
           <span className="text-xs text-slate-500">
-            {r.paid_at ? new Date(r.paid_at).toLocaleString('es-MX') : '—'}
+            {formatDateTime(r.paid_at)}
           </span>
         ),
       });

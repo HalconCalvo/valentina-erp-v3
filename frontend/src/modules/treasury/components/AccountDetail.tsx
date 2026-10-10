@@ -8,6 +8,7 @@ import { toast } from '@/components/ui/VToast';
 import { Input } from '@/components/ui/Input';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
+import { formatMoney } from '@/utils/format';
 
 interface Transaction {
   id: number;
@@ -302,7 +303,7 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
       label: 'Egreso (-)',
       render: (tx) => (
         <span className="block text-right font-medium text-red-600 whitespace-nowrap">
-          {tx.transaction_type === 'OUT' ? `$${tx.amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : '-'}
+          {tx.transaction_type === 'OUT' ? `${formatMoney(tx.amount)}` : '-'}
         </span>
       ),
     },
@@ -311,7 +312,7 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
       label: 'Ingreso (+)',
       render: (tx) => (
         <span className="block text-right font-medium text-green-600 whitespace-nowrap">
-          {tx.transaction_type === 'IN' ? `$${tx.amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : '-'}
+          {tx.transaction_type === 'IN' ? `${formatMoney(tx.amount)}` : '-'}
         </span>
       ),
     },
@@ -320,7 +321,7 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
       label: 'Saldo',
       render: (tx) => (
         <span className="block text-right font-bold text-gray-900 whitespace-nowrap">
-          ${tx.running_balance?.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+          {formatMoney(tx.running_balance)}
         </span>
       ),
     },
@@ -339,12 +340,12 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
           const concepto = tx.description || 'Sin descripción';
           const ref = tx.reference || '-';
           const egreso = (tx.transaction_type === 'OUT')
-              ? `$${tx.amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+              ? `${formatMoney(tx.amount)}`
               : '-';
           const ingreso = (tx.transaction_type === 'IN')
-              ? `$${tx.amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+              ? `${formatMoney(tx.amount)}`
               : '-';
-          const saldo = `$${(tx.running_balance || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
+          const saldo = `${formatMoney((tx.running_balance || 0))}`;
           return `<div class="print-row">
               <div class="print-cell">${fecha}</div>
               <div class="print-cell">${concepto}</div>
@@ -406,7 +407,7 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
               </div>
               <div class="saldo">
                   <p>Saldo Actual</p>
-                  <h2>$${(account.current_balance || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</h2>
+                  <h2>${formatMoney((account.current_balance || 0))}</h2>
               </div>
           </div>
 
@@ -424,7 +425,7 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
           </div>
 
           <div class="footer">
-              Impreso el ${new Date().toLocaleString('es-MX')} · Documento generado por Valentina ERP v3.8.41
+              Impreso el {formatMoney(new Date())} · Documento generado por Valentina ERP v3.8.41
           </div>
       </body></html>`;
 
@@ -449,7 +450,7 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
           <p className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">Saldo Actual</p>
           {/* 👇 Importe grande cambiado a color azul (text-blue-700) */}
           <p className="text-4xl font-black text-blue-700">
-            ${account.current_balance?.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+            {formatMoney(account.current_balance)}
           </p>
         </div>
 
@@ -557,7 +558,7 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
                               Transferencia entre Cuentas
                           </h3>
                           <p className="text-xs text-slate-500 mt-1">
-                              Origen: <strong>{account.name}</strong> — Saldo: ${(account.current_balance || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                              Origen: <strong>{account.name}</strong> — Saldo: {formatMoney((account.current_balance || 0))}
                           </p>
                       </div>
                       <button
@@ -576,7 +577,7 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
                               items={accounts}
                               value={transferForm.to_account_id}
                               onChange={(value) => setTransferForm((f) => ({ ...f, to_account_id: value }))}
-                              getLabel={(a) => `${a.name} — $${(a.current_balance || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`}
+                              getLabel={(a) => `${a.name} — ${formatMoney((a.current_balance || 0))}`}
                               getValue={(a) => String(a.id)}
                               placeholder="-- Seleccionar cuenta --"
                               className="w-full"
@@ -646,7 +647,7 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
       <VConfirmDialog
         isOpen={showTransferConfirm}
         title="Confirmar transferencia"
-        message={`¿Transferir $${getTransferAmount().toLocaleString('es-MX', { minimumFractionDigits: 2 })} a la cuenta seleccionada?`}
+        message={`¿Transferir ${formatMoney(getTransferAmount())} a la cuenta seleccionada?`}
         consequence="Se registrará un egreso en esta cuenta y un ingreso en la cuenta destino."
         variant="default"
         confirmLabel="Sí, transferir"
@@ -671,7 +672,7 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
             <div className="p-6 space-y-4">
               <div className="bg-slate-50 rounded-lg p-4 space-y-1">
                 <p className="text-sm font-bold text-slate-700">
-                  Monto: ${cancelTxModal.tx.amount?.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                  Monto: {formatMoney(cancelTxModal.tx.amount)}
                 </p>
                 <p className="text-sm text-slate-600">
                   {cancelTxModal.tx.description || 'Sin descripción'}

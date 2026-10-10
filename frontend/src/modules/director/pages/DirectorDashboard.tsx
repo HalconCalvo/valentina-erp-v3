@@ -32,6 +32,7 @@ import {
 } from '../../../api/analytics-service';
 import { SalesOrder } from '../../../types/sales';
 import { BankAccount } from '../../../types/treasury';
+import { formatDate, formatMoney } from '@/utils/format';
 
 // Posibles vistas desplegables (Nivel 1)
 type DirectorSection = 'SALES' | 'OPERATIONS' | 'LIQUIDITY' | 'PROFITABILITY' | 'EFFICIENCY' | 'CXC_AGING' | 'TOP_CLIENTS' | null;
@@ -300,7 +301,7 @@ const DirectorDashboard: React.FC = () => {
         setRealSalesAdvance(advancePercentage);
     };
 
-    const formatCurrency = (amount: number) => amount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+    const formatCurrency = (amount: number) => formatMoney(amount);
     const formatPercent = (value: number) =>
         new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 
@@ -524,7 +525,7 @@ const DirectorDashboard: React.FC = () => {
                 render: (inst) => (
                     <span className="text-xs text-slate-500">
                         {inst.delivery_deadline
-                            ? new Date(inst.delivery_deadline).toLocaleDateString('es-MX')
+                            ? formatDate(inst.delivery_deadline)
                             : '—'}
                     </span>
                 ),

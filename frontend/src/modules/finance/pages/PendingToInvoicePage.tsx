@@ -8,6 +8,7 @@ import { ReceivableChargeModal } from '../components/ReceivableChargeModal';
 import { toast } from '@/components/ui/VToast';
 import { Input } from '@/components/ui/Input';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
+import { formatMoney } from '@/utils/format';
 
 type VendorRightRow =
     | { kind: 'ADVANCE'; order_id: number; folio: string; client: string; project: string; detail: string; amount: number }
@@ -76,7 +77,7 @@ const PendingToInvoicePage = () => {
     );
 
     const formatCurrency = (amount: number) =>
-        (Number.isFinite(amount) ? amount : 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+        formatMoney(amount);
 
     const tarjetaBTotal = invoicingRights?.total_pending_invoice ?? 0;
 

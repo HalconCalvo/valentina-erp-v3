@@ -36,6 +36,7 @@ import { PayrollAuditPanel, type PayrollLevel1 } from '../components/PayrollAudi
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { toast } from '@/components/ui/VToast';
+import { formatMoney } from '@/utils/format';
 
 type AdminSection = 'TASKS' | 'RECEIVABLES' | 'PAYABLES' | 'PETTY_CASH' | 'OPERATIONAL_EXPENSES' | null;
 
@@ -259,7 +260,7 @@ export const TreasuryPage = () => {
     return () => clearInterval(intervalId);
   }, [isChecker]);
 
-  const formatCurrency = (amount: number) => amount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+  const formatCurrency = (amount: number) => formatMoney(amount);
 
   const getSectionTitle = () => {
     switch(activeSection) {

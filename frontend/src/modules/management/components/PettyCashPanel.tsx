@@ -13,6 +13,7 @@ import {
   PettyCashMovementUpdate,
   PettyCashCategory,
 } from '../../../types/petty_cash';
+import { formatMoney } from '@/utils/format';
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
@@ -24,7 +25,7 @@ const CATEGORIES: PettyCashCategory[] = [
 const MANAGER_ROLES = ['DIRECTOR', 'MANAGER'];
 
 function fmt(n: number) {
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n);
+  return formatMoney(n);
 }
 
 function formatDate(iso: string) {

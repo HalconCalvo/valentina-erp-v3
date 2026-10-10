@@ -8,6 +8,7 @@ import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { VEmptyState } from '@/components/ui/VEmptyState';
 import { toast } from '@/components/ui/VToast';
 import { RecordHistoryButton } from '@/components/audit/RecordHistoryButton';
+import { formatDate, formatMoney } from '@/utils/format';
 
 const cleanInvoiceFolio = (folio: string | null | undefined): string => {
     const safe = String(folio ?? '').trim();
@@ -240,7 +241,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
             setLocalOutstanding(nuevoSaldo);
             setShowNCForm(false);
             setNcFolio(''); setNcAmount(''); setNcReason('');
-            toast.success(`Nota de Crédito registrada. Nuevo saldo de la factura: $${Number(nuevoSaldo).toLocaleString('es-MX', {minimumFractionDigits: 2})}`);
+            toast.success(`Nota de Crédito registrada. Nuevo saldo de la factura: ${formatMoney(Number(nuevoSaldo))}`);
         } catch (e: any) {
             toast.error(e?.response?.data?.detail || 'No se pudo registrar la Nota de Crédito.');
         } finally {
@@ -318,7 +319,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                 const price = Number(item.price || item.unit_price || item.expected_cost || 0);
                 return (
                     <span className="block text-center text-xs font-bold text-slate-400">
-                        ${price.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                        {formatMoney(price)}
                     </span>
                 );
             },
@@ -341,7 +342,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                 const price = Number(item.price || item.unit_price || item.expected_cost || 0);
                 return (
                     <span className="block text-right text-xs font-black text-slate-800">
-                        ${(qty * price).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                        {formatMoney((qty * price))}
                     </span>
                 );
             },
@@ -376,7 +377,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                             )}
                             {/* AQUÍ ESTÁ EL CAMBIO: Fecha de tamaño sm pero con su color original */}
                             <p className="text-sm font-black uppercase text-slate-500 mt-1.5 tracking-tight leading-none">
-                                VENCIMIENTO: {invoice.due_date ? new Date(invoice.due_date).toLocaleDateString('es-MX') : 'INMEDIATO'}
+                                VENCIMIENTO: {invoice.due_date ? formatDate(invoice.due_date) : 'INMEDIATO'}
                             </p>
                             {(invoice as any).authorized_by && (
                                 <p className="text-[9px] font-black uppercase text-indigo-600 mt-1 tracking-widest leading-none flex items-center gap-1">
@@ -462,7 +463,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                                             <div key={idx} className="flex items-center gap-2 py-1 border-b border-slate-50 last:border-0">
                                                 <span className="flex-1 text-xs font-bold text-slate-600 uppercase">{it.description || it.name || 'Material'}</span>
                                                 <span className="text-[10px] text-slate-400">recibido: {recibido}</span>
-                                                <span className="text-[10px] text-slate-400">${precio.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                                                <span className="text-[10px] text-slate-400">{formatMoney(precio)}</span>
                                                 <Input
                                                     type="number" min="0" max={recibido} step="any"
                                                     value={returnQty[idx] ?? ''}
@@ -478,7 +479,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                                         );
                                     })}
                                     <div className="text-right text-sm font-black text-amber-800 mt-2">
-                                        Monto NC (calculado): ${returnTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                                        Monto NC (calculado): {formatMoney(returnTotal)}
                                     </div>
                                 </div>
                             )}
@@ -527,15 +528,15 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                     <div className="w-80 space-y-1 pr-14">
                         <div className="flex justify-between items-center text-slate-500">
                             <span className="text-[10px] font-black uppercase">Subtotal</span>
-                            <span className="text-sm font-bold">${displaySubtotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            <span className="text-sm font-bold">{formatMoney(displaySubtotal)}</span>
                         </div>
                         <div className="flex justify-between items-center text-slate-500 border-b border-slate-200 pb-2">
                             <span className="text-[10px] font-black uppercase">IVA (16%)</span>
-                            <span className="text-sm font-bold">${displayIva.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            <span className="text-sm font-bold">{formatMoney(displayIva)}</span>
                         </div>
                         <div className="flex justify-between items-center pt-2">
                             <span className="text-[11px] font-black text-emerald-600 uppercase">{enCapturaNC ? 'Nuevo saldo (tras NC)' : 'Saldo a pagar'}</span>
-                            <span className={`text-3xl font-black ${enCapturaNC ? (ncExcede ? 'text-red-600' : 'text-emerald-600') : 'text-slate-900'}`}>${saldoMostrado.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            <span className={`text-3xl font-black ${enCapturaNC ? (ncExcede ? 'text-red-600' : 'text-emerald-600') : 'text-slate-900'}`}>{formatMoney(saldoMostrado)}</span>
                         </div>
                     </div>
                 </div>

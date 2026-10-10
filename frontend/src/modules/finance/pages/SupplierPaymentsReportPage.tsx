@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
 import type { Provider } from '../../foundations/hooks/useProviders';
+import { formatMoney } from '@/utils/format';
 
 type StatusFilter = 'paid' | 'pending' | 'all';
 
@@ -44,7 +45,7 @@ const STATUS_FILTER_LABELS: Record<StatusFilter, string> = {
 };
 
 const formatCurrency = (amount: number) =>
-    (Number.isFinite(amount) ? amount : 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+    formatMoney(amount);
 
 const formatDate = (dateStr: string) => {
     const d = new Date(`${dateStr}T12:00:00`);

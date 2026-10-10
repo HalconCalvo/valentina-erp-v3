@@ -8,6 +8,7 @@ import axiosClient from '../../../api/axios-client';
 import { toast } from '@/components/ui/VToast';
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { formatMoney } from '@/utils/format';
 
 interface Props {
   isOpen: boolean;
@@ -134,7 +135,7 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
             {currentAccount && (
               <div className="text-sm text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-1">
                 <p>Cuenta: <span className="font-semibold text-slate-700">{currentAccount.name}</span></p>
-                <p>Saldo Actual: <span className="font-semibold">${currentAccount.current_balance?.toLocaleString('es-MX', {minimumFractionDigits: 2})}</span></p>
+                <p>Saldo Actual: <span className="font-semibold">{formatMoney(currentAccount.current_balance)}</span></p>
                 
                 <div className="flex items-center gap-2 pl-4 border-l border-slate-200 ml-2">
                   <span>Nuevo Saldo Estimado:</span>
@@ -143,7 +144,7 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
                       ? (watchType === 'IN' ? 'text-green-600' : 'text-red-600')
                       : 'text-slate-400'
                   }`}>
-                    ${nuevoSaldoCuenta.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                    {formatMoney(nuevoSaldoCuenta)}
                   </span>
                 </div>
               </div>
@@ -181,7 +182,7 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
                 value={selectedCxcId === '' ? '' : String(selectedCxcId)}
                 onChange={(v) => setSelectedCxcId(v ? Number(v) : '')}
                 getLabel={(inv) =>
-                  `${inv.project_name} — ${inv.invoice_folio} — Saldo $${Number(inv.saldo || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })} (${inv.payment_type})`
+                  `${inv.project_name} — ${inv.invoice_folio} — Saldo ${formatMoney(Number(inv.saldo || 0))} (${inv.payment_type})`
                 }
                 getValue={(inv) => String(inv.cxc_id)}
                 placeholder="— Ninguna (ingreso general) —"
@@ -196,12 +197,12 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
                 <div className="flex justify-between"><span className="text-slate-500">Proyecto</span><span className="font-semibold text-slate-800">{selectedInvoice.project_name}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Factura</span><span className="font-mono text-slate-800">{selectedInvoice.invoice_folio}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Tipo</span><span className="text-slate-800">{selectedInvoice.payment_type}</span></div>
-                <div className="flex justify-between"><span className="text-slate-500">Saldo factura</span><span className="font-semibold text-slate-800">${saldoActual.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Saldo factura</span><span className="font-semibold text-slate-800">{formatMoney(saldoActual)}</span></div>
               </div>
               <div className={`flex justify-between items-center mt-3 pt-3 border-t border-slate-200 ${quedaSaldada ? 'text-emerald-600' : 'text-amber-600'}`}>
                 <span className="text-sm font-medium">Nuevo saldo factura</span>
                 <span className="text-base font-bold">
-                  ${nuevoSaldo.toLocaleString('es-MX', { minimumFractionDigits: 2 })}{quedaSaldada ? ' — Saldada' : ''}
+                  {formatMoney(nuevoSaldo)}{quedaSaldada ? ' — Saldada' : ''}
                 </span>
               </div>
             </div>
@@ -230,7 +231,7 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
                           setExtraCxcItems(updated);
                         }}
                         getLabel={(i) =>
-                          `${i.project_name} — ${i.invoice_folio} — Saldo $${Number(i.saldo || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+                          `${i.project_name} — ${i.invoice_folio} — Saldo ${formatMoney(Number(i.saldo || 0))}`
                         }
                         getValue={(i) => String(i.cxc_id)}
                         placeholder="— Selecciona factura —"
@@ -252,7 +253,7 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
                               className="pl-5 pr-3 py-1.5 border-indigo-200 text-sm font-bold text-indigo-700 w-36 focus-visible:ring-indigo-400"
                             />
                           </div>
-                          <span className="text-[11px] text-indigo-500">de ${Number(inv.saldo || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                          <span className="text-[11px] text-indigo-500">de {formatMoney(Number(inv.saldo || 0))}</span>
                         </div>
                       )}
                     </div>
@@ -276,9 +277,9 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
                 {importeCobro > 0 && (
                   <div className={`text-xs font-bold px-3 py-1.5 rounded-lg ${excedido ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
                     {excedido
-                      ? `⚠ Excedido por $${(totalAplicado - importeCobro).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+                      ? `⚠ Excedido por ${formatMoney((totalAplicado - importeCobro))}`
                       : sobrante > 0.01
-                        ? `Sobrante: $${sobrante.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+                        ? `Sobrante: ${formatMoney(sobrante)}`
                         : '✓ Depósito aplicado al 100%'
                     }
                   </div>
