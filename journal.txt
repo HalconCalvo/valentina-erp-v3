@@ -4322,3 +4322,19 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 - D13 costos y márgenes visibles fuera de Finanzas (respuestas reducidas por rol)
 
 ### Push pendiente: después de las 19:00 (requiere que la sesión siga activa)
+
+---
+## SESIÓN 2026-10-10 (parte 6) — PUSH A PRODUCCIÓN
+
+### En producción (push autorizado por Gabriel, sábado 14:22):
+- 72d8d23..cd103bd (44 commits): F3, márgenes y comisión, F4 bitácora, guía de pantallas (primera ola), pendientes del journal, seguridad (escrituras y lecturas por rol), D2–D7, cancelar en vez de borrar
+- Render aplicó las migraciones q6 → m3 → n4 → r7 → s8 → t9 → u0; verificado con consulta de solo lectura a las 14:23: alembic_version = u0v1w2x3y4z5
+- Comprobaciones: interruptor "Gerencia puede ejecutar pagos" apagado; sobreprecio mínimo 25; 86 cotizaciones con sobreprecio recalculado; 321 OCs con IVA 16%; sesión #2 en captura con 46 pendientes
+
+### Regla nueva (CLAUDE.md):
+- Horario laboral: lunes a viernes de 8:00 a 18:00 (Mérida). Fuera de eso el push está permitido si se cumplen las demás condiciones
+
+### A partir de hoy en producción:
+- Gerencia ya no ejecuta pagos hasta que Dirección encienda el interruptor en Parámetros Globales
+- Planear y reprogramar: solo Dirección o Diseño
+- Solo Dirección administra usuarios
