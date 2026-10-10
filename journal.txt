@@ -4338,3 +4338,19 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 - Gerencia ya no ejecuta pagos hasta que Dirección encienda el interruptor en Parámetros Globales
 - Planear y reprogramar: solo Dirección o Diseño
 - Solo Dirección administra usuarios
+
+---
+## SESIÓN 2026-10-10 (parte 7) — SANEAMIENTO (D8) Y D13
+
+### Decisiones de Gabriel:
+- D8: no hay arranque en ceros; todo lo de producción es real y se sanea con la regla de oro. D9–D12 resueltas o reemplazadas
+- D13: el vendedor (SALES) solo ve precio de venta, nunca costos ni márgenes, en ninguna pantalla ni PDF
+
+### Hecho:
+- Reporte de saneamiento (solo lectura en producción) en docs/SANEAMIENTO.md; Excel de materiales incompletos en ~/Downloads/saneamiento_materiales_2026-10-10.xlsx
+- docs/PLAN_ARRANQUE.md marcado como reemplazado; ROADMAP tarea 7 = saneamiento, tarea 8 = D13
+
+### Decisión nueva para Gabriel:
+- D14: saneamiento (preguntas para contabilidad: OVs finalizadas con parte sin facturar, OV-0045 vs OV-0123, OVs exentas, diferencia de $2,397.72 en Santander)
+
+### Siguiente: D13 (respuestas reducidas para SALES) y herramienta de recálculo de saldos
