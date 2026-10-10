@@ -23,7 +23,7 @@ Permitido sin pedir autorización SOLO si se cumplen todas:
 - pasan todos los tests (backend y frontend) y el build;
 - se probó en pantalla en la copia local;
 - las migraciones se probaron en la copia local (subir, bajar, subir);
-- es fuera de horario laboral: antes de las 8:00 o después de las 19:00 (hora Mérida), o en domingo.
+- es fuera de horario laboral (hora Mérida). Horario laboral: lunes a viernes de 8:00 a 18:00; fuera de eso (noches, sábados y domingos) se permite.
 Si alguna no se cumple: commit local y se sigue con otra tarea.
 
 ### Bitácora del proyecto
