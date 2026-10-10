@@ -21,15 +21,26 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
   los 46 restantes, envía y el Director autoriza.
 - Ensayado en copia de producción (2026-10-10): resultado idéntico al esperado.
 
-## 2. F3 + márgenes + comisión: prueba en pantalla y push — pendiente
+## 2. F3 + márgenes + comisión: prueba en pantalla y push — en espera (extensión Claude in Chrome sin conectar)
 - 4 commits locales sobre producción (corrección de recetas y precios al autorizar, definición única de
   márgenes, comisión = c × venta sin IVA, ajuste de test). Migraciones m3n4o5p6q7r8 → n4o5p6q7r8s9.
 - Falta: prueba en pantalla en la copia local; push según reglas (fuera de horario).
+- 2026-10-10: la extensión de Chrome no conecta ("Browser extension is not connected"); Gabriel debe abrir
+  Chrome con la extensión y la misma cuenta de claude.ai. Backend 8000 y Vite 3000 locales ya corren.
 - Al subir, n4o5p6q7r8s9 recalcula en producción sobreprecio y comisión guardados (no cambia precios).
 
-## 3. Guía de pantallas — pendiente
+## 3. Guía de pantallas — en espera (Gabriel, D1)
 - Inventariar todas las pantallas; proponer `docs/GUIA_PANTALLAS.md` con base en las mejores pantallas actuales.
 - Aprobación de Gabriel vía DECISIONES_PENDIENTES.
+- 2026-10-10: propuesta escrita en `docs/GUIA_PANTALLAS.md`; inventario de 47 rutas. Hallazgos para la tarea 4:
+  - `fetch()` directo (16): Kanban de producción ×8, reporte de pagos a proveedores ×3, centro de impresión ×2,
+    estado de cuenta de proveedor, catálogo de diseño, importación CSV de clientes y proveedores.
+  - `<input>` nativo visible: Login, catálogo de diseño, pantalla de campo.
+  - 35 modales hechos a mano (`fixed inset-0`), 7 en Órdenes de compra.
+  - `console.*` en hooks: useDesign, useFoundations, useMaterials, useClients, useProviders.
+  - Acciones de solo ícono sin descripción (sin tooltip): Usuarios y Tasas de IVA.
+  - Páginas huérfanas sin ruta: AccountsPayablePage, InstanceBaptismPage, auth/pages/LoginPage.tsx (vacío);
+    routes/ProtectedRoute.tsx sin uso (las rutas solo validan sesión, no rol, salvo legacy-import y campo).
 
 ## 4. Aplicar la guía por módulos — en espera (aprobación de la guía)
 - Primero Ventas, Inventario y Compras.
