@@ -46,6 +46,7 @@ import {
     QuotationRowActions,
     quotationStatusBadgeClass,
 } from '../components/QuotationActions';
+import { formatDate, formatMoney } from '@/utils/format';
 
 type SalesSection = 'GOALS' | 'QUOTES' | 'COLLECTIONS' | 'MONITOR' | null;
 type GoalDetailView = 'COMMISSIONS' | 'CLOSED' | 'STREET' | 'EFFECTIVENESS' | null;
@@ -372,7 +373,7 @@ const SalesDashboardPage: React.FC = () => {
         }
     };
 
-    const formatCurrency = (amount: number) => amount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+    const formatCurrency = (amount: number) => formatMoney(amount);
 
     const getCountSize = (count: number) => {
         const len = count.toString().length;
@@ -545,7 +546,7 @@ const SalesDashboardPage: React.FC = () => {
                     key: 'client_po_date',
                     label: 'Fecha OC',
                     render: (row) => (
-                        <span className="text-slate-600">{row.client_po_date ? new Date(row.client_po_date).toLocaleDateString('es-MX') : '—'}</span>
+                        <span className="text-slate-600">{formatDate(row.client_po_date)}</span>
                     ),
                 },
             );
@@ -774,7 +775,7 @@ const SalesDashboardPage: React.FC = () => {
             {
                 key: 'created_at',
                 label: 'Fecha',
-                render: (row) => <span className="text-slate-600 font-medium whitespace-nowrap">{new Date(row.created_at).toLocaleDateString('es-MX')}</span>,
+                render: (row) => <span className="text-slate-600 font-medium whitespace-nowrap">{formatDate(row.created_at)}</span>,
             },
             {
                 key: 'folio',

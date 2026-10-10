@@ -12,6 +12,7 @@ import type { SalesOrder, SalesOrderItem } from '../../../types/sales';
 import type { ChangeOrderLine, ChangeType, Quotation } from '../../../types/quotations';
 import { AddItemsModal } from './AddItemsModal';
 import { computeChangeOrderTotals } from '../utils/changeOrderTotals';
+import { formatMoney } from '@/utils/format';
 
 type LineOp = 'NONE' | Exclude<ChangeType, 'ADD'>;
 
@@ -37,8 +38,7 @@ const STATUS_LABELS: Record<string, string> = {
     PENDING: 'Pendiente', IN_PRODUCTION: 'En producción', READY: 'Lista', CARGADO: 'Cargada',
     INSTALLED: 'Instalada', CLOSED: 'Firmada', WARRANTY: 'Garantía',
 };
-const money = (value: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value || 0);
+const money = (value: number) => formatMoney(value);
 
 /** Money summary of a change order. Line amounts are without tax; totals and advance include tax. */
 export const ChangeTotals: React.FC<{ order: SalesOrder; delta: number; advancePercent?: number }> = ({ order, delta, advancePercent }) => {

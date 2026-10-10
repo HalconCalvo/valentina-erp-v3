@@ -2,6 +2,7 @@ import React from 'react';
 import { X, FileText, Package, DollarSign, Layers } from 'lucide-react';
 import { SalesOrderItem } from '../../../types/sales';
 import { toast } from '@/components/ui/VToast';
+import { formatMoney } from '@/utils/format';
 
 interface RecipeViewerModalProps {
     item: SalesOrderItem | null;
@@ -11,11 +12,7 @@ interface RecipeViewerModalProps {
 export const RecipeViewerModal: React.FC<RecipeViewerModalProps> = ({ item, onClose }) => {
     if (!item) return null;
 
-    const formatCurrency = (amount: number | any) => {
-        const num = Number(amount);
-        if (isNaN(num)) return '$ 0.00';
-        return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(num);
-    };
+    const formatCurrency = (amount: number | any) => formatMoney(Number(amount));
 
     // Extraemos la caja fuerte de manera segura
     let recipeData: any = {};

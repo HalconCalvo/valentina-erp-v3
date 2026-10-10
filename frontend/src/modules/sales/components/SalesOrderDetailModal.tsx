@@ -15,6 +15,7 @@ import { CustomerPayment, SalesOrder } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
 import BaptismModal from './BaptismModal';
 import { RecordHistoryButton } from '@/components/audit/RecordHistoryButton';
+import { formatDate, formatMoney } from '@/utils/format';
 
 interface Props {
     orderId: number | null;
@@ -30,8 +31,7 @@ function daysOpenForCxc(cxc: CustomerPayment): number | null {
     return Math.max(0, Math.ceil((Date.now() - d0.getTime()) / (1000 * 60 * 60 * 24)));
 }
 
-const fmtCurrency = (amount: number) =>
-    amount.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtCurrency = (amount: number) => formatMoney(amount);
 
 export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => {
     const [order, setOrder] = useState<SalesOrder | null>(null);
@@ -200,7 +200,7 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
             render: (cxc) => (
                 <span className="text-slate-600">
                     {cxc.invoice_date
-                        ? new Date(cxc.invoice_date).toLocaleDateString('es-MX')
+                        ? formatDate(cxc.invoice_date)
                         : '—'}
                 </span>
             ),
@@ -210,7 +210,7 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
             label: 'Importe',
             render: (cxc) => (
                 <span className="text-right font-bold block">
-                    ${fmt(Number(cxc.amount) || 0)}
+                    {fmt(Number(cxc.amount) || 0)}
                 </span>
             ),
         },
@@ -361,12 +361,12 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                         <div className="border-l border-slate-200 pl-4">
                             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1"><User size={12}/> Cliente</h3>
                             <div className="text-base font-bold text-slate-700">{(order as any).client?.full_name || (order.client_id ? `Cliente ID: ${order.client_id}` : "General")}</div>
-                            <div className="text-xs text-slate-500"><Calendar size={12} className="inline mr-1"/>Vence: {new Date(order.valid_until).toLocaleDateString()}</div>
+                            <div className="text-xs text-slate-500"><Calendar size={12} className="inline mr-1"/>Vence: {formatDate(order.valid_until)}</div>
                         </div>
                         
                         <div className="border-l border-slate-200 pl-4 text-right flex flex-col justify-center">
                             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Venta</h3>
-                            <div className="text-3xl font-black text-slate-700">${fmt(order.total_price || 0)}</div>
+                            <div className="text-3xl font-black text-slate-700">{fmt(order.total_price || 0)}</div>
                         </div>
                     </div>
 
@@ -430,7 +430,7 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                                         </div>
                                         <div className="text-right">
                                             <p className="text-[10px] font-bold text-slate-500 uppercase">Monto a Facturar</p>
-                                            <p className="text-xl font-mono font-bold text-slate-800">${fmt(totals.advanceAmount)}</p>
+                                            <p className="text-xl font-mono font-bold text-slate-800">{fmt(totals.advanceAmount)}</p>
                                         </div>
                                     </div>
 
@@ -456,11 +456,11 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                                             <div>
                                                 <div className={`font-bold text-slate-700 ${item.is_cancelled ? 'line-through' : ''}`}>{item.product_name}</div>
                                                 <div className="text-slate-400">
-                                                    {item.is_cancelled ? `Cancelada: ${item.cancel_reason || 'sin motivo'}` : `Qty: ${item.quantity} | Unit: $${fmt(item.unit_price)}`}
+                                                    {item.is_cancelled ? `Cancelada: ${item.cancel_reason || 'sin motivo'}` : `Qty: ${item.quantity} | Unit: ${fmt(item.unit_price)}`}
                                                 </div>
                                             </div>
                                             <div className="text-right font-mono font-bold text-slate-800">
-                                                ${fmt(item.subtotal_price)}
+                                                {fmt(item.subtotal_price)}
                                             </div>
                                         </div>
                                     ))}
@@ -476,19 +476,19 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                                                 </span>
                                                 <span className="text-[10px] text-emerald-600/80 italic">Ya está dentro de los precios; no se suma al subtotal.</span>
                                             </span>
-                                            <span className="font-mono">${fmt(totals.commission)}</span>
+                                            <span className="font-mono">{fmt(totals.commission)}</span>
                                         </div>
                                         <div className="flex justify-between text-slate-600 font-bold border-t border-slate-200 pt-1 mt-1">
                                             <span>Subtotal:</span>
-                                            <span className="font-mono">${fmt(totals.subtotal)}</span>
+                                            <span className="font-mono">{fmt(totals.subtotal)}</span>
                                         </div>
                                         <div className="flex justify-between text-slate-500">
                                             <span>IVA:</span>
-                                            <span className="font-mono">${fmt(totals.iva)}</span>
+                                            <span className="font-mono">{fmt(totals.iva)}</span>
                                         </div>
                                         <div className="flex justify-between text-slate-800 font-black text-sm border-t border-slate-300 pt-1 mt-1">
                                             <span>TOTAL:</span>
-                                            <span className="font-mono">${fmt(totals.total)}</span>
+                                            <span className="font-mono">{fmt(totals.total)}</span>
                                         </div>
                                     </div>
                                 )}

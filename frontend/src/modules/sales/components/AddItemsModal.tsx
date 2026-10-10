@@ -10,6 +10,7 @@ import { useFoundations } from '../../foundations/hooks/useFoundations';
 import { toast } from '@/components/ui/VToast';
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { formatMoney } from '@/utils/format';
 
 interface AddItemsModalProps {
     isOpen: boolean;
@@ -131,8 +132,7 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
         [staging]
     );
 
-    const formatCurrency = (value: number) =>
-        new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value);
+    const formatCurrency = (value: number) => formatMoney(value);
 
     const handleVersionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const selectedVersionId = Number(e.target.value);

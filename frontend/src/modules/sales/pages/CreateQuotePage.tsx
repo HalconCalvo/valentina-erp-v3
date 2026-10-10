@@ -27,17 +27,10 @@ import {
 } from '../utils/margins';
 import { SalesOrderItem } from '../../../types/sales';
 import { QuotationStatus } from '../../../types/quotations';
+import { formatMoney } from '@/utils/format';
 
 // --- HELPERS DE FORMATO ---
-const formatCurrency = (amount: number | undefined | null) => {
-    if (amount === undefined || amount === null || isNaN(amount)) return '$ 0.00';
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD', 
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-    }).format(amount);
-};
+const formatCurrency = (amount: number | undefined | null) => formatMoney(amount);
 
 const safeDate = (dateString: string | undefined | null) => {
     if (!dateString) return new Date().toISOString().split('T')[0];

@@ -23,6 +23,7 @@ import {
     quotationStatusBadgeClass,
     type PendingQuotationAction,
 } from './QuotationActions';
+import { formatMoney } from '@/utils/format';
 
 interface OrderChangesPanelProps {
     order: SalesOrder;
@@ -44,8 +45,7 @@ const OPEN = ['DRAFT', 'PENDING_AUTH', 'CHANGES_REQUESTED', 'AUTHORIZED'];
 const CHANGEABLE_ORDER = ['WAITING_ADVANCE', 'SOLD', 'FINISHED'];
 const FINANCE_ROLES = ['DIRECTOR', 'MANAGER', 'ADMIN'];
 const todayYmd = () => new Date().toLocaleDateString('en-CA');
-const money = (value: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value || 0);
+const money = (value: number) => formatMoney(value);
 
 /** Change orders of an OV, the extra advance they require and the client credit notes they leave pending. */
 export const OrderChangesPanel: React.FC<OrderChangesPanelProps> = ({ order, onChanged, readOnly = false }) => {
