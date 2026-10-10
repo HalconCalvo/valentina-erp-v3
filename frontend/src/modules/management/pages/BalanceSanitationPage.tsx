@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import {
     sanitationService, type BalanceRecalcPreview, type InvoiceStatusFix, type OrderBalanceFix, type RecalcAnomaly,
+    type UnpaidAdvance,
 } from '@/api/sanitation-service';
 import { Button } from '@/components/ui/Button';
 import { VEmptyState } from '@/components/ui/VEmptyState';
@@ -11,7 +12,7 @@ import { VSummaryCard } from '@/components/ui/VSummaryCard';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { VToggle } from '@/components/ui/VToggle';
 import { toast } from '@/components/ui/VToast';
-import { formatMoney } from '@/utils/format';
+import { formatDate, formatMoney } from '@/utils/format';
 
 const STATUS_LABELS: Record<string, string> = {
     PAID: 'Pagada', PENDING: 'Pendiente', SOLD: 'Vendida', FINISHED: 'Pagada (saldo cero)',
@@ -32,13 +33,21 @@ export default function BalanceSanitationPage() {
     const [invoiceIds, setInvoiceIds] = useState<number[]>([]);
     const [orderIds, setOrderIds] = useState<number[]>([]);
     const [confirming, setConfirming] = useState(false);
+    const [advances, setAdvances] = useState<UnpaidAdvance[]>([]);
+    const [advanceIds, setAdvanceIds] = useState<number[]>([]);
+    const [confirmingAdvances, setConfirmingAdvances] = useState(false);
 
     const load = useCallback(async () => {
         setLoading(true);
         try {
-            setPreview(await sanitationService.previewBalances());
+            const [balances, unpaid] = await Promise.all([
+                sanitationService.previewBalances(), sanitationService.previewSupplierAdvances(),
+            ]);
+            setPreview(balances);
+            setAdvances(unpaid);
             setInvoiceIds([]);
             setOrderIds([]);
+            setAdvanceIds([]);
         } catch {
             toast.error('No se pudo calcular la vista previa.');
         } finally {
@@ -60,6 +69,32 @@ export default function BalanceSanitationPage() {
             return false;
         }
     };
+
+    const applyAdvances = async (reason: string): Promise<boolean> => {
+        try {
+            const result = await sanitationService.applySupplierAdvances(advanceIds, reason);
+            toast.success(`Anticipos absorbidos: ${result.updated}.`);
+            result.skipped.forEach((msg) => toast.warning(msg));
+            await load();
+            return true;
+        } catch (error: any) {
+            toast.error(error.response?.data?.detail || 'No se pudieron corregir los anticipos.');
+            return false;
+        }
+    };
+
+    const advanceColumns: VTableColumn<UnpaidAdvance>[] = [
+        {
+            key: 'select', label: '', width: '60px',
+            render: (r) => <VToggle checked={advanceIds.includes(r.invoice_id)} label=""
+                onCheckedChange={(on) => setAdvanceIds((ids) => toggleId(ids, r.invoice_id, on))} />,
+        },
+        { key: 'invoice_number', label: 'Factura de anticipo', render: (r) => r.invoice_number },
+        { key: 'provider_name', label: 'Proveedor', render: (r) => r.provider_name ?? '—' },
+        { key: 'issue_date', label: 'Fecha', render: (r) => formatDate(r.issue_date) },
+        { key: 'total_amount', label: 'Monto', render: (r) => formatMoney(r.total_amount) },
+        { key: 'open_payments', label: 'Solicitudes abiertas', render: (r) => r.open_payments || '—' },
+    ];
 
     const invoiceColumns: VTableColumn<InvoiceStatusFix>[] = [
         {
@@ -152,6 +187,37 @@ export default function BalanceSanitationPage() {
                     ? <VEmptyState title="Sin anomalías" description="No hay facturas con datos imposibles." />
                     : <VTable columns={anomalyColumns} data={anomalies} isLoading={loading} />}
             </section>
+
+            <section className="space-y-2">
+                <div className="flex items-center justify-between gap-4">
+                    <h2 className="text-lg font-black text-slate-700">Anticipos a proveedor "pagados" sin pago</h2>
+                    <div className="flex items-center gap-4">
+                        <VToggle label="Seleccionar todos" checked={advances.length > 0 && advanceIds.length === advances.length}
+                            onCheckedChange={(on) => setAdvanceIds(on ? advances.map((r) => r.invoice_id) : [])} disabled={advances.length === 0} />
+                        <Button onClick={() => setConfirmingAdvances(true)} disabled={loading || advanceIds.length === 0}>
+                            Absorber anticipos ({advanceIds.length})
+                        </Button>
+                    </div>
+                </div>
+                <p className="text-xs text-slate-500">Al recibir la OC, la factura de la recepción ya cobró el monto completo; estos anticipos nunca se pagaron. Se marcan cancelados (absorbidos).</p>
+                <VTable columns={advanceColumns} data={advances} isLoading={loading}
+                    emptyState={{ title: 'Sin anticipos por corregir', description: 'Todos los anticipos pagados tienen su pago registrado.' }} />
+            </section>
+
+            {confirmingAdvances && (
+                <VReasonDialog
+                    title="Absorber anticipos sin pago"
+                    description={`Se marcarán como canceladas (absorbidas en la recepción) ${advanceIds.length} facturas de anticipo.`}
+                    warning="Sus solicitudes de pago pendientes o autorizadas se rechazan para que nunca se paguen. No se mueve dinero; queda en bitácora con el motivo."
+                    label="Motivo"
+                    placeholder="Ej. Anticipos nunca pagados; la factura de recepción cobró el total (revisado con contabilidad)"
+                    requiredMessage="El motivo es obligatorio."
+                    confirmLabel="Absorber anticipos"
+                    danger
+                    onConfirm={applyAdvances}
+                    onClose={() => setConfirmingAdvances(false)}
+                />
+            )}
 
             {confirming && (
                 <VReasonDialog

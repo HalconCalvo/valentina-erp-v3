@@ -34,7 +34,7 @@ from app.schemas.finance_schema import (
 )
 from app.services import payable_service
 from app.services.purchase_service import resolve_po_authorizer_display
-from app.core.permissions import allow, allow_payment_execution, FINANCE_ROLES
+from app.core.permissions import allow, allow_payment_execution, can_execute_payments, FINANCE_ROLES
 
 router = APIRouter()
 
@@ -192,7 +192,7 @@ def request_supplier_payment(
     session.add(payment)
     session.flush() 
 
-    if current_user.role.upper() in ["DIRECTOR", "MANAGER"]:
+    if can_execute_payments(session, current_user):  # D7: MANAGER only with the switch; otherwise it stays a request
         account = session.get(BankAccount, payment_in.suggested_account_id)
         if not account:
             raise HTTPException(status_code=400, detail="Cuenta bancaria no válida para el pago directo.")
@@ -409,6 +409,8 @@ def execute_supplier_payment(*, session: SessionDep, current_user: CurrentUser, 
     invoice = session.get(PurchaseInvoice, payment.purchase_invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Factura de proveedor no encontrada.")
+    if invoice.status in (InvoiceStatus.PAID, InvoiceStatus.CANCELLED):
+        raise HTTPException(status_code=409, detail="La factura ya está pagada o cancelada; rechaza esta solicitud.")
 
     # Crear movimiento bancario de salida
     bank_tx = BankTransaction(

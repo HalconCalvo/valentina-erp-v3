@@ -1,12 +1,12 @@
 """Purchase domain — business logic (no direct HTTP, queries via repository)."""
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import List, Optional
 
 from fastapi import HTTPException
 from sqlmodel import Session
 
 from app.core.audit_context import audit_reason
-from app.models.finance import InvoiceStatus, PurchaseInvoice, SupplierPayment
+from app.models.finance import InvoiceStatus, PaymentStatus, PurchaseInvoice, PurchaseInvoiceItem, SupplierPayment
 
 AccountsPayable = SupplierPayment.AccountsPayable
 from app.models.foundations import Provider
@@ -925,6 +925,13 @@ def _reception_effective_at(db: Session, received_at) -> datetime:
     return effective_at
 
 
+def _close_advance_invoice(ant, paid_advance: float) -> None:
+    """At reception the final invoice charges what the advances did not pay. A paid advance closes as PAID; an
+    advance never paid is CANCELLED (absorbed by the reception invoice), never PAID without a payment."""
+    ant.status = InvoiceStatus.PAID if paid_advance > 0.01 else InvoiceStatus.CANCELLED
+    ant.outstanding_balance = 0
+
+
 def _reception_tax_rate(data: dict, po) -> float:
     """Tax rate of the received invoice; the PO's rate when not sent. 0% (exempt) stays 0%."""
     value = data.get("tax_rate")
@@ -934,10 +941,6 @@ def _reception_tax_rate(data: dict, po) -> float:
 
 
 def receive_purchase_order(db: Session, po_id: int, data: dict, current_user):
-    from datetime import timedelta
-
-    from app.models.finance import InvoiceStatus, PaymentStatus, PurchaseInvoice, PurchaseInvoiceItem
-
     _ = current_user
     po = purchase_repo.get_purchase_order_by_id(db, po_id)
     if not po:
@@ -1071,11 +1074,9 @@ def receive_purchase_order(db: Session, po_id: int, data: dict, current_user):
     total_pagado_anticipos = 0.0
     paid_status = getattr(PaymentStatus, "PAID", "PAID")
     for ant in ant_invoices:
-        total_pagado_anticipos += purchase_repo.sum_supplier_payments_by_invoice(
-            db, ant.id, paid_status
-        )
-        ant.status = getattr(InvoiceStatus, "PAID", "PAID")
-        ant.outstanding_balance = 0
+        paid_advance = purchase_repo.sum_supplier_payments_by_invoice(db, ant.id, paid_status)
+        total_pagado_anticipos += paid_advance
+        _close_advance_invoice(ant, paid_advance)
         db.add(ant)
 
     tax_rate = _reception_tax_rate(data, po)

@@ -114,7 +114,13 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
   pago Fast-Track con registro de pago, corrección de IVA de OVs legacy, importación masiva del catálogo.
 - Herramienta 1 hecha (2026-10-10): recálculo de estados de factura y saldos de OV (Gerencia → Saneamiento); causa de
   2.1 corregida en el registro de abonos (anticipo amortizado; comisión sobre el neto). Probada en pantalla como
-  Gerencia en la copia local. Sigue: herramienta 2 (pago Fast-Track registra el pago a proveedor).
+  Gerencia en la copia local.
+- Herramienta 2 hecha (2026-10-10): anticipos a proveedor "pagados" sin pago (17) se absorben con motivo; la recepción
+  ya no los marca pagados; Fast-Track respeta D7 (Gerencia sin interruptor solo solicita); no se ejecuta un pago sobre
+  factura pagada o cancelada. Sigue: herramienta 3 (IVA de OVs legacy) cuando contabilidad entregue la lista (D14);
+  mientras, herramienta 4 (importación masiva del catálogo).
+- Pendiente (fuera de alcance): el botón "Pagar" de CxP se muestra a Gerencia aunque el interruptor esté apagado (el
+  servidor ya solo registra la solicitud); la lógica de pagos de `finance.py` vive en el endpoint.
 - Pendiente de refactor (fuera de alcance): `sales_service.register_installment` mide ~110 líneas (máx. 50).
 
 ## 8. D13: el vendedor solo ve precio de venta — hecha (2026-10-10)

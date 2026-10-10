@@ -18,6 +18,13 @@ export type BalanceRecalcPreview = { invoices: InvoiceStatusFix[]; orders: Order
 
 export type BalanceRecalcResult = { invoices_updated: number; orders_updated: number; skipped: string[] };
 
+export type UnpaidAdvance = {
+  invoice_id: number; invoice_number: string; provider_name: string | null; total_amount: number;
+  issue_date: string | null; open_payments: number;
+};
+
+export type UnpaidAdvanceResult = { updated: number; skipped: string[] };
+
 /** Sanitation tools (docs/SANEAMIENTO.md §6): preview, then apply with a reason (DIRECTOR or MANAGER). */
 export const sanitationService = {
   previewBalances: async (): Promise<BalanceRecalcPreview> =>
@@ -25,4 +32,10 @@ export const sanitationService = {
 
   applyBalances: async (invoiceIds: number[], orderIds: number[], reason: string): Promise<BalanceRecalcResult> =>
     (await axiosClient.post('/sanitation/balances/apply', { invoice_ids: invoiceIds, order_ids: orderIds, reason })).data,
+
+  previewSupplierAdvances: async (): Promise<UnpaidAdvance[]> =>
+    (await axiosClient.get('/sanitation/supplier-advances')).data,
+
+  applySupplierAdvances: async (invoiceIds: number[], reason: string): Promise<UnpaidAdvanceResult> =>
+    (await axiosClient.post('/sanitation/supplier-advances/apply', { invoice_ids: invoiceIds, reason })).data,
 };

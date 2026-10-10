@@ -376,9 +376,10 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                     toast.success('Solicitud actualizada.');
                 }
             } else {
-                await financeService.requestPayment(payload);
-                if (isChecker) toast.success('Pago efectuado directamente.');
-                else toast.success('Solicitud enviada a Gerencia.');
+                // The server decides (D7): only who can execute payments pays directly; otherwise it stays a request
+                const saved = await financeService.requestPayment(payload);
+                if (saved.status === 'PAID') toast.success('Pago efectuado directamente.');
+                else toast.success('Solicitud registrada; queda pendiente de ejecutar.');
             }
             setSelectedInvoice(null); 
             setEditingRequest(null);

@@ -46,7 +46,8 @@ Todas tienen tasa "IVA Estándar" (16%). No hay en el catálogo una tasa llamada
 
 | # | Hallazgo | Recomendación | Quién |
 |---|---|---|---|
-| 4.1 | 29 facturas de proveedor PAGADAS (casi todas anticipos "ANT-OC-…") sin pago registrado: se pagaron por "Pago Fast-Track" (movimiento bancario directo) | Dejar el dinero como está; **corregir el flujo** para que el pago rápido registre también el pago a proveedor | **Código** (flujo Fast-Track) |
+| 4.1 | **Corregido el diagnóstico (2026-10-10):** 29 facturas de proveedor PAGADAS sin pago registrado. 17 son anticipos "ANT-OC-…" ($424,404.07) que **nunca se pagaron**: al recibir la OC el sistema los marcaba PAGADOS y la factura de la recepción cobraba el total (el dinero cuadra; el estado es falso). Las otras 12 son facturas de recepción cubiertas por anticipos sí pagados (correctas) | Código corregido: la recepción cancela (absorbe) el anticipo sin pago; el Fast-Track respeta el interruptor de D7; no se ejecuta un pago sobre factura pagada o cancelada. Los 17: absorber con motivo (rechaza sus solicitudes abiertas; ANT-OC-M260512161716 tiene una autorizada por $35,275.60) | **Herramienta** (Gerencia → Saneamiento → Anticipos) |
+| 4.5 | Folio 30899 registrado dos veces (facturas #315 y #324, $1,127.87 cada una; #324 con pago) | Confirmar si es la misma factura; si sí, cancelar #315 | App / decisión |
 | 4.2 | Santander: saldo guardado $243,109.92 vs inicial + movimientos $245,507.64 (diferencia **$2,397.72**). Hay dos pagos Fast-Track de $2,397.72 (10/08 y 19/08) a facturas distintas (#223 y #252) y otra factura #271 con el mismo folio de anticipo que #252 | Comparar con el estado de cuenta: si hay un pago duplicado, registrar el ingreso/ajuste con motivo; si el estado de cuenta coincide con $243,109.92, falta un movimiento de egreso por $2,397.72 | App (movimiento manual con motivo) tras revisar el estado de cuenta |
 | 4.3 | Inversión Creciente: cuadra ($264,250.00) | — | — |
 | 4.4 | Caja chica: egresos = reposiciones ($155,711.30); saldo $5,000 con fondo configurado $6,000 | Si el fondo real es $6,000, registrar una reposición de $1,000 | App |
@@ -70,6 +71,7 @@ Todas tienen tasa "IVA Estándar" (16%). No hay en el catálogo una tasa llamada
    registrar un abono ya se descuenta el anticipo amortizado (y la comisión se calcula sobre el neto).
    Antes de aplicar: 2.2 (OVs Finalizadas que regresarían a Vendida) y 3.1/3.2 (anticipos "pagados" sin abono, que
    regresarían a Pendiente) esperan la respuesta de contabilidad (D14); 2.1, 2.3, 2.4 y 3.3 se pueden aplicar ya.
-2. **Pago Fast-Track registra el pago a proveedor** (4.1), para que no se repita.
+2. **Anticipos a proveedor sin pago** (4.1) — **hecha (2026-10-10)**: Gerencia → Saneamiento, sección "Anticipos";
+   y el código ya no los marca pagados en la recepción (ver 4.1).
 3. **Corrección de tasa de IVA de una OV legacy y sus facturas** (2.5), cuando contabilidad entregue la lista.
 4. **Importación masiva del catálogo** (5.3) desde el Excel completado, si se prefiere a capturar uno por uno.

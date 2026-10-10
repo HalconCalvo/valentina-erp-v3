@@ -1,4 +1,4 @@
-export type PaymentStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type PaymentStatus = 'PENDING' | 'APPROVED' | 'PAID' | 'REJECTED' | 'CANCELLED';
 export type PaymentMethod = 'TRANSFER' | 'CASH' | 'CHECK' | 'CREDIT_CARD' | 'OTHER';
 
 // --- 1. ESTADÍSTICAS DEL DASHBOARD (Las 3 Tarjetas) ---

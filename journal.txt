@@ -4382,3 +4382,17 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 - D14 puntos 6 y 7 nuevos. Se puede aplicar ya en producción: 2.1, 2.3, 2.4 y 3.3. Esperar respuesta para 2.2, 3.1 y 3.2
 
 ### Siguiente: herramienta 2 (Fast-Track registra el pago a proveedor)
+
+---
+## SESIÓN 2026-10-10 (parte 10) — SANEAMIENTO: HERRAMIENTA 2 (ANTICIPOS A PROVEEDOR)
+
+### Diagnóstico corregido (SANEAMIENTO 4.1):
+- Las 29 facturas pagadas sin pago no vienen del Fast-Track: 17 anticipos ANT-OC nunca pagados que la recepción marcaba PAGADOS (la factura de recepción cobró el total; el dinero cuadra) y 12 facturas de recepción cubiertas por anticipos pagados (correctas)
+
+### Hecho:
+- Recepción: anticipo sin pago → CANCELADO (absorbido), nunca PAGADO sin pago
+- Seguridad D7: el Fast-Track ejecutaba el pago para Gerencia aunque el interruptor estuviera apagado; ahora solo registra la solicitud. Ejecutar un pago sobre factura pagada o cancelada → 409
+- Saneamiento → sección "Anticipos": absorber con motivo; rechaza sus solicitudes abiertas (hay una autorizada por $35,275.60 sobre un anticipo que ya no se debe)
+- Probado como Gerencia en la copia local (ANT-OC-M260512161716). Pruebas: 273 backend, 17 frontend, build OK
+
+### Nuevo para revisar: folio 30899 duplicado (#315 y #324) — SANEAMIENTO 4.5

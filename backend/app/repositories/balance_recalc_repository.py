@@ -4,7 +4,8 @@ from typing import Dict, Iterable, List
 from sqlalchemy import func
 from sqlmodel import Session, select
 
-from app.models.foundations import Client
+from app.models.finance import InvoiceStatus, PaymentStatus, PurchaseInvoice, SupplierPayment
+from app.models.foundations import Client, Provider
 from app.models.sales import (
     CustomerCreditNote, CustomerCreditNoteStatus, CustomerPayment, CustomerPaymentInstallment, CXCStatus, SalesOrder,
 )
@@ -52,3 +53,31 @@ def client_names(session: Session, client_ids: Iterable[int]) -> Dict[int, str]:
     if not ids:
         return {}
     return {c.id: c.full_name for c in session.exec(select(Client).where(Client.id.in_(ids)))}
+
+
+def get_paid_advance_invoices_without_payment(session: Session) -> List[PurchaseInvoice]:
+    """Supplier advance invoices (ANT-…) in PAID with no PAID supplier payment."""
+    paid = select(SupplierPayment.purchase_invoice_id).where(SupplierPayment.status == PaymentStatus.PAID)
+    return list(session.exec(
+        select(PurchaseInvoice).where(
+            PurchaseInvoice.invoice_number.like("ANT-%"),
+            PurchaseInvoice.status == InvoiceStatus.PAID,
+            PurchaseInvoice.id.not_in(paid),
+        ).order_by(PurchaseInvoice.id)
+    ))
+
+
+def provider_names(session: Session, provider_ids: Iterable[int]) -> Dict[int, str]:
+    ids = list({i for i in provider_ids if i})
+    if not ids:
+        return {}
+    return {p.id: p.business_name for p in session.exec(select(Provider).where(Provider.id.in_(ids)))}
+
+
+def get_open_supplier_payments(session: Session, invoice_ids: Iterable[int]) -> List[SupplierPayment]:
+    ids = list(invoice_ids)
+    if not ids:
+        return []
+    return list(session.exec(select(SupplierPayment).where(
+        SupplierPayment.purchase_invoice_id.in_(ids),
+        SupplierPayment.status.in_([PaymentStatus.PENDING, PaymentStatus.APPROVED]))))
