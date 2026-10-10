@@ -5,7 +5,8 @@ plan → implementación → pruebas → commit → siguiente. Se actualiza al t
 
 Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha** (fecha, commit).
 
-## 1. La ruta de producción decide qué lleva existencia — en espera (Gabriel, en producción)
+## 1. La ruta de producción decide qué lleva existencia — hecha (2026-10-10, 72d8d23)
+- Gabriel resolvió los 6 materiales en producción (verificado: 6 líneas fuera, $15,855.15 a gasto, 46 por capturar).
 - Código en producción: 72d8d23 (2026-10-10), migración q6r7s8t9u0v1 aplicada en Render.
 - Falta que Gabriel resuelva en producción los 6 materiales de la sesión #2 (Inventario físico → sesión #2 →
   editar cada material, como DIRECTOR):
@@ -29,7 +30,7 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
   Chrome con la extensión y la misma cuenta de claude.ai. Backend 8000 y Vite 3000 locales ya corren.
 - Al subir, n4o5p6q7r8s9 recalcula en producción sobreprecio y comisión guardados (no cambia precios).
 
-## 3. Guía de pantallas — en espera (Gabriel, D1)
+## 3. Guía de pantallas — hecha (2026-10-10, D1 aprobada)
 - Inventariar todas las pantallas; proponer `docs/GUIA_PANTALLAS.md` con base en las mejores pantallas actuales.
 - Aprobación de Gabriel vía DECISIONES_PENDIENTES.
 - 2026-10-10: propuesta escrita en `docs/GUIA_PANTALLAS.md`; inventario de 47 rutas. Hallazgos para la tarea 4:
@@ -42,10 +43,11 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
   - Páginas huérfanas sin ruta: AccountsPayablePage, InstanceBaptismPage, auth/pages/LoginPage.tsx (vacío);
     routes/ProtectedRoute.tsx sin uso (las rutas solo validan sesión, no rol, salvo legacy-import y campo).
 
-## 4. Aplicar la guía por módulos — en espera (aprobación de la guía)
+## 4. F4: bitácora en todo el sistema — en curso
+
+## 5. Aplicar la guía por módulos — pendiente (después de la F4, por decisión de Gabriel)
 - Primero Ventas, Inventario y Compras.
 
-## 5. F4: bitácora en todo el sistema — pendiente
 
 ## 6. Pendientes del journal — pendiente
 - Kárdex: filtro Desde/Hasta, subtotal positivo en salidas, montos negativos "-$60.00", histórico con costo por millar.

@@ -16,6 +16,17 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 
 ## Pendientes
 
+### D2. Títulos de pantalla: sin color o un color por módulo — 2026-10-10 — ROADMAP tarea 4
+- **Contexto:** al aprobar D1 la elección de títulos llegó sin resolver ("[sin color, un solo estilo / conservar
+  un color por módulo]").
+- **Opciones:** A) sin color, un solo estilo (`text-slate-800`). B) conservar un color por módulo.
+- **Recomendación:** A. Hoy solo Finanzas tiene títulos de color y no siguen una regla (azul, índigo y verde en
+  el mismo módulo); el módulo ya se distingue por el menú y el ícono.
+- **Reversible:** sí (aplicada la recomendación en la guía; cambiarla es una clase por pantalla).
+- **Estado:** pendiente
+
+## Resueltas
+
 ### D1. Aprobar la guía de pantallas — 2026-10-10 — ROADMAP tarea 3
 - **Contexto:** `docs/GUIA_PANTALLAS.md` (propuesta) fija contenedor, encabezado, tarjetas, filtros, tablas,
   botones, modales y formatos con base en las mejores pantallas actuales (Valuación, Kárdex, Importación legacy,
@@ -28,8 +39,5 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 - **Opciones:** A) aprobar tal cual. B) aprobar con cambios (indicar cuáles). C) rechazar.
 - **Recomendación:** A. Se aplica por módulo (ROADMAP tarea 4), empezando por Ventas, Inventario y Compras.
 - **Reversible:** no se aplica a pantallas existentes hasta aprobarla (tarea 4 en espera).
-- **Estado:** pendiente
-
-## Resueltas
-
-_(ninguna)_
+- **Estado:** aprobada (2026-10-10, A): un color primario y verde solo para crear/recibir/cobrar/pagar;
+  moneda `$1,234.56` / `-$60.00`; Rayos X dividido. Títulos: ver D2.

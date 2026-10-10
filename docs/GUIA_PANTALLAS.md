@@ -1,7 +1,7 @@
 # Guía de pantallas — Valentina ERP
 
-> **PROPUESTA — pendiente de aprobación de Gabriel (DECISIONES_PENDIENTES D1).** Mientras no se apruebe, no se
-> aplica a pantallas existentes; las pantallas nuevas la siguen.
+> **Aprobada 2026-10-10 (D1).** Títulos sin color según la recomendación de D2 (pendiente de confirmar).
+> Se aplica a pantallas existentes en la tarea 4 del ROADMAP (después de la F4); las pantallas nuevas ya la siguen.
 
 Basada en las pantallas que hoy mejor cumplen CLAUDE.md §3 (inventario del 2026-10-10, 47 rutas):
 **Valuación de inventario** (`foundations/pages/InventoryValuationPage.tsx`), **Kárdex** (`KardexPage.tsx`),
