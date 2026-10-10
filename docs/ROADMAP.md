@@ -58,15 +58,24 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
   material y versión ya lo tenían).
 - Probado: 6 tests nuevos (208 en total), en PostgreSQL local por API y botones en pantalla.
 
-## 5. Aplicar la guía por módulos — en curso
-- Hecho (2026-10-10): base común (utils/format.ts, VSummaryCard, botón primario índigo, acciones con descripción en
-  Usuarios y Tasas); Ventas: acciones de flujo de cotización como botones con texto, detalle de cotización con
-  encabezado estándar, moneda y fechas únicas en todo el módulo.
-- Sigue: Ventas (tablero, captura de cotización, Rayos X dividido), Inventario, Compras.
-- Primero Ventas, Inventario y Compras.
+## 5. Aplicar la guía por módulos — primera ola hecha (2026-10-10); el resto conforme se toque
+- Base común: utils/format.ts, VSummaryCard, botón primario índigo, Modal con opción `bare`, acciones con descripción.
+- Arreglo general: Modal ponía `h-[90vh]` a todas las ventanas (comentario dentro de las clases); ahora se
+  ajustan a su contenido.
+- Ventas: acciones de flujo de cotización con texto; detalle y captura de cotización con encabezado estándar;
+  moneda y fechas únicas; Rayos X dividido (diálogos, abonos, selector de casas, entregables; 3,263 → ~2,000 líneas).
+- Inventario: tablero con valuación completa, kárdex, recepción, inventario físico y requisiciones con formatos
+  únicos, encabezados estándar, esqueleto de carga y estado vacío.
+- Compras: las 8 ventanas hechas a mano pasan a Modal (cierran con Escape); 30 montos es-MX → $1,234.56.
+- Pendiente (conforme se toquen): Finanzas, Tesorería, Dirección, Producción (Kanban con `fetch()`), Diseño,
+  Logística; tablero de Ventas (archivo de 1,600 líneas) y cuerpo de Rayos X (tabla de facturas).
 
-
-## 6. Pendientes del journal — pendiente
+## 6. Pendientes del journal — en curso
+- Hallazgos de la tarea 5 (2026-10-10):
+  - El tablero de Inventario muestra $2,259,249.11 y Valuación $2,283,776.16: dos cálculos distintos del mismo valor.
+  - Requisiciones automáticas duplicadas (0502-004 tiene dos PENDIENTE): tres pantallas las evalúan a la vez al
+    cargar y la revisión "¿ya existe?" no es atómica.
+  - "Todas las OCs": el total con IVA se calcula con 16% fijo.
 - Borrados físicos que quedan (la bitácora los registra, pero sin el contenido): usuarios, productos y versiones
   de diseño, solicitud de pago a proveedor, movimiento de caja chica, lote en borrador y sus reservas,
   asignaciones de logística y planeación.
