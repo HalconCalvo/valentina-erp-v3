@@ -108,6 +108,9 @@ def update_global_config(current_user: CurrentUser, config_in: GlobalConfig, ses
     if ("min_markup_percent" in config_data
             and float(config_data["min_markup_percent"]) != float(db_config.min_markup_percent or 0)):
         require_roles(current_user, {"DIRECTOR"}, "Solo Dirección cambia el sobreprecio mínimo.")
+    if ("manager_can_execute_payments" in config_data
+            and bool(config_data["manager_can_execute_payments"]) != bool(db_config.manager_can_execute_payments)):
+        require_roles(current_user, {"DIRECTOR"}, "Solo Dirección habilita a Gerencia para ejecutar pagos.")
     
     # PROTECCIÓN: Evitar borrar el logo si el frontend manda null
     if "logo_path" in config_data:

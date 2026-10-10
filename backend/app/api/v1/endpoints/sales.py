@@ -30,7 +30,7 @@ from app.services import inventory_service, legacy_import_service
 from app.schemas.legacy_import_schema import LegacyImportPreviewRead, LegacyImportRead
 from app.schemas.production_inventory_schema import OVCancelCreate
 from app.repositories import sales_repository as sales_repo
-from app.core.permissions import allow, EXECUTE_PAYMENT_ROLES, FINANCE_ROLES, SALES_ORDER_ROLES
+from app.core.permissions import allow, allow_payment_execution, FINANCE_ROLES, SALES_ORDER_ROLES
 
 from app.schemas.sales_schema import (
     SalesOrderRead, SalesOrderUpdate,
@@ -818,7 +818,7 @@ def get_commissions_payroll_overview(
     return sales_service.get_commissions_overview(session)
 
 
-@router.patch("/commissions/{commission_id}/payroll", dependencies=[allow(EXECUTE_PAYMENT_ROLES)])
+@router.patch("/commissions/{commission_id}/payroll", dependencies=[allow_payment_execution()])
 def update_commission_payroll_fields(
     commission_id: int,
     payload: CommissionPayrollUpdate,
@@ -841,7 +841,7 @@ def get_commissions_report(
     )
 
 
-@router.patch("/commissions/{commission_id}/mark-paid", dependencies=[allow(EXECUTE_PAYMENT_ROLES)])
+@router.patch("/commissions/{commission_id}/mark-paid", dependencies=[allow_payment_execution()])
 def mark_commission_paid(
     commission_id: int,
     payload: CommissionPaidUpdate,

@@ -10,6 +10,7 @@ import { GlobalConfig } from '../../../types/foundations';
 import { toast } from '@/components/ui/VToast';
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { VToggle } from '@/components/ui/VToggle';
 
 export default function ConfigPage() {
   
@@ -32,6 +33,7 @@ export default function ConfigPage() {
   // --- 2. ESTADOS: FINANCIEROS Y TÉCNICOS ---
   const [marginInput, setMarginInput] = useState('');
   const [minMarkupInput, setMinMarkupInput] = useState('25');
+  const [managerCanPay, setManagerCanPay] = useState(false);
   // Only Dirección changes the minimum markup (the backend answers 403 otherwise)
   const isDirector = (localStorage.getItem('user_role') || '').toUpperCase() === 'DIRECTOR';
   const [toleranceInput, setToleranceInput] = useState('');
@@ -75,6 +77,7 @@ export default function ConfigPage() {
       // Porcentajes: backend guarda decimal (0.45), mostramos entero (45)
       setMarginInput(String(Math.round((config.target_profit_margin || 0) * 100)));
       setMinMarkupInput(String(config.min_markup_percent ?? 25));
+      setManagerCanPay(Boolean(config.manager_can_execute_payments));
       setToleranceInput(String(Math.round((config.cost_tolerance_percent || 0) * 100)));
       
       setDaysInput(String(config.quote_validity_days || 0));
@@ -148,7 +151,7 @@ export default function ConfigPage() {
         company_email: companyEmail,
         company_website: companyWebsite,
         target_profit_margin: margin,
-        ...(isDirector ? { min_markup_percent: Number(minMarkupInput) || 0 } : {}),
+        ...(isDirector ? { min_markup_percent: Number(minMarkupInput) || 0, manager_can_execute_payments: managerCanPay } : {}),
         cost_tolerance_percent: tolerance,
         quote_validity_days: days,
         default_edgebanding_factor: edgeFactor,
@@ -230,6 +233,12 @@ export default function ConfigPage() {
                         title={isDirector ? undefined : 'Solo Dirección cambia el sobreprecio mínimo'}
                         onChange={(e) => setMinMarkupInput(e.target.value)} className="input-large border-orange-200 focus:border-orange-500" /><span className="unit-label">%</span></div>
                     <p className="text-[11px] text-slate-500 mt-2">Partidas o cotizaciones por debajo se marcan en rojo en la captura y en la revisión.</p>
+                </div>
+                <div className="card-std">
+                    <div className="flex items-start justify-between mb-4"><h2 className="text-base font-bold text-slate-700">Ejecución de pagos</h2><span className="badge-orange">Dirección</span></div>
+                    <VToggle checked={managerCanPay} disabled={!isDirector} onCheckedChange={setManagerCanPay}
+                        label="Gerencia puede ejecutar pagos" />
+                    <p className="text-[11px] text-slate-500 mt-2">Dirección siempre ejecuta pagos, transferencias y pago de comisiones y nómina. Administración solo los solicita.</p>
                 </div>
                 <div className="card-std">
                     <div className="flex items-start justify-between mb-4"><h2 className="text-base font-bold text-slate-700">Tolerancia</h2><span className="badge-orange">Seguridad</span></div>

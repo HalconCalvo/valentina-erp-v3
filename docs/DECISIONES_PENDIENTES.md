@@ -16,6 +16,10 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 
 ## Pendientes
 
+_(ninguna)_
+
+## Resueltas
+
 ### D2. Títulos de pantalla: sin color o un color por módulo — 2026-10-10 — ROADMAP tarea 4
 - **Contexto:** al aprobar D1 la elección de títulos llegó sin resolver ("[sin color, un solo estilo / conservar
   un color por módulo]").
@@ -23,7 +27,7 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 - **Recomendación:** A. Hoy solo Finanzas tiene títulos de color y no siguen una regla (azul, índigo y verde en
   el mismo módulo); el módulo ya se distingue por el menú y el ícono.
 - **Reversible:** sí (aplicada la recomendación en la guía; cambiarla es una clase por pantalla).
-- **Estado:** pendiente
+- **Estado:** aprobada (2026-10-10, A): títulos con un solo estilo, sin color por módulo. Aplicado también en Finanzas.
 
 ### D3. Estado "Finalizada" de la OV — 2026-10-10 — ROADMAP tarea 6
 - **Contexto:** la OV pasa a FINISHED cuando su saldo llega a cero, aunque la obra siga en producción o instalación;
@@ -32,7 +36,7 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
   las instancias tienen firma de conformidad (cambia la lógica y los reportes que filtran por FINISHED).
 - **Recomendación:** A ahora (no cambia lógica); B si Gabriel quiere que "Finalizada" signifique obra entregada.
 - **Reversible:** sí (aplicada A: etiqueta "Pagada (saldo cero)" en el monitor de Ventas).
-- **Estado:** pendiente
+- **Estado:** aprobada (2026-10-10, A): "Pagada (saldo cero)".
 
 ### D4. IVA de las órdenes de compra — 2026-10-10 — ROADMAP tarea 6
 - **Contexto:** la OC no guarda tasa de IVA; "Todas las OCs" y el detalle calculan el total con 16% fijo. La recepción
@@ -41,7 +45,7 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
   existentes). B) dejar 16% fijo en la OC y que solo la factura/recepción lleve la tasa real.
 - **Recomendación:** A.
 - **Reversible:** no aplicado (requiere migración); la tarea sigue con lo demás.
-- **Estado:** pendiente
+- **Estado:** aprobada (2026-10-10, A): agregar la tasa de IVA a la OC con migración (en implementación).
 
 ### D5. Valor del inventario en el tablero de Inventario — 2026-10-10 — ROADMAP tarea 6
 - **Contexto:** el tablero mostraba $2,259,249.11 (suma de existencias incluyendo negativas, sin producción en
@@ -50,7 +54,7 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
   Dirección, Gerencia y Administración (decisión del PLAN 1). B) mantener un número propio para Almacén.
 - **Recomendación:** A.
 - **Reversible:** sí (aplicada A).
-- **Estado:** pendiente
+- **Estado:** aprobada (2026-10-10, A).
 
 ### D6. Quién administra usuarios — 2026-10-10 — ROADMAP tarea 6 (seguridad)
 - **Contexto:** crear, editar y borrar usuarios no revisaba rol: cualquier usuario con sesión podía crear un DIRECTOR,
@@ -59,7 +63,7 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
   B) solo DIRECTOR. C) DIRECTOR y MANAGER.
 - **Recomendación:** A (es lo que el código ya sugería con la meta mensual: ADMIN y DIRECTOR).
 - **Reversible:** sí (aplicada A). "Eliminar" pasa a "Dar de baja" con motivo obligatorio (nunca se borra).
-- **Estado:** pendiente
+- **Estado:** resuelta (2026-10-10): solo DIRECTOR crea y administra usuarios (aplicado).
 
 ### D7. Matriz de permisos por rol (auditoría de seguridad) — 2026-10-10 — ROADMAP tarea 6
 - **Contexto:** la auditoría encontró 20 rutas sin sesión y ~50 escrituras sin revisión de rol (tesorería,
@@ -83,9 +87,7 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 - **Puntos a confirmar:** Ventas ya no puede reprogramar en Planeación ni cancelar su OV; Administración no ejecuta
   pagos ni transfiere (CLAUDE.md: "pagos (sin ejecutar)"); Producción ya no emite OCs (solo requisiciones).
 - **Reversible:** sí (aplicada; cambiar un grupo es una línea).
-- **Estado:** pendiente
-
-## Resueltas
+- **Estado:** resuelta (2026-10-10, aplicado): cancelar OV DIRECTOR/MANAGER; planear y reprogramar solo DIRECTOR o DESIGN (Ventas no); ejecutar pagos solo DIRECTOR — MANAGER con el interruptor "Gerencia puede ejecutar pagos" en Parámetros Globales (apagado; solo DIRECTOR lo cambia); ADMIN solicita, no ejecuta; PRODUCTION solo requisiciones.
 
 ### D1. Aprobar la guía de pantallas — 2026-10-10 — ROADMAP tarea 3
 - **Contexto:** `docs/GUIA_PANTALLAS.md` (propuesta) fija contenedor, encabezado, tarjetas, filtros, tablas,

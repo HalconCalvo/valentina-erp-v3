@@ -32,6 +32,8 @@ class GlobalConfig(SQLModel, table=True):
     target_profit_margin: float  # Sobreprecio objetivo (fraction, 0.45)
     # Minimum markup (sobreprecio, percent): lines below it are flagged in red. Only DIRECTOR changes it.
     min_markup_percent: float = Field(default=25.0)
+    # Payment execution: DIRECTOR always; MANAGER only while this switch is on (only DIRECTOR changes it)
+    manager_can_execute_payments: bool = Field(default=False)
     cost_tolerance_percent: float
     quote_validity_days: int
     default_edgebanding_factor: float

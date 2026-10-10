@@ -34,7 +34,7 @@ from app.models.sales import (
 )
 from app.models.foundations import Client
 from app.models.design import ProductMaster, ProductVersion
-from app.core.permissions import allow, PLANNING_ROLES
+from app.core.permissions import allow, INSTANCE_LIFECYCLE_ROLES, PLANNING_ROLES, role_of
 from app.services.planning_service import (
     compute_semaphore,
     compute_semaphore_label,
@@ -552,10 +552,9 @@ def update_instance_schedule(
                 detail="No tienes permisos para bautizar instancias.",
             )
 
-    # Guardia de FECHAS: programación → DIRECTOR, GERENCIA, DESIGN (SIN SALES)
+    # Guardia de FECHAS: planear y reprogramar → solo DIRECTOR o DESIGN (D7)
     if intenta_fechas:
-        allowed_dates = {UserRole.DIRECTOR, UserRole.MANAGER, UserRole.DESIGN}
-        if current_user.role not in allowed_dates:
+        if role_of(current_user) not in PLANNING_ROLES:
             raise HTTPException(
                 status_code=403,
                 detail="No tienes permisos para programar fechas de producción/instalación.",
@@ -690,7 +689,7 @@ def reschedule_pill(
 # 5. EVENTO MAESTRO: DOBLE VERDE 🟢🟢
 # ============================================================
 
-@router.post("/instances/{instance_id}/close", dependencies=[allow(PLANNING_ROLES)])
+@router.post("/instances/{instance_id}/close", dependencies=[allow(INSTANCE_LIFECYCLE_ROLES)])
 def close_instance(
     instance_id: int,
     payload: CloseInstancePayload,
@@ -718,7 +717,7 @@ def close_instance(
 # 6. REABRIR COMO GARANTÍA ⚠️
 # ============================================================
 
-@router.post("/instances/{instance_id}/reopen-warranty", dependencies=[allow(PLANNING_ROLES)])
+@router.post("/instances/{instance_id}/reopen-warranty", dependencies=[allow(INSTANCE_LIFECYCLE_ROLES)])
 def reopen_warranty(
     instance_id: int,
     session: Session = Depends(get_session),
@@ -859,12 +858,8 @@ def assign_installation_team(
     ni genera nómina. El equipo puede reasignarse hasta el momento del escaneo QR.
     """
     # Permisos
-    allowed = {UserRole.DIRECTOR, UserRole.MANAGER, UserRole.DESIGN}
-    if current_user.role not in allowed:
-        raise HTTPException(
-            status_code=403,
-            detail="Solo DIRECTOR, GERENCIA o DISEÑO pueden asignar equipos.",
-        )
+    if role_of(current_user) not in PLANNING_ROLES:
+        raise HTTPException(status_code=403, detail="Solo Dirección o Diseño planean y asignan equipos.")
 
     # Validar instancia
     inst = _get_instance_or_404(instance_id, session)

@@ -34,7 +34,7 @@ from app.schemas.finance_schema import (
 )
 from app.services import payable_service
 from app.services.purchase_service import resolve_po_authorizer_display
-from app.core.permissions import allow, EXECUTE_PAYMENT_ROLES, FINANCE_ROLES
+from app.core.permissions import allow, allow_payment_execution, FINANCE_ROLES
 
 router = APIRouter()
 
@@ -380,7 +380,7 @@ def update_payment_status(
     session.refresh(payment)
     return payment
 
-@router.post("/payments/{payment_id}/execute", response_model=SupplierPaymentRead, dependencies=[allow(EXECUTE_PAYMENT_ROLES)])
+@router.post("/payments/{payment_id}/execute", response_model=SupplierPaymentRead, dependencies=[allow_payment_execution()])
 def execute_supplier_payment(*, session: SessionDep, current_user: CurrentUser, payment_id: int) -> Any:
     """
     TESORERÍA: Ejecuta el pago bancario de un SupplierPayment previamente APROBADO.

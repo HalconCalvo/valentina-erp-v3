@@ -1,4 +1,4 @@
-"""User administration. Only DIRECTOR and ADMIN create users or change someone else; anyone may change their own
+"""User administration. Only DIRECTOR creates users or change someone else; anyone may change their own
 name, phone and password. Users are never deleted: they are deactivated with a reason (change log)."""
 from fastapi import HTTPException
 from sqlmodel import Session, select
@@ -10,13 +10,13 @@ from app.models.users import User, UserCreate, UserUpdate
 from app.schemas.user_schema import UserDeactivateUpdate
 from app.services import active_session_service
 
-USER_ADMIN_ROLES = {"DIRECTOR", "ADMIN"}
+USER_ADMIN_ROLES = {"DIRECTOR"}  # D6: only DIRECTOR creates and administers users
 SELF_EDITABLE_FIELDS = {"full_name", "phone", "password"}
 SUPER_ADMIN_ID = 1
 
 
 def _assert_admin(user) -> None:
-    require_roles(user, USER_ADMIN_ROLES, "Solo Dirección o Administración administran usuarios.")
+    require_roles(user, USER_ADMIN_ROLES, "Solo Dirección administra usuarios.")
 
 
 def _get_or_404(session: Session, user_id: int) -> User:

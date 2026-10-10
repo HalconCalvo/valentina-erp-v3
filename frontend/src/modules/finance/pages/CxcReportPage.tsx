@@ -391,7 +391,7 @@ const CxcReportPage: React.FC = () => {
         <div className="p-8 w-full pb-24 space-y-6 animate-fadeIn">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 pb-4">
                 <div>
-                    <h1 className="text-3xl font-black tracking-tight flex items-center gap-3 text-indigo-800">
+                    <h1 className="text-3xl font-black tracking-tight flex items-center gap-3 text-slate-800">
                         <FileText className="text-indigo-500" size={32} />
                         Reporte de Cuentas por Cobrar
                     </h1>

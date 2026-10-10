@@ -11,7 +11,7 @@ from app.models.treasury import BankAccount, BankTransaction, TransactionType, W
 from app.models.sales import CustomerPayment
 from app.repositories import sales_repository as sales_repo
 from app.models.finance import SupplierPayment
-from app.core.permissions import allow, EXECUTE_PAYMENT_ROLES, FINANCE_ROLES
+from app.core.permissions import allow, allow_payment_execution, FINANCE_ROLES
 from app.schemas.treasury_schema import (
     BankAccountCreate, BankAccountResponse, 
     BankTransactionCreate, BankTransactionResponse,
@@ -44,7 +44,7 @@ def _revert_account_balance(account: BankAccount, transaction: BankTransaction) 
 # ------------------------------------------------------------------
 # 1. CUENTAS BANCARIAS
 # ------------------------------------------------------------------
-@router.post("/accounts", response_model=BankAccountResponse, dependencies=[allow(EXECUTE_PAYMENT_ROLES)])
+@router.post("/accounts", response_model=BankAccountResponse, dependencies=[allow_payment_execution()])
 def create_bank_account(
     *,
     session: SessionDep,
@@ -270,7 +270,7 @@ def create_bulk_cxc_payment(
 # ------------------------------------------------------------------
 # 3. TRANSFERENCIAS ENTRE CUENTAS
 # ------------------------------------------------------------------
-@router.post("/transfer", dependencies=[allow(EXECUTE_PAYMENT_ROLES)])
+@router.post("/transfer", dependencies=[allow_payment_execution()])
 def transfer_funds(
     *,
     session: SessionDep,

@@ -476,7 +476,7 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
             {!suppressTopBar && (
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 pb-4">
                     <div>
-                        <h1 className={`font-black text-emerald-800 tracking-tight flex items-center gap-3 ${variant === 'page' ? 'text-3xl' : 'text-2xl'}`}>
+                        <h1 className={`font-black text-slate-800 tracking-tight flex items-center gap-3 ${variant === 'page' ? 'text-3xl' : 'text-2xl'}`}>
                             <FileText className="text-emerald-500" size={variant === 'page' ? 32 : 28} />
                             {pageTitle}
                         </h1>

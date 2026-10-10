@@ -192,7 +192,7 @@ const ProviderStatementPage: React.FC = () => {
             <div className="border-b border-slate-200 pb-4">
                 <div className="flex items-start justify-between gap-4">
                     <div>
-                        <h1 className="text-3xl font-black tracking-tight text-indigo-800 flex items-center gap-3">
+                        <h1 className="text-3xl font-black tracking-tight text-slate-800 flex items-center gap-3">
                             <FileText className="text-indigo-500" size={32} />
                             Estado de Cuenta por Proveedor
                         </h1>

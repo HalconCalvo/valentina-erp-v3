@@ -263,9 +263,7 @@ const PendingToInvoicePage = () => {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 pb-4">
                 <div>
                     <h1
-                        className={`text-3xl font-black tracking-tight flex items-center gap-3 ${
-                            canView ? 'text-blue-800' : 'text-indigo-800'
-                        }`}
+                        className="text-3xl font-black tracking-tight flex items-center gap-3 text-slate-800"
                     >
                         {canView ? (
                             <Unlock className="text-blue-500" size={32} />

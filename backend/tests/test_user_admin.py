@@ -1,10 +1,11 @@
-"""Only DIRECTOR/ADMIN administer users; anyone edits only their own name, phone and password; users are
+"""Only DIRECTOR administers users (D6); anyone edits only their own name, phone and password; users are
 deactivated with a reason, never deleted."""
 from sqlmodel import select
 
 from app.core.config import settings
 from app.models.audit import AuditFieldChange
 from app.models.users import User
+from app.core.security import create_access_token, get_password_hash
 
 USERS = f"{settings.API_V1_STR}/users"
 NEW_USER = {"email": "nuevo@test.local", "full_name": "Nuevo", "role": "DIRECTOR", "password": "Secreta123!"}
@@ -57,3 +58,12 @@ def test_sales_cannot_deactivate(client_fixture, session_fixture, sales_token):
     response = client_fixture.patch(f"{USERS}/{director.id}/deactivate", headers={"Authorization": f"Bearer {sales_token}"},
                                     json={"reason": "x"})
     assert response.status_code == 403
+
+
+def test_admin_cannot_administer_users(client_fixture, session_fixture):
+    admin = User(email="admin@users.local", full_name="Admin", role="ADMIN", is_active=True,
+                 hashed_password=get_password_hash("x-Secreta-123"))
+    session_fixture.add(admin)
+    session_fixture.commit()
+    headers = {"Authorization": f"Bearer {create_access_token(subject=admin.email, user_id=admin.id, user_role='ADMIN')}"}
+    assert client_fixture.post(f"{USERS}/", headers=headers, json=NEW_USER).status_code == 403

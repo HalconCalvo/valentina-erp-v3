@@ -23,7 +23,7 @@ from app.models.treasury import BankAccount, BankTransaction, TransactionType
 from app.services.planning_service import trigger_double_green
 from app.services.cloud_storage import upload_to_gcs
 from app.services import logistics_service, production_inventory_service
-from app.core.permissions import allow, FIELD_ROLES, FINANCE_ROLES, INSTALLATION_ROLES
+from app.core.permissions import allow, can_execute_payments, FIELD_ROLES, FINANCE_ROLES, INSTALLATION_ROLES
 from app.schemas.logistics_schema import (
     TeamAgendaRead,
     DayTeamUpdate,
@@ -365,9 +365,9 @@ def mark_payroll_paid(
     session: SessionDep,
     current_user: CurrentUser,
 ):
-    """(GERENCIA / DIRECTOR / ADMIN) Ejecuta el pago y opcionalmente registra salida bancaria."""
-    if current_user.role.upper() not in {"MANAGER", "DIRECTOR", "ADMIN"}:
-        raise HTTPException(status_code=403, detail="Solo Gerencia, Director o Admin pueden ejecutar pagos.")
+    """(DIRECTOR; GERENCIA si está habilitada) Ejecuta el pago y opcionalmente registra salida bancaria."""
+    if not can_execute_payments(session, current_user):
+        raise HTTPException(status_code=403, detail="Solo Dirección ejecuta pagos (Gerencia, si Dirección lo habilita).")
 
     record = session.get(PayrollPayment, payroll_id)
     if not record:
