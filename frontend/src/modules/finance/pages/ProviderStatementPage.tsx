@@ -82,8 +82,6 @@ const ProviderStatementPage: React.FC = () => {
         setLoading(true);
         setReport(null);
         try {
-            const token = localStorage.getItem('token');
-            const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
             const from = dateMode === 'all' ? '2000-01-01' : dateFrom;
             const to = dateMode === 'all' ? '2099-12-31' : dateTo;
             const params = new URLSearchParams({
@@ -92,19 +90,10 @@ const ProviderStatementPage: React.FC = () => {
                 date_to: to,
                 status_filter: statusFilter,
             });
-            const response = await fetch(`${baseUrl}/reports/provider_invoices?${params}`, {
-                method: 'GET',
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            if (!response.ok) {
-                const err = await response.json();
-                toast.error(err.detail || 'Error al consultar el estado de cuenta.');
-                return;
-            }
-            const data: StatementData = await response.json();
-            setReport(data);
-        } catch {
-            toast.error('Error al consultar el estado de cuenta.');
+            const response = await client.get<StatementData>('/reports/provider_invoices', { params: Object.fromEntries(params) });
+            setReport(response.data);
+        } catch (err: any) {
+            toast.error(err?.response?.data?.detail || 'Error al consultar el estado de cuenta.');
         } finally {
             setLoading(false);
         }

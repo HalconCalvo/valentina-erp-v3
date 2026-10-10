@@ -93,27 +93,16 @@ const SupplierPaymentsReportPage: React.FC = () => {
         setLoading(true);
         setReport(null);
         try {
-            const token = localStorage.getItem('token');
-            const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
             const params = new URLSearchParams({
                 provider_id: providerId,
                 date_from: dateFrom,
                 date_to: dateTo,
                 status_filter: statusFilter,
             });
-            const response = await fetch(`${baseUrl}/reports/supplier_payments?${params}`, {
-                method: 'GET',
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            if (!response.ok) {
-                const err = await response.json();
-                toast.error(err.detail || 'Error al generar el reporte.');
-                return;
-            }
-            const data: SupplierPaymentsReportData = await response.json();
-            setReport(data);
-        } catch {
-            toast.error('Error al generar el reporte.');
+            const response = await client.get<SupplierPaymentsReportData>('/reports/supplier_payments', { params: Object.fromEntries(params) });
+            setReport(response.data);
+        } catch (err: any) {
+            toast.error(err?.response?.data?.detail || 'Error al generar el reporte.');
         } finally {
             setLoading(false);
         }
@@ -122,24 +111,14 @@ const SupplierPaymentsReportPage: React.FC = () => {
     const handleDownloadPdf = async () => {
         if (!canGenerate) return;
         try {
-            const token = localStorage.getItem('token');
-            const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
             const params = new URLSearchParams({
                 provider_id: providerId,
                 date_from: dateFrom,
                 date_to: dateTo,
                 status_filter: statusFilter,
             });
-            const response = await fetch(`${baseUrl}/reports/supplier_payments/pdf?${params}`, {
-                method: 'GET',
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            if (!response.ok) {
-                const err = await response.json();
-                toast.error(err.detail || 'Error al descargar el PDF.');
-                return;
-            }
-            const blob = await response.blob();
+            const response = await client.get('/reports/supplier_payments/pdf', { params: Object.fromEntries(params), responseType: 'blob' });
+            const blob = response.data as Blob;
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -163,16 +142,9 @@ const SupplierPaymentsReportPage: React.FC = () => {
         setDetailTotal(0);
         setLoadingDetail(true);
         try {
-            const token = localStorage.getItem('token');
-            const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
-            const response = await fetch(`${baseUrl}/reports/invoice_items?folio=${encodeURIComponent(folio)}`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            if (response.ok) {
-                const data = await response.json();
-                setDetailItems(data.items || []);
-                setDetailTotal(data.total || 0);
-            }
+            const { data } = await client.get('/reports/invoice_items', { params: { folio } });
+            setDetailItems(data.items || []);
+            setDetailTotal(data.total || 0);
         } catch {
             // silencioso; se mostrará "sin detalle"
         } finally {
