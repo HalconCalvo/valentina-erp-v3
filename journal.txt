@@ -4294,3 +4294,16 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 
 ### Lecciones:
 - Comentarios dentro de un template de className se vuelven clases de Tailwind (h-[90vh] en todos los Modal)
+
+---
+## SESIÓN 2026-10-10 (parte 4) — DECISIONES D2–D7 Y PRUEBA POR ROL
+
+### Hecho (commits locales):
+- Decisiones de Gabriel aplicadas: D2 títulos sin color; D3 "Pagada (saldo cero)"; D4 IVA en la OC (16/8/0, migración t9u0v1w2x3y4); D5 valuación; D6 usuarios solo DIRECTOR; D7 cancelar OV DIRECTOR/MANAGER, planear y reprogramar DIRECTOR/DESIGN, pagos solo DIRECTOR con interruptor "Gerencia puede ejecutar pagos" en Parámetros Globales (migración s8t9u0v1w2x3), ADMIN solicita, PRODUCTION solo requisiciones
+- Prueba por rol en copia local con 7 usuarios de prueba: pantallas sin 401/403; acciones prohibidas 403; MANAGER (la contadora) captura y consulta el inventario físico
+- Heartbeat: carrera entre dos heartbeats simultáneos (503) corregida
+- Cadena de migraciones del push probada en copia fresca de producción (13:20)
+
+### Push pendiente (después de las 19:00):
+- 35+ commits: F3, F4, guía, pendientes, seguridad, D2–D7. Migraciones q6 → m3 → n4 → r7 → s8 → t9
+- Después del push: Gerencia ya no ejecuta pagos hasta que Dirección encienda el interruptor

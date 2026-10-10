@@ -22,7 +22,9 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
   los 46 restantes, envía y el Director autoriza.
 - Ensayado en copia de producción (2026-10-10): resultado idéntico al esperado.
 
-## 2. F3 + márgenes + comisión: prueba en pantalla y push — lista para push (fuera de horario: hoy después de 19:00 o domingo)
+## 2. Push a producción — listo (fuera de horario: hoy después de 19:00 o domingo)
+- 2026-10-10 13:25: cadena de migraciones q6 → m3 → n4 → r7 → s8 → t9 probada (subir, bajar, subir) en copia fresca de producción; 244 tests backend, 17 frontend, build.
+- Prueba en pantalla por rol (7 usuarios de prueba): todas las pantallas cargan; lo prohibido responde 403; MANAGER captura el inventario físico.
 - 2026-10-10 probada en pantalla (copia local): COT-0086 enviada a Dirección, corrección de precio del tapacanto
   (5.33 → 6.00) con motivo; costo 9,866.06 → 9,933.06, precio de venta conservado, sobreprecio 29.68% → 28.80%,
   comisión $673.36 (5% de la venta sin IVA), anticipo 50%; catálogo actualizado y bitácora con
@@ -77,8 +79,9 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
   "Finalizada" → "Pagada (saldo cero)" (D3); usuarios, caja chica y solicitudes de pago se cancelan, no se borran.
 - **Seguridad (hecho, commit 4d0963b + 2597aff):** sesión y rol en todas las escrituras de dinero, compras,
   inventario y usuarios (D6, D7). En producción sigue abierto hasta el push.
-- Siguen: borrados físicos de diseño (productos/versiones), lote en borrador, logística y planeación; IVA de OC (D4);
-  revisión de lecturas (GET) por rol.
+- D2–D7 resueltas por Gabriel y aplicadas (D4: IVA en la OC, migración t9u0v1w2x3y4; D7: pagos solo DIRECTOR con interruptor para MANAGER, s8t9u0v1w2x3).
+- Siguen: borrados físicos de diseño (productos/versiones), lote en borrador, logística y planeación; revisión de
+  lecturas (GET) por rol; botones de autorizar/rechazar OC como texto (guía).
 - Hallazgos de la tarea 5 (2026-10-10):
   - El tablero de Inventario muestra $2,259,249.11 y Valuación $2,283,776.16: dos cálculos distintos del mismo valor.
   - Requisiciones automáticas duplicadas (0502-004 tiene dos PENDIENTE): tres pantallas las evalúan a la vez al
