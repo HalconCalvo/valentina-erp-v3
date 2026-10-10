@@ -108,5 +108,11 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
 - Costo de compra se redondea hacia arriba por punto flotante en `inventory_service._apply_purchase_cost`
   (34.45 → 34.46). Encontrado 2026-10-10.
 
-## 7. Plan del arranque en ceros — en espera (Gabriel, D8–D12)
-- 2026-10-10: propuesta en `docs/PLAN_ARRANQUE.md` (saldos de apertura, 4 caminos, pasos técnicos, decisiones).
+## 7. Saneamiento de producción (reemplaza el arranque en ceros, D8) — en curso
+- 2026-10-10: reporte en `docs/SANEAMIENTO.md`; Excel de materiales incompletos en ~/Downloads. Decisión D14 pendiente.
+- Gabriel corrige desde la app lo que se pueda; Claude Code construye: recálculo de estados y saldos de CxC/OV,
+  pago Fast-Track con registro de pago, corrección de IVA de OVs legacy, importación masiva del catálogo.
+
+## 8. D13: el vendedor solo ve precio de venta — en curso
+- SALES nunca ve costos ni márgenes en ninguna pantalla ni PDF (captura de cotización, detalle, Rayos X, órdenes de
+  cambio, catálogo, materiales). El precio sugerido se calcula en el servidor.

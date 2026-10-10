@@ -6,6 +6,26 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 ## Formato
 
 ```
+
+## Pendientes
+
+### D14. Saneamiento de producción — 2026-10-10 — ROADMAP tarea 7
+- **Contexto:** `docs/SANEAMIENTO.md` (reporte de solo lectura): registros de prueba, OVs legacy con estados y saldos
+  incorrectos, OVs con saldos descuadrados, pagos Fast-Track sin pago registrado, $2,397.72 de diferencia en Santander,
+  materiales incompletos.
+- **Preguntas para Gabriel / contabilidad:**
+  1. OVs Finalizadas con parte sin facturar (OV-0115, 0117, 0128, 0129, 0130): ¿falta facturar o es fondo/descuento?
+  2. OV-0045 vs OV-0123 (Puerto Palmeras): ¿cuál es la buena?
+  3. ¿Qué OVs legacy debían ser exentas?
+  4. Santander: ¿el estado de cuenta coincide con $243,109.92 o con $245,507.64?
+  5. Regla de saldo de la OV para la herramienta: total − abonos vigentes (recomendado).
+- **Recomendación:** aprobar el plan; Claude Code construye la herramienta de recálculo (punto 6.1) mientras contabilidad
+  responde 1–4.
+- **Reversible:** las correcciones se hacen con motivo y quedan en bitácora.
+- **Estado:** pendiente
+
+## Resueltas
+
 ### D<n>. <título corto> — <fecha AAAA-MM-DD> — <tarea del ROADMAP>
 - **Contexto:** qué se encontró y por qué hace falta decidir.
 - **Opciones:** A) … B) … C) …
@@ -14,16 +34,14 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 - **Estado:** pendiente | aprobada (<fecha>, opción) | rechazada (<fecha>, motivo)
 ```
 
-## Pendientes
-
-### D8–D12. Plan del arranque en ceros — 2026-10-10 — ROADMAP tarea 7
+### D8–D12. Plan del arranque en ceros (reemplazado por saneamiento) — 2026-10-10 — ROADMAP tarea 7
 - **Contexto:** `docs/PLAN_ARRANQUE.md`. Producción ya se usa para operar (compras, recepciones, pagos, caja chica,
   inventario físico), así que el arranque no puede ser borrar todo.
 - **Decisiones:** D8 qué es real hoy; D9 fecha de corte (recomiendo 31/10/2026); D10 lo de prueba se marca y oculta,
   no se borra; D11 multiempresa fuera del arranque; D12 saldos de apertura de CxP y bancos por Excel validado.
 - **Recomendación:** la de cada punto en el documento.
 - **Reversible:** no se aplica nada hasta la aprobación (tarea 7 en espera).
-- **Estado:** pendiente
+- **Estado:** resuelta (2026-10-10): D8 no hay arranque en ceros; todo lo de producción es real y se sanea con la regla de oro (docs/SANEAMIENTO.md). D9 sin fecha de corte. D10 nada se borra. D11 multiempresa fuera de alcance por ahora. D12 reemplazada por las herramientas de saneamiento.
 
 ### D13. Costos y márgenes visibles fuera de Finanzas — 2026-10-10 — ROADMAP tarea 6 (seguridad, lecturas)
 - **Contexto:** la auditoría de lecturas (GET) ya se aplicó en lo seguro: bancos, CxC de todos, comisiones de otros,
@@ -40,9 +58,7 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 - **Recomendación:** A en 4 y 5 (datos de la empresa y de personas); A en 2 para Ventas solo si el precio de la
   cotización se calcula en el servidor (hoy el navegador lo calcula con el costo); B en 1, 3 y 6 (los usan para trabajar).
 - **Reversible:** sí, pero no aplicado (cambia lo que muestran varias pantallas).
-- **Estado:** pendiente
-
-## Resueltas
+- **Estado:** resuelta (2026-10-10): el vendedor (SALES) solo ve precio de venta, nunca costos ni márgenes, en ninguna pantalla ni PDF. Puntos 3–6 sin cambio; 4 y 5 se reducen para roles sin acceso.
 
 ### D2. Títulos de pantalla: sin color o un color por módulo — 2026-10-10 — ROADMAP tarea 4
 - **Contexto:** al aprobar D1 la elección de títulos llegó sin resolver ("[sin color, un solo estilo / conservar

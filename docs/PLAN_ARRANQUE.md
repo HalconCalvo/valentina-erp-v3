@@ -1,4 +1,6 @@
-# Plan del arranque en ceros — PROPUESTA (pendiente de Gabriel, D8–D12)
+# Plan del arranque en ceros — REEMPLAZADO
+
+> 2026-10-10: Gabriel decidió que no hay arranque en ceros (D8). Ver `docs/SANEAMIENTO.md`. Se conserva como referencia.
 
 > Borrador del 2026-10-10 (ROADMAP tarea 7). No se ejecuta nada hasta que Gabriel apruebe las decisiones.
 
