@@ -1,4 +1,5 @@
-"""Production batch status CANCELLED: a draft batch is stopped with a reason instead of deleted.
+"""Status CANCELLED for production batches (draft stopped with a reason) and payroll payments (team change
+before signature) instead of deleting them.
 
 Revision ID: u0v1w2x3y4z5
 Revises: t9u0v1w2x3y4
@@ -15,6 +16,7 @@ depends_on = None
 def upgrade() -> None:
     if op.get_bind().dialect.name == "postgresql":
         op.execute("ALTER TYPE productionbatchstatus ADD VALUE IF NOT EXISTS 'CANCELLED'")
+        op.execute("ALTER TYPE payrollstatus ADD VALUE IF NOT EXISTS 'CANCELLED'")
 
 
 def downgrade() -> None:

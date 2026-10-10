@@ -24,6 +24,7 @@ from app.services.planning_service import trigger_double_green
 from app.services.cloud_storage import upload_to_gcs
 from app.services import logistics_service, production_inventory_service
 from app.core.permissions import allow, can_execute_payments, FIELD_ROLES, FINANCE_ROLES, INSTALLATION_ROLES
+from app.core.audit_context import audit_reason
 from app.schemas.logistics_schema import (
     TeamAgendaRead,
     DayTeamUpdate,
@@ -557,9 +558,13 @@ def reasignar_equipo(
         )
     ).all()
     anulados = 0
-    for p in previos:
-        session.delete(p)
-        anulados += 1
+    with audit_reason(f"Cambio de equipo: {payload.motivo.strip()}"):
+        for p in previos:
+            p.status = PayrollStatus.CANCELLED
+            p.admin_notes = "; ".join(x for x in (p.admin_notes, "Anulada por cambio de equipo") if x)
+            session.add(p)
+            anulados += 1
+        session.flush()
 
     session.commit()
     session.refresh(assignment)

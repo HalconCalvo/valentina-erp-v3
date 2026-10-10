@@ -11,6 +11,7 @@ class PayrollStatus(str, Enum):
     READY_TO_PAY = "READY_TO_PAY"            # Firma recibida — listo para viernes
     PAID = "PAID"                             # Gerencia ejecutó el pago
     DEFERRED = "DEFERRED"                     # Omitido esta quincena (requiere motivo en admin_notes)
+    CANCELLED = "CANCELLED"                   # Anulada (p. ej. cambio de equipo antes de la firma); nunca se borra
 
 class PayrollPaymentType(str, Enum):
     LEADER = "LEADER"

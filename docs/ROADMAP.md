@@ -80,8 +80,11 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
 - **Seguridad (hecho, commit 4d0963b + 2597aff):** sesión y rol en todas las escrituras de dinero, compras,
   inventario y usuarios (D6, D7). En producción sigue abierto hasta el push.
 - D2–D7 resueltas por Gabriel y aplicadas (D4: IVA en la OC, migración t9u0v1w2x3y4; D7: pagos solo DIRECTOR con interruptor para MANAGER, s8t9u0v1w2x3).
-- Siguen: borrados físicos de diseño (productos/versiones), lote en borrador, logística y planeación; revisión de
-  lecturas (GET) por rol; botones de autorizar/rechazar OC como texto (guía).
+- Borrados físicos (hecho): diseño (producto/versión se desactivan), lote en borrador (CANCELLED), nómina pendiente
+  de firma al cambiar equipo (CANCELLED); migración u0v1w2x3y4z5.
+- Se deja: limpiar una asignación provisional de equipo en Planeación sigue borrando la fila (plan sin efecto externo;
+  la bitácora registra el borrado). Cancelarla exige filtrar por estado en 3 consultas (diseño, logística, campo).
+- Siguen: revisión de lecturas (GET) por rol; botones de autorizar/rechazar OC como texto (guía).
 - Hallazgos de la tarea 5 (2026-10-10):
   - El tablero de Inventario muestra $2,259,249.11 y Valuación $2,283,776.16: dos cálculos distintos del mismo valor.
   - Requisiciones automáticas duplicadas (0502-004 tiene dos PENDIENTE): tres pantallas las evalúan a la vez al
