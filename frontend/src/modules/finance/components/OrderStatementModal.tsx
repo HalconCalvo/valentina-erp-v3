@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { X, Receipt, CheckCircle, Clock, FileText, Package, AlertCircle, PieChart, Users, Coins, Pencil, PlusCircle, XCircle, ChevronDown, ChevronRight, Shield } from 'lucide-react';
+import { X, Receipt, CheckCircle, Clock, FileText, Package, AlertCircle, PieChart, Users, Coins, Pencil, PlusCircle, XCircle, Shield } from 'lucide-react';
 import { SalesOrder, CustomerPayment, RetentionAlertRead } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
 import { getInventoryConflict } from '../../../api/production-service';
@@ -11,6 +11,8 @@ import { useFoundations } from '../../foundations/hooks/useFoundations';
 import { toast } from '@/components/ui/VToast';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import Modal from '@/components/ui/Modal';
+import { EditPaymentDialog, TextConfirmDialog, type PaymentEditForm } from './rayos-x/RayosXDialogs';
+import { HouseInstancePicker, type UnlinkedHouseGroup } from './rayos-x/HouseInstancePicker';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
@@ -79,26 +81,6 @@ function isRetentionOverdue(dueDate?: string | null): boolean {
     today.setHours(0, 0, 0, 0);
     due.setHours(0, 0, 0, 0);
     return due.getTime() < today.getTime();
-}
-
-type UnlinkedInstanceRow = {
-    id: number;
-    label: string;
-    custom_name?: string;
-    production_status: string;
-};
-
-type UnlinkedHouseGroup = {
-    street: string;
-    lot: string;
-    key: string;
-    instances: UnlinkedInstanceRow[];
-};
-
-function isInstanceSelectableForAbono(status: string, paymentType?: string): boolean {
-    if (paymentType === 'FULL') return true;
-    const s = String(status || '').toUpperCase();
-    return s === 'CLOSED' || s === 'SIGNED';
 }
 
 function calcSelectedInstancesValue(selectedInstanceIds: number[], uniqueItems: any[]): number {
@@ -173,18 +155,6 @@ function InstallmentCongruenceCompare({
         </div>
     );
 }
-
-const CheckboxInput: React.FC<
-    React.ComponentProps<typeof Input> & { indeterminate?: boolean }
-> = ({ indeterminate, id, ...props }) => {
-    const autoId = React.useId();
-    const inputId = id ?? autoId;
-    useEffect(() => {
-        const el = document.getElementById(inputId) as HTMLInputElement | null;
-        if (el) el.indeterminate = !!indeterminate;
-    }, [indeterminate, inputId]);
-    return <Input {...props} id={inputId} type="checkbox" />;
-};
 
 interface OrderStatementModalProps {
     isOpen: boolean;
@@ -461,13 +431,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const [ocEditorEpoch, setOcEditorEpoch] = useState(0);
 
     const [editPaymentModal, setEditPaymentModal] = useState<{ open: boolean; cxc: any | null }>({ open: false, cxc: null });
-    const [editPaymentForm, setEditPaymentForm] = useState<{ invoice_folio: string; invoice_date: string; amount: string; notes: string }>({
-        invoice_folio: '', invoice_date: '', amount: '', notes: '',
-    });
     const [cancelPaymentModal, setCancelPaymentModal] = useState<{ open: boolean; cxc: any | null }>({ open: false, cxc: null });
-    const [cancelPaymentReason, setCancelPaymentReason] = useState<string>('');
-    const [savingPaymentEdit, setSavingPaymentEdit] = useState(false);
-    const [cancellingPayment, setCancellingPayment] = useState(false);
 
     const [installmentModal, setInstallmentModal] = useState<{ open: boolean; cxc: any | null }>({ open: false, cxc: null });
     const [installmentAmount, setInstallmentAmount] = useState<number>(0);
@@ -477,8 +441,6 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const [installmentAccountId, setInstallmentAccountId] = useState('');
     const [installmentInstanceIds, setInstallmentInstanceIds] = useState<number[]>([]);
     const [installmentIsAdvance, setInstallmentIsAdvance] = useState(false);
-    const [expandedHouses, setExpandedHouses] = useState<Set<string>>(new Set());
-    const [expandedEditHouses, setExpandedEditHouses] = useState<Set<string>>(new Set());
     const [submittingInstallment, setSubmittingInstallment] = useState(false);
 
     const [editInstallmentModal, setEditInstallmentModal] = useState<{
@@ -502,8 +464,6 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         abono: any | null;
         cxc: any | null;
     }>({ open: false, abono: null, cxc: null });
-    const [cancelInstallmentReason, setCancelInstallmentReason] = useState('');
-    const [cancellingInstallment, setCancellingInstallment] = useState(false);
 
     const [retentionAlerts, setRetentionAlerts] = useState<RetentionAlertRead[]>([]);
     const [retentionConfigDraft, setRetentionConfigDraft] = useState({ percent: '', days: '' });
@@ -512,15 +472,11 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         open: false,
         cxc: null,
     });
-    const [retentionInvoiceFolio, setRetentionInvoiceFolio] = useState('');
-    const [invoicingRetention, setInvoicingRetention] = useState(false);
     const [collectingRetentionId, setCollectingRetentionId] = useState<number | null>(null);
     const [waiveRetentionModal, setWaiveRetentionModal] = useState<{ open: boolean; cxc: CustomerPayment | null }>({
         open: false,
         cxc: null,
     });
-    const [waiveRetentionReason, setWaiveRetentionReason] = useState('');
-    const [waivingRetention, setWaivingRetention] = useState(false);
 
     const queryClient = useQueryClient();
     const orderId = order?.id ?? localOrder?.id;
@@ -912,7 +868,6 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         setInstallmentAccountId('');
         setInstallmentInstanceIds([]);
         setInstallmentIsAdvance(false);
-        setExpandedHouses(new Set());
         setInstallmentDate(new Date().toISOString().slice(0, 10));
 
         await refreshOrderInPlace();
@@ -928,64 +883,6 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
             // keep saldo from invoice amount
         }
         setInstallmentAmount(saldo > 0 ? saldo : Number(cxc.amount || 0));
-    };
-
-    const toggleInstallmentInstance = (instanceId: number) => {
-        setInstallmentInstanceIds((prev) =>
-            prev.includes(instanceId) ? prev.filter((id) => id !== instanceId) : [...prev, instanceId],
-        );
-    };
-
-    const toggleHouse = (key: string) => {
-        setExpandedHouses((prev) => {
-            const next = new Set(prev);
-            if (next.has(key)) next.delete(key);
-            else next.add(key);
-            return next;
-        });
-    };
-
-    const toggleHouseAll = (instances: UnlinkedInstanceRow[]) => {
-        const paymentType = installmentModal.cxc?.payment_type;
-        const selectableIds = instances
-            .filter((inst) => isInstanceSelectableForAbono(inst.production_status, paymentType))
-            .map((inst) => inst.id);
-        if (selectableIds.length === 0) return;
-        const allSelected = selectableIds.every((id) => installmentInstanceIds.includes(id));
-        setInstallmentInstanceIds((prev) => {
-            if (allSelected) {
-                return prev.filter((id) => !selectableIds.includes(id));
-            }
-            return [...new Set([...prev, ...selectableIds])];
-        });
-    };
-
-    const getHouseLabel = (house: UnlinkedHouseGroup) => {
-        if (house.key === '__unassigned__') return 'Sin asignar';
-        return [house.street, house.lot].filter(Boolean).join(' ') || 'Sin asignar';
-    };
-
-    const toggleEditHouse = (key: string) => {
-        setExpandedEditHouses((prev) => {
-            const next = new Set(prev);
-            if (next.has(key)) next.delete(key);
-            else next.add(key);
-            return next;
-        });
-    };
-
-    const toggleEditHouseAll = (instances: UnlinkedInstanceRow[], paymentType?: string) => {
-        const selectableIds = instances
-            .filter((inst) => isInstanceSelectableForAbono(inst.production_status, paymentType))
-            .map((inst) => inst.id);
-        if (selectableIds.length === 0) return;
-        const allSelected = selectableIds.every((id) => editInstallmentInstanceIds.includes(id));
-        setEditInstallmentInstanceIds((prev) => {
-            if (allSelected) {
-                return prev.filter((id) => !selectableIds.includes(id));
-            }
-            return [...new Set([...prev, ...selectableIds])];
-        });
     };
 
     const handleSubmitInstallment = async () => {
@@ -1045,7 +942,6 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         setEditInstallmentNotes(abono.notes || '');
         setEditInstallmentInstanceIds([]);
         setEditInstallmentIsAdvance(Boolean(abono.is_advance) || cxc.payment_type === 'ADVANCE');
-        setExpandedEditHouses(new Set());
         setEditInstallmentModal({
             open: false,
             abono,
@@ -1074,12 +970,6 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
             preservedCxcLinkedIds: preservedLinked,
         });
         setLoadingEditInstallmentOpen(false);
-    };
-
-    const toggleEditInstallmentInstance = (instanceId: number) => {
-        setEditInstallmentInstanceIds((prev) =>
-            prev.includes(instanceId) ? prev.filter((id) => id !== instanceId) : [...prev, instanceId],
-        );
     };
 
     const handleSaveEditInstallment = async () => {
@@ -1134,119 +1024,56 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         }
     };
 
-    const handleCancelInstallment = async () => {
+    const handleCancelInstallment = async (reason: string): Promise<boolean> => {
         const { abono, cxc } = cancelInstallmentModal;
-        if (!abono?.id || !cxc?.id) return;
-        const reason = cancelInstallmentReason.trim();
-        if (!reason) {
-            toast.warning('El motivo de cancelación es obligatorio.');
-            return;
-        }
-        setCancellingInstallment(true);
+        if (!abono?.id || !cxc?.id) return false;
         try {
-            await cancelInstallmentMutation.mutateAsync({
-                installmentId: abono.id,
-                cxcId: cxc.id,
-                orderId: orderId!,
-                reason,
-            });
+            await cancelInstallmentMutation.mutateAsync({ installmentId: abono.id, cxcId: cxc.id, orderId: orderId!, reason });
             toast.success('Abono cancelado correctamente.');
-            setCancelInstallmentModal({ open: false, abono: null, cxc: null });
-            setCancelInstallmentReason('');
             await onSuccess();
+            return true;
         } catch {
-            /* toast en hook */
-        } finally {
-            setCancellingInstallment(false);
+            return false; /* toast en hook */
         }
     };
 
-    const handleOpenEditPayment = (cxc: any) => {
-        setEditPaymentForm({
-            invoice_folio: cxc.invoice_folio || '',
-            invoice_date: cxc.invoice_date ? cxc.invoice_date.slice(0, 10) : '',
-            amount: String(cxc.amount || ''),
-            notes: cxc.notes || '',
-        });
-        setEditPaymentModal({ open: true, cxc });
-    };
+    const handleOpenEditPayment = (cxc: any) => setEditPaymentModal({ open: true, cxc });
 
-    const handleSaveEditPayment = async () => {
-        if (!editPaymentModal.cxc || !order.id) return;
+    const handleSaveEditPayment = async (form: PaymentEditForm): Promise<boolean> => {
+        if (!editPaymentModal.cxc || !order.id) return false;
         const cxc = editPaymentModal.cxc;
         const notesOnly = cxc.status === 'PAID' || !!cxc.treasury_transaction_id;
         const body: Record<string, string | number> = {};
-
-        if (notesOnly) {
-            if (editPaymentForm.notes !== (cxc.notes || '')) {
-                body.notes = editPaymentForm.notes;
-            }
-        } else {
-            if (editPaymentForm.invoice_folio !== (cxc.invoice_folio || '')) {
-                body.invoice_folio = editPaymentForm.invoice_folio;
-            }
+        if (form.notes !== (cxc.notes || '')) body.notes = form.notes;
+        if (!notesOnly) {
+            if (form.invoice_folio !== (cxc.invoice_folio || '')) body.invoice_folio = form.invoice_folio;
             const origDate = cxc.invoice_date ? cxc.invoice_date.slice(0, 10) : '';
-            if (editPaymentForm.invoice_date !== origDate) {
-                body.invoice_date = editPaymentForm.invoice_date
-                    ? `${editPaymentForm.invoice_date}T12:00:00`
-                    : '';
-            }
-            const newAmount = parseFloat(editPaymentForm.amount);
-            const origAmount = Number(cxc.amount || 0);
-            if (!isNaN(newAmount) && newAmount !== origAmount) {
-                body.amount = newAmount;
-            }
-            if (editPaymentForm.notes !== (cxc.notes || '')) {
-                body.notes = editPaymentForm.notes;
-            }
+            if (form.invoice_date !== origDate) body.invoice_date = form.invoice_date ? `${form.invoice_date}T12:00:00` : '';
+            const newAmount = parseFloat(form.amount);
+            if (!isNaN(newAmount) && newAmount !== Number(cxc.amount || 0)) body.amount = newAmount;
         }
-
-        if (Object.keys(body).length === 0) {
-            setEditPaymentModal({ open: false, cxc: null });
-            return;
-        }
-
-        setSavingPaymentEdit(true);
+        if (Object.keys(body).length === 0) return true;
         try {
             await axiosClient.patch(`/sales/orders/${order.id}/payments/${cxc.id}`, body);
-            setEditPaymentModal({ open: false, cxc: null });
             toast.success('Factura actualizada');
             await onSuccess();
+            return true;
         } catch (error: any) {
-            if (error.response?.status === 422) {
-                toast.error(error.response?.data?.detail || 'Error al actualizar la factura');
-            } else {
-                toast.error('Error al actualizar la factura');
-            }
-        } finally {
-            setSavingPaymentEdit(false);
+            toast.error(error.response?.status === 422 ? error.response?.data?.detail || 'Error al actualizar la factura' : 'Error al actualizar la factura');
+            return false;
         }
     };
 
-    const handleCancelPayment = async () => {
-        if (!cancelPaymentModal.cxc || !order.id) return;
-        if (!cancelPaymentReason.trim()) {
-            toast.warning('Debes ingresar un motivo');
-            return;
-        }
-        setCancellingPayment(true);
+    const handleCancelPayment = async (reason: string): Promise<boolean> => {
+        if (!cancelPaymentModal.cxc || !order.id) return false;
         try {
-            await axiosClient.patch(
-                `/sales/orders/${order.id}/payments/${cancelPaymentModal.cxc.id}/cancel`,
-                { cancel_reason: cancelPaymentReason },
-            );
-            setCancelPaymentModal({ open: false, cxc: null });
-            setCancelPaymentReason('');
+            await axiosClient.patch(`/sales/orders/${order.id}/payments/${cancelPaymentModal.cxc.id}/cancel`, { cancel_reason: reason });
             toast.success('Factura cancelada');
             await onSuccess();
+            return true;
         } catch (error: any) {
-            if (error.response?.status === 422) {
-                toast.error(error.response?.data?.detail || 'Error al cancelar la factura');
-            } else {
-                toast.error('Error al cancelar la factura');
-            }
-        } finally {
-            setCancellingPayment(false);
+            toast.error(error.response?.status === 422 ? error.response?.data?.detail || 'Error al cancelar la factura' : 'Error al cancelar la factura');
+            return false;
         }
     };
 
@@ -1278,27 +1105,19 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         }
     };
 
-    const handleInvoiceRetention = async () => {
+    const handleInvoiceRetention = async (folio: string): Promise<boolean> => {
         const cxc = invoiceRetentionModal.cxc;
-        if (!cxc) return;
-        const folio = retentionInvoiceFolio.trim();
-        if (!folio) {
-            toast.warning('Ingresa el folio de factura.');
-            return;
-        }
-        setInvoicingRetention(true);
+        if (!cxc) return false;
         try {
             await salesService.invoiceRetention(cxc.id, folio);
             toast.success('Fondo de garantía facturado.');
-            setInvoiceRetentionModal({ open: false, cxc: null });
-            setRetentionInvoiceFolio('');
             await refreshOrderInPlace();
             await refreshRetentionAlerts();
             await onSuccess();
+            return true;
         } catch (error: any) {
             toast.error(error?.response?.data?.detail || 'Error al facturar el fondo.');
-        } finally {
-            setInvoicingRetention(false);
+            return false;
         }
     };
 
@@ -1317,27 +1136,19 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         }
     };
 
-    const handleWaiveRetention = async () => {
+    const handleWaiveRetention = async (reason: string): Promise<boolean> => {
         const cxc = waiveRetentionModal.cxc;
-        if (!cxc) return;
-        const reason = waiveRetentionReason.trim();
-        if (!reason) {
-            toast.warning('Debes ingresar un motivo.');
-            return;
-        }
-        setWaivingRetention(true);
+        if (!cxc) return false;
         try {
             await salesService.waiveRetention(cxc.id, reason);
             toast.success('Fondo de garantía liberado.');
-            setWaiveRetentionModal({ open: false, cxc: null });
-            setWaiveRetentionReason('');
             await refreshOrderInPlace();
             await refreshRetentionAlerts();
             await onSuccess();
+            return true;
         } catch (error: any) {
             toast.error(error?.response?.data?.detail || 'Error al liberar el fondo.');
-        } finally {
-            setWaivingRetention(false);
+            return false;
         }
     };
 
@@ -1947,7 +1758,6 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                         <button
                                                             type="button"
                                                             onClick={() => {
-                                                                setCancelPaymentReason('');
                                                                 setCancelPaymentModal({ open: true, cxc });
                                                             }}
                                                             className="text-slate-400 hover:text-rose-600"
@@ -2073,7 +1883,6 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => {
-                                                                            setCancelInstallmentReason('');
                                                                             setCancelInstallmentModal({ open: true, abono: ab, cxc });
                                                                         }}
                                                                         className="text-slate-400 hover:text-rose-600"
@@ -2198,7 +2007,6 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                                         type="button"
                                                                         variant="secondary"
                                                                         onClick={() => {
-                                                                            setRetentionInvoiceFolio('');
                                                                             setInvoiceRetentionModal({ open: true, cxc });
                                                                         }}
                                                                         className="text-xs"
@@ -2209,7 +2017,6 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                                         type="button"
                                                                         variant="destructive"
                                                                         onClick={() => {
-                                                                            setWaiveRetentionReason('');
                                                                             setWaiveRetentionModal({ open: true, cxc });
                                                                         }}
                                                                         className="text-xs"
@@ -2500,88 +2307,8 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
             </Modal>
         )}
         {editPaymentModal.open && editPaymentModal.cxc && (
-            <Modal
-                isOpen={editPaymentModal.open}
-                onClose={() => setEditPaymentModal({ open: false, cxc: null })}
-                title={`Editar Factura ${editPaymentModal.cxc.invoice_folio || 'S/F'}`}
-                size="sm"
-            >
-                <div className="flex flex-col gap-4">
-                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                        Esta factura ya fue timbrada en Compaq. Los cambios en Valentina son internos y no modifican el CFDI fiscal.
-                    </div>
-                    {(() => {
-                        const notesOnly =
-                            editPaymentModal.cxc.status === 'PAID'
-                            || !!editPaymentModal.cxc.treasury_transaction_id;
-                        return (
-                            <>
-                                <div>
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
-                                        Folio de factura
-                                    </label>
-                                    <Input
-                                        type="text"
-                                        value={editPaymentForm.invoice_folio}
-                                        onChange={(e) => setEditPaymentForm((f) => ({ ...f, invoice_folio: e.target.value }))}
-                                        disabled={notesOnly}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
-                                        Fecha de factura
-                                    </label>
-                                    <Input
-                                        type="date"
-                                        value={editPaymentForm.invoice_date}
-                                        onChange={(e) => setEditPaymentForm((f) => ({ ...f, invoice_date: e.target.value }))}
-                                        disabled={notesOnly}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
-                                        Importe
-                                    </label>
-                                    <Input
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
-                                        value={editPaymentForm.amount}
-                                        onChange={(e) => setEditPaymentForm((f) => ({ ...f, amount: e.target.value }))}
-                                        disabled={notesOnly || !!editPaymentModal.cxc.treasury_transaction_id}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
-                                        Notas
-                                    </label>
-                                    <Input
-                                        type="text"
-                                        value={editPaymentForm.notes}
-                                        onChange={(e) => setEditPaymentForm((f) => ({ ...f, notes: e.target.value }))}
-                                    />
-                                </div>
-                            </>
-                        );
-                    })()}
-                    <div className="flex items-center justify-between gap-4 pt-2">
-                        <Button
-                            variant="outline"
-                            onClick={() => setEditPaymentModal({ open: false, cxc: null })}
-                            disabled={savingPaymentEdit}
-                        >
-                            Cancelar
-                        </Button>
-                        <Button
-                            onClick={() => void handleSaveEditPayment()}
-                            disabled={savingPaymentEdit}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
-                        >
-                            {savingPaymentEdit ? 'Guardando…' : 'Guardar cambios'}
-                        </Button>
-                    </div>
-                </div>
-            </Modal>
+            <EditPaymentDialog cxc={editPaymentModal.cxc} onSave={handleSaveEditPayment}
+                onClose={() => setEditPaymentModal({ open: false, cxc: null })} />
         )}
         {installmentModal.open && installmentModal.cxc && (
             <Modal
@@ -2677,82 +2404,8 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">
                                 Instancias cubiertas por este abono
                             </label>
-                            <div className="max-h-56 overflow-y-auto space-y-2 border border-slate-200 rounded-lg p-3 bg-slate-50">
-                                {unlinkedInstancesByHouse.map((house) => {
-                                    const paymentType = installmentModal.cxc.payment_type;
-                                    const selectableIds = house.instances
-                                        .filter((inst) => isInstanceSelectableForAbono(inst.production_status, paymentType))
-                                        .map((inst) => inst.id);
-                                    const selectedCount = selectableIds.filter((id) =>
-                                        installmentInstanceIds.includes(id),
-                                    ).length;
-                                    const allSelected =
-                                        selectableIds.length > 0 && selectedCount === selectableIds.length;
-                                    const someSelected = selectedCount > 0 && !allSelected;
-                                    const isExpanded = expandedHouses.has(house.key);
-                                    return (
-                                        <div key={house.key} className="border border-slate-200 rounded-lg bg-white overflow-hidden">
-                                            <div className="flex items-center gap-2 px-3 py-2">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => toggleHouse(house.key)}
-                                                    className="p-0.5 text-slate-400 hover:text-slate-600 shrink-0"
-                                                    aria-label={isExpanded ? 'Contraer casa' : 'Expandir casa'}
-                                                >
-                                                    {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                                                </button>
-                                                <label className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
-                                                    <CheckboxInput
-                                                        className="w-4 h-4 rounded border-slate-300 shrink-0"
-                                                        checked={allSelected}
-                                                        indeterminate={someSelected}
-                                                        disabled={selectableIds.length === 0}
-                                                        onChange={() => toggleHouseAll(house.instances)}
-                                                    />
-                                                    <span className="text-sm font-bold text-slate-700 truncate">
-                                                        {getHouseLabel(house)}
-                                                    </span>
-                                                </label>
-                                            </div>
-                                            {isExpanded && (
-                                                <div className="border-t border-slate-100 px-3 py-2 space-y-1.5 bg-slate-50/80">
-                                                    {house.instances.map((inst) => {
-                                                        const selectable = isInstanceSelectableForAbono(
-                                                            inst.production_status,
-                                                            paymentType,
-                                                        );
-                                                        const displayName = inst.custom_name || inst.label;
-                                                        return (
-                                                            <label
-                                                                key={inst.id}
-                                                                className={`flex items-start gap-2 text-sm ${
-                                                                    selectable
-                                                                        ? 'text-slate-700 cursor-pointer'
-                                                                        : 'text-slate-400 cursor-not-allowed'
-                                                                }`}
-                                                                title={selectable ? undefined : 'No está instalada'}
-                                                            >
-                                                                <Input
-                                                                    type="checkbox"
-                                                                    className="mt-0.5 w-4 h-4 rounded border-slate-300 shrink-0"
-                                                                    checked={installmentInstanceIds.includes(inst.id)}
-                                                                    disabled={!selectable}
-                                                                    onChange={() => {
-                                                                        if (selectable) toggleInstallmentInstance(inst.id);
-                                                                    }}
-                                                                />
-                                                                <span className={!selectable ? 'opacity-70' : ''}>
-                                                                    {displayName}
-                                                                </span>
-                                                            </label>
-                                                        );
-                                                    })}
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                            <HouseInstancePicker houses={unlinkedInstancesByHouse} paymentType={installmentModal.cxc.payment_type}
+                                selectedIds={installmentInstanceIds} onChange={setInstallmentInstanceIds} />
                         </div>
                     )}
                     <div className="flex items-center justify-between gap-4 pt-2">
@@ -2859,82 +2512,8 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">
                                         Instancias adicionales sin vínculo
                                     </label>
-                                    <div className="max-h-56 overflow-y-auto space-y-2 border border-slate-200 rounded-lg p-3 bg-slate-50">
-                                        {unlinkedInstancesForEditByHouse.map((house) => {
-                                            const paymentType = editInstallmentModal.cxc.payment_type;
-                                            const selectableIds = house.instances
-                                                .filter((inst) => isInstanceSelectableForAbono(inst.production_status, paymentType))
-                                                .map((inst) => inst.id);
-                                            const selectedCount = selectableIds.filter((id) =>
-                                                editInstallmentInstanceIds.includes(id),
-                                            ).length;
-                                            const allSelected =
-                                                selectableIds.length > 0 && selectedCount === selectableIds.length;
-                                            const someSelected = selectedCount > 0 && !allSelected;
-                                            const isExpanded = expandedEditHouses.has(house.key);
-                                            return (
-                                                <div key={house.key} className="border border-slate-200 rounded-lg bg-white overflow-hidden">
-                                                    <div className="flex items-center gap-2 px-3 py-2">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => toggleEditHouse(house.key)}
-                                                            className="p-0.5 text-slate-400 hover:text-slate-600 shrink-0"
-                                                            aria-label={isExpanded ? 'Contraer casa' : 'Expandir casa'}
-                                                        >
-                                                            {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                                                        </button>
-                                                        <label className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
-                                                            <CheckboxInput
-                                                                className="w-4 h-4 rounded border-slate-300 shrink-0"
-                                                                checked={allSelected}
-                                                                indeterminate={someSelected}
-                                                                disabled={selectableIds.length === 0}
-                                                                onChange={() => toggleEditHouseAll(house.instances, paymentType)}
-                                                            />
-                                                            <span className="text-sm font-bold text-slate-700 truncate">
-                                                                {getHouseLabel(house)}
-                                                            </span>
-                                                        </label>
-                                                    </div>
-                                                    {isExpanded && (
-                                                        <div className="border-t border-slate-100 px-3 py-2 space-y-1.5 bg-slate-50/80">
-                                                            {house.instances.map((inst) => {
-                                                                const selectable = isInstanceSelectableForAbono(
-                                                                    inst.production_status,
-                                                                    paymentType,
-                                                                );
-                                                                const displayName = inst.custom_name || inst.label;
-                                                                return (
-                                                                    <label
-                                                                        key={inst.id}
-                                                                        className={`flex items-start gap-2 text-sm ${
-                                                                            selectable
-                                                                                ? 'text-slate-700 cursor-pointer'
-                                                                                : 'text-slate-400 cursor-not-allowed'
-                                                                        }`}
-                                                                        title={selectable ? undefined : 'No está instalada'}
-                                                                    >
-                                                                        <Input
-                                                                            type="checkbox"
-                                                                            className="mt-0.5 w-4 h-4 rounded border-slate-300 shrink-0"
-                                                                            checked={editInstallmentInstanceIds.includes(inst.id)}
-                                                                            disabled={!selectable}
-                                                                            onChange={() => {
-                                                                                if (selectable) toggleEditInstallmentInstance(inst.id);
-                                                                            }}
-                                                                        />
-                                                                        <span className={!selectable ? 'opacity-70' : ''}>
-                                                                            {displayName}
-                                                                        </span>
-                                                                    </label>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
+                                    <HouseInstancePicker houses={unlinkedInstancesForEditByHouse} paymentType={editInstallmentModal.cxc.payment_type}
+                                        selectedIds={editInstallmentInstanceIds} onChange={setEditInstallmentInstanceIds} />
                                 </div>
                             )}
                         </>
@@ -2968,214 +2547,54 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
             </Modal>
         )}
         {cancelInstallmentModal.open && cancelInstallmentModal.abono && cancelInstallmentModal.cxc && (
-            <Modal
-                isOpen={cancelInstallmentModal.open}
-                onClose={() => {
-                    if (cancellingInstallment) return;
-                    setCancelInstallmentModal({ open: false, abono: null, cxc: null });
-                    setCancelInstallmentReason('');
-                }}
+            <TextConfirmDialog
                 title="Cancelar Abono"
-                size="sm"
-            >
-                <div className="flex flex-col gap-4">
-                    <p className="text-sm text-slate-600 leading-relaxed">
-                        Esta acción cancela el abono y revierte el saldo en banco e instancias vinculadas.
-                    </p>
-                    <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                        Se revertirá el monto de {formatCurrency(Number(cancelInstallmentModal.abono.amount || 0))} en la factura
-                        {cancelInstallmentModal.cxc.status === 'PAID' ? ' y la factura regresará a PENDING.' : '.'}
-                    </div>
-                    <div>
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
-                            Motivo de cancelación *
-                        </label>
-                        <Input
-                            type="text"
-                            autoFocus
-                            placeholder="Describe el motivo..."
-                            value={cancelInstallmentReason}
-                            onChange={(e) => setCancelInstallmentReason(e.target.value)}
-                        />
-                    </div>
-                    <div className="flex items-center justify-between gap-4 pt-2">
-                        <Button
-                            variant="outline"
-                            onClick={() => {
-                                setCancelInstallmentModal({ open: false, abono: null, cxc: null });
-                                setCancelInstallmentReason('');
-                            }}
-                            disabled={cancellingInstallment}
-                        >
-                            Volver
-                        </Button>
-                        <Button
-                            onClick={() => void handleCancelInstallment()}
-                            disabled={cancellingInstallment}
-                            className="bg-red-600 hover:bg-red-700 text-white font-bold"
-                        >
-                            {cancellingInstallment ? 'Procesando…' : 'Confirmar cancelación'}
-                        </Button>
-                    </div>
-                </div>
-            </Modal>
+                description="Esta acción cancela el abono y revierte el saldo en banco e instancias vinculadas."
+                warning={`Se revertirá el monto de ${formatCurrency(Number(cancelInstallmentModal.abono.amount || 0))} en la factura${cancelInstallmentModal.cxc.status === 'PAID' ? ' y la factura regresará a PENDING.' : '.'}`}
+                label="Motivo de cancelación *"
+                requiredMessage="El motivo de cancelación es obligatorio."
+                confirmLabel="Confirmar cancelación"
+                danger
+                onConfirm={handleCancelInstallment}
+                onClose={() => setCancelInstallmentModal({ open: false, abono: null, cxc: null })}
+            />
         )}
         {cancelPaymentModal.open && cancelPaymentModal.cxc && (
-            <Modal
-                isOpen={cancelPaymentModal.open}
-                onClose={() => {
-                    if (cancellingPayment) return;
-                    setCancelPaymentModal({ open: false, cxc: null });
-                    setCancelPaymentReason('');
-                }}
+            <TextConfirmDialog
                 title="Cancelar Factura"
-                size="sm"
-            >
-                <div className="flex flex-col gap-4">
-                    <p className="text-sm text-slate-600 leading-relaxed">
-                        Esta acción cancela la factura en Valentina y libera las instancias vinculadas.
-                        Asegúrate de haber cancelado también el CFDI en Compaq antes de continuar.
-                    </p>
-                    <div>
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
-                            Motivo de cancelación *
-                        </label>
-                        <Input
-                            type="text"
-                            autoFocus
-                            placeholder="Describe el motivo..."
-                            value={cancelPaymentReason}
-                            onChange={(e) => setCancelPaymentReason(e.target.value)}
-                        />
-                    </div>
-                    <div className="flex items-center justify-between gap-4 pt-2">
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setCancelPaymentModal({ open: false, cxc: null });
-                                setCancelPaymentReason('');
-                            }}
-                            disabled={cancellingPayment}
-                            className="px-6 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-black rounded-lg transition-colors disabled:opacity-50"
-                        >
-                            Cancelar
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => void handleCancelPayment()}
-                            disabled={cancellingPayment}
-                            className="px-5 py-2 font-bold rounded-lg transition-colors disabled:opacity-50 bg-red-600 hover:bg-red-700 text-white"
-                        >
-                            {cancellingPayment ? 'Procesando…' : 'Confirmar cancelación'}
-                        </button>
-                    </div>
-                </div>
-            </Modal>
+                description="Esta acción cancela la factura en Valentina y libera las instancias vinculadas. Asegúrate de haber cancelado también el CFDI en Compaq antes de continuar."
+                label="Motivo de cancelación *"
+                requiredMessage="Debes ingresar un motivo"
+                confirmLabel="Confirmar cancelación"
+                danger
+                onConfirm={handleCancelPayment}
+                onClose={() => setCancelPaymentModal({ open: false, cxc: null })}
+            />
         )}
         {invoiceRetentionModal.open && invoiceRetentionModal.cxc && (
-            <Modal
-                isOpen={invoiceRetentionModal.open}
-                onClose={() => {
-                    if (invoicingRetention) return;
-                    setInvoiceRetentionModal({ open: false, cxc: null });
-                    setRetentionInvoiceFolio('');
-                }}
+            <TextConfirmDialog
                 title="Facturar Fondo de Garantía"
-                size="sm"
-            >
-                <div className="flex flex-col gap-4">
-                    <p className="text-sm text-slate-600 leading-relaxed">
-                        Registra el folio de la factura del fondo retenido ({formatCurrency(Number(invoiceRetentionModal.cxc.retention_amount) || 0)}).
-                    </p>
-                    <div>
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
-                            Folio de factura *
-                        </label>
-                        <Input
-                            type="text"
-                            autoFocus
-                            placeholder="Ej. FG-00123"
-                            value={retentionInvoiceFolio}
-                            onChange={(e) => setRetentionInvoiceFolio(e.target.value)}
-                        />
-                    </div>
-                    <div className="flex items-center justify-between gap-4 pt-2">
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setInvoiceRetentionModal({ open: false, cxc: null });
-                                setRetentionInvoiceFolio('');
-                            }}
-                            disabled={invoicingRetention}
-                            className="px-6 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-black rounded-lg transition-colors disabled:opacity-50"
-                        >
-                            Cancelar
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => void handleInvoiceRetention()}
-                            disabled={invoicingRetention}
-                            className="px-5 py-2 font-bold rounded-lg transition-colors disabled:opacity-50 bg-indigo-600 hover:bg-indigo-700 text-white"
-                        >
-                            {invoicingRetention ? 'Procesando…' : 'Facturar'}
-                        </button>
-                    </div>
-                </div>
-            </Modal>
+                description={`Registra el folio de la factura del fondo retenido (${formatCurrency(Number(invoiceRetentionModal.cxc.retention_amount) || 0)}).`}
+                label="Folio de factura *"
+                placeholder="Ej. FG-00123"
+                requiredMessage="Ingresa el folio de factura."
+                confirmLabel="Facturar"
+                onConfirm={handleInvoiceRetention}
+                onClose={() => setInvoiceRetentionModal({ open: false, cxc: null })}
+            />
         )}
         {waiveRetentionModal.open && waiveRetentionModal.cxc && (
-            <Modal
-                isOpen={waiveRetentionModal.open}
-                onClose={() => {
-                    if (waivingRetention) return;
-                    setWaiveRetentionModal({ open: false, cxc: null });
-                    setWaiveRetentionReason('');
-                }}
+            <TextConfirmDialog
                 title="Liberar Fondo de Garantía"
-                size="sm"
-            >
-                <div className="flex flex-col gap-4">
-                    <p className="text-sm text-slate-600 leading-relaxed">
-                        El cliente no deberá pagar el fondo retenido de {formatCurrency(Number(waiveRetentionModal.cxc.retention_amount) || 0)}.
-                    </p>
-                    <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                        Esta acción libera el fondo de forma definitiva. No se podrá facturar ni cobrar después.
-                    </div>
-                    <div>
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
-                            Motivo de liberación *
-                        </label>
-                        <Input
-                            type="text"
-                            autoFocus
-                            placeholder="Describe el motivo..."
-                            value={waiveRetentionReason}
-                            onChange={(e) => setWaiveRetentionReason(e.target.value)}
-                        />
-                    </div>
-                    <div className="flex items-center justify-between gap-4 pt-2">
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setWaiveRetentionModal({ open: false, cxc: null });
-                                setWaiveRetentionReason('');
-                            }}
-                            disabled={waivingRetention}
-                            className="px-6 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-black rounded-lg transition-colors disabled:opacity-50"
-                        >
-                            Cancelar
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => void handleWaiveRetention()}
-                            disabled={waivingRetention}
-                            className="px-5 py-2 font-bold rounded-lg transition-colors disabled:opacity-50 bg-red-600 hover:bg-red-700 text-white"
-                        >
-                            {waivingRetention ? 'Procesando…' : 'Confirmar liberación'}
-                        </button>
-                    </div>
-                </div>
-            </Modal>
+                description={`El cliente no deberá pagar el fondo retenido de ${formatCurrency(Number(waiveRetentionModal.cxc.retention_amount) || 0)}.`}
+                warning="Esta acción libera el fondo de forma definitiva. No se podrá facturar ni cobrar después."
+                label="Motivo de liberación *"
+                requiredMessage="Debes ingresar un motivo."
+                confirmLabel="Confirmar liberación"
+                danger
+                onConfirm={handleWaiveRetention}
+                onClose={() => setWaiveRetentionModal({ open: false, cxc: null })}
+            />
         )}
         {deliveryApplyPrompt && (
             <Modal
