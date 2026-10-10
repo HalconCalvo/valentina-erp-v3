@@ -39,6 +39,8 @@ def _set_amounts(session: Session, payable, subtotal: float, tax: float, total: 
     payable.status = PAYABLE_PENDING
     session.add(payable)
     for invoice in purchase_repo.get_invoices_by_payable(session, payable.id):
+        reduction = float(invoice.total_amount or 0) - total
+        invoice.outstanding_balance = round(max(float(invoice.outstanding_balance or 0) - reduction, 0.0), 2)
         invoice.subtotal, invoice.tax_amount, invoice.total_amount = subtotal, tax, total
         session.add(invoice)
 
@@ -52,7 +54,7 @@ def reduce_for_reception_correction(session: Session, payable_id: int, amount: f
     payable = purchase_repo.get_payable(session, payable_id)
     if payable is None:
         return False
-    rate = float(payable.tax_rate or 0.16)  # same as before F4: a 0% (exempt) rate is read as 16% — ROADMAP 6
+    rate = float(payable.tax_rate if payable.tax_rate is not None else 0.16)  # 0% (exempt) stays 0%
     new_subtotal = max(float(payable.subtotal or 0) - amount, 0.0)
     new_tax = round(new_subtotal * rate, 2)
     new_total = round(new_subtotal + new_tax, 2)

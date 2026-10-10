@@ -23,6 +23,11 @@ def holds_stock(material) -> bool:
     route = getattr(material, "production_route", None)
     return str(route.value if hasattr(route, "value") else route or "MATERIAL").upper() == STOCK_ROUTE.value
 
+
+def to_usage_units(material, purchase_quantity: float) -> float:
+    """Purchase units (e.g. a millar) to usage units (pieces): stock and kardex are kept in usage units."""
+    return float(purchase_quantity or 0.0) * float(getattr(material, "conversion_factor", 1) or 1)
+
 class Material(SQLModel, table=True):
     """
     Modelo maestro de materiales e insumos (Versión 3.0).

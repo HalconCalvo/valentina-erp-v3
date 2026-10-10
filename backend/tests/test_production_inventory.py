@@ -31,6 +31,7 @@ from app.schemas.production_inventory_schema import (
 )
 from app.services import inventory_service, inventory_valuation_service, sales_service
 from app.services import production_inventory_service as svc
+from app.services.inventory_service import _apply_purchase_cost
 from tests.conftest import TEST_DIRECTOR_EMAIL
 
 SCREW_COST_PER_THOUSAND = 169.35
@@ -576,3 +577,10 @@ def test_material_groups_single_definition():
     assert mg.group_for("INSUMOS", "MDF") == mg.CONSUMABLE
     for category in ("HERRAJES", "ACCESORIO", "ELECTRODOMÉSTICO", "VIDRIO", "ELECTRICIDAD", "ESPECIAL", "NUEVA"):
         assert mg.group_for(category, "MDF") == mg.DISPATCH_GROUP
+
+
+def test_purchase_cost_rounds_up_to_the_cent_without_float_noise():
+    material = Material(sku="CENT-1", name="Centavos", category="X", purchase_unit="Pz", usage_unit="Pz")
+    assert _apply_purchase_cost(material, 34.45) == 34.45  # 34.45 * 100 = 3445.0000000000005 in float
+    assert _apply_purchase_cost(material, 34.451) == 34.46
+    assert _apply_purchase_cost(material, 0.001) == 0.01

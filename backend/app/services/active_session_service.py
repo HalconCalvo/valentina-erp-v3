@@ -88,9 +88,12 @@ def clear_active_session(session: Session, user_id: int) -> None:
 
 
 def touch_heartbeat(session: Session, user_id: int) -> None:
+    """Keeps the session alive. A page reload sends logout (beforeunload) and frees the row; the next heartbeat of
+    the same, still valid, token registers it again instead of answering 404."""
     row = _get_row(session, user_id)
     if not row:
-        raise HTTPException(status_code=404, detail="Sesión activa no encontrada")
+        upsert_active_session(session, user_id, None, None)
+        return
     row.last_heartbeat = datetime.utcnow()
     session.add(row)
     session.commit()

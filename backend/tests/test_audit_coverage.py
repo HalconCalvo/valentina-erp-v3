@@ -67,6 +67,7 @@ def test_partial_reception_correction_updates_payable_and_invoice_with_trace(
     session_fixture.refresh(invoice)
     assert (payable.subtotal, payable.tax_amount, payable.total_amount, payable.status) == (600.0, 96.0, 696.0, "PENDIENTE")
     assert (invoice.subtotal, invoice.tax_amount, invoice.total_amount) == (600.0, 96.0, 696.0)
+    assert invoice.outstanding_balance == 696.0  # the balance goes down with the total
     changes = _changes(session_fixture, "accounts_payable", payable.id, "total_amount")
     assert changes and changes[-1].new_value == "696.0"
     assert changes[-1].reason == "Corrección de recepción: Llegaron menos hojas"
@@ -160,3 +161,32 @@ def test_automatic_requisitions_are_created_and_closed_in_the_log(session_fixtur
     session_fixture.refresh(req)
     assert req.status == "PROCESADA"
     assert _changes(session_fixture, "purchase_requisitions", req.id, "status")[-1].new_value == "PROCESADA"
+
+
+def test_reception_correction_keeps_an_exempt_rate(client_fixture, session_fixture, auth_header_director):
+    po, item, payable, invoice = _received_po(session_fixture)
+    payable.tax_rate, payable.tax_amount, payable.total_amount = 0.0, 0.0, 1000.0
+    invoice.tax_rate, invoice.tax_amount, invoice.total_amount, invoice.outstanding_balance = 0.0, 0.0, 1000.0, 1000.0
+    session_fixture.add_all([payable, invoice])
+    session_fixture.commit()
+    assert _correct(client_fixture, auth_header_director, po, item, 6).status_code == 200
+    session_fixture.refresh(payable)
+    session_fixture.refresh(invoice)
+    assert (payable.subtotal, payable.tax_amount, payable.total_amount) == (600.0, 0.0, 600.0)
+    assert invoice.outstanding_balance == 600.0
+
+
+def test_credit_note_return_converts_purchase_units_to_stock_units(client_fixture, session_fixture, auth_header_director):
+    """1 millar returned = 1,000 pieces out of stock (stock and kardex are in usage units)."""
+    po, item, payable, invoice = _received_po(session_fixture, qty=2, cost=500.0)
+    material = session_fixture.get(Material, item.material_id)
+    material.conversion_factor, material.purchase_unit, material.usage_unit, material.physical_stock = 1000, "Millar", "Pz", 2000
+    session_fixture.add(material)
+    session_fixture.commit()
+    response = client_fixture.post(f"{FINANCE}/credit-notes", headers=auth_header_director, json={
+        "purchase_invoice_id": invoice.id, "folio": "NC-1", "credit_type": "RETURN", "reason": "Millar dañado",
+        "items": [{"material_id": material.id, "returned_quantity": 1}]})
+    assert response.status_code == 200, response.text
+    session_fixture.refresh(material)
+    assert material.physical_stock == 1000
+    assert response.json()["total_amount"] == 580.0  # 1 millar × $500 + 16%

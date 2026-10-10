@@ -476,6 +476,14 @@ def find_purchase_invoice_by_number_and_provider(
 AUTO_REQUISITION_DESCRIPTION = "REPOSICIÓN AUTOMÁTICA"
 ACTIVE_REQUISITION_STATUSES = ("PENDIENTE", "EN_COMPRA", "APLAZADA")
 TRANSIT_PO_STATUSES = ("DRAFT", "AUTORIZADA", "ENVIADA")
+REQUISITION_LOCK_KEY = 7_310_001  # pg advisory lock: one automatic-requisition evaluation at a time
+
+
+def try_lock_requisition_evaluation(db: Session) -> bool:
+    """Transaction-scoped lock (released at commit/rollback). Other databases (tests) always get it."""
+    if db.get_bind().dialect.name != "postgresql":
+        return True
+    return bool(db.execute(text("SELECT pg_try_advisory_xact_lock(:k)"), {"k": REQUISITION_LOCK_KEY}).scalar())
 
 
 def get_requisitions_by_status(db: Session, status: str) -> List[PurchaseRequisition]:

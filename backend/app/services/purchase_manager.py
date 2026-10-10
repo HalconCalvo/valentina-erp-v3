@@ -54,6 +54,8 @@ class PurchaseManager:
     def evaluate_and_create_automatic_requisitions(db: Session) -> int:
         """Automatic requisitions for stock materials below their minimum (counting stock in transit)."""
         try:
+            if not purchase_repo.try_lock_requisition_evaluation(db):
+                return 0  # another request is evaluating right now (three screens trigger it on load)
             _refresh_automatic_requisitions(db)
             created = _create_missing_requisitions(db)
             db.commit()

@@ -9,7 +9,7 @@ from app.core.permissions import require_roles
 from app.models.inventory import InventoryReception, Product, ProductStockMovement
 from app.models.finance import PurchaseInvoice, InvoiceStatus
 from app.models.foundations import Provider
-from app.models.material import Material, holds_stock
+from app.models.material import Material, holds_stock, to_usage_units
 from app.schemas.inventory_schema import (
     ReceptionCreate,
     ReceptionRead,
@@ -65,7 +65,7 @@ def create_inventory_reception(
             session=session,
             material_id=item.material_id,
             movement_type="PURCHASE_ENTRY",
-            quantity=item.quantity,
+            quantity=to_usage_units(material, item.quantity),
             unit_cost=item.line_total_cost / item.quantity if item.quantity > 0 else 0.0,
             reception_id=db_reception.id,
             commit=False,

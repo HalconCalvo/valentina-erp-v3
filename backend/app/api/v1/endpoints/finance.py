@@ -20,7 +20,7 @@ from app.models.finance import (
 from app.models.foundations import Provider
 from app.models.treasury import BankAccount, BankTransaction, TransactionType
 from app.models.inventory import PurchaseOrder
-from app.models.material import Material, holds_stock
+from app.models.material import Material, holds_stock, to_usage_units
 
 from app.schemas.finance_schema import (
     PaymentRequestCreate, 
@@ -756,9 +756,9 @@ def create_credit_note(
             material = session.get(Material, line.material_id)
             if not material:
                 raise HTTPException(status_code=404, detail=f"Material {line.material_id} no encontrado.")
-            # No devolver más del stock físico actual (regla: impedir stock negativo)
-            if line.returned_quantity > float(material.physical_stock or 0):
-                raise HTTPException(status_code=400, detail=f"No puedes devolver {line.returned_quantity} de '{material.name}': stock actual es {material.physical_stock}.")
+            # No devolver más del stock físico actual (regla: impedir stock negativo); el stock está en unidad de uso
+            if holds_stock(material) and to_usage_units(material, line.returned_quantity) > float(material.physical_stock or 0):
+                raise HTTPException(status_code=400, detail=f"No puedes devolver {line.returned_quantity} de '{material.name}': stock actual es {material.physical_stock} {material.usage_unit or ''}.")
             unit_cost = float(pii.unit_cost or 0)
             subtotal_calc += line.returned_quantity * unit_cost
             return_lines.append((material, line.returned_quantity, unit_cost))
@@ -817,7 +817,7 @@ def create_credit_note(
                 session,
                 material.id,
                 "RETURN",
-                qty,
+                to_usage_units(material, qty),
                 unit_cost=unit_cost,
                 reason=data.reason,
                 commit=False,

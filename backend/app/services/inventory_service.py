@@ -92,7 +92,7 @@ def _validate_movement(
 def _apply_purchase_cost(material: Material, unit_cost: float | None) -> float:
     """Updates current_cost (per purchase unit, rounded up to the cent) and returns it."""
     raw_cost = float(unit_cost if unit_cost is not None else material.current_cost or 0.0)
-    new_unit_cost = math.ceil(raw_cost * 100) / 100
+    new_unit_cost = math.ceil(round(raw_cost * 100, 6)) / 100  # round() drops float noise: 34.45 stays 34.45
     if new_unit_cost == 0.0 and raw_cost > 0:
         new_unit_cost = 0.01
     material.current_cost = new_unit_cost
