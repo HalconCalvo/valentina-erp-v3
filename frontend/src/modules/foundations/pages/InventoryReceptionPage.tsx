@@ -6,11 +6,13 @@ import {
 import axiosClient from '../../../api/axios-client';
 import { MaterialForm } from '../components/MaterialForm';
 import { Button } from "@/components/ui/Button";
+import { VEmptyState } from '@/components/ui/VEmptyState';
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
+import { formatDate, formatMoney } from '@/utils/format';
 
 type PendingConfirm =
     | { kind: 'cancel' }
@@ -27,16 +29,7 @@ const TAX_RATE_OPTIONS = [
 ];
 
 // Utilidades seguras
-const formatCurrency = (amount: any): string => {
-    const num = Number(amount);
-    if (isNaN(num)) return '$0.00';
-    return new Intl.NumberFormat('es-MX', {
-        style: 'currency',
-        currency: 'MXN',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-    }).format(num);
-};
+const formatCurrency = (amount: any): string => formatMoney(Number(amount));
 
 const formatInitialAmount = (num: any): string => {
     const val = Number(num);
@@ -469,7 +462,7 @@ const InventoryReceptionPage: React.FC = () => {
                 const total = (thisDelivery > 0 ? thisDelivery : ordered) * effectivePrice;
                 return (
                     <span className="block text-right text-xs font-black text-slate-800">
-                        ${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                        {formatMoney(total)}
                     </span>
                 );
             },
@@ -479,24 +472,22 @@ const InventoryReceptionPage: React.FC = () => {
     if (!selectedPO) {
         return (
             <>
-            <div className="p-6 max-w-5xl mx-auto space-y-6 animate-fadeIn">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 pb-4">
+            <div className="p-8 max-w-7xl mx-auto space-y-6 pb-24 animate-fadeIn">
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4">
                     <div>
-                        <h1 className="text-2xl font-black text-slate-800 flex items-center gap-2">
-                            <Truck className="text-blue-600"/> Andén de Descarga
+                        <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+                            <Truck size={32} className="text-indigo-600"/> Andén de Descarga
                         </h1>
-                        <p className="text-slate-500 text-sm mt-1">Selecciona la Orden de Compra que acaba de llegar para verificarla.</p>
+                        <p className="text-slate-500 mt-1 font-medium">Selecciona la Orden de Compra que acaba de llegar para verificarla.</p>
                     </div>
                 </div>
 
                 <div className="space-y-4">
                     {isLoadingPOs ? (
-                        <p className="text-slate-400 font-bold text-center py-10 bg-slate-50 rounded-xl border border-slate-200">Buscando camiones en tránsito...</p>
+                        <div className="space-y-2 animate-pulse">{[0, 1, 2].map((i) => <div key={i} className="h-16 rounded-xl bg-slate-200" />)}</div>
                     ) : incomingPOs.length === 0 ? (
-                        <div className="text-center py-20 bg-white rounded-2xl border border-slate-200 border-dashed shadow-sm">
-                            <CheckCircle2 className="mx-auto text-emerald-300 mb-4" size={48}/>
-                            <p className="text-emerald-600 font-black uppercase tracking-widest text-sm">Andén Despejado</p>
-                            <p className="text-slate-400 text-xs mt-1">No hay Órdenes de Compra en tránsito en este momento.</p>
+                        <div className="bg-white rounded-2xl border border-slate-200">
+                            <VEmptyState icon={<CheckCircle2 size={48} />} title="Andén despejado" description="No hay Órdenes de Compra en tránsito en este momento." />
                         </div>
                     ) : (
                         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
@@ -812,8 +803,8 @@ const InventoryReceptionPage: React.FC = () => {
                                     ⚠ Este proveedor ya tiene {folioWarning.length === 1 ? 'una factura' : `${folioWarning.length} facturas`} con ese folio
                                     {folioWarning.map((c: any, i: number) => (
                                         <span key={i} className="block font-bold normal-case text-amber-800 mt-1">
-                                            ${Number(c.total || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })} · {c.status}
-                                            {c.fecha ? ` · ${new Date(c.fecha).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}
+                                            {formatMoney(Number(c.total || 0))} · {c.status}
+                                            {c.fecha ? ` · ${formatDate(c.fecha)}` : ''}
                                         </span>
                                     ))}
                                     <span className="block normal-case font-bold text-amber-600 mt-1">Verifica que no sea un duplicado. Puedes continuar si es correcto.</span>
@@ -972,7 +963,7 @@ const InventoryReceptionPage: React.FC = () => {
                     <div className="w-80 space-y-1 pr-14">
                         <div className="flex justify-between items-center text-slate-500">
                             <span className="text-[10px] font-black uppercase">Subtotal</span>
-                            <span className="text-sm font-bold">${subtotalCalc.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            <span className="text-sm font-bold">{formatMoney(subtotalCalc)}</span>
                         </div>
                         <div className="flex justify-between items-center text-slate-500 border-b border-slate-200 pb-2">
                             <div className="flex items-center gap-2">
@@ -988,12 +979,12 @@ const InventoryReceptionPage: React.FC = () => {
                             </div>
                             <div className="flex items-center gap-3">
                                 <span className="text-[10px] font-black uppercase">IVA ({(taxRate * 100).toFixed(0)}%)</span>
-                                <span className="text-sm font-bold">${ivaCalc.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                <span className="text-sm font-bold">{formatMoney(ivaCalc)}</span>
                             </div>
                         </div>
                         <div className="flex justify-between items-center pt-2">
                             <span className="text-[11px] font-black text-emerald-600 uppercase">Total Esperado</span>
-                            <span className="text-3xl font-black text-slate-900">${expectedTotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            <span className="text-3xl font-black text-slate-900">{formatMoney(expectedTotal)}</span>
                         </div>
                     </div>
                 </div>

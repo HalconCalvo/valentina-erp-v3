@@ -21,6 +21,7 @@ import { VEmptyState } from '@/components/ui/VEmptyState';
 import { VStatusBadge } from '@/components/ui/VStatusBadge';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
+import { formatDate as formatSharedDate } from '@/utils/format';
 
 interface Material {
   id: number;
@@ -53,14 +54,7 @@ interface RequisitionsModuleProps {
   onSubSectionChange?: (isActive: boolean) => void;
 }
 
-const formatDate = (value: string): string => {
-  if (!value) return '—';
-  return new Date(value).toLocaleDateString('es-MX', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
-};
+const formatDate = (value: string): string => formatSharedDate(value);
 
 export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSectionChange }) => {
   const [materials, setMaterials] = useState<Material[]>([]);

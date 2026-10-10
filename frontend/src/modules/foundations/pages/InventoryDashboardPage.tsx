@@ -14,6 +14,7 @@ import InventoryReceptionPage from './InventoryReceptionPage';
 import { PhysicalInventoryModule } from '../components/PhysicalInventoryModule';
 import MaterialsPage from './MaterialsPage';
 import ProvidersPage from './ProvidersPage';
+import { formatMoney } from '@/utils/format';
 
 type InventorySection = 'REQUISITIONS' | 'PURCHASE_ORDERS' | 'RECEPTIONS' | 'INVENTORY_HUB' | 'PHYSICAL_INVENTORY' | 'MATERIALS' | 'PROVIDERS' | 'LOW_STOCK' | null;
 
@@ -286,12 +287,7 @@ export const InventoryDashboardPage = () => {
                                 <div className="flex justify-between items-start"><p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">4. Inventario</p><Package size={16} className="text-orange-500" /></div>
                                 <div className="mt-4 flex justify-end">
                                     <div className="text-xl font-black text-orange-600 tracking-tight flex items-baseline gap-1">
-                                        {inventoryValuation >= 1000000
-                                            ? `$${(inventoryValuation / 1000000).toFixed(2)}M`
-                                            : inventoryValuation >= 1000
-                                            ? `$${(inventoryValuation / 1000).toFixed(1)}K`
-                                            : `$${inventoryValuation.toLocaleString('es-MX', { minimumFractionDigits: 0 })}`
-                                        }
+                                        {formatMoney(inventoryValuation)}
                                         <span className="text-sm font-bold text-orange-400 uppercase">Valuación</span>
                                     </div>
                                 </div>
@@ -387,11 +383,7 @@ export const InventoryDashboardPage = () => {
                                     className="p-6 cursor-pointer transition-all border-l-4 border-l-orange-500 transform hover:-translate-y-1 h-full bg-white shadow-sm hover:shadow-xl"
                                 >
                                     <div className="absolute top-0 left-0 bottom-0 w-20 flex items-center justify-center border-r font-black text-3xl bg-orange-50 text-orange-600 border-orange-100">
-                                        {inventoryValuation >= 1000000
-                                            ? `$${(inventoryValuation / 1000000).toFixed(1)}M`
-                                            : inventoryValuation >= 1000
-                                            ? `$${(inventoryValuation / 1000).toFixed(0)}K`
-                                            : `$${Math.round(inventoryValuation)}`}
+                                        $
                                     </div>
                                     <div className="ml-20 h-full flex flex-col justify-between">
                                         <div className="flex justify-between items-start">
@@ -399,9 +391,10 @@ export const InventoryDashboardPage = () => {
                                             <DollarSign size={18} className="text-orange-500" />
                                         </div>
                                         <div className="text-right">
-                                            <p className="text-lg font-black leading-none tracking-tighter text-orange-600">
-                                                Valor del inventario por artículo
+                                            <p className="text-lg font-black leading-none tracking-tighter text-orange-600 tabular-nums">
+                                                {formatMoney(inventoryValuation)}
                                             </p>
+                                            <p className="text-xs font-bold text-slate-500 mt-1">Valor del inventario por artículo</p>
                                         </div>
                                         <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
                                             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-tight">Detalle por material</p>

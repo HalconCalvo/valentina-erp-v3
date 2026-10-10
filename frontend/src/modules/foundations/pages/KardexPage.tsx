@@ -10,9 +10,11 @@ import {
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VEmptyState } from '@/components/ui/VEmptyState';
+import { Button } from '@/components/ui/Button';
 import { VTable, VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
 import { MaterialForm } from '../components/MaterialForm';
+import { formatDateTime, formatMoney } from '@/utils/format';
 
 interface MaterialOption {
   id: number;
@@ -57,22 +59,8 @@ const formatReference = (entry: KardexEntryRead): string => {
   return parts.length > 0 ? parts.join(' · ') : '—';
 };
 
-// The backend stores naive UTC datetimes; show them in business time (America/Merida).
-const formatDate = (iso: string): string => {
-  try {
-    const utc = /[zZ]|[+-]\d{2}:\d{2}$/.test(iso) ? iso : `${iso}Z`;
-    return new Date(utc).toLocaleString('es-MX', {
-      timeZone: 'America/Merida',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return iso;
-  }
-};
+// The backend stores naive UTC datetimes; shown in business time (America/Merida).
+const formatDate = (iso: string): string => formatDateTime(iso);
 
 export default function KardexPage() {
   const navigate = useNavigate();
@@ -180,12 +168,12 @@ export default function KardexPage() {
       {
         key: 'unit_cost',
         label: 'Costo unit.',
-        render: (row) => `$${formatInventoryCurrency(row.unit_cost)}`,
+        render: (row) => formatMoney(row.unit_cost),
       },
       {
         key: 'subtotal',
         label: 'Subtotal',
-        render: (row) => `$${formatInventoryCurrency(row.subtotal)}`,
+        render: (row) => formatMoney(row.subtotal),
       },
       {
         key: 'saldo_acumulado',
@@ -219,13 +207,9 @@ export default function KardexPage() {
             <p className="text-slate-500 mt-1 font-medium">Historial de movimientos por material.</p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => navigate('/inventory')}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 font-bold rounded-lg hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm"
-        >
-          <ArrowLeft size={18} /> Regresar
-        </button>
+        <Button variant="outline" onClick={() => navigate('/inventory')} className="gap-2">
+          <ArrowLeft size={16} /> Regresar
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 rounded-2xl border border-slate-200 bg-white p-6">

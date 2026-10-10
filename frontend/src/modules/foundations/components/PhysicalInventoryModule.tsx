@@ -33,6 +33,7 @@ import { VEmptyState } from '@/components/ui/VEmptyState';
 import { VTable, VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
 import { MaterialForm } from './MaterialForm';
+import { formatMoney } from '@/utils/format';
 
 interface MaterialMeta {
   usage_unit: string;
@@ -133,8 +134,7 @@ const formatReasons = (reasons?: string | null): string =>
     .map((r) => APPROVAL_REASON_LABELS[r] || r)
     .join(' · ') || '—';
 
-const formatMoney = (value: number | null | undefined): string =>
-  `$${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value ?? 0)}`;
+
 
 const toIsoDate = (d: Date): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
