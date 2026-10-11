@@ -4429,3 +4429,27 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 - D14: preguntas 1–4, 6 y 7 (OVs Finalizadas con parte sin facturar, OV-0045 vs OV-0123, OVs exentas, diferencia Santander, comisión de facturas saneadas, OV-0041/0053)
 - Saneamiento desde la app (Gerencia → Saneamiento; Materiales → Actualización masiva) cuando se confirme
 - Campo EN ESPERA (D15)
+
+---
+## SESIÓN 2026-10-10 (parte 14) — CIERRE DEL DÍA (asesor)
+
+### Decisiones de Gabriel hoy (registradas en DECISIONES_PENDIENTES):
+- D6, D7, D13 (vendedor solo precio de venta), D8 (sin arranque en ceros; saneamiento), D15 (Campo en espera; la nómina de cuadrilla solo se libera con la firma de recibido del cliente)
+
+### Estado al cierre (11/10 01:37):
+- Producción = main (878bdb8), nada local sin subir. 277 tests backend, 17 frontend, build OK
+- ROADMAP: tareas 1–6 y 8 hechas; 7 (saneamiento) en curso — herramientas 1, 2 y 4 en producción, la 3 espera a contabilidad; 9 (Campo) en espera
+
+### Pendientes para la próxima sesión:
+1. Contabilidad responde D14: OVs Finalizadas con parte sin facturar (0115, 0117, 0128, 0129, 0130); OV-0045 vs OV-0123; lista de OVs legacy exentas; Santander $243,109.92 vs $245,507.64; OV-0041/0053; folio 30899 duplicado (#315 y #324)
+2. Gabriel aprueba D14 puntos 5 y 6 (saldo OV = total − abonos vigentes; facturas legacy saneadas no generan comisión) — recomendados
+3. Gabriel aplica en producción desde Gerencia → Saneamiento los puntos 2.1, 2.3, 2.4 y 3.3 y absorber los 17 anticipos a proveedor nunca pagados ($424,404.07, Saneamiento → Anticipos); esperar contabilidad para 2.2, 3.1 y 3.2
+   - Catálogo: plantilla de Actualización masiva trae 185 materiales incompletos para completar
+4. Revisar la solicitud de pago autorizada por $35,275.60 sobre un anticipo que ya no se debe (no pagarla)
+5. Inventario sesión #2: la contadora captura los 46 restantes, envía; el Director aprueba (cierra septiembre)
+6. Lunes: avisar a la contadora que no ejecuta pagos hasta que Dirección encienda el interruptor
+7. Decidir qué se hace con Campo (D15) después de revisar el estado general
+8. Datos de migración legacy pendientes de contabilidad (ZENARA folios, GALERÍAS anticipo, PALMAR NC, SPCH, Puerto Palmeras FG)
+
+### Lección:
+- Cuando Gabriel sale, el asesor puede ver la Terminal pero no escribir en ella: antes de salir, Gabriel deja en cola a Claude Code la instrucción de seguir el ROADMAP sin detenerse
