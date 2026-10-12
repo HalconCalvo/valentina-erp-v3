@@ -25,6 +25,7 @@ from app.models.treasury import BankTransaction, TransactionType
 from app.models.users import User, UserRole
 from app.repositories import quotation_repository as quotation_repo
 from app.repositories import sales_repository as sales_repo
+from app.services.paid_balance_service import is_settled, paid_tolerance
 from app.services.planning_service import compute_semaphore, compute_semaphore_label
 from app.schemas.sales_schema import (
     CommissionPaidUpdate,
@@ -764,7 +765,7 @@ def confirm_payment(
     cxc.payment_date = datetime.utcnow()
     order.outstanding_balance -= cxc.amount
     cxc.commission_paid = False
-    if order.outstanding_balance <= 0.1:
+    if is_settled(order.outstanding_balance, paid_tolerance(session)):
         order.status = SalesOrderStatus.FINISHED
 
     is_advance = cxc.payment_type == PaymentType.ADVANCE
@@ -808,11 +809,12 @@ def _assert_installment_manager(user: User) -> None:
 
 
 def _recalc_cxc_status(session: Session, cxc: CustomerPayment, order: Optional[SalesOrder]) -> None:
-    # Settled when payments, credit notes and the advance amortized cover the invoice (same rule as invoice_balance)
+    # Settled when payments, credit notes and the advance amortized cover the invoice (same rule as invoice_balance),
+    # up to the paid tolerance (D16)
     total = (sales_repo.sum_active_installments(session, cxc.id) + sales_repo.sum_active_credit_notes(session, cxc.id)
              + float(cxc.amortized_advance or 0.0))
-    monto = float(cxc.amount or 0.0)
-    if total + 0.01 >= monto:
+    tolerance = paid_tolerance(session)
+    if is_settled(float(cxc.amount or 0.0) - total, tolerance):
         if cxc.status != CXCStatus.PAID:
             cxc.status = CXCStatus.PAID
             last_dt = sales_repo.get_last_active_installment_date(session, cxc.id)
@@ -822,9 +824,9 @@ def _recalc_cxc_status(session: Session, cxc: CustomerPayment, order: Optional[S
         cxc.payment_date = None
     session.add(cxc)
     if order:
-        if float(order.outstanding_balance or 0.0) <= 0.1:
+        if is_settled(order.outstanding_balance, tolerance):
             order.status = SalesOrderStatus.FINISHED
-        elif order.status == SalesOrderStatus.FINISHED and float(order.outstanding_balance or 0.0) > 0.1:
+        elif order.status == SalesOrderStatus.FINISHED:
             order.status = SalesOrderStatus.SOLD
         session.add(order)
 
@@ -969,11 +971,12 @@ def register_installment(
     if order:
         order.outstanding_balance = float(order.outstanding_balance or 0.0) - monto
     abonado_despues = abonado_antes + monto
-    factura_saldada = abonado_despues + acreditado + amortizado + 0.01 >= float(cxc.amount or 0.0)
+    tolerance = paid_tolerance(session)
+    factura_saldada = is_settled(float(cxc.amount or 0.0) - abonado_despues - acreditado - amortizado, tolerance)
     if factura_saldada and cxc.status != CXCStatus.PAID:
         _mark_cxc_paid(session, cxc, order, payload, acreditado, amortizado)
     if order:
-        if order.outstanding_balance <= 0.1:
+        if is_settled(order.outstanding_balance, tolerance):
             order.status = SalesOrderStatus.FINISHED
         session.add(order)
     session.commit()

@@ -1,10 +1,11 @@
 """Sanitation tool 1 (docs/SANEAMIENTO.md §6.1): customer invoice states and sales order balances from the money.
 
 - Invoice balance = amount − advance amortized − active payments (abonos) − active credit notes.
-  PAID when the balance is at most one cent; PENDING otherwise. An amortized advance larger than the invoice is
+  PAID when the balance is at most the paid tolerance (D16, GlobalConfig, initial $1.00); PENDING otherwise. An amortized advance larger than the invoice is
   reported as an anomaly and never fixed here.
 - Sales order balance = total − active payments of its non-cancelled invoices (D14, recommendation applied).
-  FINISHED ("Pagada, saldo cero") when the balance is at most 0.10; a FINISHED order with balance goes back to SOLD.
+  FINISHED ("Pagada, saldo cero") when the balance is at most the paid tolerance; a FINISHED order with more balance
+  goes back to SOLD.
 The preview shows before → after; applying requires DIRECTOR or MANAGER and a reason, recomputes from current data
 (rows that no longer differ are skipped) and leaves every change in the change log. Commissions are not touched.
 """
@@ -19,9 +20,9 @@ from app.schemas.balance_recalc_schema import (
     BalanceRecalcApply, BalanceRecalcPreviewRead, BalanceRecalcResultRead, InvoiceStatusFixRead,
     OrderBalanceFixRead, RecalcAnomalyRead,
 )
+from app.services.paid_balance_service import is_settled, paid_tolerance
 
-INVOICE_TOLERANCE = 0.01
-ORDER_TOLERANCE = 0.10
+ANOMALY_TOLERANCE = 0.01
 BALANCE_DIFF = 0.05
 OPEN_STATUSES = {SalesOrderStatus.WAITING_ADVANCE, SalesOrderStatus.SOLD, SalesOrderStatus.IN_PRODUCTION,
                  SalesOrderStatus.FINISHED, SalesOrderStatus.COMPLETED}
@@ -36,24 +37,25 @@ def _value(status) -> str:
     return status.value if hasattr(status, "value") else str(status)
 
 
-def invoice_new_status(balance: float) -> CXCStatus:
-    return CXCStatus.PAID if balance <= INVOICE_TOLERANCE else CXCStatus.PENDING
+def invoice_new_status(balance: float, tolerance: float) -> CXCStatus:
+    return CXCStatus.PAID if is_settled(balance, tolerance) else CXCStatus.PENDING
 
 
-def order_new_status(status: SalesOrderStatus, balance: float) -> SalesOrderStatus:
-    if balance <= ORDER_TOLERANCE and status in CAN_FINISH:
+def order_new_status(status: SalesOrderStatus, balance: float, tolerance: float) -> SalesOrderStatus:
+    settled = is_settled(balance, tolerance)
+    if settled and status in CAN_FINISH:
         return SalesOrderStatus.FINISHED
-    if balance > ORDER_TOLERANCE and status == SalesOrderStatus.FINISHED:
+    if not settled and status == SalesOrderStatus.FINISHED:
         return SalesOrderStatus.SOLD
     return status
 
 
-def _invoice_rows(session: Session) -> Tuple[List[InvoiceStatusFixRead], List[RecalcAnomalyRead]]:
+def _invoice_rows(session: Session, tolerance: float) -> Tuple[List[InvoiceStatusFixRead], List[RecalcAnomalyRead]]:
     collected, credited = repo.collected_by_invoice(session), repo.credited_by_invoice(session)
     fixes, anomalies = [], []
     for cxc in repo.get_active_invoices(session):
         amount, amortized = float(cxc.amount or 0.0), float(cxc.amortized_advance or 0.0)
-        if amortized > amount + INVOICE_TOLERANCE:
+        if amortized > amount + ANOMALY_TOLERANCE:
             anomalies.append(RecalcAnomalyRead(
                 cxc_id=cxc.id, sales_order_id=cxc.sales_order_id, order_folio=order_folio(cxc.sales_order_id),
                 message=f"Factura {cxc.invoice_folio or cxc.id}: anticipo amortizado ${amortized:,.2f} mayor que "
@@ -61,7 +63,7 @@ def _invoice_rows(session: Session) -> Tuple[List[InvoiceStatusFixRead], List[Re
             continue
         paid, notes = collected.get(cxc.id, 0.0), credited.get(cxc.id, 0.0)
         balance = round(amount - amortized - paid - notes, 2)
-        new_status = invoice_new_status(balance)
+        new_status = invoice_new_status(balance, tolerance)
         if new_status != cxc.status:
             fixes.append(InvoiceStatusFixRead(
                 cxc_id=cxc.id, sales_order_id=cxc.sales_order_id, order_folio=order_folio(cxc.sales_order_id),
@@ -79,7 +81,7 @@ def _collected_by_order(session: Session) -> Dict[int, float]:
     return totals
 
 
-def _order_rows(session: Session) -> List[OrderBalanceFixRead]:
+def _order_rows(session: Session, tolerance: float) -> List[OrderBalanceFixRead]:
     collected = _collected_by_order(session)
     orders = repo.get_orders_by_status(session, OPEN_STATUSES)
     names = repo.client_names(session, [o.client_id for o in orders])
@@ -88,7 +90,7 @@ def _order_rows(session: Session) -> List[OrderBalanceFixRead]:
         paid = collected.get(order.id, 0.0)
         computed = round(float(order.total_price or 0.0) - paid, 2)
         stored = round(float(order.outstanding_balance or 0.0), 2)
-        new_status = order_new_status(order.status, computed)
+        new_status = order_new_status(order.status, computed, tolerance)
         if abs(stored - computed) > BALANCE_DIFF or new_status != order.status:
             rows.append(OrderBalanceFixRead(
                 sales_order_id=order.id, order_folio=order_folio(order.id), project_name=order.project_name,
@@ -100,8 +102,9 @@ def _order_rows(session: Session) -> List[OrderBalanceFixRead]:
 
 
 def preview(session: Session) -> BalanceRecalcPreviewRead:
-    invoices, anomalies = _invoice_rows(session)
-    return BalanceRecalcPreviewRead(invoices=invoices, orders=_order_rows(session), anomalies=anomalies)
+    tolerance = paid_tolerance(session)
+    invoices, anomalies = _invoice_rows(session, tolerance)
+    return BalanceRecalcPreviewRead(invoices=invoices, orders=_order_rows(session, tolerance), anomalies=anomalies)
 
 
 def _apply_invoices(session: Session, rows: Dict[int, InvoiceStatusFixRead], ids: List[int]) -> int:

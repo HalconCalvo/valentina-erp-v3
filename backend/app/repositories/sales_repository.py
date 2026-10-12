@@ -7,7 +7,7 @@ from sqlmodel import Session, select
 from sqlalchemy.orm import selectinload
 
 from app.models.design import ProductVersion
-from app.models.foundations import Client, TaxRate
+from app.models.foundations import Client, GlobalConfig, TaxRate
 from app.models.material import Material
 from app.models.sales import (
     CustomerCreditNote,
@@ -423,3 +423,7 @@ def sum_advance_commission_base(session: Session, order_id: int) -> float:
     )
     value = session.exec(select(func.coalesce(func.sum(per_payment.c.base), 0.0))).one()
     return float(value or 0.0)
+
+
+def get_global_config(session: Session) -> Optional[GlobalConfig]:
+    return session.exec(select(GlobalConfig)).first()

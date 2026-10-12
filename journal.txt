@@ -4477,3 +4477,37 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 
 ### Lección:
 - La copia local se apaga al reiniciar la Mac: encender PostgreSQL 16 (pg_ctl, puerto 5433) antes de run_local.sh
+
+---
+## SESIÓN 2026-10-12 (parte 16) — PRUEBA EN PANTALLA DE CxP, D16 Y LO APLICADO EN PRODUCCIÓN
+
+### Prueba en pantalla del refactor de CxP (aa6e982), copia local, como Dirección:
+- Tesorería → Por pagar: 54 facturas / $697,541.00 = tablero (33 + 16 + 5); archivo maestro y detalle de la factura 7533
+  (partidas recibidas, quién autorizó) correctos
+- Pago directo sin cuenta: la pantalla lo detiene. Con Santander: factura 7533 PAGADA, movimiento "Pago Directo
+  FAC-7533" por $1,016.48, Santander $243,109.92 → $242,093.44 (solo en la copia local)
+- Visto, sin cambio (ya venía así): "Archivo maestro" muestra Abonado −$937.00 y saldo mayor que lo facturado
+
+### D16 (Gabriel): saldo de $1.00 o menos (OV o factura de cliente) = pagado
+- GlobalConfig.paid_balance_tolerance (migración v1w2x3y4z5a6, valor inicial 1.00; subir/bajar/subir en la copia local)
+- Solo DIRECTOR lo cambia (403 para Gerencia; negativo → 400); Configuración → "Saldo que cuenta como pagado"
+- Se aplica al registrar, editar y cancelar abonos y al cobrar una factura completa, y en Saneamiento. El tope del
+  abono no cambia (no se puede abonar más que el saldo)
+- 7 tests nuevos (293 en total). En pantalla: guardar 1.50 y regresar a 1.00 (queda en bitácora); Gerencia ve el
+  campo bloqueado; Saneamiento muestra la factura 618 de OV-0131 ($0.60) como Pendiente → Pagada
+
+### Aplicado hoy en producción por Gabriel (detalle en SANEAMIENTO §7):
+- 16 anticipos a proveedor absorbidos (Xaze incluido; su solicitud de $35,275.60 quedó rechazada). Fuera: Cerámica
+  y Materiales Continentales $2,397.72 (mismo monto que la diferencia de Santander)
+- Facturas pagadas: 284, 300, 414, 441, 489, 550, 551, 552, 448, 508. Saldo recalculado: OV-0066
+- Fuera, con contabilidad: 493 (OV-0019); 237 y 245 (OV-0045); #47 y #48 de ZENARA (posible duplicado de la 448);
+  saldos de OV-0122 y OV-0123. OV-0131 (factura 618) se aplica cuando D16 esté en producción
+
+### OV-0123 ($80,000 contra la conciliación), solo lectura en producción:
+- En Santander hay dos depósitos de $80,000 de Viveyuc sin abono ligado: #217 (20/07, "ABONO F. 525") y #556 (24/09,
+  "ABONO F. 562"; la factura 562 no existe en el sistema). Los depósitos "F. 525" suman $324,837 contra $190,000
+  capturados en esa factura. Contabilidad confirma con el estado de cuenta cuál de los $80,000 cuenta
+
+### Pendiente:
+- Push después de las 18:00 (4 commits: D14 ×2, refactor CxP, D16). Render aplica la migración v1w2x3y4z5a6
+- Después del push: Gabriel aplica la factura 618 de OV-0131 desde Saneamiento

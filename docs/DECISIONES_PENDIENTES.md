@@ -35,6 +35,12 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 
 ## Resueltas
 
+### D16. Saldo que cuenta como pagado — 2026-10-12 — ROADMAP tarea 7
+- **Contexto:** facturas y OVs legacy quedan con centavos de saldo (p. ej. OV-0131: $0.60) y no se daban por pagadas.
+- **Estado:** resuelta por Gabriel (2026-10-12): un saldo de $1.00 o menos (OV o factura de cliente) cuenta como
+  pagado/saldado. Configurable en GlobalConfig (`paid_balance_tolerance`, solo DIRECTOR), valor inicial 1.00. Aplicado
+  en el registro de abonos (alta, edición y cancelación) y en la herramienta de saneamiento.
+
 ### D15. Campo: cuándo se libera la nómina de cuadrilla — 2026-10-10 — ROADMAP tarea 9
 - **Contexto:** módulo de Campo (instalación y nómina de cuadrilla).
 - **Estado:** resuelta por Gabriel (2026-10-10): la nómina de cuadrilla solo se libera con la firma de recibido del

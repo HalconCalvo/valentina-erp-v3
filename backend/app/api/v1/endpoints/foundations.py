@@ -111,6 +111,11 @@ def update_global_config(current_user: CurrentUser, config_in: GlobalConfig, ses
     if ("manager_can_execute_payments" in config_data
             and bool(config_data["manager_can_execute_payments"]) != bool(db_config.manager_can_execute_payments)):
         require_roles(current_user, {"DIRECTOR"}, "Solo Dirección habilita a Gerencia para ejecutar pagos.")
+    if ("paid_balance_tolerance" in config_data
+            and float(config_data["paid_balance_tolerance"]) != float(db_config.paid_balance_tolerance or 0)):
+        require_roles(current_user, {"DIRECTOR"}, "Solo Dirección cambia la tolerancia de saldo pagado.")
+        if float(config_data["paid_balance_tolerance"]) < 0:
+            raise HTTPException(status_code=400, detail="La tolerancia de saldo pagado no puede ser negativa.")
     
     # PROTECCIÓN: Evitar borrar el logo si el frontend manda null
     if "logo_path" in config_data:

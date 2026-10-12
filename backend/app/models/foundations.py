@@ -49,6 +49,8 @@ class GlobalConfig(SQLModel, table=True):
     # Nómina a Destajo (Tabulador Global de Instaladores)
     default_leader_daily_rate: float = Field(default=800.0)
     default_helper_daily_rate: float = Field(default=700.0)
+    # D16: a customer invoice or sales order with a balance at most this amount counts as paid (only DIRECTOR)
+    paid_balance_tolerance: float = Field(default=1.0, sa_column_kwargs={"server_default": "1.00"})
     # Physical inventory: a counted difference whose value exceeds this amount needs approval
     inventory_audit_value_threshold: float = Field(
         default=2000.0, sa_column_kwargs={"server_default": "2000.00"}

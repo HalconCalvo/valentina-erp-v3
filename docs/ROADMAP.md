@@ -113,10 +113,13 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
 - Herramienta 3 (IVA de OVs legacy) en espera de la lista de contabilidad (D14 punto 3).
 - CxP (hecho 10/10 noche): Gerencia ve "Pagar"/"Pago Urgente" solo con el interruptor de D7 encendido.
 - Refactor hecho (2026-10-12, commit local): la lógica de CxP sale de `finance.py` a servicios y repositorio; respuestas
-  idénticas en la copia local. Falta la prueba en pantalla (Chrome desconectado) antes del push.
+  idénticas en la copia local; probado en pantalla el 12/10 (tablero, archivo maestro, detalle y pago directo).
 - Se deja: guardia de rutas por rol en el frontend (el servidor ya valida rol en cada ruta; un guardia por módulo
   rompería enlaces profundos legítimos, p. ej. Gerencia → /director/audit).
 - Refactor hecho (2026-10-12, commit local): `sales_service.register_installment` en 4 ayudantes (~40 líneas).
+- D16 hecha (2026-10-12, commit local): saldo de $1.00 o menos = pagado (GlobalConfig, solo DIRECTOR) en abonos y
+  Saneamiento; migración v1w2x3y4z5a6.
+- 12/10: Gabriel aplicó en producción anticipos (16), facturas pagadas (10) y OV-0066 (SANEAMIENTO §7).
 
 ## 8. D13: el vendedor solo ve precio de venta — hecha (2026-10-10)
 - Servidor: toda respuesta JSON a SALES sale con costos y márgenes en nulo (middleware general, cubre pantallas

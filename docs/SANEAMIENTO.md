@@ -78,3 +78,33 @@ Todas tienen tasa "IVA Estándar" (16%). No hay en el catálogo una tasa llamada
    "Actualización masiva". La plantilla se descarga ya llena con los materiales activos incompletos (185 en la copia
    del 10/10); celda vacía = sin cambio; validar → vista previa → aplicar todo o nada con motivo. Costo y factor solo
    Dirección, Gerencia o Administración.
+
+## 7. Aplicado en producción
+
+### 2026-10-12 (Gabriel, desde Gerencia → Saneamiento, con motivo; queda en bitácora)
+- **Anticipos a proveedor (4.1): 16 absorbidos**, incluido ANT-OC-M260512161716 (Bodega Electrónica Xaze): su
+  solicitud autorizada de $35,275.60 quedó rechazada.
+  **Fuera:** ANT-OC-M260819162347 Cerámica y Materiales Continentales $2,397.72 — mismo monto que la diferencia de
+  Santander (4.2); espera la respuesta de contabilidad.
+- **Facturas de cliente marcadas pagadas (2.1):** 284, 300, 414, 441, 489, 550, 551, 552, 448 y 508.
+  La 618 de OV-0131 (saldo $0.60) no salía con la regla de un centavo; sale con D16 (saldo de $1.00 o menos =
+  pagado) y se aplica cuando D16 esté en producción.
+- **Saldo recalculado (3.3):** OV-0066.
+- **Fuera, en espera de contabilidad:** facturas 493 (OV-0019) y 237 y 245 (OV-0045); #47 y #48 de ZENARA
+  (OV-0122, filas 15–16 sin folio, mismo monto que la 448: posible duplicado); saldos de OV-0122 y OV-0123.
+
+### OV-0123: $80,000 entre el sistema y la conciliación (revisión de solo lectura, 2026-10-12)
+- Sistema: total $2,620,963.00 − abonos vigentes $584,902.20 = **$2,036,060.80**. Conciliación: **$1,956,060.80**
+  (cuenta $80,000 más cobrados).
+- Abonos capturados (importados el 21/09): factura 427 $200,000 (3 abonos), 500 $194,902.20 (3), 525 $190,000
+  ($100,000 el 03/06, $10,000 el 18/06, $80,000 el 03/07). Ninguno está ligado a un movimiento bancario.
+- En Santander hay **dos depósitos de $80,000 de PROMOTORA VIVEYUC sin abono ligado**:
+  - #217, 20/07/2026, referencia "ABONO F. 525(ICX1605)" — la factura 525 es de OV-0123.
+  - #556, 24/09/2026, referencia "ABONO F. 562(ICX1605)" — no existe factura 562 en el sistema; ICX1605 es la misma
+    referencia de la obra que la 525.
+- Además, los depósitos con referencia "F. 525" suman $324,837.00 ($100,000 el 08/06, $100,000 el 22/06, $80,000 el
+  20/07 y $44,837 el 10/08) contra $190,000 capturados en esa factura: fechas y montos de los abonos importados no
+  coinciden con el banco.
+- **Lo más probable:** la conciliación cuenta uno de esos $80,000 (el #217 de la 525 o el #556 de una factura 562 que
+  falta capturar). Contabilidad confirma con el estado de cuenta cuál corresponde; según eso, se registra el abono
+  ligado a ese movimiento (o se captura la factura 562) y se recalcula el saldo. No se aplica nada hasta entonces.
