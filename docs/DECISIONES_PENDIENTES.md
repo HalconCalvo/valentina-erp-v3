@@ -33,6 +33,14 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 - **Reversible:** las correcciones se hacen con motivo y quedan en bitácora.
 - **Estado:** parcial. 5 y 6 resueltas (2026-10-12). 1–4 y 7–11 con contabilidad (Excel enviado el 12/10).
 
+### D17. "Trabajo terminado" solo después de la carga — 2026-10-12 — ROADMAP tarea 10
+- **Contexto:** se podía marcar un carril como instalado sin haber cargado el camión en Logística (sin escaneo, sin
+  costo de venta). Con D15 la firma crea la nómina; un carril "terminado" sin carga la habría liberado sin material.
+- **Opciones:** A) solo un carril ya cargado se marca terminado. B) permitirlo sin carga (casos de obra sin camión).
+- **Recomendación:** A; si hay entregas sin camión, que Logística confirme la carga con el código del bulto.
+- **Reversible:** sí (aplicada A).
+- **Estado:** pendiente de confirmar
+
 ## Resueltas
 
 ### D16. Saldo que cuenta como pagado — 2026-10-12 — ROADMAP tarea 7
@@ -45,6 +53,9 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 - **Contexto:** módulo de Campo (instalación y nómina de cuadrilla).
 - **Estado:** resuelta por Gabriel (2026-10-10): la nómina de cuadrilla solo se libera con la firma de recibido del
   cliente. El módulo de Campo queda EN ESPERA: no se toca hasta nueva indicación.
+  Actualización (2026-10-12, Gabriel): Campo sale de espera dentro del recorrido (ROADMAP tarea 10). El escaneo de
+  carga vive solo en Logística (patio); Campo es la obra (evidencias, firma, cierre). Ni la asignación ni la carga
+  generan nómina.
 
 ### D<n>. <título corto> — <fecha AAAA-MM-DD> — <tarea del ROADMAP>
 - **Contexto:** qué se encontró y por qué hace falta decidir.

@@ -17,6 +17,10 @@ export type FieldAssignment = {
   };
   evidence_photos_urls: string[];
   signed_received_at?: string | null;
+  /** Installation lanes (IM furniture, IP stone): SCHEDULED, IN_PROGRESS (loaded), INSTALLED, COMPLETED. */
+  lanes?: Array<{ assignment_id: number; lane: string; status: string; leader_name?: string | null; is_mine: boolean }>;
+  /** Every lane marked finished: the client's signature can close the house. */
+  can_sign?: boolean;
 };
 
 type AssignmentsCache = {
@@ -29,7 +33,7 @@ type AssignmentsCache = {
 export type PendingSyncItem = {
   id: string;
   instanceId: number;
-  kind: 'sync' | 'scan';
+  kind: 'sync' | 'scan'; // 'scan' only in old queues: loading is scanned in Logistics
   payload: Record<string, unknown>;
   createdAt: string;
 };

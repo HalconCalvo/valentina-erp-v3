@@ -1,28 +1,26 @@
 import uuid
 from io import BytesIO
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from pydantic import BaseModel
-from sqlmodel import Session, select, text
+from sqlmodel import Session, select
 from typing import List, Optional
 from datetime import datetime, date
+from zoneinfo import ZoneInfo
 
 from app.core.deps import SessionDep, CurrentUser
 from app.models.production import (
     InstallationAssignment,
     InstallationAssignmentStatus,
     PayrollPayment,
-    PayrollPaymentType,
     PayrollStatus,
 )
-from app.models.sales import SalesOrderItemInstance, SalesOrderItem, SalesOrder, InstanceStatus
-from app.models.design import ProductVersion
-from app.models.foundations import GlobalConfig, Client
+from app.models.sales import SalesOrderItemInstance, SalesOrderItem, SalesOrder
+from app.models.foundations import Client
 from app.models.users import User, UserRole
 from app.models.treasury import BankAccount, BankTransaction, TransactionType
-from app.services.planning_service import trigger_double_green
 from app.services.cloud_storage import upload_to_gcs
-from app.services import logistics_service, production_inventory_service
+from app.services import installation_service, logistics_service
 from app.core.permissions import allow, can_execute_payments, FIELD_ROLES, FINANCE_ROLES, INSTALLATION_ROLES
 from app.core.audit_context import audit_reason
 from app.schemas.logistics_schema import (
@@ -32,6 +30,7 @@ from app.schemas.logistics_schema import (
 )
 
 router = APIRouter()
+MERIDA_TZ = ZoneInfo("America/Merida")
 
 AGENDA_ROLES = {
     UserRole.PRODUCTION,
@@ -47,31 +46,6 @@ def _require_agenda_access(user: User) -> None:
             status_code=403,
             detail="Acceso restringido a la agenda de instalaciones.",
         )
-
-
-def _check_all_lanes_installed(instance_id: int, session: Session) -> bool:
-    """
-    Retorna True si TODOS los carriles activos de la instancia
-    están en estado INSTALLED o COMPLETED.
-    Retorna False si algún carril está en SCHEDULED, IN_PROGRESS o CARGADO.
-    """
-    assignments = session.exec(
-        select(InstallationAssignment).where(
-            InstallationAssignment.instance_id == instance_id,
-            InstallationAssignment.status != InstallationAssignmentStatus.COMPLETED
-        )
-    ).all()
-
-    if not assignments:
-        return False
-
-    return all(
-        a.status in [
-            InstallationAssignmentStatus.INSTALLED,
-            InstallationAssignmentStatus.COMPLETED,
-        ]
-        for a in assignments
-    )
 
 
 def _upload_file_to_gcs(file_bytes: bytes, blob_name: str, content_type: str) -> str:
@@ -174,106 +148,21 @@ def _serialize_payroll_row(r: PayrollPayment, session: Session) -> PayrollPaymen
 
 
 # ==========================================
-# HELPER INTERNO
-# ==========================================
-def _get_installation_days(session: SessionDep, instance: SalesOrderItemInstance) -> float:
-    """Sube la cadena Instance → Item → ProductVersion para obtener los días presupuestados."""
-    item = session.get(SalesOrderItem, instance.sales_order_item_id)
-    if not item or not item.origin_version_id:
-        return 1.0
-    version = session.get(ProductVersion, item.origin_version_id)
-    return float(version.installation_days) if version and version.installation_days else 1.0
-
-
-# ==========================================
-# 2. GATILLO DE FIRMA — Libera nómina a READY_TO_PAY
+# 2. TRABAJO TERMINADO Y FIRMA (D15: la firma crea la nómina de la cuadrilla)
 # ==========================================
 @router.patch("/equipos/{assignment_id}/firma", dependencies=[allow(FIELD_ROLES)])
-def register_client_signature(
-    assignment_id: int,
-    payload: SignaturePayload,
-    session: SessionDep,
-    current_user: CurrentUser,
-):
-    """
-    ENDPOINT PARA EL IPAD: recaba la firma digital del cliente.
-    - Cierra la instancia con signed_received_at (activa la garantía de 1 año).
-    - Libera todos los registros de nómina de esta asignación a READY_TO_PAY.
-    """
-    assignment = session.get(InstallationAssignment, assignment_id)
-    if not assignment:
+def register_client_signature(assignment_id: int, payload: SignaturePayload, session: SessionDep):
+    """Client's signature for the instance of this lane; Campo uses /field/instances/{id}/sync."""
+    lane = session.get(InstallationAssignment, assignment_id)
+    if not lane:
         raise HTTPException(status_code=404, detail="Asignación no encontrada.")
-
-    if not _check_all_lanes_installed(assignment.instance_id, session):
-        raise HTTPException(
-            status_code=400,
-            detail="No se puede firmar hasta que todos los carriles estén marcados como instalados."
-        )
-
-    now = datetime.utcnow()
-
-    assignment.client_signature_url = payload.signature_url
-    assignment.status = InstallationAssignmentStatus.COMPLETED
-    assignment.completed_at = now
-    assignment.warranty_end_date = datetime(now.year + 1, now.month, now.day)
-    session.add(assignment)
-
-    # Disparar el Evento Maestro Doble Verde 🟢🟢
-    # → cambia a CLOSED, registra signed_received_at, libera nómina a READY_TO_PAY
-    double_green_result = {"payroll_released": [], "instance_id": None}
-    instance = session.get(SalesOrderItemInstance, assignment.instance_id)
-    if instance:
-        instance.current_location = "Instalado en Obra"
-        session.add(instance)
-        double_green_result = trigger_double_green(instance, session, signed_at=now)
-
-    session.commit()
-    session.refresh(assignment)
-    return {
-        "message": "🟢🟢 Firma recabada. Instancia cerrada. Nómina liberada. Aviso a Administración activado.",
-        "assignment_id": assignment.id,
-        "instance_id": double_green_result.get("instance_id"),
-        "payroll_released": len(double_green_result.get("payroll_released", [])),
-        "warranty_end_date": str(assignment.warranty_end_date),
-        "admin_notification": "Instancia finalizada. Proceder con facturación de avance.",
-    }
+    return installation_service.sign_and_close(session, lane.instance_id, payload.signature_url)
 
 
 @router.put("/assignments/{assignment_id}/mark-installed", dependencies=[allow(INSTALLATION_ROLES)])
-def mark_assignment_installed(
-    assignment_id: int,
-    session: SessionDep,
-    current_user: CurrentUser,
-):
-    """
-    El instalador marca su carril como terminado físicamente.
-    Verde Simple 🟢 — trabajo hecho, esperando firma.
-    Cualquier usuario autenticado puede ejecutar este endpoint.
-    """
-    assignment = session.get(InstallationAssignment, assignment_id)
-    if not assignment:
-        raise HTTPException(status_code=404, detail="Asignación no encontrada.")
-
-    if assignment.status not in [
-        InstallationAssignmentStatus.IN_PROGRESS,
-        InstallationAssignmentStatus.SCHEDULED,
-    ]:
-        raise HTTPException(
-            status_code=400,
-            detail="Solo se puede marcar como instalado desde SCHEDULED o IN_PROGRESS."
-        )
-
-    assignment.status = InstallationAssignmentStatus.INSTALLED
-    session.add(assignment)
-    session.commit()
-    session.refresh(assignment)
-
-    return {
-        "ok": True,
-        "assignment_id": assignment_id,
-        "status": "INSTALLED",
-        "message": "🟢 Trabajo terminado. Esperando firma del cliente."
-    }
+def mark_assignment_installed(assignment_id: int, session: SessionDep):
+    """The crew finished its (already loaded) lane: green 🟢, waiting for the signature."""
+    return installation_service.mark_installed(session, assignment_id)
 
 
 # ==========================================
@@ -408,93 +297,12 @@ def mark_payroll_paid(
 
 
 # ==========================================
-# 4. ESCANEO QR — Confirmar carga al camión (iPad)
+# 4. CARGA DEL CAMIÓN (patio): escaneo del QR de un bulto de la casa
 # ==========================================
 @router.post("/assignments/{assignment_id}/preview-scan")
-def preview_bundle_scan(
-    assignment_id: int,
-    payload: QRScanPayload,
-    session: SessionDep,
-    current_user: CurrentUser,
-):
-    """
-    PASO 1 (iPad): el líder escanea un bulto y Valentina responde QUÉ debe cargar.
-    Solo lectura: NO cambia estados, NO toca inventario, NO genera nómina.
-    La confirmación real ocurre después en scan_bundle_qr.
-    """
-    allowed = {UserRole.LOGISTICS, UserRole.DIRECTOR, UserRole.MANAGER, UserRole.PRODUCTION}
-    if current_user.role not in allowed:
-        raise HTTPException(status_code=403, detail="No tienes permiso para escanear cargas.")
-
-    assignment = session.get(InstallationAssignment, assignment_id)
-    if not assignment:
-        raise HTTPException(status_code=404, detail="Asignación no encontrada.")
-
-    instance = session.get(SalesOrderItemInstance, assignment.instance_id)
-    if not instance:
-        raise HTTPException(status_code=404, detail="Instancia no encontrada.")
-
-    # Cliente y proyecto (instancia -> item -> orden -> cliente)
-    cliente_nombre = None
-    proyecto = None
-    item = session.get(SalesOrderItem, instance.sales_order_item_id)
-    if item:
-        orden = session.get(SalesOrder, item.sales_order_id)
-        if orden:
-            proyecto = orden.project_name
-            cli = session.get(Client, orden.client_id)
-            if cli:
-                cliente_nombre = getattr(cli, 'full_name', None) or getattr(cli, 'business_name', None)
-
-    # Conteo de bultos: DISTINCT bundle_number por tipo para no inflar con reimpresiones
-    filas = session.exec(text("""
-        SELECT bundle_type, COUNT(DISTINCT bundle_number) AS bultos, MAX(total_bundles) AS total
-        FROM print_jobs
-        WHERE instance_id = :inst
-        GROUP BY bundle_type
-    """).bindparams(inst=instance.id)).all()
-    bultos_mdf = 0
-    bultos_herrajes = 0
-    for tipo, cantidad, _total in filas:
-        t = (tipo or "").upper()
-        if t == "MDF":
-            bultos_mdf = int(cantidad or 0)
-        elif t == "HERRAJES":
-            bultos_herrajes = int(cantidad or 0)
-
-    # Equipo asignado
-    leader = session.get(User, assignment.leader_user_id)
-    h1 = session.get(User, assignment.helper_1_user_id) if assignment.helper_1_user_id else None
-    h2 = session.get(User, assignment.helper_2_user_id) if assignment.helper_2_user_id else None
-    equipo_nombres = [u.full_name for u in [leader, h1, h2] if u and u.full_name]
-
-    # ¿Quien escanea es el líder asignado?
-    es_lider = current_user.id == assignment.leader_user_id
-    puede_autorizar = current_user.role in {UserRole.PRODUCTION, UserRole.DIRECTOR, UserRole.MANAGER}
-
-    # Bloqueos que impedirían confirmar después
-    bloqueo = None
-    if assignment.status != InstallationAssignmentStatus.SCHEDULED:
-        bloqueo = f"Esta asignación ya fue procesada (status: {assignment.status})."
-    elif instance.production_status != InstanceStatus.READY:
-        bloqueo = f"La instancia debe estar READY para cargarse. Status actual: {instance.production_status}."
-
-    return {
-        "assignment_id": assignment.id,
-        "instance_id": instance.id,
-        "instance_name": instance.custom_name,
-        "cliente": cliente_nombre,
-        "proyecto": proyecto,
-        "bultos_mdf": bultos_mdf,
-        "bultos_herrajes": bultos_herrajes,
-        "bultos_total": bultos_mdf + bultos_herrajes,
-        "equipo_asignado": equipo_nombres,
-        "es_lider_asignado": es_lider,
-        "requiere_autorizacion": (not es_lider),
-        "puede_autorizar": puede_autorizar,
-        "bloqueo": bloqueo,
-        "puede_confirmar": (bloqueo is None) and (es_lider or puede_autorizar),
-    }
+def preview_bundle_scan(assignment_id: int, payload: QRScanPayload, session: SessionDep, current_user: CurrentUser):
+    """Step 1: what the leader must load for the scanned bundle (read only)."""
+    return installation_service.preview_load(session, assignment_id, payload.bundle_qr_uuid, current_user)
 
 @router.patch("/equipos/{assignment_id}/reasignar")
 def reasignar_equipo(
@@ -584,128 +392,9 @@ def reasignar_equipo(
     }
 
 @router.post("/equipos/{assignment_id}/scan-qr")
-def scan_bundle_qr(
-    assignment_id: int,
-    payload: QRScanPayload,
-    session: SessionDep,
-    current_user: CurrentUser,
-):
-    """
-    ENDPOINT PARA EL IPAD (Líder LOGISTICS):
-    El líder escanea el QR de un bulto al subir al camión.
-    - Confirma el equipo definitivo
-    - Cambia el status de la instancia a CARGADO (doble azul 🔵🔵)
-    - Genera los registros de nómina con el equipo confirmado
-    - A partir de aquí el equipo ya no puede modificarse
-    """
-    allowed_scan = {UserRole.LOGISTICS, UserRole.DIRECTOR, UserRole.MANAGER}
-    if current_user.role not in allowed_scan:
-        raise HTTPException(
-            status_code=403,
-            detail="Solo el equipo de instalación puede escanear QRs.",
-        )
-
-    assignment = session.get(InstallationAssignment, assignment_id)
-    if not assignment:
-        raise HTTPException(status_code=404, detail="Asignación no encontrada.")
-
-    if assignment.status != InstallationAssignmentStatus.SCHEDULED:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Esta asignación ya fue procesada. Status actual: {assignment.status}",
-        )
-
-    # Verificar que quien escanea es el líder asignado
-    if current_user.id != assignment.leader_user_id:
-        raise HTTPException(
-            status_code=403,
-            detail="Solo el Líder asignado puede confirmar la carga al camión.",
-        )
-
-    instance = session.get(SalesOrderItemInstance, assignment.instance_id)
-    if not instance:
-        raise HTTPException(status_code=404, detail="Instancia no encontrada.")
-
-    if instance.production_status not in [InstanceStatus.READY]:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Bloqueo Logístico: la instancia debe estar en READY para cargarse. "
-                   f"Status actual: {instance.production_status}",
-        )
-
-    now = datetime.utcnow()
-
-    # Confirmar equipo y marcar IN_PROGRESS
-    assignment.status = InstallationAssignmentStatus.IN_PROGRESS
-    assignment.started_at = now
-    session.add(assignment)
-
-    # Cambiar instancia a CARGADO 🔵🔵
-    instance.production_status = InstanceStatus.CARGADO
-    instance.current_location = "En Tránsito (Camión)"
-    session.add(instance)
-
-    # ── COSTO DE VENTA ───────────────────────────────────────
-    # The recipe left the warehouse when the batch entered production; loading the truck
-    # moves that consumed material from finished goods to cost of sales (no stock movement).
-    transferred_to_cogs = production_inventory_service.transfer_instance_to_cogs(session, instance.id, current_user)
-    # ─────────────────────────────────────────────────────────
-
-    # Leer tabulador global
-    config = session.exec(select(GlobalConfig)).first()
-    leader_rate = config.default_leader_daily_rate if config else 800.0
-    helper_rate = config.default_helper_daily_rate if config else 700.0
-
-    # Días de instalación de la receta
-    installation_days = _get_installation_days(session, instance)
-
-    # Generar nómina con el equipo DEFINITIVO confirmado en este momento
-    session.add(PayrollPayment(
-        installation_assignment_id=assignment.id,
-        user_id=assignment.leader_user_id,
-        payment_type=PayrollPaymentType.LEADER,
-        days_worked=installation_days,
-        daily_rate=leader_rate,
-        total_amount=round(installation_days * leader_rate, 2),
-        status=PayrollStatus.PENDING_SIGNATURE,
-    ))
-    if assignment.helper_1_user_id:
-        session.add(PayrollPayment(
-            installation_assignment_id=assignment.id,
-            user_id=assignment.helper_1_user_id,
-            payment_type=PayrollPaymentType.HELPER,
-            days_worked=installation_days,
-            daily_rate=helper_rate,
-            total_amount=round(installation_days * helper_rate, 2),
-            status=PayrollStatus.PENDING_SIGNATURE,
-        ))
-    if assignment.helper_2_user_id:
-        session.add(PayrollPayment(
-            installation_assignment_id=assignment.id,
-            user_id=assignment.helper_2_user_id,
-            payment_type=PayrollPaymentType.HELPER,
-            days_worked=installation_days,
-            daily_rate=helper_rate,
-            total_amount=round(installation_days * helper_rate, 2),
-            status=PayrollStatus.PENDING_SIGNATURE,
-        ))
-
-    session.commit()
-    session.refresh(assignment)
-
-    leader = session.get(User, assignment.leader_user_id)
-    return {
-        "message": "🔵🔵 Bulto confirmado. Instancia en tránsito al cliente.",
-        "assignment_id": assignment.id,
-        "instance_id": instance.id,
-        "instance_name": instance.custom_name,
-        "bundle_qr_uuid": payload.bundle_qr_uuid,
-        "instance_status": instance.production_status,
-        "leader": {"id": assignment.leader_user_id, "name": leader.full_name if leader else None},
-        "payroll_records_created": 1 + bool(assignment.helper_1_user_id) + bool(assignment.helper_2_user_id),
-        "scanned_at": now.isoformat(),
-        "inventory_consumed": transferred_to_cogs,
-    }
+def scan_bundle_qr(assignment_id: int, payload: QRScanPayload, session: SessionDep, current_user: CurrentUser):
+    """Step 2: the assigned leader confirms the load (lane in progress, instance CARGADO); no payroll (D15)."""
+    return installation_service.load_truck(session, assignment_id, payload.bundle_qr_uuid, current_user)
 
 
 # ==========================================
@@ -856,7 +545,7 @@ def get_my_workday(
             detail="Acceso restringido al módulo de instalación.",
         )
 
-    workday = date.today()
+    workday = datetime.now(MERIDA_TZ).date()
     day_start = datetime.combine(workday, datetime.min.time())
     day_end = datetime.combine(workday, datetime.max.time())
 
@@ -911,13 +600,12 @@ def get_my_workday(
             "order_folio": f"OV-{str(order.id).zfill(4)}" if order else None,
             "project_name": order.project_name if order else None,
             "client_name": client.full_name if client else None,
-            "client_address": client.fiscal_address if client else None,
+            "client_address": " · ".join(x for x in (instance.street, instance.lot) if x)
+            or (client.fiscal_address if client else None),  # the house (street, lot) first
             "leader_name": leader.full_name if leader else None,
             "evidence_photos_count": len(instance.evidence_photos_urls or []),
             "has_signature": bool(assignment.client_signature_url),
-            "all_lanes_installed": _check_all_lanes_installed(
-                assignment.instance_id, session
-            ),
+            "all_lanes_installed": installation_service.all_lanes_installed(session, assignment.instance_id),
             "team": {
                 "leader": {"id": assignment.leader_user_id, "name": leader.full_name if leader else None},
                 "helper_1": {"id": helper_1.id, "name": helper_1.full_name} if helper_1 else None,

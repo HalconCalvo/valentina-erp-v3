@@ -4533,3 +4533,28 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 
 ### Pendiente:
 - El recorrido Planeación → Campo sigue en curso (cambios guardados aparte, se retoman después del push)
+
+---
+## SESIÓN 2026-10-12 (parte 18) — RECORRIDO PLANEACIÓN → CAMPO (ROADMAP tarea 10)
+
+### Hecho (commit local; push después de las 18:00, autorizado por Gabriel):
+- OV-0039 recorrida en la copia local de bautizo a firma (reporte en docs/RECORRIDO_OPERACION.md)
+- Corregido: simulador no dejaba lotificar casas con muebles y piedra; surtir herrajes en Empaque; lote completo a
+  "Listo"; carga del camión valida que el QR sea de un bulto de esa casa (o código corto + número), cuenta los bultos
+  declarados, el lector ya no se cae, la carga no genera nómina; Logística solo patio; Campo: carriles con "Trabajo
+  terminado", la firma cierra la casa y crea la nómina lista para pagar (D15), sin escaneo; casas cargadas de días
+  anteriores siguen visibles; menú y avisos adaptables a celular; la factura de avance ya no libera nómina
+- installation_service + installation_repository; endpoints de Logística delgados; modo local seguro devuelve una URL
+  simulada en subidas (para probar fotos y firma sin nube)
+- Incidente: un test subió un PNG de 8 bytes al bucket real (field/instance_1/signature_…). Los tests ahora fuerzan
+  LOCAL_SAFE_MODE siempre. Borrar el archivo espera autorización de Gabriel
+- D17 (aplicada, reversible): "Trabajo terminado" solo para un carril ya cargado
+- 298 tests backend (5 nuevos), 17 frontend, build; errores de tipos 171 → 165
+
+### Pendiente:
+- Probar en pantalla el carril de Piedra y la red de seguridad de herrajes al cargar sin surtir
+- Prioridad 2 (con Gabriel): indicadores del tablero de Dirección
+
+### Lección:
+- Las pruebas no deben depender de la configuración del entorno para no tocar servicios reales: forzar el modo seguro
+  en el propio conftest

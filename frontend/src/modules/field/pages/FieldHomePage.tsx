@@ -7,10 +7,13 @@ function statusBadge(row: FieldAssignment): { label: string; className: string }
   if (row.signed_received_at) {
     return { label: 'Completada', className: 'bg-emerald-100 text-emerald-800 border-emerald-200' };
   }
-  if (row.production_status === 'INSTALLED' || row.production_status === 'CLOSED') {
-    return { label: 'En proceso', className: 'bg-amber-100 text-amber-900 border-amber-200' };
+  if (row.can_sign) {
+    return { label: 'Lista para firma', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
   }
-  return { label: 'Pendiente', className: 'bg-slate-100 text-slate-700 border-slate-200' };
+  if (row.production_status === 'CARGADO') {
+    return { label: 'En obra', className: 'bg-amber-100 text-amber-900 border-amber-200' };
+  }
+  return { label: 'Por cargar', className: 'bg-slate-100 text-slate-700 border-slate-200' };
 }
 
 function formatAddress(row: FieldAssignment): string {

@@ -3,6 +3,8 @@ import apiClient from './axios-client';
 export interface WorkdayAssignment {
   assignment_id: number;
   assignment_status: string;
+  lane: string | null;
+  assignment_date: string | null;
   instance_id: number;
   instance_name: string;
   instance_status: string;
@@ -118,43 +120,6 @@ export const previewBundleScan = async (
   const { data } = await apiClient.post(
     `/logistics/assignments/${assignmentId}/preview-scan`,
     { bundle_qr_uuid: bundleQrUuid }
-  );
-  return data;
-};
-
-// Subida de fotos de evidencia
-export const uploadEvidencePhotos = async (
-  instanceId: number,
-  photos: File[]
-): Promise<any> => {
-  const formData = new FormData();
-  photos.forEach((photo) => formData.append('photos', photo));
-  const { data } = await apiClient.post(
-    `/logistics/instances/${instanceId}/evidence`,
-    formData,
-    { headers: { 'Content-Type': 'multipart/form-data' } }
-  );
-  return data;
-};
-
-// Marcar carril como físicamente instalado (antes de la firma)
-export async function markAssignmentInstalled(
-    assignmentId: number
-): Promise<{ ok: boolean; message: string }> {
-    const response = await apiClient.put(
-        `/logistics/assignments/${assignmentId}/mark-installed`
-    );
-    return response.data;
-}
-
-// Firma digital del cliente
-export const submitClientSignature = async (
-  assignmentId: number,
-  signatureDataUrl: string
-): Promise<any> => {
-  const { data } = await apiClient.patch(
-    `/logistics/equipos/${assignmentId}/firma`,
-    { signature_url: signatureDataUrl }
   );
   return data;
 };

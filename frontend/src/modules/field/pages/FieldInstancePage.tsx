@@ -4,11 +4,11 @@ import SignatureCanvas from 'react-signature-canvas';
 import { ArrowLeft, Camera, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { toast } from '@/components/ui/VToast';
+import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { useOfflineSync } from '@/field/useOfflineSync';
 import {
-  queueScan,
+  markLaneInstalled,
   queueSync,
-  scanPackage,
   syncInstance,
   type FieldAssignment,
   type SyncPayload,
@@ -19,6 +19,14 @@ import { formatDateTime } from '@/utils/format';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 
 type TabId = 'empaque' | 'herrajes' | 'plano' | 'fotos' | 'firma';
+
+const LANE_LABEL: Record<string, string> = { IM: 'Muebles (MDF)', IP: 'Piedra' };
+const LANE_STATUS: Record<string, string> = {
+  SCHEDULED: 'Por cargar en Logística',
+  IN_PROGRESS: 'Cargado: en obra',
+  INSTALLED: 'Trabajo terminado',
+  COMPLETED: 'Firmado',
+};
 
 function resolveBlueprintUrl(path: string | null | undefined): string | null {
   if (!path) return null;
@@ -33,7 +41,7 @@ export default function FieldInstancePage() {
   const navigate = useNavigate();
   const { assignments, isOnline, pendingCount, flushQueue, refresh } = useOfflineSync();
   const [tab, setTab] = useState<TabId>('empaque');
-  const [barcode, setBarcode] = useState('');
+  const [finishingLane, setFinishingLane] = useState<number | null>(null);
   const [photos, setPhotos] = useState<string[]>([]);
   const [signature, setSignature] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
@@ -74,27 +82,17 @@ export default function FieldInstancePage() {
 
   const hasLocalPending = photos.length > 0 || Boolean(signature);
 
-  const handleScan = async () => {
-    const code = barcode.trim();
-    if (!code) {
-      toast.warning('Ingresa o escanea un código de bulto.');
-      return;
-    }
-    setBusy(true);
+  const handleLaneFinished = async () => {
+    if (finishingLane == null) return;
     try {
-      if (isOnline) {
-        await scanPackage(instanceId, code);
-        toast.success('Bulto registrado.');
-      } else {
-        await queueScan(instanceId, code);
-        toast.info('Bulto en cola offline.');
-      }
-      setBarcode('');
+      await markLaneInstalled(finishingLane);
+      toast.success('Trabajo terminado. Falta la firma del cliente.');
       await refresh();
-    } catch {
-      toast.error('No se pudo registrar el bulto.');
+    } catch (error: unknown) {
+      const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast.error(detail || 'No se pudo marcar el trabajo terminado (requiere conexión).');
     } finally {
-      setBusy(false);
+      setFinishingLane(null);
     }
   };
 
@@ -202,6 +200,31 @@ export default function FieldInstancePage() {
         </p>
       </section>
 
+      {(row.lanes ?? []).length > 0 && (
+        <section className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
+          {(row.lanes ?? []).map((lane) => (
+            <div key={lane.assignment_id} className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-slate-800">{LANE_LABEL[lane.lane] ?? lane.lane}</p>
+                <p className="text-xs text-slate-500">
+                  {LANE_STATUS[lane.status] ?? lane.status}{lane.leader_name ? ` · ${lane.leader_name}` : ''}
+                </p>
+              </div>
+              {lane.status === 'IN_PROGRESS' && (
+                <button
+                  type="button"
+                  disabled={!isOnline}
+                  onClick={() => setFinishingLane(lane.assignment_id)}
+                  className="min-h-12 shrink-0 rounded-xl bg-emerald-600 px-4 text-sm font-bold text-white disabled:opacity-40"
+                >
+                  Trabajo terminado
+                </button>
+              )}
+            </div>
+          ))}
+        </section>
+      )}
+
       <div className="mb-3 flex gap-1 overflow-x-auto pb-1">
         {tabs.map((t) => (
           <button
@@ -289,6 +312,10 @@ export default function FieldInstancePage() {
               <p className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm font-medium text-emerald-800">
                 Firmado: {formatDateTime(row.signed_received_at)}
               </p>
+            ) : !row.can_sign ? (
+              <p className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm font-medium text-amber-800">
+                La firma del cliente va después de marcar el trabajo terminado en cada carril de la casa.
+              </p>
             ) : (
               <>
                 <div className="rounded-xl border-2 border-slate-200 bg-white overflow-hidden">
@@ -338,22 +365,6 @@ export default function FieldInstancePage() {
 
       <div className="fixed bottom-0 left-0 right-0 border-t border-slate-200 bg-white/95 backdrop-blur p-4 ml-0 md:ml-64">
         <div className="max-w-lg mx-auto space-y-2">
-          <div className="flex gap-2">
-            <Input
-              value={barcode}
-              onChange={(e) => setBarcode(e.target.value)}
-              placeholder="Código de bulto / QR"
-              className="min-h-12 text-base"
-            />
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void handleScan()}
-              className="min-h-12 shrink-0 rounded-xl bg-slate-800 px-4 text-sm font-bold text-white disabled:opacity-50"
-            >
-              Escanear
-            </button>
-          </div>
           <button
             type="button"
             disabled={busy || (!isOnline && !hasLocalPending && pendingCount === 0)}
@@ -366,6 +377,15 @@ export default function FieldInstancePage() {
           </button>
         </div>
       </div>
+      <VConfirmDialog
+        isOpen={finishingLane != null}
+        title="Trabajo terminado"
+        message="¿La cuadrilla terminó este carril en la obra?"
+        consequence="Después solo falta la firma del cliente, que cierra la casa y libera la nómina de la cuadrilla."
+        confirmLabel="Sí, terminado"
+        onConfirm={handleLaneFinished}
+        onCancel={() => setFinishingLane(null)}
+      />
     </div>
   );
 }

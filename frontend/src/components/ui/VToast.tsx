@@ -85,7 +85,7 @@ const ToastViewport: React.FC<{
 }> = ({ toasts, onDismiss }) => (
   <div
     aria-live="polite"
-    className="pointer-events-none fixed bottom-4 right-4 z-[2147483000] flex w-full max-w-sm flex-col gap-3"
+    className="pointer-events-none fixed top-16 left-3 right-3 md:top-auto md:left-auto md:bottom-4 md:right-4 z-[2147483000] flex md:w-full max-w-sm flex-col gap-3"
   >
     {toasts.map((item) => (
       <div

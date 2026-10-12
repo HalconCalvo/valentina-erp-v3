@@ -18,8 +18,9 @@ def upload_to_gcs(file_obj, destination_blob_name, content_type="application/oct
     Busca las credenciales tanto en local como en la carpeta de secretos de Render.
     """
     if settings.LOCAL_SAFE_MODE:
+        # The local copy never touches the cloud; a placeholder URL lets its flows (evidence, signatures) be tested.
         logger.warning("upload_skipped_local_safe_mode", blob=destination_blob_name)
-        return None
+        return f"local-safe-mode://{destination_blob_name}"
     try:
         # 1. BUSQUEDA INTELIGENTE DE LA LLAVE
         # Opción A: Estamos en tu Mac (carpeta actual)

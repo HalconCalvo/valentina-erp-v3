@@ -12,22 +12,26 @@ from app.models.design import ProductVersion, VersionComponent
 from app.models.foundations import Client
 from app.models.material import Material
 from app.models.production import InstallationAssignment
+from app.repositories import installation_repository as installation_repo
 from app.models.sales import SalesOrder, SalesOrderItem, SalesOrderItemInstance
 from app.models.users import User, UserRole
 from app.schemas.field_schema import (
     FieldAssignmentRead,
     FieldClientBrief,
     FieldComponentsGroup,
+    FieldLaneInstalledRead,
+    FieldLaneRead,
     FieldMaterialLine,
     FieldMyAssignmentsRead,
     FieldSalesOrderBrief,
-    FieldScanPackageRead,
     FieldSyncPayload,
     FieldSyncRead,
 )
+from app.services import installation_service
 from app.services.cloud_storage import upload_to_gcs
 
-MX_TZ = ZoneInfo("America/Mexico_City")
+MX_TZ = ZoneInfo("America/Merida")
+SUPERVISOR_ROLES = {UserRole.MANAGER, UserRole.DIRECTOR}
 FIELD_ROLES = {
     UserRole.LOGISTICS,
     UserRole.PRODUCTION,
@@ -115,7 +119,19 @@ def _components_for_version(session: Session, version_id: Optional[int]) -> Fiel
     return FieldComponentsGroup(empaque=empaque, herrajes=herrajes)
 
 
-def _serialize_instance(session: Session, inst: SalesOrderItemInstance, start_utc: datetime, end_utc: datetime) -> FieldAssignmentRead:
+def _lanes(session: Session, inst: SalesOrderItemInstance, user: User) -> List[FieldLaneRead]:
+    rows = []
+    for lane in installation_repo.get_lanes(session, inst.id):
+        leader = session.get(User, lane.leader_user_id)
+        status = lane.status.value if hasattr(lane.status, "value") else str(lane.status)
+        rows.append(FieldLaneRead(assignment_id=lane.id, lane=lane.lane, status=status,
+                                  leader_name=leader.full_name if leader else None,
+                                  is_mine=lane.leader_user_id == user.id))
+    return rows
+
+
+def _serialize_instance(session: Session, inst: SalesOrderItemInstance, start_utc: datetime, end_utc: datetime,
+                        user: User) -> FieldAssignmentRead:
     item = session.get(SalesOrderItem, inst.sales_order_item_id)
     order = session.get(SalesOrder, item.sales_order_id) if item else None
     client = session.get(Client, order.client_id) if order and order.client_id else None
@@ -133,18 +149,18 @@ def _serialize_instance(session: Session, inst: SalesOrderItemInstance, start_ut
         lot=inst.lot,
         production_status=status,
         sales_order=FieldSalesOrderBrief(folio=folio, project_name=order.project_name if order else None),
-        client=FieldClientBrief(business_name=getattr(client, "business_name", None) if client else None),
+        client=FieldClientBrief(business_name=client.full_name if client else None),
         type=_install_type(inst, start_utc, end_utc) or "MDF",
         blueprint_path=blueprint_path,
         components=_components_for_version(session, version_id),
         evidence_photos_urls=list(inst.evidence_photos_urls or []),
         signed_received_at=inst.signed_received_at.isoformat() if inst.signed_received_at else None,
+        lanes=_lanes(session, inst, user),
+        can_sign=installation_service.all_lanes_installed(session, inst.id),
     )
 
 
-def get_my_assignments(session: Session, user: User) -> FieldMyAssignmentsRead:
-    assert_field_role(user)
-    start_utc, end_utc = _utc_window_for_mexico_day()
+def _today_instances(session: Session, start_utc: datetime, end_utc: datetime) -> List[SalesOrderItemInstance]:
     stmt = select(SalesOrderItemInstance).where(
         SalesOrderItemInstance.is_cancelled == False,  # noqa: E712
         or_(
@@ -154,13 +170,22 @@ def get_my_assignments(session: Session, user: User) -> FieldMyAssignmentsRead:
             & (SalesOrderItemInstance.scheduled_inst_stone < end_utc),
         ),
     )
-    instances = session.exec(stmt).all()
-    supervisor = user.role in {UserRole.MANAGER, UserRole.DIRECTOR}
-    out: List[FieldAssignmentRead] = []
-    for inst in instances:
-        if not supervisor and not _user_leads_today(session, user.id, inst, start_utc, end_utc):
-            continue
-        out.append(_serialize_instance(session, inst, start_utc, end_utc))
+    return session.exec(stmt).all()
+
+
+def get_my_assignments(session: Session, user: User) -> FieldMyAssignmentsRead:
+    """Houses installed today by the user's crew, plus any house already loaded for them and not signed yet
+    (an installation can take several days). Supervisors see every house of the day."""
+    assert_field_role(user)
+    start_utc, end_utc = _utc_window_for_mexico_day()
+    supervisor = user.role in SUPERVISOR_ROLES
+    chosen = {inst.id: inst for inst in _today_instances(session, start_utc, end_utc)
+              if supervisor or _user_leads_today(session, user.id, inst, start_utc, end_utc)}
+    for lane in installation_repo.get_active_lanes_led_by(session, user.id):
+        inst = session.get(SalesOrderItemInstance, lane.instance_id)
+        if inst and not inst.is_cancelled:
+            chosen.setdefault(inst.id, inst)
+    out = [_serialize_instance(session, inst, start_utc, end_utc, user) for inst in chosen.values()]
     return FieldMyAssignmentsRead(workday=_today_mexico().isoformat(), assignments=out)
 
 
@@ -180,23 +205,7 @@ def _upload_b64_image(instance_id: int, data: str, suffix: str) -> str:
     return url
 
 
-def sync_instance(session: Session, user: User, instance_id: int, payload: FieldSyncPayload) -> FieldSyncRead:
-    assert_field_role(user)
-    inst = session.get(SalesOrderItemInstance, instance_id)
-    if not inst:
-        raise HTTPException(status_code=404, detail="Instancia no encontrada.")
-    photo_urls: List[str] = []
-    for idx, photo in enumerate(payload.photos):
-        if photo.strip():
-            photo_urls.append(_upload_b64_image(instance_id, photo, f"photo_{idx}"))
-    if photo_urls:
-        current = list(inst.evidence_photos_urls or [])
-        inst.evidence_photos_urls = current + photo_urls
-    signed_at: Optional[datetime] = None
-    if payload.signature_base64 and payload.signature_base64.strip():
-        _upload_b64_image(instance_id, payload.signature_base64, "signature")
-        signed_at = datetime.utcnow()
-        inst.signed_received_at = signed_at
+def _merge_notes(inst: SalesOrderItemInstance, payload: FieldSyncPayload) -> None:
     note_parts: List[str] = []
     if payload.notes:
         note_parts.append(payload.notes.strip())
@@ -204,37 +213,34 @@ def sync_instance(session: Session, user: User, instance_id: int, payload: Field
         note_parts.extend(f"[Incidente] {x}" for x in payload.incidents if x.strip())
     if note_parts:
         prev = (inst.field_work_notes or "").strip()
-        merged = "\n".join([p for p in [prev, *note_parts] if p])
-        inst.field_work_notes = merged
-    if payload.scanned_packages:
-        scanned = list(inst.field_scanned_packages or [])
-        for code in payload.scanned_packages:
-            if code and code not in scanned:
-                scanned.append(code)
-        inst.field_scanned_packages = scanned
-    session.add(inst)
-    session.commit()
-    session.refresh(inst)
-    return FieldSyncRead(
-        success=True,
-        signed_at=signed_at.isoformat() if signed_at else None,
-        photo_urls=photo_urls,
-    )
+        inst.field_work_notes = "\n".join([p for p in [prev, *note_parts] if p])
 
 
-def scan_package(session: Session, user: User, instance_id: int, barcode: str) -> FieldScanPackageRead:
+def sync_instance(session: Session, user: User, instance_id: int, payload: FieldSyncPayload) -> FieldSyncRead:
+    """Evidence and notes are saved first; a signature then closes the house (installation_service)."""
     assert_field_role(user)
     inst = session.get(SalesOrderItemInstance, instance_id)
     if not inst:
         raise HTTPException(status_code=404, detail="Instancia no encontrada.")
-    code = barcode.strip()
-    if not code:
-        raise HTTPException(status_code=400, detail="Código de bulto requerido.")
-    scanned = list(inst.field_scanned_packages or [])
-    if code not in scanned:
-        scanned.append(code)
-    inst.field_scanned_packages = scanned
+    photo_urls = [_upload_b64_image(instance_id, photo, f"photo_{idx}")
+                  for idx, photo in enumerate(payload.photos) if photo.strip()]
+    if photo_urls:
+        inst.evidence_photos_urls = list(inst.evidence_photos_urls or []) + photo_urls
+    _merge_notes(inst, payload)
     session.add(inst)
     session.commit()
-    now = datetime.utcnow()
-    return FieldScanPackageRead(success=True, barcode=code, scanned_at=now.isoformat())
+    signed_at: Optional[str] = None
+    if payload.signature_base64 and payload.signature_base64.strip():
+        signed_at = installation_service.sign_and_close(session, instance_id, payload.signature_base64)["signed_at"]
+    return FieldSyncRead(success=True, signed_at=signed_at, photo_urls=photo_urls)
+
+
+def mark_lane_installed(session: Session, user: User, assignment_id: int) -> FieldLaneInstalledRead:
+    """'Trabajo terminado' of a loaded lane, by its leader (or a supervisor)."""
+    assert_field_role(user)
+    lane = session.get(InstallationAssignment, assignment_id)
+    if not lane:
+        raise HTTPException(status_code=404, detail="Asignación no encontrada.")
+    if user.role not in SUPERVISOR_ROLES and lane.leader_user_id != user.id:
+        raise HTTPException(status_code=403, detail="Solo el líder de la cuadrilla marca su trabajo terminado.")
+    return FieldLaneInstalledRead(**installation_service.mark_installed(session, assignment_id))

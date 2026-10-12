@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/Input';
 import { VTable, VTableColumn } from '@/components/ui/VTable';
 import { ReversalDialog, ShortageDialog, type ReversalInput } from '../components/BatchInventoryDialogs';
 import Modal from '@/components/ui/Modal';
-const STATUS_READY_TO_INSTALL = 'READY';
+const STATUS_READY_TO_INSTALL = 'READY_TO_INSTALL'; // batch status (its instances become READY)
 const STATUS_PACKING = 'PACKING';
 
 type MaterialFilter = 'ALL' | 'MDF' | 'PIEDRA';
@@ -984,6 +984,22 @@ export default function ProductionKanbanPage() {
                     🏷️ Solicitar Etiquetas
                   </button>
                 )}
+
+                {/* Herrajes: also dispatchable while packing (the batch detail is not reachable from this column) */}
+                {!isStone && (instance.hardware_dispatched ? (
+                  <p className="w-full mt-2 py-1.5 text-center text-xs font-bold text-emerald-700">
+                    ✅ Herrajes surtidos
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleDispatchHardware(instance)}
+                    disabled={dispatchingHardware === instance.id}
+                    className="w-full mt-2 py-1.5 rounded-lg text-xs font-bold border transition disabled:opacity-50 text-orange-700 bg-orange-50 border-orange-200 hover:bg-orange-100"
+                  >
+                    📦 Marcar herrajes surtidos
+                  </button>
+                ))}
               </div>
             );
                   })}

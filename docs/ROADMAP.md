@@ -128,6 +128,21 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
 - Pantalla: captura de cotización y partidas de orden de cambio piden el precio al servidor. Los PDF de cotización y
   OV no llevan costos (revisado). Probado en pantalla como vendedor (COT-0087 en la copia local).
 
-## 9. Campo — EN ESPERA (Gabriel, D15)
-- No se toca hasta nueva indicación. Regla ya decidida: la nómina de cuadrilla solo se libera con la firma de
-  recibido del cliente.
+## 9. Campo — reemplazada por la tarea 10 (Gabriel, 12/10)
+- Sale de espera; se trabaja dentro del recorrido de la tarea 10.
+
+## 10. PRIORIDAD 1 — Operar la segunda mitad del recorrido (Gabriel, 12/10) — hecha (2026-10-12, commit local)
+- Reporte: `docs/RECORRIDO_OPERACION.md` (OV-0039 de bautizo a firma; 12 fallos corregidos; D17).
+- Nunca se ha usado: Planeación → Producción → Logística → Campo. Con una OV real en la copia local se recorre
+  completa como la usaría cada puesto:
+  - Planeación: bautizo, lotes, fechas.
+  - Producción: entrada del lote, descarga de material, tablero, empaque, QR.
+  - Logística: agenda de cuadrillas, carga del camión escaneando.
+  - Campo (vista celular): fotos, firma del cliente, cierre.
+- Reglas: el escaneo de carga vive solo en Logística (patio); Campo es la obra (evidencias, firma, cierre).
+  D15: la nómina de cuadrilla solo se libera con la firma del cliente; ni la asignación ni la carga la generan.
+- Se corrige lo que falle en el camino; lo de negocio va a DECISIONES_PENDIENTES.
+- Entregable: reporte paso a paso (qué funcionó, qué se corrigió, qué queda para Gabriel).
+
+## 11. PRIORIDAD 2 — Indicadores del tablero de Dirección (con Gabriel) — pendiente
+- Revisar uno por uno, después de la tarea 10.

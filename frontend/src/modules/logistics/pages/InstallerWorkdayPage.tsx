@@ -1,19 +1,16 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   getMyWorkday,
   scanBundleQR,
   previewBundleScan,
-  uploadEvidencePhotos,
-  submitClientSignature,
-  markAssignmentInstalled,
   type WorkdayAssignment as WorkdayAssignmentRow,
 } from '../../../api/logistics-service';
 import QRScanner from '../components/QRScanner';
-import SignaturePad from '../components/SignaturePad';
-import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
-import { Input } from '@/components/ui/Input';
 
-type View = 'list' | 'detail' | 'qr' | 'confirm' | 'photos' | 'signature';
+/** Yard only: the leader loads the truck scanning a bundle of the house. Evidence, finished work and the client's
+ *  signature are recorded at the site, in Campo. */
+type View = 'list' | 'detail' | 'qr' | 'confirm';
 
 /** Fila del feed; incluye leader_name devuelto por el backend para DIRECTOR/GERENCIA. */
 type WorkdayAssignment = WorkdayAssignmentRow & {
@@ -29,11 +26,9 @@ export default function InstallerWorkdayPage() {
   const [view, setView] = useState<View>('list');
   const [preview, setPreview] = useState<any | null>(null);
   const [confirming, setConfirming] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showMarkInstalledConfirm, setShowMarkInstalledConfirm] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
 
   const userRole =
     JSON.parse(localStorage.getItem('user') || '{}')?.role ??
@@ -102,7 +97,7 @@ export default function InstallerWorkdayPage() {
     setConfirming(true);
     try {
       await scanBundleQR(assignmentId, preview.bundle_qr_uuid);
-      showMessage('🔵🔵 Carga confirmada. Instancia en tránsito.');
+      showMessage('🔵🔵 Carga confirmada. Fotos, trabajo terminado y firma se registran en Campo.');
       setPreview(null);
       setView('detail');
       const list = await load({ silent: true });
@@ -118,67 +113,10 @@ export default function InstallerWorkdayPage() {
     }
   };
 
-  const handlePhotoUpload = async (files: FileList | null) => {
-    if (!files?.length || !selected) return;
-    const photoArray = Array.from(files);
-    const instanceId = selected.instance_id;
-    const assignmentId = selected.assignment_id;
-    setUploading(true);
-    try {
-      const result = await uploadEvidencePhotos(instanceId, photoArray);
-      showMessage(
-        `✅ ${result.uploaded_count} foto(s) subida(s). ` +
-          `Total evidencia: ${result.total_evidence_photos}`
-      );
-      const list = await load({ silent: true });
-      setSelected((prev) => {
-        if (!prev) return null;
-        return list.find((a) => a.assignment_id === assignmentId) ?? prev;
-      });
-      setView('detail');
-    } catch {
-      showError('Error al subir las fotos. Intenta de nuevo.');
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-
-  const handleSignature = async (dataUrl: string) => {
-    if (!selected) return;
-    try {
-      await submitClientSignature(selected.assignment_id, dataUrl);
-      showMessage('🟢🟢 Firma recabada. Instancia cerrada. Nómina liberada.');
-      setView('list');
-      setSelected(null);
-      await load({ silent: true });
-    } catch (e: unknown) {
-      const err = e as { response?: { data?: { detail?: string } } };
-      showError(err?.response?.data?.detail || 'Error al guardar la firma.');
-    }
-  };
-
-  const handleMarkInstalled = async () => {
-    if (!selected) return;
-    const assignmentId = selected.assignment_id;
-    try {
-      await markAssignmentInstalled(assignmentId);
-      showMessage('🟢 Trabajo terminado. Esperando firma del cliente.');
-      const list = await load({ silent: true });
-      setSelected((prev) => {
-        if (!prev) return null;
-        return list.find((a) => a.assignment_id === assignmentId) ?? prev;
-      });
-    } catch (e: unknown) {
-      const err = e as { response?: { data?: { detail?: string } } };
-      showError(err?.response?.data?.detail || 'Error al marcar como instalado.');
-    }
-  };
-
   const statusBadge = (status: string) => {
     const map: Record<string, { label: string; color: string }> = {
       SCHEDULED: { label: 'Programado', color: 'bg-gray-200 text-gray-700' },
-      IN_PROGRESS: { label: 'En tránsito', color: 'bg-blue-100 text-blue-700' },
+      IN_PROGRESS: { label: '🔵🔵 Cargada', color: 'bg-blue-100 text-blue-700' },
       READY: { label: 'Listo', color: 'bg-blue-100 text-blue-700' },
       CARGADO: { label: '🔵🔵 Cargado', color: 'bg-blue-200 text-blue-800' },
       INSTALLED: { label: '🟢 Trabajo Terminado', color: 'bg-green-200 text-green-800' },
@@ -250,7 +188,7 @@ export default function InstallerWorkdayPage() {
         <>
           <Header title={pageTitle} />
           <p className="text-sm text-gray-500 mb-4 px-1">
-            Asignaciones activas (programadas y en tránsito).
+            Carga del camión: escanea el QR de un bulto de cada casa.
           </p>
           {assignments.length === 0 ? (
             <div className="text-center py-16 text-gray-400 text-sm">
@@ -376,43 +314,26 @@ export default function InstallerWorkdayPage() {
               )}
             </div>
             <div className="flex flex-col gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setView('qr')}
-                className="w-full py-4 rounded-2xl bg-blue-600 text-white font-semibold active:bg-blue-700"
-              >
-                Escanear QR del bulto
-              </button>
-              <button
-                type="button"
-                onClick={() => setView('photos')}
-                disabled={uploading}
-                className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-semibold active:bg-indigo-700 disabled:opacity-50"
-              >
-                Subir fotos de evidencia
-              </button>
-              {selected.assignment_status === 'CARGADO' && (
+              {selected.assignment_status === 'SCHEDULED' ? (
                 <button
                   type="button"
-                  onClick={() => setShowMarkInstalledConfirm(true)}
-                  className="w-full py-4 rounded-2xl bg-green-500 text-white font-semibold active:bg-green-600"
+                  onClick={() => setView('qr')}
+                  className="w-full py-4 rounded-2xl bg-blue-600 text-white font-semibold active:bg-blue-700"
                 >
-                  ✅ Trabajo Terminado
+                  Escanear QR del bulto
                 </button>
-              )}
-              {selected.assignment_status === 'INSTALLED' && !selected.all_lanes_installed && (
-                <div className="w-full py-4 rounded-2xl bg-yellow-50 border border-yellow-200 text-yellow-700 text-center text-sm font-semibold">
-                  🟡 Esperando que otros carriles terminen...
+              ) : (
+                <div className="rounded-2xl bg-blue-50 border border-blue-200 p-4 text-sm text-blue-800">
+                  <p className="font-semibold">Ya está cargada.</p>
+                  <p className="mt-1">Las fotos, el trabajo terminado y la firma del cliente se registran en Campo.</p>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/field')}
+                    className="mt-3 w-full py-3 rounded-xl bg-blue-600 text-white font-semibold active:bg-blue-700"
+                  >
+                    Ir a Campo
+                  </button>
                 </div>
-              )}
-              {selected.all_lanes_installed && (
-                <button
-                  type="button"
-                  onClick={() => setView('signature')}
-                  className="w-full py-4 rounded-2xl bg-emerald-600 text-white font-semibold active:bg-emerald-700"
-                >
-                  🟢🟢 Firma del cliente
-                </button>
               )}
             </div>
           </div>
@@ -471,7 +392,7 @@ export default function InstallerWorkdayPage() {
               <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 text-amber-800 text-sm font-semibold">
                 ⚠ Esta instancia está asignada a {(preview.equipo_asignado || []).join(' y ')}.
                 <span className="block font-normal mt-1">
-                  El Jefe de Producción debe reasignar el equipo para que puedas cargarla.
+                  Solo su líder confirma la carga; si cambió el equipo, Planeación lo reasigna.
                 </span>
               </div>
             )}
@@ -490,64 +411,6 @@ export default function InstallerWorkdayPage() {
         </>
       )}
 
-      {/* FOTOS */}
-      {view === 'photos' && selected && (
-        <>
-          <Header
-            title="Evidencia fotográfica"
-            onBack={() => setView('detail')}
-          />
-          <Input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            onChange={(e) => void handlePhotoUpload(e.target.files)}
-          />
-          <div className="flex flex-col gap-4 px-1">
-            <p className="text-sm text-gray-600">
-              Selecciona una o varias fotos de la instalación terminada.
-            </p>
-            <button
-              type="button"
-              disabled={uploading}
-              onClick={() => fileInputRef.current?.click()}
-              className="py-4 rounded-2xl bg-indigo-600 text-white font-semibold disabled:opacity-50"
-            >
-              {uploading ? 'Subiendo…' : 'Elegir fotos'}
-            </button>
-          </div>
-        </>
-      )}
-
-      {/* FIRMA */}
-      {view === 'signature' && selected && (
-        <>
-          <Header
-            title="Firma de conformidad"
-            onBack={() => setView('detail')}
-          />
-          <SignaturePad
-            onSave={(dataUrl) => void handleSignature(dataUrl)}
-            onCancel={() => setView('detail')}
-          />
-        </>
-      )}
-
-      <VConfirmDialog
-        isOpen={showMarkInstalledConfirm}
-        title="Trabajo terminado"
-        message="¿Confirmar que el trabajo físico está terminado?"
-        consequence="La asignación pasará a estado instalado y quedará pendiente la firma del cliente."
-        variant="default"
-        confirmLabel="Sí, confirmar"
-        onConfirm={async () => {
-          setShowMarkInstalledConfirm(false);
-          await handleMarkInstalled();
-        }}
-        onCancel={() => setShowMarkInstalledConfirm(false)}
-      />
     </div>
   );
 }

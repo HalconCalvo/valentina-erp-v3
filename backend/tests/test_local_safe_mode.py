@@ -36,9 +36,9 @@ def test_backup_is_skipped(safe_mode, monkeypatch):
     assert result["status"] == "skipped"
 
 
-def test_upload_returns_none_without_creating_client(safe_mode, monkeypatch):
+def test_upload_returns_placeholder_without_creating_client(safe_mode, monkeypatch):
     monkeypatch.setattr(cloud_storage.storage.Client, "from_service_account_json", _fail)
-    assert cloud_storage.upload_to_gcs(BytesIO(b"x"), "evidence/test.jpg") is None
+    assert cloud_storage.upload_to_gcs(BytesIO(b"x"), "evidence/test.jpg") == "local-safe-mode://evidence/test.jpg"
 
 
 def test_email_is_not_sent(safe_mode, monkeypatch):

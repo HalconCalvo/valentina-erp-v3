@@ -41,21 +41,13 @@ export async function syncInstance(instanceId: number, payload: SyncPayload) {
   return data as { success: boolean; signed_at?: string | null; photo_urls: string[] };
 }
 
-export async function scanPackage(instanceId: number, barcode: string) {
-  const { data } = await axiosClient.post(`/field/instances/${instanceId}/scan-package`, { barcode });
-  return data as { success: boolean; barcode: string; scanned_at: string };
+export async function markLaneInstalled(assignmentId: number) {
+  const { data } = await axiosClient.post(`/field/assignments/${assignmentId}/installed`);
+  return data as { ok: boolean; assignment_id: number; status: string; message: string };
 }
 
 export async function queueSync(instanceId: number, payload: SyncPayload): Promise<void> {
   await enqueuePending({ instanceId, kind: 'sync', payload: payload as unknown as Record<string, unknown> });
-}
-
-export async function queueScan(instanceId: number, barcode: string): Promise<void> {
-  await enqueuePending({
-    instanceId,
-    kind: 'scan',
-    payload: { barcode },
-  });
 }
 
 export async function flushPendingQueue(): Promise<number> {
@@ -74,11 +66,7 @@ export async function flushPendingQueue(): Promise<number> {
 }
 
 async function applyPendingItem(item: PendingSyncItem): Promise<void> {
-  if (item.kind === 'scan') {
-    const barcode = String(item.payload.barcode ?? '');
-    await scanPackage(item.instanceId, barcode);
-    return;
-  }
+  if (item.kind === 'scan') return; // loading is scanned in Logistics; old queued scans are dropped
   const p = item.payload as unknown as SyncPayload;
   await syncInstance(item.instanceId, {
     photos: p.photos ?? [],

@@ -4,9 +4,8 @@ from fastapi import APIRouter
 
 from app.core.deps import CurrentUser, SessionDep
 from app.schemas.field_schema import (
+    FieldLaneInstalledRead,
     FieldMyAssignmentsRead,
-    FieldScanPackagePayload,
-    FieldScanPackageRead,
     FieldSyncPayload,
     FieldSyncRead,
 )
@@ -30,11 +29,6 @@ def sync_instance(
     return field_service.sync_instance(session, current_user, instance_id, payload)
 
 
-@router.post("/instances/{instance_id}/scan-package", response_model=FieldScanPackageRead)
-def scan_package(
-    instance_id: int,
-    payload: FieldScanPackagePayload,
-    session: SessionDep,
-    current_user: CurrentUser,
-) -> Any:
-    return field_service.scan_package(session, current_user, instance_id, payload.barcode)
+@router.post("/assignments/{assignment_id}/installed", response_model=FieldLaneInstalledRead)
+def mark_lane_installed(assignment_id: int, session: SessionDep, current_user: CurrentUser) -> Any:
+    return field_service.mark_lane_installed(session, current_user, assignment_id)

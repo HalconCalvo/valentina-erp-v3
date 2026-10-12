@@ -292,7 +292,7 @@ def trigger_double_green(
     Acciones:
       A) Cambia el estatus de la instancia a CLOSED.
       B) Registra signed_received_at y warranty_started_at.
-      C) Mueve PayrollPayment vinculados a READY_TO_PAY.
+      C) Libera las comisiones ligadas a la instancia.
       D) Retorna un resumen de acciones para que el endpoint
          lo incluya en la respuesta (notificación a Administración).
     """

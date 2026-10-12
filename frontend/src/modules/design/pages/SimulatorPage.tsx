@@ -145,15 +145,16 @@ export default function SimulatorPage() {
   const resolveBatchTypeForSelection = (): 'MDF' | 'PIEDRA' | null => {
     const mdfIds = new Set(pendingByType.MDF.map(p => p.id));
     const piedraIds = new Set(pendingByType.PIEDRA.map(p => p.id));
-    let hasMdf = false;
-    let hasPiedra = false;
+    // An instance with both tracks is pending in both lists and fits either line; only single-track ones decide.
+    let onlyMdf = false;
+    let onlyPiedra = false;
     for (const id of selectedIds) {
-      if (mdfIds.has(id)) hasMdf = true;
-      if (piedraIds.has(id)) hasPiedra = true;
+      if (mdfIds.has(id) && !piedraIds.has(id)) onlyMdf = true;
+      if (piedraIds.has(id) && !mdfIds.has(id)) onlyPiedra = true;
     }
-    if (hasMdf && hasPiedra) return null;
-    if (hasPiedra) return 'PIEDRA';
-    if (hasMdf) return 'MDF';
+    if (onlyMdf && onlyPiedra) return null;
+    if (onlyPiedra) return 'PIEDRA';
+    if (onlyMdf) return 'MDF';
     return batchType;
   };
 
@@ -198,7 +199,7 @@ export default function SimulatorPage() {
         await productionService.updateBatchStatus(newBatch.id, 'ON_HOLD');
       }
 
-      toast.success(`Lote ${newBatch.folio} inyectado con éxito en Producción.`);
+      toast.success(`Lote ${newBatch.folio} creado en "Lote por producir"; Producción le da entrada en su tablero.`);
 
       setSelectedIds([]);
       setSimulationResult(null);
@@ -734,7 +735,7 @@ export default function SimulatorPage() {
                     }`}
                   >
                     {creating ? <RefreshCw className="animate-spin" size={18}/> : <Factory size={18}/>}
-                    {creating ? 'Inyectando...' : batchType === 'MDF' ? 'Crear Lote MDF' : 'Crear Lote Piedra'}
+                    {creating ? 'Creando lote...' : batchType === 'MDF' ? 'Crear Lote MDF' : 'Crear Lote Piedra'}
                   </button>
                 </div>
 

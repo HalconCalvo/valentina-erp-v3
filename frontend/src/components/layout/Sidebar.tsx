@@ -65,7 +65,7 @@ const roleAllowedPaths: Record<string, string[]> = {
   DESIGN: ['/field'],
 };
 
-export default function Sidebar() {
+export default function Sidebar({ mobileOpen = false, onCloseMobile }: { mobileOpen?: boolean; onCloseMobile?: () => void }) {
   const { config, fetchConfig, loading } = useFoundations();
   const location = useLocation();
   const navigate = useNavigate();
@@ -164,7 +164,10 @@ export default function Sidebar() {
 
   return (
     <>
-    <aside className="w-64 bg-white h-screen fixed left-0 top-0 flex flex-col border-r border-slate-200 z-50 transition-all">
+    {mobileOpen && (
+      <div className="md:hidden fixed inset-0 z-40 bg-slate-900/40" onClick={onCloseMobile} />
+    )}
+    <aside className={`w-64 bg-white h-screen fixed left-0 top-0 flex flex-col border-r border-slate-200 z-50 transition-transform md:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
       <div className="h-28 flex items-center justify-center p-6 border-b border-slate-100 bg-slate-50/30">
         <div className="flex items-center justify-center w-full h-full">
           {loading ? (

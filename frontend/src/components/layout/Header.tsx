@@ -1,12 +1,18 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Bell, Factory, Wifi, HelpCircle } from 'lucide-react';
+import { Search, Bell, Factory, Wifi, HelpCircle, Menu } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 
-export default function Header() {
+export default function Header({ onOpenMenu }: { onOpenMenu?: () => void }) {
     const navigate = useNavigate();
     return (
-        <header className="h-14 bg-white border-b border-slate-200 sticky top-0 z-30 px-6 flex items-center justify-between transition-all">
+        <header className="h-14 bg-white border-b border-slate-200 sticky top-0 z-30 px-3 md:px-6 flex items-center justify-between gap-2 transition-all">
+            {onOpenMenu && (
+                <button type="button" onClick={onOpenMenu} title="Menú"
+                    className="md:hidden p-2 -ml-1 rounded-lg text-slate-600 hover:bg-slate-100">
+                    <Menu size={20} />
+                </button>
+            )}
             
             {/* 1. IZQUIERDA: Buscador Global */}
             <div className="flex-1 max-w-lg">

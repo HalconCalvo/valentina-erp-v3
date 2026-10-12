@@ -3,6 +3,7 @@ import os
 
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("DEBUG", "true")
+os.environ["LOCAL_SAFE_MODE"] = "true"  # tests never touch the cloud (storage, backups, email)
 
 import pytest
 from fastapi.testclient import TestClient
@@ -15,6 +16,13 @@ from app.core.security import create_access_token, get_password_hash
 from app.main import app
 from app.models.foundations import Client, TaxRate
 from app.models.users import User, UserRole
+
+@pytest.fixture(autouse=True)
+def _never_touch_the_cloud(monkeypatch):
+    """Even if the environment says otherwise, uploads, backups and emails stay local in every test."""
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "LOCAL_SAFE_MODE", True)
+
 
 TEST_DIRECTOR_EMAIL = "director@test.local"
 TEST_DIRECTOR_PASSWORD = "DirectorPass123!"

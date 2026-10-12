@@ -20,7 +20,6 @@ from app.models.sales import (
     QuotationKind,
     QuotationStatus,
 )
-from app.models.production import InstallationAssignment, PayrollPayment, PayrollStatus
 from app.models.treasury import BankTransaction, TransactionType
 from app.models.users import User, UserRole
 from app.repositories import quotation_repository as quotation_repo
@@ -1181,20 +1180,7 @@ def register_progress_invoice(
         inst.customer_payment_id = new_cxc.id
         if invoice_folio:
             inst.administration_invoice_folio = invoice_folio
-        session.add(inst)
-        payroll_stmt = (
-            select(PayrollPayment)
-            .join(
-                InstallationAssignment,
-                PayrollPayment.installation_assignment_id == InstallationAssignment.id,
-            )
-            .where(InstallationAssignment.instance_id == inst.id)
-            .where(PayrollPayment.status == PayrollStatus.PENDING_SIGNATURE)
-        )
-        payroll_rows = session.exec(payroll_stmt).all()
-        for pp in payroll_rows:
-            pp.status = PayrollStatus.READY_TO_PAY
-            session.add(pp)
+        session.add(inst)  # crew payroll is released by the client's signature, not by invoicing (D15)
         linked.append({
             "instance_id": inst.id,
             "custom_name": inst.custom_name,
