@@ -1,10 +1,11 @@
 """Queries for installation lanes (assignments), their crews and crew payroll."""
 from typing import List, Optional
 
-from sqlmodel import Session, select
+from sqlmodel import Session, func, select
 
-from app.models.design import ProductVersion
+from app.models.design import ProductVersion, VersionComponent
 from app.models.foundations import Client, GlobalConfig
+from app.models.material import Material
 from app.models.production import InstallationAssignment, InstallationAssignmentStatus, PayrollPayment, PayrollStatus
 from app.models.sales import SalesOrder, SalesOrderItem, SalesOrderItemInstance
 
@@ -38,11 +39,18 @@ def get_global_config(session: Session) -> Optional[GlobalConfig]:
     return session.exec(select(GlobalConfig)).first()
 
 
-def get_installation_days(session: Session, instance: SalesOrderItemInstance) -> float:
-    """Days budgeted by the recipe version of the instance (1 when unknown)."""
+DAY_UNITS = ("día", "dia", "días", "dias")
+
+
+def get_recipe_installation_days(session: Session, instance: SalesOrderItemInstance, sku: str) -> Optional[float]:
+    """Days of the recipe's installation line (service line in days, e.g. INSTALACOCINA); None when it has none."""
     item = session.get(SalesOrderItem, instance.sales_order_item_id)
-    version = session.get(ProductVersion, item.origin_version_id) if item and item.origin_version_id else None
-    return float(version.installation_days) if version and version.installation_days else 1.0
+    if not item or not item.origin_version_id:
+        return None
+    return session.exec(select(func.sum(VersionComponent.quantity))
+                        .join(Material, Material.id == VersionComponent.material_id)
+                        .where(VersionComponent.version_id == item.origin_version_id, Material.sku == sku,
+                               func.lower(Material.usage_unit).in_(DAY_UNITS))).one()
 
 
 def get_order_and_client(session: Session, instance: SalesOrderItemInstance):

@@ -4569,3 +4569,30 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 - Carril de piedra probado en pantalla (Calle 20, 103): corregidos editor de Planeación (ocultaba IM), carga de piedra con
   el QR del manifiesto, carga del segundo carril con la casa ya cargada, firma exige todos los carriles de la receta,
   botón de terminado solo en el carril propio. Nómina: muebles $800; piedra $800 + $700, lista para pagar
+
+---
+## SESIÓN 2026-10-12 (parte 20)
+- D18 corregida por Gabriel: los días de instalación ya están en la receta como servicio en "Día". La nómina de cada
+  carril = días de su línea (INSTALACOCINA muebles, INSTALAGRANITO piedra) × tarifa diaria. installation_days sin uso.
+  Sin línea: 1 día y la nómina lo avisa. Administración ve "días × tarifa" en cada renglón
+- Producción (lectura): 331 recetas activas; 7 de muebles sin INSTALACOCINA, 8 de piedra sin INSTALAGRANITO, ninguna en
+  otra unidad; 4 de Nadira con INSTALAGRANITO sin piedra (D19)
+- Probado en pantalla con Santa Loreto cocina lote 110: muebles 0.5 día ($400 + $350), piedra 1 día ($800 + $700)
+- Visto: PRODUCTION no puede mover lotes en el tablero (D20); "Listo" acepta una casa PENDING (ROADMAP)
+- Tests: 300 backend, 17 frontend, build OK, tsc 163
+
+---
+## 2026-10-12 — PROPUESTA PARA DESPUÉS: AYUDA "?" DE VALENTINA (aprobada por Gabriel, en espera)
+
+Hoy el "?" abre un mapa técnico del sistema (Manual de Valentina). Se convertirá en ayuda real en tres niveles:
+1. Ayuda contextual: el "?" abre la ayuda de la pantalla actual — qué es, quién la usa y pasos de las tareas
+   comunes (p. ej. Ingeniería Financiera: cómo autorizar una cotización, cómo corregir un precio de material).
+2. Manual general en lenguaje sencillo: recorrido de la obra (Diseño → Ventas → Planeación → Compras →
+   Producción → Logística → Campo → Administración; Dirección y Gerencia supervisan) y cada módulo.
+   Base: presentación "Valentina — El sistema y sus módulos" (12/10). Reemplaza el mapa actual.
+3. Preguntas frecuentes y errores comunes ("no me deja autorizar", "por qué no veo costos", "qué es Sobreprecio %").
+Orden: empezar por los módulos que ya operan (Ventas, Compras y Almacén, Diseño, Administración, Gerencia);
+los demás conforme se operen. Claude Code redacta; Gabriel o el jefe de cada área aprueba los textos.
+
+Anotado también para la revisión de indicadores de Dirección: numeración repetida en el tablero
+(dos "6." y dos "7.") y "Eficiencia Fábrica" en $0.00.

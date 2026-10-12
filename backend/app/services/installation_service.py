@@ -33,6 +33,8 @@ DEFAULT_HELPER_RATE = 700.0
 WARRANTY_DAYS = 365
 SHORT_CODE_LENGTH = 8  # characters of the instance QR printed on each label
 STONE_LANE = "IP"
+INSTALLATION_SKU = {"IM": "INSTALACOCINA", "IP": "INSTALAGRANITO"}  # D18: recipe line in days, per lane
+FALLBACK_DAYS = 1.0
 LOADABLE_INSTANCE = {InstanceStatus.READY, InstanceStatus.CARGADO}  # CARGADO: the other lane already left
 BATCH_IN_FACTORY = {ProductionBatchStatus.PLANNED, ProductionBatchStatus.DRAFT, ProductionBatchStatus.ON_HOLD,
                     ProductionBatchStatus.IN_PRODUCTION}
@@ -190,22 +192,34 @@ def store_signature(instance_id: int, signature: str) -> str:
     return url
 
 
-def _payroll_row(lane, user_id: int, kind: PayrollPaymentType, days: float, rate: float) -> PayrollPayment:
+def _payroll_row(lane, user_id: int, kind: PayrollPaymentType, days: float, rate: float,
+                 note: Optional[str]) -> PayrollPayment:
     return PayrollPayment(installation_assignment_id=lane.id, user_id=user_id, payment_type=kind,
                           days_worked=days, daily_rate=rate, total_amount=round(days * rate, 2),
-                          status=PayrollStatus.READY_TO_PAY)
+                          status=PayrollStatus.READY_TO_PAY, admin_notes=note)
+
+
+def lane_installation_days(session: Session, lane: InstallationAssignment,
+                           instance: SalesOrderItemInstance) -> tuple:
+    """D18: days of the lane's installation line in the recipe (INSTALACOCINA furniture, INSTALAGRANITO stone).
+    A recipe without it pays 1 day and the payroll says so, so Design corrects the recipe."""
+    sku = INSTALLATION_SKU.get(lane.lane, INSTALLATION_SKU["IM"])
+    days = repo.get_recipe_installation_days(session, instance, sku)
+    if days:
+        return float(days), None
+    return FALLBACK_DAYS, f"La receta no tiene la línea {sku} en días: se tomó 1 día. Diseño debe corregir la receta."
 
 
 def create_crew_payroll(session: Session, lane: InstallationAssignment, instance: SalesOrderItemInstance) -> int:
-    """D15: the signature releases the crew's pay (days of the recipe × rate of the tabulator); once per lane."""
+    """D15: the signature releases the crew's pay (days of the lane's installation line × daily rate); once per lane."""
     if repo.get_live_payroll(session, lane.id):
         return 0
     config = repo.get_global_config(session)
     leader_rate = config.default_leader_daily_rate if config else DEFAULT_LEADER_RATE
     helper_rate = config.default_helper_daily_rate if config else DEFAULT_HELPER_RATE
-    days = repo.get_installation_days(session, instance)
-    rows = [_payroll_row(lane, lane.leader_user_id, PayrollPaymentType.LEADER, days, leader_rate)]
-    rows += [_payroll_row(lane, uid, PayrollPaymentType.HELPER, days, helper_rate)
+    days, note = lane_installation_days(session, lane, instance)
+    rows = [_payroll_row(lane, lane.leader_user_id, PayrollPaymentType.LEADER, days, leader_rate, note)]
+    rows += [_payroll_row(lane, uid, PayrollPaymentType.HELPER, days, helper_rate, note)
              for uid in (lane.helper_1_user_id, lane.helper_2_user_id) if uid]
     session.add_all(rows)
     return len(rows)

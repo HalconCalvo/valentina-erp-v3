@@ -206,7 +206,7 @@ def create_correction(
     Caller commits."""
     version = ProductVersion(
         master_id=source.master_id, version_name=f"{source.version_name} (corr. {label})",
-        status=VersionStatus.READY, is_active=True, installation_days=source.installation_days,
+        status=VersionStatus.READY, is_active=True,
         blueprint_path=source.blueprint_path, commercial_description=source.commercial_description,
         replaces_version_id=source.id, correction_note=note, corrected_at=datetime.utcnow(),
         corrected_by_user_id=user.id, corrected_in_quotation_id=quotation_id,

@@ -6,7 +6,9 @@ from sqlmodel import select
 
 from app.core.config import settings
 from app.core.security import create_access_token, get_password_hash
+from app.models.design import VersionComponent
 from app.models.foundations import GlobalConfig
+from app.models.material import Material, ProductionRoute
 from app.models.production import InstallationAssignment, InstallationAssignmentStatus, PayrollPayment, PayrollStatus
 from app.models.sales import InstanceStatus, SalesOrderItem, SalesOrderItemInstance
 from app.models.users import User, UserRole
@@ -123,6 +125,8 @@ def test_signature_closes_the_house_and_creates_payroll_ready_to_pay(client_fixt
     assert done.status == InstallationAssignmentStatus.COMPLETED and done.client_signature_url
     rows = sorted((p.total_amount, p.status) for p in _payroll(session_fixture))
     assert rows == [(600.0, PayrollStatus.READY_TO_PAY), (900.0, PayrollStatus.READY_TO_PAY)]
+    # the test recipe has no INSTALACOCINA line: 1 day and the payroll says the recipe needs correcting
+    assert all("INSTALACOCINA" in p.admin_notes for p in _payroll(session_fixture))
 
 
 def test_progress_invoice_does_not_touch_payroll(client_fixture, session_fixture, auth_header_director,
@@ -194,3 +198,38 @@ def test_a_house_with_stone_is_not_signed_without_its_stone_lane(client_fixture,
                                  json={"signature_base64": "data:image/png;base64,iVBORw0KGgo="})
     assert signed.status_code == 200, signed.text
     assert len(_payroll(session_fixture)) == 3  # IM leader + helper, IP leader
+
+
+def _installation_line(session, version_id: int, sku: str, days: float, unit: str = "Día") -> None:
+    material = Material(sku=sku, name=f"Instalación {sku}", category="Proceso", production_route=ProductionRoute.PROCESO,
+                        purchase_unit=unit, usage_unit=unit, current_cost=1600.0)
+    session.add(material)
+    session.commit()
+    session.add(VersionComponent(version_id=version_id, material_id=material.id, quantity=days))
+    session.commit()
+
+
+def test_crew_payroll_takes_the_days_of_each_lane_installation_line(client_fixture, session_fixture,
+                                                                    auth_header_director, seed_client_and_tax):
+    """D18: furniture pays the INSTALACOCINA days, stone the INSTALAGRANITO days, × the daily rate."""
+    instance, im_lane, im_leader, stone_batch, stone_leader, stone_headers = _two_lane_house(
+        client_fixture, session_fixture, auth_header_director, seed_client_and_tax)
+    version_id = session_fixture.get(SalesOrderItem, instance.sales_order_item_id).origin_version_id
+    _installation_line(session_fixture, version_id, "INSTALACOCINA", 1.5)
+    _installation_line(session_fixture, version_id, "INSTALAGRANITO", 0.5)
+    stone_batch.status = "PACKING"
+    ip_lane = InstallationAssignment(instance_id=instance.id, lane="IP", assignment_date=datetime(2026, 10, 12, 9),
+                                     leader_user_id=stone_leader.id)
+    session_fixture.add_all([stone_batch, ip_lane])
+    session_fixture.commit()
+    for lane_id, headers, code in ((im_lane.id, im_leader, f"{QR}-1"), (ip_lane.id, stone_headers, QR[:8])):
+        assert client_fixture.post(f"{API}/logistics/equipos/{lane_id}/scan-qr", headers=headers,
+                                   json={"bundle_qr_uuid": code}).status_code == 200
+        assert client_fixture.post(f"{API}/field/assignments/{lane_id}/installed", headers=headers).status_code == 200
+    signed = client_fixture.post(f"{API}/field/instances/{instance.id}/sync", headers=stone_headers,
+                                 json={"signature_base64": "data:image/png;base64,iVBORw0KGgo="})
+    assert signed.status_code == 200, signed.text
+    rows = sorted((p.installation_assignment_id, p.payment_type.value, p.days_worked, p.total_amount, p.admin_notes)
+                  for p in _payroll(session_fixture))
+    assert rows == sorted([(im_lane.id, "LEADER", 1.5, 1350.0, None), (im_lane.id, "HELPER", 1.5, 900.0, None),
+                           (ip_lane.id, "LEADER", 0.5, 450.0, None)])

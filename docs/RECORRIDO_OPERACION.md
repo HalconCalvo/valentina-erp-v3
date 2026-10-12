@@ -122,15 +122,31 @@ ni la carga la generan.
   hereda "Etiquetas solicitadas" de la de muebles de la misma casa; el "Track piedra" del editor hereda el estado
   general de la casa (el código lo marca como aproximación).
 
-## Nómina de cuadrilla: de dónde salen los montos
-- Monto = días de instalación de la receta × tarifa diaria.
-- Tarifas: Parámetros Globales → "Tarifa Líder / día" ($800) y la del ayudante ($700) (`GlobalConfig`), solo Dirección.
-- Días: `installation_days` de la versión de la receta; **no hay pantalla para capturarlo** y las 367 recetas de
-  producción tienen 1 día (D18).
+## Nómina de cuadrilla: de dónde salen los montos (D18, resuelta)
+- Monto de cada carril = días de su línea de instalación en la receta × tarifa diaria. Muebles: INSTALACOCINA; piedra:
+  INSTALAGRANITO (servicios en "Día"). Tarifas: Parámetros Globales ($800 líder, $700 ayudante), solo Dirección.
+- Sin la línea: se paga 1 día y la nómina muestra "Receta sin línea de instalación". Administración ve en cada renglón
+  "días × tarifa".
+- Probado en pantalla (Santa Loreto cocina lote 110, receta con 0.5 día de muebles y 1 día de piedra): carga de los dos
+  carriles en Logística, trabajo terminado y firma en Campo; nómina por pagar: muebles $400 + $350, piedra $800 + $700.
+- Producción (solo lectura, 331 recetas activas "Listas"; las dos líneas están en "Día", ninguna en otra unidad).
+  Recetas que Diseño tendría que corregir:
+  - Muebles sin INSTALACOCINA (7): #385 Alacena 110 MOD E; #12 Baño LV-02 (Rec 2); #400 Baño Rec 1 y 2 111 MOD D;
+    #399 Baño Rec Ppal 111 MOD D; #51 Laurel Plus Cocina V1.0 (tampoco tiene INSTALAGRANITO); #307 LOTE 333 C2a -
+    CLOSET REC 1; #312 LOTE 333 C2a - CLOSET REC 2.
+  - Piedra sin INSTALAGRANITO (8): #51 Laurel Plus Cocina V1.0; #52 Laurel Plus Cocina "C/Gabinetes Superiores y
+    Campana"; #53 Balché Plus Cocina; #46 Chaká Cocina; #48 Fresno Cocina; #9 Guayacán Plus Cocina; #70 Kabah Meseta
+    Baño; #71 Palenque Meseta Baño.
+  - Con INSTALAGRANITO pero sin piedra en la receta (4, Nadira: #197, #201, #202, #231): nunca piden carril de piedra
+    (D19).
+  - Las 4 de electrodomésticos (#224, #227, #229, #230) no llevan instalación: correcto.
+- Cantidades en las recetas: de 0.2 a 5 días (muebles: 95 con 0.5 y 85 con 1; piedra: 38 con 1).
 
 ## Queda para Gabriel
 1. D17 aprobada (2026-10-12). El PNG de prueba se borró de la nube con autorización de Gabriel.
-2. **D18:** días de instalación por receta (hoy todas en 1 día).
+2. **D18 resuelta:** la nómina toma los días de la línea de instalación de la receta. **D19** (Nadira) y **D20**
+   (Producción no mueve sus lotes) pendientes.
 3. Carril de piedra y red de seguridad de herrajes: probados (ver arriba).
 4. **Dato a sanear:** en la copia local "Tapacanto 1 mm color" tiene existencia −555.
-5. **Visto sin cambio:** la barra "Bautizo masivo" del Simulador recorre la lista al marcar la primera casa.
+5. **Visto sin cambio:** "Listo para instalarse" acepta una casa cuyo lote ni entró a producción (no descarga
+   material); anotado en ROADMAP. La barra "Bautizo masivo" del Simulador recorre la lista al marcar la primera casa.

@@ -530,6 +530,19 @@ export const PayrollAuditPanel: React.FC<Props> = ({
         render: (r) => r.instance_name || '—',
       },
       {
+        // D18: days of the recipe's installation line × daily rate
+        key: 'basis',
+        label: 'Cálculo',
+        render: (r) => (
+          <span className="block text-xs text-slate-600" title={r.admin_notes || undefined}>
+            {r.days_worked} {r.days_worked === 1 ? 'día' : 'días'} × {fmt(r.daily_rate)}
+            {r.admin_notes?.includes('no tiene la línea') && (
+              <span className="block text-amber-700">Receta sin línea de instalación</span>
+            )}
+          </span>
+        ),
+      },
+      {
         key: 'total',
         label: 'Total',
         render: (r) => (

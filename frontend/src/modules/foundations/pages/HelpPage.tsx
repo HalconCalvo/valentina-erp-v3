@@ -27,7 +27,7 @@ const MODULE_CONTENT: Record<string, ModuleInfo> = {
       { name: 'IVA Default (16%)', desc: 'Tasa de IVA aplicada por defecto al crear cotizaciones y facturas. Se puede cambiar por línea.' },
       { name: 'Factor Tapacanto (25 ml/hoja)', desc: 'Metros lineales de tapacanto por hoja de MDF. Lo usa el costeo de materiales en las recetas de Diseño.' },
       { name: 'Metas Financieras', desc: 'Meta de ventas del año y ventas del año anterior. Alimentan los KPIs de Dirección y Gerencia.' },
-      { name: 'Nómina a Destajo', desc: 'Tarifas diarias: Líder $800/día, Ayudante $700/día. Se usan en el renglón INSTALACOCINA de las recetas.' },
+      { name: 'Nómina a Destajo', desc: 'Tarifas diarias del líder y del ayudante. La nómina de la cuadrilla, al firmar el cliente, es: días del renglón de instalación de la receta (INSTALACOCINA para muebles, INSTALAGRANITO para piedra) × tarifa diaria.' },
     ],
     tip: 'Guarda todos los cambios con un solo botón "Guardar Cambios" al final de la página.',
   },

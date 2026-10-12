@@ -41,18 +41,33 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 - **Reversible:** sí (aplicada A).
 - **Estado:** aprobada (2026-10-12, A).
 
-### D18. Días de instalación por receta (base de la nómina de cuadrilla) — 2026-10-12 — ROADMAP tarea 10
-- **Contexto:** la nómina de cuadrilla = días de instalación de la receta × tarifa diaria (Parámetros Globales →
-  "Tarifa Líder / día" $800 y ayudante $700, solo DIRECTOR). Los días viven en la versión de la receta
-  (`installation_days`), pero ninguna pantalla permite capturarlos: las 367 recetas de producción tienen 1 día. Una
-  cocina que lleva 3 días pagaría 1.
-- **Opciones:** A) capturar "Días de instalación" en el editor de recetas (Diseño), por versión. B) que Planeación
-  capture los días reales al asignar la cuadrilla. C) dejar 1 día fijo.
-- **Recomendación:** A (el costo de instalación queda en la receta y en el precio); Planeación solo asigna.
-- **Reversible:** sí. No aplicada (cambia cuánto se paga a las cuadrillas).
+### D19. Recetas con cubierta de granito sin piedra en la receta (Nadira) — 2026-10-12 — ROADMAP tarea 10
+- **Contexto:** 4 recetas activas de Nadira (#197 "COCINA NADIRA GRANITO", #201, #202, #231) llevan la línea
+  INSTALAGRANITO pero ningún material de piedra (solo procesos), así que el sistema no las marca "con piedra": Planeación
+  no programa el carril de piedra y esa instalación nunca genera nómina. Están en 6 partidas de OV.
+- **Opciones:** A) que la línea INSTALAGRANITO también haga que la receta necesite el carril de piedra.
+  B) que Diseño agregue la piedra a esas recetas. C) dejarlas así (la cuadrilla de piedra se paga por fuera).
+- **Recomendación:** A (la línea de instalación ya dice que hay trabajo de piedra en obra).
+- **Reversible:** sí. No aplicada (cambia qué casas generan nómina de piedra).
+- **Estado:** pendiente
+
+### D20. Producción no puede mover sus lotes en el tablero — 2026-10-12 — ROADMAP tarea 10
+- **Contexto:** mover un lote entre columnas (a producción, a empaque) solo lo permiten DIRECTOR, MANAGER, ADMIN y
+  DESIGN; el rol PRODUCTION recibe "No tienes permisos". En la prueba de hoy hubo que moverlo como Dirección.
+- **Opciones:** A) agregar PRODUCTION (entrada a producción y empaque). B) dejarlo así.
+- **Recomendación:** A. Las autorizaciones en negativo siguen siendo solo de DIRECTOR/MANAGER.
+- **Reversible:** sí. No aplicada (permisos por rol).
 - **Estado:** pendiente
 
 ## Resueltas
+
+### D18. Días de instalación por receta (base de la nómina de cuadrilla) — 2026-10-12 — ROADMAP tarea 10
+- **Estado:** resuelta por Gabriel (2026-10-12): los días ya están en la receta como línea de servicio en "Día"
+  (INSTALACOCINA para muebles, INSTALAGRANITO para piedra). Nómina de cada carril = días de su línea × tarifa diaria
+  (líder y ayudante, Parámetros Globales). No se crea campo; `installation_days` queda sin uso.
+- Aplicado: una receta sin la línea paga 1 día y la nómina lo dice ("Receta sin línea de instalación") para que Diseño
+  la corrija. Producción (lectura, 331 recetas activas): 7 con muebles sin INSTALACOCINA y 8 con piedra sin
+  INSTALAGRANITO; ninguna en otra unidad. Lista en `docs/RECORRIDO_OPERACION.md`.
 
 ### D16. Saldo que cuenta como pagado — 2026-10-12 — ROADMAP tarea 7
 - **Contexto:** facturas y OVs legacy quedan con centavos de saldo (p. ej. OV-0131: $0.60) y no se daban por pagadas.

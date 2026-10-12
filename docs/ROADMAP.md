@@ -133,6 +133,10 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
 
 ## 10. PRIORIDAD 1 — Operar la segunda mitad del recorrido (Gabriel, 12/10) — hecha (2026-10-12, commit local)
 - Reporte: `docs/RECORRIDO_OPERACION.md` (OV-0039 de bautizo a firma; 12 fallos corregidos; D17).
+- 2026-10-12: D18 resuelta: la nómina de cada carril toma los días de la línea INSTALACOCINA / INSTALAGRANITO de la
+  receta. Pendientes vistos: D19 (Nadira), D20 (Producción no mueve lotes); y `PATCH /production/instances/{id}/ready`
+  acepta una casa PENDING (su lote sin entrar a producción, sin descarga de material): debe exigir que el lote
+  esté en empaque.
 - Nunca se ha usado: Planeación → Producción → Logística → Campo. Con una OV real en la copia local se recorre
   completa como la usaría cada puesto:
   - Planeación: bautizo, lotes, fechas.

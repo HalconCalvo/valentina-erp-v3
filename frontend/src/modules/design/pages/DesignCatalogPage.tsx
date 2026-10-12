@@ -310,7 +310,6 @@ const DesignCatalogPage: React.FC = () => {
                 versions: (m.versions || []).map(v => ({
                     version_name: v.version_name,
                     status: v.status,
-                    installation_days: v.installation_days || 1,
                     components: (v.components || []).map(c => ({
                         material_id: c.material_id,
                         quantity: c.quantity
@@ -338,6 +337,11 @@ const DesignCatalogPage: React.FC = () => {
         };
     };
 
+    /** D18: installation days are the recipe's service line in days (INSTALACOCINA, INSTALAGRANITO). */
+    const installationDays = (v: { components?: { material_id: number; quantity: number }[] }, sku: string) =>
+        (v.components || []).filter(c => getMaterialBySku(c.material_id).sku === sku)
+            .reduce((sum, c) => sum + c.quantity, 0);
+
     const handleBackupExcel = () => {
         const productosData = masters.map(m => ({
             'ID':         m.id,
@@ -361,7 +365,8 @@ const DesignCatalogPage: React.FC = () => {
                     'Versión':          v.version_name,
                     'Status':           v.status,
                     'Costo Estimado':   v.estimated_cost || 0,
-                    'Días Instalación': v.installation_days || 1,
+                    'Días Instalación Muebles': installationDays(v, 'INSTALACOCINA'),
+                    'Días Instalación Piedra':  installationDays(v, 'INSTALAGRANITO'),
                     'Tiene MDF':        v.has_mdf_components ? 'SÍ' : 'NO',
                     'Tiene Piedra':     v.has_stone_components ? 'SÍ' : 'NO',
                 });
