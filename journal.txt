@@ -4453,3 +4453,27 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 
 ### Lección:
 - Cuando Gabriel sale, el asesor puede ver la Terminal pero no escribir en ella: antes de salir, Gabriel deja en cola a Claude Code la instrucción de seguir el ROADMAP sin detenerse
+
+---
+## SESIÓN 2026-10-12 (parte 15) — REFACTOR DE CxP Y ABONOS (sin cambio de comportamiento)
+
+### Decisiones registradas:
+- D14 puntos 5 y 6 aprobados por Gabriel (saldo OV = total − abonos vigentes; facturas saneadas sin comisión)
+- D14 preguntas 1–4 y 7–11 con contabilidad (Excel enviado el 12/10): incluye folio 30899, OV-0019 ($81,517.50),
+  fondo de caja chica ($5,000 vs $6,000) y Proveedor Prueba 5E
+
+### Hecho (commits locales; push con el siguiente lote después de las 18:00):
+- finance.py (873 → 79 líneas): la lógica pasa a supplier_payment_service (solicitar, Fast-Track, editar, autorizar,
+  ejecutar, cancelar factura), payable_report_service (sincronización, tablero, listados, partidas recibidas),
+  supplier_credit_note_service y supplier_payment_repository. Se borra finance_service.py (solo era un comentario)
+- sales_service.register_installment (~110 → ~40 líneas) en 4 ayudantes; misma lógica
+- 9 tests de caracterización nuevos escritos ANTES de mover (286 en total, todos pasan)
+- Verificado en la copia local: las respuestas de CxP (tablero, solicitudes, facturas abiertas, partidas recibidas)
+  son idénticas byte a byte con el código anterior y el nuevo
+- Único cambio de conducta: NC sin monto daba error 500; ahora 400 "El monto de la NC debe ser mayor a cero"
+
+### Pendiente:
+- Prueba en pantalla de CxP antes del push: la extensión de Chrome no estaba conectada
+
+### Lección:
+- La copia local se apaga al reiniciar la Mac: encender PostgreSQL 16 (pg_ctl, puerto 5433) antes de run_local.sh

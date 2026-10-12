@@ -877,9 +877,7 @@ def liberar_comision_anticipo(
     _add_cxc_commissions(session, order, payment.id, base_con_iva, is_advance=True)
 
 
-def register_installment(
-    session: Session, cxc_id: int, payload: PaymentPayload, current_user: User
-) -> dict:
+def _open_cxc(session: Session, cxc_id: int):
     cxc = sales_repo.get_cxc_by_id(session, cxc_id)
     if not cxc:
         raise HTTPException(status_code=404, detail="Factura no encontrada.")
@@ -887,109 +885,101 @@ def register_installment(
         raise HTTPException(status_code=409, detail="La factura está cancelada.")
     if cxc.status == CXCStatus.PAID:
         raise HTTPException(status_code=409, detail="La factura ya está saldada.")
+    return cxc
 
+
+def _deposit_installment(session: Session, cxc, order, inst: CustomerPaymentInstallment,
+                         payload: PaymentPayload) -> None:
+    """The installment enters the bank account: bank movement, account balance, invoice's first movement."""
+    account = sales_repo.get_bank_account_by_id(session, payload.account_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Cuenta bancaria no encontrada.")
+    type_labels = {PaymentType.ADVANCE: "Anticipo", PaymentType.PROGRESS: "Avance de obra",
+                   PaymentType.FULL: "Factura 100%"}
+    tipo = type_labels.get(cxc.payment_type, str(cxc.payment_type))
+    proyecto = order.project_name if order else "—"
+    bank_tx = BankTransaction(
+        account_id=account.id, transaction_type=TransactionType.IN, amount=inst.amount, reference=payload.reference,
+        description=f"Abono {tipo} — {proyecto} — Folio {cxc.invoice_folio or 'S/F'}",
+        transaction_date=payload.payment_date or datetime.utcnow(),
+        related_entity_type="CUSTOMER_PAYMENT", related_entity_id=cxc.id)
+    session.add(bank_tx)
+    session.flush()
+    inst.bank_transaction_id = bank_tx.id
+    account.current_balance = float(account.current_balance or 0.0) + inst.amount
+    session.add(account)
+    if cxc.treasury_transaction_id is None:
+        session.flush()
+        cxc.treasury_transaction_id = bank_tx.id
+
+
+def _link_paid_instances(session: Session, cxc, instance_ids: List[int]) -> None:
+    """Instances paid by this invoice (already linked ones keep their invoice)."""
+    for iid in instance_ids:
+        inst_obj = sales_repo.get_instance_by_id(session, iid)
+        if not inst_obj:
+            raise HTTPException(status_code=404, detail=f"Instancia {iid} no encontrada.")
+        if inst_obj.customer_payment_id is not None:
+            continue
+        item_obj = sales_repo.get_item_by_id(session, inst_obj.sales_order_item_id)
+        if not item_obj or item_obj.sales_order_id != cxc.sales_order_id:
+            raise HTTPException(status_code=422, detail=f"La instancia {iid} no pertenece a esta orden.")
+        inst_obj.customer_payment_id = cxc.id
+        session.add(inst_obj)
+
+
+def _mark_cxc_paid(session: Session, cxc, order, payload: PaymentPayload, credited: float, amortized: float) -> None:
+    """Paid invoice: commission on the net (amount − credit notes − amortized advance), once; a paid advance
+    moves the order from waiting the advance to sold."""
+    cxc.status = CXCStatus.PAID
+    cxc.payment_date = payload.payment_date or datetime.utcnow()
+    if not cxc.commission_paid and order:
+        session.flush()
+        is_advance = cxc.payment_type == PaymentType.ADVANCE
+        _add_cxc_commissions(session, order, cxc.id, float(cxc.amount or 0.0) - credited - amortized,
+                             is_advance=is_advance)
+        cxc.commission_paid = True
+        if is_advance and order.status == SalesOrderStatus.WAITING_ADVANCE:
+            order.status = SalesOrderStatus.SOLD
+    session.add(cxc)
+
+
+def register_installment(
+    session: Session, cxc_id: int, payload: PaymentPayload, current_user: User
+) -> dict:
+    cxc = _open_cxc(session, cxc_id)
     monto = float(payload.amount or 0.0)
     if monto <= 0:
         raise HTTPException(status_code=422, detail="El monto del abono debe ser mayor a cero.")
-
     order = sales_repo.get_sales_order_by_id(session, cxc.sales_order_id)
     abonado_antes = sales_repo.sum_active_installments(session, cxc.id)
     acreditado = sales_repo.sum_active_credit_notes(session, cxc.id)
-    saldo_factura = float(cxc.amount or 0.0) - float(cxc.amortized_advance or 0.0) - abonado_antes - acreditado
-    if monto > saldo_factura + 0.01:
+    amortizado = float(cxc.amortized_advance or 0.0)
+    if monto > float(cxc.amount or 0.0) - amortizado - abonado_antes - acreditado + 0.01:
         raise HTTPException(status_code=400, detail="El abono supera el saldo pendiente de la factura.")
-    is_advance = bool(payload.is_advance) or cxc.payment_type == PaymentType.ADVANCE
     inst = CustomerPaymentInstallment(
-        customer_payment_id=cxc.id,
-        amount=monto,
-        payment_date=payload.payment_date or datetime.utcnow(),
-        reference=payload.reference,
-        notes=payload.notes,
-        created_by_user_id=current_user.id,
-        is_advance=is_advance,
-    )
+        customer_payment_id=cxc.id, amount=monto, payment_date=payload.payment_date or datetime.utcnow(),
+        reference=payload.reference, notes=payload.notes, created_by_user_id=current_user.id,
+        is_advance=bool(payload.is_advance) or cxc.payment_type == PaymentType.ADVANCE)
     session.add(inst)
-
     if payload.account_id:
-        account = sales_repo.get_bank_account_by_id(session, payload.account_id)
-        if not account:
-            raise HTTPException(status_code=404, detail="Cuenta bancaria no encontrada.")
-        type_labels = {
-            PaymentType.ADVANCE: "Anticipo",
-            PaymentType.PROGRESS: "Avance de obra",
-            PaymentType.FULL: "Factura 100%",
-        }
-        tipo = type_labels.get(cxc.payment_type, str(cxc.payment_type))
-        proyecto = order.project_name if order else "—"
-        folio = cxc.invoice_folio or "S/F"
-        bank_tx = BankTransaction(
-            account_id=account.id,
-            transaction_type=TransactionType.IN,
-            amount=monto,
-            reference=payload.reference,
-            description=f"Abono {tipo} — {proyecto} — Folio {folio}",
-            transaction_date=payload.payment_date or datetime.utcnow(),
-            related_entity_type="CUSTOMER_PAYMENT",
-            related_entity_id=cxc.id,
-        )
-        session.add(bank_tx)
-        session.flush()
-        inst.bank_transaction_id = bank_tx.id
-        account.current_balance = float(account.current_balance or 0.0) + monto
-        session.add(account)
-        if cxc.treasury_transaction_id is None:
-            session.flush()
-            cxc.treasury_transaction_id = bank_tx.id
-
+        _deposit_installment(session, cxc, order, inst, payload)
     if payload.instance_ids:
-        for iid in payload.instance_ids:
-            inst_obj = sales_repo.get_instance_by_id(session, iid)
-            if not inst_obj:
-                raise HTTPException(status_code=404, detail=f"Instancia {iid} no encontrada.")
-            if inst_obj.customer_payment_id is not None:
-                continue
-            item_obj = sales_repo.get_item_by_id(session, inst_obj.sales_order_item_id)
-            if not item_obj or item_obj.sales_order_id != cxc.sales_order_id:
-                raise HTTPException(status_code=422, detail=f"La instancia {iid} no pertenece a esta orden.")
-            inst_obj.customer_payment_id = cxc.id
-            session.add(inst_obj)
-
+        _link_paid_instances(session, cxc, payload.instance_ids)
     if order:
         order.outstanding_balance = float(order.outstanding_balance or 0.0) - monto
-
     abonado_despues = abonado_antes + monto
-    amortizado = float(cxc.amortized_advance or 0.0)
     factura_saldada = abonado_despues + acreditado + amortizado + 0.01 >= float(cxc.amount or 0.0)
-
     if factura_saldada and cxc.status != CXCStatus.PAID:
-        cxc.status = CXCStatus.PAID
-        cxc.payment_date = payload.payment_date or datetime.utcnow()
-        if not cxc.commission_paid and order:
-            session.flush()
-            is_advance = cxc.payment_type == PaymentType.ADVANCE
-            _add_cxc_commissions(
-                session, order, cxc.id, float(cxc.amount or 0.0) - acreditado - amortizado, is_advance=is_advance
-            )
-            cxc.commission_paid = True
-            if is_advance and order.status == SalesOrderStatus.WAITING_ADVANCE:
-                order.status = SalesOrderStatus.SOLD
-        session.add(cxc)
-
+        _mark_cxc_paid(session, cxc, order, payload, acreditado, amortizado)
     if order:
         if order.outstanding_balance <= 0.1:
             order.status = SalesOrderStatus.FINISHED
         session.add(order)
-
     session.commit()
     session.refresh(cxc)
-    return {
-        "message": "Abono registrado.",
-        "cxc_id": cxc.id,
-        "abonado_total": abonado_despues,
-        "factura_amount": cxc.amount,
-        "factura_status": cxc.status,
-        "saldada": factura_saldada,
-    }
+    return {"message": "Abono registrado.", "cxc_id": cxc.id, "abonado_total": abonado_despues,
+            "factura_amount": cxc.amount, "factura_status": cxc.status, "saldada": factura_saldada}
 
 
 def update_installment(
