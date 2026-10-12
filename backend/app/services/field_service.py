@@ -127,6 +127,8 @@ def _lanes(session: Session, inst: SalesOrderItemInstance, user: User) -> List[F
         rows.append(FieldLaneRead(assignment_id=lane.id, lane=lane.lane, status=status,
                                   leader_name=leader.full_name if leader else None,
                                   is_mine=lane.leader_user_id == user.id))
+    rows += [FieldLaneRead(assignment_id=0, lane=lane, status="UNASSIGNED")
+             for lane in installation_service.missing_lanes(session, inst)]
     return rows
 
 

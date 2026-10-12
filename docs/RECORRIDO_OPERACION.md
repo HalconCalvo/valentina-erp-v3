@@ -95,13 +95,42 @@ ni la carga la generan.
 - La factura de avance pasaba a "lista para pagar" la nómina de cualquier casa no facturada, firmada o no. Ya no toca la
   nómina (D15). En producción no hay ningún registro de nómina todavía, así que no hubo que corregir datos.
 
+## Carril de piedra (2026-10-12, tarde) — casa Calle 20, 103 (cocina con muebles y piedra)
+- Planeación: IM e IP el 12/10; cuadrilla de muebles (Prueba LOGISTICS) y de piedra (Pedro Catzin + Miguel Sosa).
+  **Fallo corregido:** con la casa ya en producción el editor solo dejaba programar un carril de instalación (ocultaba
+  muebles si la receta tenía piedra); ahora muestra los que la receta necesita. "No aplica" decía en realidad "Sin fechas".
+- Simulador (línea Piedra): "Lote en verde" (1 de Granito Blanco Dallas, 21.5 en existencia); LOTE-PIEDRA-0011.
+  Entrada a producción consumió el granito; en Empaque se declararon 2 piezas; el manifiesto de viaje trae cliente,
+  obra, casa, piezas, cuadrilla y el QR de la casa.
+- **Fallos corregidos en la carga:**
+  - El manifiesto de piedra trae el QR de la casa (sin número de bulto): la validación de muebles lo habría rechazado.
+    Ahora la piedra se carga con el QR de la casa (o su código corto) y la pantalla dice "Debes cargar 2 piezas de piedra".
+  - La casa tiene un solo estado: al cargar el primer carril quedaba "Cargada" y el segundo ya no podía cargarse. Ahora
+    cada carril se carga si la casa está lista (o ya salió con el otro carril) y su propio lote salió de producción.
+- **Fallo corregido en la firma:** la casa Calle 20, 34 (con piedra) se cerró con la firma del carril de muebles sin que
+  la piedra estuviera siquiera programada. Ahora la firma exige que todos los carriles que la receta necesita estén
+  asignados y terminados; Campo muestra "Sin cuadrilla asignada (Planeación)" para el que falte. (Calle 20, 34 queda
+  así en la copia local como dato de prueba.)
+- Campo: cada líder solo ve el botón "Trabajo terminado" de su carril (el servidor ya lo rechazaba); "BOTH" → "Muebles
+  y piedra".
+- Red de seguridad probada: Calle 20, 103 se cargó sin surtir herrajes; al cargar se descargaron y todo pasó a costo
+  de venta.
+- Resultado: muebles terminado → firma bloqueada ("va después de marcar el trabajo terminado en cada carril"); piedra
+  terminada → firma → casa CERRADA, los dos carriles firmados, nómina lista para pagar: muebles Prueba LOGISTICS $800;
+  piedra Pedro Catzin $800 + Miguel Sosa $700.
+- Visto sin cambio: en Empaque sigue apareciendo una casa ya cerrada mientras su lote siga en empaque; la tarjeta de piedra
+  hereda "Etiquetas solicitadas" de la de muebles de la misma casa; el "Track piedra" del editor hereda el estado
+  general de la casa (el código lo marca como aproximación).
+
+## Nómina de cuadrilla: de dónde salen los montos
+- Monto = días de instalación de la receta × tarifa diaria.
+- Tarifas: Parámetros Globales → "Tarifa Líder / día" ($800) y la del ayudante ($700) (`GlobalConfig`), solo Dirección.
+- Días: `installation_days` de la versión de la receta; **no hay pantalla para capturarlo** y las 367 recetas de
+  producción tienen 1 día (D18).
+
 ## Queda para Gabriel
-1. **D17 (aplicada, reversible):** "Trabajo terminado" solo para un carril ya cargado en Logística. Antes se podía marcar
-   instalado sin haber cargado el camión.
-2. **Archivo de prueba en la nube de producción:** un test subió un PNG de 8 bytes
-   (`field/instance_1/signature_….png`, bucket valentina-erp-v3-assets). Ya se blindaron los tests (nunca tocan la
-   nube). ¿Lo borro? (no lo toco sin tu autorización).
-3. **No probado en pantalla:** el carril de Piedra (no había lote de piedra en el recorrido) y la red de seguridad de
-   herrajes al cargar una casa sin surtir (Calle 20, 103 quedó en Empaque sin surtir para esa prueba).
+1. D17 aprobada (2026-10-12). El PNG de prueba se borró de la nube con autorización de Gabriel.
+2. **D18:** días de instalación por receta (hoy todas en 1 día).
+3. Carril de piedra y red de seguridad de herrajes: probados (ver arriba).
 4. **Dato a sanear:** en la copia local "Tapacanto 1 mm color" tiene existencia −555.
 5. **Visto sin cambio:** la barra "Bautizo masivo" del Simulador recorre la lista al marcar la primera casa.

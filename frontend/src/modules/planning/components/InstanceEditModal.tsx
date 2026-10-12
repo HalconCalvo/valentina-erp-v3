@@ -178,10 +178,10 @@ function computeTrackStatus(
   const instDate = trackKey === 'MDF' ? sched.IM : sched.IP;
   const hasDates = !!(prodDate || instDate);
 
-  // Track no aplica: ni fechas de ese track.
+  // Track without dates yet (it may still be needed by the recipe)
   if (!hasDates) {
     return {
-      label: 'No aplica',
+      label: 'Sin fechas',
       color: 'text-slate-400 bg-slate-50 border-slate-200',
       icon: '○',
     };

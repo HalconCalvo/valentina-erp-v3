@@ -369,10 +369,16 @@ export default function InstallerWorkdayPage() {
 
             <div className="rounded-2xl bg-blue-50 border border-blue-200 p-5 text-center">
               <p className="text-xs font-bold uppercase tracking-widest text-blue-500">Debes cargar</p>
-              <p className="text-4xl font-black text-blue-700 mt-2">{preview.bultos_total} bultos</p>
-              <p className="text-sm font-semibold text-blue-600 mt-1">
-                {preview.bultos_mdf} MDF + {preview.bultos_herrajes} Herrajes
-              </p>
+              {preview.lane === 'IP' ? (
+                <p className="text-4xl font-black text-blue-700 mt-2">{preview.piezas_piedra} piezas de piedra</p>
+              ) : (
+                <>
+                  <p className="text-4xl font-black text-blue-700 mt-2">{preview.bultos_total} bultos</p>
+                  <p className="text-sm font-semibold text-blue-600 mt-1">
+                    {preview.bultos_mdf} MDF + {preview.bultos_herrajes} Herrajes
+                  </p>
+                </>
+              )}
             </div>
 
             <div className="rounded-2xl border border-slate-200 p-4 bg-white">

@@ -274,9 +274,11 @@ export function getInstallationScheduleLaneCodes(
   const prodLocked = isExternalDropProductionLocked(instance);
 
   if (prodLocked) {
-    if (hasStone && !hasMdf) return ['IP'];
-    if (hasMdf && !hasStone) return ['IM'];
-    return hasStone ? ['IP'] : ['IM'];
+    // Already in production: every installation lane the recipe needs (furniture and/or stone) can be scheduled
+    const lanes: InstallationLaneCode[] = [];
+    if (hasMdf) lanes.push('IM');
+    if (hasStone) lanes.push('IP');
+    return lanes.length ? lanes : ['IM'];
   }
 
   if (!hasStone) {

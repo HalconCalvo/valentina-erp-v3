@@ -27,7 +27,7 @@ class FieldClientBrief(BaseModel):
 class FieldLaneRead(BaseModel):
     assignment_id: int
     lane: str  # IM furniture, IP stone
-    status: str  # SCHEDULED (not loaded yet), IN_PROGRESS (loaded), INSTALLED, COMPLETED
+    status: str  # UNASSIGNED (no crew yet), SCHEDULED (not loaded), IN_PROGRESS (loaded), INSTALLED, COMPLETED
     leader_name: Optional[str] = None
     is_mine: bool = False
 

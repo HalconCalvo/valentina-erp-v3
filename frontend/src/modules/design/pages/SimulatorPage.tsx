@@ -227,7 +227,7 @@ export default function SimulatorPage() {
         );
       }
 
-      toast.success(`Lote ${newBatch.folio} de Piedra creado en Producción.`);
+      toast.success(`Lote ${newBatch.folio} de piedra creado en "Lote por producir"; Producción le da entrada en su tablero.`);
       setSelectedIds([]);
       setSimulationResult(null);
       loadPendingInstances();

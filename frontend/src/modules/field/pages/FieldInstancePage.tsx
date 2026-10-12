@@ -21,7 +21,10 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 type TabId = 'empaque' | 'herrajes' | 'plano' | 'fotos' | 'firma';
 
 const LANE_LABEL: Record<string, string> = { IM: 'Muebles (MDF)', IP: 'Piedra' };
+const INSTALL_TYPE: Record<string, string> = { MDF: 'Muebles', STONE: 'Piedra', BOTH: 'Muebles y piedra' };
+const SUPERVISOR_ROLES = ['DIRECTOR', 'MANAGER'];
 const LANE_STATUS: Record<string, string> = {
+  UNASSIGNED: 'Sin cuadrilla asignada (Planeación)',
   SCHEDULED: 'Por cargar en Logística',
   IN_PROGRESS: 'Cargado: en obra',
   INSTALLED: 'Trabajo terminado',
@@ -42,6 +45,7 @@ export default function FieldInstancePage() {
   const { assignments, isOnline, pendingCount, flushQueue, refresh } = useOfflineSync();
   const [tab, setTab] = useState<TabId>('empaque');
   const [finishingLane, setFinishingLane] = useState<number | null>(null);
+  const isSupervisor = SUPERVISOR_ROLES.includes((localStorage.getItem('user_role') || '').toUpperCase());
   const [photos, setPhotos] = useState<string[]>([]);
   const [signature, setSignature] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
@@ -86,7 +90,7 @@ export default function FieldInstancePage() {
     if (finishingLane == null) return;
     try {
       await markLaneInstalled(finishingLane);
-      toast.success('Trabajo terminado. Falta la firma del cliente.');
+      toast.success('Trabajo terminado registrado.');
       await refresh();
     } catch (error: unknown) {
       const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
@@ -181,7 +185,7 @@ export default function FieldInstancePage() {
         </button>
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-xl font-black text-slate-900">{row.custom_name}</h1>
-          <p className="text-xs font-bold uppercase text-orange-600">{row.type}</p>
+          <p className="text-xs font-bold uppercase text-orange-600">{INSTALL_TYPE[row.type] ?? row.type}</p>
         </div>
       </header>
 
@@ -203,14 +207,14 @@ export default function FieldInstancePage() {
       {(row.lanes ?? []).length > 0 && (
         <section className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
           {(row.lanes ?? []).map((lane) => (
-            <div key={lane.assignment_id} className="flex items-center justify-between gap-3">
+            <div key={`${lane.lane}-${lane.assignment_id}`} className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-sm font-bold text-slate-800">{LANE_LABEL[lane.lane] ?? lane.lane}</p>
                 <p className="text-xs text-slate-500">
                   {LANE_STATUS[lane.status] ?? lane.status}{lane.leader_name ? ` · ${lane.leader_name}` : ''}
                 </p>
               </div>
-              {lane.status === 'IN_PROGRESS' && (
+              {lane.status === 'IN_PROGRESS' && (lane.is_mine || isSupervisor) && (
                 <button
                   type="button"
                   disabled={!isOnline}

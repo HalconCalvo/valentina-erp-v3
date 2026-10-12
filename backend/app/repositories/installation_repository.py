@@ -50,3 +50,13 @@ def get_order_and_client(session: Session, instance: SalesOrderItemInstance):
     order = session.get(SalesOrder, item.sales_order_id) if item else None
     client = session.get(Client, order.client_id) if order and order.client_id else None
     return order, client
+
+
+def get_required_lanes(session: Session, instance: SalesOrderItemInstance) -> set:
+    """Lanes the house needs according to its recipe: IM when it has furniture (MDF), IP when it has stone."""
+    item = session.get(SalesOrderItem, instance.sales_order_item_id)
+    version = session.get(ProductVersion, item.origin_version_id) if item and item.origin_version_id else None
+    if not version:
+        return set()
+    return {lane for lane, needed in (("IM", version.has_mdf_components), ("IP", version.has_stone_components))
+            if needed}

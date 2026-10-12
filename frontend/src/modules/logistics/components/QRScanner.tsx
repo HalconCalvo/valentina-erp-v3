@@ -55,7 +55,7 @@ export default function QRScanner({ onScan, onError }: QRScannerProps) {
         <Input
           value={manualCode}
           onChange={(e) => setManualCode(e.target.value)}
-          placeholder="O escribe el código y el bulto (p. ej. 0ba3b3e6-1)"
+          placeholder="O escribe el código (muebles: 0ba3b3e6-1; piedra: 0ba3b3e6)"
           className="min-h-12 flex-1"
         />
         <button

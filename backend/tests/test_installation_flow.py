@@ -136,3 +136,61 @@ def test_progress_invoice_does_not_touch_payroll(client_fixture, session_fixture
                                    json={"amount": 1000.0, "invoice_folio": "A-1", "instance_ids": [instance.id]})
     assert response.status_code == 200, response.text
     assert _payroll(session_fixture) == []
+
+
+def _two_lane_house(client, session, headers, seed):
+    """A kitchen with furniture and stone: the IM lane from _ready_house plus an IP lane with its own leader."""
+    from app.models.design import ProductMaster, ProductVersion
+    from app.models.production import ProductionBatch, ProductionBatchStatus
+    instance, im_lane, im_leader = _ready_house(client, session, headers, seed)
+    master = ProductMaster(name="Cocina con cubierta", client_id=seed[0].id)
+    session.add(master)
+    session.commit()
+    version = ProductVersion(master_id=master.id, version_name="V1", status="READY",
+                             has_mdf_components=True, has_stone_components=True)
+    stone_batch = ProductionBatch(folio="LOTE-PIEDRA-T1", batch_type="PIEDRA", status=ProductionBatchStatus.IN_PRODUCTION)
+    session.add_all([version, stone_batch])
+    session.commit()
+    item = session.get(SalesOrderItem, instance.sales_order_item_id)
+    item.origin_version_id = version.id
+    instance.stone_batch_id, instance.stone_pieces = stone_batch.id, 2
+    stone_leader, stone_headers = _user(session, UserRole.LOGISTICS, "Piedrero")
+    session.add_all([item, instance])
+    session.commit()
+    return instance, im_lane, im_leader, stone_batch, stone_leader, stone_headers
+
+
+def test_a_house_with_stone_is_not_signed_without_its_stone_lane(client_fixture, session_fixture,
+                                                                 auth_header_director, seed_client_and_tax):
+    instance, im_lane, im_leader, stone_batch, stone_leader, stone_headers = _two_lane_house(
+        client_fixture, session_fixture, auth_header_director, seed_client_and_tax)
+    client_fixture.post(f"{API}/logistics/equipos/{im_lane.id}/scan-qr", headers=im_leader,
+                        json={"bundle_qr_uuid": f"{QR}-1"})
+    client_fixture.post(f"{API}/field/assignments/{im_lane.id}/installed", headers=im_leader)
+    house = next(a for a in client_fixture.get(f"{API}/field/my-assignments", headers=im_leader).json()["assignments"]
+                 if a["id"] == instance.id)
+    assert house["can_sign"] is False
+    assert [(lane["lane"], lane["status"]) for lane in house["lanes"]] == [("IM", "INSTALLED"), ("IP", "UNASSIGNED")]
+    sync = f"{API}/field/instances/{instance.id}/sync"
+    assert client_fixture.post(sync, headers=im_leader,
+                               json={"signature_base64": "data:image/png;base64,iVBORw0KGgo="}).status_code == 409
+    ip_lane = InstallationAssignment(instance_id=instance.id, lane="IP", assignment_date=datetime(2026, 10, 12, 9),
+                                     leader_user_id=stone_leader.id)
+    session_fixture.add(ip_lane)
+    session_fixture.commit()
+    session_fixture.refresh(ip_lane)
+    load = f"{API}/logistics/equipos/{ip_lane.id}/scan-qr"
+    in_factory = client_fixture.post(load, headers=stone_headers, json={"bundle_qr_uuid": QR[:8]})
+    assert in_factory.status_code == 400 and "LOTE-PIEDRA-T1" in in_factory.json()["detail"]
+    stone_batch.status = "PACKING"
+    session_fixture.add(stone_batch)
+    session_fixture.commit()
+    preview = client_fixture.post(f"{API}/logistics/assignments/{ip_lane.id}/preview-scan", headers=stone_headers,
+                                  json={"bundle_qr_uuid": QR}).json()
+    assert (preview["lane"], preview["piezas_piedra"], preview["puede_confirmar"]) == ("IP", 2, True)
+    assert client_fixture.post(load, headers=stone_headers, json={"bundle_qr_uuid": QR[:8]}).status_code == 200
+    client_fixture.post(f"{API}/field/assignments/{ip_lane.id}/installed", headers=stone_headers)
+    signed = client_fixture.post(sync, headers=stone_headers,
+                                 json={"signature_base64": "data:image/png;base64,iVBORw0KGgo="})
+    assert signed.status_code == 200, signed.text
+    assert len(_payroll(session_fixture)) == 3  # IM leader + helper, IP leader

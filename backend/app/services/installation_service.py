@@ -18,7 +18,7 @@ from sqlmodel import Session
 
 from app.core.permissions import role_of
 from app.models.production import (InstallationAssignment, InstallationAssignmentStatus, PayrollPayment,
-                                   PayrollPaymentType, PayrollStatus)
+                                   PayrollPaymentType, PayrollStatus, ProductionBatch, ProductionBatchStatus)
 from app.models.sales import InstanceStatus, SalesOrderItemInstance
 from app.models.users import User
 from app.repositories import installation_repository as repo
@@ -32,6 +32,10 @@ DEFAULT_LEADER_RATE = 800.0
 DEFAULT_HELPER_RATE = 700.0
 WARRANTY_DAYS = 365
 SHORT_CODE_LENGTH = 8  # characters of the instance QR printed on each label
+STONE_LANE = "IP"
+LOADABLE_INSTANCE = {InstanceStatus.READY, InstanceStatus.CARGADO}  # CARGADO: the other lane already left
+BATCH_IN_FACTORY = {ProductionBatchStatus.PLANNED, ProductionBatchStatus.DRAFT, ProductionBatchStatus.ON_HOLD,
+                    ProductionBatchStatus.IN_PRODUCTION}
 
 
 def _get_lane(session: Session, assignment_id: int) -> InstallationAssignment:
@@ -53,25 +57,46 @@ def bundle_counts(instance: SalesOrderItemInstance) -> tuple:
     return int(instance.mdf_bundles or 0), int(instance.hardware_bundles or 0)
 
 
-def check_bundle_code(instance: SalesOrderItemInstance, code: str) -> int:
-    """A bundle QR carries '<instance QR>-<bundle number>'; typed by hand, the short code printed on the label
-    (its first characters) is enough. Returns the bundle number or rejects the code."""
+def _same_house(instance: SalesOrderItemInstance, code: str) -> bool:
+    return len(code) >= SHORT_CODE_LENGTH and instance.qr_code.lower().startswith(code)
+
+
+def check_bundle_code(instance: SalesOrderItemInstance, code: str, lane: str = "IM") -> int:
+    """Furniture: each bundle QR carries '<instance QR>-<bundle number>'; stone: the trip manifest carries the
+    instance QR. Typed by hand, the short code printed on the label is enough. Returns the bundle number (0 for the
+    stone manifest) or rejects the code."""
     if not instance.qr_code:
         raise HTTPException(status_code=409, detail="Esta casa no tiene etiquetas generadas; pídelas en Empaque.")
-    prefix, _, number = (code or "").strip().lower().rpartition("-")
+    typed = (code or "").strip().lower()
+    if lane == STONE_LANE and _same_house(instance, typed):
+        return 0
+    prefix, _, number = typed.rpartition("-")
     total = sum(bundle_counts(instance))
-    same_house = len(prefix) >= SHORT_CODE_LENGTH and instance.qr_code.lower().startswith(prefix)
-    if not same_house or not number.isdigit() or not 1 <= int(number) <= max(total, 1):
+    if not _same_house(instance, prefix) or not number.isdigit() or not 1 <= int(number) <= max(total, 1):
         raise HTTPException(status_code=422, detail="El código no es de un bulto de esta casa.")
     return int(number)
 
 
-def _load_block(lane: InstallationAssignment, instance: SalesOrderItemInstance) -> Optional[str]:
+def _load_block(session: Session, lane: InstallationAssignment, instance: SalesOrderItemInstance) -> Optional[str]:
+    """A lane loads when its house is ready (or already left with the other lane) and its own batch left the factory."""
     if lane.status != InstallationAssignmentStatus.SCHEDULED:
         return "Esta asignación ya fue cargada."
-    if instance.production_status != InstanceStatus.READY:
+    if instance.production_status not in LOADABLE_INSTANCE:
         return "La casa todavía no está lista en Producción."
+    batch_id = instance.stone_batch_id if lane.lane == STONE_LANE else instance.production_batch_id
+    batch = session.get(ProductionBatch, batch_id) if batch_id else None
+    if batch and batch.status in BATCH_IN_FACTORY:
+        kind = "piedra" if lane.lane == STONE_LANE else "muebles"
+        return f"El lote de {kind} ({batch.folio}) todavía está en producción."
     return None
+
+
+def _load_counts(lane: InstallationAssignment, instance: SalesOrderItemInstance) -> dict:
+    if lane.lane == STONE_LANE:
+        pieces = int(instance.stone_pieces or 0)
+        return {"bultos_mdf": 0, "bultos_herrajes": 0, "piezas_piedra": pieces, "bultos_total": pieces}
+    mdf, hardware = bundle_counts(instance)
+    return {"bultos_mdf": mdf, "bultos_herrajes": hardware, "piezas_piedra": 0, "bultos_total": mdf + hardware}
 
 
 def _crew_names(session: Session, lane: InstallationAssignment) -> List[str]:
@@ -85,16 +110,14 @@ def preview_load(session: Session, assignment_id: int, code: str, user) -> dict:
         raise HTTPException(status_code=403, detail="No tienes permiso para escanear cargas.")
     lane = _get_lane(session, assignment_id)
     instance = _get_instance(session, lane.instance_id)
-    bundle = check_bundle_code(instance, code)
+    bundle = check_bundle_code(instance, code, lane.lane)
     order, client = repo.get_order_and_client(session, instance)
-    mdf, hardware = bundle_counts(instance)
     is_leader = user.id == lane.leader_user_id
-    block = _load_block(lane, instance)
+    block = _load_block(session, lane, instance)
     return {
         "assignment_id": lane.id, "instance_id": instance.id, "instance_name": instance.custom_name,
-        "cliente": getattr(client, "full_name", None) if client else None,
-        "proyecto": order.project_name if order else None, "bulto": bundle,
-        "bultos_mdf": mdf, "bultos_herrajes": hardware, "bultos_total": mdf + hardware,
+        "lane": lane.lane, "cliente": getattr(client, "full_name", None) if client else None,
+        "proyecto": order.project_name if order else None, "bulto": bundle, **_load_counts(lane, instance),
         "equipo_asignado": _crew_names(session, lane), "es_lider_asignado": is_leader,
         "requiere_autorizacion": not is_leader, "bloqueo": block, "puede_confirmar": block is None and is_leader,
     }
@@ -108,8 +131,8 @@ def load_truck(session: Session, assignment_id: int, code: str, user) -> dict:
     if user.id != lane.leader_user_id:
         raise HTTPException(status_code=403, detail="Solo el Líder asignado puede confirmar la carga al camión.")
     instance = _get_instance(session, lane.instance_id)
-    bundle = check_bundle_code(instance, code)
-    block = _load_block(lane, instance)
+    bundle = check_bundle_code(instance, code, lane.lane)
+    block = _load_block(session, lane, instance)
     if block:
         raise HTTPException(status_code=400, detail=block)
     now = datetime.utcnow()
@@ -138,9 +161,19 @@ def mark_installed(session: Session, assignment_id: int) -> dict:
             "message": "🟢 Trabajo terminado. Esperando firma del cliente."}
 
 
+def missing_lanes(session: Session, instance: SalesOrderItemInstance) -> List[str]:
+    """Lanes the recipe needs (furniture, stone) that have no crew assigned yet."""
+    assigned = {lane.lane for lane in repo.get_lanes(session, instance.id)}
+    return sorted(repo.get_required_lanes(session, instance) - assigned)
+
+
 def all_lanes_installed(session: Session, instance_id: int) -> bool:
+    """Every lane the house needs is assigned and finished (a kitchen with stone is not received without it)."""
+    instance = session.get(SalesOrderItemInstance, instance_id)
     lanes = repo.get_open_lanes(session, instance_id)
-    return bool(lanes) and all(lane.status == InstallationAssignmentStatus.INSTALLED for lane in lanes)
+    if not instance or not lanes or missing_lanes(session, instance):
+        return False
+    return all(lane.status == InstallationAssignmentStatus.INSTALLED for lane in lanes)
 
 
 def store_signature(instance_id: int, signature: str) -> str:

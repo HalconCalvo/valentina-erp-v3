@@ -39,7 +39,18 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 - **Opciones:** A) solo un carril ya cargado se marca terminado. B) permitirlo sin carga (casos de obra sin camión).
 - **Recomendación:** A; si hay entregas sin camión, que Logística confirme la carga con el código del bulto.
 - **Reversible:** sí (aplicada A).
-- **Estado:** pendiente de confirmar
+- **Estado:** aprobada (2026-10-12, A).
+
+### D18. Días de instalación por receta (base de la nómina de cuadrilla) — 2026-10-12 — ROADMAP tarea 10
+- **Contexto:** la nómina de cuadrilla = días de instalación de la receta × tarifa diaria (Parámetros Globales →
+  "Tarifa Líder / día" $800 y ayudante $700, solo DIRECTOR). Los días viven en la versión de la receta
+  (`installation_days`), pero ninguna pantalla permite capturarlos: las 367 recetas de producción tienen 1 día. Una
+  cocina que lleva 3 días pagaría 1.
+- **Opciones:** A) capturar "Días de instalación" en el editor de recetas (Diseño), por versión. B) que Planeación
+  capture los días reales al asignar la cuadrilla. C) dejar 1 día fijo.
+- **Recomendación:** A (el costo de instalación queda en la receta y en el precio); Planeación solo asigna.
+- **Reversible:** sí. No aplicada (cambia cuánto se paga a las cuadrillas).
+- **Estado:** pendiente
 
 ## Resueltas
 

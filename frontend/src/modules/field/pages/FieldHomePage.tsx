@@ -16,6 +16,8 @@ function statusBadge(row: FieldAssignment): { label: string; className: string }
   return { label: 'Por cargar', className: 'bg-slate-100 text-slate-700 border-slate-200' };
 }
 
+const INSTALL_TYPE: Record<string, string> = { MDF: 'Muebles', STONE: 'Piedra', BOTH: 'Muebles y piedra' };
+
 function formatAddress(row: FieldAssignment): string {
   const parts = [row.street, row.lot].filter(Boolean);
   return parts.length ? parts.join(' · ') : 'Sin dirección';
@@ -97,7 +99,7 @@ export default function FieldHomePage() {
                     </span>
                   </div>
                   <p className="mt-2 text-sm text-slate-500">{formatAddress(row)}</p>
-                  <p className="mt-1 text-xs font-bold uppercase text-orange-600">{row.type}</p>
+                  <p className="mt-1 text-xs font-bold uppercase text-orange-600">{INSTALL_TYPE[row.type] ?? row.type}</p>
                 </button>
               </li>
             );

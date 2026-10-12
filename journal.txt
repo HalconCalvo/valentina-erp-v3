@@ -4558,3 +4558,14 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 ### Lección:
 - Las pruebas no deben depender de la configuración del entorno para no tocar servicios reales: forzar el modo seguro
   en el propio conftest
+
+---
+## SESIÓN 2026-10-12 (parte 19)
+- Gabriel autorizó borrar el PNG de prueba (8 bytes) del bucket de producción: borrado (field/ quedó vacío)
+- LECCIÓN: ninguna prueba toca la nube de producción. conftest fuerza LOCAL_SAFE_MODE en todos los tests; las subidas
+  en modo seguro devuelven local-safe-mode://…
+- D17 aprobada por Gabriel. D18 nueva: días de instalación por receta sin pantalla de captura (todas en 1 día)
+- Nómina de cuadrilla = días de instalación de la receta × tarifa diaria de Parámetros Globales (líder $800, ayudante $700)
+- Carril de piedra probado en pantalla (Calle 20, 103): corregidos editor de Planeación (ocultaba IM), carga de piedra con
+  el QR del manifiesto, carga del segundo carril con la casa ya cargada, firma exige todos los carriles de la receta,
+  botón de terminado solo en el carril propio. Nómina: muebles $800; piedra $800 + $700, lista para pagar
