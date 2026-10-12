@@ -515,6 +515,33 @@ def test_batch_dead_keeps_consumed_reservations(client_fixture, env):
     assert len(_reservations(env, "CONSUMIDA")) == 4
 
 
+def test_ready_only_after_the_batch_entered_and_left_production(client_fixture, env):
+    """'Listo para instalarse' never skips production, so the material is always discharged."""
+    _assign_all(client_fixture, env)
+    ready = f"{settings.API_V1_STR}/production/instances/{env.instances[0].id}/ready"
+    blocked = client_fixture.patch(ready, headers=_headers(env.director))
+    assert blocked.status_code == 409 and "producción" in blocked.json()["detail"]
+    _status(env, "IN_PRODUCTION")
+    still_in_production = client_fixture.patch(ready, headers=_headers(env.director))
+    assert still_in_production.status_code == 409 and "empaque" in still_in_production.json()["detail"]
+    _status(env, "PACKING")
+    assert client_fixture.patch(ready, headers=_headers(env.director)).status_code == 200
+    assert len(_reservations(env, "CONSUMIDA")) == 4
+
+
+def test_production_moves_its_batches_through_the_stages(client_fixture, env):
+    """D20: PRODUCTION moves batches between stages; it still cannot remove houses from a batch."""
+    _assign_all(client_fixture, env)
+    production = _user(env.s, UserRole.PRODUCTION)
+    moved = client_fixture.patch(f"{settings.API_V1_STR}/production/{env.batch.id}/status",
+                                 headers=_headers(production), json={"status": "IN_PRODUCTION"})
+    assert moved.status_code == 200, moved.text
+    with pytest.raises(HTTPException) as exc:
+        svc.remove_instance_from_batch(env.s, env.batch.id, env.instances[0].id,
+                                       InstanceRemovalCreate(reason="x"), production)
+    assert exc.value.status_code == 403
+
+
 # --- Valuation and costs ----------------------------------------------------------
 
 def test_valuation_buckets(client_fixture, env):

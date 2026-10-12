@@ -233,3 +233,31 @@ def test_crew_payroll_takes_the_days_of_each_lane_installation_line(client_fixtu
                   for p in _payroll(session_fixture))
     assert rows == sorted([(im_lane.id, "LEADER", 1.5, 1350.0, None), (im_lane.id, "HELPER", 1.5, 900.0, None),
                            (ip_lane.id, "LEADER", 0.5, 450.0, None)])
+
+
+def test_an_installagranito_line_asks_for_the_stone_lane_without_stone(client_fixture, session_fixture,
+                                                                       auth_header_director, seed_client_and_tax):
+    """D19: the client may supply the stone; the INSTALAGRANITO line alone makes the stone lane required."""
+    from app.models.design import ProductMaster, ProductVersion
+    instance, im_lane, im_leader = _ready_house(client_fixture, session_fixture, auth_header_director,
+                                                seed_client_and_tax)
+    master = ProductMaster(name="Cocina Nadira", client_id=seed_client_and_tax[0].id)
+    session_fixture.add(master)
+    session_fixture.commit()
+    version = ProductVersion(master_id=master.id, version_name="V1", status="READY", has_mdf_components=True)
+    session_fixture.add(version)
+    session_fixture.commit()
+    item = session_fixture.get(SalesOrderItem, instance.sales_order_item_id)
+    item.origin_version_id = version.id
+    session_fixture.add(item)
+    session_fixture.commit()
+    _installation_line(session_fixture, version.id, "INSTALAGRANITO", 0.5)
+    client_fixture.post(f"{API}/logistics/equipos/{im_lane.id}/scan-qr", headers=im_leader,
+                        json={"bundle_qr_uuid": f"{QR}-1"})
+    client_fixture.post(f"{API}/field/assignments/{im_lane.id}/installed", headers=im_leader)
+    house = next(a for a in client_fixture.get(f"{API}/field/my-assignments", headers=im_leader).json()["assignments"]
+                 if a["id"] == instance.id)
+    assert [(lane["lane"], lane["status"]) for lane in house["lanes"]] == [("IM", "INSTALLED"), ("IP", "UNASSIGNED")]
+    assert house["can_sign"] is False
+    planned = client_fixture.get(f"{API}/planning/instances/{instance.id}", headers=auth_header_director).json()
+    assert planned["has_stone_components"] is True

@@ -21,6 +21,7 @@ from sqlalchemy import or_, and_
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_session
+from app.repositories import installation_repository
 from app.core.deps import get_current_active_user
 from app.models.users import User, UserRole
 from app.models.production import (
@@ -133,6 +134,7 @@ def _serialize_instance(
     batch_by_id: Optional[Dict[int, ProductionBatch]] = None,
     version_by_id: Optional[Dict[int, ProductVersion]] = None,
     master_by_id: Optional[Dict[int, ProductMaster]] = None,
+    stone_install_version_ids: Optional[set] = None,
 ) -> dict:
     """Serializa una instancia con semáforo calculado.
     Si se provee `session`, enriquece con product_name y order_folio del padre."""
@@ -196,6 +198,11 @@ def _serialize_instance(
     if origin_version:
         has_mdf_components = bool(origin_version.has_mdf_components)
         has_stone_components = bool(origin_version.has_stone_components)
+        # D19: an INSTALAGRANITO line alone asks for the stone lane
+        if not has_stone_components and stone_install_version_ids is not None:
+            has_stone_components = origin_version.id in stone_install_version_ids
+        elif not has_stone_components and session is not None:
+            has_stone_components = installation_repository.needs_stone_lane(session, origin_version)
     else:
         has_stone_components = (
             inst.stone_pieces is not None and inst.stone_pieces > 0
@@ -459,6 +466,8 @@ def get_health_panel(
     instances = list_health_panel_instances(session)
     batch_by_id = batch_map_for_instances(session, instances)
     version_by_id, master_by_id = version_master_maps_for_instances(session, instances)
+    stone_install_ids = installation_repository.versions_with_line(
+        session, version_by_id.keys(), installation_repository.STONE_INSTALLATION_SKU)
 
     groups: dict = {
         "RED": [],
@@ -482,6 +491,7 @@ def get_health_panel(
                     batch_by_id=batch_by_id,
                     version_by_id=version_by_id,
                     master_by_id=master_by_id,
+                    stone_install_version_ids=stone_install_ids,
                 )
             )
 

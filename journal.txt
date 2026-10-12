@@ -4582,6 +4582,17 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 - Tests: 300 backend, 17 frontend, build OK, tsc 163
 
 ---
+## SESIÓN 2026-10-12 (parte 21)
+- D19 aprobada y aplicada: INSTALAGRANITO basta para pedir el carril de piedra (firma y Planeación)
+- D20 aprobada y aplicada: PRODUCTION mueve lotes por las etapas (no saca casas de un lote ni planea)
+- Corregido: "Listo para instalarse" ya no acepta una casa cuyo lote no entró y salió de producción (antes aceptaba
+  PENDING y el material no se descargaba). Probado: casa sin lote → 409; con lote en empaque → Lista (como Producción)
+- Excel para Diseño en ~/Downloads/recetas_sin_instalacion.xlsx (producción, solo lectura): 14 recetas + 4 Nadira
+- D21 nueva: casas que solo llevan instalación nunca llegan a "Lista" (sin lote)
+- Tablero de Dirección (prioridad 2) en curso, sin commit todavía
+- Tests: 303 backend
+
+---
 ## 2026-10-12 — PROPUESTA PARA DESPUÉS: AYUDA "?" DE VALENTINA (aprobada por Gabriel, en espera)
 
 Hoy el "?" abre un mapa técnico del sistema (Manual de Valentina). Se convertirá en ayuda real en tres niveles:

@@ -820,16 +820,8 @@ def mark_instance_ready(
             "production_status": instance.production_status,
         }
 
-    # Acepta IN_PRODUCTION o cualquier status activo
-    if instance.production_status not in [
-        InstanceStatus.IN_PRODUCTION,
-        InstanceStatus.PENDING,
-    ]:
-        raise HTTPException(
-            status_code=400,
-            detail=f"No se puede mover esta instancia. "
-                   f"Estado actual: {instance.production_status}"
-        )
+    # Only after its batch entered production (material discharged) and left it
+    production_inventory_service.assert_ready_for_installation(db, instance)
     instance.production_status = InstanceStatus.READY
     db.add(instance)
     db.flush()  # Persiste el READY antes de contar instancias activas

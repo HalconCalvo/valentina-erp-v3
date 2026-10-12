@@ -134,9 +134,10 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
 ## 10. PRIORIDAD 1 — Operar la segunda mitad del recorrido (Gabriel, 12/10) — hecha (2026-10-12, commit local)
 - Reporte: `docs/RECORRIDO_OPERACION.md` (OV-0039 de bautizo a firma; 12 fallos corregidos; D17).
 - 2026-10-12: D18 resuelta: la nómina de cada carril toma los días de la línea INSTALACOCINA / INSTALAGRANITO de la
-  receta. Pendientes vistos: D19 (Nadira), D20 (Producción no mueve lotes); y `PATCH /production/instances/{id}/ready`
-  acepta una casa PENDING (su lote sin entrar a producción, sin descarga de material): debe exigir que el lote
-  esté en empaque.
+  receta. D19 y D20 aprobadas y aplicadas. Corregido: "Listo para instalarse" exige que la casa
+  esté en producción, que ningún lote suyo esté sin entrar a producción y que al menos uno haya salido (empaque o
+  después), así el material siempre se descarga. Pendiente: D21 (casas que solo llevan instalación).
+- Excel para Diseño: `~/Downloads/recetas_sin_instalacion.xlsx` (14 recetas + hoja Nadira).
 - Nunca se ha usado: Planeación → Producción → Logística → Campo. Con una OV real en la copia local se recorre
   completa como la usaría cada puesto:
   - Planeación: bautizo, lotes, fechas.

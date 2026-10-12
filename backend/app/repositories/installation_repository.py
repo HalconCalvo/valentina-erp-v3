@@ -60,11 +60,28 @@ def get_order_and_client(session: Session, instance: SalesOrderItemInstance):
     return order, client
 
 
+STONE_INSTALLATION_SKU = "INSTALAGRANITO"
+
+
+def versions_with_line(session: Session, version_ids, sku: str) -> set:
+    """Recipe versions (of the given ids) that carry a line of the material with this SKU."""
+    ids = list(set(v for v in version_ids if v))
+    if not ids:
+        return set()
+    return set(session.exec(select(VersionComponent.version_id).join(Material, Material.id == VersionComponent.material_id)
+                            .where(VersionComponent.version_id.in_(ids), Material.sku == sku)).all())
+
+
+def needs_stone_lane(session: Session, version: ProductVersion) -> bool:
+    """D19: stone in the recipe, or just its INSTALAGRANITO line (the client may supply the stone)."""
+    return bool(version.has_stone_components) or bool(versions_with_line(session, [version.id], STONE_INSTALLATION_SKU))
+
+
 def get_required_lanes(session: Session, instance: SalesOrderItemInstance) -> set:
-    """Lanes the house needs according to its recipe: IM when it has furniture (MDF), IP when it has stone."""
+    """Lanes the house needs according to its recipe: IM when it has furniture (MDF), IP when it has stone (D19)."""
     item = session.get(SalesOrderItem, instance.sales_order_item_id)
     version = session.get(ProductVersion, item.origin_version_id) if item and item.origin_version_id else None
     if not version:
         return set()
-    return {lane for lane, needed in (("IM", version.has_mdf_components), ("IP", version.has_stone_components))
+    return {lane for lane, needed in (("IM", version.has_mdf_components), ("IP", needs_stone_lane(session, version)))
             if needed}

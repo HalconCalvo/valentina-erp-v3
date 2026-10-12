@@ -30,6 +30,9 @@ POST_PRODUCTION = {
 }
 LOADED_STATUSES = {InstanceStatus.CARGADO, InstanceStatus.INSTALLED, InstanceStatus.CLOSED, InstanceStatus.WARRANTY}
 BATCH_ROLES = {"DESIGN", "ADMIN", "MANAGER", "DIRECTOR"}
+STAGE_ROLES = BATCH_ROLES | {"PRODUCTION"}  # D20: Production moves its batches through the board stages
+LEFT_PRODUCTION = {ProductionBatchStatus.PACKING, ProductionBatchStatus.READY_TO_INSTALL,
+                   ProductionBatchStatus.FINISHED, ProductionBatchStatus.DEAD}
 AUTHORIZER_ROLES = {"DIRECTOR", "MANAGER"}
 ACTIVE = "ACTIVA"
 CONSUMED = "CONSUMIDA"
@@ -332,7 +335,7 @@ def _leave_production(session: Session, batch: ProductionBatch, instances: list,
 
 
 def change_batch_status(session: Session, batch_id: int, payload: BatchStatusUpdate, user) -> ProductionBatch:
-    _require_roles(user, BATCH_ROLES, "No tienes permisos para esta operación.")
+    _require_roles(user, STAGE_ROLES, "No tienes permisos para esta operación.")
     batch = prod_inv_repo.get_batch(session, batch_id)
     if not batch:
         raise HTTPException(status_code=404, detail="Lote no encontrado")
@@ -394,6 +397,24 @@ def _detach_from_batch(session: Session, instance: SalesOrderItemInstance, batch
         instance.production_batch_id = None
     instance.production_status = InstanceStatus.IN_PRODUCTION if in_production else InstanceStatus.PENDING
     session.add(instance)
+
+
+def assert_ready_for_installation(session: Session, instance: SalesOrderItemInstance) -> None:
+    """A house is ready to install only after its batches entered production (material discharged) and at least one
+    of them left it (packing or later)."""
+    if instance.production_status != InstanceStatus.IN_PRODUCTION:
+        raise HTTPException(status_code=409, detail="Solo una casa en producción puede pasar a lista para instalarse.")
+    batches = [prod_inv_repo.get_batch(session, bid)
+               for bid in (instance.production_batch_id, instance.stone_batch_id) if bid]
+    batches = [b for b in batches if b]
+    if not batches:
+        raise HTTPException(status_code=409, detail="La casa no tiene lote de producción.")
+    not_started = [b.folio for b in batches if b.status in PRE_PRODUCTION]
+    if not_started:
+        raise HTTPException(status_code=409, detail=f"El lote {', '.join(not_started)} no ha entrado a producción: "
+                                                    "su material no se ha descargado.")
+    if not any(b.status in LEFT_PRODUCTION for b in batches):
+        raise HTTPException(status_code=409, detail="El lote sigue en producción; pásalo a empaque primero.")
 
 
 def remove_instance_from_batch(

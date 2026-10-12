@@ -41,25 +41,27 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 - **Reversible:** sí (aplicada A).
 - **Estado:** aprobada (2026-10-12, A).
 
-### D19. Recetas con cubierta de granito sin piedra en la receta (Nadira) — 2026-10-12 — ROADMAP tarea 10
-- **Contexto:** 4 recetas activas de Nadira (#197 "COCINA NADIRA GRANITO", #201, #202, #231) llevan la línea
-  INSTALAGRANITO pero ningún material de piedra (solo procesos), así que el sistema no las marca "con piedra": Planeación
-  no programa el carril de piedra y esa instalación nunca genera nómina. Están en 6 partidas de OV.
-- **Opciones:** A) que la línea INSTALAGRANITO también haga que la receta necesite el carril de piedra.
-  B) que Diseño agregue la piedra a esas recetas. C) dejarlas así (la cuadrilla de piedra se paga por fuera).
-- **Recomendación:** A (la línea de instalación ya dice que hay trabajo de piedra en obra).
-- **Reversible:** sí. No aplicada (cambia qué casas generan nómina de piedra).
-- **Estado:** pendiente
-
-### D20. Producción no puede mover sus lotes en el tablero — 2026-10-12 — ROADMAP tarea 10
-- **Contexto:** mover un lote entre columnas (a producción, a empaque) solo lo permiten DIRECTOR, MANAGER, ADMIN y
-  DESIGN; el rol PRODUCTION recibe "No tienes permisos". En la prueba de hoy hubo que moverlo como Dirección.
-- **Opciones:** A) agregar PRODUCTION (entrada a producción y empaque). B) dejarlo así.
-- **Recomendación:** A. Las autorizaciones en negativo siguen siendo solo de DIRECTOR/MANAGER.
-- **Reversible:** sí. No aplicada (permisos por rol).
+### D21. Casas que solo llevan instalación (sin muebles ni piedra que fabricar) — 2026-10-12 — ROADMAP tarea 10
+- **Contexto:** con D19, las 4 recetas de Nadira (#197, #201, #202, #231) ya piden el carril de piedra, pero solo llevan
+  procesos: no entran a ningún lote, así que la casa nunca pasa a "Lista para instalarse" ni se puede cargar, y la
+  cuadrilla no llega a la firma.
+- **Opciones:** A) un camino "solo instalación": Planeación programa y asigna; la casa sin nada que fabricar queda lista
+  para instalarse sola y el carril se marca "en obra" sin escaneo de carga. B) que Diseño agregue la piedra (si se
+  maquila en fábrica) para que entre a un lote de piedra. C) dejarlas fuera del sistema de instalación.
+- **Recomendación:** A, salvo que la piedra pase por la fábrica (entonces B).
+- **Reversible:** sí. No aplicada (cambia la regla de carga, D17).
 - **Estado:** pendiente
 
 ## Resueltas
+
+### D19. Recetas con INSTALAGRANITO sin piedra — 2026-10-12
+- **Estado:** aprobada por Gabriel (2026-10-12): la línea INSTALAGRANITO basta para pedir el carril de piedra aunque la
+  receta no lleve piedra. Aplicado en la firma (carriles requeridos) y en Planeación (muestra Instalación Piedra).
+  Visto después: esas casas no tienen lote (D21).
+
+### D20. Producción mueve sus lotes en el tablero — 2026-10-12
+- **Estado:** aprobada por Gabriel (2026-10-12): PRODUCTION mueve lotes por las etapas del tablero; sigue sin planear,
+  reprogramar ni sacar casas de un lote (D7).
 
 ### D18. Días de instalación por receta (base de la nómina de cuadrilla) — 2026-10-12 — ROADMAP tarea 10
 - **Estado:** resuelta por Gabriel (2026-10-12): los días ya están en la receta como línea de servicio en "Día"
