@@ -13,7 +13,8 @@ from app.schemas.analytics_schema import (
     OrderProfitabilityItem,
     TopClientItem,
 )
-from app.services import analytics_service
+from app.schemas.director_dashboard_schema import DirectorSummaryRead
+from app.services import analytics_service, director_dashboard_service
 from app.core.permissions import allow, FINANCE_ROLES
 
 
@@ -101,3 +102,10 @@ def get_cash_flow_projection(session: SessionDep, current_user: CurrentUser) -> 
 def get_top_clients(session: SessionDep, current_user: CurrentUser) -> Any:
     _require_director(current_user)
     return analytics_service.get_top_clients(session)
+
+
+@router.get("/director-summary", response_model=DirectorSummaryRead)
+def get_director_summary(session: SessionDep, current_user: CurrentUser) -> Any:
+    """Cards of the Director dashboard and their drill-downs (one source, amounts without VAT)."""
+    _require_director(current_user)
+    return director_dashboard_service.get_summary(session, current_user)

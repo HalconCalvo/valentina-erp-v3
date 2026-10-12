@@ -4593,6 +4593,15 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 - Tests: 303 backend
 
 ---
+## SESIÓN 2026-10-12 (parte 22)
+- Tablero de Dirección según decisiones de Gabriel: endpoint único director-summary (Ventas, Liquidez con inventario,
+  Rentabilidad ponderada, Cartera que cuadra con Liquidez y con el flujo, Top clientes por venta, margen, pronto pago
+  y MDF/Piedra). Overhead, nómina y piezas a Eficiencia. Tarjetas 1–10. Criterios en D22
+- Copia local: ventas $16,790,191.69 (93.28%), liquidez $7,104,741.89, Margen neto % 21.21% (20 OVs sin costo fuera),
+  cartera $5,034,981.60 = CxC de liquidez = cobros del flujo
+- Tests: 306 backend, 17 frontend, build OK, tsc 156
+
+---
 ## 2026-10-12 — PROPUESTA PARA DESPUÉS: AYUDA "?" DE VALENTINA (aprobada por Gabriel, en espera)
 
 Hoy el "?" abre un mapa técnico del sistema (Manual de Valentina). Se convertirá en ayuda real en tres niveles:

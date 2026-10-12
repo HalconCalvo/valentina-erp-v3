@@ -149,5 +149,14 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
 - Se corrige lo que falle en el camino; lo de negocio va a DECISIONES_PENDIENTES.
 - Entregable: reporte paso a paso (qué funcionó, qué se corrigió, qué queda para Gabriel).
 
-## 11. PRIORIDAD 2 — Indicadores del tablero de Dirección (con Gabriel) — pendiente
-- Revisar uno por uno, después de la tarea 10.
+## 11. PRIORIDAD 2 — Indicadores del tablero de Dirección (con Gabriel) — hecha (2026-10-12, commit local)
+- Decisiones de Gabriel (12/10) aplicadas con una sola fuente (`GET /analytics/director-summary`, solo DIRECTOR):
+  1. Ventas: OVs vendidas del año sin IVA (tasa 0 y 16) contra la meta anual.
+  2. Liquidez = Bancos + CxC facturada pendiente + Inventario (3 cajones) − CxP; clic: desglose de cada componente.
+  3. Rentabilidad: Margen neto % sobre venta ponderado del año; clic: 5 más y 5 menos rentables. Overhead, nómina y
+     piezas pasaron a Eficiencia de Fábrica.
+  4. Cartera: CxC pendiente; clic: antigüedad y proyección de flujo; la pantalla dice si cuadra con Liquidez (cuadra).
+  5. Top clientes: venta del año; clic: por Margen neto %, por días de factura a cobro, ventas MDF y Piedra.
+  6. Tarjetas numeradas 1–10.
+- Criterios aplicados (reversibles) en D22.
+- Visto: la Eficiencia de Fábrica sigue en $0.00 por pieza (sin piezas READY ni nómina semanal capturada).
