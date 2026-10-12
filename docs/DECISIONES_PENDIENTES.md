@@ -24,11 +24,14 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
      importadas en septiembre se pagaron fuera del sistema).
   7. OV-0041 y OV-0053: anticipo amortizado mayor que la factura (SANEAMIENTO 3.4): ¿cuál es el monto correcto?
   8. Folio 30899 registrado dos veces (facturas de proveedor #315 y #324, SANEAMIENTO 4.5): ¿es la misma factura?
+  9. OV-0019 Santa Loreto Etapa 2: anticipo de $81,517.50 marcado pagado sin abono ni movimiento bancario
+     (SANEAMIENTO 3.1): ¿se cobró? (fecha y cuenta reales).
+  10. Fondo de caja chica: saldo $5,000 contra fondo configurado $6,000 (SANEAMIENTO 4.4): ¿cuál es el fondo real?
+  11. Proveedor #55 "PROVEEDOR PRUEBA 5E", con 1 OC y 1 factura (SANEAMIENTO 1.4): ¿es de prueba?
 - **Recomendación:** aprobar el plan; Claude Code construye la herramienta de recálculo (punto 6.1) mientras contabilidad
   responde 1–4.
 - **Reversible:** las correcciones se hacen con motivo y quedan en bitácora.
-- **Estado:** parcial. 5 y 6 resueltas (2026-10-12). 1–4 y 7 con contabilidad (Excel enviado el 2026-10-12).
-  8 pendiente de confirmar si va en el mismo envío.
+- **Estado:** parcial. 5 y 6 resueltas (2026-10-12). 1–4 y 7–11 con contabilidad (Excel enviado el 12/10).
 
 ## Resueltas
 
