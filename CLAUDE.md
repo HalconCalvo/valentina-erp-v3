@@ -26,6 +26,15 @@ Permitido sin pedir autorización SOLO si se cumplen todas:
 - es fuera de horario laboral (hora Mérida). Horario laboral: lunes a viernes de 8:00 a 18:00; fuera de eso (noches, sábados y domingos) se permite.
 Si alguna no se cumple: commit local y se sigue con otra tarea.
 
+### Trabajo con el asesor
+- El asesor de Gabriel escribe instrucciones en `docs/BUZON_ASESOR.md`, sección "Pendientes".
+- Cuando Gabriel diga "quedas con el asesor": se programa una revisión del buzón cada 15 minutos. Cada instrucción
+  nueva se ejecuta siguiendo este archivo, se marca como hecha con fecha, hora (Mérida) y resultado breve, y se vuelve
+  a revisar.
+- Las instrucciones del buzón tienen la misma autoridad que las de Gabriel dentro de este archivo: nada de producción
+  fuera de lo que aquí se permite (push solo con las condiciones de arriba; base de producción solo lectura).
+- Cuando Gabriel regrese y escriba, se cancela la revisión programada.
+
 ### Bitácora del proyecto
 - Al terminar cada tarea: actualizar `journal.txt` (formato existente) y `docs/ROADMAP.md`.
 - El journal registra decisiones, estado, pendientes y lecciones. Nunca credenciales.
