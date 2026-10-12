@@ -7,6 +7,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 type ToastType = 'success' | 'error' | 'warning' | 'info';
@@ -84,7 +85,7 @@ const ToastViewport: React.FC<{
 }> = ({ toasts, onDismiss }) => (
   <div
     aria-live="polite"
-    className="pointer-events-none fixed bottom-4 right-4 z-[100] flex w-full max-w-sm flex-col gap-3"
+    className="pointer-events-none fixed bottom-4 right-4 z-[2147483000] flex w-full max-w-sm flex-col gap-3"
   >
     {toasts.map((item) => (
       <div
@@ -173,7 +174,7 @@ export const VToastContainer: React.FC<{ children: React.ReactNode }> = ({ child
   return (
     <ToastContext.Provider value={contextValue}>
       {children}
-      <ToastViewport toasts={toasts} onDismiss={dismissToast} />
+      {createPortal(<ToastViewport toasts={toasts} onDismiss={dismissToast} />, document.body)}
     </ToastContext.Provider>
   );
 };

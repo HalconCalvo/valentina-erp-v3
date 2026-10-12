@@ -52,6 +52,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
     const [quotation, setQuotation] = useState<Quotation | null>(null);
     const [pendingConfirm, setPendingConfirm] = useState<'AUTHORIZE' | null>(null);
     const [returning, setReturning] = useState(false);
+    const [confirmDiscard, setConfirmDiscard] = useState(false);
 
     // Catálogo de tasas de impuesto (misma fuente que CreateQuotePage) para leer la tasa REAL
     // de la cotización y respetar tasa cero (sin fallback hardcodeado a 0.16).
@@ -509,6 +510,23 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
         }
     };
 
+    /** Recipe, purchase price or line price corrections not authorized yet: they are lost if the window closes. */
+    const hasUnsavedCorrections = (): boolean => !isReadOnly && (
+        Object.keys(recipeEdits).length > 0
+        || Object.entries(priceEdits).some(([materialId, cost]) => Number(catalog.get(Number(materialId))?.current_cost ?? -1) !== cost)
+        || Object.keys(manualCosts).length > 0
+        || itemPriceOverrides.some((price) => price != null)
+    );
+
+    const requestClose = () => {
+        if (processing) return;
+        if (hasUnsavedCorrections()) {
+            setConfirmDiscard(true);
+            return;
+        }
+        onClose();
+    };
+
     const handleReject = () => {
         if (!quotation || isReadOnly) return;
         setReturning(true);
@@ -556,7 +574,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
     }
 
     return (
-        <><Modal isOpen bare size="custom" overlayZIndex={9999} onClose={onClose} className="bg-slate-50 rounded-xl shadow-2xl w-full max-w-7xl h-[88vh] max-h-[88vh] flex flex-col overflow-hidden relative border border-slate-700">
+        <><Modal isOpen bare size="custom" overlayZIndex={9999} onClose={requestClose} className="bg-slate-50 rounded-xl shadow-2xl w-full max-w-7xl h-[88vh] max-h-[88vh] flex flex-col overflow-hidden relative border border-slate-700">
                 
                 {/* HEADER */}
                 <div className="bg-slate-900 text-white p-4 flex justify-between items-center shrink-0">
@@ -572,7 +590,7 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                             <span className="flex items-center gap-1"><User size={12} className="text-indigo-400"/> Asesor: <span className="text-indigo-300 font-medium">{sellerName}</span></span>
                         </p>
                     </div>
-                    <button onClick={onClose} className="bg-slate-800 hover:bg-slate-700 p-2 rounded-full transition-colors">
+                    <button onClick={requestClose} title="Cerrar" className="bg-slate-800 hover:bg-slate-700 p-2 rounded-full transition-colors">
                         <X size={20} />
                     </button>
                 </div>
@@ -901,6 +919,18 @@ export const FinancialReviewModal: React.FC<FinancialReviewModalProps> = ({ orde
                 onCancel={() => setPendingConfirm(null)}
             />
         )}
+
+        <VConfirmDialog
+            isOpen={confirmDiscard}
+            title="Cambios sin guardar"
+            message="Tienes correcciones de precio o receta sin autorizar."
+            consequence="Si cierras ahora, se perderán."
+            variant="warning"
+            confirmLabel="Cerrar sin guardar"
+            cancelLabel="Seguir editando"
+            onConfirm={() => { setConfirmDiscard(false); onClose(); }}
+            onCancel={() => setConfirmDiscard(false)}
+        />
 
         <QuotationActionDialogs
             pending={returning && quotation ? { kind: 'REQUEST_CHANGES', quotation } : null}

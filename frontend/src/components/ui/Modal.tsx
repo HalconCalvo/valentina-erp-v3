@@ -1,5 +1,32 @@
-import React, { useEffect, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+
+/**
+ * Open modals, in opening order. A modal opened later (e.g. a VConfirmDialog launched from a modal) always sits
+ * above the ones already open, whatever overlayZIndex each one asks for, and only the top one closes with Escape.
+ * Modals render in document.body so no parent stacking context (transform, z-index) can trap them.
+ */
+const openModals: { id: number; zIndex: number }[] = [];
+/** z-index of the modal that contains this one in the React tree (a dialog rendered inside a modal goes above it). */
+const ParentModalZ = createContext(0);
+let nextModalId = 1;
+
+function registerModal(requested: number): { id: number; zIndex: number } {
+  const top = openModals.reduce((max, m) => Math.max(max, m.zIndex), 0);
+  const entry = { id: nextModalId++, zIndex: Math.max(requested, top + 1) };
+  openModals.push(entry);
+  return entry;
+}
+
+function unregisterModal(id: number): void {
+  const index = openModals.findIndex((m) => m.id === id);
+  if (index >= 0) openModals.splice(index, 1);
+}
+
+function isTopModal(id: number): boolean {
+  return openModals.length > 0 && openModals[openModals.length - 1].id === id;
+}
 
 interface ModalProps {
   isOpen: boolean;
@@ -25,24 +52,36 @@ const Modal: React.FC<ModalProps> = ({
   bare = false,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
+  const [stackEntry, setStackEntry] = useState<{ id: number; zIndex: number } | null>(null);
+  const parentZ = useContext(ParentModalZ);
+  const requestedZ = Math.max(overlayZIndex, parentZ + 1);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
-  // Cerrar con tecla Escape
+  // Place this modal on top of the ones already open while it is open
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+    if (!isOpen) return undefined;
+    const entry = registerModal(requestedZ);
+    setStackEntry(entry);
+    return () => {
+      unregisterModal(entry.id);
+      setStackEntry(null);
     };
+  }, [isOpen, requestedZ]);
 
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      // Evitar scroll en el body principal cuando el modal está abierto
-      document.body.style.overflow = 'hidden';
-    }
-
+  // Escape closes only the top modal; the page does not scroll while any modal is open
+  useEffect(() => {
+    if (!isOpen || !stackEntry) return undefined;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isTopModal(stackEntry.id)) onCloseRef.current();
+    };
+    document.addEventListener('keydown', handleEscape);
+    document.body.style.overflow = 'hidden';
     return () => {
       document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'unset';
+      if (openModals.length === 0) document.body.style.overflow = 'unset';
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, stackEntry]);
 
   if (!isOpen) return null;
 
@@ -56,10 +95,12 @@ const Modal: React.FC<ModalProps> = ({
     fullscreen: 'w-[98vw] h-[96vh]',
   };
 
-  return (
+  const zIndex = stackEntry?.zIndex ?? requestedZ;
+  return createPortal(
+    <ParentModalZ.Provider value={zIndex}>
     <div
       className="fixed inset-0 flex items-center justify-center p-4"
-      style={{ zIndex: overlayZIndex }}
+      style={{ zIndex }}
     >
       {/* Backdrop (Fondo oscuro) */}
       <div 
@@ -94,6 +135,8 @@ const Modal: React.FC<ModalProps> = ({
         </>)}
       </div>
     </div>
+    </ParentModalZ.Provider>,
+    document.body,
   );
 };
 

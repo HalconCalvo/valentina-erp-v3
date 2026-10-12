@@ -4511,3 +4511,25 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 ### Pendiente:
 - Push después de las 18:00 (4 commits: D14 ×2, refactor CxP, D16). Render aplica la migración v1w2x3y4z5a6
 - Después del push: Gabriel aplica la factura 618 de OV-0131 desde Saneamiento
+
+---
+## SESIÓN 2026-10-12 (parte 17) — URGENTE: diálogos detrás de modales (push autorizado por Gabriel en horario)
+
+### Problema:
+- En Ingeniería Financiera (Modal overlayZIndex 9999) el VConfirmDialog "Autorizar cotización" (z 50) quedaba detrás:
+  Gabriel daba clic y no veía nada. Los toasts (z 100) también quedaban detrás de modales de 200/300/9999.
+
+### Corrección (en el componente, no caso por caso):
+- Modal se monta en document.body (portal) y lleva una pila: el último que se abre queda siempre arriba, sin importar
+  su overlayZIndex; un modal dentro de otro queda arriba de su padre; Escape cierra solo el de arriba
+- Toasts en portal con la capa más alta
+- Ingeniería Financiera: al cerrar con correcciones de precio o receta sin autorizar avisa "Tienes correcciones de
+  precio o receta sin autorizar. Si cierras ahora, se perderán" (Seguir editando / Cerrar sin guardar)
+
+### Probado en pantalla (copia local, Dirección):
+- COT-0087: aviso de cambios sin guardar encima del modal; Escape cierra solo el aviso; "Autorizar cotización" visible
+  encima y autorizada; la jaladera 0402-540 quedó en $22 en Materiales y en la bitácora (20 → 22, motivo "COT-0087: …")
+- 293 tests backend, 17 frontend, build
+
+### Pendiente:
+- El recorrido Planeación → Campo sigue en curso (cambios guardados aparte, se retoman después del push)
