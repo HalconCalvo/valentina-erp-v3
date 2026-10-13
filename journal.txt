@@ -4625,6 +4625,16 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 - Render desplegó (solo lectura: /planning/installations/unstaffed pasó de 404 a 401 a las 18:37)
 
 ---
+## SESIÓN 2026-10-12 (parte 26) — Valentina Pruebas y obra piloto
+- Código: franja roja "AMBIENTE DE PRUEBAS" (VITE_APP_ENV=pruebas), título "PRUEBAS ·", APP_ENVIRONMENT=pruebas fuerza
+  modo seguro (sin correo, nube ni respaldos), "/" informa ambiente y modo seguro
+- scripts/refresh_pruebas_db.sh (copia de producción con candados, quita SMTP) y scripts/seed_obra_piloto.py (cliente
+  OBRA PILOTO + receta Cocina Obra Piloto copiada de una receta lista con muebles, piedra e instalaciones)
+- PENDIENTE DE GABRIEL en Render: base valentina_pruebas, API valentina-pruebas-api y sitio valentina-pruebas
+  (docs/AMBIENTE_PRUEBAS.md); guardar ~/.pgurl_valentina_pruebas. Después Claude Code copia datos y crea la obra piloto
+- D23: plan de la base de Pruebas (costo)
+
+---
 ## 2026-10-12 — PROPUESTA PARA DESPUÉS: AYUDA "?" DE VALENTINA (aprobada por Gabriel, en espera)
 
 Hoy el "?" abre un mapa técnico del sistema (Manual de Valentina). Se convertirá en ayuda real en tres niveles:

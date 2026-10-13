@@ -154,4 +154,5 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 
 @app.get("/")
 def read_root():
-    return {"System": "SGP V3.5 API", "Status": "Online"}
+    return {"System": "SGP V3.5 API", "Status": "Online", "Environment": settings.APP_ENVIRONMENT,
+            "SafeMode": settings.LOCAL_SAFE_MODE}

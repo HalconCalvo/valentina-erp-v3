@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     # Local copy of production: no scheduled backup, no cloud uploads, no emails.
     LOCAL_SAFE_MODE: bool = False
 
+    # "produccion" (default) or "pruebas" (Valentina Pruebas on Render: copy of production data for training)
+    APP_ENVIRONMENT: str = "produccion"
+
     SENTRY_DSN: Optional[str] = None
 
     # Google Cloud
@@ -41,3 +44,7 @@ class Settings(BaseSettings):
         extra = "ignore" # Ignora variables extra en el .env
 
 settings = Settings()
+
+# Valentina Pruebas never touches real email, cloud storage or backups, even if LOCAL_SAFE_MODE was left unset
+if settings.APP_ENVIRONMENT.strip().lower() == "pruebas":
+    settings.LOCAL_SAFE_MODE = True

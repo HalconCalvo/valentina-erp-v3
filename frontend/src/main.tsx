@@ -14,6 +14,9 @@ const queryClient = new QueryClient({
   },
 });
 
+// Pruebas: the browser tab says so too
+if (import.meta.env.VITE_APP_ENV === 'pruebas') document.title = `PRUEBAS · ${document.title}`;
+
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   // When a new service worker takes control (new deploy), reload once so the page runs the new version.
   const hadController = Boolean(navigator.serviceWorker.controller);

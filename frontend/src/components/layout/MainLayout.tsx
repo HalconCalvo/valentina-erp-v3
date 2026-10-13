@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import NewVersionBanner from './NewVersionBanner';
+import EnvironmentBanner from './EnvironmentBanner';
 import { VToastContainer } from '@/components/ui/VToast';
 import { useHeartbeat } from '@/hooks/useHeartbeat';
 
@@ -27,6 +28,9 @@ export default function MainLayout() {
       {/* ml-64: Deja el espacio para que el Sidebar no tape nada */}
       <div className="flex-1 flex flex-col ml-0 md:ml-64 min-w-0 transition-all duration-300 h-screen">
         
+        {/* Franja roja del ambiente "Valentina Pruebas" */}
+        <EnvironmentBanner />
+
         {/* Aviso de versión nueva (deploy mientras la pestaña estaba abierta) */}
         <NewVersionBanner />
 

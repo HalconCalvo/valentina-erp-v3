@@ -157,7 +157,14 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
 - Campo ejecuta: agenda del día, "Carga del camión" (escaneo, `/field/load`), fotos, trabajo terminado y firma.
 - Menú en el orden del recorrido: Diseño → Ventas → Planeación → Compras → Producción → Campo → Administración.
   Las rutas /logistics redirigen a Campo o Planeación.
-- Siguiente: 13. Ambiente "Valentina Pruebas" en Render; 14. Obra piloto en Pruebas.
+
+## 13. Ambiente "Valentina Pruebas" — código listo (2026-10-12); falta crear los servicios en Render (Gabriel)
+- Franja roja, título "PRUEBAS ·", modo seguro forzado con APP_ENVIRONMENT=pruebas, script de copia de producción
+  con candados. Pasos de Render en `docs/AMBIENTE_PRUEBAS.md`.
+
+## 14. Obra piloto — script listo (2026-10-12); se corre en cuanto exista la base de Pruebas
+- Cliente OBRA PILOTO + receta Cocina Obra Piloto (muebles, piedra, instalaciones). Guía por área en
+  `docs/OBRA_PILOTO.md` (Ventas cotiza 3 casas mañana).
 
 ## 11. PRIORIDAD 2 — Indicadores del tablero de Dirección (con Gabriel) — hecha (2026-10-12, commit local)
 - Decisiones de Gabriel (12/10) aplicadas con una sola fuente (`GET /analytics/director-summary`, solo DIRECTOR):

@@ -64,6 +64,12 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
   - Pronto pago: días de la fecha de factura a la de cada cobro del año, ponderado por el monto cobrado.
 - **Estado:** pendiente de visto bueno
 
+### D23. Plan de la base de Valentina Pruebas en Render — 2026-10-12 — ROADMAP tarea 13
+- **Contexto:** la base de PostgreSQL gratuita de Render vence a los 30 días; Pruebas se quiere permanente.
+- **Opciones:** A) el plan de pago más chico (permanente). B) gratuita y recrearla cada mes con el script de copia.
+- **Recomendación:** A.
+- **Estado:** pendiente (costo, lo decide Gabriel al crearla)
+
 ## Resueltas
 
 ### D19. Recetas con INSTALAGRANITO sin piedra — 2026-10-12

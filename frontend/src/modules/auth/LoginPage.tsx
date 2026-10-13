@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, ArrowRight, Loader, AlertCircle, LayoutGrid } from 'lucide-react';
 import client from '../../api/axios-client';
 import { Input } from '@/components/ui/Input';
+import EnvironmentBanner from '@/components/layout/EnvironmentBanner';
 
 interface AuthResponse {
     access_token: string;
@@ -79,6 +80,8 @@ export default function LoginPage() {
   };
 
   return (
+    <>
+    <EnvironmentBanner />
     <div className="min-h-screen w-full flex bg-white font-sans text-slate-900">
       
       {/* IZQUIERDA */}
@@ -144,5 +147,6 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }
