@@ -8,8 +8,8 @@ import {
 } from '../../../api/logistics-service';
 import QRScanner from '../components/QRScanner';
 
-/** Yard only: the leader loads the truck scanning a bundle of the house. Evidence, finished work and the client's
- *  signature are recorded at the site, in Campo. */
+/** Campo → Carga del camión: the leader loads the truck scanning a bundle of the house (Gabriel, 12/10: Logística
+ *  is no longer a module; Planning decides, Field executes). Evidence, finished work and signature: Campo home. */
 type View = 'list' | 'detail' | 'qr' | 'confirm';
 
 /** Fila del feed; incluye leader_name devuelto por el backend para DIRECTOR/GERENCIA. */
@@ -19,7 +19,7 @@ type WorkdayAssignment = WorkdayAssignmentRow & {
   assignment_date: string | null;
 };
 
-export default function InstallerWorkdayPage() {
+export default function FieldLoadPage() {
   const [assignments, setAssignments] = useState<WorkdayAssignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<WorkdayAssignment | null>(null);
@@ -35,8 +35,8 @@ export default function InstallerWorkdayPage() {
     localStorage.getItem('user_role');
   const pageTitle =
     String(userRole ?? '').toUpperCase() === 'LOGISTICS'
-      ? 'Mis Instalaciones'
-      : 'Jornada de Instalación';
+      ? 'Carga del camión'
+      : 'Carga del camión (todas las cuadrillas)';
 
   const load = async (opts?: { silent?: boolean }): Promise<WorkdayAssignment[]> => {
     try {
@@ -97,7 +97,7 @@ export default function InstallerWorkdayPage() {
     setConfirming(true);
     try {
       await scanBundleQR(assignmentId, preview.bundle_qr_uuid);
-      showMessage('🔵🔵 Carga confirmada. Fotos, trabajo terminado y firma se registran en Campo.');
+      showMessage('🔵🔵 Carga confirmada. Fotos, trabajo terminado y firma: en tus asignaciones de Campo.');
       setPreview(null);
       setView('detail');
       const list = await load({ silent: true });
@@ -325,13 +325,13 @@ export default function InstallerWorkdayPage() {
               ) : (
                 <div className="rounded-2xl bg-blue-50 border border-blue-200 p-4 text-sm text-blue-800">
                   <p className="font-semibold">Ya está cargada.</p>
-                  <p className="mt-1">Las fotos, el trabajo terminado y la firma del cliente se registran en Campo.</p>
+                  <p className="mt-1">Las fotos, el trabajo terminado y la firma del cliente se registran en la casa, en Campo.</p>
                   <button
                     type="button"
                     onClick={() => navigate('/field')}
                     className="mt-3 w-full py-3 rounded-xl bg-blue-600 text-white font-semibold active:bg-blue-700"
                   >
-                    Ir a Campo
+                    Ir a mis asignaciones
                   </button>
                 </div>
               )}

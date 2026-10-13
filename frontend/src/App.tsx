@@ -65,10 +65,8 @@ import OVTrackingPage from './modules/sales/pages/OVTrackingPage';
 // 10. PLANEACIÓN ESTRATÉGICA: MATRIZ DE 4 CARRILES
 import PlanningPage from './modules/planning/pages/PlanningPage';
 
-// 11. LOGÍSTICA E INSTALACIÓN (iPad / cuadrilla)
-import InstallerWorkdayPage from './modules/logistics/pages/InstallerWorkdayPage';
-import LogisticsDashboardPage from './modules/logistics/pages/LogisticsDashboardPage';
-import InstallationTeamAgendaPage from './modules/logistics/pages/InstallationTeamAgendaPage';
+// 11. CAMPO (celular de la cuadrilla): agenda del día, carga del camión, fotos y firma
+import FieldLoadPage from './modules/field/pages/FieldLoadPage';
 import FieldHomePage from './modules/field/pages/FieldHomePage';
 import FieldInstancePage from './modules/field/pages/FieldInstancePage';
 
@@ -192,13 +190,14 @@ function AppRoutes() {
         {/* --- PLANEACIÓN ESTRATÉGICA: TABLERO MAESTRO --- */}
         <Route path="/planning" element={<PlanningPage key={key} />} />
 
-        {/* --- LOGÍSTICA E INSTALACIÓN --- */}
-        <Route path="/logistics" element={<LogisticsDashboardPage key={key} />} />
-        <Route path="/logistics/by-instance" element={<InstallerWorkdayPage key={key} />} />
-        <Route path="/logistics/by-team" element={<InstallationTeamAgendaPage key={key} />} />
+        {/* Logística ya no es módulo (Gabriel, 12/10): sus vistas viven en Planeación y Campo */}
+        <Route path="/logistics" element={<Navigate to="/field" replace />} />
+        <Route path="/logistics/by-instance" element={<Navigate to="/field/load" replace />} />
+        <Route path="/logistics/by-team" element={<Navigate to="/planning" replace />} />
 
         {/* --- CAMPO PWA --- */}
         <Route path="/field" element={<FieldHomePage key={key} />} />
+        <Route path="/field/load" element={<FieldLoadPage key={key} />} />
         <Route path="/field/instance/:id" element={<FieldInstancePage key={key} />} />
       </Route>
 

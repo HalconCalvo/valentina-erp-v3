@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Pencil, UserPlus } from 'lucide-react';
 import {
   getTeamAgenda,
@@ -7,15 +6,25 @@ import {
   updateDayTeam,
   type TeamAgendaTeam,
   type TeamAgendaInstance,
-  type UnassignedAgendaInstance,
 } from '../../../api/logistics-service';
-import { planningService } from '../../../api/planning-service';
+import { planningService, type UnstaffedInstallation } from '../../../api/planning-service';
 import axiosClient from '../../../api/axios-client';
 import Modal from '@/components/ui/Modal';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { toast } from '@/components/ui/VToast';
 
-const AGENDA_ROLES = ['PRODUCTION', 'DESIGN', 'MANAGER', 'DIRECTOR'];
+const LANE_LABEL: Record<string, string> = { IM: 'Instalación muebles', IP: 'Instalación piedra' };
+
+function daysLeftLabel(days: number): string {
+  if (days < 0) return `Vencida hace ${-days} ${days === -1 ? 'día' : 'días'}`;
+  if (days === 0) return 'Hoy';
+  return `Faltan ${days} ${days === 1 ? 'día' : 'días'}`;
+}
+
+function formatShortDate(iso: string): string {
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
 
 interface Installer {
   id: number;
@@ -70,14 +79,14 @@ function instanceAddressLine(row: {
   return parts.join(' · ') || '—';
 }
 
-export default function InstallationTeamAgendaPage() {
-  const navigate = useNavigate();
-  const userRole = (localStorage.getItem('user_role') || '').toUpperCase();
+/** Planeación → Agenda de instalación: what each crew does each day, and every installation scheduled without
+ *  crew to assign it fast (red when 3 days away or less). Planning decides; Field executes. */
+export default function InstallationAgenda({ readOnly = false, onChanged }: { readOnly?: boolean; onChanged?: () => void }) {
   const todayIso = useMemo(() => toIsoDate(new Date()), []);
 
   const [workday, setWorkday] = useState(todayIso);
   const [teams, setTeams] = useState<TeamAgendaTeam[]>([]);
-  const [unassigned, setUnassigned] = useState<UnassignedAgendaInstance[]>([]);
+  const [unstaffed, setUnstaffed] = useState<UnstaffedInstallation[]>([]);
   const [loading, setLoading] = useState(true);
   const [installers, setInstallers] = useState<Installer[]>([]);
 
@@ -87,7 +96,7 @@ export default function InstallationTeamAgendaPage() {
   const [editH2, setEditH2] = useState('');
   const [editSaving, setEditSaving] = useState(false);
 
-  const [assignRow, setAssignRow] = useState<UnassignedAgendaInstance | null>(null);
+  const [assignRow, setAssignRow] = useState<UnstaffedInstallation | null>(null);
   const [assignLeaderId, setAssignLeaderId] = useState('');
   const [assignH1, setAssignH1] = useState('');
   const [assignH2, setAssignH2] = useState('');
@@ -101,25 +110,21 @@ export default function InstallationTeamAgendaPage() {
   const loadAgenda = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await getTeamAgenda(workday);
+      const [data, pending] = await Promise.all([getTeamAgenda(workday), planningService.getUnstaffedInstallations()]);
       setTeams(data.teams);
-      setUnassigned(data.unassigned);
+      setUnstaffed(pending);
     } catch {
-      toast.error('No se pudo cargar la agenda del día.');
+      toast.error('No se pudo cargar la agenda de instalación.');
       setTeams([]);
-      setUnassigned([]);
+      setUnstaffed([]);
     } finally {
       setLoading(false);
     }
   }, [workday]);
 
   useEffect(() => {
-    if (!AGENDA_ROLES.includes(userRole)) {
-      navigate('/logistics', { replace: true });
-      return;
-    }
     void loadAgenda();
-  }, [userRole, navigate, loadAgenda]);
+  }, [loadAgenda]);
 
   useEffect(() => {
     axiosClient
@@ -170,12 +175,13 @@ export default function InstallationTeamAgendaPage() {
         leader_user_id: Number(assignLeaderId),
         helper_1_user_id: assignH1 ? Number(assignH1) : null,
         helper_2_user_id: assignH2 ? Number(assignH2) : null,
-        assignment_date: workday,
+        assignment_date: assignRow.scheduled_date,
         lane: assignRow.lane as 'IM' | 'IP',
       });
-      toast.success('Equipo asignado.');
+      toast.success('Cuadrilla asignada.');
       setAssignRow(null);
       await loadAgenda();
+      onChanged?.();
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: string } } };
       toast.error(err?.response?.data?.detail ?? 'Error al asignar equipo.');
@@ -272,19 +278,61 @@ export default function InstallationTeamAgendaPage() {
   );
 
   return (
-    <div className="p-4 md:p-8 max-w-4xl mx-auto pb-24 space-y-6">
-      <button
-        type="button"
-        onClick={() => navigate('/logistics')}
-        className="text-sm font-bold text-slate-600 hover:text-sky-700 py-2 px-3 rounded-lg border border-slate-200 bg-white"
-      >
-        ← Logística
-      </button>
+    <div className="p-4 md:p-6 max-w-4xl mx-auto pb-24 space-y-6">
+      <section className="rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50/50 p-4">
+        <h2 className="text-lg font-black text-amber-900">Programadas sin cuadrilla</h2>
+        <p className="text-xs text-amber-800/80 mb-3">
+          Instalaciones con fecha y sin equipo. En rojo: faltan 3 días o menos.
+        </p>
+        {unstaffed.length === 0 ? (
+          <p className="text-sm text-amber-800/70">Todas las instalaciones programadas tienen cuadrilla.</p>
+        ) : (
+          <ul className="flex flex-col gap-3">
+            {unstaffed.map((row) => (
+              <li
+                key={`${row.instance_id}-${row.lane}`}
+                className={`rounded-xl border bg-white p-4 flex flex-col sm:flex-row sm:items-center gap-3 ${
+                  row.is_urgent ? 'border-red-300 ring-2 ring-red-100' : 'border-amber-200'
+                }`}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <span className="text-xs font-black text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
+                      {row.order_folio ?? 'Sin OV'}
+                    </span>
+                    <span className="text-[10px] font-bold uppercase text-slate-500">{LANE_LABEL[row.lane] ?? row.lane}</span>
+                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${
+                      row.is_urgent ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {formatShortDate(row.scheduled_date)} · {daysLeftLabel(row.days_left)}
+                    </span>
+                  </div>
+                  <p className="font-bold text-slate-800">{row.instance_name}</p>
+                  <p className="text-sm text-slate-500">{instanceAddressLine(row)}</p>
+                </div>
+                {!readOnly && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAssignRow(row);
+                      setAssignLeaderId('');
+                      setAssignH1('');
+                      setAssignH2('');
+                    }}
+                    className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-bold text-sm bg-amber-600 text-white hover:bg-amber-700 w-full sm:w-auto shrink-0"
+                  >
+                    <UserPlus size={18} />
+                    Asignar cuadrilla
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <header className="space-y-4">
-        <h1 className="text-2xl md:text-3xl font-black text-slate-800">
-          Agenda de Instalaciones
-        </h1>
+        <h2 className="text-xl font-black text-slate-800">Cuadrillas del día</h2>
         <div className="flex flex-wrap items-center justify-center gap-3">
           <button
             type="button"
@@ -332,8 +380,8 @@ export default function InstallationTeamAgendaPage() {
         <p className="text-center text-slate-400 py-16 font-medium">Cargando agenda...</p>
       ) : (
         <>
-          {teams.length === 0 && unassigned.length === 0 && (
-            <p className="text-center text-slate-400 py-12">Sin instalaciones programadas este día.</p>
+          {teams.length === 0 && (
+            <p className="text-center text-slate-400 py-12">Ninguna cuadrilla tiene instalaciones este día.</p>
           )}
 
           {teams.map((team) => (
@@ -380,45 +428,6 @@ export default function InstallationTeamAgendaPage() {
             </section>
           ))}
 
-          <section className="rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50/50 p-4">
-            <h2 className="text-lg font-black text-amber-900 mb-3">Sin asignar</h2>
-            {unassigned.length === 0 ? (
-              <p className="text-sm text-amber-800/70">Todas las instancias del día tienen cuadrilla.</p>
-            ) : (
-              <ul className="flex flex-col gap-3">
-                {unassigned.map((row) => (
-                  <li
-                    key={`${row.instance_id}-${row.lane}`}
-                    className="rounded-xl border border-amber-200 bg-white p-4 flex flex-col sm:flex-row sm:items-center gap-3"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap gap-2 mb-1">
-                        <span className="text-xs font-black text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
-                          {row.order_folio ?? 'Sin OV'}
-                        </span>
-                        <span className="text-[10px] font-bold uppercase text-slate-500">{row.lane}</span>
-                      </div>
-                      <p className="font-bold text-slate-800">{row.instance_name}</p>
-                      <p className="text-sm text-slate-500">{instanceAddressLine(row)}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAssignRow(row);
-                        setAssignLeaderId('');
-                        setAssignH1('');
-                        setAssignH2('');
-                      }}
-                      className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-bold text-sm bg-amber-600 text-white hover:bg-amber-700 w-full sm:w-auto shrink-0"
-                    >
-                      <UserPlus size={18} />
-                      Asignar equipo
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
         </>
       )}
 
@@ -452,12 +461,12 @@ export default function InstallationTeamAgendaPage() {
       <Modal
         isOpen={!!assignRow}
         onClose={() => !assignSaving && setAssignRow(null)}
-        title="Asignar equipo"
+        title="Asignar cuadrilla"
         size="md"
       >
         {assignRow && (
           <p className="text-sm text-slate-600 mb-4">
-            {assignRow.instance_name} · {assignRow.lane} · {workday}
+            {assignRow.instance_name} · {LANE_LABEL[assignRow.lane] ?? assignRow.lane} · {formatShortDate(assignRow.scheduled_date)}
           </p>
         )}
         {teamModalFields(assignLeaderId, setAssignLeaderId, assignH1, setAssignH1, assignH2, setAssignH2)}

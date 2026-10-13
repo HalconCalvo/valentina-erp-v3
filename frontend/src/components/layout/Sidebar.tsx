@@ -31,11 +31,12 @@ const menuItems = [
   // 🔒 CANDADO APLICADO: Ventas ya NO puede entrar a Diseño e Ingeniería.
   { icon: Ruler, label: 'Diseño e Ingeniería', path: '/design', allowedRoles: ['DIRECTOR', 'MANAGER', 'DESIGN'] },
   
-  { icon: Factory, label: 'Producción', path: '/production', allowedRoles: ['DIRECTOR', 'MANAGER', 'ADMIN', 'DESIGN', 'PRODUCTION'] },
+  // Recorrido (Gabriel, 12/10): Diseño → Ventas → Planeación → Compras → Producción → Campo → Administración.
+  // Logística ya no es módulo: Planeación decide fechas y cuadrilla; Campo ejecuta (carga, fotos, firma).
   { icon: CalendarDays, label: 'Planeación Maestra', path: '/planning', allowedRoles: ['DIRECTOR', 'MANAGER', 'DESIGN', 'PRODUCTION', 'ADMIN', 'SALES'] },
-  { icon: Truck, label: 'Logística e Instalación', path: '/logistics', allowedRoles: ['DIRECTOR', 'MANAGER', 'ADMIN', 'WAREHOUSE', 'SALES', 'LOGISTICS', 'PRODUCTION', 'DESIGN'] },
-  { icon: HardHat, label: 'Campo', path: '/field', allowedRoles: ['DIRECTOR', 'MANAGER', 'LOGISTICS', 'PRODUCTION', 'DESIGN'] },
   { icon: ClipboardList, label: 'Compras y Almacén', path: '/inventory', allowedRoles: ['DIRECTOR', 'MANAGER', 'ADMIN', 'WAREHOUSE', 'PRODUCTION'] },
+  { icon: Factory, label: 'Producción', path: '/production', allowedRoles: ['DIRECTOR', 'MANAGER', 'ADMIN', 'DESIGN', 'PRODUCTION'] },
+  { icon: HardHat, label: 'Campo', path: '/field', allowedRoles: ['DIRECTOR', 'MANAGER', 'LOGISTICS', 'PRODUCTION', 'DESIGN'] },
   { icon: Landmark, label: 'Administración', path: '/treasury', allowedRoles: ['DIRECTOR', 'MANAGER', 'ADMIN'] },
   { icon: UserCog, label: 'Usuarios y Comisiones', path: '/users', allowedRoles: ['DIRECTOR'] },
   { icon: Percent, label: 'Registro Impuestos', path: '/tax-rates', allowedRoles: ['DIRECTOR', 'ADMIN'] }, 
@@ -49,11 +50,11 @@ const rolePriorities: Record<string, string[]> = {
   'MANAGER': ['/', '/management', '/planning', '/treasury', '/production', '/sales', '/field'],
   'ADMIN': ['/', '/treasury', '/inventory'],
   // Ventas ya no necesita priorizar /design
-  'SALES': ['/', '/sales', '/planning', '/clients', '/logistics'],
+  'SALES': ['/', '/sales', '/planning', '/clients'],
   'DESIGN': ['/', '/design', '/planning', '/production', '/field'],
-  'WAREHOUSE': ['/', '/inventory', '/logistics'],
+  'WAREHOUSE': ['/', '/inventory'],
   'PRODUCTION': ['/', '/production', '/planning', '/inventory', '/field'],
-  'LOGISTICS': ['/', '/logistics', '/production', '/field']
+  'LOGISTICS': ['/', '/field', '/production']
 };
 
 /** Rutas permitidas por rol (deep links fuera del menú principal) */
@@ -153,7 +154,7 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: { mobileO
           case 'DESIGN': return 'Ingeniería y Diseño';
           case 'WAREHOUSE': return 'Almacén y Compras';
           case 'PRODUCTION': return 'Jefe Producción';
-          case 'LOGISTICS': return 'Logística e Instalación';
+          case 'LOGISTICS': return 'Instalación (Campo)';
           default: return 'Usuario Sistema';
       }
   };

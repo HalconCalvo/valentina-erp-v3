@@ -56,3 +56,16 @@ class InstanceScheduleRead(BaseModel):
     is_resale: Optional[bool] = None
     scheduled_inst_mdf_end: Optional[datetime] = None
     scheduled_inst_stone_end: Optional[datetime] = None
+
+
+class UnstaffedInstallationRead(BaseModel):
+    """An installation lane scheduled in Planning without crew; is_urgent when 3 days away or less."""
+    instance_id: int
+    lane: str
+    instance_name: str
+    order_folio: Optional[str] = None
+    client_name: Optional[str] = None
+    address: Optional[str] = None
+    scheduled_date: str
+    days_left: int
+    is_urgent: bool

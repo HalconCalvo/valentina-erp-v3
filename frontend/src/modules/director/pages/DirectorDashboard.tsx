@@ -21,6 +21,7 @@ import { quotationService } from '../../../api/quotation-service';
 import axiosClient from '../../../api/axios-client';
 import type { Quotation } from '../../../types/quotations';
 import { salesService } from '../../../api/sales-service';
+import { planningService, type UnstaffedInstallation } from '../../../api/planning-service';
 import {
     analyticsService,
     type AmountLine,
@@ -142,6 +143,8 @@ const DirectorDashboard: React.FC = () => {
     // One source for Ventas, Liquidez, Rentabilidad, Cartera and Top clientes (amounts without VAT)
     const [summary, setSummary] = useState<DirectorSummary | null>(null);
     const [cashFlow, setCashFlow] = useState<CashFlowProjection | null>(null);
+    // Ruta Crítica: installations without crew 3 days away or less (Gabriel, 12/10)
+    const [urgentUnstaffed, setUrgentUnstaffed] = useState<UnstaffedInstallation[]>([]);
     const [liquidityDetail, setLiquidityDetail] = useState<'BANKS' | 'RECEIVABLES' | 'INVENTORY' | 'PAYABLES' | null>(null);
     const liquidityNet = summary?.liquidity.net ?? 0;
 
@@ -198,6 +201,13 @@ const DirectorDashboard: React.FC = () => {
                 setCashFlow(flow);
             } catch {
                 /* ignore summary fetch errors */
+            }
+
+            try {
+                const unstaffed = await planningService.getUnstaffedInstallations();
+                setUrgentUnstaffed(unstaffed.filter(row => row.is_urgent));
+            } catch {
+                /* ignore unstaffed errors */
             }
 
             try {
@@ -587,7 +597,7 @@ const DirectorDashboard: React.FC = () => {
 
                     {/* 2. RUTA CRÍTICA — ACTIVA */}
                     {(() => {
-                        const redCount = healthData?.counts?.RED ?? 0;
+                        const redCount = (healthData?.counts?.RED ?? 0) + urgentUnstaffed.length;
                         const yellowCount = healthData?.counts?.YELLOW ?? 0;
                         const blueCount = healthData?.counts?.BLUE ?? 0;
                         const alertCount = redCount + yellowCount;
@@ -635,8 +645,8 @@ const DirectorDashboard: React.FC = () => {
                                             </div>
                                         </div>
                                         <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
-                                            <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
-                                                Ejecución Física
+                                            <p className={`text-[10px] font-bold uppercase truncate ${urgentUnstaffed.length > 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                                                {urgentUnstaffed.length > 0 ? `${urgentUnstaffed.length} sin cuadrilla a ≤3 días` : 'Ejecución Física'}
                                             </p>
                                             <AlertCircle size={14} className={iconColor} />
                                         </div>
@@ -952,6 +962,43 @@ const DirectorDashboard: React.FC = () => {
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-bold uppercase">
                                         Fecha vencida sin avance
+                                    </p>
+                                </div>
+                            </Card>
+
+                            {/* SIN CUADRILLA ⚠️: instalación a 3 días o menos (o vencida) sin equipo */}
+                            <Card
+                                onClick={() => setSelectedHealthGroup({
+                                    title: '⚠️ Instalaciones sin cuadrilla',
+                                    color: 'red',
+                                    instances: urgentUnstaffed.map(row => ({
+                                        id: row.instance_id,
+                                        order_folio: row.order_folio ?? undefined,
+                                        client_name: row.client_name ?? undefined,
+                                        custom_name: `${row.instance_name} · ${row.lane === 'IP' ? 'Piedra' : 'Muebles'}`,
+                                        delivery_deadline: row.scheduled_date,
+                                        semaphore: 'RED',
+                                        semaphore_label: row.days_left < 0 ? `Vencida ${-row.days_left} d` : `Faltan ${row.days_left} d`,
+                                    })),
+                                })}
+                                className={`p-6 border-l-4 bg-white relative overflow-hidden h-40 flex flex-col justify-between cursor-pointer hover:shadow-lg transition-all transform hover:-translate-y-1 ${
+                                    urgentUnstaffed.length > 0 ? 'border-l-red-500 ring-2 ring-red-100' : 'border-l-slate-200'
+                                }`}
+                            >
+                                <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center border-r font-black text-3xl ${
+                                    urgentUnstaffed.length > 0 ? 'bg-red-50 text-red-600 border-red-100' : 'bg-slate-50 text-slate-300 border-slate-100'
+                                }`}>
+                                    {urgentUnstaffed.length}
+                                </div>
+                                <div className="ml-16 h-full flex flex-col justify-between pl-2">
+                                    <h4 className="font-bold text-slate-800 flex items-center gap-2 text-sm uppercase tracking-tight">
+                                        ⚠️ Sin cuadrilla
+                                    </h4>
+                                    <div className={`text-2xl font-black text-right leading-none ${urgentUnstaffed.length > 0 ? 'text-red-600' : 'text-slate-300'}`}>
+                                        {urgentUnstaffed.length > 0 ? 'Asignar en Planeación' : 'Todas con equipo'}
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase">
+                                        Instalación a 3 días o menos sin equipo
                                     </p>
                                 </div>
                             </Card>

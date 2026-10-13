@@ -103,6 +103,18 @@ export interface InstanceInstallationAssignment {
   assignment_date: string | null;
 }
 
+export type UnstaffedInstallation = {
+  instance_id: number;
+  lane: string;
+  instance_name: string;
+  order_folio: string | null;
+  client_name: string | null;
+  address: string | null;
+  scheduled_date: string;
+  days_left: number;
+  is_urgent: boolean;
+};
+
 export const planningService = {
   getCalendar: (year: number, month: number) =>
     client.get<CalendarFeed>(API_ROUTES.PLANNING.CALENDAR, { params: { year, month } }),
@@ -154,6 +166,12 @@ export const planningService = {
       body.delivery_deadline = trimmed ? trimmed : null;
     }
     return client.patch(API_ROUTES.PLANNING.BAPTIZE(orderId), body);
+  },
+
+  /** Programadas sin cuadrilla: installation lanes with a date and no crew (is_urgent at 3 days or less). */
+  getUnstaffedInstallations: async (): Promise<UnstaffedInstallation[]> => {
+    const res = await client.get('/planning/installations/unstaffed');
+    return res.data;
   },
 
   assignTeam: (

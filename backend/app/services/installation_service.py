@@ -1,7 +1,7 @@
 """Installation of an instance, lane by lane (IM furniture, IP stone): load the truck in the yard, install, sign.
 
-Roles of each place (Gabriel, 2026-10-12):
-- Logistics (yard) loads the truck by scanning the QR of a bundle of that house: the lane goes SCHEDULED →
+Roles of each place (Gabriel, 2026-10-12; Logística is no longer a module: Planning decides dates and crew):
+- Field loads the truck by scanning the QR of a bundle of that house (Carga del camión): the lane goes SCHEDULED →
   IN_PROGRESS, the instance READY → CARGADO and its material moves to cost of sales.
 - Field (the site) records evidence, marks each loaded lane as installed and takes the client's signature.
 - D15: crew payroll is created only by the client's signature (READY_TO_PAY). Neither the assignment nor the load

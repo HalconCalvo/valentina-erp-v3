@@ -149,6 +149,16 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
 - Se corrige lo que falle en el camino; lo de negocio va a DECISIONES_PENDIENTES.
 - Entregable: reporte paso a paso (qué funcionó, qué se corrigió, qué queda para Gabriel).
 
+## 12. Logística deja de ser módulo (Gabriel, 12/10) — hecha (2026-10-12, commit local)
+- Planeación Maestra decide fechas y cuadrilla; vistas Calendario (Mes/Semana/Día) y "Agenda de instalación"
+  (cuadrillas del día + "Programadas sin cuadrilla" de todas las fechas, con "Asignar cuadrilla").
+- Alerta roja si una instalación está a 3 días o menos (o vencida) sin cuadrilla: franja en Planeación y tarjeta
+  "Sin cuadrilla" en Ruta Crítica de Dirección (`GET /planning/installations/unstaffed`).
+- Campo ejecuta: agenda del día, "Carga del camión" (escaneo, `/field/load`), fotos, trabajo terminado y firma.
+- Menú en el orden del recorrido: Diseño → Ventas → Planeación → Compras → Producción → Campo → Administración.
+  Las rutas /logistics redirigen a Campo o Planeación.
+- Siguiente: 13. Ambiente "Valentina Pruebas" en Render; 14. Obra piloto en Pruebas.
+
 ## 11. PRIORIDAD 2 — Indicadores del tablero de Dirección (con Gabriel) — hecha (2026-10-12, commit local)
 - Decisiones de Gabriel (12/10) aplicadas con una sola fuente (`GET /analytics/director-summary`, solo DIRECTOR):
   1. Ventas: OVs vendidas del año sin IVA (tasa 0 y 16) contra la meta anual.

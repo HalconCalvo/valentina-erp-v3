@@ -25,7 +25,7 @@ const INSTALL_TYPE: Record<string, string> = { MDF: 'Muebles', STONE: 'Piedra', 
 const SUPERVISOR_ROLES = ['DIRECTOR', 'MANAGER'];
 const LANE_STATUS: Record<string, string> = {
   UNASSIGNED: 'Sin cuadrilla asignada (Planeación)',
-  SCHEDULED: 'Por cargar en Logística',
+  SCHEDULED: 'Por cargar (Carga del camión)',
   IN_PROGRESS: 'Cargado: en obra',
   INSTALLED: 'Trabajo terminado',
   COMPLETED: 'Firmado',

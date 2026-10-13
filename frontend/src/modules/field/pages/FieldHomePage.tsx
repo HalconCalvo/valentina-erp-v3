@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { CloudOff, RefreshCw, Wifi } from 'lucide-react';
+import { CloudOff, RefreshCw, Truck, Wifi } from 'lucide-react';
 import { useOfflineSync } from '@/field/useOfflineSync';
 import type { FieldAssignment } from '@/field/field-service';
 
@@ -51,6 +51,15 @@ export default function FieldHomePage() {
           Modo sin conexión — {pendingCount} pendiente{pendingCount === 1 ? '' : 's'}
         </div>
       )}
+
+      <button
+        type="button"
+        onClick={() => navigate('/field/load')}
+        className="mb-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-sm font-bold text-white active:bg-blue-700"
+      >
+        <Truck size={18} />
+        Carga del camión (escanear bultos)
+      </button>
 
       <div className="mb-4 flex gap-2">
         <button

@@ -185,11 +185,11 @@ const MODULE_CONTENT: Record<string, ModuleInfo> = {
   },
   logistica: {
     id: 'logistica',
-    title: 'Logística e Instalación',
-    subtitle: 'Jornada de Instalación',
-    description: 'Coordina las cuadrillas de instalación y registra el avance en campo. Cada mueble tiene su cuadrilla asignada, fecha y tipo de instalación.',
+    title: 'Campo — Instalación',
+    subtitle: 'Carga del camión, obra y firma',
+    description: 'Planeación Maestra decide fechas y cuadrilla (vista Agenda de instalación). Campo ejecuta en el celular: agenda del día, carga del camión escaneando un bulto, fotos, trabajo terminado y firma del cliente.',
     cards: [
-      { name: 'Jornada de Instalación', desc: 'Lista de asignaciones activas por fecha. Cada tarjeta: instancia, proyecto, tipo de instalación, fecha, cuadrilla (Líder + Ayudante).' },
+      { name: 'Carga del camión', desc: 'El líder escanea un bulto de cada casa (o escribe el código de la etiqueta). Muebles: bultos de MDF y herrajes; piedra: piezas del manifiesto.' },
       { name: 'Tipos de instalación', desc: 'Instalación MDF (closets y cocinas de madera) · Instalación Piedra (granito, mármol, cuarzo). Cuadrillas distintas para cada tipo.' },
       { name: 'Estados', desc: 'CARGADO (en camión) → INSTALLED (evidencia fotográfica) → CLOSED (firma de conformidad del cliente).' },
       { name: 'Cuadrillas', desc: 'Líder + ayudante asignados. Tarifas configuradas en Parámetros Globales (Líder $800/día, Ayudante $700/día).' },
@@ -452,14 +452,14 @@ function MapaSVG({ onSelect, selected }: { onSelect: (id: string) => void; selec
 
       <line x1="342" y1="530" x2="342" y2="554" stroke="#B4B2A9" strokeWidth="1" markerEnd="url(#harr)"/>
 
-      {/* BANDA 6 — Logística */}
+      {/* BANDA 6 — Campo */}
       <g className="cursor-pointer" onClick={() => onSelect('logistica')}>
         <rect x={80} y={554} width={524} height={56} rx={8}
           fill={bg('logistica','#0F6E56','#E1F5EE')} stroke={bg('logistica','#085041','#5DCAA5')} strokeWidth="0.8"/>
         <text x="342" y="576" textAnchor="middle" fontSize={12} fontWeight="500"
-          fill={tx('logistica','#E1F5EE','#085041')}>Logística e Instalación — Jornada de Instalación</text>
+          fill={tx('logistica','#E1F5EE','#085041')}>Campo — Carga, instalación y firma</text>
         <text x="342" y="592" textAnchor="middle" fontSize={10}
-          fill={tx('logistica','#9FE1CB','#0F6E56')}>cuadrillas · MDF y Piedra · fecha programada · líder + ayudante</text>
+          fill={tx('logistica','#9FE1CB','#0F6E56')}>fechas y cuadrilla en Planeación · escaneo · fotos · firma</text>
         <text x="342" y="604" textAnchor="middle" fontSize={10}
           fill={tx('logistica','#9FE1CB','#0F6E56')}>INSTALLED → CLOSED (firma de conformidad)</text>
       </g>

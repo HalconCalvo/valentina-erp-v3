@@ -27,7 +27,7 @@ def _format_address(instance: SalesOrderItemInstance, client: Optional[Client]) 
     return " · ".join(parts) if parts else None
 
 
-def _instance_context(
+def instance_context(
     session: Session, instance: SalesOrderItemInstance
 ) -> Tuple[Optional[str], Optional[str], Optional[str]]:
     item = session.get(SalesOrderItem, instance.sales_order_item_id)
@@ -75,7 +75,7 @@ def get_team_agenda(session: Session, workday: date) -> dict:
         inst = session.get(SalesOrderItemInstance, a.instance_id)
         if not inst or inst.is_cancelled:
             continue
-        folio, client_name, address = _instance_context(session, inst)
+        folio, client_name, address = instance_context(session, inst)
         leader = session.get(User, a.leader_user_id)
         h1 = session.get(User, a.helper_1_user_id) if a.helper_1_user_id else None
         h2 = session.get(User, a.helper_2_user_id) if a.helper_2_user_id else None
@@ -116,7 +116,7 @@ def get_team_agenda(session: Session, workday: date) -> dict:
         for lane in lanes_today:
             if (inst.id, lane) in covered:
                 continue
-            folio, client_name, address = _instance_context(session, inst)
+            folio, client_name, address = instance_context(session, inst)
             unassigned.append(
                 {
                     "instance_id": inst.id,

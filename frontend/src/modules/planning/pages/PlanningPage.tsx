@@ -4,6 +4,7 @@ import WeekView from '../components/WeekView';
 import DayView from '../components/DayView';
 import HealthSidebar from '../components/HealthSidebar';
 import InstanceEditModal from '../components/InstanceEditModal';
+import InstallationAgenda from '../components/InstallationAgenda';
 import {
   usePlanningCalendar,
   useHealthPanel,
@@ -17,12 +18,13 @@ import { InstanceSchedule, CalendarPill, planningService } from '../../../api/pl
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 
-type ViewMode = 'month' | 'week' | 'day';
+type ViewMode = 'month' | 'week' | 'day' | 'agenda';
 
 const VIEW_TABS: { key: ViewMode; label: string; icon: string }[] = [
   { key: 'month', label: 'Mes',    icon: '📅' },
   { key: 'week',  label: 'Semana', icon: '📆' },
   { key: 'day',   label: 'Día',    icon: '🗓️'  },
+  { key: 'agenda', label: 'Agenda de instalación', icon: '👷' },
 ];
 
 function getTodayKey(): string {
@@ -107,6 +109,15 @@ export default function PlanningPage() {
   }, [selectedDate]);
 
   // ── Highlight in calendar when sidebar card is clicked ───────
+  // Red alert: installations without crew 3 days away or less (Gabriel, 12/10)
+  const [urgentUnstaffed, setUrgentUnstaffed] = useState(0);
+  const loadUnstaffed = useCallback(() => {
+    planningService.getUnstaffedInstallations()
+      .then(rows => setUrgentUnstaffed(rows.filter(r => r.is_urgent).length))
+      .catch(() => setUrgentUnstaffed(0));
+  }, []);
+  useEffect(() => { loadUnstaffed(); }, [loadUnstaffed]);
+
   const [highlightInstanceId, setHighlightInstanceId] = useState<number | null>(null);
 
   /** fechas YYYY-MM-DD → sigla de carril (resaltado en mes + InstanceEditModal) */
@@ -308,6 +319,16 @@ export default function PlanningPage() {
       {/* ─── MAIN AREA (left, ~75%) ─── */}
       <div className="flex-1 min-w-[320px] flex flex-col overflow-hidden">
 
+        {urgentUnstaffed > 0 && viewMode !== 'agenda' && (
+          <button
+            type="button"
+            onClick={() => setViewMode('agenda')}
+            className="mx-4 mt-3 px-4 py-2 rounded-lg bg-red-600 text-white text-xs font-bold text-left hover:bg-red-700 shrink-0"
+          >
+            ⚠️ {urgentUnstaffed} {urgentUnstaffed === 1 ? 'instalación' : 'instalaciones'} sin cuadrilla a 3 días o menos (o vencidas). Asignar →
+          </button>
+        )}
+
         {/* ── View Mode Tabs ── */}
         <div className="flex items-center gap-1 px-4 pt-3 pb-0 border-b border-slate-100 shrink-0">
           {VIEW_TABS.map(tab => (
@@ -347,6 +368,12 @@ export default function PlanningPage() {
 
         {/* ── View Content ── */}
         <div className="flex-1 min-h-0 overflow-hidden">
+          {viewMode === 'agenda' && (
+            <div className="h-full overflow-y-auto">
+              <InstallationAgenda readOnly={readOnly} onChanged={loadUnstaffed} />
+            </div>
+          )}
+
           {viewMode === 'month' && (
             <PlanningCalendar
               year={calendar.year}

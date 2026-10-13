@@ -261,3 +261,24 @@ def test_an_installagranito_line_asks_for_the_stone_lane_without_stone(client_fi
     assert house["can_sign"] is False
     planned = client_fixture.get(f"{API}/planning/instances/{instance.id}", headers=auth_header_director).json()
     assert planned["has_stone_components"] is True
+
+
+def test_installations_without_crew_are_listed_and_red_at_three_days(client_fixture, session_fixture,
+                                                                    auth_header_director, seed_client_and_tax):
+    """Planning schedules with or without crew; a lane without crew is red when 3 days away or less."""
+    from datetime import timedelta
+    from app.services import installation_staffing_service
+    instance, im_lane, _ = _ready_house(client_fixture, session_fixture, auth_header_director, seed_client_and_tax)
+    today = datetime(2026, 10, 12)
+    instance.scheduled_inst_mdf = today + timedelta(days=2)   # IM already has its crew (im_lane)
+    instance.scheduled_inst_stone = today + timedelta(days=3)
+    session_fixture.add(instance)
+    session_fixture.commit()
+    rows = installation_staffing_service.get_unstaffed(session_fixture, today.date())
+    assert [(r["instance_id"], r["lane"], r["days_left"], r["is_urgent"]) for r in rows] == [(instance.id, "IP", 3, True)]
+    instance.scheduled_inst_stone = today + timedelta(days=4)
+    session_fixture.add(instance)
+    session_fixture.commit()
+    assert installation_staffing_service.get_unstaffed(session_fixture, today.date())[0]["is_urgent"] is False
+    listed = client_fixture.get(f"{API}/planning/installations/unstaffed", headers=auth_header_director)
+    assert listed.status_code == 200 and listed.json()[0]["lane"] == "IP"

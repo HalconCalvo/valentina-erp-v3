@@ -4602,6 +4602,23 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 - Tests: 306 backend, 17 frontend, build OK, tsc 156
 
 ---
+## SESIÓN 2026-10-12 (parte 23) — push programado 18:07
+- Condiciones cumplidas a las 18:07 (lunes, fuera de horario): 306 backend, 17 frontend, build OK, una cabeza de
+  Alembic (v1w2x3y4z5a6, ya en producción), sin migraciones nuevas
+- git push BLOQUEADO por el clasificador de permisos de Claude Code. Queda listo: Gabriel corre `git push origin main`
+  (commits fbd3421 … d7b0fa1)
+- Revisión del buzón del asesor activa cada 15 min (Gabriel: "quedas con el asesor")
+
+---
+## SESIÓN 2026-10-12 (parte 24) — Logística deja de ser módulo
+- Planeación: pestaña "Agenda de instalación" (cuadrillas del día + Programadas sin cuadrilla de todas las fechas);
+  franja roja si hay instalaciones a ≤3 días o vencidas sin cuadrilla. Ruta Crítica: tarjeta "Sin cuadrilla"
+- Campo: botón "Carga del camión" (/field/load). Menú sin Logística, en el orden del recorrido
+- Probado en pantalla: Diseño asignó cuadrilla a COCINA E - Lote 20 desde la agenda (11 → 10 sin cuadrilla, también en
+  Ruta Crítica); instalador entra a /logistics y cae en Campo; Carga del camión abre
+- Tests: 307 backend, 17 frontend, build OK, tsc 156
+
+---
 ## 2026-10-12 — PROPUESTA PARA DESPUÉS: AYUDA "?" DE VALENTINA (aprobada por Gabriel, en espera)
 
 Hoy el "?" abre un mapa técnico del sistema (Manual de Valentina). Se convertirá en ayuda real en tres niveles:
@@ -4616,3 +4633,40 @@ los demás conforme se operen. Claude Code redacta; Gabriel o el jefe de cada á
 
 Anotado también para la revisión de indicadores de Dirección: numeración repetida en el tablero
 (dos "6." y dos "7.") y "Eficiencia Fábrica" en $0.00.
+
+---
+## 2026-10-12 (tarde) — DECISIONES DE GABRIEL CON EL ASESOR
+
+### Tablero de Dirección (enviado a Claude Code, prioridad 2)
+- Ventas: solo año en curso, todas las OVs sin IVA (tasa 0 y 16 por igual) vs meta anual.
+- Liquidez = Bancos + CxC facturada + Inventario (3 cajones) − CxP.
+- Rentabilidad = Margen neto % sobre venta de las OVs del año; clic: OVs más/menos rentables; overhead/nómina/costo por pieza pasan a Eficiencia.
+- Cartera = CxC; clic: antigüedad y proyección de flujo.
+- Top clientes: más compraron; clic: por Margen neto %, los que pagan más pronto, ventas MDF y Piedra con su margen.
+- Renumerar tarjetas 1–10.
+
+### Nómina de cuadrilla
+- D18: pago = días de la línea de instalación de la receta (INSTALACOCINA / INSTALAGRANITO, unidad Día) × tarifa. Hecho.
+- 14 recetas sin línea de instalación → Diseño corrige (Excel pedido a Claude Code con cliente y versión).
+- D19 PENDIENTE: 4 recetas Nadira (#197, #201, #202, #231) con INSTALAGRANITO sin piedra; Gabriel revisa si el cliente dio la piedra.
+- D20 aprobada: PRODUCTION mueve sus lotes en el tablero (no planea ni reprograma).
+
+### Reorganización: se elimina Logística como módulo (aprobado)
+- Recorrido en 7 pasos: Diseño → Ventas → Planeación → Compras → Producción → Campo → Administración.
+- Planeación Maestra (Diseño) DECIDE: fechas de producción e instalación y cuadrilla de cada casa.
+  Dos vistas: Calendario (fechas, con o sin equipo) y Agenda de instalación (la de Logística):
+  lista "Programadas sin cuadrilla" para asignar rápido + qué hace cada equipo cada día.
+  Una instalación es programable sin equipo; el equipo se asigna después.
+  Alerta roja si faltan ≤3 días y no tiene cuadrilla (Planeación y Ruta Crítica de Dirección).
+- Campo (instaladores, celular) EJECUTA: agenda del día, escaneo de carga del camión, fotos, firma del cliente.
+- Regla: lo que hace el instalador va en Campo; lo que se decide en oficina, en Planeación.
+
+### Ambiente de pruebas "Valentina Pruebas" (aprobado)
+- Segunda URL en Render con copia de los datos de producción, franja "AMBIENTE DE PRUEBAS", sin correos, sin nube real.
+- Obra piloto inventada (cliente "OBRA PILOTO", cocina con muebles y piedra, 2–3 casas) para operar mañana de punta a punta:
+  Ventas cotiza y genera OV → Diseño recetas, bautizo, lotes y fechas → Producción produce, etiquetas y surte →
+  Instaladores escanean carga y recaban firma (Campo) → Gerencia factura lo instalado y cobra.
+- Queda como ambiente permanente de capacitación y pruebas.
+
+### Pendiente para después
+- Ayuda "?" en tres niveles (ver entrada anterior).

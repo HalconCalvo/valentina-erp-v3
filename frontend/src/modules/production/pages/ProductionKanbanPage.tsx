@@ -1174,7 +1174,7 @@ export default function ProductionKanbanPage() {
             )}
           </div>
           <p className="text-gray-500 mt-1">
-            Control de Lotes y Despacho a Logística
+            Control de Lotes y Despacho a Campo
           </p>
         </div>
         <button

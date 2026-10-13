@@ -22,6 +22,8 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_session
 from app.repositories import installation_repository
+from app.schemas.planning_schema import UnstaffedInstallationRead
+from app.services import installation_staffing_service
 from app.core.deps import get_current_active_user
 from app.models.users import User, UserRole
 from app.models.production import (
@@ -452,6 +454,15 @@ def get_calendar_feed(
 # ============================================================
 # 2. PANEL DE SALUD (Semáforo preventivo)
 # ============================================================
+
+@router.get("/installations/unstaffed", response_model=List[UnstaffedInstallationRead])
+def get_unstaffed_installations(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+) -> Any:
+    """Programadas sin cuadrilla: installation lanes with a date and no crew yet (red at 3 days or less)."""
+    return installation_staffing_service.get_unstaffed(session)
+
 
 @router.get("/instances/health")
 def get_health_panel(
