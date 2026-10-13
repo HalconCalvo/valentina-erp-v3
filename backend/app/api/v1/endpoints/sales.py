@@ -1,5 +1,6 @@
 from typing import Optional, List, Any, Dict
 from datetime import date, datetime
+import io
 import math
 import re
 from fastapi import APIRouter, Depends, HTTPException, status, Body, Query, UploadFile, File
@@ -26,7 +27,7 @@ from app.services.pdf_generator import PDFGenerator
 
 # --- IMPORTAMOS LOS MOTORES (V3.5) ---
 from app.services import credit_note_service, sales_service
-from app.services import inventory_service, legacy_import_service
+from app.services import inventory_service, legacy_import_service, legacy_template_service
 from app.schemas.legacy_import_schema import LegacyImportPreviewRead, LegacyImportRead
 from app.schemas.production_inventory_schema import OVCancelCreate
 from app.repositories import sales_repository as sales_repo
@@ -983,6 +984,21 @@ async def validate_legacy_orders(
     _require_director_legacy(current_user)
     content = await _read_legacy_upload(file)
     return legacy_import_service.validate_legacy_workbook(session, content)
+
+
+@router.get("/orders/legacy-import/template")
+def download_legacy_template(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+) -> StreamingResponse:
+    """Migration Excel already filled with the OVs managed by the Excel (same format the importer reads)."""
+    _require_director_legacy(current_user)
+    content = legacy_template_service.build_template(session)
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="migracion-ov.xlsx"'},
+    )
 
 
 @router.post("/orders/legacy-import", response_model=LegacyImportRead)

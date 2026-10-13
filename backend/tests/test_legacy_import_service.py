@@ -1,9 +1,8 @@
 import io
 from datetime import datetime
-from pathlib import Path
 
 import pytest
-from openpyxl import Workbook, load_workbook
+from openpyxl import Workbook
 from sqlmodel import select
 
 from app.core.config import settings
@@ -183,10 +182,12 @@ def test_unknown_seller_and_non_numeric_total_are_errors(session_fixture):
     assert "Total_OV_con_IVA no es un número válido" in text
 
 
-def test_missing_folio_is_error(session_fixture):
+def test_missing_invoice_folio_is_a_warning(session_fixture):
+    # Real legacy invoices exist without folio (OV-0122): they link by type, date and amount
     data = _workbook([_ov()], [_inv(Folio_Factura=None)])
     preview = svc.validate_legacy_workbook(session_fixture, data)
-    assert "Facturas:2:Folio_Factura es obligatorio." in _messages(preview["errors"])
+    assert preview["errors"] == []
+    assert "Facturas:2:Factura sin Folio_Factura: se liga por tipo, fecha y monto." in _messages(preview["warnings"])
 
 
 def test_folio_with_decimals_is_warning(session_fixture):
@@ -343,18 +344,6 @@ def test_fg_due_date_and_amount_errors(session_fixture, overrides, expected):
     assert preview["can_import"] is False
 
 
-def test_downloadable_template_matches_importer_columns():
-    template = Path(__file__).resolve().parents[2] / "frontend" / "src" / "assets" / "plantilla-migracion-ov.xlsx"
-    wb = load_workbook(template)
-    ov_headers = [c.value for c in wb[svc.OV_SHEET][1] if c.value]
-    inv_headers = [c.value for c in wb[svc.INV_SHEET][1] if c.value]
-    assert ov_headers == svc.OV_HEADERS
-    assert set(inv_headers) == set(ALL_INV_HEADERS)
-    assert inv_headers.index("FG_Fecha_Vencimiento") == inv_headers.index("NC_FG_Monto") + 1
-    preview_rows = [r for r in wb[svc.INV_SHEET].iter_rows(min_row=2, values_only=True) if r[0]]
-    assert all(str(r[0]).startswith("#") for r in preview_rows)
-
-
 def test_advance_mismatch_and_dates_are_warnings(session_fixture):
     data = _workbook(
         [_ov(Anticipo_Cobrado=49539.54)],
@@ -376,12 +365,14 @@ def test_example_and_blank_rows_are_ignored(session_fixture):
 
 # --- Existing orders, atomicity, endpoints ------------------------------------
 
-def test_existing_legacy_order_is_skipped_with_warning(session_fixture, director):
+def test_blank_folio_never_duplicates_an_existing_order(session_fixture, director):
     svc.import_legacy_workbook(session_fixture, _workbook([_ov()], [_inv()]), director)
+    order = session_fixture.exec(select(SalesOrder)).first()
     data = _workbook([_ov(), _ov(Proyecto="Proyecto B")], [_inv(), _inv(Proyecto="Proyecto B")])
     preview = svc.validate_legacy_workbook(session_fixture, data)
-    assert preview["orders_to_create"] == 1
-    assert "ya existe en el sistema; se omitirá junto con 1 factura(s)." in _messages(preview["warnings"])
+    folio = f"OV-{order.id:04d}"
+    assert f"OVs:2:Ya existe {folio} con este proyecto y cliente: escribe su Folio_OV." in _messages(preview["errors"])
+    assert preview["can_import"] is False
 
 
 def test_cancelled_legacy_order_can_be_reimported(session_fixture, director):

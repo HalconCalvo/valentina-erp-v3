@@ -1,9 +1,17 @@
-"""Legacy sales-order import from Excel (zero-balance cutover).
+"""Sales-order money from the migration Excel (zero-balance cutover; sync since the advisor's 13/10 instruction).
+
+The Excel is the truth ONLY of the money of the OVs it contains: which OVs exist, invoices, credit notes, advances,
+payments and balance. It carries no recipes, lines or production.
+- Column "Folio_OV" (first column of OVs and Facturas): the OV folio in Valentina (OV-0117). Invoices link to their
+  OV by Folio_OV; a blank Folio_OV is a new OV (its invoices link by Proyecto) and never duplicates an existing one.
+- Every upload is the complete truth: for an existing OV the invoices and payments end up equal to the Excel
+  (legacy_sync_service). Banks and commissions are never touched.
 
 Two phases:
-- validate_legacy_workbook(): parses and checks the whole file without writing.
-- import_legacy_workbook(): re-validates and, only when there are no errors,
-  creates everything in a single transaction (all or nothing).
+- validate_legacy_workbook(): parses and checks the whole file without writing; the preview says per OV what is
+  added, changed and cancelled.
+- import_legacy_workbook(): re-validates and, only when there are no errors, applies everything in a single
+  transaction (all or nothing).
 
 Nothing is assumed: any value that cannot be interpreted with certainty is
 reported as an error with its sheet and row number.
@@ -22,12 +30,9 @@ from fastapi import HTTPException
 from openpyxl import load_workbook
 from sqlmodel import Session
 
+from app.core.audit_context import audit_reason
 from app.models.foundations import Client, TaxRate
 from app.models.sales import (
-    CXCStatus,
-    CustomerPayment,
-    CustomerPaymentInstallment,
-    PaymentMethod,
     PaymentStatus,
     PaymentType,
     SalesOrder,
@@ -36,13 +41,17 @@ from app.models.sales import (
 )
 from app.models.users import User
 from app.repositories import legacy_import_repository as legacy_repo
+from app.services import legacy_sync_service as legacy_sync
 from app.services import sales_service
 
 logger = structlog.get_logger(__name__)
 
 OV_SHEET = "OVs"
 INV_SHEET = "Facturas"
+FOLIO_OV = "Folio_OV"
+FOLIO_OV_PATTERN = re.compile(r"^(?:OV-?)?0*(\d+)$", re.IGNORECASE)
 OV_HEADERS = [
+    FOLIO_OV,
     "Proyecto",
     "Cliente",
     "Vendedor",
@@ -53,6 +62,7 @@ OV_HEADERS = [
     "Notas",
 ]
 INV_HEADERS = [
+    FOLIO_OV,
     "Proyecto",
     "Tipo",
     "Folio_Factura",
@@ -69,8 +79,12 @@ INV_HEADERS = [
     "Abono3_Fecha",
     "Abono3_Monto",
 ]
-# Optional columns: older files without them still validate; when present they are checked.
-INV_OPTIONAL_HEADERS = ["FG_Fecha_Vencimiento"]
+# Payments 4..9 only when an invoice has more than three (the downloaded template adds the columns it needs).
+MAX_INSTALLMENT_SLOTS = 9
+EXTRA_INSTALLMENT_HEADERS = [f"Abono{n}_{part}" for n in range(4, MAX_INSTALLMENT_SLOTS + 1)
+                             for part in ("Fecha", "Monto")]
+# Optional columns: files without them still validate; when present they are checked.
+INV_OPTIONAL_HEADERS = ["FG_Fecha_Vencimiento"] + EXTRA_INSTALLMENT_HEADERS
 TIPO_MAP = {
     "ANTICIPO": PaymentType.ADVANCE,
     "AVANCE": PaymentType.PROGRESS,
@@ -84,19 +98,13 @@ BALANCE_TOLERANCE = 0.1
 # Must match the SalesOrder.default_retention_days model default (legacy OVs never override it).
 LEGACY_RETENTION_DAYS = 90
 RETENTION_PERCENT_DECIMALS = 4
-INSTALLMENT_SLOTS = (1, 2, 3)
+INSTALLMENT_SLOTS = tuple(range(1, MAX_INSTALLMENT_SLOTS + 1))
 DATE_FORMATS = ("%Y-%m-%d", "%d/%m/%Y")
 DECIMAL_TEXT = re.compile(r"^\d+[.,]\d+$")
 FOLIO_FIELDS = ("Folio_Factura", "NC_Anticipo_Folio", "NC_FG_Folio")
 CREDIT_NOTE_FIELDS = (("NC_Anticipo_Folio", "NC_Anticipo_Monto"), ("NC_FG_Folio", "NC_FG_Monto"))
-INVOICE_AMOUNT_FIELDS = (
-    "Monto_Factura",
-    "NC_Anticipo_Monto",
-    "NC_FG_Monto",
-    "Abono1_Monto",
-    "Abono2_Monto",
-    "Abono3_Monto",
-)
+INVOICE_AMOUNT_FIELDS = ("Monto_Factura", "NC_Anticipo_Monto", "NC_FG_Monto") + tuple(
+    f"Abono{n}_Monto" for n in INSTALLMENT_SLOTS)
 
 
 @dataclass
@@ -118,7 +126,7 @@ class _RetentionPlan:
 class _InvoicePlan:
     row: int
     payment_type: PaymentType
-    folio: str
+    folio: Optional[str]
     invoice_date: datetime
     amount: float
     nc_advance_folio: Optional[str]
@@ -138,15 +146,17 @@ class _InvoicePlan:
 class _OrderPlan:
     row: int
     project: str
-    client: Client
-    seller: User
-    tax_rate: TaxRate
+    client: Optional[Client]
+    seller: Optional[User]
+    tax_rate: Optional[TaxRate]
     total_price: float
     subtotal: float
     commission_pct: float
     advance_collected: float
     notes: str
     invoices: list[_InvoicePlan] = field(default_factory=list)
+    existing: Optional[SalesOrder] = None  # Folio_OV given: the OV already in Valentina
+    sync: Optional[legacy_sync.OrderSync] = None
 
     def tax_amount(self) -> float:
         return round(self.total_price - self.subtotal, 2)
@@ -167,7 +177,10 @@ class _OrderPlan:
 
 @dataclass
 class _ImportPlan:
+    reason: str = ""
     orders: list[_OrderPlan] = field(default_factory=list)
+    released: list[SalesOrder] = field(default_factory=list)
+    current: Optional["_OrderPlan"] = None  # OV being written (for the error message when the import fails)
     errors: list[dict] = field(default_factory=list)
     warnings: list[dict] = field(default_factory=list)
 
@@ -254,10 +267,18 @@ def _parse_payment_type(value: Any) -> PaymentType:
     return TIPO_MAP[key]
 
 
-def _parse_required_folio(value: Any) -> str:
+def _parse_invoice_folio(value: Any) -> Optional[str]:
+    return None if _is_blank(value) else _cell_str(value)
+
+
+def parse_order_folio(value: Any) -> Optional[int]:
+    """OV-0117, OV-117, ov-0117 or 117 → 117; blank → None."""
     if _is_blank(value):
-        raise ValueError("Folio_Factura es obligatorio.")
-    return _cell_str(value)
+        return None
+    match = FOLIO_OV_PATTERN.match(_cell_str(value).replace(" ", ""))
+    if not match:
+        raise ValueError(f"Folio_OV no reconocido «{_cell_str(value)}»: use el folio de la OV, p. ej. OV-0117.")
+    return int(match.group(1))
 
 
 def _parse_credit_note(inv: dict, folio_label: str, amount_label: str) -> tuple[Optional[str], float]:
@@ -355,7 +376,6 @@ class _Lookups:
     def __init__(self, session: Session) -> None:
         self.session = session
         self.tax_rates = legacy_repo.get_active_tax_rates(session)
-        self.legacy_projects = legacy_repo.get_active_legacy_project_names(session)
 
     def client(self, value: Any) -> Client:
         name = _cell_str(value)
@@ -368,6 +388,12 @@ class _Lookups:
         if not name:
             raise ValueError("Vendedor es obligatorio.")
         return _single_match(legacy_repo.get_users_by_full_name(self.session, name), "Vendedor", name)
+
+    def order(self, order_id: int) -> Optional[SalesOrder]:
+        return legacy_repo.get_order(self.session, order_id)
+
+    def orders_by_project(self, project: str) -> list[SalesOrder]:
+        return legacy_repo.get_active_orders_by_project(self.session, project)
 
 
 # ---------------------------------------------------------------------------
@@ -400,13 +426,47 @@ def _read_sheet_rows(
         record = {h: raw[idx[h]] if h in idx and idx[h] < len(raw) else None for h in headers + (optional or [])}
         if all(_is_blank(v) for v in record.values()):
             continue
-        if _cell_str(record["Proyecto"]).startswith("#"):
+        if _cell_str(record["Proyecto"]).startswith("#") or _cell_str(record[FOLIO_OV]).startswith("#"):
             continue  # template example rows
         out.append((row_number, record))
     return out
 
 
-def _validate_order_row(plan: _ImportPlan, lookups: _Lookups, row: int, ov: dict) -> Optional[_OrderPlan]:
+CANCELLED_ORDER_STATUSES = {SalesOrderStatus.CANCELLED, SalesOrderStatus.CANCELLED_OV}
+
+
+def order_folio(order_id: int) -> str:
+    return sales_service._order_reference(order_id)  # noqa: SLF001
+
+
+def _order_key(plan: _ImportPlan, sheet: str, row: int, record: dict) -> Optional[tuple]:
+    """("F", order id) when Folio_OV is given; ("P", project) for a new OV; None when the row is unusable."""
+    project = _cell_str(record["Proyecto"])
+    if not _is_blank(record[FOLIO_OV]):
+        order_id = plan.attempt(sheet, row, project, lambda: parse_order_folio(record[FOLIO_OV]))
+        return ("F", order_id) if order_id is not None else None
+    if not project:
+        plan.error(sheet, row, None, "Folio_OV o Proyecto es obligatorio.")
+        return None
+    return ("P", project)
+
+
+def _key_label(key: tuple) -> str:
+    return order_folio(key[1]) if key[0] == "F" else f"«{key[1]}»"
+
+
+def _check_duplicate_project(plan: _ImportPlan, lookups: _Lookups, order: _OrderPlan) -> None:
+    """A blank Folio_OV never duplicates an OV that already exists."""
+    for existing in lookups.orders_by_project(order.project):
+        if existing.client_id == order.client.id:
+            plan.error(OV_SHEET, order.row, order.project,
+                       f"Ya existe {order_folio(existing.id)} con este proyecto y cliente: escribe su Folio_OV.")
+        else:
+            plan.warn(OV_SHEET, order.row, order.project,
+                      f"{order_folio(existing.id)} tiene el mismo nombre de proyecto con otro cliente.")
+
+
+def _validate_new_order(plan: _ImportPlan, lookups: _Lookups, row: int, ov: dict) -> Optional[_OrderPlan]:
     project = _cell_str(ov["Proyecto"])
     errors_before = len(plan.errors)
 
@@ -421,42 +481,53 @@ def _validate_order_row(plan: _ImportPlan, lookups: _Lookups, row: int, ov: dict
     commission_pct = check(lambda: _parse_amount(ov["Comision_Pct"], "Comision_Pct"))
     if len(plan.errors) > errors_before:
         return None
-    return _OrderPlan(
-        row=row,
-        project=project,
-        client=client,
-        seller=seller,
-        tax_rate=tax_rate,
-        total_price=total,
-        subtotal=round(total / (1.0 + float(tax_rate.rate)), 2),
-        commission_pct=commission_pct,
-        advance_collected=advance,
-        notes=_cell_str(ov["Notas"]) or "Importación legacy",
-    )
+    order = _OrderPlan(row=row, project=project, client=client, seller=seller, tax_rate=tax_rate,
+                       total_price=total, subtotal=round(total / (1.0 + float(tax_rate.rate)), 2),
+                       commission_pct=commission_pct, advance_collected=advance,
+                       notes=_cell_str(ov["Notas"]) or "Importación legacy")
+    _check_duplicate_project(plan, lookups, order)
+    return order
 
 
-def _validate_orders(
-    plan: _ImportPlan, lookups: _Lookups, ov_rows: list[tuple[int, dict]]
-) -> tuple[dict[str, Optional[_OrderPlan]], dict[str, int]]:
-    """Returns (project → order plan or None when invalid, skipped project → row)."""
-    known: dict[str, Optional[_OrderPlan]] = {}
-    first_row: dict[str, int] = {}
-    skipped: dict[str, int] = {}
+def _validate_existing_order(plan: _ImportPlan, lookups: _Lookups, row: int, ov: dict,
+                             order_id: int) -> Optional[_OrderPlan]:
+    """Folio_OV given: only the money is read (client, seller and commission stay as they are in Valentina)."""
+    project = _cell_str(ov["Proyecto"])
+    order = lookups.order(order_id)
+    if order is None or order.status in CANCELLED_ORDER_STATUSES:
+        state = "no existe en Valentina" if order is None else "está cancelada"
+        plan.error(OV_SHEET, row, project, f"{order_folio(order_id)} {state}.")
+        return None
+    errors_before = len(plan.errors)
+    total = plan.attempt(OV_SHEET, row, project, lambda: _parse_positive(ov["Total_OV_con_IVA"], "Total_OV_con_IVA"))
+    advance = plan.attempt(OV_SHEET, row, project, lambda: _parse_amount(ov["Anticipo_Cobrado"], "Anticipo_Cobrado"))
+    if len(plan.errors) > errors_before:
+        return None
+    return _OrderPlan(row=row, project=project or order.project_name, client=None, seller=None, tax_rate=None,
+                      total_price=total, subtotal=0.0, commission_pct=0.0, advance_collected=advance, notes="",
+                      existing=order)
+
+
+def _validate_orders(plan: _ImportPlan, lookups: _Lookups,
+                     ov_rows: list[tuple[int, dict]]) -> dict[tuple, Optional[_OrderPlan]]:
+    """Order key → order plan (None when the row is invalid)."""
+    known: dict[tuple, Optional[_OrderPlan]] = {}
+    first_row: dict[tuple, int] = {}
     for row, ov in ov_rows:
-        project = _cell_str(ov["Proyecto"])
-        if not project:
-            plan.error(OV_SHEET, row, None, "Proyecto es obligatorio.")
+        key = _order_key(plan, OV_SHEET, row, ov)
+        if key is None:
             continue
-        if project in first_row:
-            plan.error(OV_SHEET, row, project, f"Proyecto duplicado (ya aparece en la fila {first_row[project]}).")
+        if key in first_row:
+            column = f"{FOLIO_OV} {_key_label(key)}" if key[0] == "F" else "Proyecto"
+            plan.error(OV_SHEET, row, _cell_str(ov["Proyecto"]),
+                       f"{column} duplicado (ya aparece en la fila {first_row[key]}).")
             continue
-        first_row[project] = row
-        if project in lookups.legacy_projects:
-            known[project] = None
-            skipped[project] = row
-            continue
-        known[project] = _validate_order_row(plan, lookups, row, ov)
-    return known, skipped
+        first_row[key] = row
+        if key[0] == "F":
+            known[key] = _validate_existing_order(plan, lookups, row, ov, key[1])
+        else:
+            known[key] = _validate_new_order(plan, lookups, row, ov)
+    return known
 
 
 def _warn_folio_shapes(plan: _ImportPlan, row: int, project: str, inv: dict) -> None:
@@ -505,7 +576,7 @@ def _validate_invoice_row(plan: _ImportPlan, row: int, project: str, inv: dict) 
         return plan.attempt(INV_SHEET, row, project, parse)
 
     ptype = check(lambda: _parse_payment_type(inv["Tipo"]))
-    folio = check(lambda: _parse_required_folio(inv["Folio_Factura"]))
+    folio = check(lambda: _parse_invoice_folio(inv["Folio_Factura"]))
     invoice_date = check(lambda: _parse_date(inv["Fecha_Factura"], "Fecha_Factura", required=True))
     amount = check(lambda: _parse_positive(inv["Monto_Factura"], "Monto_Factura"))
     notes = [check(lambda f=f, m=m: _parse_credit_note(inv, f, m)) for f, m in CREDIT_NOTE_FIELDS]
@@ -520,6 +591,8 @@ def _validate_invoice_row(plan: _ImportPlan, row: int, project: str, inv: dict) 
         _warn_dates(plan, row, project, invoice_date, installments)
     if len(plan.errors) > errors_before:
         return None
+    if folio is None:
+        plan.warn(INV_SHEET, row, project, "Factura sin Folio_Factura: se liga por tipo, fecha y monto.")
     if retention is not None and retention.calculated:
         plan.warn(
             INV_SHEET, row, project,
@@ -542,37 +615,35 @@ def _validate_invoice_row(plan: _ImportPlan, row: int, project: str, inv: dict) 
     )
 
 
-def _validate_invoices(
-    plan: _ImportPlan,
-    inv_rows: list[tuple[int, dict]],
-    known: dict[str, Optional[_OrderPlan]],
-    skipped: dict[str, int],
-) -> None:
-    skipped_invoices = {project: 0 for project in skipped}
+def _validate_invoices(plan: _ImportPlan, inv_rows: list[tuple[int, dict]],
+                       known: dict[tuple, Optional[_OrderPlan]]) -> None:
     for row, inv in inv_rows:
+        key = _order_key(plan, INV_SHEET, row, inv)
+        if key is None:
+            continue
         project = _cell_str(inv["Proyecto"])
-        if not project:
-            plan.error(INV_SHEET, row, None, "Proyecto es obligatorio.")
-            continue
-        if project not in known:
-            plan.error(INV_SHEET, row, project, f"El proyecto «{project}» no existe en la hoja OVs.")
-            continue
-        if project in skipped:
-            skipped_invoices[project] += 1
+        if key not in known:
+            what = f"{FOLIO_OV} {_key_label(key)}" if key[0] == "F" else f"El proyecto {_key_label(key)}"
+            plan.error(INV_SHEET, row, project, f"{what} no existe en la hoja OVs.")
             continue
         invoice = _validate_invoice_row(plan, row, project, inv)
-        order = known[project]
+        order = known[key]
         if invoice is not None and order is not None:
             order.invoices.append(invoice)
-    for project, row in skipped.items():
-        plan.warn(
-            OV_SHEET, row, project,
-            f"La OV legacy ya existe en el sistema; se omitirá junto con {skipped_invoices[project]} factura(s).",
-        )
+
+
+def _check_invoice_folios(plan: _ImportPlan, order: _OrderPlan) -> None:
+    seen: dict[str, int] = {}
+    for inv in order.invoices:
+        if inv.folio and inv.folio in seen:
+            plan.error(INV_SHEET, inv.row, order.project,
+                       f"Folio_Factura {inv.folio} repetido en la misma OV (fila {seen[inv.folio]}).")
+        seen.setdefault(inv.folio or "", inv.row)
 
 
 def _check_order_totals(plan: _ImportPlan, order: _OrderPlan) -> None:
-    if not order.invoices:
+    _check_invoice_folios(plan, order)
+    if not order.invoices and order.existing is None:
         plan.warn(
             OV_SHEET, order.row, order.project,
             f"La OV no tiene facturas; se creará en PENDING con saldo {order.total_price:,.2f}.",
@@ -599,19 +670,47 @@ def _sort_issues(issues: list[dict]) -> list[dict]:
     return sorted(issues, key=lambda i: (0 if i["sheet"] == OV_SHEET else 1, i["row"] or 0))
 
 
-def _build_plan(session: Session, file_bytes: bytes) -> _ImportPlan:
+def _plan_sync(session: Session, plan: _ImportPlan, order: _OrderPlan, user_id: Optional[int]) -> None:
+    existing = order.existing
+    rate = legacy_repo.get_tax_rates_by_id(session, [existing.tax_rate_id]).get(existing.tax_rate_id)
+    order.sync = legacy_sync.build_order_sync(session, existing, order.total_price, float(rate.rate if rate else 0.0),
+                                              order.invoices, plan.reason, user_id or 0)
+    folio = order_folio(existing.id)
+    for message in order.sync.errors:
+        plan.error(OV_SHEET, order.row, order.project, f"{folio}: {message}")
+    for message in order.sync.notices:
+        plan.warn(OV_SHEET, order.row, order.project, f"{folio}: {message}")
+    if not existing.is_legacy:
+        order.total_price = float(existing.total_price or 0.0)
+
+
+def _plan_released(session: Session, plan: _ImportPlan) -> None:
+    """OVs managed by the Excel that no longer come in it go back to the app (nothing of theirs is touched)."""
+    in_file = {order.existing.id for order in plan.orders if order.existing is not None}
+    plan.released = [o for o in legacy_repo.get_excel_managed_orders(session) if o.id not in in_file]
+    for order in plan.released:
+        plan.warn(OV_SHEET, None, order.project_name,
+                  f"{order_folio(order.id)} ya no viene en el Excel: deja de manejarse por el Excel (no se cancela nada; "
+                  "sus facturas y abonos se capturan en la app).")
+
+
+def _build_plan(session: Session, file_bytes: bytes, user_id: Optional[int] = None) -> _ImportPlan:
     wb = _load_workbook(file_bytes)
     ov_rows = _read_sheet_rows(wb, OV_SHEET, OV_HEADERS)
     inv_rows = _read_sheet_rows(wb, INV_SHEET, INV_HEADERS, INV_OPTIONAL_HEADERS)
-    plan = _ImportPlan()
+    plan = _ImportPlan(reason=legacy_sync.import_reason())
     if not ov_rows:
         plan.error(OV_SHEET, None, None, "La hoja OVs no tiene filas para importar.")
-    lookups = _Lookups(session)
-    known, skipped = _validate_orders(plan, lookups, ov_rows)
-    _validate_invoices(plan, inv_rows, known, skipped)
+    known = _validate_orders(plan, _Lookups(session), ov_rows)
+    _validate_invoices(plan, inv_rows, known)
     plan.orders = [order for order in known.values() if order is not None]
     for order in plan.orders:
         _check_order_totals(plan, order)
+    if not plan.errors:
+        for order in plan.orders:
+            if order.existing is not None:
+                _plan_sync(session, plan, order, user_id)
+        _plan_released(session, plan)
     plan.errors = _sort_issues(plan.errors)
     plan.warnings = _sort_issues(plan.warnings)
     return plan
@@ -619,30 +718,51 @@ def _build_plan(session: Session, file_bytes: bytes) -> _ImportPlan:
 
 def _preview_order(order: _OrderPlan) -> dict:
     outstanding = order.outstanding()
+    sync, existing = order.sync, order.existing
+    if existing is None:
+        action = "CREAR"
+    else:
+        action = "SINCRONIZAR" if sync and (sync.steps or not existing.is_excel_managed) else "SIN CAMBIOS"
     return {
         "row": order.row,
+        "folio": order_folio(existing.id) if existing else None,
+        "action": action,
         "project_name": order.project,
-        "client_name": order.client.full_name,
-        "seller_name": order.seller.full_name,
-        "tax_rate_name": order.tax_rate.name,
+        "client_name": order.client.full_name if order.client else None,
+        "seller_name": order.seller.full_name if order.seller else None,
+        "tax_rate_name": order.tax_rate.name if order.tax_rate else None,
         "total_price": order.total_price,
-        "subtotal": order.subtotal,
-        "tax_amount": order.tax_amount(),
+        "subtotal": order.subtotal if existing is None else None,
+        "tax_amount": order.tax_amount() if existing is None else None,
         "invoices": len(order.invoices),
         "installments": order.installment_count(),
         "outstanding_balance": outstanding if outstanding > BALANCE_TOLERANCE else 0.0,
         "payment_status": order.payment_status().value,
+        "adds": sync.count("add") if sync else 0,
+        "changes": sync.count("change") if sync else 0,
+        "cancels": sync.count("cancel") if sync else 0,
+        "details": ([step.description for step in sync.steps] + sync.notices) if sync else [],
     }
+
+
+def _has_work(plan: _ImportPlan) -> bool:
+    return bool(plan.released) or any(
+        order.existing is None or order.sync.steps or not order.existing.is_excel_managed for order in plan.orders)
 
 
 def validate_legacy_workbook(session: Session, file_bytes: bytes) -> dict:
     plan = _build_plan(session, file_bytes)
+    new_orders = [order for order in plan.orders if order.existing is None]
+    synced = [order for order in plan.orders if order.sync is not None]
     return {
         "orders": [_preview_order(order) for order in plan.orders],
-        "orders_to_create": len(plan.orders),
-        "invoices_to_create": sum(len(order.invoices) for order in plan.orders),
-        "installments_to_create": sum(order.installment_count() for order in plan.orders),
-        "can_import": not plan.errors and bool(plan.orders),
+        "orders_to_create": len(new_orders),
+        "orders_to_sync": sum(1 for order in synced if order.sync.steps),
+        "changes_to_apply": sum(len(order.sync.steps) for order in synced),
+        "orders_released": len(plan.released),
+        "invoices_to_create": sum(len(order.invoices) for order in new_orders),
+        "installments_to_create": sum(order.installment_count() for order in new_orders),
+        "can_import": not plan.errors and _has_work(plan),
         "errors": plan.errors,
         "warnings": plan.warnings,
     }
@@ -661,6 +781,7 @@ def _create_order_record(session: Session, plan: _OrderPlan) -> SalesOrder:
         project_name=plan.project,
         status=SalesOrderStatus.SOLD,
         is_legacy=True,
+        is_excel_managed=True,
         is_approved_by_director=True,
         director_approved_at=datetime.utcnow(),
         valid_until=datetime.utcnow() + timedelta(days=365),
@@ -693,65 +814,18 @@ def _create_order_record(session: Session, plan: _OrderPlan) -> SalesOrder:
     return order
 
 
-def _set_pending_retention(cxc: CustomerPayment, retention: _RetentionPlan, amount: float) -> None:
-    """Mirrors register_progress: the FG credit note becomes a retention owed by the client."""
-    cxc.retention_amount = amount
-    cxc.retention_status = "PENDING"
-    cxc.retention_percent = retention.percent
-    cxc.retention_days = retention.days
-    cxc.retention_due_date = retention.due_date
-
-
-def _create_invoice_record(session: Session, order: SalesOrder, inv: _InvoicePlan, director_id: int) -> None:
-    cxc = CustomerPayment(
-        sales_order_id=order.id,
-        payment_type=inv.payment_type,
-        invoice_folio=inv.folio,
-        invoice_date=inv.invoice_date,
-        amount=inv.amount,
-        status=CXCStatus.PENDING,
-        payment_method=PaymentMethod.TRANSFER,
-        created_by_user_id=director_id,
-        nc_advance_folio=inv.nc_advance_folio,
-        nc_advance_amount=inv.nc_advance_amount,
-        nc_retention_folio=inv.nc_retention_folio,
-        nc_retention_amount=inv.nc_retention_amount,
-    )
-    if inv.payment_type == PaymentType.PROGRESS and inv.nc_advance_amount > 0:
-        cxc.amortized_advance = inv.nc_advance_amount
-    if inv.retention is not None:
-        _set_pending_retention(cxc, inv.retention, inv.nc_retention_amount)
-    session.add(cxc)
-    session.flush()
-    for inst in inv.installments:
-        session.add(
-            CustomerPaymentInstallment(
-                customer_payment_id=cxc.id,
-                amount=inst.amount,
-                payment_date=inst.payment_date,
-                payment_method=PaymentMethod.TRANSFER,
-                created_by_user_id=director_id,
-                is_advance=inv.payment_type == PaymentType.ADVANCE,
-            )
-        )
-    order.outstanding_balance = round(float(order.outstanding_balance or 0.0) - inv.paid(), 2)
-    sales_service._recalc_cxc_status(session, cxc, order)  # noqa: SLF001
-    session.add(cxc)
+_create_invoice_record = legacy_sync.create_invoice_record
 
 
 def _create_order(session: Session, plan: _OrderPlan, director_id: int) -> dict:
     order = _create_order_record(session, plan)
     for inv in plan.invoices:
         _create_invoice_record(session, order, inv, director_id)
-    order.payment_status = plan.payment_status()
-    if order.payment_status == PaymentStatus.PAID:
-        order.outstanding_balance = 0.0
-    session.add(order)
-    session.flush()
+    legacy_sync.refresh_order_money(session, order)
     return {
         "project_name": plan.project,
         "order_id": order.id,
-        "folio": sales_service._order_reference(order.id),  # noqa: SLF001
+        "folio": order_folio(order.id),
         "outstanding_balance": float(order.outstanding_balance or 0.0),
     }
 
@@ -759,6 +833,9 @@ def _create_order(session: Session, plan: _OrderPlan, director_id: int) -> dict:
 def _empty_result(errors: list[dict], warnings: list[dict]) -> dict:
     return {
         "orders_created": 0,
+        "orders_synced": 0,
+        "changes_applied": 0,
+        "orders_released": 0,
         "invoices_created": 0,
         "installments_created": 0,
         "orders_created_details": [],
@@ -767,31 +844,53 @@ def _empty_result(errors: list[dict], warnings: list[dict]) -> dict:
     }
 
 
+def _apply_plan(session: Session, plan: _ImportPlan, director_id: int) -> list[dict]:
+    """Writes every OV of the plan; returns the created OVs."""
+    details = []
+    with audit_reason(plan.reason):
+        for order_plan in plan.orders:
+            plan.current = order_plan
+            if order_plan.existing is None:
+                details.append(_create_order(session, order_plan, director_id))
+            else:
+                legacy_sync.apply_order_sync(session, order_plan.sync)
+        for order in plan.released:
+            order.is_excel_managed = False
+            session.add(order)
+        session.flush()
+    plan.current = None
+    return details
+
+
+def _result(plan: _ImportPlan, details: list[dict]) -> dict:
+    new_orders = [o for o in plan.orders if o.existing is None]
+    synced = [o for o in plan.orders if o.sync is not None and o.sync.steps]
+    result = _empty_result([], plan.warnings)
+    result.update(orders_created=len(details), orders_synced=len(synced),
+                  changes_applied=sum(len(o.sync.steps) for o in synced), orders_released=len(plan.released),
+                  invoices_created=sum(len(o.invoices) for o in new_orders),
+                  installments_created=sum(o.installment_count() for o in new_orders),
+                  orders_created_details=details)
+    return result
+
+
 def import_legacy_workbook(session: Session, file_bytes: bytes, director: User) -> dict:
-    plan = _build_plan(session, file_bytes)
-    if plan.errors or not plan.orders:
+    plan = _build_plan(session, file_bytes, director.id)
+    if plan.errors or not _has_work(plan):
         errors = plan.errors or [
-            {"sheet": OV_SHEET, "row": None, "project": None, "message": "No hay OVs nuevas para importar."}
+            {"sheet": OV_SHEET, "row": None, "project": None, "message": "No hay cambios: Valentina ya está igual al Excel."}
         ]
         return _empty_result(errors, plan.warnings)
-    current: Optional[_OrderPlan] = None
     try:
-        details = []
-        for order_plan in plan.orders:
-            current = order_plan
-            details.append(_create_order(session, order_plan, director.id))
+        details = _apply_plan(session, plan, director.id)
         session.commit()
     except Exception as exc:  # noqa: BLE001 — any failure rolls back the whole file
         session.rollback()
+        current = plan.current
         logger.error("legacy_import_failed", project=current.project if current else None, error=str(exc))
         message = f"La importación falló y no se guardó nada: {exc}"
         issue = {"sheet": OV_SHEET, "row": current.row if current else None,
                  "project": current.project if current else None, "message": message}
         return _empty_result([issue], plan.warnings)
-    logger.info("legacy_import_completed", orders=len(details))
-    result = _empty_result([], plan.warnings)
-    result["orders_created"] = len(details)
-    result["invoices_created"] = sum(len(o.invoices) for o in plan.orders)
-    result["installments_created"] = sum(o.installment_count() for o in plan.orders)
-    result["orders_created_details"] = details
-    return result
+    logger.info("legacy_import_completed", created=len(details), synced=len(plan.orders) - len(details))
+    return _result(plan, details)

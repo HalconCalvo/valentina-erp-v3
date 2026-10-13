@@ -14,6 +14,15 @@ import { formatMoney } from '@/utils/format';
 type ReceivableFilter = 'ALL' | 'ADVANCES' | null;
 
 type SortField = 'FOLIO' | 'CLIENT' | 'DATE' | 'AMOUNT';
+/** OV y Facturación: open orders apart from closed ones (paid, zero balance) and cancelled ones; nothing is deleted. */
+type OrderGroup = 'OPEN' | 'CLOSED' | 'CANCELLED';
+const CLOSED_STATUSES = ['FINISHED'];
+const CANCELLED_STATUSES = ['CANCELLED', 'CANCELLED_OV'];
+const ORDER_GROUPS: { key: OrderGroup; label: string }[] = [
+    { key: 'OPEN', label: 'Vigentes' },
+    { key: 'CLOSED', label: 'Cerradas (pagadas, saldo cero)' },
+    { key: 'CANCELLED', label: 'Canceladas' },
+];
 type SortDirection = 'asc' | 'desc';
 
 // ---> NUEVO: Propiedad defaultFilter para el "Teletransporte" <---
@@ -56,6 +65,7 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
     
     const [sortField, setSortField] = useState<SortField>('DATE'); 
     const [sortDirection, setSortDirection] = useState<SortDirection>('asc'); 
+    const [orderGroup, setOrderGroup] = useState<OrderGroup>('OPEN');
 
     const [isChargeModalOpen, setIsChargeModalOpen] = useState(false);
     const [selectedOrderForCharge, setSelectedOrderForCharge] = useState<SalesOrder | null>(null);
@@ -121,10 +131,16 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
     );
     const agingVal = pendingInvoices.reduce((sum, inv) => sum + Number(inv.amount), 0);
 
-    const activeOrders = useMemo(
-        () => orders.filter(o => ACTIVE_STATUSES.includes(o.status)),
-        [orders],
-    );
+    const ordersByGroup = useMemo(() => {
+        const groups: Record<OrderGroup, SalesOrder[]> = { OPEN: [], CLOSED: [], CANCELLED: [] };
+        for (const o of orders) {
+            if (CANCELLED_STATUSES.includes(o.status)) groups.CANCELLED.push(o);
+            else if (CLOSED_STATUSES.includes(o.status)) groups.CLOSED.push(o);
+            else if (ACTIVE_STATUSES.includes(o.status)) groups.OPEN.push(o);
+        }
+        return groups;
+    }, [orders]);
+    const activeOrders = ordersByGroup[orderGroup];
 
     const handleSort = (field: SortField) => {
         if (sortField === field) {
@@ -188,7 +204,9 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
             case 'WAITING_ADVANCE': return <span className="text-[10px] text-amber-700 font-bold border px-1.5 py-0.5 rounded bg-amber-50 border-amber-200 uppercase tracking-wider">Esperando Anticipo</span>;
             case 'IN_PRODUCTION': return <span className="text-[10px] text-blue-700 font-bold border px-1.5 py-0.5 rounded bg-blue-50 border-blue-200 uppercase tracking-wider">En Producción</span>;
             case 'SOLD': return <span className="text-[10px] text-emerald-700 font-bold border px-1.5 py-0.5 rounded bg-emerald-50 border-emerald-200 uppercase tracking-wider">Vendido / En Proceso</span>;
-            case 'FINISHED': return <span className="text-[10px] text-purple-700 font-bold border px-1.5 py-0.5 rounded bg-purple-50 border-purple-200 uppercase tracking-wider">Finalizado</span>;
+            case 'FINISHED': return <span className="text-[10px] text-purple-700 font-bold border px-1.5 py-0.5 rounded bg-purple-50 border-purple-200 uppercase tracking-wider">Pagada (saldo cero)</span>;
+            case 'CANCELLED':
+            case 'CANCELLED_OV': return <span className="text-[10px] text-red-700 font-bold border px-1.5 py-0.5 rounded bg-red-50 border-red-200 uppercase tracking-wider">Cancelada</span>;
             default: return <span className="text-[10px] text-slate-700 font-bold border px-1.5 py-0.5 rounded bg-slate-50 border-slate-200 uppercase tracking-wider">{status}</span>;
         }
     };
@@ -281,6 +299,22 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
                     </div>
 
                     <div className="space-y-4">
+                        {activeFilter === 'ALL' && (
+                            <div className="flex flex-wrap gap-2" role="tablist">
+                                {ORDER_GROUPS.map(({ key, label }) => (
+                                    <button
+                                        key={key}
+                                        type="button"
+                                        role="tab"
+                                        aria-selected={orderGroup === key}
+                                        onClick={() => setOrderGroup(key)}
+                                        className={`px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${orderGroup === key ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}
+                                    >
+                                        {label} ({ordersByGroup[key].length})
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                         {filteredData.length === 0 ? (
                             <div className="text-center py-12 text-slate-500 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col items-center"><CheckCircle2 size={48} className="text-slate-300 mb-4 opacity-50"/><p>Bandeja limpia o sin registros.</p></div>
                         ) : (
@@ -317,6 +351,9 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
                                                             </div>
                                                             <div className="flex items-center gap-3 mt-1">
                                                                 {getStatusBadge(order.status)}
+                                                                {order.is_excel_managed && (
+                                                                    <span title="Sus facturas y abonos se manejan por el Excel de migración" className="text-[10px] text-teal-700 font-bold border px-1.5 py-0.5 rounded bg-teal-50 border-teal-200 uppercase tracking-wider">Excel</span>
+                                                                )}
                                                                 <span className="text-xs text-slate-400 font-medium flex items-center gap-1"><Clock size={12}/> {dateString}</span>
                                                             </div>
                                                         </div>

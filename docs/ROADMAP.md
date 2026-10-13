@@ -158,7 +158,7 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
 - Menú en el orden del recorrido: Diseño → Ventas → Planeación → Compras → Producción → Campo → Administración.
   Las rutas /logistics redirigen a Campo o Planeación.
 
-## 13. Ambiente "Valentina Pruebas" — base copiada de producción (13/10 13:03); faltan API y sitio en Render (502/404)
+## 13. Ambiente "Valentina Pruebas" — hecha (13/10): base copiada 13:03; API y sitio en línea, franja roja y modo seguro comprobados 14:13
 - Franja roja, título "PRUEBAS ·", modo seguro forzado con APP_ENVIRONMENT=pruebas, script de copia de producción
   con candados. Pasos de Render en `docs/AMBIENTE_PRUEBAS.md`.
 
@@ -166,6 +166,14 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
 - Cliente OBRA PILOTO + receta Cocina Obra Piloto (muebles, piedra, instalaciones). Guía por área en
   `docs/OBRA_PILOTO.md` (Ventas cotiza 3 casas mañana).
 
+
+## 15. Importador de OVs por Folio_OV + OVs cerradas (buzón del asesor, 13/10) — commit local; falta prueba en pantalla
+- El Excel es la verdad del dinero de sus OVs. Folio_OV liga facturas; vacío = OV nueva (nunca duplica).
+- Cada subida sincroniza con vista previa por OV (agrega / cambia / cancela con "Importación <fecha>"); no toca
+  bancos ni comisiones; total de OV nacida en Valentina solo se reporta. Descarga del Excel ya lleno desde la app.
+- Mientras la OV venga en el Excel, la app no captura sus facturas ni abonos (D26).
+- Gerencia → OV y Facturación: Vigentes / Cerradas (pagadas, saldo cero) / Canceladas.
+- Pendiente: prueba en pantalla (sesión local vencida; Gabriel entra), probar en Pruebas tras el push, D24–D28.
 ## 11. PRIORIDAD 2 — Indicadores del tablero de Dirección (con Gabriel) — hecha (2026-10-12, commit local)
 - Decisiones de Gabriel (12/10) aplicadas con una sola fuente (`GET /analytics/director-summary`, solo DIRECTOR):
   1. Ventas: OVs vendidas del año sin IVA (tasa 0 y 16) contra la meta anual.

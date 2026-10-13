@@ -15,7 +15,6 @@ import { VEmptyState } from '@/components/ui/VEmptyState';
 import { VStatusBadge } from '@/components/ui/VStatusBadge';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
-import plantillaUrl from '@/assets/plantilla-migracion-ov.xlsx?url';
 
 const role = String(localStorage.getItem('user_role') ?? '').toUpperCase();
 
@@ -33,20 +32,44 @@ const issueColumns: VTableColumn<LegacyImportIssue>[] = [
   { key: 'message', label: 'Detalle', render: (r) => r.message },
 ];
 
+const ACTION_TONE: Record<LegacyImportPreviewOrder['action'], string> = {
+  CREAR: 'bg-emerald-100 text-emerald-800',
+  SINCRONIZAR: 'bg-amber-100 text-amber-800',
+  'SIN CAMBIOS': 'bg-slate-100 text-slate-600',
+};
+
+function OrderChanges({ order }: { order: LegacyImportPreviewOrder }) {
+  if (order.details.length === 0) return <span className="text-slate-400">—</span>;
+  return (
+    <ul className="list-disc pl-4 space-y-0.5 text-xs text-slate-700">
+      {order.details.map((line) => (
+        <li key={line}>{line}</li>
+      ))}
+    </ul>
+  );
+}
+
 const previewColumns: VTableColumn<LegacyImportPreviewOrder>[] = [
   { key: 'row', label: 'Fila', render: (r) => r.row, width: '60px' },
+  {
+    key: 'action',
+    label: 'Acción',
+    render: (r) => (
+      <span className={`rounded-md px-2 py-0.5 text-xs font-bold ${ACTION_TONE[r.action]}`}>{r.action}</span>
+    ),
+  },
+  { key: 'folio', label: 'Folio OV', render: (r) => r.folio ?? 'Nueva' },
   { key: 'project_name', label: 'Proyecto', render: (r) => r.project_name },
-  { key: 'client_name', label: 'Cliente', render: (r) => r.client_name },
-  { key: 'tax_rate_name', label: 'IVA', render: (r) => r.tax_rate_name },
-  { key: 'total_price', label: 'Total', render: (r) => money.format(r.total_price) },
+  { key: 'total_price', label: 'Total con IVA', render: (r) => money.format(r.total_price) },
   { key: 'invoices', label: 'Facturas', render: (r) => r.invoices },
   { key: 'installments', label: 'Abonos', render: (r) => r.installments },
-  { key: 'outstanding_balance', label: 'Saldo', render: (r) => money.format(r.outstanding_balance) },
+  { key: 'outstanding_balance', label: 'Saldo con IVA', render: (r) => money.format(r.outstanding_balance) },
   {
     key: 'payment_status',
     label: 'Estado',
     render: (r) => <VStatusBadge status={r.payment_status} entity="invoice" />,
   },
+  { key: 'details', label: 'Qué cambia', render: (r) => <OrderChanges order={r} /> },
 ];
 
 const createdColumns: VTableColumn<CreatedRow>[] = [
@@ -101,9 +124,14 @@ export default function LegacyImportPage() {
   const [preview, setPreview] = useState<LegacyImportPreview | null>(null);
   const [result, setResult] = useState<LegacyImportResult | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const previewTotal = useMemo(
-    () => (preview ? preview.orders.reduce((sum, o) => sum + o.total_price, 0) : 0),
+    () =>
+      preview
+        ? preview.orders.filter((o) => o.action === 'CREAR').reduce((sum, o) => sum + o.total_price, 0)
+        : 0,
     [preview],
   );
 
@@ -111,7 +139,7 @@ export default function LegacyImportPage() {
     return (
       <VEmptyState
         title="Acceso restringido"
-        description="Solo Dirección y Gerencia pueden ejecutar la migración legacy."
+        description="Solo Dirección y Gerencia pueden subir el Excel de migración de OVs."
       />
     );
   }
@@ -127,7 +155,11 @@ export default function LegacyImportPage() {
       const data = await salesService.validateLegacyOrders(file);
       setPreview(data);
       if (data.can_import) {
-        toast.success(`Archivo válido: ${data.orders_to_create} OV(s) listas para importar.`);
+        toast.success(
+          `Archivo válido: ${data.orders_to_create} OV(s) nuevas y ${data.orders_to_sync} con cambios.`,
+        );
+      } else if (data.errors.length === 0) {
+        toast.info('Sin cambios: Valentina ya está igual al Excel.');
       } else {
         toast.error(`El archivo tiene ${data.errors.length} error(es). Corrígelos y vuelve a validar.`);
       }
@@ -139,8 +171,26 @@ export default function LegacyImportPage() {
     }
   };
 
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      const blob = await salesService.downloadLegacyTemplate();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'migracion-ov.xlsx';
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+      toast.error(errorDetail(err, 'No se pudo descargar el Excel.'));
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const handleImport = async () => {
     if (!file) return;
+    setImporting(true);
     try {
       const data = await salesService.importLegacyOrders(file);
       setResult(data);
@@ -149,12 +199,14 @@ export default function LegacyImportPage() {
         toast.error('No se importó nada. Revisa los errores.');
       } else {
         toast.success(
-          `Importación finalizada: ${data.orders_created} OV(s), ${data.invoices_created} factura(s).`,
+          `Aplicado: ${data.orders_created} OV(s) nuevas, ${data.orders_synced} sincronizadas ` +
+            `(${data.changes_applied} movimiento(s)).`,
         );
       }
     } catch (err: unknown) {
       toast.error(errorDetail(err, 'Error al importar el archivo.'));
     } finally {
+      setImporting(false);
       setConfirmOpen(false);
     }
   };
@@ -163,9 +215,11 @@ export default function LegacyImportPage() {
     <div className="max-w-6xl mx-auto p-8 space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-800">Migración OVs Legacy</h1>
+          <h1 className="text-2xl font-black text-slate-800">Migración de OVs (Excel)</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Valida el archivo completo antes de importar. Solo se importa si no hay errores, y todo o nada.
+            El Excel es la verdad del dinero de sus OVs: facturas, notas de crédito, anticipos y abonos. Cada subida
+            es la verdad completa: lo nuevo se agrega, lo distinto se actualiza y lo que ya no viene se cancela.
+            No toca bancos ni comisiones. Se aplica solo si no hay errores, todo o nada.
           </p>
         </div>
         <Button variant="outline" onClick={() => navigate('/director')}>
@@ -174,13 +228,9 @@ export default function LegacyImportPage() {
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4 shadow-sm">
-        <a
-          href={plantillaUrl}
-          download="plantilla-migracion-ov.xlsx"
-          className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700"
-        >
-          <Download size={16} /> Descargar plantilla Excel
-        </a>
+        <Button disabled={downloading} onClick={() => void handleDownload()}>
+          <Download size={16} /> {downloading ? 'Descargando…' : 'Descargar Excel con los datos actuales'}
+        </Button>
 
         <div>
           <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">
@@ -203,21 +253,22 @@ export default function LegacyImportPage() {
             {validating ? 'Validando…' : 'Validar'}
           </Button>
           <Button
-            disabled={validating || !preview?.can_import}
+            disabled={validating || importing || !preview?.can_import}
             onClick={() => setConfirmOpen(true)}
-            title={preview?.can_import ? 'Importar las OVs validadas' : 'Valida un archivo sin errores primero'}
+            title={preview?.can_import ? 'Aplicar los cambios de la vista previa' : 'Valida un archivo con cambios y sin errores'}
           >
-            <Upload size={16} /> Importar
+            <Upload size={16} /> Aplicar
           </Button>
         </div>
       </div>
 
       {preview && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <StatCard label="OVs a crear" value={preview.orders_to_create} tone="border-emerald-200 bg-emerald-50 text-emerald-800" />
-            <StatCard label="Facturas" value={preview.invoices_to_create} tone="border-indigo-200 bg-indigo-50 text-indigo-800" />
-            <StatCard label="Abonos" value={preview.installments_to_create} tone="border-slate-200 bg-slate-50 text-slate-800" />
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <StatCard label="OVs nuevas" value={preview.orders_to_create} tone="border-emerald-200 bg-emerald-50 text-emerald-800" />
+            <StatCard label="OVs con cambios" value={preview.orders_to_sync} tone="border-amber-200 bg-amber-50 text-amber-800" />
+            <StatCard label="Movimientos" value={preview.changes_to_apply} tone="border-indigo-200 bg-indigo-50 text-indigo-800" />
+            <StatCard label="Dejan el Excel" value={preview.orders_released} tone="border-slate-200 bg-slate-50 text-slate-800" />
           </div>
           <IssuesSection issues={preview.errors} kind="error" />
           <IssuesSection issues={preview.warnings} kind="warning" />
@@ -236,10 +287,11 @@ export default function LegacyImportPage() {
 
       {result && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <StatCard label="OVs creadas" value={result.orders_created} tone="border-emerald-200 bg-emerald-50 text-emerald-800" />
-            <StatCard label="Facturas" value={result.invoices_created} tone="border-indigo-200 bg-indigo-50 text-indigo-800" />
-            <StatCard label="Abonos" value={result.installments_created} tone="border-slate-200 bg-slate-50 text-slate-800" />
+            <StatCard label="OVs sincronizadas" value={result.orders_synced} tone="border-amber-200 bg-amber-50 text-amber-800" />
+            <StatCard label="Movimientos" value={result.changes_applied} tone="border-indigo-200 bg-indigo-50 text-indigo-800" />
+            <StatCard label="Dejan el Excel" value={result.orders_released} tone="border-slate-200 bg-slate-50 text-slate-800" />
           </div>
           <IssuesSection issues={result.errors} kind="error" />
           {result.orders_created_details.length > 0 && (
@@ -256,19 +308,19 @@ export default function LegacyImportPage() {
 
       <VConfirmDialog
         isOpen={confirmOpen}
-        title="Importar OVs legacy"
+        title="Aplicar el Excel de migración"
         message={
           preview
-            ? `Se crearán ${preview.orders_to_create} OV(s), ${preview.invoices_to_create} factura(s) y ` +
-              `${preview.installments_to_create} abono(s), por un total de ${money.format(previewTotal)}.`
+            ? `Se crearán ${preview.orders_to_create} OV(s) nuevas (${money.format(previewTotal)} con IVA) y se ` +
+              `aplicarán ${preview.changes_to_apply} movimiento(s) en ${preview.orders_to_sync} OV(s) existentes.`
             : ''
         }
         consequence={
-          `Se escribirá en la base de datos en una sola transacción. ` +
-          `${preview?.warnings.length ?? 0} aviso(s) se importarán tal como están en el archivo. ` +
-          'Una OV importada no se borra: solo puede cancelarse con motivo.'
+          'Facturas y abonos de esas OVs quedarán igual al Excel: lo que ya no viene se cancela con el motivo ' +
+          `"Importación <fecha>" (nada se borra; queda en la bitácora). ${preview?.warnings.length ?? 0} aviso(s) ` +
+          'se aplican tal como están en el archivo. No toca bancos ni comisiones.'
         }
-        confirmLabel="Importar"
+        confirmLabel="Aplicar"
         variant="warning"
         onConfirm={handleImport}
         onCancel={() => setConfirmOpen(false)}

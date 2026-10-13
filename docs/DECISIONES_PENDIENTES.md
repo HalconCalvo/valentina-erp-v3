@@ -70,6 +70,49 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 - **Recomendación:** A.
 - **Estado:** pendiente (costo, lo decide Gabriel al crearla)
 
+### D24. Comisiones en el Excel de migración — 2026-10-13 — ROADMAP tarea 15 (buzón del asesor)
+- **Contexto:** por ahora el Excel no toca comisiones (instrucción del asesor). Las comisiones de las OVs legacy
+  siguen fuera de Valentina.
+- **Opciones:** A) seguir fuera. B) columna "Comisión pagada" por abono (Sí/No y fecha), para que Valentina sepa qué
+  comisión ya se pagó de cada cobro.
+- **Recomendación:** B, cuando Gabriel decida meter las comisiones legacy (no antes).
+- **Estado:** pendiente (sin aplicar)
+
+### D25. OV que se quita del Excel de migración — 2026-10-13 — ROADMAP tarea 15
+- **Contexto:** cada subida es la verdad completa. Si una OV que venía en el Excel ya no viene, ¿qué pasa?
+- **Opciones:** A) deja de manejarse por el Excel y no se cancela nada (sus facturas y abonos vuelven a capturarse
+  en la app). B) se cancela la OV.
+- **Recomendación:** A (aplicada; reversible): cancelar una OV es un acuerdo entre partes, no un renglón borrado.
+- **Estado:** pendiente de visto bueno (aplicada A)
+
+### D26. Captura en la app de OVs que maneja el Excel — 2026-10-13 — ROADMAP tarea 15
+- **Contexto:** el asesor pidió avisar si alguien captura en la app facturas o abonos de una OV que viene en el Excel.
+- **Aplicado:** se bloquea con aviso (409): "OV-XXXX se maneja por el Excel de migración: sus facturas y abonos se
+  capturan en el Excel…". Bloquear evita que la siguiente subida lo cancele. Las retenciones (FG) y notas de crédito
+  de la app no se bloquean. En "OV y Facturación" esas OVs llevan la etiqueta "Excel".
+- **Reversible:** sí (cambiarlo a solo aviso es una línea).
+- **Estado:** pendiente de visto bueno (aplicado bloqueo)
+
+### D27. OVs duplicadas (posibles) — 2026-10-13 — ROADMAP tarea 15 (revisión solo lectura en producción)
+- **Contexto:** no hay OVs duplicadas por subidas repetidas de la plantilla (ningún proyecto legacy repetido).
+  Las dos parejas que vio el asesor:
+  | Legacy (Excel) | Nacida en Valentina |
+  |---|---|
+  | OV-0142 "SPCH, OC 58 2" $27,960.64 — sin facturas, sin casas | OV-0149 "Cotizacion ICX 1759/ OC 58" $27,960.64 — OC ICX1759/OC58, 2 casas, factura 632 (CONTRATO) |
+  | OV-0144 "SPCH, OC 65" $13,980.32 — sin facturas, sin casas | OV-0150 "ICX 1762/OC 65" $13,980.32 — OC ICX 1762/OC 65, 1 casa, factura 633 (CONTRATO) |
+  Mismo cliente (San Pedro Cholul). Además del mismo cliente y monto: OV-0140 "SPCH, OC 58" y OV-0141 "SPCH, OC 60"
+  ($13,980.32 c/u, con facturas 624 y 625); OV-0126/0127 Piedra Norte ($144,343.44) y OV-0125/0129 ($126,342.56)
+  son obras distintas (OT diferentes).
+- **Recomendación:** cancelar OV-0142 y OV-0144 (legacy vacías; la operación vive en OV-0149 y OV-0150) y quitarlas del
+  Excel. No se cancela nada sin tu visto bueno.
+- **Estado:** pendiente (no aplicada)
+
+### D28. Retenciones de OV-0123 — 2026-10-13 — ROADMAP tarea 15
+- **Contexto:** OV-0123 (Puerto Palmeras) tiene 3 facturas (427, 500, 525) con NC de FG capturada pero sin retención
+  pendiente de cobro. El importador no las cambia mientras la NC de FG no cambie.
+- **Pregunta:** ¿esas retenciones ya se cobraron o se perdonaron? Si se deben, hay que registrarlas como pendientes.
+- **Estado:** pendiente (sin aplicar)
+
 ## Resueltas
 
 ### D19. Recetas con INSTALAGRANITO sin piedra — 2026-10-12

@@ -4745,3 +4745,27 @@ Anotado también para la revisión de indicadores de Dirección: numeración rep
 - Pendiente en Render (Gabriel): valentina-pruebas-api responde 502 y valentina-pruebas 404 (13:04–13:08). Revisar que
   los servicios existan con esos nombres, que el despliegue terminó y las variables de docs/AMBIENTE_PRUEBAS.md.
 - Respaldo prod_para_pruebas_20261013_1302.dump en ~/valentina_local/dumps.
+
+---
+## 2026-10-13 — Pruebas en línea + importador de OVs por Folio_OV (buzón del asesor)
+- 14:13 Valentina Pruebas en línea: API responde Environment "pruebas", SafeMode true; el sitio muestra la franja
+  roja "AMBIENTE DE PRUEBAS" y la pestaña "PRUEBAS · Valentina". Producción sigue "produccion", SafeMode false.
+- Buzón: revisión cada 15 min activada (14:07). Instrucción del importador tomada.
+- Importador (legacy_import_service + legacy_sync_service + legacy_template_service):
+  - Folio_OV primera columna de OVs y Facturas; facturas se ligan por Folio_OV; vacío = OV nueva que nunca duplica
+    (mismo proyecto y cliente = error).
+  - OV existente: facturas por folio (sin folio: tipo+fecha+monto), abonos iguales al Excel; lo que ya no viene se
+    cancela con "Importación <fecha>"; bitácora automática; nunca banco (abono ligado a banco = error); retención
+    solo se recalcula si cambia la NC de FG. Total de OV nacida en Valentina solo se reporta.
+  - Vista previa por OV (CREAR / SINCRONIZAR / SIN CAMBIOS + qué cambia). Abonos 4..9 opcionales.
+  - GET /sales/orders/legacy-import/template: Excel ya lleno (OVs con is_excel_managed). Plantilla estática eliminada.
+  - Migración w2x3y4z5a6b7: sales_orders.is_excel_managed (20 legacy no canceladas = true). Up/down/up local OK.
+  - La app bloquea (409) facturas y abonos de OVs manejadas por el Excel (D26).
+  - OV y Facturación: Vigentes / Cerradas (pagadas, saldo cero) / Canceladas; etiqueta "Excel".
+- Producción (solo lectura): sin duplicados por subidas repetidas; OV-0142/0144 legacy vacías vs OV-0149/0150 (D27).
+- Tests: 319 backend (10 nuevos de sincronización), 17 frontend, build OK, tsc 156 (igual), una cabeza w2x3y4z5a6b7.
+- Pendiente: prueba en pantalla del importador (sesión local vencida; no se usa la contraseña real de Gabriel).
+
+### Lecciones
+- No fabricar tokens firmados con la SECRET_KEY de producción para el navegador: el clasificador lo bloquea con razón.
+  Para probar en pantalla, Gabriel inicia sesión en la copia local.

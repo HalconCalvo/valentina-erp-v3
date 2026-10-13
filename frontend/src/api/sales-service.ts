@@ -34,22 +34,32 @@ export type LegacyImportIssue = {
 
 export type LegacyImportPreviewOrder = {
     row: number;
+    /** Existing OV (Folio_OV); null for a new one */
+    folio: string | null;
+    action: 'CREAR' | 'SINCRONIZAR' | 'SIN CAMBIOS';
     project_name: string;
-    client_name: string;
-    seller_name: string;
-    tax_rate_name: string;
+    client_name: string | null;
+    seller_name: string | null;
+    tax_rate_name: string | null;
     total_price: number;
-    subtotal: number;
-    tax_amount: number;
+    subtotal: number | null;
+    tax_amount: number | null;
     invoices: number;
     installments: number;
     outstanding_balance: number;
     payment_status: string;
+    adds: number;
+    changes: number;
+    cancels: number;
+    details: string[];
 }
 
 export type LegacyImportPreview = {
     orders: LegacyImportPreviewOrder[];
     orders_to_create: number;
+    orders_to_sync: number;
+    changes_to_apply: number;
+    orders_released: number;
     invoices_to_create: number;
     installments_to_create: number;
     can_import: boolean;
@@ -59,6 +69,9 @@ export type LegacyImportPreview = {
 
 export type LegacyImportResult = {
     orders_created: number;
+    orders_synced: number;
+    changes_applied: number;
+    orders_released: number;
     invoices_created: number;
     installments_created: number;
     orders_created_details: LegacyImportOrderCreated[];
@@ -464,6 +477,11 @@ export const salesService = {
         const response = await axiosClient.post('/sales/orders/legacy-import/validate', formData, {
             headers: { 'Content-Type': 'multipart/form-data' },
         });
+        return response.data;
+    },
+
+    downloadLegacyTemplate: async (): Promise<Blob> => {
+        const response = await axiosClient.get('/sales/orders/legacy-import/template', { responseType: 'blob' });
         return response.data;
     },
 
