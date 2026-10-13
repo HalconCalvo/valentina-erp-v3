@@ -4635,6 +4635,12 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 - D23: plan de la base de Pruebas (costo)
 
 ---
+## SESIÓN 2026-10-12 (parte 27) — PUSH 18:45
+- Subido d126791..2e18c68 (Valentina Pruebas en código, scripts de copia y obra piloto). 310 backend, 17 frontend,
+  build OK, sin migraciones. Render desplegó a las 18:47: producción responde Environment "produccion", SafeMode false
+- Franja de Pruebas probada en pantalla con un build VITE_APP_ENV=pruebas (login y Planeación); producción no la trae
+
+---
 ## 2026-10-12 — PROPUESTA PARA DESPUÉS: AYUDA "?" DE VALENTINA (aprobada por Gabriel, en espera)
 
 Hoy el "?" abre un mapa técnico del sistema (Manual de Valentina). Se convertirá en ayuda real en tres niveles:
