@@ -227,7 +227,7 @@ class SalesOrderRead(SalesOrderBase):
     outstanding_balance: float
     payment_status: PaymentStatus
     advance_invoice_amount: Optional[float] = None
-    is_excel_managed: bool = False  # money handled by the migration Excel (the app does not capture it)
+    is_excel_managed: bool = False  # comes in the migration Excel
     
     user_id: Optional[int] = None 
     quotation_id: Optional[int] = None

@@ -167,13 +167,12 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
   `docs/OBRA_PILOTO.md` (Ventas cotiza 3 casas mañana).
 
 
-## 15. Importador de OVs por Folio_OV + OVs cerradas (buzón del asesor, 13/10) — commit local; falta prueba en pantalla
-- El Excel es la verdad del dinero de sus OVs. Folio_OV liga facturas; vacío = OV nueva (nunca duplica).
-- Cada subida sincroniza con vista previa por OV (agrega / cambia / cancela con "Importación <fecha>"); no toca
-  bancos ni comisiones; total de OV nacida en Valentina solo se reporta. Descarga del Excel ya lleno desde la app.
-- Mientras la OV venga en el Excel, la app no captura sus facturas ni abonos (D26).
+## 15. Importador de OVs por Folio_OV + OVs cerradas (buzón del asesor y Gabriel, 13/10) — hecha (commit local; push después de las 18:00)
+- Folio_OV liga facturas; vacío = OV nueva (nunca duplica). Descarga del Excel ya lleno desde la app.
+- La subida solo AGREGA lo que falta en Valentina y REPORTA las diferencias (no sobrescribe ni cancela; D25, D26);
+  reporte de diferencias descargable para corregir a mano con motivo. Todo se sigue capturando en la app.
 - Gerencia → OV y Facturación: Vigentes / Cerradas (pagadas, saldo cero) / Canceladas.
-- Pendiente: prueba en pantalla (sesión local vencida; Gabriel entra), probar en Pruebas tras el push, D24–D28.
+- Pendiente: prueba en pantalla (sesión local vencida) → se prueba en Pruebas tras el push.
 ## 11. PRIORIDAD 2 — Indicadores del tablero de Dirección (con Gabriel) — hecha (2026-10-12, commit local)
 - Decisiones de Gabriel (12/10) aplicadas con una sola fuente (`GET /analytics/director-summary`, solo DIRECTOR):
   1. Ventas: OVs vendidas del año sin IVA (tasa 0 y 16) contra la meta anual.

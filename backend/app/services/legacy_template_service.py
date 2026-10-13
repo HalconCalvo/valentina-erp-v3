@@ -1,6 +1,6 @@
-"""Migration Excel downloaded from the app (advisor, 13/10): already filled with the OVs managed by the Excel, their
-invoices, credit notes and payments, in exactly the format the importer reads (Folio_OV first). The Excel grows in
-rows; uploading it back without changes changes nothing.
+"""Migration Excel downloaded from the app (advisor, 13/10): already filled with the OVs that came in the Excel, their
+invoices, credit notes and payments, in exactly the format the importer reads (Folio_OV first). Uploading it back
+without changes changes nothing. Also the downloadable report of differences (D26).
 """
 import io
 from datetime import datetime
@@ -25,9 +25,10 @@ NOTES = [
     "Cómo se usa (Gerencia / Dirección):",
     "1. Este archivo es la verdad del DINERO de las OVs que contiene: facturas, notas de crédito, anticipos y abonos.",
     "2. Folio_OV liga cada factura con su OV. Déjalo vacío solo para una OV nueva (sus facturas se ligan por Proyecto).",
-    "3. Cada subida es la verdad completa: lo nuevo se agrega, lo distinto se actualiza y lo que ya no viene se cancela.",
-    "4. Antes de aplicar, Valentina muestra la vista previa por OV. No toca bancos ni comisiones.",
-    "5. Una OV que se quita del archivo deja de manejarse por el Excel (no se cancela): se captura en la app.",
+    "3. La subida solo AGREGA lo que falta en Valentina (OVs nuevas, facturas y abonos). Nunca cambia ni cancela.",
+    "4. Las diferencias (montos o fechas distintos, registros que están de un lado y no del otro) se reportan y se",
+    "   corrigen a mano en la app con motivo. Reporte descargable en la misma pantalla. No toca bancos ni comisiones.",
+    "5. Todo se sigue capturando en la app. Una OV que no viene en el archivo no se toca: se marca para revisar.",
 ]
 
 
@@ -116,6 +117,29 @@ def build_template(session: Session) -> bytes:
     notes = wb.create_sheet("Instrucciones")
     for line in NOTES + ["", f"Descargado el {utc_naive_to_local(datetime.utcnow()):%d/%m/%Y %H:%M} (hora de Mérida)."]:
         notes.append([line])
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    return buffer.getvalue()
+
+
+REPORT_HEADERS = ["Folio OV", "Proyecto", "Diferencia", "Factura / abono", "Concepto", "En Valentina", "En el Excel",
+                  "Corrección (motivo)"]
+
+
+def build_discrepancy_report(rows: list[dict]) -> bytes:
+    """Differences between Valentina and the Excel, to correct by hand in the app with a reason (D26)."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Diferencias"
+    _write_header(ws, REPORT_HEADERS)
+    for row in rows:
+        ws.append([row["folio"], row["project"], row["kind"], row["record"], row["concept"], row["valentina"],
+                   row["excel"], None])
+    for letter, width in zip("ABCDEFGH", (11, 30, 30, 34, 20, 34, 34, 40)):
+        ws.column_dimensions[letter].width = width
+    ws.append([])
+    ws.append([f"Generado el {utc_naive_to_local(datetime.utcnow()):%d/%m/%Y %H:%M} (hora de Mérida). "
+               "La subida no cambió ni canceló nada de esto."])
     buffer = io.BytesIO()
     wb.save(buffer)
     return buffer.getvalue()

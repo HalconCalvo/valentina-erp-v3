@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, ArrowLeft, Download, FileSpreadsheet, ShieldCheck, Upload, XCircle } from 'lucide-react';
 import {
   salesService,
+  type LegacyImportDiscrepancy,
   type LegacyImportIssue,
   type LegacyImportPreview,
   type LegacyImportPreviewOrder,
@@ -32,11 +33,32 @@ const issueColumns: VTableColumn<LegacyImportIssue>[] = [
   { key: 'message', label: 'Detalle', render: (r) => r.message },
 ];
 
-const ACTION_TONE: Record<LegacyImportPreviewOrder['action'], string> = {
+const ACTION_TONE: Record<string, string> = {
   CREAR: 'bg-emerald-100 text-emerald-800',
-  SINCRONIZAR: 'bg-amber-100 text-amber-800',
+  AGREGAR: 'bg-emerald-100 text-emerald-800',
+  REVISAR: 'bg-amber-100 text-amber-800',
   'SIN CAMBIOS': 'bg-slate-100 text-slate-600',
 };
+const REVIEW_TONE = 'bg-amber-100 text-amber-800';
+
+const discrepancyColumns: VTableColumn<LegacyImportDiscrepancy>[] = [
+  { key: 'folio', label: 'Folio OV', render: (r) => r.folio, width: '90px' },
+  { key: 'project', label: 'Proyecto', render: (r) => r.project },
+  { key: 'kind', label: 'Diferencia', render: (r) => r.kind },
+  { key: 'record', label: 'Factura / abono', render: (r) => r.record || '—' },
+  { key: 'concept', label: 'Concepto', render: (r) => r.concept },
+  { key: 'valentina', label: 'En Valentina', render: (r) => r.valentina },
+  { key: 'excel', label: 'En el Excel', render: (r) => r.excel },
+];
+
+function saveBlob(blob: Blob, name: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  link.click();
+  URL.revokeObjectURL(url);
+}
 
 function OrderChanges({ order }: { order: LegacyImportPreviewOrder }) {
   if (order.details.length === 0) return <span className="text-slate-400">—</span>;
@@ -50,12 +72,14 @@ function OrderChanges({ order }: { order: LegacyImportPreviewOrder }) {
 }
 
 const previewColumns: VTableColumn<LegacyImportPreviewOrder>[] = [
-  { key: 'row', label: 'Fila', render: (r) => r.row, width: '60px' },
+  { key: 'row', label: 'Fila', render: (r) => r.row ?? '—', width: '60px' },
   {
     key: 'action',
     label: 'Acción',
     render: (r) => (
-      <span className={`rounded-md px-2 py-0.5 text-xs font-bold ${ACTION_TONE[r.action]}`}>{r.action}</span>
+      <span className={`rounded-md px-2 py-0.5 text-xs font-bold ${ACTION_TONE[r.action] ?? REVIEW_TONE}`}>
+        {r.action}
+      </span>
     ),
   },
   { key: 'folio', label: 'Folio OV', render: (r) => r.folio ?? 'Nueva' },
@@ -69,7 +93,7 @@ const previewColumns: VTableColumn<LegacyImportPreviewOrder>[] = [
     label: 'Estado',
     render: (r) => <VStatusBadge status={r.payment_status} entity="invoice" />,
   },
-  { key: 'details', label: 'Qué cambia', render: (r) => <OrderChanges order={r} /> },
+  { key: 'details', label: 'Qué se agrega / diferencias', render: (r) => <OrderChanges order={r} /> },
 ];
 
 const createdColumns: VTableColumn<CreatedRow>[] = [
@@ -126,6 +150,7 @@ export default function LegacyImportPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [importing, setImporting] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [downloadingReport, setDownloadingReport] = useState(false);
 
   const previewTotal = useMemo(
     () =>
@@ -156,10 +181,10 @@ export default function LegacyImportPage() {
       setPreview(data);
       if (data.can_import) {
         toast.success(
-          `Archivo válido: ${data.orders_to_create} OV(s) nuevas y ${data.orders_to_sync} con cambios.`,
+          `Archivo válido: ${data.orders_to_create} OV(s) nuevas y ${data.additions} registro(s) por agregar.`,
         );
       } else if (data.errors.length === 0) {
-        toast.info('Sin cambios: Valentina ya está igual al Excel.');
+        toast.info(`Nada que agregar. ${data.discrepancies.length} diferencia(s) para revisar.`);
       } else {
         toast.error(`El archivo tiene ${data.errors.length} error(es). Corrígelos y vuelve a validar.`);
       }
@@ -174,17 +199,23 @@ export default function LegacyImportPage() {
   const handleDownload = async () => {
     setDownloading(true);
     try {
-      const blob = await salesService.downloadLegacyTemplate();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'migracion-ov.xlsx';
-      link.click();
-      URL.revokeObjectURL(url);
+      saveBlob(await salesService.downloadLegacyTemplate(), 'migracion-ov.xlsx');
     } catch (err: unknown) {
       toast.error(errorDetail(err, 'No se pudo descargar el Excel.'));
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const handleDownloadReport = async () => {
+    if (!file) return;
+    setDownloadingReport(true);
+    try {
+      saveBlob(await salesService.downloadLegacyDiscrepancies(file), 'diferencias-migracion-ov.xlsx');
+    } catch (err: unknown) {
+      toast.error(errorDetail(err, 'No se pudo descargar el reporte de diferencias.'));
+    } finally {
+      setDownloadingReport(false);
     }
   };
 
@@ -199,8 +230,8 @@ export default function LegacyImportPage() {
         toast.error('No se importó nada. Revisa los errores.');
       } else {
         toast.success(
-          `Aplicado: ${data.orders_created} OV(s) nuevas, ${data.orders_synced} sincronizadas ` +
-            `(${data.changes_applied} movimiento(s)).`,
+          `Aplicado: ${data.orders_created} OV(s) nuevas y ${data.additions} registro(s) agregados ` +
+            `en ${data.orders_with_additions} OV(s).`,
         );
       }
     } catch (err: unknown) {
@@ -217,9 +248,9 @@ export default function LegacyImportPage() {
         <div>
           <h1 className="text-2xl font-black text-slate-800">Migración de OVs (Excel)</h1>
           <p className="text-sm text-slate-500 mt-1">
-            El Excel es la verdad del dinero de sus OVs: facturas, notas de crédito, anticipos y abonos. Cada subida
-            es la verdad completa: lo nuevo se agrega, lo distinto se actualiza y lo que ya no viene se cancela.
-            No toca bancos ni comisiones. Se aplica solo si no hay errores, todo o nada.
+            La subida solo agrega lo que falta en Valentina (OVs nuevas, facturas y abonos). Nunca cambia ni
+            cancela: las diferencias se reportan para corregirlas a mano en la app, con motivo. Todo se sigue
+            capturando en la app. No toca bancos ni comisiones. Se aplica solo si no hay errores, todo o nada.
           </p>
         </div>
         <Button variant="outline" onClick={() => navigate('/director')}>
@@ -255,9 +286,17 @@ export default function LegacyImportPage() {
           <Button
             disabled={validating || importing || !preview?.can_import}
             onClick={() => setConfirmOpen(true)}
-            title={preview?.can_import ? 'Aplicar los cambios de la vista previa' : 'Valida un archivo con cambios y sin errores'}
+            title={preview?.can_import ? 'Agregar lo que falta en Valentina' : 'Valida un archivo sin errores con algo que agregar'}
           >
-            <Upload size={16} /> Aplicar
+            <Upload size={16} /> Agregar lo que falta
+          </Button>
+          <Button
+            variant="outline"
+            disabled={downloadingReport || !preview || preview.errors.length > 0 || preview.discrepancies.length === 0}
+            onClick={() => void handleDownloadReport()}
+            title="Reporte de diferencias para corregir a mano"
+          >
+            <FileSpreadsheet size={16} /> {downloadingReport ? 'Descargando…' : 'Descargar reporte de diferencias'}
           </Button>
         </div>
       </div>
@@ -266,12 +305,20 @@ export default function LegacyImportPage() {
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <StatCard label="OVs nuevas" value={preview.orders_to_create} tone="border-emerald-200 bg-emerald-50 text-emerald-800" />
-            <StatCard label="OVs con cambios" value={preview.orders_to_sync} tone="border-amber-200 bg-amber-50 text-amber-800" />
-            <StatCard label="Movimientos" value={preview.changes_to_apply} tone="border-indigo-200 bg-indigo-50 text-indigo-800" />
-            <StatCard label="Dejan el Excel" value={preview.orders_released} tone="border-slate-200 bg-slate-50 text-slate-800" />
+            <StatCard label="OVs con algo que agregar" value={preview.orders_with_additions} tone="border-indigo-200 bg-indigo-50 text-indigo-800" />
+            <StatCard label="Registros a agregar" value={preview.additions} tone="border-indigo-200 bg-indigo-50 text-indigo-800" />
+            <StatCard label="Diferencias a revisar" value={preview.discrepancies.length} tone="border-amber-200 bg-amber-50 text-amber-800" />
           </div>
           <IssuesSection issues={preview.errors} kind="error" />
           <IssuesSection issues={preview.warnings} kind="warning" />
+          {preview.discrepancies.length > 0 && (
+            <div className="space-y-3">
+              <h2 className="text-sm font-black uppercase text-amber-700 flex items-center gap-2">
+                <AlertTriangle size={16} /> Diferencias ({preview.discrepancies.length}) — no se cambian; corrígelas a mano
+              </h2>
+              <VTable columns={discrepancyColumns} data={preview.discrepancies} />
+            </div>
+          )}
           <div className="space-y-3">
             <h2 className="text-sm font-black uppercase text-slate-600 flex items-center gap-2">
               <FileSpreadsheet size={16} /> Vista previa
@@ -289,9 +336,9 @@ export default function LegacyImportPage() {
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <StatCard label="OVs creadas" value={result.orders_created} tone="border-emerald-200 bg-emerald-50 text-emerald-800" />
-            <StatCard label="OVs sincronizadas" value={result.orders_synced} tone="border-amber-200 bg-amber-50 text-amber-800" />
-            <StatCard label="Movimientos" value={result.changes_applied} tone="border-indigo-200 bg-indigo-50 text-indigo-800" />
-            <StatCard label="Dejan el Excel" value={result.orders_released} tone="border-slate-200 bg-slate-50 text-slate-800" />
+            <StatCard label="OVs con registros agregados" value={result.orders_with_additions} tone="border-indigo-200 bg-indigo-50 text-indigo-800" />
+            <StatCard label="Registros agregados" value={result.additions} tone="border-indigo-200 bg-indigo-50 text-indigo-800" />
+            <StatCard label="Diferencias a revisar" value={result.discrepancies.length} tone="border-amber-200 bg-amber-50 text-amber-800" />
           </div>
           <IssuesSection issues={result.errors} kind="error" />
           {result.orders_created_details.length > 0 && (
@@ -308,19 +355,19 @@ export default function LegacyImportPage() {
 
       <VConfirmDialog
         isOpen={confirmOpen}
-        title="Aplicar el Excel de migración"
+        title="Agregar lo que falta en Valentina"
         message={
           preview
             ? `Se crearán ${preview.orders_to_create} OV(s) nuevas (${money.format(previewTotal)} con IVA) y se ` +
-              `aplicarán ${preview.changes_to_apply} movimiento(s) en ${preview.orders_to_sync} OV(s) existentes.`
+              `agregarán ${preview.additions} factura(s) o abono(s) en ${preview.orders_with_additions} OV(s) existentes.`
             : ''
         }
         consequence={
-          'Facturas y abonos de esas OVs quedarán igual al Excel: lo que ya no viene se cancela con el motivo ' +
-          `"Importación <fecha>" (nada se borra; queda en la bitácora). ${preview?.warnings.length ?? 0} aviso(s) ` +
-          'se aplican tal como están en el archivo. No toca bancos ni comisiones.'
+          'Solo se agrega; nada se cambia ni se cancela. Queda en la bitácora con el motivo "Importación <fecha>". ' +
+          `Las ${preview?.discrepancies.length ?? 0} diferencia(s) no se tocan: descarga el reporte y corrígelas a mano. ` +
+          'No toca bancos ni comisiones.'
         }
-        confirmLabel="Aplicar"
+        confirmLabel="Agregar"
         variant="warning"
         onConfirm={handleImport}
         onCancel={() => setConfirmOpen(false)}

@@ -1,5 +1,5 @@
-"""Sales orders whose money (invoices, credit notes, payments) is managed by the migration Excel (advisor, 13/10).
-Existing legacy orders that are not cancelled start as managed by the Excel.
+"""Sales orders that come in the migration Excel (advisor, 13/10): they go in its download.
+Existing legacy orders that are not cancelled start as coming in the Excel.
 
 Revision ID: w2x3y4z5a6b7
 Revises: v1w2x3y4z5a6

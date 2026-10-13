@@ -17,10 +17,20 @@ class LegacyImportOrderCreated(BaseModel):
     outstanding_balance: float
 
 
+class LegacyImportDiscrepancyRead(BaseModel):
+    folio: str
+    project: str
+    kind: str
+    record: str
+    concept: str
+    valentina: str
+    excel: str
+
+
 class LegacyImportPreviewOrderRead(BaseModel):
-    row: int
+    row: Optional[int] = None  # None for an OV that did not come in the Excel
     folio: Optional[str] = None  # existing OV (Folio_OV); None for a new one
-    action: str  # CREAR | SINCRONIZAR | SIN CAMBIOS
+    action: str  # CREAR | AGREGAR | REVISAR | SIN CAMBIOS | No viene en el Excel — revisar
     project_name: str
     client_name: Optional[str] = None
     seller_name: Optional[str] = None
@@ -33,17 +43,16 @@ class LegacyImportPreviewOrderRead(BaseModel):
     outstanding_balance: float
     payment_status: str
     adds: int = 0
-    changes: int = 0
-    cancels: int = 0
+    discrepancies: int = 0
     details: list[str] = []
 
 
 class LegacyImportPreviewRead(BaseModel):
     orders: list[LegacyImportPreviewOrderRead]
     orders_to_create: int
-    orders_to_sync: int
-    changes_to_apply: int
-    orders_released: int
+    orders_with_additions: int
+    additions: int
+    discrepancies: list[LegacyImportDiscrepancyRead]
     invoices_to_create: int
     installments_to_create: int
     can_import: bool
@@ -53,9 +62,9 @@ class LegacyImportPreviewRead(BaseModel):
 
 class LegacyImportRead(BaseModel):
     orders_created: int
-    orders_synced: int
-    changes_applied: int
-    orders_released: int
+    orders_with_additions: int
+    additions: int
+    discrepancies: list[LegacyImportDiscrepancyRead]
     invoices_created: int
     installments_created: int
     orders_created_details: list[LegacyImportOrderCreated]

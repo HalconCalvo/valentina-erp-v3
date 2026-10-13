@@ -491,7 +491,7 @@ class SalesOrder(SQLModel, table=True):
     default_retention_days: int = Field(default=90)
 
     is_legacy: bool = Field(default=False)
-    # Money (invoices, credit notes, payments) comes from the migration Excel; the app does not capture it
+    # Came in the migration Excel (included in its download); the app still captures everything
     is_excel_managed: bool = Field(default=False)
 
     items: List[SalesOrderItem] = Relationship(

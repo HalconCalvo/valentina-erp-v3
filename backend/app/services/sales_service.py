@@ -79,14 +79,6 @@ def _order_reference(order_id: int) -> str:
     return f"OV-{str(order_id).zfill(4)}"
 
 
-def assert_money_not_from_excel(order: Optional[SalesOrder]) -> None:
-    """While an OV comes in the migration Excel, its invoices and payments are handled by the Excel (advisor, 13/10)."""
-    if order is not None and order.is_excel_managed:
-        raise HTTPException(status_code=409, detail=(
-            f"{_order_reference(order.id)} se maneja por el Excel de migración: sus facturas y abonos se capturan "
-            "en el Excel y se suben en Dirección → Migración OVs."))
-
-
 def _get_payment_or_404(session: Session, payment_id: int) -> CustomerPayment:
     payment = sales_repo.get_cxc_by_id(session, payment_id)
     if not payment:
@@ -765,7 +757,6 @@ def confirm_payment(
     cxc = sales_repo.get_cxc_by_id(session, cxc_id)
     if not cxc:
         raise HTTPException(status_code=404, detail="CxC no encontrada")
-    assert_money_not_from_excel(order)
 
     cxc_amount = float(cxc.amount or 0.0)
     order_ref = _order_reference(order_id)
@@ -962,7 +953,6 @@ def register_installment(
     if monto <= 0:
         raise HTTPException(status_code=422, detail="El monto del abono debe ser mayor a cero.")
     order = sales_repo.get_sales_order_by_id(session, cxc.sales_order_id)
-    assert_money_not_from_excel(order)
     abonado_antes = sales_repo.sum_active_installments(session, cxc.id)
     acreditado = sales_repo.sum_active_credit_notes(session, cxc.id)
     amortizado = float(cxc.amortized_advance or 0.0)
@@ -1007,7 +997,6 @@ def update_installment(
     if not cxc or cxc.status == CXCStatus.CANCELLED:
         raise HTTPException(status_code=409, detail="La factura está cancelada.")
     order = sales_repo.get_sales_order_by_id(session, cxc.sales_order_id)
-    assert_money_not_from_excel(order)
     updates = data.model_dump(exclude_unset=True)
     instance_ids = updates.pop("instance_ids", None)
     old_amount = float(row.amount or 0.0)
@@ -1049,7 +1038,6 @@ def cancel_installment(
     if not cxc:
         raise HTTPException(status_code=404, detail="Factura no encontrada.")
     order = sales_repo.get_sales_order_by_id(session, cxc.sales_order_id)
-    assert_money_not_from_excel(order)
     amount = float(row.amount or 0.0)
     row.is_cancelled = True
     row.cancel_reason = reason
@@ -1093,7 +1081,6 @@ def emit_advance_invoice(
     order = sales_repo.get_sales_order_by_id(session, order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Orden de venta no encontrada.")
-    assert_money_not_from_excel(order)
     assert_change_order_of(session, order, payload.change_quotation_id)
     monto = float(payload.amount or 0.0)
     if monto <= 0:
@@ -1132,7 +1119,6 @@ def register_progress_invoice(
     order = sales_repo.get_sales_order_by_id(session, order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Orden de venta no encontrada.")
-    assert_money_not_from_excel(order)
 
     all_instances: List[SalesOrderItemInstance] = []
     for item in order.items or []:
@@ -1221,7 +1207,6 @@ def emit_full_invoice(
     order = sales_repo.get_sales_order_by_id(session, order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Orden de venta no encontrada.")
-    assert_money_not_from_excel(order)
     existing = sales_repo.get_full_invoice_by_order(session, order_id)
     if existing:
         raise HTTPException(
@@ -1270,7 +1255,6 @@ def update_customer_payment(
     payment = sales_repo.get_payment_by_id(session, payment_id)
     if not payment or payment.sales_order_id != order_id:
         raise HTTPException(status_code=404, detail="Factura no encontrada en esta orden.")
-    assert_money_not_from_excel(sales_repo.get_sales_order_by_id(session, order_id))
     updates = data.model_dump(exclude_unset=True)
     if payment.treasury_transaction_id is not None:
         forbidden = set(updates.keys()) - {"notes"}
@@ -1316,7 +1300,6 @@ def cancel_customer_payment(
     payment = sales_repo.get_payment_by_id(session, payment_id)
     if not payment or payment.sales_order_id != order_id:
         raise HTTPException(status_code=404, detail="Factura no encontrada en esta orden.")
-    assert_money_not_from_excel(sales_repo.get_sales_order_by_id(session, order_id))
     if payment.status != CXCStatus.PENDING:
         raise HTTPException(status_code=422, detail="Only pending invoices can be cancelled.")
     if payment.treasury_transaction_id is not None:

@@ -42,7 +42,6 @@ from app.models.sales import (
 from app.models.users import User
 from app.repositories import legacy_import_repository as legacy_repo
 from app.services import legacy_sync_service as legacy_sync
-from app.services import sales_service
 
 logger = structlog.get_logger(__name__)
 
@@ -179,7 +178,8 @@ class _OrderPlan:
 class _ImportPlan:
     reason: str = ""
     orders: list[_OrderPlan] = field(default_factory=list)
-    released: list[SalesOrder] = field(default_factory=list)
+    not_in_file: list[SalesOrder] = field(default_factory=list)
+    discrepancies: list[legacy_sync.Discrepancy] = field(default_factory=list)
     current: Optional["_OrderPlan"] = None  # OV being written (for the error message when the import fails)
     errors: list[dict] = field(default_factory=list)
     warnings: list[dict] = field(default_factory=list)
@@ -436,7 +436,7 @@ CANCELLED_ORDER_STATUSES = {SalesOrderStatus.CANCELLED, SalesOrderStatus.CANCELL
 
 
 def order_folio(order_id: int) -> str:
-    return sales_service._order_reference(order_id)  # noqa: SLF001
+    return legacy_sync.order_folio(order_id)
 
 
 def _order_key(plan: _ImportPlan, sheet: str, row: int, record: dict) -> Optional[tuple]:
@@ -671,27 +671,17 @@ def _sort_issues(issues: list[dict]) -> list[dict]:
 
 
 def _plan_sync(session: Session, plan: _ImportPlan, order: _OrderPlan, user_id: Optional[int]) -> None:
-    existing = order.existing
-    rate = legacy_repo.get_tax_rates_by_id(session, [existing.tax_rate_id]).get(existing.tax_rate_id)
-    order.sync = legacy_sync.build_order_sync(session, existing, order.total_price, float(rate.rate if rate else 0.0),
-                                              order.invoices, plan.reason, user_id or 0)
-    folio = order_folio(existing.id)
-    for message in order.sync.errors:
-        plan.error(OV_SHEET, order.row, order.project, f"{folio}: {message}")
-    for message in order.sync.notices:
-        plan.warn(OV_SHEET, order.row, order.project, f"{folio}: {message}")
-    if not existing.is_legacy:
-        order.total_price = float(existing.total_price or 0.0)
+    order.sync = legacy_sync.build_order_sync(session, order.existing, order.project, order.total_price,
+                                              order.invoices, user_id or 0)
+    order.total_price = float(order.existing.total_price or 0.0)  # the Excel never changes a total (D26)
+    plan.discrepancies.extend(order.sync.discrepancies)
 
 
-def _plan_released(session: Session, plan: _ImportPlan) -> None:
-    """OVs managed by the Excel that no longer come in it go back to the app (nothing of theirs is touched)."""
+def _plan_not_in_file(session: Session, plan: _ImportPlan) -> None:
+    """OVs of an earlier Excel that do not come in this one: untouched, marked to review (D25)."""
     in_file = {order.existing.id for order in plan.orders if order.existing is not None}
-    plan.released = [o for o in legacy_repo.get_excel_managed_orders(session) if o.id not in in_file]
-    for order in plan.released:
-        plan.warn(OV_SHEET, None, order.project_name,
-                  f"{order_folio(order.id)} ya no viene en el Excel: deja de manejarse por el Excel (no se cancela nada; "
-                  "sus facturas y abonos se capturan en la app).")
+    plan.not_in_file = [o for o in legacy_repo.get_excel_managed_orders(session) if o.id not in in_file]
+    plan.discrepancies.extend(legacy_sync.not_in_file(order) for order in plan.not_in_file)
 
 
 def _build_plan(session: Session, file_bytes: bytes, user_id: Optional[int] = None) -> _ImportPlan:
@@ -710,23 +700,29 @@ def _build_plan(session: Session, file_bytes: bytes, user_id: Optional[int] = No
         for order in plan.orders:
             if order.existing is not None:
                 _plan_sync(session, plan, order, user_id)
-        _plan_released(session, plan)
+        _plan_not_in_file(session, plan)
     plan.errors = _sort_issues(plan.errors)
     plan.warnings = _sort_issues(plan.warnings)
     return plan
 
 
+def _action(order: _OrderPlan) -> str:
+    if order.existing is None:
+        return "CREAR"
+    if order.sync is None:  # the file has errors: nothing was compared yet
+        return "POR VALIDAR"
+    if order.sync.steps:
+        return "AGREGAR"
+    return "REVISAR" if order.sync.discrepancies else "SIN CAMBIOS"
+
+
 def _preview_order(order: _OrderPlan) -> dict:
     outstanding = order.outstanding()
     sync, existing = order.sync, order.existing
-    if existing is None:
-        action = "CREAR"
-    else:
-        action = "SINCRONIZAR" if sync and (sync.steps or not existing.is_excel_managed) else "SIN CAMBIOS"
     return {
         "row": order.row,
         "folio": order_folio(existing.id) if existing else None,
-        "action": action,
+        "action": _action(order),
         "project_name": order.project,
         "client_name": order.client.full_name if order.client else None,
         "seller_name": order.seller.full_name if order.seller else None,
@@ -738,16 +734,23 @@ def _preview_order(order: _OrderPlan) -> dict:
         "installments": order.installment_count(),
         "outstanding_balance": outstanding if outstanding > BALANCE_TOLERANCE else 0.0,
         "payment_status": order.payment_status().value,
-        "adds": sync.count("add") if sync else 0,
-        "changes": sync.count("change") if sync else 0,
-        "cancels": sync.count("cancel") if sync else 0,
-        "details": ([step.description for step in sync.steps] + sync.notices) if sync else [],
+        "adds": len(sync.steps) if sync else 0,
+        "discrepancies": len(sync.discrepancies) if sync else 0,
+        "details": [step.description for step in sync.steps] + [d.text() for d in sync.discrepancies] if sync else [],
     }
 
 
+def _preview_not_in_file(order: SalesOrder) -> dict:
+    return {"row": None, "folio": order_folio(order.id), "action": legacy_sync.NOT_IN_FILE,
+            "project_name": order.project_name or "", "total_price": float(order.total_price or 0.0), "invoices": 0,
+            "installments": 0, "outstanding_balance": float(order.outstanding_balance or 0.0),
+            "payment_status": getattr(order.payment_status, "value", str(order.payment_status)), "adds": 0,
+            "discrepancies": 1, "details": []}
+
+
 def _has_work(plan: _ImportPlan) -> bool:
-    return bool(plan.released) or any(
-        order.existing is None or order.sync.steps or not order.existing.is_excel_managed for order in plan.orders)
+    return any(order.existing is None or order.sync.steps or not order.existing.is_excel_managed
+               for order in plan.orders)
 
 
 def validate_legacy_workbook(session: Session, file_bytes: bytes) -> dict:
@@ -755,11 +758,12 @@ def validate_legacy_workbook(session: Session, file_bytes: bytes) -> dict:
     new_orders = [order for order in plan.orders if order.existing is None]
     synced = [order for order in plan.orders if order.sync is not None]
     return {
-        "orders": [_preview_order(order) for order in plan.orders],
+        "orders": [_preview_order(order) for order in plan.orders]
+                  + [_preview_not_in_file(order) for order in plan.not_in_file],
         "orders_to_create": len(new_orders),
-        "orders_to_sync": sum(1 for order in synced if order.sync.steps),
-        "changes_to_apply": sum(len(order.sync.steps) for order in synced),
-        "orders_released": len(plan.released),
+        "orders_with_additions": sum(1 for order in synced if order.sync.steps),
+        "additions": sum(len(order.sync.steps) for order in synced),
+        "discrepancies": [d.as_dict() for d in plan.discrepancies],
         "invoices_to_create": sum(len(order.invoices) for order in new_orders),
         "installments_to_create": sum(order.installment_count() for order in new_orders),
         "can_import": not plan.errors and _has_work(plan),
@@ -833,19 +837,19 @@ def _create_order(session: Session, plan: _OrderPlan, director_id: int) -> dict:
 def _empty_result(errors: list[dict], warnings: list[dict]) -> dict:
     return {
         "orders_created": 0,
-        "orders_synced": 0,
-        "changes_applied": 0,
-        "orders_released": 0,
+        "orders_with_additions": 0,
+        "additions": 0,
         "invoices_created": 0,
         "installments_created": 0,
         "orders_created_details": [],
+        "discrepancies": [],
         "warnings": warnings,
         "errors": errors,
     }
 
 
 def _apply_plan(session: Session, plan: _ImportPlan, director_id: int) -> list[dict]:
-    """Writes every OV of the plan; returns the created OVs."""
+    """Writes the new OVs and what existing OVs are missing; returns the created OVs. Nothing is overwritten."""
     details = []
     with audit_reason(plan.reason):
         for order_plan in plan.orders:
@@ -854,9 +858,6 @@ def _apply_plan(session: Session, plan: _ImportPlan, director_id: int) -> list[d
                 details.append(_create_order(session, order_plan, director_id))
             else:
                 legacy_sync.apply_order_sync(session, order_plan.sync)
-        for order in plan.released:
-            order.is_excel_managed = False
-            session.add(order)
         session.flush()
     plan.current = None
     return details
@@ -866,11 +867,11 @@ def _result(plan: _ImportPlan, details: list[dict]) -> dict:
     new_orders = [o for o in plan.orders if o.existing is None]
     synced = [o for o in plan.orders if o.sync is not None and o.sync.steps]
     result = _empty_result([], plan.warnings)
-    result.update(orders_created=len(details), orders_synced=len(synced),
-                  changes_applied=sum(len(o.sync.steps) for o in synced), orders_released=len(plan.released),
+    result.update(orders_created=len(details), orders_with_additions=len(synced),
+                  additions=sum(len(o.sync.steps) for o in synced),
                   invoices_created=sum(len(o.invoices) for o in new_orders),
                   installments_created=sum(o.installment_count() for o in new_orders),
-                  orders_created_details=details)
+                  orders_created_details=details, discrepancies=[d.as_dict() for d in plan.discrepancies])
     return result
 
 
@@ -878,9 +879,12 @@ def import_legacy_workbook(session: Session, file_bytes: bytes, director: User) 
     plan = _build_plan(session, file_bytes, director.id)
     if plan.errors or not _has_work(plan):
         errors = plan.errors or [
-            {"sheet": OV_SHEET, "row": None, "project": None, "message": "No hay cambios: Valentina ya está igual al Excel."}
+            {"sheet": OV_SHEET, "row": None, "project": None,
+             "message": "Nada que agregar: Valentina ya tiene todo lo del Excel (revisa el reporte de diferencias)."}
         ]
-        return _empty_result(errors, plan.warnings)
+        result = _empty_result(errors, plan.warnings)
+        result["discrepancies"] = [d.as_dict() for d in plan.discrepancies]
+        return result
     try:
         details = _apply_plan(session, plan, director.id)
         session.commit()
@@ -894,3 +898,11 @@ def import_legacy_workbook(session: Session, file_bytes: bytes, director: User) 
         return _empty_result([issue], plan.warnings)
     logger.info("legacy_import_completed", created=len(details), synced=len(plan.orders) - len(details))
     return _result(plan, details)
+
+
+def discrepancy_report(session: Session, file_bytes: bytes) -> list[dict]:
+    """Differences between Valentina and the Excel, for the downloadable report (nothing is written)."""
+    plan = _build_plan(session, file_bytes)
+    if plan.errors:
+        raise HTTPException(status_code=422, detail="El archivo tiene errores; valídalo y corrígelo primero.")
+    return [d.as_dict() for d in plan.discrepancies]

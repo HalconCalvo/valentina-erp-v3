@@ -352,7 +352,7 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
                                                             <div className="flex items-center gap-3 mt-1">
                                                                 {getStatusBadge(order.status)}
                                                                 {order.is_excel_managed && (
-                                                                    <span title="Sus facturas y abonos se manejan por el Excel de migración" className="text-[10px] text-teal-700 font-bold border px-1.5 py-0.5 rounded bg-teal-50 border-teal-200 uppercase tracking-wider">Excel</span>
+                                                                    <span title="Viene en el Excel de migración (sus diferencias se revisan al subirlo)" className="text-[10px] text-teal-700 font-bold border px-1.5 py-0.5 rounded bg-teal-50 border-teal-200 uppercase tracking-wider">Excel</span>
                                                                 )}
                                                                 <span className="text-xs text-slate-400 font-medium flex items-center gap-1"><Clock size={12}/> {dateString}</span>
                                                             </div>

@@ -4769,3 +4769,13 @@ Anotado también para la revisión de indicadores de Dirección: numeración rep
 ### Lecciones
 - No fabricar tokens firmados con la SECRET_KEY de producción para el navegador: el clasificador lo bloquea con razón.
   Para probar en pantalla, Gabriel inicia sesión en la copia local.
+
+---
+## 2026-10-13 tarde — Ajustes de Gabriel al importador (D25–D28)
+- D25: OV que no viene en el Excel no se toca; vista previa "No viene en el Excel — revisar".
+- D26: sin bloqueo; todo se sigue capturando en la app. La subida AGREGA lo que falta (OVs nuevas, facturas y
+  abonos) y REPORTA sin cambiar nada: datos distintos (monto, fecha, folio, NC, total de OV), registros en Valentina
+  que no están en el Excel, OVs que no vienen. Reporte descargable POST /sales/orders/legacy-import/discrepancies.
+  Quitados: cancelaciones, sobrescritura, bloqueo 409 en la app y la "salida" de OVs del Excel.
+- D27 lo decide la contadora (no se cancela nada). D28 se pregunta a contabilidad (sin cambios).
+- Tests: 319 backend (importador y sincronización reescritos), 17 frontend, build OK, tsc 156 (igual).

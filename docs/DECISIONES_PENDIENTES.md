@@ -78,20 +78,22 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 - **Recomendación:** B, cuando Gabriel decida meter las comisiones legacy (no antes).
 - **Estado:** pendiente (sin aplicar)
 
+## Resueltas
+
 ### D25. OV que se quita del Excel de migración — 2026-10-13 — ROADMAP tarea 15
 - **Contexto:** cada subida es la verdad completa. Si una OV que venía en el Excel ya no viene, ¿qué pasa?
 - **Opciones:** A) deja de manejarse por el Excel y no se cancela nada (sus facturas y abonos vuelven a capturarse
   en la app). B) se cancela la OV.
 - **Recomendación:** A (aplicada; reversible): cancelar una OV es un acuerdo entre partes, no un renglón borrado.
-- **Estado:** pendiente de visto bueno (aplicada A)
+- **Estado:** resuelta por Gabriel (2026-10-13): la OV que no viene en el Excel no se toca; la vista previa la marca
+  "No viene en el Excel — revisar". Aplicado.
 
 ### D26. Captura en la app de OVs que maneja el Excel — 2026-10-13 — ROADMAP tarea 15
 - **Contexto:** el asesor pidió avisar si alguien captura en la app facturas o abonos de una OV que viene en el Excel.
-- **Aplicado:** se bloquea con aviso (409): "OV-XXXX se maneja por el Excel de migración: sus facturas y abonos se
-  capturan en el Excel…". Bloquear evita que la siguiente subida lo cancele. Las retenciones (FG) y notas de crédito
-  de la app no se bloquean. En "OV y Facturación" esas OVs llevan la etiqueta "Excel".
-- **Reversible:** sí (cambiarlo a solo aviso es una línea).
-- **Estado:** pendiente de visto bueno (aplicado bloqueo)
+- **Estado:** resuelta por Gabriel (2026-10-13): SIN bloqueo, todo se sigue capturando en la app. La subida AGREGA lo
+  que falta en Valentina (OVs nuevas, facturas, abonos) y REPORTA sin cambiar nada las diferencias: montos o fechas
+  distintos, registros en Valentina que no están en el Excel, total distinto. No sobrescribe ni cancela. Reporte
+  descargable ("Descargar reporte de diferencias") para corregir a mano con motivo. Aplicado.
 
 ### D27. OVs duplicadas (posibles) — 2026-10-13 — ROADMAP tarea 15 (revisión solo lectura en producción)
 - **Contexto:** no hay OVs duplicadas por subidas repetidas de la plantilla (ningún proyecto legacy repetido).
@@ -105,15 +107,13 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
   son obras distintas (OT diferentes).
 - **Recomendación:** cancelar OV-0142 y OV-0144 (legacy vacías; la operación vive en OV-0149 y OV-0150) y quitarlas del
   Excel. No se cancela nada sin tu visto bueno.
-- **Estado:** pendiente (no aplicada)
+- **Estado:** resuelta por Gabriel (2026-10-13): lo decide la contadora; no se cancela nada.
 
 ### D28. Retenciones de OV-0123 — 2026-10-13 — ROADMAP tarea 15
 - **Contexto:** OV-0123 (Puerto Palmeras) tiene 3 facturas (427, 500, 525) con NC de FG capturada pero sin retención
   pendiente de cobro. El importador no las cambia mientras la NC de FG no cambie.
 - **Pregunta:** ¿esas retenciones ya se cobraron o se perdonaron? Si se deben, hay que registrarlas como pendientes.
-- **Estado:** pendiente (sin aplicar)
-
-## Resueltas
+- **Estado:** resuelta por Gabriel (2026-10-13): se pregunta a contabilidad; sin cambios en Valentina.
 
 ### D19. Recetas con INSTALAGRANITO sin piedra — 2026-10-12
 - **Estado:** aprobada por Gabriel (2026-10-12): la línea INSTALAGRANITO basta para pedir el carril de piedra aunque la

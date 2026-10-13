@@ -68,7 +68,7 @@ export interface SalesOrder {
     status: SalesOrderStatus;
     created_at?: string;
     valid_until: string;      // ISO Date
-    /** Money (invoices and payments) handled by the migration Excel; the app does not capture it */
+    /** Comes in the migration Excel (still captured in the app) */
     is_excel_managed?: boolean;
     delivery_date?: string | null;   // ISO Date
     

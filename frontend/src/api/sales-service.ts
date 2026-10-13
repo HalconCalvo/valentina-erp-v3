@@ -32,11 +32,22 @@ export type LegacyImportIssue = {
     message: string;
 }
 
+export type LegacyImportDiscrepancy = {
+    folio: string;
+    project: string;
+    kind: string;
+    record: string;
+    concept: string;
+    valentina: string;
+    excel: string;
+}
+
 export type LegacyImportPreviewOrder = {
-    row: number;
+    /** null for an OV that did not come in the Excel */
+    row: number | null;
     /** Existing OV (Folio_OV); null for a new one */
     folio: string | null;
-    action: 'CREAR' | 'SINCRONIZAR' | 'SIN CAMBIOS';
+    action: string;
     project_name: string;
     client_name: string | null;
     seller_name: string | null;
@@ -49,17 +60,16 @@ export type LegacyImportPreviewOrder = {
     outstanding_balance: number;
     payment_status: string;
     adds: number;
-    changes: number;
-    cancels: number;
+    discrepancies: number;
     details: string[];
 }
 
 export type LegacyImportPreview = {
     orders: LegacyImportPreviewOrder[];
     orders_to_create: number;
-    orders_to_sync: number;
-    changes_to_apply: number;
-    orders_released: number;
+    orders_with_additions: number;
+    additions: number;
+    discrepancies: LegacyImportDiscrepancy[];
     invoices_to_create: number;
     installments_to_create: number;
     can_import: boolean;
@@ -69,9 +79,9 @@ export type LegacyImportPreview = {
 
 export type LegacyImportResult = {
     orders_created: number;
-    orders_synced: number;
-    changes_applied: number;
-    orders_released: number;
+    orders_with_additions: number;
+    additions: number;
+    discrepancies: LegacyImportDiscrepancy[];
     invoices_created: number;
     installments_created: number;
     orders_created_details: LegacyImportOrderCreated[];
@@ -482,6 +492,16 @@ export const salesService = {
 
     downloadLegacyTemplate: async (): Promise<Blob> => {
         const response = await axiosClient.get('/sales/orders/legacy-import/template', { responseType: 'blob' });
+        return response.data;
+    },
+
+    downloadLegacyDiscrepancies: async (file: File): Promise<Blob> => {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await axiosClient.post('/sales/orders/legacy-import/discrepancies', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            responseType: 'blob',
+        });
         return response.data;
     },
 

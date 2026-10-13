@@ -1001,6 +1001,22 @@ def download_legacy_template(
     )
 
 
+@router.post("/orders/legacy-import/discrepancies")
+async def download_legacy_discrepancies(
+    file: UploadFile = File(...),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+) -> StreamingResponse:
+    """Report of differences between Valentina and the uploaded Excel (writes nothing)."""
+    _require_director_legacy(current_user)
+    rows = legacy_import_service.discrepancy_report(session, await _read_legacy_upload(file))
+    return StreamingResponse(
+        io.BytesIO(legacy_template_service.build_discrepancy_report(rows)),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="diferencias-migracion-ov.xlsx"'},
+    )
+
+
 @router.post("/orders/legacy-import", response_model=LegacyImportRead)
 async def import_legacy_orders(
     file: UploadFile = File(...),
