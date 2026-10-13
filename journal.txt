@@ -4779,3 +4779,14 @@ Anotado también para la revisión de indicadores de Dirección: numeración rep
   Quitados: cancelaciones, sobrescritura, bloqueo 409 en la app y la "salida" de OVs del Excel.
 - D27 lo decide la contadora (no se cancela nada). D28 se pregunta a contabilidad (sin cambios).
 - Tests: 319 backend (importador y sincronización reescritos), 17 frontend, build OK, tsc 156 (igual).
+- 17:05 Gabriel autorizó el push en horario. 17:08 push 2e18c68..f0d0efc (320 tests backend, 17 frontend, build OK,
+  una cabeza w2x3y4z5a6b7). 17:10 Render aplicó la migración en producción y en Pruebas (20 OVs is_excel_managed en
+  cada una). Producción "produccion"/SafeMode false; Pruebas "pruebas"/SafeMode true.
+- Prueba en pantalla en Pruebas (Dirección → Migración OVs):
+  - Excel descargado de la app y subido sin cambios: "Nada que agregar. 0 diferencia(s)".
+  - Excel con un abono cambiado (OV-0115 fact. 284) y una factura nueva PRUEBA-1: agrega 1, reporta 2 (el abono
+    distinto y, real, OV-0132 fact. 631 tiene un abono del 13/10/2026 de $49,539.54 que no está en el Excel).
+    "Agregar lo que falta" → PRUEBA-1 creada en Pruebas; el abono de $23,193.97 quedó intacto. Producción sin PRUEBA-1.
+  - Gerencia → OV y Facturación: Vigentes 36 / Cerradas (pagadas, saldo cero) 9 / Canceladas 82 (= 127); etiqueta
+    "Excel" en las legacy.
+- Buzón: revisión cada 15 min reactivada (17:08).
