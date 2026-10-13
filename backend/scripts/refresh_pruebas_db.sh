@@ -25,6 +25,10 @@ if [[ "${TEST_URL}" == "${PROD_URL}" ]] || \
   echo "ABORTADO: el destino es la base de PRODUCCIÓN." >&2
   exit 1
 fi
+case "${TEST_URL}" in
+  postgres://*|postgresql://*) ;;
+  *) echo "ABORTADO: ${TEST_FILE} no contiene una URL de PostgreSQL." >&2; exit 1 ;;
+esac
 case "$(db_name "${TEST_URL}")" in
   *pruebas*) ;;
   *) echo "ABORTADO: el nombre de la base destino debe contener 'pruebas'." >&2; exit 1 ;;

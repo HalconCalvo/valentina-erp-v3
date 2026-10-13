@@ -88,7 +88,7 @@ def _pruebas_url() -> str:
     prod_file = Path.home() / ".pgurl_valentina"
     prod_url = prod_file.read_text().strip() if prod_file.exists() else ""
     database = test_url.split("?")[0].rsplit("/", 1)[-1]
-    if not test_url or test_url == prod_url or "pruebas" not in database:
+    if not test_url.startswith(("postgres://", "postgresql://")) or test_url == prod_url or "pruebas" not in database:
         sys.exit("ABORTADO: ~/.pgurl_valentina_pruebas no es la base de Pruebas.")
     return test_url
 
