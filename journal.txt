@@ -4734,3 +4734,14 @@ Anotado también para la revisión de indicadores de Dirección: numeración rep
 - Cuando Gabriel sale: preguntarle si el asesor se queda; buzón docs/BUZON_ASESOR.md con "quedas con el asesor".
 - Cerrar la laptop pausa todo (Claude Code, buzón y acceso del asesor); para que siga trabajando, abierta y conectada.
 - El push lo puede bloquear el clasificador de permisos de Claude Code; reintentar o que Gabriel lo corra.
+
+---
+## 2026-10-13 — Base de Pruebas copiada y obra piloto
+- 13:02 Gabriel guardó ~/.pgurl_valentina_pruebas (base valentina_pruebas, host distinto de producción, vacía, PG16).
+- refresh_pruebas_db.sh: copia de producción (solo lectura) restaurada; migración v1w2x3y4z5a6 igual que producción
+  (127 OVs, 814 materiales, 18 usuarios); contraseña SMTP borrada en Pruebas.
+- seed_obra_piloto: cliente OBRA PILOTO (#38), receta "Cocina Obra Piloto V1.0" (#422, copia de #410, 21 renglones,
+  MDF y piedra, INSTALACOCINA 1 Día e INSTALAGRANITO 1 Día). Segunda corrida no cambia nada. Producción sin OBRA PILOTO.
+- Pendiente en Render (Gabriel): valentina-pruebas-api responde 502 y valentina-pruebas 404 (13:04–13:08). Revisar que
+  los servicios existan con esos nombres, que el despliegue terminó y las variables de docs/AMBIENTE_PRUEBAS.md.
+- Respaldo prod_para_pruebas_20261013_1302.dump en ~/valentina_local/dumps.

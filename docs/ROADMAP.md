@@ -158,11 +158,11 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
 - Menú en el orden del recorrido: Diseño → Ventas → Planeación → Compras → Producción → Campo → Administración.
   Las rutas /logistics redirigen a Campo o Planeación.
 
-## 13. Ambiente "Valentina Pruebas" — código listo (2026-10-12); Gabriel crea los servicios en Render el 13/10 con el asesor
+## 13. Ambiente "Valentina Pruebas" — base copiada de producción (13/10 13:03); faltan API y sitio en Render (502/404)
 - Franja roja, título "PRUEBAS ·", modo seguro forzado con APP_ENVIRONMENT=pruebas, script de copia de producción
   con candados. Pasos de Render en `docs/AMBIENTE_PRUEBAS.md`.
 
-## 14. Obra piloto — script listo (2026-10-12); se corre en cuanto exista la base de Pruebas
+## 14. Obra piloto — creada en Pruebas (13/10): cliente #38, receta #422 copia de #410
 - Cliente OBRA PILOTO + receta Cocina Obra Piloto (muebles, piedra, instalaciones). Guía por área en
   `docs/OBRA_PILOTO.md` (Ventas cotiza 3 casas mañana).
 
