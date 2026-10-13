@@ -4641,6 +4641,17 @@ cd /Users/gabrielfrias/Proyectos/SGP_V3/backend && DATABASE_URL="postgresql://va
 - Franja de Pruebas probada en pantalla con un build VITE_APP_ENV=pruebas (login y Planeación); producción no la trae
 
 ---
+## SESIÓN 2026-10-12 (cierre)
+- Revisión del buzón del asesor cancelada (Gabriel regresó). Buzón vacío todo el periodo
+- Pruebas: la base valentina-pruebas aún no existe en Render; Gabriel la crea mañana con el asesor siguiendo
+  docs/AMBIENTE_PRUEBAS.md. Un primer ~/.pgurl_valentina_pruebas traía texto del portapapeles (no una URL): borrado;
+  los scripts ahora exigen una URL de PostgreSQL
+- MAÑANA: con la URL guardada → scripts/refresh_pruebas_db.sh → seed_obra_piloto → comprobar franja y modo seguro →
+  obra piloto por área (docs/OBRA_PILOTO.md)
+- Pendientes de Gabriel: D14 (contabilidad), D21 (casas solo instalación), D22 (criterios del tablero), D23 (plan de la
+  base de Pruebas). Commits locales sin subir: journal y candado de scripts (van en el siguiente lote)
+
+---
 ## 2026-10-12 — PROPUESTA PARA DESPUÉS: AYUDA "?" DE VALENTINA (aprobada por Gabriel, en espera)
 
 Hoy el "?" abre un mapa técnico del sistema (Manual de Valentina). Se convertirá en ayuda real en tres niveles:
@@ -4692,3 +4703,34 @@ Anotado también para la revisión de indicadores de Dirección: numeración rep
 
 ### Pendiente para después
 - Ayuda "?" en tres niveles (ver entrada anterior).
+
+---
+## 2026-10-12 — CIERRE DEL DÍA (asesor)
+
+### Hecho hoy (en producción)
+- Saneamiento aplicado por Gabriel: 16 anticipos absorbidos (fuera Cerámica $2,397.72, ligado a Santander), facturas
+  pagadas de OV-0115/0117/0122(448)/0130, OV-0066, Canea (factura 618 y D16 $1.00).
+- Corrección urgente: diálogos detrás de modales; aviso de cambios sin guardar en Ingeniería Financiera. COT-0087 autorizada.
+- D16 ($1.00), refactor CxP, submenú Cotizaciones fuera, recorrido Planeación→Campo (muebles y piedra), D18, D20,
+  tablero de Dirección, Logística eliminada (Agenda de instalación en Planeación; Carga del camión en Campo).
+- Código de Valentina Pruebas en producción. Gabriel creó los servicios en Render y guardó ~/.pgurl_valentina_pruebas
+  a las 21:55; Claude Code copia datos y crea la obra piloto.
+- Presentación "Valentina — El sistema y sus módulos" (artifact) con el estado real de cada módulo.
+
+### Para mañana (13/10)
+1. Comprobar Pruebas: https://valentina-pruebas.onrender.com con franja roja, login, cliente OBRA PILOTO y receta
+   "Cocina Obra Piloto".
+2. Obra piloto con cada área (guía docs/OBRA_PILOTO.md): Ventas cotiza 3 casas y genera OV → Diseño bautiza, lotes,
+   fechas y cuadrilla → Producción produce, etiquetas y surte → Instaladores en Campo: carga, fotos y firma →
+   Gerencia factura lo instalado y cobra.
+3. Decisiones pendientes: D19/D21 (Nadira: ¿el cliente dio la piedra?), D22 (criterios del tablero), D23 (plan de la base de Pruebas).
+4. Contabilidad: respuestas al Excel del 12/10 + los dos depósitos de $80,000 de Viveyuc (F. 525 y F. 562).
+5. Diseño: corregir 14 recetas sin línea de instalación (~/Downloads/recetas_sin_instalacion.xlsx).
+6. Inventario de septiembre: contadora termina 46 materiales y Director aprueba.
+7. Mantenimiento: "Auto-update failed" en Claude Code → correr `claude doctor`.
+8. Después: ayuda "?" en tres niveles.
+
+### Lecciones
+- Cuando Gabriel sale: preguntarle si el asesor se queda; buzón docs/BUZON_ASESOR.md con "quedas con el asesor".
+- Cerrar la laptop pausa todo (Claude Code, buzón y acceso del asesor); para que siga trabajando, abierta y conectada.
+- El push lo puede bloquear el clasificador de permisos de Claude Code; reintentar o que Gabriel lo corra.

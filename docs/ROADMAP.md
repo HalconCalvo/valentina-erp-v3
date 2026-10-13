@@ -158,7 +158,7 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
 - Menú en el orden del recorrido: Diseño → Ventas → Planeación → Compras → Producción → Campo → Administración.
   Las rutas /logistics redirigen a Campo o Planeación.
 
-## 13. Ambiente "Valentina Pruebas" — código listo (2026-10-12); falta crear los servicios en Render (Gabriel)
+## 13. Ambiente "Valentina Pruebas" — código listo (2026-10-12); Gabriel crea los servicios en Render el 13/10 con el asesor
 - Franja roja, título "PRUEBAS ·", modo seguro forzado con APP_ENVIRONMENT=pruebas, script de copia de producción
   con candados. Pasos de Render en `docs/AMBIENTE_PRUEBAS.md`.
 
