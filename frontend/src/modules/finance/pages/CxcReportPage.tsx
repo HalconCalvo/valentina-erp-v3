@@ -9,7 +9,7 @@ import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
 import { Button } from '@/components/ui/Button';
-import { formatDate, formatMoney } from '@/utils/format';
+import { formatDate, formatMoney, formatInvoiceType } from '@/utils/format';
 
 export interface CxcReportRow {
     cxc_id: number;
@@ -71,16 +71,7 @@ function isRetentionOverdue(dueDate?: string | null, status?: string | null): bo
     return due.getTime() < today.getTime();
 }
 
-const PAYMENT_TYPE_LABELS: Record<string, string> = {
-    ADVANCE: 'Anticipo',
-    PROGRESS: 'Avance',
-    FULL: '100% Contrato',
-};
-
-const formatPaymentTypeLabel = (type: string | null | undefined): string => {
-    const key = String(type ?? '').toUpperCase();
-    return PAYMENT_TYPE_LABELS[key] ?? (type || '—');
-};
+const formatPaymentTypeLabel = formatInvoiceType;
 
 const formatOv = (salesOrderId: number) => `OV-${String(salesOrderId).padStart(4, '0')}`;
 

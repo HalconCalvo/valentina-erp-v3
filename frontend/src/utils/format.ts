@@ -53,3 +53,16 @@ export const formatDateTime = (value: string | Date | null | undefined): string 
     const p = parts(date, true);
     return `${p.day}/${p.month}/${p.year} ${p.hour}:${p.minute}`;
 };
+
+const INVOICE_TYPE_LABELS: Record<string, string> = {
+    ADVANCE: 'Anticipo',
+    PROGRESS: 'Avance',
+    FULL: '100% Contrato',
+    SETTLEMENT: 'Finiquito',
+};
+
+/** Customer invoice type in Spanish (H8: never "ADVANCE"). */
+export const formatInvoiceType = (type: string | null | undefined): string => {
+    const key = String(type ?? '').toUpperCase();
+    return INVOICE_TYPE_LABELS[key] ?? (type || '—');
+};

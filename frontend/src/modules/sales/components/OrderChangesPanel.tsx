@@ -24,7 +24,7 @@ import {
     quotationStatusBadgeClass,
     type PendingQuotationAction,
 } from './QuotationActions';
-import { formatMoney } from '@/utils/format';
+import { formatMoney, formatInvoiceType } from '@/utils/format';
 
 interface OrderChangesPanelProps {
     order: SalesOrder;
@@ -88,7 +88,7 @@ export const OrderChangesPanel: React.FC<OrderChangesPanelProps> = ({ order, onC
     const lastApplied = changes.find((c) => c.status === 'APPLIED');
     const invoices = useMemo(
         () => (order.payments ?? []).filter((p) => p.status !== 'CANCELLED')
-            .map((p) => ({ value: String(p.id), label: `${p.invoice_folio || 'S/F'} · ${p.payment_type} · ${money(Number(p.amount))}` })),
+            .map((p) => ({ value: String(p.id), label: `${p.invoice_folio || 'S/F'} · ${formatInvoiceType(p.payment_type)} · ${money(Number(p.amount))}` })),
         [order.payments],
     );
 

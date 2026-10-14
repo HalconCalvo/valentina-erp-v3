@@ -8,7 +8,7 @@ import axiosClient from '../../../api/axios-client';
 import { toast } from '@/components/ui/VToast';
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
-import { formatMoney } from '@/utils/format';
+import { formatMoney, formatInvoiceType } from '@/utils/format';
 import Modal from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 
@@ -103,7 +103,7 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
           finalData.related_entity_type = 'CUSTOMER_PAYMENT';
           finalData.related_entity_id = Number(selectedCxcId);
           if (selectedInvoice) {
-            finalData.description = `Cobro ${selectedInvoice.payment_type} — ${selectedInvoice.project_name} — Fact. ${selectedInvoice.invoice_folio}`;
+            finalData.description = `Cobro ${formatInvoiceType(selectedInvoice.payment_type)} — ${selectedInvoice.project_name} — Fact. ${selectedInvoice.invoice_folio}`;
           }
         }
         if (!selectedInvoice) {
@@ -183,7 +183,7 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
                 value={selectedCxcId === '' ? '' : String(selectedCxcId)}
                 onChange={(v) => setSelectedCxcId(v ? Number(v) : '')}
                 getLabel={(inv) =>
-                  `${inv.project_name} — ${inv.invoice_folio} — Saldo ${formatMoney(Number(inv.saldo || 0))} (${inv.payment_type})`
+                  `${inv.project_name} — ${inv.invoice_folio} — Saldo ${formatMoney(Number(inv.saldo || 0))} (${formatInvoiceType(inv.payment_type)})`
                 }
                 getValue={(inv) => String(inv.cxc_id)}
                 placeholder="— Ninguna (ingreso general) —"
@@ -197,7 +197,7 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
               <div className="space-y-1.5 text-sm">
                 <div className="flex justify-between"><span className="text-slate-500">Proyecto</span><span className="font-semibold text-slate-800">{selectedInvoice.project_name}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Factura</span><span className="font-mono text-slate-800">{selectedInvoice.invoice_folio}</span></div>
-                <div className="flex justify-between"><span className="text-slate-500">Tipo</span><span className="text-slate-800">{selectedInvoice.payment_type}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Tipo</span><span className="text-slate-800">{formatInvoiceType(selectedInvoice.payment_type)}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Saldo factura</span><span className="font-semibold text-slate-800">{formatMoney(saldoActual)}</span></div>
               </div>
               <div className={`flex justify-between items-center mt-3 pt-3 border-t border-slate-200 ${quedaSaldada ? 'text-emerald-600' : 'text-amber-600'}`}>
