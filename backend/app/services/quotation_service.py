@@ -218,7 +218,8 @@ def create_quotation(session: Session, data: QuotationCreate, current_user: User
         raise HTTPException(status_code=403, detail="No tienes permisos para crear cotizaciones.")
     if not quotation_repo.get_tax_rate_by_id(session, data.tax_rate_id):
         raise HTTPException(status_code=400, detail="Tasa de impuestos inválida")
-    raw_commission = data.applied_commission_percent or current_user.commission_rate or 0.0
+    raw_commission = (current_user.commission_rate or 0.0) if data.applied_commission_percent is None \
+        else data.applied_commission_percent
     header = data.model_dump(exclude={"items", "applied_commission_percent"})
     parent = _parent_order_for(session, data.parent_sales_order_id, current_user)
     quotation = Quotation(

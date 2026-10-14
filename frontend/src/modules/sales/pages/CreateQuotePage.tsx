@@ -126,7 +126,6 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                 setMasters(filteredMasters || []);
                 setResaleList(Array.isArray(resaleRes.data) ? resaleRes.data : []);
 
-                if (!isEditMode) fetchUserCommission();
             } catch {
                 toast.error('Error al cargar catálogos.');
             }
@@ -153,6 +152,13 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
         } 
         finally { setLoadingCommission(false); }
     };
+
+    // H1: the seller's commission loads on its own (not after the catalogs): prices and the line "Sobreprecio %"
+    // must use the same commission, or 45% shows as 52.63%.
+    useEffect(() => {
+        if (!isEditMode) void fetchUserCommission();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     useEffect(() => {
         if (!isEditMode && config && !isUserSelectedTax) {

@@ -51,7 +51,7 @@ class QuotationBase(SQLModel):
     delivery_date: Optional[datetime] = None
     applied_margin_percent: float = 0.0
     applied_tolerance_percent: float = 0.0
-    applied_commission_percent: float = 0.0
+    applied_commission_percent: Optional[float] = None  # None: the seller's commission (H1: an explicit 0 stays 0)
     advance_percent: float = 60.0
     has_advance_invoice: bool = False
     advance_invoice_amount: Optional[float] = None
