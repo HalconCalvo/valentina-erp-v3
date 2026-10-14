@@ -3,7 +3,7 @@ from datetime import date, datetime
 import io
 import math
 import re
-from fastapi import APIRouter, Depends, HTTPException, status, Body, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Query, UploadFile, File, Form
 from sqlmodel import Session, select, delete
 from sqlalchemy import func
 from sqlalchemy.orm import selectinload
@@ -1020,12 +1020,13 @@ async def download_legacy_discrepancies(
 @router.post("/orders/legacy-import", response_model=LegacyImportRead)
 async def import_legacy_orders(
     file: UploadFile = File(...),
+    reason: str = Form(""),
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ) -> Any:
     _require_director_legacy(current_user)
     content = await _read_legacy_upload(file)
-    return legacy_import_service.import_legacy_workbook(session, content, current_user)
+    return legacy_import_service.import_legacy_workbook(session, content, current_user, reason)
 
 @router.patch("/orders/{order_id}/instances/{instance_id}/delivery-deadline")
 def update_instance_delivery_deadline(

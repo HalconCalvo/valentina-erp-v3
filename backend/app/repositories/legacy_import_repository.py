@@ -6,7 +6,7 @@ from sqlmodel import Session, select
 
 from app.models.foundations import Client, TaxRate
 from app.models.sales import (CustomerCreditNote, CustomerCreditNoteStatus, CustomerPayment,
-                              CustomerPaymentInstallment, CXCStatus, SalesOrder, SalesOrderStatus)
+                              CustomerPaymentInstallment, CXCStatus, SalesOrder, SalesOrderItem, SalesOrderStatus)
 from app.models.users import User
 
 CANCELLED_ORDER_STATUSES = (SalesOrderStatus.CANCELLED, SalesOrderStatus.CANCELLED_OV)
@@ -81,3 +81,8 @@ def get_tax_rates_by_id(session: Session, ids: List[int]) -> Dict[int, TaxRate]:
     if not ids:
         return {}
     return {t.id: t for t in session.exec(select(TaxRate).where(TaxRate.id.in_(ids))).all()}
+
+
+def get_active_items(session: Session, order_id: int) -> List[SalesOrderItem]:
+    return list(session.exec(select(SalesOrderItem).where(SalesOrderItem.sales_order_id == order_id,
+                                                          SalesOrderItem.is_cancelled == False)).all())  # noqa: E712

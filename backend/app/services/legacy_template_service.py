@@ -29,6 +29,8 @@ NOTES = [
     "4. Las diferencias (montos o fechas distintos, registros que están de un lado y no del otro) se reportan y se",
     "   corrigen a mano en la app con motivo. Reporte descargable en la misma pantalla. No toca bancos ni comisiones.",
     "5. Todo se sigue capturando en la app. Una OV que no viene en el archivo no se toca: se marca para revisar.",
+    "6. Costo_OV (opcional, sin IVA): el costo de la OV legacy. Con él, la OV entra al Margen neto % sobre venta del",
+    "   tablero de Dirección; vacío, queda fuera. Cambiar un costo ya capturado se reporta y se aplica con motivo.",
 ]
 
 
@@ -53,18 +55,20 @@ def _format_columns(ws, headers: list[str]) -> None:
         letter = ws.cell(row=1, column=index).column_letter
         ws.column_dimensions[letter].width = max(12, len(name) + 2)
         number_format = DATE_FORMAT if "Fecha" in name else MONEY_FORMAT if "Monto" in name or "Total" in name \
-            or name == "Anticipo_Cobrado" else None
+            or name in ("Anticipo_Cobrado", importer.COST_COLUMN) else None
         if number_format:
             for cell in ws[letter][1:]:
                 cell.number_format = number_format
 
 
-def _order_row(order: SalesOrder, names: dict, rates: dict, invoices: list[CustomerPayment]) -> list:
+def _order_row(session: Session, order: SalesOrder, names: dict, rates: dict,
+               invoices: list[CustomerPayment]) -> list:
     advance = sum(float(c.amount or 0.0) for c in invoices if c.payment_type.value == "ADVANCE")
+    cost = legacy_sync.order_cost(legacy_repo.get_active_items(session, order.id))
     return [importer.order_folio(order.id), order.project_name, names["clients"].get(order.client_id),
             names["users"].get(order.user_id), _tax_label(rates.get(order.tax_rate_id)),
             round(float(order.total_price or 0.0), 2), round(advance, 2),
-            float(order.applied_commission_percent or 0.0), order.notes]
+            float(order.applied_commission_percent or 0.0), order.notes, cost if cost > 0 else None]
 
 
 def _invoice_row(session: Session, order: SalesOrder, cxc: CustomerPayment, slots: int) -> list:
@@ -103,10 +107,11 @@ def build_template(session: Session) -> bytes:
     wb = Workbook()
     ws = wb.active
     ws.title = importer.OV_SHEET
-    _write_header(ws, importer.OV_HEADERS)
+    ov_headers = importer.OV_HEADERS + importer.OV_OPTIONAL_HEADERS
+    _write_header(ws, ov_headers)
     for order in orders:
-        ws.append(_order_row(order, names, rates, invoices[order.id]))
-    _format_columns(ws, importer.OV_HEADERS)
+        ws.append(_order_row(session, order, names, rates, invoices[order.id]))
+    _format_columns(ws, ov_headers)
     ws_inv = wb.create_sheet(importer.INV_SHEET)
     headers = _invoice_headers(slots)
     _write_header(ws_inv, headers)

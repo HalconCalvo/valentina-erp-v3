@@ -4805,3 +4805,11 @@ Anotado también para la revisión de indicadores de Dirección: numeración rep
      CP. Karina Rivera. Asesor prepara mensaje al equipo y hoja de pasos por persona.
 - Pendientes de decisión: D27 (OV-0142/0144 vs 0149/0150, decide contadora), D28 (FG Puerto Palmeras, contadora),
   D21, D22, usuarios DIRECTOR (g.frias.garcia, ale.garcia: confirmar; admin@example.com: recomendado dar de baja).
+
+---
+## 2026-10-14 — Decisiones de Gabriel (D22, Costo_OV, #receta, guía y ayuda)
+- Revisión del buzón cancelada al escribir Gabriel (10:40).
+- D22 aprobada completa → Resueltas (ya estaba aplicada).
+- Costo_OV (importador): columna opcional en OVs; legacy → item "Contrato legacy" frozen_unit_cost; primera captura
+  se agrega; cambio = diferencia + aplica solo con motivo (form "reason"; bitácora "Importación <fecha>: <motivo>");
+  OV nacida en Valentina solo se reporta. Descarga incluye Costo_OV. Tests: 4 nuevos.

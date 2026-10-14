@@ -52,18 +52,6 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 - **Reversible:** sí. No aplicada (cambia la regla de carga, D17).
 - **Estado:** pendiente
 
-### D22. Criterios del tablero de Dirección — 2026-10-12 — ROADMAP tarea 11
-- **Aplicado (reversible), revisar:**
-  - "Vendida" = toda OV no cancelada, también "Esperando anticipo" (ya hay OC del cliente). Fecha = fecha de la OC
-    del cliente (si no tiene, la de alta). Hoy: 45 OVs, $16,790,191.69 sin IVA, 93.28% de la meta de $18 M.
-  - Rentabilidad: 20 OVs importadas sin receta no tienen costo ($6,946,874.11 sin IVA); si entraran saldrían al 100%
-    y el Margen neto % ponderado subiría de 21.21% a 52.59%. Quedan fuera del cálculo y la pantalla lo dice.
-  - MDF y Piedra: una cocina con cubierta reparte su venta según el costo de piedra de su receta (material de
-    piedra y procesos INSTALAGRANITO, MAQGRANITO, EMPAQPIEDRA). Alternativa: clasificar la partida completa por su
-    carril principal.
-  - Pronto pago: días de la fecha de factura a la de cada cobro del año, ponderado por el monto cobrado.
-- **Estado:** pendiente de visto bueno
-
 ### D23. Plan de la base de Valentina Pruebas en Render — 2026-10-12 — ROADMAP tarea 13
 - **Contexto:** la base de PostgreSQL gratuita de Render vence a los 30 días; Pruebas se quiere permanente.
 - **Opciones:** A) el plan de pago más chico (permanente). B) gratuita y recrearla cada mes con el script de copia.
@@ -79,6 +67,20 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 - **Estado:** pendiente (sin aplicar)
 
 ## Resueltas
+
+### D22. Criterios del tablero de Dirección — 2026-10-12 — ROADMAP tarea 11
+- **Aplicado (reversible), revisar:**
+  - "Vendida" = toda OV no cancelada, también "Esperando anticipo" (ya hay OC del cliente). Fecha = fecha de la OC
+    del cliente (si no tiene, la de alta). Hoy: 45 OVs, $16,790,191.69 sin IVA, 93.28% de la meta de $18 M.
+  - Rentabilidad: 20 OVs importadas sin receta no tienen costo ($6,946,874.11 sin IVA); si entraran saldrían al 100%
+    y el Margen neto % ponderado subiría de 21.21% a 52.59%. Quedan fuera del cálculo y la pantalla lo dice.
+  - MDF y Piedra: una cocina con cubierta reparte su venta según el costo de piedra de su receta (material de
+    piedra y procesos INSTALAGRANITO, MAQGRANITO, EMPAQPIEDRA). Alternativa: clasificar la partida completa por su
+    carril principal.
+  - Pronto pago: días de la fecha de factura a la de cada cobro del año, ponderado por el monto cobrado.
+- **Estado:** aprobada completa por Gabriel (2026-10-14): venta = OV no cancelada con fecha de OC; MDF/Piedra se
+  reparte con los costos de las secciones de la receta; pronto pago ponderado. Para las OVs legacy, columna opcional
+  Costo_OV en el Excel de migración (ROADMAP tarea 16).
 
 ### D25. OV que se quita del Excel de migración — 2026-10-13 — ROADMAP tarea 15
 - **Contexto:** cada subida es la verdad completa. Si una OV que venía en el Excel ya no viene, ¿qué pasa?

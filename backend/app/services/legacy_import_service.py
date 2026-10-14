@@ -78,6 +78,10 @@ INV_HEADERS = [
     "Abono3_Fecha",
     "Abono3_Monto",
 ]
+# Cost of the OV without VAT (Gabriel, 14/10): optional; when present the legacy OV enters the Margen neto % of the
+# Director dashboard; when absent the OV stays out of that calculation.
+COST_COLUMN = "Costo_OV"
+OV_OPTIONAL_HEADERS = [COST_COLUMN]
 # Payments 4..9 only when an invoice has more than three (the downloaded template adds the columns it needs).
 MAX_INSTALLMENT_SLOTS = 9
 EXTRA_INSTALLMENT_HEADERS = [f"Abono{n}_{part}" for n in range(4, MAX_INSTALLMENT_SLOTS + 1)
@@ -155,6 +159,7 @@ class _OrderPlan:
     notes: str
     invoices: list[_InvoicePlan] = field(default_factory=list)
     existing: Optional[SalesOrder] = None  # Folio_OV given: the OV already in Valentina
+    cost: Optional[float] = None  # Costo_OV (without VAT); None when the column or the cell is empty
     sync: Optional[legacy_sync.OrderSync] = None
 
     def tax_amount(self) -> float:
@@ -265,6 +270,10 @@ def _parse_payment_type(value: Any) -> PaymentType:
     if key not in TIPO_MAP:
         raise ValueError(f"Tipo inválido «{_cell_str(value)}»: use ANTICIPO, AVANCE o CONTRATO.")
     return TIPO_MAP[key]
+
+
+def _parse_cost(value: Any) -> Optional[float]:
+    return None if _is_blank(value) else _parse_amount(value, COST_COLUMN)
 
 
 def _parse_invoice_folio(value: Any) -> Optional[str]:
@@ -479,12 +488,13 @@ def _validate_new_order(plan: _ImportPlan, lookups: _Lookups, row: int, ov: dict
     total = check(lambda: _parse_positive(ov["Total_OV_con_IVA"], "Total_OV_con_IVA"))
     advance = check(lambda: _parse_amount(ov["Anticipo_Cobrado"], "Anticipo_Cobrado"))
     commission_pct = check(lambda: _parse_amount(ov["Comision_Pct"], "Comision_Pct"))
+    cost = check(lambda: _parse_cost(ov[COST_COLUMN]))
     if len(plan.errors) > errors_before:
         return None
     order = _OrderPlan(row=row, project=project, client=client, seller=seller, tax_rate=tax_rate,
                        total_price=total, subtotal=round(total / (1.0 + float(tax_rate.rate)), 2),
                        commission_pct=commission_pct, advance_collected=advance,
-                       notes=_cell_str(ov["Notas"]) or "Importación legacy")
+                       notes=_cell_str(ov["Notas"]) or "Importación legacy", cost=cost)
     _check_duplicate_project(plan, lookups, order)
     return order
 
@@ -501,11 +511,12 @@ def _validate_existing_order(plan: _ImportPlan, lookups: _Lookups, row: int, ov:
     errors_before = len(plan.errors)
     total = plan.attempt(OV_SHEET, row, project, lambda: _parse_positive(ov["Total_OV_con_IVA"], "Total_OV_con_IVA"))
     advance = plan.attempt(OV_SHEET, row, project, lambda: _parse_amount(ov["Anticipo_Cobrado"], "Anticipo_Cobrado"))
+    cost = plan.attempt(OV_SHEET, row, project, lambda: _parse_cost(ov[COST_COLUMN]))
     if len(plan.errors) > errors_before:
         return None
     return _OrderPlan(row=row, project=project or order.project_name, client=None, seller=None, tax_rate=None,
                       total_price=total, subtotal=0.0, commission_pct=0.0, advance_collected=advance, notes="",
-                      existing=order)
+                      existing=order, cost=cost)
 
 
 def _validate_orders(plan: _ImportPlan, lookups: _Lookups,
@@ -672,7 +683,7 @@ def _sort_issues(issues: list[dict]) -> list[dict]:
 
 def _plan_sync(session: Session, plan: _ImportPlan, order: _OrderPlan, user_id: Optional[int]) -> None:
     order.sync = legacy_sync.build_order_sync(session, order.existing, order.project, order.total_price,
-                                              order.invoices, user_id or 0)
+                                              order.invoices, user_id or 0, order.cost)
     order.total_price = float(order.existing.total_price or 0.0)  # the Excel never changes a total (D26)
     plan.discrepancies.extend(order.sync.discrepancies)
 
@@ -686,7 +697,7 @@ def _plan_not_in_file(session: Session, plan: _ImportPlan) -> None:
 
 def _build_plan(session: Session, file_bytes: bytes, user_id: Optional[int] = None) -> _ImportPlan:
     wb = _load_workbook(file_bytes)
-    ov_rows = _read_sheet_rows(wb, OV_SHEET, OV_HEADERS)
+    ov_rows = _read_sheet_rows(wb, OV_SHEET, OV_HEADERS, OV_OPTIONAL_HEADERS)
     inv_rows = _read_sheet_rows(wb, INV_SHEET, INV_HEADERS, INV_OPTIONAL_HEADERS)
     plan = _ImportPlan(reason=legacy_sync.import_reason())
     if not ov_rows:
@@ -763,6 +774,7 @@ def validate_legacy_workbook(session: Session, file_bytes: bytes) -> dict:
         "orders_to_create": len(new_orders),
         "orders_with_additions": sum(1 for order in synced if order.sync.steps),
         "additions": sum(len(order.sync.steps) for order in synced),
+        "cost_changes": _cost_changes(plan) if not plan.errors else 0,
         "discrepancies": [d.as_dict() for d in plan.discrepancies],
         "invoices_to_create": sum(len(order.invoices) for order in new_orders),
         "installments_to_create": sum(order.installment_count() for order in new_orders),
@@ -811,7 +823,7 @@ def _create_order_record(session: Session, plan: _OrderPlan) -> SalesOrder:
             unit_price=plan.subtotal,
             subtotal_price=plan.subtotal,
             cost_snapshot={"legacy": True},
-            frozen_unit_cost=0.0,
+            frozen_unit_cost=plan.cost or 0.0,
         )
     )
     session.flush()
@@ -848,10 +860,15 @@ def _empty_result(errors: list[dict], warnings: list[dict]) -> dict:
     }
 
 
-def _apply_plan(session: Session, plan: _ImportPlan, director_id: int) -> list[dict]:
-    """Writes the new OVs and what existing OVs are missing; returns the created OVs. Nothing is overwritten."""
+def _cost_changes(plan: _ImportPlan) -> int:
+    return sum(order.sync.count_cost_changes() for order in plan.orders if order.sync is not None)
+
+
+def _apply_plan(session: Session, plan: _ImportPlan, director_id: int, reason: str) -> list[dict]:
+    """Writes the new OVs and what existing OVs are missing; returns the created OVs. Only Costo_OV is ever changed
+    (with the reason given)."""
     details = []
-    with audit_reason(plan.reason):
+    with audit_reason(f"{plan.reason}: {reason}" if reason else plan.reason):
         for order_plan in plan.orders:
             plan.current = order_plan
             if order_plan.existing is None:
@@ -875,8 +892,11 @@ def _result(plan: _ImportPlan, details: list[dict]) -> dict:
     return result
 
 
-def import_legacy_workbook(session: Session, file_bytes: bytes, director: User) -> dict:
+def import_legacy_workbook(session: Session, file_bytes: bytes, director: User, reason: str = "") -> dict:
     plan = _build_plan(session, file_bytes, director.id)
+    reason = (reason or "").strip()
+    if not plan.errors and _cost_changes(plan) and not reason:
+        plan.error(OV_SHEET, None, None, "Hay cambios de Costo_OV: escribe el motivo para aplicarlos.")
     if plan.errors or not _has_work(plan):
         errors = plan.errors or [
             {"sheet": OV_SHEET, "row": None, "project": None,
@@ -886,7 +906,7 @@ def import_legacy_workbook(session: Session, file_bytes: bytes, director: User) 
         result["discrepancies"] = [d.as_dict() for d in plan.discrepancies]
         return result
     try:
-        details = _apply_plan(session, plan, director.id)
+        details = _apply_plan(session, plan, director.id, reason)
         session.commit()
     except Exception as exc:  # noqa: BLE001 — any failure rolls back the whole file
         session.rollback()

@@ -52,6 +52,7 @@ class LegacyImportPreviewRead(BaseModel):
     orders_to_create: int
     orders_with_additions: int
     additions: int
+    cost_changes: int = 0  # changes of Costo_OV: need a reason to apply
     discrepancies: list[LegacyImportDiscrepancyRead]
     invoices_to_create: int
     installments_to_create: int

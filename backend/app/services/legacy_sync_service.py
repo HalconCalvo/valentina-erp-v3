@@ -35,6 +35,7 @@ FIELD_LABELS = {
     "nc_advance_folio": "NC anticipo", "nc_advance_amount": "Monto NC anticipo", "nc_retention_folio": "NC FG",
     "nc_retention_amount": "Monto NC FG", "payment_date": "Fecha del abono", "total_price": "Total de la OV",
 }
+COST_LABEL = "Costo de la OV (sin IVA)"
 # Kinds of discrepancy (report columns)
 DIFFERENT = "Dato distinto"
 ONLY_VALENTINA = "En Valentina, no en el Excel"
@@ -46,6 +47,7 @@ REPEATED = "Folio repetido en Valentina"
 class SyncStep:
     description: str
     run: Callable[[], None]
+    needs_reason: bool = False  # a change of Costo_OV: applied only with a reason (Gabriel, 14/10)
 
 
 @dataclass
@@ -72,6 +74,9 @@ class OrderSync:
     project: str
     steps: list[SyncStep] = field(default_factory=list)
     discrepancies: list[Discrepancy] = field(default_factory=list)
+
+    def count_cost_changes(self) -> int:
+        return sum(1 for step in self.steps if step.needs_reason)
 
     def report(self, kind: str, record: str, concept: str, valentina: Any, excel: Any) -> None:
         self.discrepancies.append(Discrepancy(order_folio(self.order.id), self.project, kind, record, concept,
@@ -269,19 +274,52 @@ def _add_invoice_step(session: Session, sync: OrderSync, inv: _InvoicePlan, user
     sync.steps.append(SyncStep(text, lambda: create_invoice_record(session, sync.order, inv, user_id)))
 
 
+def order_cost(items: list) -> float:
+    return round(sum(float(i.frozen_unit_cost or 0.0) * float(i.quantity or 0.0) for i in items), 2)
+
+
+def _set_cost(item: Any, cost: float) -> Callable[[], None]:
+    def run() -> None:
+        item.frozen_unit_cost = round(cost / float(item.quantity or 1.0), 6)
+    return run
+
+
+def _cost_step(session: Session, sync: OrderSync, cost: Optional[float]) -> None:
+    """Costo_OV: a legacy OV takes it (first time as an addition, a change only with a reason); an OV born in
+    Valentina has its cost from its recipes, so a different Costo_OV is only reported."""
+    if cost is None:
+        return
+    items = legacy_repo.get_active_items(session, sync.order.id)
+    current = order_cost(items)
+    if _same(current, cost):
+        return
+    legacy_items = [i for i in items if (i.cost_snapshot or {}).get("legacy")]
+    if not sync.order.is_legacy or len(legacy_items) != 1:
+        sync.report(DIFFERENT, "", COST_LABEL, current, cost)
+        return
+    if current <= 0:
+        sync.steps.append(SyncStep(f"Registra el costo de la OV: {money(cost)} sin IVA",
+                                   _set_cost(legacy_items[0], cost)))
+        return
+    sync.report(DIFFERENT, "", COST_LABEL, current, cost)
+    sync.steps.append(SyncStep(f"Cambia el costo de la OV {money(current)} → {money(cost)} sin IVA (con motivo)",
+                               _set_cost(legacy_items[0], cost), needs_reason=True))
+
+
 def _repeated_folios(stored: list[CustomerPayment]) -> list[str]:
     folios = [(c.invoice_folio or "").strip() for c in stored if (c.invoice_folio or "").strip()]
     return sorted({f for f in folios if folios.count(f) > 1})
 
 
 def build_order_sync(session: Session, order: SalesOrder, project: str, total: float,
-                     invoices: list[_InvoicePlan], user_id: int) -> OrderSync:
+                     invoices: list[_InvoicePlan], user_id: int, cost: Optional[float] = None) -> OrderSync:
     sync = OrderSync(order=order, project=project)
     stored = legacy_repo.get_active_invoices(session, order.id)
     for folio in _repeated_folios(stored):
         sync.report(REPEATED, f"Factura {folio}", "Folio", "capturada más de una vez", None)
     if not _same(float(order.total_price or 0.0), total):
         sync.report(DIFFERENT, "", FIELD_LABELS["total_price"], float(order.total_price or 0.0), total)
+    _cost_step(session, sync, cost)
     pairs, missing, only_valentina = match_invoices(stored, invoices)
     for cxc, inv in pairs:
         _matched_invoice(session, sync, cxc, inv, user_id)

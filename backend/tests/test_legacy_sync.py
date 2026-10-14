@@ -11,7 +11,7 @@ from sqlmodel import select
 from app.core.config import settings
 from app.models.audit import AuditFieldChange
 from app.models.sales import (CustomerPayment, CustomerPaymentInstallment, CXCStatus, PaymentStatus, SalesOrder,
-                              SalesOrderStatus)
+                              SalesOrderItem, SalesOrderStatus)
 from app.models.users import User
 from app.schemas.sales_schema import PaymentPayload
 from app.services import legacy_import_service as svc
@@ -212,3 +212,67 @@ def test_preview_with_errors_does_not_compare_existing_orders(session_fixture, d
     preview = svc.validate_legacy_workbook(session_fixture, data)
     assert "Cliente no encontrado" in _messages(preview["errors"])
     assert preview["orders"][0]["action"] == "POR VALIDAR" and preview["can_import"] is False
+
+
+# --- Costo_OV (Gabriel, 14/10) -------------------------------------------------
+
+def _with_cost(data: bytes, costs: dict) -> bytes:
+    """Adds the optional Costo_OV column to the OVs sheet ({row number: cost})."""
+    wb = load_workbook(io.BytesIO(data))
+    ws = wb["OVs"]
+    column = ws.max_column + 1
+    ws.cell(row=1, column=column, value="Costo_OV")
+    for row, cost in costs.items():
+        ws.cell(row=row, column=column, value=cost)
+    return _save(wb)
+
+
+def _legacy_item(session, order):
+    return session.exec(select(SalesOrderItem).where(SalesOrderItem.sales_order_id == order.id)).one()
+
+
+def test_new_order_takes_its_cost(session_fixture, director):
+    svc.import_legacy_workbook(session_fixture, _with_cost(_workbook([_ov()], [_inv()]), {2: 60000}), director)
+    order = session_fixture.exec(select(SalesOrder)).one()
+    assert _legacy_item(session_fixture, order).frozen_unit_cost == 60000
+
+
+def test_first_cost_is_added_and_a_change_needs_a_reason(session_fixture, director):
+    order = _two_invoices(session_fixture, director)
+    wb = _template(session_fixture)
+    assert [c.value for c in wb["OVs"][1]][-1] == "Costo_OV" and wb["OVs"].cell(row=2, column=10).value is None
+    wb["OVs"].cell(row=2, column=10).value = 50000
+    preview = svc.validate_legacy_workbook(session_fixture, _save(wb))
+    assert preview["orders"][0]["details"] == ["Registra el costo de la OV: $50,000.00 sin IVA"]
+    assert preview["cost_changes"] == 0
+    svc.import_legacy_workbook(session_fixture, _save(wb), director)
+    assert _legacy_item(session_fixture, order).frozen_unit_cost == 50000
+
+    wb = _template(session_fixture)
+    assert wb["OVs"].cell(row=2, column=10).value == 50000  # the download carries the captured cost
+    wb["OVs"].cell(row=2, column=10).value = 55000
+    data = _save(wb)
+    preview = svc.validate_legacy_workbook(session_fixture, data)
+    assert preview["cost_changes"] == 1
+    assert preview["discrepancies"][0]["concept"] == "Costo de la OV (sin IVA)"
+    refused = svc.import_legacy_workbook(session_fixture, data, director)
+    assert "escribe el motivo" in _messages(refused["errors"])
+    assert _legacy_item(session_fixture, order).frozen_unit_cost == 50000
+    svc.import_legacy_workbook(session_fixture, data, director, reason="Costo real de la contadora")
+    assert _legacy_item(session_fixture, order).frozen_unit_cost == 55000
+    reasons = {c.reason for c in session_fixture.exec(select(AuditFieldChange)).all() if c.reason}
+    assert any(r.endswith(": Costo real de la contadora") for r in reasons)
+
+
+def test_cost_of_an_order_born_in_valentina_is_only_reported(session_fixture, director, seed_client_and_tax):
+    client, tax = seed_client_and_tax
+    order = SalesOrder(client_id=client.id, tax_rate_id=tax.id, project_name="Nacida", status=SalesOrderStatus.SOLD,
+                       valid_until=datetime(2026, 12, 31), subtotal=1000.0, tax_amount=160.0, total_price=1160.0,
+                       outstanding_balance=1160.0)
+    session_fixture.add(order)
+    session_fixture.commit()
+    folio = f"OV-{order.id:04d}"
+    data = _with_cost(_workbook([_ov(Folio_OV=folio, Proyecto="Nacida", Total_OV_con_IVA=1160)], []), {2: 700})
+    preview = svc.validate_legacy_workbook(session_fixture, data)
+    assert preview["cost_changes"] == 0 and preview["orders"][0]["adds"] == 0
+    assert preview["discrepancies"][0]["concept"] == "Costo de la OV (sin IVA)"

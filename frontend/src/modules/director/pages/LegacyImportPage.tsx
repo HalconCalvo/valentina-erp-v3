@@ -151,6 +151,8 @@ export default function LegacyImportPage() {
   const [importing, setImporting] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadingReport, setDownloadingReport] = useState(false);
+  const [costReason, setCostReason] = useState('');
+  const needsCostReason = (preview?.cost_changes ?? 0) > 0;
 
   const previewTotal = useMemo(
     () =>
@@ -223,7 +225,7 @@ export default function LegacyImportPage() {
     if (!file) return;
     setImporting(true);
     try {
-      const data = await salesService.importLegacyOrders(file);
+      const data = await salesService.importLegacyOrders(file, needsCostReason ? costReason.trim() : '');
       setResult(data);
       setPreview(null);
       if (data.errors.length > 0) {
@@ -274,9 +276,23 @@ export default function LegacyImportPage() {
               setFile(e.target.files?.[0] ?? null);
               setPreview(null);
               setResult(null);
+              setCostReason('');
             }}
           />
         </div>
+
+        {needsCostReason && (
+          <div>
+            <label className="text-xs font-bold uppercase text-amber-700 mb-2 block">
+              Motivo del cambio de Costo_OV ({preview?.cost_changes} OV)
+            </label>
+            <Input
+              value={costReason}
+              onChange={(e) => setCostReason(e.target.value)}
+              placeholder="Por qué cambia el costo (queda en la bitácora)"
+            />
+          </div>
+        )}
 
         <div className="flex flex-wrap gap-3">
           <Button variant="outline" disabled={validating || !file} onClick={() => void handleValidate()}>
@@ -284,7 +300,7 @@ export default function LegacyImportPage() {
             {validating ? 'Validando…' : 'Validar'}
           </Button>
           <Button
-            disabled={validating || importing || !preview?.can_import}
+            disabled={validating || importing || !preview?.can_import || (needsCostReason && !costReason.trim())}
             onClick={() => setConfirmOpen(true)}
             title={preview?.can_import ? 'Agregar lo que falta en Valentina' : 'Valida un archivo sin errores con algo que agregar'}
           >

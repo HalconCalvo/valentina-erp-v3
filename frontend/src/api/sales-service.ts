@@ -69,6 +69,8 @@ export type LegacyImportPreview = {
     orders_to_create: number;
     orders_with_additions: number;
     additions: number;
+    /** Changes of Costo_OV: applied only with a reason */
+    cost_changes: number;
     discrepancies: LegacyImportDiscrepancy[];
     invoices_to_create: number;
     installments_to_create: number;
@@ -505,9 +507,10 @@ export const salesService = {
         return response.data;
     },
 
-    importLegacyOrders: async (file: File): Promise<LegacyImportResult> => {
+    importLegacyOrders: async (file: File, reason = ''): Promise<LegacyImportResult> => {
         const formData = new FormData();
         formData.append('file', file);
+        formData.append('reason', reason);
         const response = await axiosClient.post('/sales/orders/legacy-import', formData, {
             headers: { 'Content-Type': 'multipart/form-data' },
         });

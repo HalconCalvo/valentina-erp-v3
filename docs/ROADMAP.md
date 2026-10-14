@@ -174,6 +174,15 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
 - Gerencia → OV y Facturación: Vigentes / Cerradas (pagadas, saldo cero) / Canceladas.
 - Probada en pantalla en Pruebas (13/10 17:15): Excel descargado sin cambios = nada que agregar; Excel con abono
   cambiado y factura nueva = agrega 1, reporta 2 (no cambió el abono); OV y Facturación 36 / 9 / 82.
+
+## 16. Decisiones de Gabriel (14/10)
+1. D22 aprobada — hecha (ya aplicada desde el 12/10).
+2. Costo_OV en el Excel de migración — hecha (commit local): columna opcional en la hoja OVs (sin IVA). OV legacy:
+   la primera vez se registra; un cambio se reporta y se aplica solo con motivo. OV nacida en Valentina: solo se
+   reporta. La plantilla descargada la incluye. Con costo, la OV entra al Margen neto % del tablero.
+3. Diseño: número de receta/versión (#id) en catálogo y editor, y búsqueda por número.
+4. Guía de pantallas, segunda ola (Finanzas, Tesorería, Dirección, Producción/Kanban, Diseño, tablero de Ventas,
+   cuerpo de Rayos X) y luego ayuda "?" (Ventas, Compras y Almacén, Diseño, Administración, Gerencia).
 ## 11. PRIORIDAD 2 — Indicadores del tablero de Dirección (con Gabriel) — hecha (2026-10-12, commit local)
 - Decisiones de Gabriel (12/10) aplicadas con una sola fuente (`GET /analytics/director-summary`, solo DIRECTOR):
   1. Ventas: OVs vendidas del año sin IVA (tasa 0 y 16) contra la meta anual.
