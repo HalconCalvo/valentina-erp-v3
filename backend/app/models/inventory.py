@@ -178,6 +178,7 @@ class PurchaseOrderItem(SQLModel, table=True):
     cancel_reason: Optional[str] = Field(default=None)
     is_fulfilled: bool = Field(default=False)
     sales_order_id: Optional[int] = Field(default=None, foreign_key="sales_orders.id", index=True)  # from its requisition
+    requisition_id: Optional[int] = Field(default=None, foreign_key="purchase_requisitions.id")  # H22
 
 
 # ==========================================

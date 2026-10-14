@@ -1,4 +1,4 @@
-import { Ban, Eye, Pencil, XCircle } from 'lucide-react';
+import { Ban, Eye, Pencil, Undo2, XCircle } from 'lucide-react';
 
 /** Íconos estándar para acciones en tablas (requieren contenedor con className `group`). */
 export const TABLE_ACTION_ICON_SIZE = 15;
@@ -21,4 +21,9 @@ export function TableActionCancelIcon() {
 
 export function TableActionRejectIcon() {
     return <Ban size={TABLE_ACTION_ICON_SIZE} className={rejectClass} />;
+}
+
+/** Regresar algo a su origen sin destruirlo (p. ej. quitar una partida de una OC en borrador: vuelve a solicitudes). */
+export function TableActionReturnIcon() {
+    return <Undo2 size={TABLE_ACTION_ICON_SIZE} className={editViewClass} />;
 }

@@ -13,6 +13,7 @@ import { VTable } from '@/components/ui/VTable';
 import {
     TableActionCancelIcon,
     TableActionEditIcon,
+    TableActionReturnIcon,
 } from '@/lib/tableActionIcons';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { VCurrencyInput } from '@/components/ui/VCurrencyInput';
@@ -421,8 +422,8 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                 return {
                     title: 'Quitar partida',
                     message: `¿Quitar SKU ${pendingConfirm.sku} de esta orden?`,
-                    consequence: 'La partida se eliminará de la orden de compra.',
-                    variant: 'danger' as const,
+                    consequence: 'La partida sale de esta orden en borrador y su solicitud regresa a pendientes de Compras.',
+                    variant: 'warning' as const,
                     confirmLabel: 'Quitar partida',
                 };
             case 'deleteReq':
@@ -1248,7 +1249,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                                 { label: '', title: 'Cancelar partida', icon: <TableActionCancelIcon />, variant: 'danger' as const, onClick: () => { setCancelItemReason(''); setCancelItemModal({ open: true, orderId: order.id, item }); } },
                                             );
                                         }
-                                        actions.push({ label: '', title: 'Quitar partida', icon: <TableActionCancelIcon />, variant: 'danger' as const, onClick: () => handleRemoveItemFromOrder(order.id, Number(item.id), String(item.sku)) });
+                                        actions.push({ label: '', title: 'Quitar partida (regresa a solicitudes)', icon: <TableActionReturnIcon />, onClick: () => handleRemoveItemFromOrder(order.id, Number(item.id), String(item.sku)) });
                                         return actions;
                                     }}
                                     className="border-0 shadow-none rounded-none"

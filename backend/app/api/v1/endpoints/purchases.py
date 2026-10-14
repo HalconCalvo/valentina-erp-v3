@@ -147,6 +147,7 @@ def emit_bulk_purchase_order(*, db: Session = Depends(get_session), data: POCrea
             custom_description=item.get("name"),
             quantity_ordered=item.get("qty"),
             expected_unit_cost=item.get("expected_cost"),
+            requisition_id=item.get("requisition_id"),
         )
         db.add(po_item)
         total_amount += (float(item.get("qty")) * float(item.get("expected_cost")))

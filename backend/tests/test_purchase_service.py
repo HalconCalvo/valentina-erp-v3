@@ -274,3 +274,23 @@ def test_cancelling_a_line_recalculates_the_po_total(client_fixture, auth_header
     assert cancelled.status_code == 200, cancelled.text
     session_fixture.expire_all()
     assert session_fixture.get(PurchaseOrder, po_id).total_estimated_amount == 1000.0
+
+
+def test_removing_a_draft_line_returns_its_requisition_to_compras(client_fixture, auth_header_director,
+                                                                 session_fixture):
+    """H22: "Quitar partida" is not destructive: the line leaves the draft PO and its requisition is pending again."""
+    provider, material = _seed_provider_and_material(session_fixture)
+    req = client_fixture.post(f"{settings.API_V1_STR}/purchases/requisitions/", headers=auth_header_director,
+                              json={**_requisition_payload(material_id=material.id), "notes": "Para la obra"}).json()
+    emitted = client_fixture.post(f"{settings.API_V1_STR}/purchases/orders/bulk-emit", headers=auth_header_director,
+                                  json={"provider_id": provider.id, "items": [
+                                      {"requisition_id": req["id"], "material_id": material.id, "name": "Material Test",
+                                       "qty": 5, "expected_cost": 100.0}]})
+    po_id = emitted.json()["po_id"]
+    assert session_fixture.get(PurchaseRequisition, req["id"]).status == "PROCESADA"
+    line = session_fixture.exec(select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po_id)).one()
+    removed = client_fixture.delete(f"{settings.API_V1_STR}/purchases/orders/{po_id}/items/{line.id}",
+                                    headers=auth_header_director)
+    assert removed.status_code == 200, removed.text
+    session_fixture.expire_all()
+    assert session_fixture.get(PurchaseRequisition, req["id"]).status == "PENDIENTE"
