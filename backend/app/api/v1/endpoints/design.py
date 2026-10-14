@@ -361,6 +361,7 @@ class SimulatedMaterial(BaseModel):
     category: str
     required_qty: float
     available_qty: float
+    unit: Optional[str] = None  # usage unit (stock and recipe quantities)
     is_blocking: bool
     status_color: str  # "RED", "YELLOW", "GREEN"
 
@@ -457,6 +458,7 @@ def simulate_batch(
                 category=material.category,
                 required_qty=round(req_qty, 2),
                 available_qty=round(available_qty, 2),
+                unit=material.usage_unit,
                 is_blocking=is_blocking,
                 status_color=status_color
             )

@@ -21,12 +21,13 @@ export interface PendingInstance {
 }
 
 export interface SimulatedMaterial {
-  material_id: int;
+  material_id: number;
   sku: string;
   name: string;
   category: string;
   required_qty: number;
   available_qty: number;
+  unit?: string | null;
   is_blocking: boolean;
   status_color: 'RED' | 'YELLOW' | 'GREEN';
 }

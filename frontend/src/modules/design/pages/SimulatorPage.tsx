@@ -4,6 +4,7 @@ import { designService, PendingInstance, SimulateBatchResponse } from '../../../
 import { productionService } from '../../../api/production-service';
 import { toast } from '@/components/ui/VToast';
 import { planningService } from '../../../api/planning-service';
+import { coreShortages, shortageText } from '../utils/coreShortage';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
@@ -56,6 +57,8 @@ export default function SimulatorPage() {
   const [orderMaterialViews, setOrderMaterialViews] = useState<Record<number, 'MDF' | 'PIEDRA'>>({});
   
   const [simulationResult, setSimulationResult] = useState<SimulateBatchResponse | null>(null);
+  // D30: missing core material (MDF or stone) blocks creating the batch; hardware and the rest may go negative.
+  const shortages = coreShortages(simulationResult?.materials);
   const [loadingRadar, setLoadingRadar] = useState(false);
   const [simulating, setSimulating] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -179,8 +182,8 @@ export default function SimulatorPage() {
   };
 
   const handleCreateBatch = async () => {
-    if (!simulationResult) return;
-    
+    if (!simulationResult || shortages.length > 0) return;
+
     setCreating(true);
     try {
       const newBatch = await productionService.createBatch({
@@ -190,10 +193,6 @@ export default function SimulatorPage() {
 
       for (const instanceId of selectedIds) {
         await productionService.assignInstanceToBatch(newBatch.id, instanceId);
-      }
-
-      if (simulationResult.suggested_status === 'ON_HOLD') {
-        await productionService.updateBatchStatus(newBatch.id, 'ON_HOLD');
       }
 
       toast.success(`Lote ${newBatch.folio} creado en "Lote por producir"; Producción le da entrada en su tablero.`);
@@ -210,7 +209,7 @@ export default function SimulatorPage() {
   };
 
   const handleCreateStoneBatch = async () => {
-    if (selectedIds.length === 0) return;
+    if (selectedIds.length === 0 || shortages.length > 0) return;
     setCreating(true);
     try {
       const newBatch = await productionService.createBatch({
@@ -660,36 +659,35 @@ export default function SimulatorPage() {
               </div>
             ) : (
               <div className="animate-in slide-in-from-bottom-2">
-                <div className={`p-4 rounded-lg mb-6 flex justify-between items-center border shadow-sm ${
-                  simulationResult.suggested_status === 'ON_HOLD' 
-                    ? 'bg-orange-50 border-orange-200 text-orange-800' 
+                <div className={`p-4 rounded-lg mb-6 flex justify-between items-center gap-4 border shadow-sm ${
+                  shortages.length > 0
+                    ? 'bg-orange-50 border-orange-200 text-orange-800'
                     : 'bg-emerald-50 border-emerald-200 text-emerald-800'
                 }`}>
                   <div className="flex items-center gap-3">
-                    {simulationResult.suggested_status === 'ON_HOLD' ? <AlertTriangle size={28} className="text-orange-500"/> : <ShieldCheck size={28} className="text-emerald-500" />}
+                    {shortages.length > 0 ? <AlertTriangle size={28} className="text-orange-500"/> : <ShieldCheck size={28} className="text-emerald-500" />}
                     <div>
                       <h3 className="font-black text-lg">
-                        Veredicto: {simulationResult.suggested_status === 'ON_HOLD' ? 'LOTE EN ÁMBAR (Faltantes Críticos)' : 'LOTE EN VERDE (Suficiencia)'}
+                        {shortages.length > 0 ? 'Falta material núcleo: no se puede crear el lote' : 'Material núcleo completo'}
                       </h3>
-                      <p className="text-sm font-medium opacity-90 mt-0.5">
-                        {simulationResult.suggested_status === 'ON_HOLD' 
-                          ? 'Falta material núcleo. Nacerá bloqueado para Sierras/CNC.' 
-                          : 'Material núcleo completo. Puede avanzar a Sierras.'}
-                      </p>
+                      {shortages.length > 0 ? (
+                        <ul className="text-sm font-medium mt-0.5">
+                          {shortages.map((s) => <li key={s.materialId}>{shortageText(s)}</li>)}
+                        </ul>
+                      ) : (
+                        <p className="text-sm font-medium opacity-90 mt-0.5">
+                          Puede crearse el lote. Herrajes y demás pueden quedar en negativo.
+                        </p>
+                      )}
                     </div>
                   </div>
-                  
+
                   <Button
                     size="lg"
                     onClick={batchType === 'MDF' ? handleCreateBatch : handleCreateStoneBatch}
-                    disabled={creating}
-                    className={`px-6 shadow ${
-                      batchType === 'PIEDRA'
-                        ? 'bg-stone-700 hover:bg-stone-800'
-                        : simulationResult.suggested_status === 'ON_HOLD' 
-                          ? 'bg-orange-600 hover:bg-orange-700' 
-                          : 'bg-emerald-600 hover:bg-emerald-700'
-                    }`}
+                    disabled={creating || shortages.length > 0}
+                    title={shortages.length > 0 ? shortages.map(shortageText).join(' · ') : undefined}
+                    className={`px-6 shadow ${batchType === 'PIEDRA' ? 'bg-stone-700 hover:bg-stone-800' : 'bg-emerald-600 hover:bg-emerald-700'}`}
                   >
                     {!creating && <Factory size={18}/>}
                     {creating ? 'Creando lote...' : batchType === 'MDF' ? 'Crear Lote MDF' : 'Crear Lote Piedra'}
