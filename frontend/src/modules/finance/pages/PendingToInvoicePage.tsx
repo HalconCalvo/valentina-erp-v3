@@ -480,7 +480,7 @@ const PendingToInvoicePage = () => {
                                         {isOpen && (
                                             <div className="px-6 pb-4 pt-2 bg-emerald-50/40 flex flex-wrap items-end gap-3">
                                                 <div className="flex flex-col gap-1">
-                                                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">Folio de Factura</label>
+                                                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">Folio de Factura *</label>
                                                     <Input
                                                         type="text"
                                                         placeholder="Ej. F-2026-0042"
@@ -500,13 +500,14 @@ const PendingToInvoicePage = () => {
                                                     />
                                                 </div>
                                                 <Button
-                                                    disabled={registeringProgress === orderId || selectedInstanceIds.length === 0}
+                                                    disabled={registeringProgress === orderId || selectedInstanceIds.length === 0 || !progressFolio.trim()}
+                                                    title={!progressFolio.trim() ? 'El folio de la factura es obligatorio' : undefined}
                                                     onClick={async () => {
                                                         if (selectedInstanceIds.length === 0) return;
                                                         setRegisteringProgress(orderId);
                                                         try {
                                                             await salesService.registerProgressPayment(orderId, {
-                                                                invoice_folio: progressFolio || null,
+                                                                invoice_folio: progressFolio.trim(),
                                                                 amount: parseFloat(progressAmount) || 0,
                                                                 amortized_advance: 0,
                                                                 instance_ids: selectedInstanceIds,

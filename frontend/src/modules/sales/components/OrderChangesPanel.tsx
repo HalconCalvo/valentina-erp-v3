@@ -100,6 +100,10 @@ export const OrderChangesPanel: React.FC<OrderChangesPanelProps> = ({ order, onC
 
     const runDialog = async () => {
         if (!dialog) return;
+        if (dialog.kind === 'ADVANCE' && !form.folio.trim()) {
+            toast.warning('El folio de la factura es obligatorio.');
+            return;
+        }
         setSaving(true);
         try {
             if (dialog.kind === 'ADVANCE') {

@@ -386,11 +386,15 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({
             toast.warning('Debes seleccionar al menos un producto para facturar el avance.');
             return;
         }
+        if (!invoiceFolio.trim()) {
+            toast.warning('El folio de la factura es obligatorio.');
+            return;
+        }
 
         setIsLoading(true);
         try {
             const payload: PaymentPayload = {
-                invoice_folio: invoiceFolio.trim() === '' ? null : invoiceFolio.trim(),
+                invoice_folio: invoiceFolio.trim(),
                 amount: Number(amount),
                 amortized_advance: Number(amortizedAdvance),
                 instance_ids: selectedInstances,
@@ -444,10 +448,14 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({
             toast.warning('Captura un importe de anticipo mayor a cero.');
             return;
         }
+        if (!invoiceFolio.trim()) {
+            toast.warning('El folio de la factura es obligatorio.');
+            return;
+        }
         setIsLoading(true);
         try {
             await salesService.emitAdvanceInvoice(order.id!, {
-                invoice_folio: invoiceFolio.trim() === '' ? null : invoiceFolio.trim(),
+                invoice_folio: invoiceFolio.trim(),
                 amount: Number(importeFactura),
                 invoice_date: invoiceDate || null,
             });
@@ -573,7 +581,7 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({
                                 </h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-1">
-                                        <label className="text-[11px] font-bold text-slate-500 uppercase">Folio de Factura (Opcional)</label>
+                                        <label className="text-[11px] font-bold text-slate-500 uppercase">Folio de Factura *</label>
                                         <div className="relative">
                                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                                 <FileText size={16} className="text-slate-400" />
@@ -680,7 +688,7 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-1">
-                                <label className="text-[11px] font-bold text-slate-500 uppercase">Folio de Factura (Opcional)</label>
+                                <label className="text-[11px] font-bold text-slate-500 uppercase">Folio de Factura *</label>
                                 <div className="relative">
                                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                         <FileText size={16} className="text-slate-400" />

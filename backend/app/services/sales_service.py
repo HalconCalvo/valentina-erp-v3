@@ -1075,9 +1075,16 @@ def cancel_installment(
     return {"message": "Abono cancelado.", "installment_id": row.id}
 
 
+def require_invoice_folio(folio: str | None) -> None:
+    """H5: every customer invoice captured in Valentina carries its folio (the invoice is issued in Compaq)."""
+    if not (folio or "").strip():
+        raise HTTPException(status_code=400, detail="El folio de la factura es obligatorio.")
+
+
 def emit_advance_invoice(
     session: Session, order_id: int, payload: PaymentPayload, current_user: User
 ) -> dict:
+    require_invoice_folio(payload.invoice_folio)
     order = sales_repo.get_sales_order_by_id(session, order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Orden de venta no encontrada.")
@@ -1116,6 +1123,7 @@ def register_progress_invoice(
     payload: RegisterProgressPayload,
     current_user: User,
 ) -> dict:
+    require_invoice_folio(payload.invoice_folio)
     order = sales_repo.get_sales_order_by_id(session, order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Orden de venta no encontrada.")
@@ -1204,6 +1212,7 @@ def register_progress_invoice(
 def emit_full_invoice(
     session: Session, order_id: int, payload: PaymentPayload, current_user: User
 ) -> dict:
+    require_invoice_folio(payload.invoice_folio)
     order = sales_repo.get_sales_order_by_id(session, order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Orden de venta no encontrada.")
@@ -1261,11 +1270,13 @@ def update_customer_payment(
         if forbidden:
             raise HTTPException(
                 status_code=422,
-                detail="This invoice has a registered payment. Only notes can be edited.",
+                detail="Esta factura ya tiene un cobro registrado: solo se pueden editar las notas.",
             )
         if "notes" in updates:
             payment.notes = updates["notes"]
     else:
+        if "invoice_folio" in updates:
+            require_invoice_folio(updates["invoice_folio"])
         instance_ids = updates.pop("instance_ids", None)
         for field, value in updates.items():
             setattr(payment, field, value)

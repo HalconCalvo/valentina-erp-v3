@@ -231,3 +231,17 @@ def test_cancel_installment_reverts_balance(client_fixture, auth_header_director
         headers=auth_header_director,
     ).json()
     assert order_after_cancel["outstanding_balance"] == balance_before
+
+
+def test_an_invoice_needs_its_folio(client_fixture, auth_header_director, seed_client_and_tax):
+    """H5: advance, full and progress invoices are not captured without the invoice folio."""
+    client, tax = seed_client_and_tax
+    order = _create_order(client_fixture, auth_header_director, client.id, tax.id)
+    base = f"{settings.API_V1_STR}/sales/orders/{order['id']}"
+    for path in ("emit_advance_invoice", "emit_full_invoice"):
+        response = client_fixture.post(f"{base}/{path}", headers=auth_header_director,
+                                       json=_invoice_payload(6000.0, "  "))
+        assert response.status_code == 400 and "folio" in response.json()["detail"], path
+    progress = client_fixture.post(f"{base}/register_progress", headers=auth_header_director,
+                                   json={"amount": 1000.0, "instance_ids": []})
+    assert progress.status_code == 400
