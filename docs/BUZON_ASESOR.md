@@ -44,7 +44,7 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
      nombre claro. Revisa también la pantalla de revisión/autorización de cotizaciones con el mismo criterio.
   4. D34: quitar el lápiz de renombrar casas del Simulador (el bautizo es solo de Ventas). Pásala a Resueltas.
   Al terminar 2–4, súbelos también a `pruebas`. Avisa en "Hechas" con el commit de cada uno.
-  HECHO [2026-10-14 14:58 Mérida]
+  HECHO [2026-10-14 14:43 Mérida]
   1. Rama `pruebas` creada y subida (819b6da, 31 commits); `main` sin tocar (081b2ab). Regla "primero Pruebas" en
      CLAUDE.md (e9f2cc7). El arranque (Dockerfile) corre `alembic upgrade head`: x3y4z5a6b7c8 se aplica en Pruebas.
   2. D33 → Resueltas (4c90aff).

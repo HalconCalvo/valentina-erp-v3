@@ -4857,7 +4857,7 @@ Anotado también para la revisión de indicadores de Dirección: numeración rep
 - Pendiente: prueba en pantalla de todo (sesión local vencida) y push (decide Gabriel). Decisiones: D33, D34.
 
 ---
-## 2026-10-14 14:36–14:58 — Respuestas de Gabriel (buzón 14:40)
+## 2026-10-14 14:36–14:43 — Respuestas de Gabriel (buzón 14:40)
 - Revisión programada del buzón cancelada (Gabriel escribió).
 - Subida por rama `pruebas` (opción c): creada y subida; main sin tocar. CLAUDE.md: todo cambio va primero a
   `pruebas`; main solo después de probar en Pruebas y con la regla de horario. Gabriel cambia la rama en Render.
