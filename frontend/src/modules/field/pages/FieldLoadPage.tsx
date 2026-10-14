@@ -21,6 +21,28 @@ function workDayLabel(iso: string): string {
  *  is no longer a module; Planning decides, Field executes). Evidence, finished work and signature: Campo home. */
 type View = 'list' | 'detail' | 'qr' | 'confirm';
 
+/** H37: iPhone Safari can reload the page when the camera opens; remember the open house and view so the
+ *  leader comes back to the scanner (with the manual code field), never to the list. */
+const OPEN_KEY = 'field_load_open';
+
+function rememberOpen(assignmentId: number | null, view: View): void {
+  try {
+    if (assignmentId == null || view === 'list') sessionStorage.removeItem(OPEN_KEY);
+    else sessionStorage.setItem(OPEN_KEY, JSON.stringify({ assignmentId, view: view === 'confirm' ? 'qr' : view }));
+  } catch {
+    // storage unavailable (private mode): nothing to remember
+  }
+}
+
+function recallOpen(): { assignmentId: number; view: View } | null {
+  try {
+    const raw = sessionStorage.getItem(OPEN_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Fila del feed; incluye leader_name devuelto por el backend para DIRECTOR/GERENCIA. */
 type WorkdayAssignment = WorkdayAssignmentRow & {
   leader_name?: string | null;
@@ -73,8 +95,19 @@ export default function FieldLoadPage() {
   };
 
   useEffect(() => {
-    void load();
+    void load().then((list) => {
+      const open = recallOpen();
+      const house = open && list.find((a) => a.assignment_id === open.assignmentId);
+      if (open && house) {
+        setSelected(house);
+        setView(open.view);
+      }
+    });
   }, []);
+
+  useEffect(() => {
+    rememberOpen(selected?.assignment_id ?? null, view);
+  }, [selected, view]);
 
   const showMessage = (msg: string) => {
     setMessage(msg);
@@ -353,10 +386,7 @@ export default function FieldLoadPage() {
             title="Escanear bulto"
             onBack={() => setView('detail')}
           />
-          <QRScanner
-            onScan={(text) => void handleQRScan(text)}
-            onError={() => {}}
-          />
+          <QRScanner onScan={(text) => void handleQRScan(text)} />
         </>
       )}
 
