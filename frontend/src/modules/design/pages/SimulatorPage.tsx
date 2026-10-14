@@ -3,15 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { designService, PendingInstance, SimulateBatchResponse } from '../../../api/design-service';
 import { productionService } from '../../../api/production-service';
 import { toast } from '@/components/ui/VToast';
-import { planningService } from '../../../api/planning-service';
 import { coreShortages, shortageText, type CoreShortage } from '../utils/coreShortage';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import axiosClient from '@/api/axios-client';
 import { formatQty } from '@/utils/format';
-import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
-import { Package, CheckSquare, Square, AlertTriangle, ShieldCheck, Factory, Beaker, ArrowLeft, Calculator, Pencil, Check, X } from 'lucide-react';
+import { Package, CheckSquare, Square, AlertTriangle, ShieldCheck, Factory, Beaker, ArrowLeft, Calculator } from 'lucide-react';
 
 /** Devuelve el emoji del foco según el color del semáforo. */
 function semaphoreDot(color?: string | null): string {
@@ -68,9 +66,6 @@ export default function SimulatorPage() {
   const [creating, setCreating] = useState(false);
 
   // ── Renombrado inline ───────────────────────────────────────────────
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editingName, setEditingName] = useState('');
-  const [savingName, setSavingName] = useState(false);
 
 
   // ── Agrupación por OV ───────────────────────────────────────────────
@@ -237,31 +232,6 @@ export default function SimulatorPage() {
   const handleCreateBatch = () => createBatch('MDF');
   const handleCreateStoneBatch = () => createBatch('PIEDRA');
 
-  // ── Helpers de renombrado ───────────────────────────────────────────
-  const startEdit = (inst: PendingInstance) => {
-    setEditingId(inst.id);
-    setEditingName(inst.custom_name);
-  };
-
-  const cancelEdit = () => { setEditingId(null); setEditingName(''); };
-
-  const saveEdit = async (instId: number) => {
-    if (!editingName.trim()) return;
-    setSavingName(true);
-    try {
-      await planningService.updateInstance(instId, { custom_name: editingName.trim() });
-      // Update local list immediately
-      setPendingByType(prev => ({
-        MDF: prev.MDF.map(p => (p.id === instId ? { ...p, custom_name: editingName.trim() } : p)),
-        PIEDRA: prev.PIEDRA.map(p => (p.id === instId ? { ...p, custom_name: editingName.trim() } : p)),
-      }));
-      setEditingId(null);
-    } catch {
-      toast.error('Error al guardar el alias. Intenta de nuevo.');
-    } finally {
-      setSavingName(false);
-    }
-  };
 
 
   const mdfCountByOrder = useMemo(() => {
@@ -555,10 +525,7 @@ export default function SimulatorPage() {
                               {/* Checkbox */}
                               <div
                                 className="mt-1 cursor-pointer shrink-0"
-                                onClick={() => {
-                                  if (editingId !== inst.id)
-                                    toggleSelection(inst.id);
-                                }}
+                                onClick={() => toggleSelection(inst.id)}
                               >
                                 {selectedIds.includes(inst.id)
                                   ? <CheckSquare size={18} className="text-blue-600" />
@@ -567,40 +534,6 @@ export default function SimulatorPage() {
 
                               {/* Content */}
                               <div className="flex-1 min-w-0">
-                                {editingId === inst.id ? (
-                                  <div className="flex items-center gap-1.5">
-                                    <Input
-                                      autoFocus
-                                      type="text"
-                                      value={editingName}
-                                      onChange={e => setEditingName(e.target.value)}
-                                      onKeyDown={e => {
-                                        if (e.key === 'Enter') saveEdit(inst.id);
-                                        if (e.key === 'Escape') cancelEdit();
-                                      }}
-                                      className="flex-1 text-sm border border-indigo-300 rounded-lg px-2 py-1 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 h-auto"
-                                    />
-                                    <Button
-                                      variant="ghost"
-                                      size="icon-sm"
-                                      onClick={() => saveEdit(inst.id)}
-                                      disabled={savingName}
-                                      className="text-emerald-600 hover:bg-emerald-50"
-                                      title="Guardar nombre"
-                                    >
-                                      <Check size={15} />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon-sm"
-                                      onClick={cancelEdit}
-                                      className="text-slate-400 hover:bg-slate-100"
-                                      title="Cancelar"
-                                    >
-                                      <X size={15} />
-                                    </Button>
-                                  </div>
-                                ) : (
                                   <div className="flex items-start justify-between gap-1">
                                     <div
                                       className="cursor-pointer flex-1 min-w-0"
@@ -621,20 +554,7 @@ export default function SimulatorPage() {
                                         {inst.product_name}
                                       </p>
                                     </div>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon-xs"
-                                      onClick={e => {
-                                        e.stopPropagation();
-                                        startEdit(inst);
-                                      }}
-                                      className="text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 shrink-0"
-                                      title="Renombrar instancia"
-                                    >
-                                      <Pencil size={13} />
-                                    </Button>
                                   </div>
-                                )}
                               </div>
                             </div>
                           </div>
