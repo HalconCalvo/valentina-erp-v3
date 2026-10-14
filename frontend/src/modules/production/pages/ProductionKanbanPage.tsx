@@ -263,10 +263,11 @@ export default function ProductionKanbanPage() {
   const [bultosByInstanceId, setBultosByInstanceId] = useState<
     Record<number, { mdf: number; herrajes: number }>
   >({});
-  /** Instancias cuyas etiquetas ya se solicitaron correctamente al backend. */
-  const [labelsRequestedInstanceIds, setLabelsRequestedInstanceIds] = useState<Record<number, boolean>>(
+  /** Etiquetas ya solicitadas, por casa y tipo de lote (H33: "<id>-MDF" / "<id>-PIEDRA"). */
+  const [labelsRequestedInstanceIds, setLabelsRequestedInstanceIds] = useState<Record<string, boolean>>(
     {}
   );
+  const labelsKey = (instanceId: number, isStone: boolean) => `${instanceId}-${isStone ? 'PIEDRA' : 'MDF'}`;
   const [stoneByInstanceId, setStoneByInstanceId] = useState<Record<number, number>>({});
   const [selectedBatch, setSelectedBatch] = useState<any | null>(null);
   const [herrajesPreview, setHerrajesPreview] = useState<{
@@ -325,7 +326,7 @@ export default function ProductionKanbanPage() {
 
       const initialBultos: Record<number, {mdf: number; herrajes: number}> = {};
       const initialStone: Record<number, number> = {};
-      const initialLabels: Record<number, boolean> = {};
+      const initialLabels: Record<string, boolean> = {};
 
       data.forEach((batch: any) => {
         (batch.instances || []).forEach((inst: any) => {
@@ -338,14 +339,18 @@ export default function ProductionKanbanPage() {
           if (inst.stone_pieces) {
             initialStone[inst.id] = inst.stone_pieces;
           }
-          if (inst.declared_bundles && inst.declared_bundles > 0) {
-            initialLabels[inst.id] = true;
+          if ((inst.mdf_bundles || 0) + (inst.hardware_bundles || 0) > 0) {
+            initialLabels[`${inst.id}-MDF`] = true;
+          }
+          if (inst.stone_pieces && inst.stone_pieces > 0) {
+            initialLabels[`${inst.id}-PIEDRA`] = true;
           }
         });
       });
 
-      setBultosByInstanceId(initialBultos);
-      setStoneByInstanceId(initialStone);
+      // H30: a reload (e.g. after "Herrajes surtidos") keeps what was typed and not requested yet.
+      setBultosByInstanceId((prev) => ({ ...prev, ...initialBultos }));
+      setStoneByInstanceId((prev) => ({ ...prev, ...initialStone }));
       setLabelsRequestedInstanceIds(initialLabels);
     } catch (error: any) {
       toast.error(error?.response?.data?.detail || 'Error al cargar los lotes.');
@@ -754,6 +759,7 @@ export default function ProductionKanbanPage() {
     try {
       await axiosClient.patch(`/production/instances/${instanceId}/stone_pieces`, { stone_pieces: pieces });
       toast.success(`${pieces} piezas de piedra declaradas correctamente.`);
+      setLabelsRequestedInstanceIds((prev) => ({ ...prev, [`${instanceId}-PIEDRA`]: true }));
     } catch (err: any) {
       toast.error(err?.response?.data?.detail || 'Error al declarar piezas de piedra.');
     }
@@ -778,7 +784,7 @@ export default function ProductionKanbanPage() {
       });
       setLabelsRequestedInstanceIds(prev => {
         const next = { ...prev };
-        instanceIds.forEach(id => delete next[id]);
+        instanceIds.forEach(id => { delete next[`${id}-MDF`]; delete next[`${id}-PIEDRA`]; });
         return next;
       });
       // Recargar con pequeño delay para dar tiempo al backend
@@ -857,7 +863,7 @@ export default function ProductionKanbanPage() {
             const canSolicitar = isStone
               ? stonePieces >= 1
               : mdf > 0 && herrajes > 0;
-            const labelsDone = labelsRequestedInstanceIds[instance.id];
+            const labelsDone = labelsRequestedInstanceIds[labelsKey(instance.id, isStone)];
 
             return (
               <div
@@ -954,7 +960,7 @@ export default function ProductionKanbanPage() {
                 {/* Botón etiquetas */}
                 {labelsDone ? (
                   <p className="w-full py-2 text-center text-xs font-bold text-emerald-600">
-                    ✓ Etiquetas solicitadas
+                    {isStone ? '✓ Piezas declaradas (manifiesto)' : '✓ Etiquetas solicitadas'}
                   </p>
                 ) : (
                   <Button
@@ -963,13 +969,14 @@ export default function ProductionKanbanPage() {
                     onClick={async () => {
                       setRequestingLabelsId(instance.id);
                       try {
-                        await productionService.requestLabels(
-                          instance.id,
-                          isStone ? 1 : mdf,
-                          isStone ? 1 : herrajes,
-                        );
+                        if (isStone) {
+                          // Stone has no bundle labels: its pieces go on the manifest (never touch MDF bundles).
+                          await handleDeclareStonePieces(instance.id);
+                          return;
+                        }
+                        await productionService.requestLabels(instance.id, mdf, herrajes);
                         setLabelsRequestedInstanceIds(prev => ({
-                          ...prev, [instance.id]: true,
+                          ...prev, [labelsKey(instance.id, false)]: true,
                         }));
                       } catch (error: unknown) {
                         const err = error as {
