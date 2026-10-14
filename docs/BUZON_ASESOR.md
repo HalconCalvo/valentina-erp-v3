@@ -30,6 +30,32 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Hechas
 
+- [2026-10-14 14:40] RESPUESTAS DE GABRIEL (14:35) A LO PENDIENTE DEL ENSAYO.
+  1. Subida: opción (c). Crea la rama `pruebas` desde el HEAD actual (con los 31 commits) y haz push SOLO de esa rama
+     (`git push origin HEAD:pruebas`). NO push a main. Gabriel autorizó este push en horario laboral porque no toca
+     producción. Después Gabriel cambia en Render la rama de valentina-pruebas-api y valentina-pruebas a `pruebas`.
+     Regla nueva para CLAUDE.md: todo cambio se sube primero a `pruebas`; `main` (producción) solo después de probarlo en
+     Pruebas y con la regla de horario/autorización. Anótala.
+     Ojo: la migración x3y4z5a6b7c8 correrá en la BD de Pruebas al desplegar; confirma que el arranque la aplica.
+  2. D33 aprobada: "Falta cobrar del contrato" / "Facturado sin cobrar". Pásala a Resueltas.
+  3. H1: salió en la CAPTURA de la cotización (renglón de la partida), COT-0089 de OV-0157, Director. Gabriel captura
+     sobreprecio 45% y la pantalla muestra 52.63% (= sobreprecio con la comisión del 5% incluida). Corregir: la columna
+     "Sobreprecio" muestra el 45% que se capturó; si se quiere mostrar el efecto de la comisión, en otra columna con
+     nombre claro. Revisa también la pantalla de revisión/autorización de cotizaciones con el mismo criterio.
+  4. D34: quitar el lápiz de renombrar casas del Simulador (el bautizo es solo de Ventas). Pásala a Resueltas.
+  Al terminar 2–4, súbelos también a `pruebas`. Avisa en "Hechas" con el commit de cada uno.
+  HECHO [2026-10-14 14:58 Mérida]
+  1. Rama `pruebas` creada y subida (819b6da, 31 commits); `main` sin tocar (081b2ab). Regla "primero Pruebas" en
+     CLAUDE.md (e9f2cc7). El arranque (Dockerfile) corre `alembic upgrade head`: x3y4z5a6b7c8 se aplica en Pruebas.
+  2. D33 → Resueltas (4c90aff).
+  3. H1 (1d3c1b8): causa — la captura cargaba la comisión del usuario después de los catálogos (si no cargaba, 0) y el
+     servidor cambiaba una comisión 0 por la del usuario; precio y columna usaban comisiones distintas. Ahora la
+     comisión carga sola y el servidor respeta la que se envía. Revisión/autorización (FinancialReviewModal),
+     órdenes de cambio y Rayos X ya usan la comisión guardada de la cotización: mismo criterio, sin cambio.
+     COT-0089 (precio con 5%, comisión guardada 5%) muestra 45%.
+  4. D34 (e5d1cbb): sin lápiz de renombrar en el Simulador; D34 → Resueltas (4c90aff).
+  Subido a `pruebas` junto con lo anterior. Prueba en pantalla en Pruebas: cuando Gabriel cambie la rama en Render.
+
 - [2026-10-14 13:15] HALLAZGOS DEL ENSAYO GENERAL — OBRA PILOTO (OV-0157, Pruebas). Gabriel autorizó. Trabajar en este orden;
   probar cada cambio en Pruebas antes de producción; push según la regla de horario o autorización de Gabriel.
   Reportar en "Hechas" qué se corrigió y qué quedó pendiente con motivo.
