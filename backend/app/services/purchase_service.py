@@ -19,6 +19,7 @@ from app.schemas.finance_schema import (
     PurchaseInvoiceUpdate,
 )
 from app.schemas.inventory_schema import (
+    SalesOrderOptionRead,
     PurchaseOrderItemCancel,
     PurchaseOrderItemUpdate,
     PurchaseOrderUpdate,
@@ -103,6 +104,8 @@ def list_purchase_orders(
     pending_advance_po_ids = data.get("pending_advance_po_ids") or set()
     _sync_advance_waiting_status(db, orders, pending_advance_po_ids)
 
+    order_labels = purchase_repo.get_sales_order_labels(
+        db, [it.sales_order_id for items in items_by_po.values() for it in items])
     results: List[dict] = []
     for o in orders:
         prov = prov_map.get(o.provider_id)
@@ -123,6 +126,8 @@ def list_purchase_orders(
                 "quantity_received": it.quantity_received or 0,
                 "expected_cost": it.expected_unit_cost,
                 "subtotal": (it.quantity_ordered or 0) * (it.expected_unit_cost or 0),
+                "sales_order_id": it.sales_order_id,
+                "project_name": order_labels.get(it.sales_order_id),
             })
         results.append({
             "id": o.id,
@@ -150,6 +155,7 @@ def list_purchase_orders(
 def get_purchase_planning(db: Session) -> List[dict]:
     PurchaseManager.evaluate_and_create_automatic_requisitions(db)
     reqs = purchase_repo.get_pending_requisitions(db)
+    order_labels = purchase_repo.get_sales_order_labels(db, [r.sales_order_id for r in reqs])
 
     groups: dict = {}
     for req in reqs:
@@ -192,7 +198,8 @@ def get_purchase_planning(db: Session) -> List[dict]:
             "name": mat_name,
             "qty": req.requested_quantity,
             "expected_cost": exp_cost,
-            "project_name": getattr(req, "project_name", None),
+            "sales_order_id": req.sales_order_id,
+            "project_name": order_labels.get(req.sales_order_id),
             "notes": req.notes,
             "original_desc": req.custom_description,
         })
@@ -493,7 +500,10 @@ def _require_roles(current_user, roles: list[str]) -> None:
 def create_requisition(db: Session, req_in: RequisitionCreate) -> PurchaseRequisition:
     if not req_in.material_id and not req_in.custom_description:
         raise HTTPException(status_code=400, detail="Debe indicar un material o una descripción.")
+    if req_in.sales_order_id and not purchase_repo.get_active_sales_order(db, req_in.sales_order_id):
+        raise HTTPException(status_code=400, detail="La OV no existe o está cancelada.")
     requisition = PurchaseRequisition(
+        sales_order_id=req_in.sales_order_id,
         material_id=req_in.material_id,
         custom_description=req_in.custom_description,
         requested_quantity=req_in.requested_quantity,
@@ -1189,3 +1199,10 @@ def receive_purchase_order(db: Session, po_id: int, data: dict, current_user):
     db.add(po)
     db.commit()
     return {"status": "success", "message": "Inventario ingresado y finanzas conciliadas."}
+
+
+def list_sales_order_options(db: Session) -> List[SalesOrderOptionRead]:
+    """H21: open OVs to link a requisition to (folio, project and client)."""
+    orders = purchase_repo.get_open_sales_orders(db)
+    labels = purchase_repo.get_sales_order_labels(db, [o.id for o in orders])
+    return [SalesOrderOptionRead(id=o.id, label=labels[o.id]) for o in orders]

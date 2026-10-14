@@ -9,6 +9,7 @@ from app.models.foundations import GlobalConfig, Provider
 from app.models.inventory import PurchaseOrder, PurchaseOrderItem, PurchaseRequisition
 from app.models.material import STOCK_ROUTE, Material
 from app.models.finance import InvoiceStatus, PaymentStatus, PurchaseInvoice, SupplierPayment
+from app.models.sales import SalesOrder, SalesOrderStatus
 from app.models.users import User
 
 AccountsPayable = SupplierPayment.AccountsPayable
@@ -521,3 +522,28 @@ def has_active_requisition(db: Session, material_id: int) -> bool:
         PurchaseRequisition.material_id == material_id,
         func.upper(PurchaseRequisition.status).in_(ACTIVE_REQUISITION_STATUSES),
     )).first() is not None
+
+
+def get_sales_order_labels(db: Session, order_ids: List[int]) -> Dict[int, str]:
+    """{id: "OV-0157 · Project"} for the given sales orders."""
+    ids = [i for i in set(order_ids) if i]
+    if not ids:
+        return {}
+    rows = db.exec(select(SalesOrder.id, SalesOrder.project_name).where(SalesOrder.id.in_(ids))).all()
+    return {oid: f"OV-{str(oid).zfill(4)}" + (f" · {name}" if name else "") for oid, name in rows}
+
+
+def get_active_sales_order(db: Session, order_id: int) -> Optional[SalesOrder]:
+    order = db.get(SalesOrder, order_id)
+    cancelled = (SalesOrderStatus.CANCELLED, SalesOrderStatus.CANCELLED_OV)
+    return order if order and order.status not in cancelled else None
+
+
+OPEN_ORDER_STATUSES = (SalesOrderStatus.WAITING_ADVANCE, SalesOrderStatus.SOLD, SalesOrderStatus.IN_PRODUCTION,
+                       SalesOrderStatus.CHANGE_REQUESTED)
+
+
+def get_open_sales_orders(db: Session) -> List[SalesOrder]:
+    """OVs a purchase can be for: sold and not finished or cancelled."""
+    return list(db.exec(select(SalesOrder).where(SalesOrder.status.in_(OPEN_ORDER_STATUSES))
+                        .order_by(SalesOrder.id.desc())).all())

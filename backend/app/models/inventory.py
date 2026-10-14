@@ -130,6 +130,7 @@ class PurchaseRequisition(SQLModel, table=True):
         default=None, foreign_key="providers.id"
     )
     expected_unit_cost: Optional[float] = Field(default=None)
+    sales_order_id: Optional[int] = Field(default=None, foreign_key="sales_orders.id", index=True)  # H21/D31
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -176,6 +177,7 @@ class PurchaseOrderItem(SQLModel, table=True):
     is_cancelled: bool = Field(default=False)
     cancel_reason: Optional[str] = Field(default=None)
     is_fulfilled: bool = Field(default=False)
+    sales_order_id: Optional[int] = Field(default=None, foreign_key="sales_orders.id", index=True)  # from its requisition
 
 
 # ==========================================

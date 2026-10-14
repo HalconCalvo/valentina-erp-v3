@@ -183,7 +183,18 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         isCatalogItem: false,
         material_id: '',
         material_search: '',
+        sales_order_id: '',
     });
+    const reqMaterial = reqForm.material_id ? materialsList.find((m: any) => String(m.id) === reqForm.material_id) : null;
+    const reqUnit = String((reqMaterial as any)?.purchase_unit || '');
+    // H21: open OVs a requisition can be for (folio · project).
+    const [ovOptions, setOvOptions] = useState<{ id: number; label: string }[]>([]);
+    useEffect(() => {
+        if (!isReqModalOpen) return;
+        axiosClient.get('/purchases/sales-order-options')
+            .then((r) => setOvOptions(r.data ?? []))
+            .catch(() => setOvOptions([]));
+    }, [isReqModalOpen]);
 
     const getRole = () => {
         const userRaw = localStorage.getItem('user');
@@ -579,6 +590,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                 material_id: reqForm.material_id ? parseInt(reqForm.material_id) : null,
                 custom_description: !reqForm.material_id ? reqForm.description : null,
                 requested_quantity: parseFloat(reqForm.qty),
+                sales_order_id: reqForm.sales_order_id ? parseInt(reqForm.sales_order_id) : null,
                 notes: reqForm.notes.trim()
                     ? `[MANUAL] ${reqForm.notes}`
                     : '[MANUAL] Petición Ad-hoc',
@@ -586,7 +598,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
             setIsReqModalOpen(false);
             setReqForm({
                 description: '', qty: '1', notes: '',
-                isCatalogItem: false, material_id: '', material_search: ''
+                isCatalogItem: false, material_id: '', material_search: '', sales_order_id: '',
             });
             toast.success('Solicitud creada correctamente.');
             void refetchPlanning();
@@ -1042,7 +1054,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                                     {isCritical ? (
                                                         <div className="flex items-center justify-end gap-2 text-rose-600 font-black text-[10px] uppercase tracking-tighter"><AlertCircle size={14} /> {String(item.project_name)}</div>
                                                     ) : (
-                                                        <span className="text-[10px] text-slate-400 font-bold uppercase italic tracking-tighter">S/PROYECTO</span>
+                                                        <span className="text-[10px] text-slate-400 font-bold uppercase italic tracking-tighter">Sin OV</span>
                                                     )}
                                                 </div>
                                             );
@@ -1216,7 +1228,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 },
                             ] : []),
                             { key: 'expected_cost', label: 'P. Unit', render: (item: Record<string, unknown>) => <span className="block text-center text-xs font-bold text-slate-400">{formatMoney(Number(item.expected_cost || 0))}</span> },
-                            { key: 'project_name', label: 'Proyecto', render: (item: Record<string, unknown>) => <span className="block text-right text-[10px] font-black text-rose-600 uppercase">{String(item.project_name || 'GENERAL')}</span> },
+                            { key: 'project_name', label: 'Proyecto', render: (item: Record<string, unknown>) => <span className="block text-right text-[10px] font-black text-rose-600 uppercase">{String(item.project_name || 'Sin OV')}</span> },
                             { key: 'subtotal', label: 'Importe', render: (item: Record<string, unknown>) => <span className="block text-right text-xs font-black text-slate-800">{formatMoney(Number(item.subtotal || 0))}</span> },
                         ];
                         return (
@@ -1337,7 +1349,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                     { key: 'name', label: 'Descripción', render: (item) => <span className="font-bold text-slate-700 text-xs uppercase">{String(item.name ?? '')}</span> },
                                     { key: 'qty', label: 'Cant.', render: (item) => <span className="block text-center text-xs font-black text-slate-600">{String(item.qty ?? '')}</span> },
                                     { key: 'expected_cost', label: 'P. Unit', render: (item) => <span className="block text-center text-xs font-bold text-slate-400">{formatMoney(Number(item.expected_cost || 0))}</span> },
-                                    { key: 'project_name', label: 'Proyecto', render: (item) => <span className="block text-right text-[10px] font-black text-rose-600 uppercase">{String(item.project_name || 'GENERAL')}</span> },
+                                    { key: 'project_name', label: 'Proyecto', render: (item) => <span className="block text-right text-[10px] font-black text-rose-600 uppercase">{String(item.project_name || 'Sin OV')}</span> },
                                     { key: 'subtotal', label: 'Importe', render: (item) => <span className="block text-right text-xs font-black text-slate-800">{formatMoney(Number(item.subtotal || 0))}</span> },
                                 ]}
                                 data={(order.items || []) as Record<string, unknown>[]}
@@ -1423,7 +1435,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                         { key: 'name', label: 'Descripción', render: (item) => <span className="font-bold text-slate-700 text-xs uppercase">{String(item.name ?? '')}</span> },
                                         { key: 'qty', label: 'Cant.', render: (item) => <span className="block text-center text-xs font-black text-slate-600">{String(item.qty ?? '')}</span> },
                                         { key: 'expected_cost', label: 'P. Unit', render: (item) => <span className="block text-center text-xs font-bold text-slate-400">{formatMoney(Number(item.expected_cost || 0))}</span> },
-                                        { key: 'project_name', label: 'Proyecto', render: (item) => <span className="block text-right text-[10px] font-black text-rose-600 uppercase">{String(item.project_name || 'GENERAL')}</span> },
+                                        { key: 'project_name', label: 'Proyecto', render: (item) => <span className="block text-right text-[10px] font-black text-rose-600 uppercase">{String(item.project_name || 'Sin OV')}</span> },
                                         { key: 'subtotal', label: 'Importe', render: (item) => <span className="block text-right text-xs font-black text-slate-800">{formatMoney(Number(item.subtotal || 0))}</span> },
                                     ]}
                                     data={(order.items || []) as Record<string, unknown>[]}
@@ -2022,10 +2034,10 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 )}
                             </div>
 
-                            {/* Cantidad */}
+                            {/* Cantidad (H20: con la unidad del catálogo) */}
                             <div>
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
-                                    Cantidad
+                                    Cantidad{reqUnit ? ` (${reqUnit})` : ''}
                                 </label>
                                 <Input
                                     type="number"
@@ -2034,6 +2046,22 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                     value={reqForm.qty}
                                     onChange={(e) => setReqForm(f => ({ ...f, qty: e.target.value }))}
                                     className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:border-indigo-400"
+                                />
+                            </div>
+
+                            {/* OV (H21) */}
+                            <div>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                    Para la OV (opcional)
+                                </label>
+                                <SearchableSelect
+                                    items={ovOptions}
+                                    value={reqForm.sales_order_id}
+                                    onChange={(value) => setReqForm(f => ({ ...f, sales_order_id: value }))}
+                                    getLabel={(o) => o.label}
+                                    getValue={(o) => String(o.id)}
+                                    placeholder="Sin OV (compra general)"
+                                    className="w-full"
                                 />
                             </div>
 

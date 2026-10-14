@@ -331,7 +331,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
             label: 'Proyecto',
             render: (item) => (
                 <span className="block text-right text-[10px] font-black text-rose-600 uppercase">
-                    {String(item.project_name || 'GENERAL')}
+                    {String(item.project_name || 'Sin OV')}
                 </span>
             ),
         },

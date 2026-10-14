@@ -17,6 +17,12 @@ describe('coreShortages (D30)', () => {
     expect(shortageText(list[0])).toBe('Falta MDF 16 mm: 6 Hoja');
   });
 
+  it('asks Compras in purchase units', () => {
+    const [s] = coreShortages([material({ required_qty: 25, available_qty: 0, unit: 'm2', purchase_unit: 'Placa',
+                                          conversion_factor: 4.5 })]);
+    expect([s.purchaseQty, s.purchaseUnit]).toEqual([5.56, 'Placa']);
+  });
+
   it('is empty when the core material is complete', () => {
     expect(coreShortages([material({ required_qty: 3, is_blocking: false, status_color: 'GREEN' })])).toEqual([]);
     expect(coreShortages(undefined)).toEqual([]);

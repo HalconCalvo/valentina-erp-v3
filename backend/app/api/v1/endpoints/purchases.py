@@ -25,6 +25,7 @@ from app.schemas.inventory_schema import (
     ManualOrderCreate,
     RequisitionCreate,
     POCreateFromPlanning,
+    SalesOrderOptionRead,
 )
 from app.schemas.finance_schema import PurchaseInvoiceUpdate, OperationalExpenseUpdate, OperationalExpenseCancel
 from app.schemas.treasury_schema import OperationalExpenseCreate
@@ -146,7 +147,6 @@ def emit_bulk_purchase_order(*, db: Session = Depends(get_session), data: POCrea
             custom_description=item.get("name"),
             quantity_ordered=item.get("qty"),
             expected_unit_cost=item.get("expected_cost"),
-            requisition_id=item.get("requisition_id") 
         )
         db.add(po_item)
         total_amount += (float(item.get("qty")) * float(item.get("expected_cost")))
@@ -155,6 +155,7 @@ def emit_bulk_purchase_order(*, db: Session = Depends(get_session), data: POCrea
         if req_id:
             requisition = db.get(PurchaseRequisition, req_id)
             if requisition:
+                po_item.sales_order_id = requisition.sales_order_id
                 requisition.status = "PROCESADA"
                 db.add(requisition)
 
@@ -241,6 +242,12 @@ def report_cost_discrepancy(
     current_user: CurrentUser,
 ):
     return purchase_service.report_cost_discrepancy(db, po_id, data, current_user)
+
+@router.get("/sales-order-options", response_model=List[SalesOrderOptionRead],
+            dependencies=[allow(REQUISITION_ROLES)])
+def get_sales_order_options(db: Session = Depends(get_session)):
+    return purchase_service.list_sales_order_options(db)
+
 
 @router.get("/planning/consolidated", response_model=List[dict], dependencies=[allow(REQUISITION_ROLES)])
 def get_purchase_planning(db: Session = Depends(get_session)):

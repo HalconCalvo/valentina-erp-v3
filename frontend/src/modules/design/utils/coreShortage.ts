@@ -6,6 +6,9 @@ export interface CoreShortage {
   name: string;
   missing: number;
   unit: string;
+  /** What to ask Compras for, in purchase units (rounded up to 2 decimals). */
+  purchaseQty: number;
+  purchaseUnit: string;
 }
 
 /** D30: core material (MDF board or stone) missing for the batch; any of these blocks creating it. */
@@ -17,6 +20,8 @@ export function coreShortages(materials: SimulatedMaterial[] | undefined): CoreS
       name: m.name,
       missing: Math.round((m.required_qty - m.available_qty) * 100) / 100,
       unit: m.unit ?? '',
+      purchaseQty: Math.ceil(((m.required_qty - m.available_qty) / (m.conversion_factor || 1)) * 100) / 100,
+      purchaseUnit: m.purchase_unit ?? m.unit ?? '',
     }));
 }
 

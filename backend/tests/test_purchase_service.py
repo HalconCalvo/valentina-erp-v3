@@ -4,6 +4,7 @@ from app.core.config import settings
 from app.models.foundations import Provider
 from app.models.inventory import PurchaseOrder, PurchaseOrderItem, PurchaseRequisition
 from app.models.material import Material, ProductionRoute
+from tests.sales_helpers import create_order_via_quotation
 
 
 def _seed_provider_and_material(session_fixture):
@@ -221,3 +222,34 @@ def test_reject_po_cancels_not_deletes(client_fixture, auth_header_director, ses
     assert len(items_after) == len(items_before)
     assert all(item.is_cancelled for item in items_after)
     assert all(item.cancel_reason for item in items_after)
+
+
+def test_requisition_for_an_ov_carries_the_ov_to_the_purchase_order(client_fixture, session_fixture,
+                                                                    auth_header_director, seed_client_and_tax):
+    """H21/D31: the requisition says which OV it is for, and so does the purchase order line made from it."""
+    provider, material = _seed_provider_and_material(session_fixture)
+    order = create_order_via_quotation(client_fixture, auth_header_director, seed_client_and_tax[0].id,
+                                       seed_client_and_tax[1].id)
+    url = f"{settings.API_V1_STR}/purchases/requisitions/"
+    options = client_fixture.get(f"{settings.API_V1_STR}/purchases/sales-order-options",
+                                 headers=auth_header_director).json()
+    assert [o["id"] for o in options] == [order["id"]]  # the OV is sold (waiting advance) and open
+    bad = client_fixture.post(url, headers=auth_header_director,
+                              json={**_requisition_payload(material_id=material.id), "sales_order_id": 999999})
+    assert bad.status_code == 400
+    created = client_fixture.post(url, headers=auth_header_director,
+                                  json={**_requisition_payload(material_id=material.id), "sales_order_id": order["id"],
+                                        "notes": "Para la obra"})  # "auto…" notes read as automatic
+    assert created.status_code == 201, created.text
+    label = f"OV-{str(order['id']).zfill(4)}"
+    planning = client_fixture.get(f"{settings.API_V1_STR}/purchases/planning/consolidated",
+                                  headers=auth_header_director).json()
+    line = next(i for g in planning for i in g["items"] if i["requisition_id"] == created.json()["id"])
+    assert line["sales_order_id"] == order["id"] and line["project_name"].startswith(label)
+    emitted = client_fixture.post(f"{settings.API_V1_STR}/purchases/orders/bulk-emit", headers=auth_header_director,
+                                  json={"provider_id": provider.id, "items": [{**line, "name": line["name"]}]})
+    assert emitted.status_code == 200, emitted.text
+    # The orders listing uses PostgreSQL-only SQL (STRING_AGG/ANY); check the stored line instead.
+    po_line = session_fixture.exec(select(PurchaseOrderItem)
+                                   .where(PurchaseOrderItem.purchase_order_id == emitted.json()["po_id"])).one()
+    assert po_line.sales_order_id == order["id"]

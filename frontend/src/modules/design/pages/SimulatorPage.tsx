@@ -4,7 +4,10 @@ import { designService, PendingInstance, SimulateBatchResponse } from '../../../
 import { productionService } from '../../../api/production-service';
 import { toast } from '@/components/ui/VToast';
 import { planningService } from '../../../api/planning-service';
-import { coreShortages, shortageText } from '../utils/coreShortage';
+import { coreShortages, shortageText, type CoreShortage } from '../utils/coreShortage';
+import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
+import axiosClient from '@/api/axios-client';
+import { formatQty } from '@/utils/format';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
@@ -174,6 +177,7 @@ export default function SimulatorPage() {
     try {
       const result = await designService.simulateBatch(selectedIds, line);
       setSimulationResult(result);
+      setRequestedIds([]);
     } catch (error: any) {
       toast.error(error?.response?.data?.detail || 'Error al simular el lote. Verifica la conexión.');
     } finally {
@@ -282,6 +286,31 @@ export default function SimulatorPage() {
     () => [...pendingByType.MDF, ...pendingByType.PIEDRA],
     [pendingByType],
   );
+
+  // D31: with a core shortage, ask Compras for it (confirmed: Design may only be trying combinations).
+  const [requisitionFor, setRequisitionFor] = useState<CoreShortage | null>(null);
+  const [requestedIds, setRequestedIds] = useState<number[]>([]);
+  const selectedOrderIds = Array.from(new Set(allPendingInstances
+    .filter((p) => selectedIds.includes(p.id)).map((p) => p.order_id)));
+  const orderFolios = selectedOrderIds.map((id) => `OV-${String(id).padStart(4, '0')}`).join(', ');
+
+  const createRequisition = async () => {
+    if (!requisitionFor) return;
+    try {
+      await axiosClient.post('/purchases/requisitions/', {
+        material_id: requisitionFor.materialId,
+        requested_quantity: requisitionFor.purchaseQty,
+        sales_order_id: selectedOrderIds.length === 1 ? selectedOrderIds[0] : null,
+        notes: `[SIMULADOR] Faltante para el lote de ${orderFolios}`,
+      });
+      setRequestedIds((prev) => [...prev, requisitionFor.materialId]);
+      toast.success(`Requisición enviada a Compras: ${formatQty(requisitionFor.purchaseQty)} ${requisitionFor.purchaseUnit} de ${requisitionFor.name}.`);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.detail || 'No se pudo generar la requisición.');
+    } finally {
+      setRequisitionFor(null);
+    }
+  };
 
   const instancesByOrder = useMemo(() => {
     const metadata = new Map<number, {
@@ -672,7 +701,18 @@ export default function SimulatorPage() {
                       </h3>
                       {shortages.length > 0 ? (
                         <ul className="text-sm font-medium mt-0.5">
-                          {shortages.map((s) => <li key={s.materialId}>{shortageText(s)}</li>)}
+                          {shortages.map((s) => (
+                            <li key={s.materialId} className="flex items-center gap-2 flex-wrap mt-1">
+                              <span>{shortageText(s)}</span>
+                              {requestedIds.includes(s.materialId) ? (
+                                <span className="text-xs text-emerald-700 font-semibold">Requisición enviada</span>
+                              ) : (
+                                <Button size="xs" variant="outline" onClick={() => setRequisitionFor(s)}>
+                                  Generar requisición a Compras
+                                </Button>
+                              )}
+                            </li>
+                          ))}
                         </ul>
                       ) : (
                         <p className="text-sm font-medium opacity-90 mt-0.5">
@@ -710,6 +750,19 @@ export default function SimulatorPage() {
 
       </div>
 
+      <VConfirmDialog
+        isOpen={requisitionFor !== null}
+        title="Generar requisición a Compras"
+        message={requisitionFor
+          ? `¿Generar requisición por ${formatQty(requisitionFor.purchaseQty)} ${requisitionFor.purchaseUnit} de ${requisitionFor.name}?`
+          : ''}
+        consequence={selectedOrderIds.length === 1
+          ? `Compras la verá en sus solicitudes, ligada a ${orderFolios}.`
+          : `Compras la verá en sus solicitudes. El lote tiene varias OVs (${orderFolios}): queda sin OV y con la nota.`}
+        confirmLabel="Generar requisición"
+        onConfirm={createRequisition}
+        onCancel={() => setRequisitionFor(null)}
+      />
     </div>
   );
 }

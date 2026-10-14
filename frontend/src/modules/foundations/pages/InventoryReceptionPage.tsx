@@ -424,7 +424,7 @@ const InventoryReceptionPage: React.FC = () => {
             label: 'Proyecto',
             render: ({ item }) => (
                 <span className="block text-right text-[10px] font-black text-rose-600 uppercase">
-                    {item.project_name || 'GENERAL'}
+                    {item.project_name || 'Sin OV'}
                 </span>
             ),
         },

@@ -28,6 +28,8 @@ export interface SimulatedMaterial {
   required_qty: number;
   available_qty: number;
   unit?: string | null;
+  purchase_unit?: string | null;
+  conversion_factor?: number;
   is_blocking: boolean;
   status_color: 'RED' | 'YELLOW' | 'GREEN';
 }

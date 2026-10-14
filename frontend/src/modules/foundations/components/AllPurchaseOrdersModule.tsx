@@ -142,7 +142,7 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
                 label: 'Proyecto',
                 render: (row) => (
                     <span className="text-right block text-[10px] font-black text-rose-600 uppercase">
-                        {String(row.project_name || 'GENERAL')}
+                        {String(row.project_name || 'Sin OV')}
                     </span>
                 ),
             },

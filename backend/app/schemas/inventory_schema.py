@@ -178,6 +178,12 @@ class RequisitionCreate(BaseModel):
     requested_quantity: float
     notes: str | None = None
     requested_by_user_id: int | None = None
+    sales_order_id: int | None = None  # H21/D31: the OV the purchase is for
+
+
+class SalesOrderOptionRead(BaseModel):
+    id: int
+    label: str  # "OV-0157 · Project"
 
 
 class POCreateFromPlanning(BaseModel):
