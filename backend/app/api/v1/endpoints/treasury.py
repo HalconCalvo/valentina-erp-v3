@@ -6,6 +6,7 @@ from sqlmodel import select, func, text
 
 # --- TUS DEPENDENCIAS EXACTAS ---
 from app.core.deps import SessionDep, CurrentUser
+from app.core.business_time import effective_datetime_for, today_local
 
 from app.models.treasury import BankAccount, BankTransaction, TransactionType, WeeklyFixedCost
 from app.models.sales import CustomerPayment
@@ -89,6 +90,14 @@ def get_bank_accounts(session: SessionDep, current_user: CurrentUser) -> Any:
 # ------------------------------------------------------------------
 # 2. TRANSACCIONES MANUALES (INGRESOS/EGRESOS)
 # ------------------------------------------------------------------
+def movement_datetime(deposit_date: Optional[date]) -> datetime:
+    """H9: the bank movement (and the invoice payment it creates) carries the deposit date, not the capture time."""
+    day = deposit_date or today_local()
+    if day > today_local():
+        raise HTTPException(status_code=400, detail="La fecha del depósito no puede ser futura.")
+    return effective_datetime_for(day)
+
+
 @router.post("/transactions", response_model=BankTransactionResponse, dependencies=[allow(FINANCE_ROLES)])
 def create_transaction(
     *,
@@ -101,7 +110,8 @@ def create_transaction(
     if not account:
         raise HTTPException(status_code=404, detail="Cuenta bancaria no encontrada")
         
-    db_transaction = BankTransaction(**transaction_in.model_dump())
+    db_transaction = BankTransaction(**transaction_in.model_dump(exclude={"deposit_date"}),
+                                     transaction_date=movement_datetime(transaction_in.deposit_date))
     
     # Lógica financiera
     if transaction_in.transaction_type == TransactionType.IN:
@@ -211,6 +221,7 @@ class BulkCxcItem(BaseModel):
 class BulkCxcPayload(BaseModel):
     account_id: int
     amount: float          # total del depósito
+    deposit_date: Optional[date] = None  # H9
     reference: Optional[str] = None
     description: Optional[str] = None
     items: List[BulkCxcItem]  # lista de {cxc_id, amount}
@@ -246,7 +257,7 @@ def create_bulk_cxc_payment(
         amount=payload.amount,
         reference=payload.reference,
         description=payload.description or f"Cobro múltiple — {len(payload.items)} factura(s)",
-        transaction_date=datetime.utcnow(),
+        transaction_date=movement_datetime(payload.deposit_date),
         created_by_user_id=current_user.id,
     )
     session.add(db_transaction)

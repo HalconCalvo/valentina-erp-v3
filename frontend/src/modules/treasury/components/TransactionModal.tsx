@@ -9,6 +9,7 @@ import { toast } from '@/components/ui/VToast';
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { formatMoney, formatInvoiceType } from '@/utils/format';
+import { getLocalTodayDateKey } from '@/modules/planning/hooks/usePlanning';
 import Modal from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 
@@ -43,7 +44,8 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
         transaction_type: initialType || 'IN',
         amount: 0,
         description: '',
-        reference: ''
+        reference: '',
+        deposit_date: getLocalTodayDateKey(),
       });
       setDisplayAmount(''); // Limpiamos la pantalla visual del importe
       setSelectedCxcId(initialCxcId ?? '');
@@ -92,6 +94,7 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
         await axiosClient.post('/treasury/transactions/bulk-cxc', {
           account_id: data.account_id || selectedAccountId,
           amount: data.amount,
+          deposit_date: data.deposit_date || undefined,
           reference: data.reference,
           description: `Cobro múltiple — ${items.length} factura(s)`,
           items,
@@ -359,6 +362,13 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
               </div>
             </div>
 
+            {/* H9: fecha del depósito (o del egreso) */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                Fecha {watchType === 'IN' ? 'del depósito' : 'del movimiento'}
+              </label>
+              <Input type="date" max={getLocalTodayDateKey()} {...register('deposit_date')} className="w-full" />
+            </div>
           </div>
 
           <div className="pt-8 flex items-center justify-end gap-3 mt-2 border-t border-slate-50">

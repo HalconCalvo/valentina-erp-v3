@@ -39,6 +39,7 @@ class BankTransactionBase(BaseModel):
 
 class BankTransactionCreate(BankTransactionBase):
     account_id: int
+    deposit_date: Optional[date] = None  # H9: business date of the movement (today if empty; never in the future)
 
 class BankTransactionResponse(BankTransactionBase):
     id: int

@@ -29,6 +29,8 @@ export interface BankTransactionCreate {
   description?: string;
   related_entity_type?: string;
   related_entity_id?: number;
+  /** YYYY-MM-DD, business date of the deposit (H9). */
+  deposit_date?: string;
 }
 
 export interface TransferCreate {
