@@ -1,3 +1,4 @@
+import { houseLabel } from '@/utils/houseLabel';
 import { useState, useEffect, useCallback } from 'react';
 import { planningService, CalendarFeed, HealthPanel, InstanceSchedule, CalendarPill } from '../../../api/planning-service';
 
@@ -119,8 +120,10 @@ export function formatPillDisplayLabel(
   const project = (projectName ?? pill.project_name)?.trim();
   if (!project) return custom || '—';
   const lotSuffix = custom.match(/\s(-\s*Lote\s.+)$/i);
-  if (lotSuffix) return `${project}${lotSuffix[1]}`;
-  return project;
+  if (lotSuffix) return `${project} ${lotSuffix[1]}`;
+  // H14: a baptized house ("…, Piloto, 1") shows which house it is, not only the project.
+  const house = houseLabel({ custom_name: custom });
+  return house && house !== custom ? `${house} · ${project}` : project;
 }
 
 const PM_PP_PILL_CHECK_STATUSES = new Set([
