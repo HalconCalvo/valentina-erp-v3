@@ -1258,7 +1258,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                         <VSummaryCard label="Total facturado" value={formatMoney(totalInvoiced)} tone="indigo" />
                         <VSummaryCard label="Pendiente de facturar" value={formatMoney(pendingToInvoice)} tone="amber" />
                         <VSummaryCard label="Total cobrado" value={formatMoney(totalPaidInBank)} tone="emerald" />
-                        <VSummaryCard label="Saldo por cobrar" value={formatMoney(balanceDue)} tone="total" />
+                        <VSummaryCard label="Facturado sin cobrar" value={formatMoney(balanceDue)} tone="total" />
                     </div>
 
                     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">

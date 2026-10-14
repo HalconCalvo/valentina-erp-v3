@@ -374,7 +374,7 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
                                                             </div>
                                                             <div>
                                                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                                                                    {activeFilter === 'ADVANCES' ? `Anticipo Solicitado (${order.advance_percent}%)` : 'Saldo Vivo (Por Cobrar)'}
+                                                                    {activeFilter === 'ADVANCES' ? `Anticipo Solicitado (${order.advance_percent}%)` : 'Falta cobrar del contrato'}
                                                                 </p>
                                                                 <p className={`font-black text-lg ${activeFilter === 'ADVANCES' ? 'text-amber-600' : 'text-indigo-600'}`}>
                                                                     {activeFilter === 'ADVANCES' 

@@ -408,7 +408,7 @@ const CxcReportPage: React.FC = () => {
                     <p className="text-2xl font-black text-emerald-700 tabular-nums mt-1">{formatMoney(metrics.totalAbonado)}</p>
                 </div>
                 <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Saldo por cobrar</p>
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Facturado sin cobrar</p>
                     <p className="text-2xl font-black text-amber-700 tabular-nums mt-1">{formatMoney(metrics.totalSaldo)}</p>
                 </div>
             </div>

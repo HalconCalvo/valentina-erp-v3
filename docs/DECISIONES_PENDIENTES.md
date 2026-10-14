@@ -66,6 +66,24 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 - **Recomendación:** B, cuando Gabriel decida meter las comisiones legacy (no antes).
 - **Estado:** pendiente (sin aplicar)
 
+### D33. Nombres de los saldos de cobranza (H3 del ensayo general) — 2026-10-14 — buzón del asesor
+- **Contexto:** "Saldo vivo (por cobrar)" (Gerencia → OV y Facturación) es el contrato menos lo cobrado, facturado o
+  no; "Saldo por cobrar" (Rayos X y reporte de CxC) es solo lo facturado que falta cobrar. Con nombres parecidos se
+  confunden.
+- **Opciones:** A) dejarlos. B) "Falta cobrar del contrato" y "Facturado sin cobrar". C) "Saldo del contrato" y
+  "Saldo facturado".
+- **Recomendación:** B (dice qué es cada cifra). Es reversible: **aplicada** en local (commit pendiente de subir).
+- **Estado:** aplicada la recomendación; Gabriel confirma o cambia.
+
+### D34. Bautizo desde el Simulador, renglón por renglón (D29) — 2026-10-14 — buzón del asesor
+- **Contexto:** D29 quitó el "Bautizo Masivo" del Simulador. Queda en el Simulador el lápiz para renombrar una casa
+  (custom_name) una por una, que también es bautizar.
+- **Opciones:** A) dejar el lápiz (Diseño corrige un nombre sin ir a Ventas). B) quitarlo también: el bautizo solo en
+  Ventas.
+- **Recomendación:** B, por la regla "el bautizo es solo de Ventas". No aplicada: el asesor pidió quitar solo el botón
+  masivo.
+- **Estado:** pendiente (sin aplicar)
+
 ## Resueltas
 
 ### D22. Criterios del tablero de Dirección — 2026-10-12 — ROADMAP tarea 11
