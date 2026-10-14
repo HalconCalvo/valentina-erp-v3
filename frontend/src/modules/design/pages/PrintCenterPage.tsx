@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { designService, LabelRequestItem } from '../../../api/design-service';
 import { toast } from '@/components/ui/VToast';
+import { Button } from '@/components/ui/Button';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import axiosClient from '@/api/axios-client';
 
@@ -159,22 +160,24 @@ export default function PrintCenterPage() {
       render: (row) => (
         <div className="flex items-center justify-center gap-2">
           {row.is_stone ? (
-            <button
+            <Button
               type="button"
+              size="sm"
               onClick={() => handleDownloadManifest(row.instance_id)}
-              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-blue-600 bg-blue-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700"
+              className="text-xs"
             >
               🪨 Descargar Manifiesto
-            </button>
+            </Button>
           ) : (
-            <button
+            <Button
               type="button"
+              size="sm"
               onClick={() => handleGenerateLabels(row.instance_id)}
-              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
+              className="text-xs bg-emerald-600 hover:bg-emerald-700"
             >
               <Printer size={14} />
               🖨️ Descargar Etiquetas
-            </button>
+            </Button>
           )}
         </div>
       ),
@@ -182,23 +185,17 @@ export default function PrintCenterPage() {
   ], [handleDownloadManifest, handleGenerateLabels]);
 
   return (
-    <div className="p-8 max-w-6xl mx-auto space-y-8 pb-24 animate-in fade-in duration-300">
-      <div className="flex justify-end mb-6">
-        <button
-          type="button"
-          onClick={() => navigate('/design')}
-          className="flex items-center gap-2 bg-white border 
-                   border-slate-300 text-slate-700 px-4 py-2 
-                   rounded-lg font-bold hover:bg-slate-50 
-                   hover:text-indigo-600 transition-all shadow-sm"
-        >
+    <div className="p-8 max-w-7xl mx-auto space-y-6 pb-24 animate-fadeIn">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4">
+        <div>
+          <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+            <Printer size={32} className="text-indigo-600" /> Centro de impresión
+          </h1>
+          <p className="text-slate-500 mt-1 font-medium">Etiquetas pendientes de generación</p>
+        </div>
+        <Button variant="outline" onClick={() => navigate('/design')}>
           <ArrowLeft size={18} /> Regresar
-        </button>
-      </div>
-
-      <div>
-        <h1 className="text-3xl font-black text-slate-800">Centro de impresión</h1>
-        <p className="text-slate-500 mt-1">Etiquetas pendientes de generación</p>
+        </Button>
       </div>
 
       {/* KPI */}
@@ -214,7 +211,7 @@ export default function PrintCenterPage() {
 
       {/* Bandeja */}
       <section className="space-y-4">
-        <h2 className="text-lg font-bold text-slate-800">Bandeja de solicitudes</h2>
+        <h2 className="text-sm font-black uppercase tracking-wider text-slate-500">Bandeja de solicitudes</h2>
 
         {error && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>

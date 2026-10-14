@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
-import { Plus, Layers, Square, Package, Activity, Lock, Unlock, Save, EyeOff } from "lucide-react"; 
+import { Plus, Layers, Package, Activity, Lock, Unlock, Save, EyeOff } from "lucide-react"; 
 import { Input } from "@/components/ui/Input";
+import { Button } from "@/components/ui/Button";
 import { VersionComponent, VersionStatus } from "../../../types/design";
 import { Material } from "../../../types/foundations";
-import { formatMoney as formatSharedMoney } from '@/utils/format';
+import { formatMoney as formatSharedMoney, formatQty } from '@/utils/format';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 
 const STATUS_SELECT_ITEMS = [
@@ -412,7 +413,7 @@ export const VersionRecipeForm = ({
                      <Activity size={16} /> Monitor
                  </div>
                  <div className="flex gap-4 border-l border-amber-200 pl-4 text-xs">
-                    <div>Tableros: <b>{monitor.boardsTotal.toFixed(2)}</b></div>
+                    <div>Tableros: <b>{formatQty(monitor.boardsTotal)}</b></div>
                     <div>Hojas: <b className="text-emerald-700">{monitor.producTotal}</b></div>
                  </div>
              </div>
@@ -562,9 +563,9 @@ export const VersionRecipeForm = ({
                 })}
             </div>
             <div className="bg-slate-50 p-2 text-center">
-                <button type="button" onClick={() => !isReadOnly && append({ material_id: 0, quantity: 0, temp_category: sectionName } as any)} disabled={isReadOnly} className="text-xs text-indigo-600 font-medium px-4 py-1 border border-dashed border-indigo-300 rounded hover:bg-indigo-50 disabled:opacity-50">
-                    <Plus size={12} className="inline mr-1"/> Agregar Renglón
-                </button>
+                <Button type="button" variant="outline" size="sm" onClick={() => !isReadOnly && append({ material_id: 0, quantity: 0, temp_category: sectionName } as any)} disabled={isReadOnly} className="text-xs text-indigo-600 border-dashed border-indigo-300 hover:bg-indigo-50">
+                    <Plus size={12} /> Agregar Renglón
+                </Button>
             </div>
         </div>
       ))}
@@ -580,9 +581,9 @@ export const VersionRecipeForm = ({
                  </div>
              )}
 
-             <button type="submit" disabled={isLoading} className="bg-emerald-600 hover:bg-emerald-700 text-white py-2 px-6 rounded-lg font-bold shadow-md flex items-center gap-2 disabled:bg-slate-400">
+             <Button type="submit" disabled={isLoading} className="bg-emerald-600 hover:bg-emerald-700 px-6 shadow-md">
                 {isLoading ? 'Guardando...' : 'Guardar Receta'} <Save size={18} />
-             </button>
+             </Button>
           </div>
       </div>
       <div className="h-20"></div>

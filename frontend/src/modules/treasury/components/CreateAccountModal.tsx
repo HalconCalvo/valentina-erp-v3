@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import { toast } from '@/components/ui/VToast';
 import Modal from '@/components/ui/Modal';
+import { Button } from '@/components/ui/Button';
 
 const CURRENCY_OPTIONS = [
   { value: 'MXN', label: 'MXN - Pesos' },
@@ -47,9 +48,9 @@ export const CreateAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess
         {/* Encabezado */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <h2 className="text-lg font-bold text-slate-800">Nueva Cuenta Bancaria</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+          <Button type="button" variant="ghost" size="icon-sm" title="Cerrar" onClick={onClose} className="text-slate-400 hover:text-slate-600">
             <X size={20} />
-          </button>
+          </Button>
         </div>
 
         {/* Formulario */}
@@ -102,20 +103,16 @@ export const CreateAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess
 
           {/* Botones de Acción */}
           <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100 mt-6">
-            <button 
-              type="button" 
-              onClick={onClose}
-              className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium transition-colors"
-            >
+            <Button type="button" variant="outline" onClick={onClose}>
               Cancelar
-            </button>
-            <button 
-              type="submit" 
+            </Button>
+            <Button
+              type="submit"
               disabled={isSubmitting}
-              className="px-4 py-2 text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg font-medium transition-colors disabled:opacity-50"
+              className="bg-emerald-600 hover:bg-emerald-700"
             >
               {isSubmitting ? 'Guardando...' : 'Guardar Cuenta'}
-            </button>
+            </Button>
           </div>
 
         </form>

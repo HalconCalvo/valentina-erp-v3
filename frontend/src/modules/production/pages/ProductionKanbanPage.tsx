@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { productionService, getInventoryConflict, type StockShortage } from '../../../api/production-service';
 import axiosClient from '../../../api/axios-client';
 import { ProductionBatch } from '../../../types/production';
-import { Lock, Package, AlertCircle, ArrowRight, CheckCircle2, Boxes, LogOut } from 'lucide-react';
+import { Lock, Package, AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, Boxes, Factory, LogOut } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
@@ -12,6 +12,8 @@ import { Input } from '@/components/ui/Input';
 import { VTable, VTableColumn } from '@/components/ui/VTable';
 import { ReversalDialog, ShortageDialog, type ReversalInput } from '../components/BatchInventoryDialogs';
 import Modal from '@/components/ui/Modal';
+import { Button } from '@/components/ui/Button';
+import { formatDate, formatQty } from '@/utils/format';
 const STATUS_READY_TO_INSTALL = 'READY_TO_INSTALL'; // batch status (its instances become READY)
 const STATUS_PACKING = 'PACKING';
 
@@ -113,7 +115,7 @@ async function generateHerrajesPDF(
   doc.setFontSize(7);
   doc.setTextColor(148, 163, 184); // slate-400
   const batchLabel = batch.folio ? `Lote: ${batch.folio}` : batch.instances?.[0]?.custom_name || '';
-  const dateLabel = new Date().toLocaleDateString('es-MX');
+  const dateLabel = formatDate(new Date());
   doc.text(`${batchLabel}`, pageWidth - margin, margin + 7, { align: 'right' });
   doc.text(`${batch.batch_type || ''}  ·  ${dateLabel}`, pageWidth - margin, margin + 13, { align: 'right' });
 
@@ -255,6 +257,7 @@ export default function ProductionKanbanPage() {
   const isReadOnly = PRODUCTION_READ_ONLY_ROLES.includes(userRole);
   const [batches, setBatches] = useState<ProductionBatch[]>([]);
   const [loading, setLoading] = useState(true);
+  const [requestingLabelsId, setRequestingLabelsId] = useState<number | null>(null);
   const [materialFilter, setMaterialFilter] = useState<MaterialFilter>('ALL');
   /** Bultos por instancia (solo UI; sin persistencia aún). */
   const [bultosByInstanceId, setBultosByInstanceId] = useState<
@@ -935,13 +938,14 @@ export default function ProductionKanbanPage() {
                           value={stoneByInstanceId[instance.id] || ''}
                           onChange={(e) => setStonePieces(instance.id, e.target.value)}
                         />
-                        <button
+                        <Button
                           type="button"
+                          variant="outline"
+                          size="sm"
                           onClick={() => handleDeclareStonePieces(instance.id)}
-                          className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 transition"
                         >
                           🪨 Declarar
-                        </button>
+                        </Button>
                       </div>
                     </label>
                   </div>
@@ -953,10 +957,11 @@ export default function ProductionKanbanPage() {
                     ✓ Etiquetas solicitadas
                   </p>
                 ) : (
-                  <button
+                  <Button
                     type="button"
-                    disabled={!canSolicitar}
+                    disabled={!canSolicitar || requestingLabelsId === instance.id}
                     onClick={async () => {
+                      setRequestingLabelsId(instance.id);
                       try {
                         await productionService.requestLabels(
                           instance.id,
@@ -977,12 +982,15 @@ export default function ProductionKanbanPage() {
                             ? detail
                             : JSON.stringify(detail ?? err.message ?? error);
                         toast.error(typeof detail === 'string' ? detail : msg || 'Error al solicitar etiquetas.');
+                      } finally {
+                        setRequestingLabelsId(null);
                       }
                     }}
-                    className="w-full py-2 rounded-lg text-xs font-bold border transition disabled:opacity-40 disabled:cursor-not-allowed bg-violet-600 text-white border-violet-600 hover:bg-violet-700"
+                    size="sm"
+                    className="w-full text-xs"
                   >
-                    🏷️ Solicitar Etiquetas
-                  </button>
+                    {requestingLabelsId === instance.id ? 'Procesando...' : '🏷️ Solicitar Etiquetas'}
+                  </Button>
                 )}
 
                 {/* Herrajes: also dispatchable while packing (the batch detail is not reachable from this column) */}
@@ -991,14 +999,16 @@ export default function ProductionKanbanPage() {
                     ✅ Herrajes surtidos
                   </p>
                 ) : (
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={() => handleDispatchHardware(instance)}
                     disabled={dispatchingHardware === instance.id}
-                    className="w-full mt-2 py-1.5 rounded-lg text-xs font-bold border transition disabled:opacity-50 text-orange-700 bg-orange-50 border-orange-200 hover:bg-orange-100"
+                    className="w-full mt-2 text-xs text-orange-700"
                   >
                     📦 Marcar herrajes surtidos
-                  </button>
+                  </Button>
                 ))}
               </div>
             );
@@ -1158,51 +1168,43 @@ export default function ProductionKanbanPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem)] -m-6 p-6 min-h-0 overflow-hidden bg-white">
-      <div className="flex shrink-0 justify-between items-center mb-8 
-                    border-b pb-4">
-        <div>
-          <div className="flex items-center">
-            <h1 className="text-3xl font-bold text-gray-800">
-              Piso de Producción
-            </h1>
-            {isReadOnly && (
-              <span className="text-xs font-bold px-2 py-1 rounded-lg
-                               bg-slate-100 text-slate-500 border
-                               border-slate-200 ml-2">
-                👁 Solo Lectura
-              </span>
-            )}
+      <div className="flex shrink-0 flex-col md:flex-row md:items-end justify-between gap-4 mb-8 border-b border-slate-200 pb-4">
+        <div className="flex items-center gap-3">
+          <Factory className="text-indigo-600" size={32} />
+          <div>
+            <div className="flex items-center">
+              <h1 className="text-3xl font-black text-slate-800 tracking-tight">
+                Piso de Producción
+              </h1>
+              {isReadOnly && (
+                <span className="text-xs font-bold px-2 py-1 rounded-lg
+                                 bg-slate-100 text-slate-500 border
+                                 border-slate-200 ml-2">
+                  👁 Solo Lectura
+                </span>
+              )}
+            </div>
+            <p className="text-slate-500 mt-1 font-medium">
+              Control de Lotes y Despacho a Campo
+            </p>
           </div>
-          <p className="text-gray-500 mt-1">
-            Control de Lotes y Despacho a Campo
-          </p>
         </div>
-        <button
-          onClick={() => navigate('/production')}
-          className="flex items-center gap-2 bg-white border
-                     border-slate-300 text-slate-700 px-4 py-2
-                     rounded-lg font-bold hover:bg-slate-50
-                     hover:text-slate-900 transition-all shadow-sm"
-        >
-          ← Regresar
-        </button>
+        <Button variant="outline" onClick={() => navigate('/production')}>
+          <ArrowLeft size={18} /> Regresar
+        </Button>
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-2 mb-6">
         <span className="text-xs font-bold text-gray-500 uppercase tracking-wide mr-2">Material</span>
         {(['ALL', 'MDF', 'PIEDRA'] as const).map((key) => (
-          <button
+          <Button
             key={key}
             type="button"
+            variant={materialFilter === key ? 'default' : 'outline'}
             onClick={() => setMaterialFilter(key)}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold border transition ${
-              materialFilter === key
-                ? 'bg-slate-800 text-white border-slate-800'
-                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-            }`}
           >
             {key === 'ALL' ? 'Todos' : key}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -1244,13 +1246,16 @@ export default function ProductionKanbanPage() {
               </div>
               <div className="flex items-center gap-1">
                 <RecordHistoryButton tableName="production_batches" recordId={selectedBatch.id} label={selectedBatch.folio} />
-                <button
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  title="Cerrar"
                   onClick={() => setSelectedBatch(null)}
-                  className="text-slate-400 hover:text-slate-600
-                             text-lg leading-none p-1"
+                  className="text-slate-400 hover:text-slate-600 text-lg leading-none"
                 >
                   ✕
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -1290,8 +1295,10 @@ export default function ProductionKanbanPage() {
                             {inst.custom_name || '—'}
                           </p>
                           {!isReadOnly && !LOADED_INSTANCE_STATUSES.includes(inst.production_status) && (
-                            <button
+                            <Button
                               type="button"
+                              variant="ghost"
+                              size="icon-sm"
                               title="Sacar del lote"
                               onClick={() => setReversalState({
                                 kind: 'instance',
@@ -1301,10 +1308,10 @@ export default function ProductionKanbanPage() {
                                 instanceName: inst.custom_name || `Instancia ${inst.id}`,
                                 discharged: POST_PRODUCTION_STATUSES.includes(selectedBatch.status),
                               })}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50"
+                              className="text-slate-400 hover:text-red-600 hover:bg-red-50"
                             >
                               <LogOut size={16} />
-                            </button>
+                            </Button>
                           )}
                         </div>
                         {/* Material(es) clave — puede haber más de uno */}
@@ -1328,7 +1335,7 @@ export default function ProductionKanbanPage() {
                                 <span className="text-xs font-bold text-slate-700
                                                  bg-amber-50 border border-amber-200
                                                  px-2 py-0.5 rounded whitespace-nowrap">
-                                  {km.quantity} {km.usage_unit}
+                                  {formatQty(km.quantity)} {km.usage_unit}
                                 </span>
                               </div>
                             ))}
@@ -1336,19 +1343,21 @@ export default function ProductionKanbanPage() {
                         )}
                         {/* Acciones: Herrajes y Planos */}
                         <div className="mt-2 flex items-center gap-2">
-                          <button
+                          <Button
                             type="button"
+                            variant="outline"
+                            size="sm"
                             onClick={() => loadHerrajesPreview(inst)}
                             disabled={loadingHerrajesPreview}
-                            className="flex items-center gap-1.5 text-xs font-bold
-                                       text-amber-700 bg-amber-50 border border-amber-200
-                                       px-3 py-1.5 rounded-lg hover:bg-amber-100 transition
-                                       disabled:opacity-50"
+                            className="text-xs"
                           >
                             📋 Herrajes
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             type="button"
+                            variant="outline"
+                            size="sm"
+                            title="Ver planos"
                             onClick={async () => {
                               try {
                                 const { data } = await axiosClient.get(`/production/instances/${inst.id}/blueprint`);
@@ -1361,12 +1370,10 @@ export default function ProductionKanbanPage() {
                                 toast.error('Error al obtener el plano.');
                               }
                             }}
-                            className="flex items-center gap-1.5 text-xs font-bold
-                                       text-indigo-700 bg-indigo-50 border border-indigo-200
-                                       px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition"
+                            className="text-xs"
                           >
                             📐 Planos
-                          </button>
+                          </Button>
                           {inst.hardware_dispatched ? (
                             <span className="flex items-center gap-1.5 text-xs font-bold
                                              text-emerald-700 bg-emerald-50 border border-emerald-200
@@ -1374,17 +1381,16 @@ export default function ProductionKanbanPage() {
                               ✅ Herrajes Surtidos
                             </span>
                           ) : (
-                            <button
+                            <Button
                               type="button"
+                              variant="outline"
+                              size="sm"
                               onClick={() => handleDispatchHardware(inst)}
                               disabled={dispatchingHardware === inst.id}
-                              className="flex items-center gap-1.5 text-xs font-bold
-                                         text-orange-700 bg-orange-50 border border-orange-200
-                                         px-3 py-1.5 rounded-lg hover:bg-orange-100 transition
-                                         disabled:opacity-50"
+                              className="text-xs text-orange-700"
                             >
                               📦 Marcar Surtido
-                            </button>
+                            </Button>
                           )}
                         </div>
                       </div>
@@ -1397,14 +1403,9 @@ export default function ProductionKanbanPage() {
             {/* Footer */}
             <div className="px-6 py-4 border-t border-slate-100
                             flex justify-end">
-              <button
-                onClick={() => setSelectedBatch(null)}
-                className="px-5 py-2 rounded-xl text-sm font-bold
-                           bg-slate-100 hover:bg-slate-200
-                           text-slate-700 transition"
-              >
+              <Button type="button" variant="outline" onClick={() => setSelectedBatch(null)}>
                 Cerrar
-              </button>
+              </Button>
             </div>
           </Modal>
       )}
@@ -1424,10 +1425,14 @@ export default function ProductionKanbanPage() {
                   {herrajesPreview.orderFolio && ` · ${herrajesPreview.orderFolio}`}
                 </p>
               </div>
-              <button
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                title="Cerrar"
                 onClick={() => setHerrajesPreview(null)}
-                className="text-slate-400 hover:text-slate-600 text-lg p-1"
-              >✕</button>
+                className="text-slate-400 hover:text-slate-600 text-lg"
+              >✕</Button>
             </div>
 
             {/* Body */}
@@ -1457,7 +1462,7 @@ export default function ProductionKanbanPage() {
                       key: 'quantity',
                       label: 'Cantidad',
                       render: (row) => (
-                        <span className="block text-right font-bold text-slate-800">{String(row.quantity ?? '')}</span>
+                        <span className="block text-right font-bold text-slate-800">{row.quantity == null ? '' : formatQty(Number(row.quantity))}</span>
                       ),
                     },
                     {
@@ -1492,14 +1497,11 @@ export default function ProductionKanbanPage() {
               )}
 
               <div className="flex gap-2">
-                <button
-                  onClick={() => setHerrajesPreview(null)}
-                  className="px-4 py-2 text-sm text-slate-500 border border-slate-200
-                             rounded-xl hover:bg-slate-50 transition"
-                >
+                <Button type="button" variant="outline" onClick={() => setHerrajesPreview(null)}>
                   Cerrar
-                </button>
-                <button
+                </Button>
+                <Button
+                  type="button"
                   onClick={() => {
                     if (herrajesPreview) {
                       void generateHerrajesPDF({
@@ -1515,11 +1517,9 @@ export default function ProductionKanbanPage() {
                     }
                   }}
                   disabled={herrajesPreview.herrajes.length === 0}
-                  className="px-5 py-2 rounded-xl text-sm font-bold bg-amber-600
-                             hover:bg-amber-700 text-white transition disabled:opacity-40"
                 >
                   🖨️ Imprimir PDF
-                </button>
+                </Button>
               </div>
             </div>
           </Modal>

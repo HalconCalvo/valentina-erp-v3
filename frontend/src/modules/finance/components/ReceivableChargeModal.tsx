@@ -7,6 +7,7 @@ import { VCurrencyInput } from '@/components/ui/VCurrencyInput';
 import { toast } from '@/components/ui/VToast';
 import { formatMoney } from '@/utils/format';
 import Modal from '@/components/ui/Modal';
+import { Button } from '@/components/ui/Button';
 
 interface ReceivableChargeModalProps {
     isOpen: boolean;
@@ -226,10 +227,6 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({
             setDisplayImporte(new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(totalOrder.toFixed(2))));
         }
     }, [tipoFactura, totalOrder]);
-
-    const formatCurrency = (value: number) => {
-        return formatMoney(value);
-    };
 
     // ESCUDO 1: Deduplicar Items por si el backend los manda dobles
     const uniqueItems = useMemo(() => {
@@ -475,9 +472,9 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({
                         </h2>
                         <p className="text-xs text-slate-500 font-medium">Proyecto: {order.project_name}</p>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-lg text-slate-400 transition-colors">
+                    <Button variant="ghost" size="icon" onClick={onClose} title="Cerrar" aria-label="Cerrar" className="text-slate-400">
                         <X size={20} />
-                    </button>
+                    </Button>
                 </div>
 
                 <div className="p-6 overflow-y-auto flex-1 space-y-6">
@@ -486,39 +483,42 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({
                         <div className="space-y-1">
                             <label className="text-[11px] font-bold text-slate-500 uppercase">Tipo de Factura</label>
                             <div className="flex gap-2">
-                                <button
+                                <Button
                                     type="button"
+                                    variant="outline"
                                     onClick={() => setTipoFactura('ADVANCE')}
-                                    className={`flex-1 px-3 py-2 text-sm font-bold rounded-lg border transition-colors ${
+                                    className={`flex-1 font-bold ${
                                         tipoFactura === 'ADVANCE'
                                             ? 'bg-indigo-600 text-white border-indigo-600'
                                             : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                                     }`}
                                 >
                                     Anticipo
-                                </button>
-                                <button
+                                </Button>
+                                <Button
                                     type="button"
+                                    variant="outline"
                                     onClick={() => setTipoFactura('PROGRESS')}
-                                    className={`flex-1 px-3 py-2 text-sm font-bold rounded-lg border transition-colors ${
+                                    className={`flex-1 font-bold ${
                                         tipoFactura === 'PROGRESS'
                                             ? 'bg-blue-600 text-white border-blue-600'
                                             : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                                     }`}
                                 >
                                     Avance de obra
-                                </button>
-                                <button
+                                </Button>
+                                <Button
                                     type="button"
+                                    variant="outline"
                                     onClick={() => setTipoFactura('FULL')}
-                                    className={`flex-1 px-3 py-2 text-sm font-bold rounded-lg border transition-colors ${
+                                    className={`flex-1 font-bold ${
                                         tipoFactura === 'FULL'
                                             ? 'bg-emerald-600 text-white border-emerald-600'
                                             : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                                     }`}
                                 >
                                     100% Contrato
-                                </button>
+                                </Button>
                             </div>
                         </div>
                         <div className="space-y-1">
@@ -556,7 +556,7 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({
                                             <div className="flex-1">
                                                 <p className="text-sm font-bold text-slate-700">{inst.custom_name || inst.item_name}</p>
                                             </div>
-                                            <p className="text-sm font-black text-slate-600">{formatCurrency(inst.unit_price)}</p>
+                                            <p className="text-sm font-black text-slate-600">{formatMoney(inst.unit_price)}</p>
                                         </label>
                                     ))
                                 )}
@@ -600,20 +600,20 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({
                                             />
                                         </div>
                                         <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
-                                            <Calculator size={10}/> Sugerido por cotización: {formatCurrency(sugerido)} ({pct}%)
+                                            <Calculator size={10}/> Sugerido por cotización: {formatMoney(sugerido)} ({pct}%)
                                         </p>
                                     </div>
                                 </div>
                                 <p className="text-[11px] text-slate-500 italic">
                                     Al emitir se crea la factura de anticipo (pendiente). Los abonos se registran después desde Tesorería al conciliar el ingreso.
                                 </p>
-                                <button
+                                <Button
                                     onClick={handleSaveAdvanceTarget}
                                     disabled={isLoading || importeFactura <= 0}
-                                    className="px-4 py-2 text-sm font-black text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                                    className="bg-emerald-600 hover:bg-emerald-700"
                                 >
-                                    {isLoading ? 'Emitiendo...' : 'Emitir factura de anticipo'}
-                                </button>
+                                    {isLoading ? 'Procesando...' : 'Emitir factura de anticipo'}
+                                </Button>
                             </div>
                         </div>
                     )}
@@ -654,20 +654,20 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({
                                             />
                                         </div>
                                         <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
-                                            <Calculator size={10}/> Total del contrato: {formatCurrency(totalOrder)}
+                                            <Calculator size={10}/> Total del contrato: {formatMoney(totalOrder)}
                                         </p>
                                     </div>
                                 </div>
                                 <p className="text-[11px] text-slate-500 italic">
                                     Se crea una factura por el total. El anticipo y los avances se abonarán a esta factura conforme avance la obra.
                                 </p>
-                                <button
+                                <Button
                                     onClick={handleSaveFullInvoice}
                                     disabled={isLoading || importeFactura <= 0 || !invoiceFolio.trim()}
-                                    className="px-4 py-2 text-sm font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                                    className="bg-emerald-600 hover:bg-emerald-700"
                                 >
-                                    {isLoading ? 'Emitiendo...' : 'Emitir factura al 100%'}
-                                </button>
+                                    {isLoading ? 'Procesando...' : 'Emitir factura al 100%'}
+                                </Button>
                             </div>
                         </div>
                     )}
@@ -780,7 +780,7 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({
                                     />
                                     <p className="text-[10px] text-slate-400 md:col-span-2 flex items-center gap-1">
                                         <Calculator size={10}/>
-                                        Sugerido: {defaultRetentionPercent}% del importe de factura ({formatCurrency(amount + amortizedAdvance)}).
+                                        Sugerido: {defaultRetentionPercent}% del importe de factura ({formatMoney(amount + amortizedAdvance)}).
                                     </p>
                                 </div>
                             )}
@@ -790,13 +790,13 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({
                 </div>
 
                 <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
-                    <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-lg transition-colors">
+                    <Button variant="outline" onClick={onClose}>
                         {isAdvance ? 'Cerrar' : 'Cancelar'}
-                    </button>
+                    </Button>
                     {!isAdvance && !isFull && (
-                    <button onClick={handleSubmit} disabled={isLoading} className="px-6 py-2 text-sm font-black text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm disabled:opacity-50">
+                    <Button onClick={handleSubmit} disabled={isLoading} className="bg-emerald-600 hover:bg-emerald-700">
                         {isLoading ? 'Procesando...' : 'Registrar en Sistema'}
-                    </button>
+                    </Button>
                     )}
                 </div>
             </Modal>

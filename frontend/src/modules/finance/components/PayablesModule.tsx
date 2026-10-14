@@ -19,7 +19,7 @@ import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { TableActionCancelIcon, TableActionEditIcon } from '@/lib/tableActionIcons';
-import { formatMoney } from '@/utils/format';
+import { formatDate, formatMoney } from '@/utils/format';
 import { useFoundations } from '../../foundations/hooks/useFoundations';
 
 type PayableFilter =
@@ -261,13 +261,6 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
         return { count, totalFacturado, totalAbonado, totalSaldo };
     }, [doublyFiltered]);
 
-    const formatCurrency = (amount: number) => formatMoney(amount);
-    const formatDate = (dateStr: string) => {
-        if (!dateStr) return "-";
-        if (dateStr.includes('T')) return new Date(dateStr).toLocaleDateString('es-MX', {day: '2-digit', month: '2-digit'});
-        const [year, month, day] = dateStr.split('-');
-        return `${day}/${month}/${year}`;
-    };
 
     const handleEditRequest = (req: SupplierPayment) => {
         const relatedInvoice = invoices.find(inv => inv.invoice_number === req.invoice_folio && inv.provider_name === req.provider_name);
@@ -510,7 +503,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
             key: 'total_amount',
             label: 'Importe',
             render: (inv) => (
-                <span className="block text-right tabular-nums text-slate-700">{formatCurrency(inv.total_amount)}</span>
+                <span className="block text-right tabular-nums text-slate-700">{formatMoney(inv.total_amount)}</span>
             ),
         },
         {
@@ -519,7 +512,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
             render: (inv) => {
                 const abonado = (inv.total_amount || 0) - (inv.outstanding_balance || 0);
                 return (
-                    <span className="block text-right tabular-nums text-emerald-700">{formatCurrency(abonado)}</span>
+                    <span className="block text-right tabular-nums text-emerald-700">{formatMoney(abonado)}</span>
                 );
             },
         },
@@ -528,7 +521,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
             label: 'Saldo',
             render: (inv) => (
                 <span className={`block text-right font-black text-lg ${theme.textTitle}`}>
-                    {formatCurrency(inv.outstanding_balance)}
+                    {formatMoney(inv.outstanding_balance)}
                 </span>
             ),
         },
@@ -572,7 +565,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                         ) : (
                             <Button
                                 size="sm"
-                                className={`${theme.btnAction} font-bold shadow-sm transition-colors`}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-sm transition-colors"
                                 onClick={() => setSelectedInvoice(inv)}
                             >
                                 <CheckCircle2 size={16} className="mr-1" /> {canPay ? 'Pagar' : 'Se Solicita Pago'}
@@ -647,7 +640,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                             <h4 className="font-bold text-red-800 flex items-center gap-2"><AlertCircle size={18} /> 4.1 Inmediato</h4>
                                             <p className="text-sm text-slate-500 mt-2 mb-4">0–7 días (vencidas incluidas)</p>
                                         </div>
-                                        <div className="text-lg font-black text-red-600 text-right tracking-tight">{formatCurrency(calendarBucketStats.a07)}</div>
+                                        <div className="text-lg font-black text-red-600 text-right tracking-tight">{formatMoney(calendarBucketStats.a07)}</div>
                                     </div>
                                 </Card>
                             </div>
@@ -661,7 +654,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                             <h4 className="font-bold text-orange-800 flex items-center gap-2"><Calendar size={18} /> 4.2 8–15 días</h4>
                                             <p className="text-sm text-slate-500 mt-2 mb-4">Ventana intermedia</p>
                                         </div>
-                                        <div className="text-lg font-black text-orange-600 text-right tracking-tight">{formatCurrency(calendarBucketStats.a815)}</div>
+                                        <div className="text-lg font-black text-orange-600 text-right tracking-tight">{formatMoney(calendarBucketStats.a815)}</div>
                                     </div>
                                 </Card>
                             </div>
@@ -675,7 +668,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                             <h4 className="font-bold text-yellow-800 flex items-center gap-2"><TrendingDown size={18} /> 4.3 &gt; 15 días</h4>
                                             <p className="text-sm text-slate-500 mt-2 mb-4">Documentos con vencimiento lejano</p>
                                         </div>
-                                        <div className="text-lg font-black text-yellow-600 text-right tracking-tight">{formatCurrency(calendarBucketStats.a16)}</div>
+                                        <div className="text-lg font-black text-yellow-600 text-right tracking-tight">{formatMoney(calendarBucketStats.a16)}</div>
                                     </div>
                                 </Card>
                             </div>
@@ -689,7 +682,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                             <h4 className="font-bold text-indigo-800 flex items-center gap-2"><Layers size={18} /> 4.4 Todas las CxP</h4>
                                             <p className="text-sm text-slate-500 mt-2 mb-4">Documentos por pagar</p>
                                         </div>
-                                        <div className="text-lg font-black text-indigo-600 text-right tracking-tight">{formatCurrency(totalAllAmount)}</div>
+                                        <div className="text-lg font-black text-indigo-600 text-right tracking-tight">{formatMoney(totalAllAmount)}</div>
                                     </div>
                                 </Card>
                             </div>
@@ -706,7 +699,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                             <h4 className="font-bold text-red-800 flex items-center gap-2"><AlertCircle size={18} /> Pago Inmediato</h4>
                                             <p className="text-sm text-slate-500 mt-2 mb-4">Para este viernes</p>
                                         </div>
-                                        <div className="text-lg font-black text-red-600 text-right tracking-tight">{formatCurrency(stats?.overdue_amount || 0)}</div>
+                                        <div className="text-lg font-black text-red-600 text-right tracking-tight">{formatMoney(stats?.overdue_amount || 0)}</div>
                                     </div>
                                 </Card>
                             </div>
@@ -721,7 +714,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                             <h4 className="font-bold text-orange-800 flex items-center gap-2"><Calendar size={18} /> Proyección Corta</h4>
                                             <p className="text-sm text-slate-500 mt-2 mb-4">Próximos 15 días</p>
                                         </div>
-                                        <div className="text-lg font-black text-orange-600 text-right tracking-tight">{formatCurrency(stats?.next_period_amount || 0)}</div>
+                                        <div className="text-lg font-black text-orange-600 text-right tracking-tight">{formatMoney(stats?.next_period_amount || 0)}</div>
                                     </div>
                                 </Card>
                             </div>
@@ -736,7 +729,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                             <h4 className="font-bold text-yellow-800 flex items-center gap-2"><TrendingDown size={18} /> Largo Plazo</h4>
                                             <p className="text-sm text-slate-500 mt-2 mb-4">Más de 15 días</p>
                                         </div>
-                                        <div className="text-lg font-black text-yellow-600 text-right tracking-tight">{formatCurrency(stats?.future_amount || 0)}</div>
+                                        <div className="text-lg font-black text-yellow-600 text-right tracking-tight">{formatMoney(stats?.future_amount || 0)}</div>
                                     </div>
                                 </Card>
                             </div>
@@ -751,7 +744,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                             <h4 className="font-bold text-indigo-800 flex items-center gap-2"><Layers size={18} /> Todas las CxP</h4>
                                             <p className="text-sm text-slate-500 mt-2 mb-4">Archivo Maestro</p>
                                         </div>
-                                        <div className="text-lg font-black text-indigo-600 text-right tracking-tight">{formatCurrency(totalAllAmount)}</div>
+                                        <div className="text-lg font-black text-indigo-600 text-right tracking-tight">{formatMoney(totalAllAmount)}</div>
                                     </div>
                                 </Card>
                             </div>
@@ -778,12 +771,9 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                             <h3 className={`font-bold flex items-center gap-2 text-lg ${theme.textTitle}`}>
                                 {getActiveFilterTitle()}
                             </h3>
-                            <button 
-                                onClick={() => handleFilterChange(null)} 
-                                className={`flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-3 py-1.5 rounded-md text-sm font-bold transition-colors shadow-sm ${theme.btnHover}`}
-                            >
+                            <Button variant="outline" onClick={() => handleFilterChange(null)}>
                                 <ArrowLeft size={16} /> Regresar
-                            </button>
+                            </Button>
                         </div>
                         <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -823,15 +813,15 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                             </div>
                             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
                                 <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Total facturado</p>
-                                <p className="text-2xl font-black text-slate-800 tabular-nums mt-1">{formatCurrency(reportMetrics.totalFacturado)}</p>
+                                <p className="text-2xl font-black text-slate-800 tabular-nums mt-1">{formatMoney(reportMetrics.totalFacturado)}</p>
                             </div>
                             <div className="bg-emerald-50/60 border border-emerald-100 rounded-xl p-4">
                                 <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-700">Abonado</p>
-                                <p className="text-2xl font-black text-emerald-700 tabular-nums mt-1">{formatCurrency(reportMetrics.totalAbonado)}</p>
+                                <p className="text-2xl font-black text-emerald-700 tabular-nums mt-1">{formatMoney(reportMetrics.totalAbonado)}</p>
                             </div>
                             <div className="bg-amber-50/60 border border-amber-100 rounded-xl p-4">
                                 <p className="text-[11px] font-bold uppercase tracking-wide text-amber-800">Saldo por pagar</p>
-                                <p className="text-2xl font-black text-amber-800 tabular-nums mt-1">{formatCurrency(reportMetrics.totalSaldo)}</p>
+                                <p className="text-2xl font-black text-amber-800 tabular-nums mt-1">{formatMoney(reportMetrics.totalSaldo)}</p>
                             </div>
                         </div>
                         <div className="overflow-x-auto">
@@ -853,7 +843,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                     <div key={group.providerName}>
                                         <div className="bg-indigo-50 px-4 py-3 flex justify-between items-center border-b border-indigo-100">
                                             <span className="font-black text-indigo-800">{group.providerName}</span>
-                                            <span className="font-black text-indigo-800">{formatCurrency(group.subtotal)}</span>
+                                            <span className="font-black text-indigo-800">{formatMoney(group.subtotal)}</span>
                                         </div>
                                         <VTable
                                             columns={payableColumns as unknown as VTableColumn<Record<string, unknown>>[]}
@@ -976,7 +966,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                     disabled={savingInvoiceEdit}
                                     className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
                                 >
-                                    {savingInvoiceEdit ? 'Guardando…' : 'Guardar cambios'}
+                                    {savingInvoiceEdit ? 'Guardando...' : 'Guardar cambios'}
                                 </Button>
                             </div>
                         </div>

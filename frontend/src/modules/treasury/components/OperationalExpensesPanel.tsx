@@ -99,9 +99,6 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
     const [savingExpense, setSavingExpense] = useState<boolean>(false);
     const [cancellingExpense, setCancellingExpense] = useState<boolean>(false);
 
-    const fmt = (n: number) =>
-        formatMoney(n);
-
     const load = async () => {
         try {
             const res = await axiosClient.get('/purchases/operational-expenses?limit=100');
@@ -307,7 +304,7 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
         {
             key: 'total_amount',
             label: 'Monto',
-            render: (e) => <span className="block text-right font-black text-slate-800">{fmt(e.total_amount)}</span>,
+            render: (e) => <span className="block text-right font-black text-slate-800">{formatMoney(e.total_amount)}</span>,
         },
         {
             key: 'due_date',
@@ -391,9 +388,9 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
                             <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">
                                 Nuevo Gasto Operativo
                             </h3>
-                            <button onClick={() => setShowModal(false)}>
+                            <Button type="button" variant="ghost" size="icon-sm" title="Cerrar" onClick={() => setShowModal(false)}>
                                 <XCircle size={22} className="text-slate-400 hover:text-slate-600" />
-                            </button>
+                            </Button>
                         </div>
                         <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
 
@@ -571,9 +568,9 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
                             <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">
                                 Editar Gasto Operativo
                             </h3>
-                            <button onClick={() => setEditExpenseModal({ open: false, expense: null })}>
+                            <Button type="button" variant="ghost" size="icon-sm" title="Cerrar" onClick={() => setEditExpenseModal({ open: false, expense: null })}>
                                 <XCircle size={22} className="text-slate-400 hover:text-slate-600" />
-                            </button>
+                            </Button>
                         </div>
                         <div className="p-6 space-y-4">
                             <div>
@@ -662,9 +659,9 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
                             <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">
                                 Cancelar Gasto Operativo
                             </h3>
-                            <button onClick={() => { setCancelExpenseModal({ open: false, expense: null }); setCancelExpenseReason(''); }}>
+                            <Button type="button" variant="ghost" size="icon-sm" title="Cerrar" onClick={() => { setCancelExpenseModal({ open: false, expense: null }); setCancelExpenseReason(''); }}>
                                 <XCircle size={22} className="text-slate-400 hover:text-slate-600" />
-                            </button>
+                            </Button>
                         </div>
                         <div className="p-6 space-y-4">
                             <div className="bg-slate-50 rounded-lg p-4 space-y-1">
@@ -672,7 +669,7 @@ export const OperationalExpensesPanel: React.FC<Props> = ({ onBack: _onBack, onR
                                     {cancelExpenseModal.expense.invoice_folio}
                                 </p>
                                 <p className="text-sm font-bold text-slate-700">
-                                    {fmt(cancelExpenseModal.expense.total_amount)}
+                                    {formatMoney(cancelExpenseModal.expense.total_amount)}
                                 </p>
                             </div>
                             <p className="text-xs text-rose-600 font-medium leading-relaxed">

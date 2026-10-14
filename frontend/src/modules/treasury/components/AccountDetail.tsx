@@ -8,7 +8,8 @@ import { toast } from '@/components/ui/VToast';
 import { Input } from '@/components/ui/Input';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
-import { formatMoney } from '@/utils/format';
+import { formatDate, formatDateTime, formatMoney } from '@/utils/format';
+import { Button } from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 
 interface Transaction {
@@ -225,13 +226,6 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
     return () => window.removeEventListener('keydown', handleKeyDown); 
   }, [handleNextPage, handlePrevPage]);
 
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('es-MX', {
-      year: 'numeric', month: 'short', day: 'numeric'
-    });
-  };
-
   const startEditingTx = (tx: Transaction) => {
     setEditingTxId(tx.id);
     setEditingDesc(tx.description || '');
@@ -275,19 +269,23 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
             className="border-indigo-300 focus-visible:ring-indigo-200"
             placeholder="Referencia"
           />
-          <button
+          <Button
+            type="button"
+            size="xs"
             onClick={() => handleSaveTransactionEdit(tx.id)}
             disabled={savingTx}
-            className="px-3 py-1 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 rounded whitespace-nowrap disabled:opacity-50"
           >
-            {savingTx ? '...' : '✓ Guardar'}
-          </button>
-          <button
+            {savingTx ? 'Guardando...' : 'Guardar'}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            title="Cancelar edición"
             onClick={() => setEditingTxId(null)}
-            className="px-2 py-1 text-xs font-black text-slate-500 hover:text-slate-700 border border-slate-200 rounded"
           >
             ✕
-          </button>
+          </Button>
         </div>
       ) : (
         <span
@@ -393,7 +391,7 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
               </div>
               <div class="branding">
                   Valentina ERP v3.8.41<br/>
-                  ${new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' })}
+                  ${formatDate(new Date())}
               </div>
           </div>
           <hr class="divider"/>
@@ -426,7 +424,7 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
           </div>
 
           <div class="footer">
-              Impreso el {formatMoney(new Date())} · Documento generado por Valentina ERP v3.8.41
+              Impreso el ${formatDateTime(new Date())} · Documento generado por Valentina ERP v3.8.41
           </div>
       </body></html>`;
 
@@ -440,7 +438,7 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
       {/* Encabezado */}
       <div className="flex items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">{account.name}</h2>
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight">{account.name}</h2>
           <p className="text-gray-500">Cuenta: {account.account_number || 'S/N'} • {account.currency}</p>
         </div>
       </div>
@@ -456,33 +454,29 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <button 
+          <Button
+            type="button"
+            className="bg-emerald-600 hover:bg-emerald-700"
             onClick={() => onOpenTransaction('IN')}
-            className="flex items-center gap-2 px-4 py-2.5 bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 font-medium transition-colors"
           >
             <PlusCircle size={20} /> Registrar Ingreso
-          </button>
-          
-          <button 
+          </Button>
+
+          <Button
+            type="button"
+            className="bg-emerald-600 hover:bg-emerald-700"
             onClick={() => onOpenTransaction('OUT')}
-            className="flex items-center gap-2 px-4 py-2.5 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 font-medium transition-colors"
           >
             <MinusCircle size={20} /> Registrar Egreso
-          </button>
+          </Button>
 
-          <button 
-            onClick={() => setShowTransferModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 font-medium transition-colors"
-          >
+          <Button type="button" variant="outline" onClick={() => setShowTransferModal(true)}>
             <ArrowRightLeft size={20} /> Transferir
-          </button>
+          </Button>
 
-          <button 
-            onClick={handlePrint}
-            className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-100 font-medium transition-colors"
-          >
+          <Button type="button" variant="outline" onClick={handlePrint}>
             <Printer size={20} /> Estado de Cuenta
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -525,25 +519,29 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
               Mostrando <span className="font-medium text-gray-900">{((currentPage - 1) * ITEMS_PER_PAGE) + 1}</span> a <span className="font-medium text-gray-900">{Math.min(currentPage * ITEMS_PER_PAGE, transactionsWithBalance.length)}</span> de <span className="font-medium text-gray-900">{transactionsWithBalance.length}</span> movimientos
             </span>
             <div className="flex items-center gap-2">
-              <button 
-                onClick={handlePrevPage} 
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handlePrevPage}
                 disabled={currentPage === 1}
-                className="p-2 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:hover:bg-transparent transition-colors flex items-center gap-1 text-sm font-medium text-gray-700"
                 title="Página Anterior (Flecha Izquierda)"
               >
                 <ArrowLeft size={16} /> Anterior
-              </button>
+              </Button>
               <span className="text-sm font-medium text-gray-600 min-w-[80px] text-center">
                 Pág {currentPage} de {totalPages}
               </span>
-              <button 
-                onClick={handleNextPage} 
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleNextPage}
                 disabled={currentPage === totalPages}
-                className="p-2 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:hover:bg-transparent transition-colors flex items-center gap-1 text-sm font-medium text-gray-700"
                 title="Página Siguiente (Flecha Derecha)"
               >
                 Siguiente <ArrowRight size={16} />
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -561,12 +559,16 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
                               Origen: <strong>{account.name}</strong> — Saldo: {formatMoney((account.current_balance || 0))}
                           </p>
                       </div>
-                      <button
+                      <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          title="Cerrar"
                           onClick={() => setShowTransferModal(false)}
                           className="text-slate-400 hover:text-slate-600"
                       >
                           ✕
-                      </button>
+                      </Button>
                   </div>
                   <div className="p-6 space-y-4">
                       <div>
@@ -626,19 +628,16 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
                       </div>
                   </div>
                   <div className="p-6 border-t border-slate-100 flex gap-3 justify-end">
-                      <button
-                          onClick={() => setShowTransferModal(false)}
-                          className="px-5 py-2 border border-slate-200 text-slate-500 font-black uppercase text-[10px] rounded-lg hover:bg-slate-50"
-                      >
+                      <Button type="button" variant="outline" onClick={() => setShowTransferModal(false)}>
                           Cancelar
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                          type="button"
                           onClick={handleTransfer}
                           disabled={transferring || !transferForm.to_account_id || !transferForm.amount}
-                          className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-black uppercase text-[10px] rounded-lg shadow-md disabled:opacity-30"
                       >
                           {transferring ? 'Transfiriendo...' : 'Confirmar Transferencia'}
-                      </button>
+                      </Button>
                   </div>
               </Modal>
       )}
@@ -660,12 +659,16 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
         <Modal isOpen bare size="custom" overlayZIndex={50} onClose={() => { setCancelTxModal({ open: false, tx: null }); setCancelTxReason(''); }} className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border-t-4 border-t-rose-500 animate-in zoom-in-95 duration-200">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center">
               <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Cancelar Movimiento</h3>
-              <button
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                title="Cerrar"
                 onClick={() => { setCancelTxModal({ open: false, tx: null }); setCancelTxReason(''); }}
                 className="text-slate-400 hover:text-slate-600"
               >
                 ✕
-              </button>
+              </Button>
             </div>
             <div className="p-6 space-y-4">
               <div className="bg-slate-50 rounded-lg p-4 space-y-1">
@@ -693,19 +696,21 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
               </div>
             </div>
             <div className="p-6 border-t border-slate-100 flex gap-3 justify-end">
-              <button
+              <Button
+                type="button"
+                variant="outline"
                 onClick={() => { setCancelTxModal({ open: false, tx: null }); setCancelTxReason(''); }}
-                className="px-5 py-2 border border-slate-200 text-slate-500 font-black uppercase text-[10px] rounded-lg hover:bg-slate-50"
               >
                 Cancelar
-              </button>
-              <button
+              </Button>
+              <Button
+                type="button"
                 onClick={handleCancelTransaction}
                 disabled={cancellingTx}
-                className="px-6 py-2 bg-rose-600 hover:bg-rose-700 text-white font-black uppercase text-[10px] rounded-lg shadow-md disabled:opacity-30"
+                className="bg-rose-600 hover:bg-rose-700"
               >
                 {cancellingTx ? 'Cancelando...' : 'Confirmar cancelación'}
-              </button>
+              </Button>
             </div>
           </Modal>
       )}

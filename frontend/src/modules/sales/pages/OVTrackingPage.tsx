@@ -2,6 +2,8 @@ import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Home, RefreshCw, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
+import { formatDateTime } from '@/utils/format';
 import { salesService } from '../../../api/sales-service';
 
 interface InstanceStatus {
@@ -260,36 +262,29 @@ export default function OVTrackingPage() {
 
   return (
     <div className="p-8 max-w-5xl mx-auto pb-24 space-y-6 animate-fadeIn">
-      <div className="flex items-end justify-between border-b border-slate-200 pb-4">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
-          <button
-            onClick={() => navigate(-1)}
-            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 mb-2 transition-colors"
-          >
-            <ArrowLeft size={14} /> Regresar
-          </button>
-          <h1 className="text-3xl font-black text-slate-800 tracking-tight">
-            Seguimiento de OV
+          <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+            <Home size={32} className="text-indigo-600" /> Seguimiento de OV
           </h1>
           <p className="text-slate-500 mt-1 font-medium">
             Estado de casas por orden de venta activa
             {lastUpdated && (
               <span className="text-slate-300 ml-2">
-                · Actualizado {lastUpdated.toLocaleTimeString('es-MX', {
-                  hour: '2-digit', minute: '2-digit'
-                })}
+                · Actualizado {formatDateTime(lastUpdated).slice(-5)}
               </span>
             )}
           </p>
         </div>
-        <button
-          onClick={load}
-          disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition disabled:opacity-50"
-        >
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-          Actualizar
-        </button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={load} disabled={loading}>
+            <RefreshCw size={14} />
+            {loading ? 'Procesando...' : 'Actualizar'}
+          </Button>
+          <Button variant="outline" onClick={() => navigate(-1)}>
+            <ArrowLeft size={18} /> Regresar
+          </Button>
+        </div>
       </div>
 
       {!loading && !error && (
@@ -317,25 +312,22 @@ export default function OVTrackingPage() {
             { key: 'all',       label: 'Todas las OVs' },
             { key: 'attention', label: 'Requieren atención' },
           ].map(f => (
-            <button
+            <Button
               key={f.key}
+              size="sm"
+              variant={filter === f.key ? 'default' : 'outline'}
               onClick={() => setFilter(f.key as 'all' | 'attention')}
-              className={`px-4 py-1.5 text-xs font-bold rounded-lg transition ${
-                filter === f.key
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'
-              }`}
+              className="px-4 text-xs font-bold"
             >
               {f.label}
-            </button>
+            </Button>
           ))}
         </div>
       )}
 
       {loading && (
-        <div className="flex items-center justify-center py-20 text-slate-400">
-          <RefreshCw size={20} className="animate-spin mr-3" />
-          Cargando seguimiento de OVs...
+        <div className="space-y-3 animate-pulse" aria-label="Cargando seguimiento de OVs...">
+          {[0, 1, 2, 3].map(i => <div key={i} className="h-16 rounded-xl bg-slate-100" />)}
         </div>
       )}
 

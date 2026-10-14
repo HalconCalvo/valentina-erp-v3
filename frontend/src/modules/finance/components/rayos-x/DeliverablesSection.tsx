@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Package, Pencil } from 'lucide-react';
 
+import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { formatDate } from '@/utils/format';
 import { getLocalTodayDateKey, getSemaphoreBadgeMark, getSemaphoreConfig } from '../../../planning/hooks/usePlanning';
@@ -106,18 +107,19 @@ function InstanceDeliveryDeadlineCell({
   }
 
   return (
-    <button
+    <Button
       type="button"
+      variant="link"
       disabled={disabled}
       onClick={() => {
         setDraft(deliveryDeadlineInputValue(deliveryDeadline));
         setEditing(true);
       }}
-      className="text-[10px] font-semibold text-indigo-700 hover:text-indigo-900 hover:underline shrink-0 disabled:opacity-50 text-left"
+      className="h-auto p-0 text-[10px] font-semibold text-indigo-700 hover:text-indigo-900 shrink-0 text-left"
       title="Editar fecha estimada de entrega"
     >
       {display}
-    </button>
+    </Button>
   );
 }
 
@@ -158,20 +160,24 @@ export const DeliverablesSection: React.FC<DeliverablesSectionProps> = ({
                     Desglose de Entregables
                 </h3>
                 <div className="flex gap-1">
-                    <button
+                    <Button
                         type="button"
+                        size="xs"
+                        variant={deliverablesTab === 'instancia' ? 'default' : 'outline'}
                         onClick={() => setDeliverablesTab('instancia')}
-                        className={`px-3 py-1 text-xs font-bold rounded-lg transition ${deliverablesTab === 'instancia' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
+                        className="font-bold"
                     >
                         Por Instancia
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                         type="button"
+                        size="xs"
+                        variant={deliverablesTab === 'casa' ? 'default' : 'outline'}
                         onClick={() => setDeliverablesTab('casa')}
-                        className={`px-3 py-1 text-xs font-bold rounded-lg transition ${deliverablesTab === 'casa' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
+                        className="font-bold"
                     >
                         Por Casa
-                    </button>
+                    </Button>
                 </div>
             </div>
             <div className="max-h-72 overflow-y-auto p-3 space-y-3">
@@ -203,14 +209,14 @@ export const DeliverablesSection: React.FC<DeliverablesSectionProps> = ({
                                         </span>
                                     )}
                                     {canEditDescription && !cancelledLine && (
-                                        <button
+                                        <Button variant="ghost" size="icon-xs"
                                             type="button"
                                             onClick={() => onEditDescription(item)}
-                                            className="p-1 text-slate-400 hover:text-indigo-600 transition-colors"
+                                            className="text-slate-400 hover:text-indigo-600"
                                             title="Editar descripción comercial"
                                         >
                                             <Pencil size={14} />
-                                        </button>
+                                        </Button>
                                     )}
                                 </div>
                             </div>
@@ -285,14 +291,14 @@ export const DeliverablesSection: React.FC<DeliverablesSectionProps> = ({
                                                 </p>
                                             )}
                                             {canEditDescription && !item.is_cancelled && (
-                                                <button
+                                                <Button variant="ghost" size="icon-xs"
                                                     type="button"
                                                     onClick={() => onEditDescription(item)}
-                                                    className="ml-3 p-1 text-slate-400 hover:text-indigo-600 transition-colors"
+                                                    className="ml-3 text-slate-400 hover:text-indigo-600"
                                                     title="Editar descripción comercial"
                                                 >
                                                     <Pencil size={14} />
-                                                </button>
+                                                </Button>
                                             )}
                                         </div>
                                     </div>

@@ -31,7 +31,6 @@ import { formatMoney } from '@/utils/format';
 import { canSeeCosts } from '@/utils/costVisibility';
 
 // --- HELPERS DE FORMATO ---
-const formatCurrency = (amount: number | undefined | null) => formatMoney(amount);
 
 const safeDate = (dateString: string | undefined | null) => {
     if (!dateString) return new Date().toISOString().split('T')[0];
@@ -532,7 +531,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                 key: 'frozen_unit_cost',
                 label: 'Costo U.',
                 render: (item) => (
-                    <span className="font-mono text-slate-500 font-medium text-right block text-xs">{formatCurrency(item.frozen_unit_cost || 0)}</span>
+                    <span className="font-mono text-slate-500 font-medium text-right block text-xs">{formatMoney(item.frozen_unit_cost || 0)}</span>
                 ),
             });
         }
@@ -540,13 +539,13 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
             {
                 key: 'unit_price',
                 label: 'P. Unitario',
-                render: (item) => <span className="font-mono text-slate-700 text-right block">{formatCurrency(item.unit_price)}</span>,
+                render: (item) => <span className="font-mono text-slate-700 text-right block">{formatMoney(item.unit_price)}</span>,
             },
             {
                 key: 'importe',
                 label: 'Importe',
                 render: (item) => (
-                    <span className="font-bold font-mono text-slate-800 text-right block">{formatCurrency(item.quantity * item.unit_price)}</span>
+                    <span className="font-bold font-mono text-slate-800 text-right block">{formatMoney(item.quantity * item.unit_price)}</span>
                 ),
             },
         );
@@ -597,10 +596,10 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                         <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 bg-white/60 rounded px-3 py-2 text-sm">
                             <span><b>{item.product_name}</b> → {obsoleteRecipes[item.id as number].name}</span>
                             {!isFormLocked && (
-                                <button type="button" onClick={() => handleRefreshRecipe(item.id as number)}
-                                    className="px-3 py-1 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg">
+                                <Button type="button" size="xs" onClick={() => handleRefreshRecipe(item.id as number)}
+                                    className="px-3 bg-amber-600 hover:bg-amber-700">
                                     Actualizar receta
-                                </button>
+                                </Button>
                             )}
                         </div>
                     ))}
@@ -679,7 +678,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                                     <span className="absolute right-1.5 top-1.5 font-bold text-indigo-900 text-[10px]">%</span>
                                 </div>
                                 <div className="text-right border-l border-indigo-200 pl-3 min-w-[80px]">
-                                    <span className="text-sm font-mono font-black text-slate-800">{formatCurrency(advanceAmount)}</span>
+                                    <span className="text-sm font-mono font-black text-slate-800">{formatMoney(advanceAmount)}</span>
                                 </div>
                             </div>
                         </div>
@@ -867,12 +866,12 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                                 <Input type="number" placeholder="Cant" value={lineItem.quantity} onChange={(e) => setLineItem({...lineItem, quantity: Number(e.target.value)})}/>
                                 <div className="relative">
                                     {(addMode === 'CATALOG' && !isDirector) ? (
-                                        <div className="w-full px-3 py-2 border border-slate-200 rounded-md bg-slate-100 font-mono text-right font-bold text-slate-700 flex items-center justify-end cursor-not-allowed h-[38px]">{formatCurrency(lineItem.unit_price)}</div>
+                                        <div className="w-full px-3 py-2 border border-slate-200 rounded-md bg-slate-100 font-mono text-right font-bold text-slate-700 flex items-center justify-end cursor-not-allowed h-[38px]">{formatMoney(lineItem.unit_price)}</div>
                                     ) : (
                                         <div className="relative mb-4">
                                             <span className="absolute left-3 top-2 text-slate-400 font-bold">$</span>
                                             <Input type="number" step="0.01" className="pl-7 font-mono text-right font-bold" value={lineItem.unit_price === 0 ? '' : lineItem.unit_price} onChange={(e) => setLineItem({...lineItem, unit_price: Number(e.target.value)})}/>
-                                            <div className="absolute -bottom-5 right-0 text-[11px] font-bold text-indigo-600 font-mono">{formatCurrency(lineItem.unit_price)}</div>
+                                            <div className="absolute -bottom-5 right-0 text-[11px] font-bold text-indigo-600 font-mono">{formatMoney(lineItem.unit_price)}</div>
                                         </div>
                                     )}
                                 </div>
@@ -918,9 +917,9 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                             <div className="bg-white border border-slate-200 rounded-lg p-3 mb-4 text-xs shadow-sm">
                                 <div className="font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center justify-end gap-2"><Lock size={10}/> Análisis de Rentabilidad Total (Privado)</div>
                                 <div className="grid grid-cols-4 gap-4 text-right">
-                                    <div><div className="text-slate-500">Costo</div><div className="font-mono font-bold text-slate-700">{formatCurrency(totalCost)}</div></div>
+                                    <div><div className="text-slate-500">Costo</div><div className="font-mono font-bold text-slate-700">{formatMoney(totalCost)}</div></div>
                                     <div><div className="text-slate-500">Sobreprecio real %</div><div className={`font-mono font-black ${isBelowMinimum(realMarkup, minMarkup) ? 'text-red-600' : 'text-emerald-600'}`}>{formatPercent(realMarkup)}</div></div>
-                                    <div><div className="text-slate-500">Utilidad neta (después de comisión)</div><div className={`font-mono font-bold ${grossProfit > 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatCurrency(grossProfit)}</div></div>
+                                    <div><div className="text-slate-500">Utilidad neta (después de comisión)</div><div className={`font-mono font-bold ${grossProfit > 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatMoney(grossProfit)}</div></div>
                                     <div><div className="text-slate-500">Margen neto % sobre venta</div><div className="font-mono font-black text-slate-700">{formatPercent(marginPercent)}</div></div>
                                 </div>
                             </div>
@@ -935,16 +934,16 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                                     </div>
                                 ) : (
                                     <div className="inline-flex items-center gap-2 text-sm p-2 rounded bg-green-50 text-emerald-700">
-                                        <span className="flex items-center gap-2 font-bold"><Wallet size={16}/> Comisión Vendedor incluida ({(commissionRate * 100).toFixed(1)}%):</span>
-                                        <span className="font-mono font-bold">{formatCurrency(commissionAmount)}</span>
+                                        <span className="flex items-center gap-2 font-bold"><Wallet size={16}/> Comisión Vendedor incluida ({formatPercent(commissionRate * 100)}):</span>
+                                        <span className="font-mono font-bold">{formatMoney(commissionAmount)}</span>
                                     </div>
                                 )}
                             </div>
                             {/* DERECHA: Subtotal → IVA → Total (esta es la única suma que cuenta) */}
                             <div className="min-w-[280px] space-y-1">
-                                <div className="flex justify-end gap-12 text-sm text-slate-700 font-bold"><span>Subtotal:</span> <span className="font-mono">{formatCurrency(finalSubtotal)}</span></div>
-                                <div className="flex justify-end gap-12 text-sm text-slate-500"><span>IVA:</span> <span className="font-mono">{formatCurrency(taxAmount)}</span></div>
-                                <div className="flex justify-end gap-12 text-xl font-black text-slate-800 border-t pt-2"><span>Total:</span> <span className="font-mono">{formatCurrency(total)}</span></div>
+                                <div className="flex justify-end gap-12 text-sm text-slate-700 font-bold"><span>Subtotal:</span> <span className="font-mono">{formatMoney(finalSubtotal)}</span></div>
+                                <div className="flex justify-end gap-12 text-sm text-slate-500"><span>IVA:</span> <span className="font-mono">{formatMoney(taxAmount)}</span></div>
+                                <div className="flex justify-end gap-12 text-xl font-black text-slate-800 border-t pt-2"><span>Total:</span> <span className="font-mono">{formatMoney(total)}</span></div>
                             </div>
                         </div>
                         
@@ -974,7 +973,7 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
             <VConfirmDialog
                 isOpen={showRecalculateConfirm}
                 title="Recalcular precios"
-                message={`¿Recalcular TODOS los precios usando un margen del ${header.applied_margin_percent}% y comisión del ${(commissionRate * 100).toFixed(1)}%?`}
+                message={`¿Recalcular TODOS los precios usando un margen del ${header.applied_margin_percent}% y comisión del ${formatPercent(commissionRate * 100)}?`}
                 consequence="Esto sobrescribirá los precios manuales de todas las partidas con costo congelado."
                 variant="default"
                 confirmLabel="Sí, recalcular"

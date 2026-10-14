@@ -4,6 +4,7 @@ import { CalendarClock, CheckCircle, FilePlus2, Link2, Plus, Send, XCircle } fro
 import { TableActionEditIcon } from '@/lib/tableActionIcons';
 
 import Modal from '@/components/ui/Modal';
+import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
@@ -138,10 +139,10 @@ export const OrderChangesPanel: React.FC<OrderChangesPanelProps> = ({ order, onC
 
     // Flow and irreversible actions show text (CLAUDE.md: action buttons).
     const labelled = (label: string, title: string, onClick: () => void, icon: React.ReactNode, tone: string) => (
-        <button type="button" title={title} onClick={onClick}
-            className={`flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] font-bold whitespace-nowrap transition-colors ${tone}`}>
+        <Button type="button" variant="outline" size="xs" title={title} onClick={onClick}
+            className={`text-[11px] font-bold ${tone}`}>
             {icon}{label}
-        </button>
+        </Button>
     );
 
     const columns: VTableColumn<Quotation>[] = [
@@ -180,11 +181,11 @@ export const OrderChangesPanel: React.FC<OrderChangesPanelProps> = ({ order, onC
                         labelled('Revisar', 'Revisar precios y autorizar o regresar', () => setReviewId(c.id),
                             <CheckCircle size={12} />, 'border-indigo-200 text-indigo-700 hover:bg-indigo-50')}
                     {manage && c.status === 'AUTHORIZED' && (
-                        <button type="button" title="Aplicar los cambios autorizados a la OV"
+                        <Button type="button" size="xs" title="Aplicar los cambios autorizados a la OV"
                             onClick={() => openDialog({ kind: 'APPLY_CHANGE', change: c })}
-                            className="px-3 py-1 rounded-md text-[11px] font-black text-white bg-emerald-600 hover:bg-emerald-700 whitespace-nowrap">
+                            className="px-3 text-[11px] font-black bg-emerald-600 hover:bg-emerald-700">
                             Aplicar cambio
-                        </button>
+                        </Button>
                     )}
                     {manage && c.status === 'EXPIRED' &&
                         labelled('Renovar', 'Renovar la vigencia (vuelve a borrador)', () => setPendingAction({ kind: 'RENEW', quotation: c }),
@@ -238,17 +239,17 @@ export const OrderChangesPanel: React.FC<OrderChangesPanelProps> = ({ order, onC
                 <h3 className="text-sm font-black text-slate-700 uppercase tracking-wide">Órdenes de cambio</h3>
                 <div className="flex items-center gap-2">
                     {manage && (
-                        <button type="button" onClick={() => navigate(`/quotations/new?parent=${orderId}`)}
+                        <Button type="button" variant="outline" size="sm" onClick={() => navigate(`/quotations/new?parent=${orderId}`)}
                             title="Cotización nueva ligada a esta OV (OV complementaria con anticipo y saldo propios)"
-                            className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-indigo-700 border border-indigo-200 hover:bg-indigo-50 rounded-lg">
+                            className="text-xs font-bold text-indigo-700 border-indigo-200 hover:bg-indigo-50">
                             <FilePlus2 size={14} /> OV complementaria
-                        </button>
+                        </Button>
                     )}
                     {canCreate && (
-                        <button type="button" onClick={() => setEditing({ change: null })}
-                            className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg">
+                        <Button type="button" size="sm" onClick={() => setEditing({ change: null })}
+                            className="text-xs bg-emerald-600 hover:bg-emerald-700">
                             <Plus size={14} /> Orden de cambio
-                        </button>
+                        </Button>
                     )}
                 </div>
             </div>
@@ -257,8 +258,8 @@ export const OrderChangesPanel: React.FC<OrderChangesPanelProps> = ({ order, onC
                     <div key={adv.change_quotation_id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-800">
                         <span><b>Anticipo complementario por {money(adv.amount - adv.invoiced)} con IVA</b> ({adv.folio}; facturado {money(adv.invoiced)}, cobrado {money(adv.paid)}). Las unidades nuevas no entran a producción hasta pagarlo.</span>
                         {isFinance && !readOnly && adv.amount - adv.invoiced > 0.01 && (
-                            <button type="button" onClick={() => openDialog({ kind: 'ADVANCE', changeId: adv.change_quotation_id, folio: adv.folio, amount: Number((adv.amount - adv.invoiced).toFixed(2)) })}
-                                className="px-3 py-1 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg">Registrar factura</button>
+                            <Button type="button" size="xs" onClick={() => openDialog({ kind: 'ADVANCE', changeId: adv.change_quotation_id, folio: adv.folio, amount: Number((adv.amount - adv.invoiced).toFixed(2)) })}
+                                className="px-3 bg-amber-600 hover:bg-amber-700">Registrar factura</Button>
                         )}
                     </div>
                 ))}
@@ -266,8 +267,8 @@ export const OrderChangesPanel: React.FC<OrderChangesPanelProps> = ({ order, onC
                     <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-rose-300 bg-rose-50 px-4 py-2 text-sm text-rose-800">
                         <span><b>Nota de crédito por capturar: {money(summary.credit_note_pending)} con IVA</b>. Lo facturado supera el total nuevo de la OV; emítela en Compaq y captúrala aquí.</span>
                         {isFinance && !readOnly && (
-                            <button type="button" onClick={() => openDialog({ kind: 'CREDIT_NOTE', amount: summary.credit_note_pending })}
-                                className="px-3 py-1 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg">Capturar nota de crédito</button>
+                            <Button type="button" size="xs" onClick={() => openDialog({ kind: 'CREDIT_NOTE', amount: summary.credit_note_pending })}
+                                className="px-3 bg-rose-600 hover:bg-rose-700">Capturar nota de crédito</Button>
                         )}
                     </div>
                 )}
@@ -283,7 +284,7 @@ export const OrderChangesPanel: React.FC<OrderChangesPanelProps> = ({ order, onC
                         <div className="flex items-center justify-between">
                             <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">Notas de crédito al cliente</h4>
                             {isFinance && !readOnly && summary!.credit_note_pending <= 0.01 && (
-                                <button type="button" onClick={() => openDialog({ kind: 'CREDIT_NOTE', amount: 0 })} className="text-xs font-bold text-indigo-600 hover:underline">Capturar otra</button>
+                                <Button type="button" variant="link" size="xs" onClick={() => openDialog({ kind: 'CREDIT_NOTE', amount: 0 })} className="font-bold text-indigo-600">Capturar otra</Button>
                             )}
                         </div>
                         <VTable columns={noteColumns} data={summary!.credit_notes} />
@@ -340,11 +341,10 @@ export const OrderChangesPanel: React.FC<OrderChangesPanelProps> = ({ order, onC
                             <Input value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} placeholder="Motivo obligatorio..." />
                         )}
                         <div className="flex justify-between gap-3 pt-2">
-                            <button type="button" disabled={saving} onClick={() => setDialog(null)} className="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-black rounded-lg disabled:opacity-50">Cerrar</button>
-                            <button type="button" disabled={saving || !dialogValid} onClick={() => void runDialog()}
-                                className="px-5 py-2 font-bold rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">
+                            <Button type="button" variant="outline" disabled={saving} onClick={() => setDialog(null)}>Cerrar</Button>
+                            <Button type="button" disabled={saving || !dialogValid} onClick={() => void runDialog()} className="px-5">
                                 {saving ? 'Procesando...' : 'Confirmar'}
-                            </button>
+                            </Button>
                         </div>
                     </div>
                 )}

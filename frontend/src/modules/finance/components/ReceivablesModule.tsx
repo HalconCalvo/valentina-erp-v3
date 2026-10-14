@@ -8,7 +8,8 @@ import { ReceivableChargeModal } from './ReceivableChargeModal';
 import { OrderStatementModal } from './OrderStatementModal';
 import { toast } from '@/components/ui/VToast';
 import { useSalesOrders, useInvoicingRights } from '../../../hooks/useReceivables';
-import { formatMoney } from '@/utils/format';
+import { formatDate, formatMoney } from '@/utils/format';
+import { Button } from '@/components/ui/Button';
 
 // ---> 1. AGREGAMOS EL FILTRO 'ALL' <---
 type ReceivableFilter = 'ALL' | 'ADVANCES' | null;
@@ -104,8 +105,6 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
         return o.client_name || o.client?.full_name || o.client?.name || o.customer?.name || 'Cliente por Defecto';
     }, []);
 
-    const formatCurrency = (amount: number) => formatMoney(amount);
-
     const ACTIVE_STATUSES = ['WAITING_ADVANCE', 'SOLD', 'IN_PRODUCTION', 'FINISHED', 'COMPLETED'];
 
     // --- Anticipos por facturar (solo derecho a primer pago: alineado con /sales/invoicing-rights) ---
@@ -184,9 +183,11 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
     const SortableHeader = ({ field, label }: { field: SortField, label: string }) => {
         const isActive = sortField === field;
         return (
-            <button 
+            <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => handleSort(field)}
-                className={`flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-3 py-2 rounded transition-colors ${isActive ? 'text-indigo-700 bg-indigo-50' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}
+                className={`gap-1 text-xs font-bold uppercase tracking-wider ${isActive ? 'text-indigo-700 bg-indigo-50' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}
             >
                 {label}
                 {isActive ? (
@@ -194,7 +195,7 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
                 ) : (
                     <ArrowUpDown size={14} className="text-slate-300 opacity-50"/>
                 )}
-            </button>
+            </Button>
         );
     };
 
@@ -231,7 +232,7 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
                             </div>
                             <div className="ml-16 h-full flex flex-col justify-between">
                                 <div><h4 className="font-bold text-amber-800 flex items-center gap-2"><Lock size={18} className="text-amber-500"/> A. Anticipos por facturar</h4><p className="text-sm text-slate-500 mt-2 mb-4">Primer pago pendiente (sin CXC ADVANCE).</p></div>
-                                <div className="text-lg font-black text-amber-600 text-right tracking-tight">{formatCurrency(advanceCardVal)}</div>
+                                <div className="text-lg font-black text-amber-600 text-right tracking-tight">{formatMoney(advanceCardVal)}</div>
                             </div>
                         </Card>
                     </div>
@@ -243,7 +244,7 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
                             </div>
                             <div className="ml-16 h-full flex flex-col justify-between">
                                 <div><h4 className="font-bold text-blue-800 flex items-center gap-2"><Unlock size={18} className="text-blue-500"/> B. Avances por facturar</h4><p className="text-sm text-slate-500 mt-2 mb-4">Solo instancias CLOSED sin factura asociada.</p></div>
-                                <div className="text-lg font-black text-blue-600 text-right tracking-tight">{formatCurrency(installmentsVal)}</div>
+                                <div className="text-lg font-black text-blue-600 text-right tracking-tight">{formatMoney(installmentsVal)}</div>
                             </div>
                         </Card>
                     </div>
@@ -255,7 +256,7 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
                             </div>
                             <div className="ml-16 h-full flex flex-col justify-between">
                                 <div><h4 className="font-bold text-emerald-800 flex items-center gap-2"><FileText size={18} className="text-emerald-500"/> C. Antigüedad</h4><p className="text-sm text-slate-500 mt-2 mb-4">Toda la cartera viva consolidada.</p></div>
-                                <div className="text-lg font-black text-emerald-600 text-right tracking-tight">{formatCurrency(agingVal)}</div>
+                                <div className="text-lg font-black text-emerald-600 text-right tracking-tight">{formatMoney(agingVal)}</div>
                             </div>
                         </Card>
                     </div>
@@ -287,31 +288,32 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
                             </h3>
                             <p className="text-slate-500 mt-1 text-sm font-medium">Ejecución y detalle operativo.</p>
                         </div>
-                        <button 
+                        <Button
+                            variant="outline"
                             onClick={() => {
                                 if (onBackOverride) onBackOverride();
                                 else setActiveFilter(null);
-                            }} 
-                            className="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-bold hover:bg-slate-50 hover:text-emerald-600 transition-all shadow-sm text-sm"
+                            }}
                         >
                             <ArrowLeft size={16} /> {onBackOverride ? 'Regresar a Tareas' : 'Regresar a Tarjetas'}
-                        </button>
+                        </Button>
                     </div>
 
                     <div className="space-y-4">
                         {activeFilter === 'ALL' && (
                             <div className="flex flex-wrap gap-2" role="tablist">
                                 {ORDER_GROUPS.map(({ key, label }) => (
-                                    <button
+                                    <Button
                                         key={key}
                                         type="button"
                                         role="tab"
                                         aria-selected={orderGroup === key}
+                                        variant={orderGroup === key ? 'default' : 'outline'}
                                         onClick={() => setOrderGroup(key)}
-                                        className={`px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${orderGroup === key ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}
+                                        className="font-bold"
                                     >
                                         {label} ({ordersByGroup[key].length})
-                                    </button>
+                                    </Button>
                                 ))}
                             </div>
                         )}
@@ -334,7 +336,7 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
                                     {filteredData.map(order => {
                                         const isExpanded = expandedOrderIds.includes(order.id!);
                                         const orderDate = new Date(order.created_at || order.valid_until || new Date());
-                                        const dateString = orderDate.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
+                                        const dateString = formatDate(orderDate);
                                         
                                         return (
                                             <div key={order.id} className="group">
@@ -359,7 +361,7 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
                                                         </div>
                                                     </div>
                                                     <div className="text-right hidden md:block">
-                                                        <p className="font-black text-slate-700 text-lg">{formatCurrency(Number(order.total_price) || 0)}</p>
+                                                        <p className="font-black text-slate-700 text-lg">{formatMoney(Number(order.total_price) || 0)}</p>
                                                     </div>
                                                 </div>
                                                 
@@ -368,7 +370,7 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
                                                         <div className="flex gap-8">
                                                             <div>
                                                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Valor Contrato</p>
-                                                                <p className="font-black text-slate-800 text-lg">{formatCurrency(Number(order.total_price) || 0)}</p>
+                                                                <p className="font-black text-slate-800 text-lg">{formatMoney(Number(order.total_price) || 0)}</p>
                                                             </div>
                                                             <div>
                                                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
@@ -376,16 +378,16 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
                                                                 </p>
                                                                 <p className={`font-black text-lg ${activeFilter === 'ADVANCES' ? 'text-amber-600' : 'text-indigo-600'}`}>
                                                                     {activeFilter === 'ADVANCES' 
-                                                                        ? formatCurrency((Number(order.total_price) || 0) * ((Number(order.advance_percent) || 60) / 100))
-                                                                        : formatCurrency(Number(order.outstanding_balance) || 0)
+                                                                        ? formatMoney((Number(order.total_price) || 0) * ((Number(order.advance_percent) || 60) / 100))
+                                                                        : formatMoney(Number(order.outstanding_balance) || 0)
                                                                     }
                                                                 </p>
                                                             </div>
                                                         </div>
                                                         {canViewRayosX && (
-                                                            <button onClick={(e) => { e.stopPropagation(); setSelectedOrderForStatement(order); setIsStatementModalOpen(true); }} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 text-sm font-black rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2 transform hover:-translate-y-0.5">
+                                                            <Button onClick={(e) => { e.stopPropagation(); setSelectedOrderForStatement(order); setIsStatementModalOpen(true); }}>
                                                                 <FileSearch size={18} /> Ver Rayos X y Facturar
-                                                            </button>
+                                                            </Button>
                                                         )}
                                                     </div>
                                                 )}

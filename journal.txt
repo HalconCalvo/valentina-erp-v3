@@ -4820,3 +4820,7 @@ Anotado también para la revisión de indicadores de Dirección: numeración rep
   pasos), parser help/helpContent.ts + HelpPanel (Modal); el "?" del encabezado abre la ayuda de la pantalla.
   Primeras pantallas: Ventas, Cotización, Compras y Almacén, Diseño, Editor de receta, Administración, Finanzas,
   Gerencia. Textos con los nombres reales de botones; los aprueba Gabriel o el jefe de cada área. Tests: 3 nuevos.
+- Guía de pantallas, segunda ola (3 agentes en paralelo por carpeta + revisión): 46 archivos de finance, treasury,
+  director, production, design y sales. Sin cambios de comportamiento; tsc 156 → 149 sin errores nuevos (comparado
+  error por error); 22 tests frontend; build OK. Doble clic evitado en Pagar (nómina) y Solicitar Etiquetas.
+  Prueba en pantalla pendiente (sesión local vencida).

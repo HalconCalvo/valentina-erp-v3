@@ -96,14 +96,14 @@ export const PaymentExecutionModal: React.FC<PaymentExecutionModalProps> = ({ on
                 
                 <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
                     <div>
-                        <h2 className="text-xl font-black text-emerald-700 flex items-center gap-2">
+                        <h2 className="text-xl font-black text-slate-800 flex items-center gap-2">
                             <CheckCircle2 className="text-emerald-500"/> Ejecución de Pagos Autorizados
                         </h2>
                         <p className="text-sm text-slate-500">Registre los pagos ya dispersados para descontarlos de Tesorería.</p>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+                    <Button variant="ghost" size="icon" onClick={onClose} title="Cerrar" aria-label="Cerrar" className="rounded-full">
                         <X size={20} className="text-slate-500"/>
-                    </button>
+                    </Button>
                 </div>
 
                 <div className="overflow-y-auto p-6 bg-slate-50/50 flex-1">
@@ -174,14 +174,16 @@ export const PaymentExecutionModal: React.FC<PaymentExecutionModalProps> = ({ on
                                             </Button>
 
                                             {isDirector && (
-                                                <button 
+                                                <Button
+                                                    variant="ghost"
+                                                    size="xs"
                                                     onClick={() => setPendingRevokeId(payment.id)}
                                                     disabled={processingId === payment.id}
-                                                    className="text-xs font-bold text-red-500 hover:text-red-700 flex items-center gap-1 mt-2 transition-colors disabled:opacity-50"
+                                                    className="text-xs font-bold text-red-500 hover:text-red-700 mt-2"
                                                     title="Regresar a Pendiente de Autorización"
                                                 >
                                                     <Undo2 size={12}/> Revocar Autorización
-                                                </button>
+                                                </Button>
                                             )}
                                         </div>
                                     </div>

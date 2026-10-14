@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { formatMoney } from '@/utils/format';
 import Modal from '@/components/ui/Modal';
+import { Button } from '@/components/ui/Button';
 
 interface Props {
   isOpen: boolean;
@@ -150,9 +151,9 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
               </div>
             )}
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors p-2 rounded-full hover:bg-slate-200/50 -mr-2 -mt-2">
+          <Button type="button" variant="ghost" size="icon" title="Cerrar" onClick={onClose} className="text-slate-400 hover:text-slate-600 -mr-2 -mt-2">
             <X size={24} />
-          </button>
+          </Button>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="p-8">
@@ -257,23 +258,24 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
                         </div>
                       )}
                     </div>
-                    <button type="button" onClick={() => setExtraCxcItems(prev => prev.filter((_, j) => j !== idx))}
-                      className="text-rose-400 hover:text-rose-600 p-1 mt-1">
+                    <Button type="button" variant="ghost" size="icon-sm" title="Quitar factura" onClick={() => setExtraCxcItems(prev => prev.filter((_, j) => j !== idx))}
+                      className="text-rose-400 hover:text-rose-600 mt-1">
                       <Trash2 size={16} />
-                    </button>
+                    </Button>
                   </div>
                 );
               })}
 
               {/* Botón agregar + resumen */}
               <div className="flex items-center justify-between">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="sm"
                   onClick={() => setExtraCxcItems(prev => [...prev, { cxc_id: '', amount: '' }])}
-                  className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 text-xs font-bold border border-indigo-200 px-3 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors"
                 >
                   <Plus size={14} /> Agregar factura
-                </button>
+                </Button>
                 {importeCobro > 0 && (
                   <div className={`text-xs font-bold px-3 py-1.5 rounded-lg ${excedido ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
                     {excedido
@@ -360,25 +362,16 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
           </div>
 
           <div className="pt-8 flex items-center justify-end gap-3 mt-2 border-t border-slate-50">
-            <button 
-              type="button" 
-              onClick={onClose}
-              className="px-5 py-3 text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 rounded-xl font-medium transition-colors"
-            >
+            <Button type="button" variant="outline" onClick={onClose}>
               Cancelar
-            </button>
-            <button 
-              type="submit" 
+            </Button>
+            <Button
+              type="submit"
               disabled={isSubmitting || watchAmount <= 0 || excedido}
-              className={`px-8 py-3 text-white rounded-xl font-bold transition-transform active:scale-[0.98] shadow-sm flex items-center gap-2 
-                disabled:opacity-50 disabled:pointer-events-none
-                ${watchType === 'IN' 
-                  ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 shadow-green-200/50' 
-                  : 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 shadow-red-200/50'
-              }`}
+              className="bg-emerald-600 hover:bg-emerald-700"
             >
               {isSubmitting ? 'Guardando...' : `Registrar ${watchType === 'IN' ? 'Ingreso' : 'Egreso'}`}
-            </button>
+            </Button>
           </div>
 
         </form>

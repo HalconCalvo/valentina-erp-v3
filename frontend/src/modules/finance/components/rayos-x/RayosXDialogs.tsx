@@ -71,7 +71,7 @@ export const EditPaymentDialog: React.FC<EditPaymentDialogProps> = ({ cxc, onSav
                 </div>
                 <div className="flex items-center justify-between gap-4 pt-2">
                     <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
-                    <Button onClick={() => void save()} disabled={saving}>{saving ? 'Guardando…' : 'Guardar cambios'}</Button>
+                    <Button onClick={() => void save()} disabled={saving}>{saving ? 'Guardando...' : 'Guardar cambios'}</Button>
                 </div>
             </div>
         </Modal>

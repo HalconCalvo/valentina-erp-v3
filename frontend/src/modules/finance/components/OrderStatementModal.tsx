@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { X, Receipt, CheckCircle, Clock, FileText, AlertCircle, PieChart, Users, Coins, Pencil, PlusCircle, XCircle, Shield } from 'lucide-react';
+import { X, Receipt, CheckCircle, Clock, FileText, AlertCircle, PieChart, Users, Coins, Pencil, PlusCircle, Shield } from 'lucide-react';
 import { SalesOrder, CustomerPayment, RetentionAlertRead } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
 import { getInventoryConflict } from '../../../api/production-service';
@@ -19,6 +19,7 @@ import { EditInstallmentDialog, RegisterInstallmentDialog, type InstallmentPaylo
 import { DeliverablesSection } from './rayos-x/DeliverablesSection';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { TableActionCancelIcon, TableActionEditIcon } from '@/lib/tableActionIcons';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -224,14 +225,14 @@ const RayosXOcQuickEdit: React.FC<{
                 />
             </div>
             <div className="sm:col-span-2 flex flex-wrap gap-2">
-                <button
+                <Button
                     type="button"
+                    size="sm"
                     onClick={() => void maybeSave()}
                     disabled={disabled}
-                    className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg disabled:opacity-50"
                 >
                     Guardar OC
-                </button>
+                </Button>
                 <span className="text-[10px] text-teal-700 self-center">También guarda al salir del campo (blur).</span>
             </div>
         </div>
@@ -672,7 +673,6 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
 
     if (!isOpen || !order) return null;
 
-    const formatCurrency = (value: number) => formatMoney(value);
 
     const clientName = (order as any).client_name || (order as any).client?.full_name || (order as any).client?.name || (order as any).customer?.name || 'Cliente por Defecto';
 
@@ -1062,34 +1062,40 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                         onChange={e => setNameDraft(e.target.value)}
                                         autoFocus
                                     />
-                                    <button
+                                    <Button
                                         type="button"
+                                        variant="ghost"
+                                        size="xs"
                                         onClick={() => void handleSaveName()}
                                         disabled={savingName}
-                                        className="text-xs font-bold text-emerald-400 hover:text-emerald-300 disabled:opacity-50 shrink-0"
+                                        className="font-bold text-emerald-400 hover:text-emerald-300 hover:bg-slate-800"
                                     >
-                                        {savingName ? '...' : 'Guardar'}
-                                    </button>
-                                    <button
+                                        {savingName ? 'Guardando...' : 'Guardar'}
+                                    </Button>
+                                    <Button
                                         type="button"
+                                        variant="ghost"
+                                        size="xs"
                                         onClick={() => setEditingName(false)}
-                                        className="text-xs font-bold text-slate-400 hover:text-slate-200 shrink-0"
+                                        className="font-bold text-slate-400 hover:text-slate-200 hover:bg-slate-800"
                                     >
                                         Cancelar
-                                    </button>
+                                    </Button>
                                 </span>
                             ) : (
                                 <span className="flex items-center gap-2 min-w-0">
                                     <span className="truncate">{displayName}</span>
                                     {canEditProjectName && (
-                                        <button
+                                        <Button
                                             type="button"
+                                            variant="ghost"
+                                            size="icon-xs"
                                             onClick={() => { setNameDraft(displayName || ''); setEditingName(true); }}
-                                            className="text-slate-400 hover:text-indigo-300 shrink-0"
+                                            className="text-slate-400 hover:text-indigo-300 hover:bg-slate-800"
                                             title="Editar nombre del proyecto"
                                         >
                                             <Pencil size={14} />
-                                        </button>
+                                        </Button>
                                     )}
                                 </span>
                             )}
@@ -1100,19 +1106,20 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                     </div>
                     <div className="flex items-center gap-2">
                         {isWaitingAdvance && (
-                            <button
+                            <Button
                                 type="button"
+                                size="sm"
                                 onClick={handleCancelOv}
                                 disabled={cancelling}
-                                className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 text-xs font-black rounded-lg shadow-md transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="bg-red-600 hover:bg-red-700"
                             >
                                 <AlertCircle size={14} />
-                                {cancelling ? "Cancelando..." : "Cancelar OV"}
-                            </button>
+                                {cancelling ? "Procesando..." : "Cancelar OV"}
+                            </Button>
                         )}
-                        <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors">
+                        <Button variant="ghost" size="icon" onClick={onClose} title="Cerrar" aria-label="Cerrar" className="text-slate-400 hover:text-white hover:bg-slate-800">
                             <X size={20} />
-                        </button>
+                        </Button>
                     </div>
                 </div>
 
@@ -1128,7 +1135,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                 {orderRetentionAlerts.map((alert) => (
                                     <li key={alert.payment_id} className="text-sm text-amber-900 flex flex-wrap items-center gap-x-2 gap-y-1">
                                         <span className="font-bold">{alert.invoice_folio || `CxC #${alert.payment_id}`}</span>
-                                        <span>— {formatCurrency(Number(alert.retention_amount))}</span>
+                                        <span>— {formatMoney(Number(alert.retention_amount))}</span>
                                         {alert.retention_due_date && (
                                             <span className="text-xs text-amber-700">
                                                 vence {formatDate(alert.retention_due_date)}
@@ -1192,7 +1199,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                 <p className="text-sm font-medium text-slate-700 mt-0.5 flex items-center gap-1">
                                     Anticipo pactado en cotización: <strong className="font-black text-indigo-900 text-base">{pct}%</strong> 
                                     <span className="mx-2 text-indigo-300">|</span> 
-                                    Monto a facturar: <strong className="font-black text-indigo-900 text-base">{formatCurrency(expectedAdvance)}</strong>
+                                    Monto a facturar: <strong className="font-black text-indigo-900 text-base">{formatMoney(expectedAdvance)}</strong>
                                     <span className="text-[10px] font-bold text-indigo-500 ml-1 uppercase tracking-widest bg-indigo-100/50 px-2 py-0.5 rounded-md">
                                         (C/IVA)
                                     </span>
@@ -1224,36 +1231,34 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                         onChange={e => setAdvanceDraft(e.target.value)}
                                         autoFocus
                                     />
-                                    <button type="button" onClick={() => void handleSaveAdvance()} disabled={savingAdvance}
-                                        className="text-xs font-bold text-emerald-600 hover:text-emerald-700 disabled:opacity-50">
-                                        {savingAdvance ? 'Guardando…' : 'Guardar'}
-                                    </button>
-                                    <button type="button" onClick={() => setEditingAdvance(false)}
-                                        className="text-xs font-bold text-slate-400 hover:text-slate-600">Cancelar</button>
+                                    <Button type="button" size="sm" onClick={() => void handleSaveAdvance()} disabled={savingAdvance}>
+                                        {savingAdvance ? 'Guardando...' : 'Guardar'}
+                                    </Button>
+                                    <Button type="button" variant="outline" size="sm" onClick={() => setEditingAdvance(false)}>Cancelar</Button>
                                 </div>
                             ) : (
                                 <div className="flex items-center gap-2 mt-1">
-                                    <p className="text-lg font-black text-slate-800">{formatCurrency(displayAdvance)}</p>
+                                    <p className="text-lg font-black text-slate-800">{formatMoney(displayAdvance)}</p>
                                     {canEditAdvance && (
-                                        <button type="button"
+                                        <Button type="button" variant="ghost" size="icon-xs"
                                             onClick={() => { setAdvanceDraft(String(displayAdvance)); setEditingAdvance(true); }}
-                                            className="text-slate-400 hover:text-indigo-600"
+                                            className="group"
                                             title="Editar importe del anticipo">
-                                            <Pencil size={14} />
-                                        </button>
+                                            <TableActionEditIcon />
+                                        </Button>
                                     )}
                                 </div>
                             )}
-                            <p className="text-[10px] text-slate-400 mt-1">Facturado de anticipo: {formatCurrency(advanceInvoiced)} · Falta: {formatCurrency(Math.max(displayAdvance - advanceInvoiced, 0))}</p>
+                            <p className="text-[10px] text-slate-400 mt-1">Facturado de anticipo: {formatMoney(advanceInvoiced)} · Falta: {formatMoney(Math.max(displayAdvance - advanceInvoiced, 0))}</p>
                         </div>
                     </div>
 
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                        <VSummaryCard label="Valor del proyecto (con IVA)" value={formatCurrency(totalOrder)} tone="slate" />
-                        <VSummaryCard label="Total facturado" value={formatCurrency(totalInvoiced)} tone="indigo" />
-                        <VSummaryCard label="Pendiente de facturar" value={formatCurrency(pendingToInvoice)} tone="amber" />
-                        <VSummaryCard label="Total cobrado" value={formatCurrency(totalPaidInBank)} tone="emerald" />
-                        <VSummaryCard label="Saldo por cobrar" value={formatCurrency(balanceDue)} tone="total" />
+                        <VSummaryCard label="Valor del proyecto (con IVA)" value={formatMoney(totalOrder)} tone="slate" />
+                        <VSummaryCard label="Total facturado" value={formatMoney(totalInvoiced)} tone="indigo" />
+                        <VSummaryCard label="Pendiente de facturar" value={formatMoney(pendingToInvoice)} tone="amber" />
+                        <VSummaryCard label="Total cobrado" value={formatMoney(totalPaidInBank)} tone="emerald" />
+                        <VSummaryCard label="Saldo por cobrar" value={formatMoney(balanceDue)} tone="total" />
                     </div>
 
                     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
@@ -1264,12 +1269,13 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                             </h3>
                             {pendingToInvoice > 0.1 && !readOnly && onOpenInvoiceModal &&
                              !(isWaitingAdvance && displayAdvance > 0 && advancePending <= 0.1) && (
-                                <button 
+                                <Button
+                                    size="sm"
                                     onClick={() => onOpenInvoiceModal(order)}
-                                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shadow-sm"
+                                    className="bg-emerald-600 hover:bg-emerald-700"
                                 >
                                     <Receipt size={14}/> Emitir Factura
-                                </button>
+                                </Button>
                             )}
                         </div>
                         <div className="overflow-x-auto min-w-[860px]">
@@ -1315,7 +1321,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                         width: '110px',
                                         render: (cxc: any) => (
                                             <span className="block text-left text-sm font-black text-slate-800">
-                                                {formatCurrency(Number(cxc.amount))}
+                                                {formatMoney(Number(cxc.amount))}
                                             </span>
                                         ),
                                     },
@@ -1360,7 +1366,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                             return (
                                                 <div className="flex flex-col items-start gap-1">
                                                     <span className="text-xs font-bold text-slate-800">
-                                                        {formatCurrency(Number(cxc.retention_amount) || 0)}
+                                                        {formatMoney(Number(cxc.retention_amount) || 0)}
                                                     </span>
                                                     <div className="flex flex-wrap items-center gap-1">
                                                         <RetentionStatusBadge status={cxc.retention_status} />
@@ -1393,21 +1399,24 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                         </span>
                                                     ) : (
                                                         <div className="inline-flex items-center justify-end gap-1">
-                                                            <button
+                                                            <Button
                                                                 type="button"
+                                                                variant="outline"
+                                                                size="xs"
                                                                 onClick={() => toggleInvoicePanel(cxc.id)}
-                                                                className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors"
+                                                                className="font-bold"
                                                             >
                                                                 <Receipt size={14} /> Ver Abonos
-                                                            </button>
+                                                            </Button>
                                                             {canRegisterInstallment && (
-                                                                <button
+                                                                <Button
                                                                     type="button"
+                                                                    size="xs"
                                                                     onClick={() => void handleOpenInstallmentModal(cxc)}
-                                                                    className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors"
+                                                                    className="bg-emerald-600 hover:bg-emerald-700"
                                                                 >
                                                                     <PlusCircle size={14} /> Abono
-                                                                </button>
+                                                                </Button>
                                                             )}
                                                         </div>
                                                     )}
@@ -1441,14 +1450,15 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                                     <Clock size={12} /> Pendiente
                                                                 </span>
                                                             ) : commRow ? (
-                                                                <button
+                                                                <Button
                                                                     type="button"
+                                                                    size="xs"
                                                                     disabled={isUpdatingCommission}
                                                                     onClick={() => handlePayCommission(cxc.id)}
-                                                                    className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-1 rounded-md border bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 transition-all shadow-sm disabled:opacity-50"
+                                                                    className="bg-emerald-600 hover:bg-emerald-700"
                                                                 >
                                                                     <Coins size={12} /> Pagar
-                                                                </button>
+                                                                </Button>
                                                             ) : (
                                                                 <span className="text-[10px] text-amber-700 font-bold">Sin registro</span>
                                                             )}
@@ -1483,25 +1493,29 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                             if (!canEditRow) return null;
                                             return (
                                                 <div className="flex items-center justify-center gap-1.5">
-                                                    <button
+                                                    <Button
                                                         type="button"
+                                                        variant="ghost"
+                                                        size="icon-xs"
                                                         onClick={() => handleOpenEditPayment(cxc)}
-                                                        className="text-slate-400 hover:text-indigo-600"
+                                                        className="group"
                                                         title={hasTreasuryPayment || isFacturaPagada ? 'Editar notas' : 'Editar factura'}
                                                     >
-                                                        <Pencil size={15} />
-                                                    </button>
+                                                        <TableActionEditIcon />
+                                                    </Button>
                                                     {canCancelRow && (
-                                                        <button
+                                                        <Button
                                                             type="button"
+                                                            variant="ghost"
+                                                            size="icon-xs"
                                                             onClick={() => {
                                                                 setCancelPaymentModal({ open: true, cxc });
                                                             }}
-                                                            className="text-slate-400 hover:text-rose-600"
+                                                            className="group"
                                                             title="Cancelar factura"
                                                         >
-                                                            <XCircle size={15} />
-                                                        </button>
+                                                            <TableActionCancelIcon />
+                                                        </Button>
                                                     )}
                                                 </div>
                                             );
@@ -1567,7 +1581,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                         label: 'Monto',
                                                         render: (ab) => (
                                                             <span className={`block text-right font-bold text-slate-800 ${ab.is_cancelled ? 'line-through opacity-60' : ''}`}>
-                                                                {formatCurrency(Number(ab.amount || 0))}
+                                                                {formatMoney(Number(ab.amount || 0))}
                                                             </span>
                                                         ),
                                                     },
@@ -1608,25 +1622,29 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                             if (ab.is_cancelled || !canRegisterInstallment) return null;
                                                             return (
                                                                 <div className="flex items-center justify-end gap-1.5">
-                                                                    <button
+                                                                    <Button
                                                                         type="button"
+                                                                        variant="ghost"
+                                                                        size="icon-xs"
                                                                         onClick={() => void handleOpenEditInstallment(ab, cxc, data)}
                                                                         disabled={loadingEditInstallmentOpen}
-                                                                        className="text-slate-400 hover:text-indigo-600 disabled:opacity-40 disabled:pointer-events-none"
+                                                                        className="group"
                                                                         title="Editar abono"
                                                                     >
-                                                                        <Pencil size={15} />
-                                                                    </button>
-                                                                    <button
+                                                                        <TableActionEditIcon />
+                                                                    </Button>
+                                                                    <Button
                                                                         type="button"
+                                                                        variant="ghost"
+                                                                        size="icon-xs"
                                                                         onClick={() => {
                                                                             setCancelInstallmentModal({ open: true, abono: ab, cxc });
                                                                         }}
-                                                                        className="text-slate-400 hover:text-rose-600"
+                                                                        className="group"
                                                                         title="Cancelar abono"
                                                                     >
-                                                                        <XCircle size={15} />
-                                                                    </button>
+                                                                        <TableActionCancelIcon />
+                                                                    </Button>
                                                                 </div>
                                                             );
                                                         },
@@ -1639,7 +1657,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                                 <Receipt size={14} className="text-slate-400" /> Abonos de la factura {data.invoice_folio || cxc.invoice_folio || 'S/F'}
                                                             </p>
                                                             <span className="text-[11px] font-bold text-slate-600">
-                                                                Abonado <strong className="text-emerald-700">{formatCurrency(totalAbonado)}</strong> de <strong className="text-slate-800">{formatCurrency(montoFactura)}</strong> — Saldo <strong className="text-amber-700">{formatCurrency(saldo)}</strong>
+                                                                Abonado <strong className="text-emerald-700">{formatMoney(totalAbonado)}</strong> de <strong className="text-slate-800">{formatMoney(montoFactura)}</strong> — Saldo <strong className="text-amber-700">{formatMoney(saldo)}</strong>
                                                             </span>
                                                         </div>
 
@@ -1702,7 +1720,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                                 disabled={savingRetentionConfig}
                                                                 className="text-xs"
                                                             >
-                                                                {savingRetentionConfig ? 'Configurando…' : 'Configurar'}
+                                                                {savingRetentionConfig ? 'Procesando...' : 'Configurar'}
                                                             </Button>
                                                         </div>
                                                     )}
@@ -1712,7 +1730,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
                                                                 <div>
                                                                     <span className="text-[10px] font-bold text-slate-500 uppercase">Monto retenido</span>
-                                                                    <p className="font-black text-slate-800 mt-0.5">{formatCurrency(retentionAmount)}</p>
+                                                                    <p className="font-black text-slate-800 mt-0.5">{formatMoney(retentionAmount)}</p>
                                                                 </div>
                                                                 <div>
                                                                     <span className="text-[10px] font-bold text-slate-500 uppercase">Vencimiento</span>
@@ -1768,9 +1786,9 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                                     type="button"
                                                                     onClick={() => void handleCollectRetention(cxc.id)}
                                                                     disabled={collectingRetentionId === cxc.id}
-                                                                    className="text-xs"
+                                                                    className="text-xs bg-emerald-600 hover:bg-emerald-700"
                                                                 >
-                                                                    {collectingRetentionId === cxc.id ? 'Registrando…' : 'Registrar Cobro'}
+                                                                    {collectingRetentionId === cxc.id ? 'Procesando...' : 'Registrar Cobro'}
                                                                 </Button>
                                                             )}
                                                         </div>
@@ -1794,10 +1812,10 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                             <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
                                 <h3 className="text-sm font-black text-slate-700 uppercase tracking-wide mb-3">Rentabilidad (sin IVA)</h3>
                                 <div className="grid grid-cols-2 md:grid-cols-6 gap-3 text-sm">
-                                    <div><p className="text-[10px] font-bold text-slate-400 uppercase">Venta</p><p className="font-mono font-bold">{formatCurrency(sales)}</p></div>
-                                    <div><p className="text-[10px] font-bold text-slate-400 uppercase">Costo</p><p className="font-mono font-bold">{formatCurrency(cost)}</p></div>
-                                    <div><p className="text-[10px] font-bold text-slate-400 uppercase">Comisión incluida</p><p className="font-mono font-bold">{formatCurrency(commission)}</p></div>
-                                    <div><p className="text-[10px] font-bold text-slate-400 uppercase">Utilidad neta</p><p className={`font-mono font-bold ${sales - cost - commission >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{formatCurrency(sales - cost - commission)}</p></div>
+                                    <div><p className="text-[10px] font-bold text-slate-400 uppercase">Venta</p><p className="font-mono font-bold">{formatMoney(sales)}</p></div>
+                                    <div><p className="text-[10px] font-bold text-slate-400 uppercase">Costo</p><p className="font-mono font-bold">{formatMoney(cost)}</p></div>
+                                    <div><p className="text-[10px] font-bold text-slate-400 uppercase">Comisión incluida</p><p className="font-mono font-bold">{formatMoney(commission)}</p></div>
+                                    <div><p className="text-[10px] font-bold text-slate-400 uppercase">Utilidad neta</p><p className={`font-mono font-bold ${sales - cost - commission >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{formatMoney(sales - cost - commission)}</p></div>
                                     <div title="(precio sin IVA − costo − comisión) / precio sin IVA"><p className="text-[10px] font-bold text-slate-400 uppercase">Margen neto % sobre venta</p><p className="font-mono font-black">{formatPercent(netMarginPercent(sales, cost, commission))}</p></div>
                                     <div title="(precio sin comisión − costo) / costo"><p className="text-[10px] font-bold text-slate-400 uppercase">Sobreprecio %</p><p className={`font-mono font-black ${isBelowMinimum(markup, minMarkup) ? 'text-rose-600' : 'text-emerald-700'}`}>{formatPercent(markup)}</p></div>
                                 </div>
@@ -1823,7 +1841,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                         savingDeliveryInstanceId={savingDeliveryInstanceId}
                         onDeliveryDeadlineCommit={handleDeliveryDeadlineCommit}
                         onEditDescription={(item) => setDescriptionEdit({ item, text: item.commercial_description || '', reason: '' })}
-                        formatCurrency={formatCurrency}
+                        formatCurrency={formatMoney}
                     />
 
                 </div>
@@ -1835,10 +1853,10 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                     <Input value={descriptionEdit.text} onChange={(e) => setDescriptionEdit({ ...descriptionEdit, text: e.target.value })} placeholder="Descripción que se imprime bajo el producto" />
                     <Input value={descriptionEdit.reason} onChange={(e) => setDescriptionEdit({ ...descriptionEdit, reason: e.target.value })} placeholder="Motivo (opcional)" />
                     <div className="flex justify-between gap-3 pt-2">
-                        <button type="button" disabled={savingDescription} onClick={() => setDescriptionEdit(null)} className="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-black rounded-lg disabled:opacity-50">Cerrar</button>
-                        <button type="button" disabled={savingDescription} onClick={() => void saveDescription()} className="px-5 py-2 font-bold rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">
+                        <Button type="button" variant="outline" disabled={savingDescription} onClick={() => setDescriptionEdit(null)}>Cerrar</Button>
+                        <Button type="button" disabled={savingDescription} onClick={() => void saveDescription()}>
                             {savingDescription ? 'Guardando...' : 'Guardar'}
-                        </button>
+                        </Button>
                     </div>
                 </div>
             </Modal>
@@ -1854,10 +1872,10 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                 bankAccounts={activeBankAccounts}
                 loadingBankAccounts={loadingBankAccounts}
                 houses={unlinkedInstancesByHouse}
-                formatCurrency={formatCurrency}
+                formatCurrency={formatMoney}
                 renderCongruence={(selectedIds, amount) => (
                     <InstallmentCongruenceCompare selectedInstanceIds={selectedIds} capturedAmount={amount} cxcId={installmentModal.cxc?.id}
-                        uniqueItems={uniqueItems} installmentsByInvoice={installmentsByInvoice} totalOrder={totalOrder} formatCurrency={formatCurrency} />
+                        uniqueItems={uniqueItems} installmentsByInvoice={installmentsByInvoice} totalOrder={totalOrder} formatCurrency={formatMoney} />
                 )}
                 onSubmit={handleSubmitInstallment}
                 onClose={() => setInstallmentModal({ open: false, cxc: null, amount: 0 })}
@@ -1871,7 +1889,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                 houses={unlinkedInstancesForEditByHouse}
                 renderCongruence={(selectedIds, amount) => (
                     <InstallmentCongruenceCompare selectedInstanceIds={selectedIds} capturedAmount={amount} cxcId={editInstallmentModal.cxc?.id}
-                        uniqueItems={uniqueItems} installmentsByInvoice={installmentsByInvoice} totalOrder={totalOrder} formatCurrency={formatCurrency} />
+                        uniqueItems={uniqueItems} installmentsByInvoice={installmentsByInvoice} totalOrder={totalOrder} formatCurrency={formatMoney} />
                 )}
                 onSave={handleSaveEditInstallment}
                 onClose={() => setEditInstallmentModal({ open: false, abono: null, cxc: null, linkedInstanceIds: [], preservedCxcLinkedIds: [] })}
@@ -1881,7 +1899,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
             <TextConfirmDialog
                 title="Cancelar Abono"
                 description="Esta acción cancela el abono y revierte el saldo en banco e instancias vinculadas."
-                warning={`Se revertirá el monto de ${formatCurrency(Number(cancelInstallmentModal.abono.amount || 0))} en la factura${cancelInstallmentModal.cxc.status === 'PAID' ? ' y la factura regresará a PENDING.' : '.'}`}
+                warning={`Se revertirá el monto de ${formatMoney(Number(cancelInstallmentModal.abono.amount || 0))} en la factura${cancelInstallmentModal.cxc.status === 'PAID' ? ' y la factura regresará a PENDING.' : '.'}`}
                 label="Motivo de cancelación *"
                 requiredMessage="El motivo de cancelación es obligatorio."
                 confirmLabel="Confirmar cancelación"
@@ -1905,7 +1923,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         {invoiceRetentionModal.open && invoiceRetentionModal.cxc && (
             <TextConfirmDialog
                 title="Facturar Fondo de Garantía"
-                description={`Registra el folio de la factura del fondo retenido (${formatCurrency(Number(invoiceRetentionModal.cxc.retention_amount) || 0)}).`}
+                description={`Registra el folio de la factura del fondo retenido (${formatMoney(Number(invoiceRetentionModal.cxc.retention_amount) || 0)}).`}
                 label="Folio de factura *"
                 placeholder="Ej. FG-00123"
                 requiredMessage="Ingresa el folio de factura."
@@ -1917,7 +1935,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         {waiveRetentionModal.open && waiveRetentionModal.cxc && (
             <TextConfirmDialog
                 title="Liberar Fondo de Garantía"
-                description={`El cliente no deberá pagar el fondo retenido de ${formatCurrency(Number(waiveRetentionModal.cxc.retention_amount) || 0)}.`}
+                description={`El cliente no deberá pagar el fondo retenido de ${formatMoney(Number(waiveRetentionModal.cxc.retention_amount) || 0)}.`}
                 warning="Esta acción libera el fondo de forma definitiva. No se podrá facturar ni cobrar después."
                 label="Motivo de liberación *"
                 requiredMessage="Debes ingresar un motivo."

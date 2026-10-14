@@ -184,6 +184,13 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
    "Receta #id" en el SKU y junto a la versión, "#id" en el editor; buscar "#197" o "197" muestra solo esa versión.
 4. Guía de pantallas, segunda ola (Finanzas, Tesorería, Dirección, Producción/Kanban, Diseño, tablero de Ventas,
    cuerpo de Rayos X) y luego ayuda "?" (Ventas, Compras y Almacén, Diseño, Administración, Gerencia).
+   - Segunda ola de la guía — hecha (commit local): Finanzas y Rayos X, Tesorería, Dirección, Producción/Kanban,
+     Diseño y Ventas (46 archivos): ~180 botones nativos → Button (emerald para crear/cobrar/pagar), encabezados
+     estándar, ~45 formatos locales → utils/format, spinners → "Procesando..."/esqueleto, 2 prompt() → Modal,
+     doble clic evitado en Pagar (nómina) y Solicitar Etiquetas. Errores de tipos 156 → 149 (ninguno nuevo).
+     Excepciones nativas a propósito: tarjetas y renglones clicables, arrastre del Kanban, chips pequeños.
+     Arreglos encontrados: estado de cuenta impreso mostraba "{formatMoney(new Date())}"; Cobranza sin "$".
+     Pendiente: prueba en pantalla.
    - Ayuda "?" nivel 1 (ayuda de la pantalla abierta) — hecha (commit local): textos en `frontend/src/help/ayuda.md`
      (una sección "# /ruta" por pantalla, español sencillo, borrador para aprobación de Gabriel o del jefe de área);
      el "?" abre la ayuda de la pantalla y un botón al manual general. Niveles 2 (manual) y 3 (preguntas

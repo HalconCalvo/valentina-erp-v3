@@ -15,7 +15,7 @@ import { CustomerPayment, SalesOrder } from '../../../types/sales';
 import { salesService } from '../../../api/sales-service';
 import BaptismModal from './BaptismModal';
 import { RecordHistoryButton } from '@/components/audit/RecordHistoryButton';
-import { formatDate, formatMoney } from '@/utils/format';
+import { formatDate, formatMoney, formatPercent, formatQty } from '@/utils/format';
 
 interface Props {
     orderId: number | null;
@@ -31,7 +31,6 @@ function daysOpenForCxc(cxc: CustomerPayment): number | null {
     return Math.max(0, Math.ceil((Date.now() - d0.getTime()) / (1000 * 60 * 60 * 24)));
 }
 
-const fmtCurrency = (amount: number) => formatMoney(amount);
 
 export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => {
     const [order, setOrder] = useState<SalesOrder | null>(null);
@@ -183,8 +182,6 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
         }
     };
 
-    // Helper formato moneda
-    const fmt = fmtCurrency;
 
     const paymentColumns = useMemo((): VTableColumn<CustomerPayment>[] => [
         {
@@ -210,7 +207,7 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
             label: 'Importe',
             render: (cxc) => (
                 <span className="text-right font-bold block">
-                    {fmt(Number(cxc.amount) || 0)}
+                    {formatMoney(Number(cxc.amount) || 0)}
                 </span>
             ),
         },
@@ -265,9 +262,12 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
             className="w-[95vw] max-w-[1400px] h-[90vh]" 
         >
             {loading || !order ? (
-                <div className="h-full flex flex-col items-center justify-center p-20 text-slate-400">
-                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600 mb-4"></div>
-                    Cargando información...
+                <div className="h-full flex flex-col gap-4 p-4 animate-pulse" aria-label="Cargando información...">
+                    <div className="h-10 rounded-lg bg-slate-200" />
+                    <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        <div className="rounded-xl bg-slate-100" />
+                        <div className="lg:col-span-2 rounded-xl bg-slate-100" />
+                    </div>
                 </div>
             ) : (
                 <div className="flex flex-col h-full min-h-0 gap-4 overflow-hidden">
@@ -322,34 +322,39 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                                         onChange={e => setNameDraft(e.target.value)}
                                         autoFocus
                                     />
-                                    <button
+                                    <Button
                                         type="button"
-                                        onClick={() => void handleSaveName()}
-                                        disabled={savingName}
-                                        className="text-xs font-bold text-emerald-600 hover:text-emerald-700 disabled:opacity-50"
-                                    >
-                                        {savingName ? 'Guardando…' : 'Guardar'}
-                                    </button>
-                                    <button
-                                        type="button"
+                                        variant="outline"
+                                        size="xs"
                                         onClick={() => setEditingName(false)}
-                                        className="text-xs font-bold text-slate-400 hover:text-slate-600"
+                                        className="font-bold"
                                     >
                                         Cancelar
-                                    </button>
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        size="xs"
+                                        onClick={() => void handleSaveName()}
+                                        disabled={savingName}
+                                        className="font-bold"
+                                    >
+                                        {savingName ? 'Guardando...' : 'Guardar'}
+                                    </Button>
                                 </div>
                             ) : (
                                 <div className="flex items-center gap-2">
                                     <div className="text-lg font-black text-slate-800 truncate">{order.project_name}</div>
                                     {canEditName && (
-                                        <button
+                                        <Button
                                             type="button"
+                                            variant="ghost"
+                                            size="icon-xs"
                                             onClick={() => { setNameDraft(order.project_name || ''); setEditingName(true); }}
                                             className="text-slate-400 hover:text-indigo-600 shrink-0"
                                             title="Editar nombre del proyecto"
                                         >
                                             <Pencil size={14} />
-                                        </button>
+                                        </Button>
                                     )}
                                 </div>
                             )}
@@ -366,7 +371,7 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                         
                         <div className="border-l border-slate-200 pl-4 text-right flex flex-col justify-center">
                             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Venta</h3>
-                            <div className="text-3xl font-black text-slate-700">{fmt(order.total_price || 0)}</div>
+                            <div className="text-3xl font-black text-slate-700">{formatMoney(order.total_price || 0)}</div>
                         </div>
                     </div>
 
@@ -402,9 +407,9 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                                                 <Lock size={10}/> BLOQUEADO
                                             </span>
                                         ) : isDirector && !isEditingAdvance ? (
-                                            <button onClick={() => setIsEditingAdvance(true)} className="text-indigo-500 hover:text-indigo-700 hover:bg-indigo-100 p-1 rounded transition-colors" title="Modificar Anticipo">
+                                            <Button variant="ghost" size="icon-xs" onClick={() => setIsEditingAdvance(true)} className="text-indigo-500 hover:text-indigo-700 hover:bg-indigo-100" title="Modificar Anticipo">
                                                 <Unlock size={14}/>
-                                            </button>
+                                            </Button>
                                         ) : null}
                                     </h4>
 
@@ -420,9 +425,9 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                                                         value={advancePercent}
                                                         onChange={(e) => setAdvancePercent(Number(e.target.value))}
                                                     /> %
-                                                    <button onClick={handleSaveData} className="bg-indigo-600 text-white p-1 rounded hover:bg-indigo-700" title="Guardar Ajuste">
+                                                    <Button size="icon-xs" onClick={handleSaveData} title="Guardar Ajuste">
                                                         <Save size={14}/>
-                                                    </button>
+                                                    </Button>
                                                 </div>
                                             ) : (
                                                 <p className="text-2xl font-black text-indigo-900">{advancePercent}%</p>
@@ -430,7 +435,7 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                                         </div>
                                         <div className="text-right">
                                             <p className="text-[10px] font-bold text-slate-500 uppercase">Monto a Facturar</p>
-                                            <p className="text-xl font-mono font-bold text-slate-800">{fmt(totals.advanceAmount)}</p>
+                                            <p className="text-xl font-mono font-bold text-slate-800">{formatMoney(totals.advanceAmount)}</p>
                                         </div>
                                     </div>
 
@@ -456,11 +461,11 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                                             <div>
                                                 <div className={`font-bold text-slate-700 ${item.is_cancelled ? 'line-through' : ''}`}>{item.product_name}</div>
                                                 <div className="text-slate-400">
-                                                    {item.is_cancelled ? `Cancelada: ${item.cancel_reason || 'sin motivo'}` : `Qty: ${item.quantity} | Unit: ${fmt(item.unit_price)}`}
+                                                    {item.is_cancelled ? `Cancelada: ${item.cancel_reason || 'sin motivo'}` : `Qty: ${formatQty(Number(item.quantity))} | Unit: ${formatMoney(item.unit_price)}`}
                                                 </div>
                                             </div>
                                             <div className="text-right font-mono font-bold text-slate-800">
-                                                {fmt(item.subtotal_price)}
+                                                {formatMoney(item.subtotal_price)}
                                             </div>
                                         </div>
                                     ))}
@@ -472,23 +477,23 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                                         <div className="flex justify-between items-start text-emerald-700 bg-emerald-50/60 rounded px-2 py-1">
                                             <span className="flex flex-col">
                                                 <span className="flex items-center gap-1 font-medium">
-                                                    <Percent size={8}/> Comisión Vendedor incluida ({(totals.rate * 100).toFixed(1)}%):
+                                                    <Percent size={8}/> Comisión Vendedor incluida ({formatPercent(totals.rate * 100)}):
                                                 </span>
                                                 <span className="text-[10px] text-emerald-600/80 italic">Ya está dentro de los precios; no se suma al subtotal.</span>
                                             </span>
-                                            <span className="font-mono">{fmt(totals.commission)}</span>
+                                            <span className="font-mono">{formatMoney(totals.commission)}</span>
                                         </div>
                                         <div className="flex justify-between text-slate-600 font-bold border-t border-slate-200 pt-1 mt-1">
                                             <span>Subtotal:</span>
-                                            <span className="font-mono">{fmt(totals.subtotal)}</span>
+                                            <span className="font-mono">{formatMoney(totals.subtotal)}</span>
                                         </div>
                                         <div className="flex justify-between text-slate-500">
                                             <span>IVA:</span>
-                                            <span className="font-mono">{fmt(totals.iva)}</span>
+                                            <span className="font-mono">{formatMoney(totals.iva)}</span>
                                         </div>
                                         <div className="flex justify-between text-slate-800 font-black text-sm border-t border-slate-300 pt-1 mt-1">
                                             <span>TOTAL:</span>
-                                            <span className="font-mono">{fmt(totals.total)}</span>
+                                            <span className="font-mono">{formatMoney(totals.total)}</span>
                                         </div>
                                     </div>
                                 )}
@@ -528,13 +533,15 @@ export const SalesOrderDetailModal: React.FC<Props> = ({ orderId, onClose }) => 
                             </div>
                             {/* Botón Bautizo — visible para OVs activas (SOLD / IN_PRODUCTION / INSTALLED) */}
                             {order && ['SOLD', 'IN_PRODUCTION', 'INSTALLED'].includes((order as any).status) && (
-                                <button
+                                <Button
+                                    variant="outline"
+                                    size="sm"
                                     onClick={() => setShowBaptism(true)}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors"
+                                    className="text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200"
                                     title="Asignar alias a las instancias de esta OV"
                                 >
                                     <Tag size={13} /> Gestionar Identidad / Bautizar
-                                </button>
+                                </Button>
                             )}
                         </div>
                         

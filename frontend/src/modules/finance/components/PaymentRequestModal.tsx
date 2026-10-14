@@ -156,9 +156,9 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
                             Factura: {displayInvoiceNumber}
                         </p>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-400 hover:text-slate-600">
+                    <Button type="button" variant="ghost" size="icon" onClick={onClose} title="Cerrar" aria-label="Cerrar" className="rounded-full text-slate-400 hover:text-slate-600">
                         <X size={20} />
-                    </button>
+                    </Button>
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-6 space-y-5">
@@ -268,7 +268,7 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
                             type="submit" 
                             className={`flex-1 text-white font-bold shadow-md transform transition hover:scale-105 ${
                                 isChecker && !existingRequest
-                                    ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500' 
+                                    ? 'bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500'
                                     : 'bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500'
                             }`} 
                             disabled={loading}

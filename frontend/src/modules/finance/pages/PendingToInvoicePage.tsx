@@ -8,7 +8,8 @@ import { ReceivableChargeModal } from '../components/ReceivableChargeModal';
 import { toast } from '@/components/ui/VToast';
 import { Input } from '@/components/ui/Input';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
-import { formatMoney } from '@/utils/format';
+import { formatDate, formatMoney } from '@/utils/format';
+import { Button } from '@/components/ui/Button';
 
 type VendorRightRow =
     | { kind: 'ADVANCE'; order_id: number; folio: string; client: string; project: string; detail: string; amount: number }
@@ -75,9 +76,6 @@ const PendingToInvoicePage = () => {
         () => invoicingRights?.advances ?? [],
         [invoicingRights]
     );
-
-    const formatCurrency = (amount: number) =>
-        formatMoney(amount);
 
     const tarjetaBTotal = invoicingRights?.total_pending_invoice ?? 0;
 
@@ -184,7 +182,7 @@ const PendingToInvoicePage = () => {
             sortable: true,
             render: (row) => (
                 <span className="block text-right font-black text-amber-800">
-                    {formatCurrency(Number(row.amount) || 0)}
+                    {formatMoney(Number(row.amount) || 0)}
                 </span>
             ),
         },
@@ -243,7 +241,7 @@ const PendingToInvoicePage = () => {
             sortable: true,
             render: (row) => (
                 <span className="block text-right font-black text-indigo-700">
-                    {formatCurrency(Number(row.amount) || 0)}
+                    {formatMoney(Number(row.amount) || 0)}
                 </span>
             ),
         },
@@ -261,15 +259,15 @@ const PendingToInvoicePage = () => {
 
     return (
         <div className="p-8 max-w-7xl mx-auto pb-24 space-y-6 animate-fadeIn">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 pb-4">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4">
                 <div>
                     <h1
                         className="text-3xl font-black tracking-tight flex items-center gap-3 text-slate-800"
                     >
                         {canView ? (
-                            <Unlock className="text-blue-500" size={32} />
+                            <Unlock className="text-indigo-600" size={32} />
                         ) : (
-                            <Users className="text-indigo-500" size={32} />
+                            <Users className="text-indigo-600" size={32} />
                         )}
                         {canView ? 'Pendiente de Facturar (Fábrica)' : 'Monitor de Órdenes de Venta'}
                     </h1>
@@ -282,12 +280,9 @@ const PendingToInvoicePage = () => {
 
                 <div className="flex items-center gap-4">
                     {isLoading && <span className="text-xs text-slate-400 font-bold animate-pulse">Sincronizando...</span>}
-                    <button
-                        onClick={handleGoBack}
-                        className="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-bold hover:bg-slate-50 hover:text-slate-900 transition-all shadow-sm"
-                    >
-                        <ArrowLeft size={18} /> {returnTo === '/sales' ? 'Regresar a Ventas' : 'Regresar a Cobranza'}
-                    </button>
+                    <Button variant="outline" onClick={handleGoBack}>
+                        <ArrowLeft size={16} /> {returnTo === '/sales' ? 'Regresar a Ventas' : 'Regresar a Cobranza'}
+                    </Button>
                 </div>
             </div>
 
@@ -296,25 +291,27 @@ const PendingToInvoicePage = () => {
                     <div>
                         <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Tarjeta B — Derecho a facturación</p>
                         <p className="text-xs text-slate-600 mt-0.5">
-                            Anticipos: {formatCurrency(invoicingRights.advance_pending_total)} + Avances obra:{' '}
-                            {formatCurrency(invoicingRights.progress_work_total)}
+                            Anticipos: {formatMoney(invoicingRights.advance_pending_total)} + Avances obra:{' '}
+                            {formatMoney(invoicingRights.progress_work_total)}
                         </p>
                     </div>
-                    <p className="font-black text-2xl text-blue-900 tabular-nums">{formatCurrency(tarjetaBTotal)}</p>
+                    <p className="font-black text-2xl text-blue-900 tabular-nums">{formatMoney(tarjetaBTotal)}</p>
                 </div>
             )}
 
             {canView && (
                 <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit">
-                    <button
+                    <Button
+                        variant="ghost"
                         onClick={() => setProgressTab('ANTICIPOS')}
                         className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${
                             progressTab === 'ANTICIPOS' ? 'bg-white shadow text-blue-700' : 'text-slate-500 hover:text-slate-800'
                         }`}
                     >
                         Anticipos Pendientes
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                        variant="ghost"
                         onClick={() => setProgressTab('AVANCES')}
                         className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold transition-all ${
                             progressTab === 'AVANCES' ? 'bg-white shadow text-emerald-700' : 'text-slate-500 hover:text-slate-800'
@@ -325,7 +322,7 @@ const PendingToInvoicePage = () => {
                         {pendingProgress.length > 0 && (
                             <span className="bg-emerald-500 text-white text-xs font-black px-2 py-0.5 rounded-full">{pendingProgress.length}</span>
                         )}
-                    </button>
+                    </Button>
                 </div>
             )}
 
@@ -348,7 +345,7 @@ const PendingToInvoicePage = () => {
                 <div className="bg-white rounded-xl border border-amber-200 shadow-md overflow-hidden">
                     <div className="p-4 border-b border-amber-100 bg-amber-50/50 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                         <div>
-                            <h2 className="font-black text-amber-900 text-lg flex items-center gap-2">
+                            <h2 className="font-black text-slate-800 text-lg flex items-center gap-2">
                                 <Lock size={20} className="text-amber-600" />
                                 Anticipos pendientes (primer pago)
                             </h2>
@@ -359,7 +356,7 @@ const PendingToInvoicePage = () => {
                         </div>
                         <div className="bg-white border border-amber-200 rounded-lg px-4 py-2 shadow-sm">
                             <span className="text-xs font-bold uppercase text-amber-700">Total bucket: </span>
-                            <span className="font-black text-xl text-amber-900">{formatCurrency(invoicingRights?.advance_pending_total ?? 0)}</span>
+                            <span className="font-black text-xl text-amber-900">{formatMoney(invoicingRights?.advance_pending_total ?? 0)}</span>
                         </div>
                     </div>
                     <div className="overflow-x-auto">
@@ -386,7 +383,7 @@ const PendingToInvoicePage = () => {
                 <div className="bg-white rounded-xl border border-emerald-200 shadow-md overflow-hidden">
                     <div className="p-4 border-b border-emerald-100 bg-emerald-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div>
-                            <h2 className="font-black text-emerald-800 text-lg flex items-center gap-2">
+                            <h2 className="font-black text-slate-800 text-lg flex items-center gap-2">
                                 <CheckCircle2 size={20} className="text-emerald-600" />
                                 Instancias 🟢🟢 Cerradas — derecho a facturar avance
                             </h2>
@@ -398,11 +395,11 @@ const PendingToInvoicePage = () => {
                         <div className="flex items-center gap-3">
                             <div className="bg-white border border-emerald-200 rounded-lg px-4 py-2 shadow-sm">
                                 <span className="text-xs font-bold uppercase text-emerald-700">Total bucket: </span>
-                                <span className="font-black text-xl text-emerald-900">{formatCurrency(invoicingRights?.progress_work_total ?? 0)}</span>
+                                <span className="font-black text-xl text-emerald-900">{formatMoney(invoicingRights?.progress_work_total ?? 0)}</span>
                             </div>
-                            <button type="button" onClick={loadSalesData} className="p-2 hover:bg-emerald-100 rounded-lg transition-all" aria-label="Actualizar">
+                            <Button type="button" variant="ghost" size="icon" onClick={loadSalesData} className="hover:bg-emerald-100" aria-label="Actualizar" title="Actualizar">
                                 <RefreshCw size={16} className="text-slate-400" />
-                            </button>
+                            </Button>
                         </div>
                     </div>
 
@@ -431,20 +428,21 @@ const PendingToInvoicePage = () => {
                                                 {instances[0].project_name && (
                                                     <span className="ml-2 text-xs text-slate-400 italic">{instances[0].project_name}</span>
                                                 )}
-                                                <span className="ml-3 text-xs font-bold text-emerald-700">Subtotal grupo: {formatCurrency(groupSum)}</span>
+                                                <span className="ml-3 text-xs font-bold text-emerald-700">Subtotal grupo: {formatMoney(groupSum)}</span>
                                             </div>
-                                            <button
+                                            <Button
+                                                size="sm"
                                                 onClick={() => {
                                                     setProgressModalOrderId(isOpen ? null : orderId);
                                                     setSelectedInstanceIds(instances.map((i) => i.instance_id));
                                                     setProgressFolio('');
                                                     setProgressAmount('');
                                                 }}
-                                                className="flex items-center gap-2 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-all shadow-sm"
+                                                className="bg-emerald-600 hover:bg-emerald-700"
                                             >
                                                 <FilePlus size={14} />
                                                 Registrar Avance
-                                            </button>
+                                            </Button>
                                         </div>
 
                                         <div className="divide-y divide-slate-50">
@@ -468,15 +466,11 @@ const PendingToInvoicePage = () => {
                                                     {inst.item_product_name && (
                                                         <span className="text-xs text-slate-400 hidden sm:block">{inst.item_product_name}</span>
                                                     )}
-                                                    <span className="text-xs font-black text-slate-700 tabular-nums">{formatCurrency(Number(inst.line_amount) || 0)}</span>
+                                                    <span className="text-xs font-black text-slate-700 tabular-nums">{formatMoney(Number(inst.line_amount) || 0)}</span>
                                                     <span className="text-xs text-emerald-600 font-bold">🟢🟢</span>
                                                     {inst.signed_received_at && (
                                                         <span className="text-xs text-slate-400">
-                                                            {new Date(inst.signed_received_at).toLocaleDateString('es-MX', {
-                                                                day: '2-digit',
-                                                                month: 'short',
-                                                                year: 'numeric',
-                                                            })}
+                                                            {formatDate(inst.signed_received_at)}
                                                         </span>
                                                     )}
                                                 </div>
@@ -505,7 +499,7 @@ const PendingToInvoicePage = () => {
                                                         className="border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 w-36"
                                                     />
                                                 </div>
-                                                <button
+                                                <Button
                                                     disabled={registeringProgress === orderId || selectedInstanceIds.length === 0}
                                                     onClick={async () => {
                                                         if (selectedInstanceIds.length === 0) return;
@@ -525,22 +519,18 @@ const PendingToInvoicePage = () => {
                                                             setRegisteringProgress(null);
                                                         }
                                                     }}
-                                                    className="flex items-center gap-2 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold rounded-lg transition-all shadow-sm text-sm"
+                                                    className="bg-emerald-600 hover:bg-emerald-700"
                                                 >
-                                                    {registeringProgress === orderId ? (
-                                                        <RefreshCw size={14} className="animate-spin" />
-                                                    ) : (
-                                                        <FilePlus size={14} />
-                                                    )}
-                                                    Confirmar Avance ({selectedInstanceIds.length})
-                                                </button>
-                                                <button
+                                                    <FilePlus size={14} />
+                                                    {registeringProgress === orderId ? 'Procesando...' : `Confirmar Avance (${selectedInstanceIds.length})`}
+                                                </Button>
+                                                <Button
                                                     type="button"
+                                                    variant="outline"
                                                     onClick={() => setProgressModalOrderId(null)}
-                                                    className="px-4 py-2 text-sm text-slate-500 hover:text-slate-800 font-medium"
                                                 >
                                                     Cancelar
-                                                </button>
+                                                </Button>
                                             </div>
                                         )}
                                     </div>
@@ -555,14 +545,14 @@ const PendingToInvoicePage = () => {
                 <div className="bg-white rounded-xl border border-indigo-200 shadow-md overflow-hidden">
                     <div className="p-4 border-b border-indigo-100 bg-indigo-50/50 flex flex-col md:flex-row justify-between items-start gap-4">
                         <div className="space-y-1">
-                            <h2 className="text-sm font-black uppercase tracking-wide text-indigo-800">Derecho a facturación (tarjeta B)</h2>
+                            <h2 className="text-sm font-black uppercase tracking-wider text-slate-500">Derecho a facturación (tarjeta B)</h2>
                             <p className="text-xs text-slate-600 max-w-xl">
                                 Mismas filas que en administración: anticipos sin CXC ADVANCE y piezas cerradas sin folio.
                             </p>
                         </div>
                         <div className="bg-white border border-indigo-200 px-4 py-2 rounded-lg shadow-sm flex items-center gap-3 w-full md:w-auto justify-between">
                             <span className="text-xs font-bold uppercase tracking-wider text-indigo-600">Total:</span>
-                            <span className="font-black text-xl text-indigo-900">{formatCurrency(tarjetaBTotal)}</span>
+                            <span className="font-black text-xl text-indigo-900">{formatMoney(tarjetaBTotal)}</span>
                         </div>
                         <div className="relative w-full md:w-96">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">

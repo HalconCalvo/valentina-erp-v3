@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Button } from '@/components/ui/Button';
 import { useNavigate } from 'react-router-dom';
 import { FileText, ArrowLeft } from 'lucide-react';
 import client from '../../../api/axios-client';
@@ -7,7 +8,7 @@ import { Input } from '@/components/ui/Input';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
 import type { Provider } from '../../foundations/hooks/useProviders';
-import { formatMoney } from '@/utils/format';
+import { formatDate, formatMoney } from '@/utils/format';
 
 type StatusFilter = 'paid' | 'pending' | 'all';
 type DateMode = 'range' | 'all';
@@ -36,14 +37,6 @@ const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
     { value: 'paid', label: 'Pagadas' },
     { value: 'all', label: 'Todas' },
 ];
-
-const formatCurrency = (amount: number) =>
-    formatMoney(amount);
-
-const formatDate = (dateStr: string) => {
-    const d = new Date(`${dateStr}T12:00:00`);
-    return d.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
-};
 
 const ProviderStatementPage: React.FC = () => {
     const navigate = useNavigate();
@@ -163,46 +156,42 @@ const ProviderStatementPage: React.FC = () => {
         {
             key: 'total_amount',
             label: 'Total',
-            render: (inv) => <span className="block text-right text-sm tabular-nums text-slate-700">{formatCurrency(inv.total_amount)}</span>,
+            render: (inv) => <span className="block text-right text-sm tabular-nums text-slate-700">{formatMoney(inv.total_amount)}</span>,
         },
         {
             key: 'paid_amount',
             label: 'Abonado',
-            render: (inv) => <span className="block text-right text-sm tabular-nums text-slate-700">{formatCurrency(inv.paid_amount)}</span>,
+            render: (inv) => <span className="block text-right text-sm tabular-nums text-slate-700">{formatMoney(inv.paid_amount)}</span>,
         },
         {
             key: 'outstanding',
             label: 'Por pagar',
-            render: (inv) => <span className="block text-right font-bold text-indigo-700 tabular-nums">{formatCurrency(inv.outstanding)}</span>,
+            render: (inv) => <span className="block text-right font-bold text-indigo-700 tabular-nums">{formatMoney(inv.outstanding)}</span>,
         },
     ], []);
 
     return (
         <div className="p-8 max-w-7xl mx-auto pb-24 space-y-6 animate-fadeIn">
             <div className="border-b border-slate-200 pb-4">
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                     <div>
                         <h1 className="text-3xl font-black tracking-tight text-slate-800 flex items-center gap-3">
-                            <FileText className="text-indigo-500" size={32} />
+                            <FileText className="text-indigo-600" size={32} />
                             Estado de Cuenta por Proveedor
                         </h1>
                         <p className="text-slate-500 mt-1 font-medium">
                             Facturas, abonos y saldos por proveedor
                         </p>
                     </div>
-                    <button
-                        type="button"
-                        onClick={() => navigate(-1)}
-                        className="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-bold hover:bg-slate-50 hover:text-slate-900 transition-all shadow-sm shrink-0"
-                    >
-                        <ArrowLeft size={18} /> Regresar
-                    </button>
+                    <Button variant="outline" onClick={() => navigate(-1)}>
+                        <ArrowLeft size={16} /> Regresar
+                    </Button>
                 </div>
             </div>
 
             {/* Filtros */}
             <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-5">
-                <h2 className="text-sm font-black uppercase tracking-wide text-slate-700">Filtros</h2>
+                <h2 className="text-sm font-black uppercase tracking-wider text-slate-500">Filtros</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="flex flex-col gap-1 lg:col-span-2">
                         <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">Proveedor</label>
@@ -220,7 +209,7 @@ const ProviderStatementPage: React.FC = () => {
                     <div className="flex flex-col gap-2 lg:col-span-2">
                         <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">Modo de fecha</label>
                         <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit">
-                            <button
+                            <Button variant="ghost"
                                 type="button"
                                 onClick={() => setDateMode('range')}
                                 className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
@@ -230,8 +219,8 @@ const ProviderStatementPage: React.FC = () => {
                                 }`}
                             >
                                 Rango de fechas
-                            </button>
-                            <button
+                            </Button>
+                            <Button variant="ghost"
                                 type="button"
                                 onClick={() => setDateMode('all')}
                                 className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
@@ -241,7 +230,7 @@ const ProviderStatementPage: React.FC = () => {
                                 }`}
                             >
                                 Todas las fechas
-                            </button>
+                            </Button>
                         </div>
                     </div>
                     {dateMode === 'range' && (
@@ -271,7 +260,7 @@ const ProviderStatementPage: React.FC = () => {
                         <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">Estatus</label>
                         <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit">
                             {STATUS_OPTIONS.map((opt) => (
-                                <button
+                                <Button variant="ghost"
                                     key={opt.value}
                                     type="button"
                                     onClick={() => setStatusFilter(opt.value)}
@@ -282,7 +271,7 @@ const ProviderStatementPage: React.FC = () => {
                                     }`}
                                 >
                                     {opt.label}
-                                </button>
+                                </Button>
                             ))}
                         </div>
                     </div>
@@ -293,7 +282,7 @@ const ProviderStatementPage: React.FC = () => {
             {report && (
                 <section className="bg-white rounded-xl border border-indigo-200 shadow-md overflow-hidden">
                     <div className="p-4 border-b border-indigo-100 bg-indigo-50/50">
-                        <h2 className="font-black text-indigo-900 text-lg">{report.provider.name}</h2>
+                        <h2 className="font-black text-slate-800 text-lg">{report.provider.name}</h2>
                     </div>
 
                     {report.count === 0 ? (
@@ -312,13 +301,13 @@ const ProviderStatementPage: React.FC = () => {
                                     Totales ({report.count} factura{report.count === 1 ? '' : 's'})
                                 </div>
                                 <div className="flex-1 p-4 text-right text-slate-800 tabular-nums min-w-0">
-                                    {formatCurrency(report.total_facturado)}
+                                    {formatMoney(report.total_facturado)}
                                 </div>
                                 <div className="flex-1 p-4 text-right text-slate-800 tabular-nums min-w-0">
-                                    {formatCurrency(report.total_abonado)}
+                                    {formatMoney(report.total_abonado)}
                                 </div>
                                 <div className="flex-1 p-4 text-right text-indigo-900 text-lg tabular-nums min-w-0">
-                                    {formatCurrency(report.total_por_pagar)}
+                                    {formatMoney(report.total_por_pagar)}
                                 </div>
                             </div>
                         </div>

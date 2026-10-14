@@ -12,7 +12,8 @@ import type { SalesOrder, SalesOrderItem } from '../../../types/sales';
 import type { ChangeOrderLine, ChangeType, Quotation } from '../../../types/quotations';
 import { AddItemsModal } from './AddItemsModal';
 import { computeChangeOrderTotals } from '../utils/changeOrderTotals';
-import { formatMoney } from '@/utils/format';
+import { formatMoney, formatPercent, formatQty } from '@/utils/format';
+import { Button } from '@/components/ui/Button';
 
 type LineOp = 'NONE' | Exclude<ChangeType, 'ADD'>;
 
@@ -38,19 +39,18 @@ const STATUS_LABELS: Record<string, string> = {
     PENDING: 'Pendiente', IN_PRODUCTION: 'En producción', READY: 'Lista', CARGADO: 'Cargada',
     INSTALLED: 'Instalada', CLOSED: 'Firmada', WARRANTY: 'Garantía',
 };
-const money = (value: number) => formatMoney(value);
 
 /** Money summary of a change order. Line amounts are without tax; totals and advance include tax. */
 export const ChangeTotals: React.FC<{ order: SalesOrder; delta: number; advancePercent?: number }> = ({ order, delta, advancePercent }) => {
     const totals = computeChangeOrderTotals(order, delta, advancePercent);
     const cell = (label: string, value: number, tone = 'text-slate-700') => (
-        <div><p className="text-[10px] font-bold text-slate-400 uppercase">{label}</p><p className={`font-black ${tone}`}>{money(value)}</p></div>
+        <div><p className="text-[10px] font-bold text-slate-400 uppercase">{label}</p><p className={`font-black ${tone}`}>{formatMoney(value)}</p></div>
     );
     const signTone = delta < 0 ? 'text-rose-600' : 'text-emerald-700';
     return (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
             {cell('Cambio sin IVA', totals.delta, signTone)}
-            {cell(`IVA del cambio (${(Number(order.tax_rate_value ?? 0) * 100).toFixed(0)}%)`, totals.deltaTax, signTone)}
+            {cell(`IVA del cambio (${formatPercent(Number(order.tax_rate_value ?? 0) * 100)})`, totals.deltaTax, signTone)}
             {cell('Cambio con IVA', totals.deltaWithTax, signTone)}
             {cell('Total actual con IVA', totals.currentTotal)}
             {cell('Total nuevo con IVA', totals.newTotal, 'text-indigo-700')}
@@ -267,7 +267,7 @@ export const ChangeOrderModal: React.FC<ChangeOrderModalProps> = ({ isOpen, onCl
                                         <div className="flex flex-wrap items-center justify-between gap-2">
                                             <div className="min-w-0">
                                                 <p className="text-sm font-black text-slate-700 truncate">{item.product_name}{item.is_resale ? ' (reventa)' : ''}</p>
-                                                <p className="text-[11px] text-slate-500">{item.quantity} × {money(Number(item.unit_price))} = {money(Number(item.quantity) * Number(item.unit_price))} sin IVA</p>
+                                                <p className="text-[11px] text-slate-500">{formatQty(Number(item.quantity))} × {formatMoney(Number(item.unit_price))} = {formatMoney(Number(item.quantity) * Number(item.unit_price))} sin IVA</p>
                                             </div>
                                             <div className="w-48">
                                                 <SearchableSelect items={opOptions(item)} value={op.type} getLabel={(o) => o.label} getValue={(o) => o.value}
@@ -279,7 +279,7 @@ export const ChangeOrderModal: React.FC<ChangeOrderModalProps> = ({ isOpen, onCl
                                                 {renderOpFields(item, op)}
                                                 <Input className="flex-1 min-w-[12rem]" value={op.reason} placeholder="Motivo de esta partida (opcional)"
                                                     onChange={(e) => setOp(itemId, { reason: e.target.value })} />
-                                                <span className={`text-sm font-black ${itemDelta < 0 ? 'text-rose-600' : 'text-emerald-700'}`} title="Cambio sin IVA">{money(itemDelta)} <span className="text-[10px] font-bold text-slate-400">sin IVA</span></span>
+                                                <span className={`text-sm font-black ${itemDelta < 0 ? 'text-rose-600' : 'text-emerald-700'}`} title="Cambio sin IVA">{formatMoney(itemDelta)} <span className="text-[10px] font-bold text-slate-400">sin IVA</span></span>
                                             </div>
                                         )}
                                     </div>
@@ -290,20 +290,20 @@ export const ChangeOrderModal: React.FC<ChangeOrderModalProps> = ({ isOpen, onCl
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
                                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Partidas nuevas ({addLines.length})</h3>
-                                <button type="button" onClick={() => setShowPicker(true)}
-                                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg">
+                                <Button type="button" size="sm" onClick={() => setShowPicker(true)}
+                                    className="text-xs bg-emerald-600 hover:bg-emerald-700">
                                     <Plus size={14} /> Agregar partidas
-                                </button>
+                                </Button>
                             </div>
                             {addLines.map((line, index) => (
                                 <div key={`${line.product_name}-${index}`} className="flex items-center gap-3 border border-emerald-200 bg-emerald-50 rounded-lg px-3 py-2">
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-bold text-slate-700 truncate">{line.product_name}</p>
-                                        <p className="text-xs text-slate-500">{line.quantity} × {money(line.unit_price)}{line.commercial_description ? ` · ${line.commercial_description}` : ''}</p>
+                                        <p className="text-xs text-slate-500">{formatQty(line.quantity)} × {formatMoney(line.unit_price)}{line.commercial_description ? ` · ${line.commercial_description}` : ''}</p>
                                     </div>
-                                    <span className="text-sm font-black text-emerald-700">{money(line.quantity * line.unit_price)} <span className="text-[10px] font-bold text-slate-400">sin IVA</span></span>
-                                    <button type="button" title="Quitar de la orden de cambio" onClick={() => setAddLines((prev) => prev.filter((_, i) => i !== index))}
-                                        className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg"><Trash2 size={15} /></button>
+                                    <span className="text-sm font-black text-emerald-700">{formatMoney(line.quantity * line.unit_price)} <span className="text-[10px] font-bold text-slate-400">sin IVA</span></span>
+                                    <Button type="button" variant="ghost" size="icon-sm" title="Quitar de la orden de cambio" onClick={() => setAddLines((prev) => prev.filter((_, i) => i !== index))}
+                                        className="text-rose-500 hover:bg-rose-50"><Trash2 size={15} /></Button>
                                 </div>
                             ))}
                         </div>
@@ -312,15 +312,14 @@ export const ChangeOrderModal: React.FC<ChangeOrderModalProps> = ({ isOpen, onCl
                     </div>
 
                     <div className="pt-4 mt-4 border-t border-slate-100 flex justify-end gap-3">
-                        <button type="button" onClick={onClose} disabled={saving} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-lg disabled:opacity-50">Cerrar</button>
-                        <button type="button" onClick={() => void save(false)} disabled={saving}
-                            className="px-4 py-2 text-sm font-bold text-indigo-700 border border-indigo-200 hover:bg-indigo-50 rounded-lg disabled:opacity-50">
+                        <Button type="button" variant="outline" onClick={onClose} disabled={saving}>Cerrar</Button>
+                        <Button type="button" variant="outline" onClick={() => void save(false)} disabled={saving}
+                            className="font-bold text-indigo-700 border-indigo-200 hover:bg-indigo-50">
                             {saving ? 'Guardando...' : 'Guardar borrador'}
-                        </button>
-                        <button type="button" onClick={() => void save(true)} disabled={saving}
-                            className="px-5 py-2 text-sm font-black text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg disabled:opacity-50">
+                        </Button>
+                        <Button type="button" onClick={() => void save(true)} disabled={saving} className="px-5">
                             {saving ? 'Guardando...' : 'Guardar y solicitar autorización'}
-                        </button>
+                        </Button>
                     </div>
                 </div>
             </Modal>

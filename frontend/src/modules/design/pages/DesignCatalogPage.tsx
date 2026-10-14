@@ -29,6 +29,7 @@ import { designService } from '../../../api/design-service';
 import { productionService } from '../../../api/production-service';
 import { VersionStatus } from '../../../types/design';
 import { recipeNumberFrom } from '@/utils/recipeNumber';
+import { formatDate } from '@/utils/format';
 
 type ModuleView = 'HOME' | 'CATALOG' | 'DEFICIT' | 'SIMULATOR_MODULE' | 'SIMULATOR_BATCHES';
 
@@ -359,7 +360,7 @@ const DesignCatalogPage: React.FC = () => {
             'Versiones':  (m.versions || []).length,
             'Estado':     (m.versions || []).some(v => v.status === 'READY')
                               ? 'LISTO' : 'BORRADOR',
-            'Exportado':  new Date().toLocaleDateString('es-MX')
+            'Exportado':  formatDate(new Date())
         }));
 
         const versionesData: any[] = [];
@@ -717,7 +718,7 @@ const DesignCatalogPage: React.FC = () => {
                     <div className="flex items-center justify-center gap-2">
                         {v?.blueprint_path ? (
                             <>
-                                <button onClick={(e) => { e.stopPropagation(); handleViewBlueprint(v.blueprint_path!); }} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded" title="Ver Plano"><FileText size={16}/></button>
+                                <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); handleViewBlueprint(v.blueprint_path!); }} className="text-indigo-600 hover:bg-indigo-50" title="Ver Plano"><FileText size={16}/></Button>
                                 {isCatalogReadOnly && (
                                     <a
                                         href={v.blueprint_path}
@@ -730,17 +731,17 @@ const DesignCatalogPage: React.FC = () => {
                                         <Download size={16} />
                                     </a>
                                 )}
-                                {!isCatalogReadOnly && <button onClick={(e) => { e.stopPropagation(); handleDeleteVersionBlueprint(e, v.id!); }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded" title="Quitar Plano"><FileMinus size={16}/></button>}
+                                {!isCatalogReadOnly && <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); handleDeleteVersionBlueprint(e, v.id!); }} className="text-slate-400 hover:text-red-600 hover:bg-red-50" title="Quitar Plano"><FileMinus size={16}/></Button>}
                             </>
                         ) : (
-                            !isCatalogReadOnly && v ? <button onClick={(e) => { e.stopPropagation(); handleUploadClick(v.id!); }} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="Adjuntar Plano a esta versión"><Paperclip size={16}/></button> : null
+                            !isCatalogReadOnly && v ? <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); handleUploadClick(v.id!); }} className="text-slate-400 hover:text-indigo-600 hover:bg-indigo-50" title="Adjuntar Plano a esta versión"><Paperclip size={16}/></Button> : null
                         )}
                         {!isCatalogReadOnly && (
                             <>
                                 <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                                <button onClick={(e) => openEditModal(e, product)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="Editar Nombre"><Edit size={16}/></button>
-                                {v && !esUnicaVersion && <button onClick={(e) => handleDeleteVersion(e, product, v)} className="p-1.5 text-orange-500 hover:text-orange-600 hover:bg-orange-50 rounded" title="Descartar esta versión"><Trash2 size={16}/></button>}
-                                {idx === 0 && <button onClick={(e) => handleDelete(e, product.id, product.name)} className="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded" title="ELIMINAR PRODUCTO Y TODAS SUS VERSIONES"><Trash2 size={16}/></button>}
+                                <Button variant="ghost" size="icon-sm" onClick={(e) => openEditModal(e, product)} className="text-slate-400 hover:text-indigo-600 hover:bg-indigo-50" title="Editar Nombre"><Edit size={16}/></Button>
+                                {v && !esUnicaVersion && <Button variant="ghost" size="icon-sm" onClick={(e) => handleDeleteVersion(e, product, v)} className="text-orange-500 hover:text-orange-600 hover:bg-orange-50" title="Descartar esta versión"><Trash2 size={16}/></Button>}
+                                {idx === 0 && <Button variant="ghost" size="icon-sm" onClick={(e) => handleDelete(e, product.id, product.name)} className="text-red-600 hover:text-red-700 hover:bg-red-50" title="ELIMINAR PRODUCTO Y TODAS SUS VERSIONES"><Trash2 size={16}/></Button>}
                             </>
                         )}
                     </div>
@@ -773,13 +774,13 @@ const DesignCatalogPage: React.FC = () => {
             ========================================= */}
             {currentView === 'HOME' && (
                 <>
-                    <div className="flex justify-between items-center pb-4 border-b border-slate-200">
+                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4">
                         <div>
-                            <h1 className="text-3xl font-black text-slate-800 flex items-center gap-3">
-                                Diseño e Ingeniería
+                            <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+                                <Layers size={32} className="text-indigo-600" /> Diseño e Ingeniería
                                 {isSales && <Badge className="bg-slate-100 text-slate-600 border-slate-200 mt-1"><Lock size={12} className="mr-1"/> LECTURA</Badge>}
                             </h1>
-                            <p className="text-slate-500 mt-1">El Cerebro Técnico de la Empresa. Orquestación, desarrollo y control de manufactura.</p>
+                            <p className="text-slate-500 mt-1 font-medium">El Cerebro Técnico de la Empresa. Orquestación, desarrollo y control de manufactura.</p>
                         </div>
                     </div>
 
@@ -960,15 +961,9 @@ const DesignCatalogPage: React.FC = () => {
                 <div className="animate-in slide-in-from-right-8 duration-300">
                     
                     <div className="flex justify-end mb-6">
-                        <button
-                            onClick={navigateBack}
-                            className="flex items-center gap-2 bg-white border 
-                   border-slate-300 text-slate-700 px-4 py-2 
-                   rounded-lg font-bold hover:bg-slate-50 
-                   hover:text-indigo-600 transition-all shadow-sm"
-                        >
+                        <Button variant="outline" onClick={navigateBack}>
                             <ArrowLeft size={18} /> Regresar
-                        </button>
+                        </Button>
                     </div>
 
                     {/* --- MÓDULO 2: SIMULADOR (vista intermedia 2A / 2B) --- */}
@@ -977,12 +972,11 @@ const DesignCatalogPage: React.FC = () => {
                             <div className="flex justify-between items-center mb-6 
                         pb-4 border-b border-slate-200">
                                 <div>
-                                    <h2 className="text-2xl font-bold text-slate-800 
-                           flex items-center gap-2">
-                                        <Calculator className="text-blue-500"/>
+                                    <h2 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+                                        <Calculator size={32} className="text-indigo-600"/>
                                         Simulador y Creación de Lotes
                                     </h2>
-                                    <p className="text-slate-500 text-sm mt-1">
+                                    <p className="text-slate-500 mt-1 font-medium">
                                         Agrupa productos pagados, cruza recetas contra inventario 
                                         y supervisa los lotes enviados a fábrica.
                                     </p>
@@ -1085,30 +1079,29 @@ const DesignCatalogPage: React.FC = () => {
                         <div className="space-y-6">
                             <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-200">
                                 <div>
-                                    <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                                        <Layers className="text-indigo-500"/> Catálogo de Ingeniería
+                                    <h2 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+                                        <Layers size={32} className="text-indigo-600"/> Catálogo de Ingeniería
                                         {isProduction && (
                                             <Badge className="bg-slate-100 text-slate-600 border-slate-200">
                                                 <Lock size={12} className="mr-1"/> LECTURA
                                             </Badge>
                                         )}
                                     </h2>
-                                    <p className="text-slate-500 text-sm mt-1">Gestión de productos base, explosión de materiales y repositorio de planos.</p>
+                                    <p className="text-slate-500 mt-1 font-medium">Gestión de productos base, explosión de materiales y repositorio de planos.</p>
                                 </div>
                                 <div className="flex gap-3 items-center">
                                     {!isProduction && (
                                         <ExportButton data={masters} fileName="Catalogo_Productos" mapping={mapMastersForExcel} label="Exportar"/>
                                     )}
                                     {!isCatalogReadOnly && (
-                                        <button
+                                        <Button
+                                            variant="outline"
                                             onClick={handleBackupExcel}
-                                            className="flex items-center gap-2 px-3 py-2 text-xs font-bold
-                                                       text-emerald-700 bg-emerald-50 border border-emerald-200
-                                                       rounded-lg hover:bg-emerald-100 transition-colors shadow-sm"
+                                            className="text-xs font-bold text-emerald-700 border-emerald-200 hover:bg-emerald-50"
                                             title="Descargar respaldo completo en Excel (3 hojas)"
                                         >
                                             <Download size={14} /> Respaldo Excel
-                                        </button>
+                                        </Button>
                                     )}
                                     <div className="relative">
                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" size={16} />
@@ -1121,7 +1114,7 @@ const DesignCatalogPage: React.FC = () => {
                                         />
                                     </div>
                                     {!isCatalogReadOnly && (
-                                        <Button onClick={openCreateModal} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm">
+                                        <Button onClick={openCreateModal} className="bg-emerald-600 hover:bg-emerald-700 shadow-sm">
                                             <Plus size={16} className="mr-1" /> Nuevo Producto
                                         </Button>
                                     )}
@@ -1153,31 +1146,31 @@ const DesignCatalogPage: React.FC = () => {
                                             <div className="flex items-center gap-2">
                                                 {!isCatalogReadOnly && (
                                                     <>
-                                                        <button
+                                                        <Button
+                                                            variant="outline"
+                                                            size="xs"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 handleExportRecipes(clientId);
                                                             }}
-                                                            className="flex items-center gap-1.5 px-3 py-1 text-xs font-bold
-                                                                       text-indigo-600 bg-indigo-50 border border-indigo-100
-                                                                       rounded-lg hover:bg-indigo-100 transition-colors"
+                                                            className="font-bold text-indigo-600 border-indigo-100 hover:bg-indigo-50"
                                                             title="Exportar recetas de este cliente"
                                                         >
                                                             <Download size={13} /> Exportar
-                                                        </button>
-                                                        <button
+                                                        </Button>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="xs"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 setImportingClientId(clientId);
                                                                 setTimeout(() => importInputRef.current?.click(), 50);
                                                             }}
-                                                            className="flex items-center gap-1.5 px-3 py-1 text-xs font-bold
-                                                                       text-emerald-600 bg-emerald-50 border border-emerald-100
-                                                                       rounded-lg hover:bg-emerald-100 transition-colors"
+                                                            className="font-bold text-emerald-600 border-emerald-100 hover:bg-emerald-50"
                                                             title="Importar recetas para este cliente"
                                                         >
                                                             <Upload size={13} /> Importar
-                                                        </button>
+                                                        </Button>
                                                     </>
                                                 )}
                                                 <Badge variant="default" className="bg-slate-200 text-slate-700 hover:bg-slate-300">
@@ -1237,10 +1230,10 @@ const DesignCatalogPage: React.FC = () => {
                         <div className="space-y-6">
                             <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-200">
                                 <div>
-                                    <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                                        <ShieldAlert className="text-orange-500"/> Control de Déficit y Mermas
+                                    <h2 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+                                        <ShieldAlert size={32} className="text-indigo-600"/> Control de Déficit y Mermas
                                     </h2>
-                                    <p className="text-slate-500 text-sm mt-1">Requisiciones a Compras y buzón de reposición de mermas físicas.</p>
+                                    <p className="text-slate-500 mt-1 font-medium">Requisiciones a Compras y buzón de reposición de mermas físicas.</p>
                                 </div>
                             </div>
                             <Card className="p-12 text-center bg-white border border-slate-200 shadow-sm flex flex-col items-center justify-center">
@@ -1256,30 +1249,27 @@ const DesignCatalogPage: React.FC = () => {
                             <div className="flex justify-between items-center mb-6 
                         pb-4 border-b border-slate-200">
                                 <div>
-                                    <h2 className="text-2xl font-bold text-slate-800 
-                           flex items-center gap-2">
-                                        <Package className="text-blue-500"/>
+                                    <h2 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+                                        <Package size={32} className="text-indigo-600"/>
                                         Lotes de Producción
                                     </h2>
-                                    <p className="text-slate-500 text-sm mt-1">
+                                    <p className="text-slate-500 mt-1 font-medium">
                                         Lotes vivos enviados a fábrica (DRAFT · EN ESPERA ·
                                         EN PRODUCCIÓN).
                                     </p>
                                 </div>
-                                <button
+                                <Button
+                                    variant="outline"
                                     onClick={loadLiveBatches}
-                                    className="flex items-center gap-2 text-sm text-slate-500 
-                       hover:text-blue-600 border border-slate-200 
-                       rounded-lg px-3 py-2 hover:bg-blue-50 transition"
+                                    disabled={loadingLiveBatches}
                                 >
-                                    <RefreshCw size={14} /> Actualizar
-                                </button>
+                                    <RefreshCw size={14} /> {loadingLiveBatches ? 'Procesando...' : 'Actualizar'}
+                                </Button>
                             </div>
 
                             {loadingLiveBatches ? (
-                                <div className="flex justify-center py-12 text-slate-400">
-                                    <RefreshCw className="animate-spin mr-2" size={20} />
-                                    Cargando lotes...
+                                <div className="flex flex-col gap-4 animate-pulse" aria-label="Cargando lotes...">
+                                    {[0, 1, 2].map(i => <div key={i} className="h-24 rounded-xl bg-slate-100" />)}
                                 </div>
                             ) : liveBatches.length === 0 ? (
                                 <Card className="p-12 text-center bg-white border 
@@ -1339,17 +1329,16 @@ const DesignCatalogPage: React.FC = () => {
                                                             {cfg.label}
                                                         </span>
                                                         {batch.status === 'DRAFT' && (
-                                                            <button
+                                                            <Button
                                                                 type="button"
+                                                                variant="outline"
+                                                                size="xs"
                                                                 onClick={() => handleDeleteBatch(batch.id, batch.folio)}
                                                                 disabled={deletingBatchId === batch.id}
-                                                                className="flex items-center gap-1.5 px-3 py-1 rounded-lg
-                   text-xs font-bold border border-red-300
-                   text-red-600 bg-red-50 hover:bg-red-100
-                   transition disabled:opacity-40"
+                                                                className="font-bold border-red-300 text-red-600 bg-red-50 hover:bg-red-100"
                                                             >
                                                                 {deletingBatchId === batch.id ? 'Deteniendo...' : '🛑 Cancelar Lote'}
-                                                            </button>
+                                                            </Button>
                                                         )}
                                                     </div>
                                                 </div>
@@ -1519,9 +1508,9 @@ const DesignCatalogPage: React.FC = () => {
                             </div>
                         )}
                     </div>
-                    <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-slate-100">
-                        <Button variant="secondary" onClick={() => setIsModalOpen(false)} className="bg-slate-100 text-slate-700 hover:bg-slate-200 border-none">Cancelar</Button>
-                        <Button onClick={handleSave} disabled={!formState.name} className="bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm">{isEditing ? 'Guardar Cambios' : 'Crear Producto'}</Button>
+                    <div className="flex justify-between gap-3 mt-8 pt-4 border-t border-slate-100">
+                        <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
+                        <Button onClick={handleSave} disabled={!formState.name} className={isEditing ? 'shadow-sm' : 'bg-emerald-600 hover:bg-emerald-700 shadow-sm'}>{isEditing ? 'Guardar Cambios' : 'Crear Producto'}</Button>
                     </div>
                 </div>
             </Modal>
@@ -1530,7 +1519,7 @@ const DesignCatalogPage: React.FC = () => {
                 <Modal isOpen bare size="custom" overlayZIndex={50} onClose={closeBlueprintModal} className="bg-white rounded-xl w-full max-w-6xl h-[90vh] flex flex-col relative shadow-2xl overflow-hidden">
                         <div className="bg-white border-b border-slate-200 px-5 py-3 flex justify-between items-center">
                             <h3 className="font-semibold text-slate-800 flex items-center gap-2"><FileText size={18} className="text-indigo-600"/> Visor de Planos</h3>
-                            <button onClick={closeBlueprintModal} className="p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 rounded-md transition-colors"><X size={20}/></button>
+                            <Button variant="ghost" size="icon-sm" onClick={closeBlueprintModal} className="text-slate-400 hover:bg-slate-100 hover:text-slate-700" title="Cerrar"><X size={20}/></Button>
                         </div>
                         <div className="flex-1 bg-slate-100/50 p-4">
                             <iframe src={viewingBlueprintUrl} className="w-full h-full rounded-lg shadow-sm border border-slate-200 bg-white" title="Plano Técnico"/>

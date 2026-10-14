@@ -17,6 +17,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import Modal from '@/components/ui/Modal';
+import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { salesService } from '../../../api/sales-service';
 import { planningService, BaptismEntry } from '../../../api/planning-service';
@@ -245,9 +246,8 @@ export default function BaptismModal({ orderId, order: orderProp, onClose, onCom
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-16 text-slate-400">
-          <div className="animate-spin rounded-full h-6 w-6 border-2 border-slate-300 border-t-slate-700 mr-3" />
-          Cargando instancias...
+        <div className="space-y-3 py-4 animate-pulse" aria-label="Cargando instancias...">
+          {[0, 1, 2, 3].map(i => <div key={i} className="h-10 rounded-lg bg-slate-100" />)}
         </div>
       ) : rows.length === 0 ? (
         <div className="text-center py-10 text-slate-400">
@@ -279,13 +279,14 @@ export default function BaptismModal({ orderId, order: orderProp, onClose, onCom
                   className="w-full text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 h-auto"
                 />
               </div>
-              <button
+              <Button
                 type="button"
+                variant="outline"
                 onClick={handleSuggest}
-                className="h-[38px] px-3 text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 whitespace-nowrap"
+                className="h-[38px] px-3 text-xs font-bold text-indigo-700 bg-indigo-50 border-indigo-200 hover:bg-indigo-100"
               >
                 Sugerir una de c/tipo
-              </button>
+              </Button>
             </div>
             <div>
               <label className="text-[11px] text-slate-500 block mb-1">Fecha estimada de entrega</label>
@@ -340,14 +341,14 @@ export default function BaptismModal({ orderId, order: orderProp, onClose, onCom
             </div>
           </div>
 
-          <button
+          <Button
             onClick={handleAssignHouse}
             disabled={selected.size === 0 || !newStreet.trim() || !newLot.trim()}
-            className="w-full h-[42px] mb-4 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm disabled:opacity-40 disabled:cursor-not-allowed transition"
+            className="w-full h-[42px] mb-4 shadow-sm"
           >
             Asignar {selected.size > 0 ? `${selected.size} ` : ''}seleccionados
             {newStreet.trim() && newLot.trim() ? ` a ${newStreet.trim()}, ${newLot.trim()}` : ' a esta casa'}
-          </button>
+          </Button>
 
           {/* Casas armadas */}
           <div className="flex items-center justify-between mb-2">
@@ -367,12 +368,14 @@ export default function BaptismModal({ orderId, order: orderProp, onClose, onCom
                       🏠 {h.street}{h.street && h.lot ? ', ' : ''}{h.lot}
                       <span className="text-slate-400 font-normal"> · {h.items.length} muebles</span>
                     </span>
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="xs"
                       onClick={() => handleUnassignHouse(h.street, h.lot)}
                       className="text-[10px] text-rose-500 hover:text-rose-700 font-bold uppercase"
                     >
                       Deshacer
-                    </button>
+                    </Button>
                   </div>
                   {h.items.map(it => (
                     <div key={it.id} className="px-3 py-1.5 pl-8 text-[13px] text-slate-500 border-t border-slate-50">
@@ -395,13 +398,13 @@ export default function BaptismModal({ orderId, order: orderProp, onClose, onCom
             <span className="text-[11px] text-slate-400">
               {assignedCount}/{rows.length} instancia(s) asignada(s). Cada casa se guarda al asignar.
             </span>
-            <button
+            <Button
               onClick={() => { onComplete(); onClose(); }}
               disabled={saving}
-              className="px-5 py-2 rounded-xl text-sm font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition disabled:opacity-50"
+              className="px-5"
             >
               {saving ? 'Guardando...' : 'Cerrar'}
-            </button>
+            </Button>
           </div>
         </>
       )}

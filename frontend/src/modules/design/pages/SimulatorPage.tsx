@@ -5,8 +5,9 @@ import { productionService } from '../../../api/production-service';
 import { toast } from '@/components/ui/VToast';
 import { planningService } from '../../../api/planning-service';
 import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
-import { Package, CheckSquare, Square, AlertTriangle, ShieldCheck, Factory, Beaker, ArrowLeft, Calculator, RefreshCw, Pencil, Check, X, Tag } from 'lucide-react';
+import { Package, CheckSquare, Square, AlertTriangle, ShieldCheck, Factory, Beaker, ArrowLeft, Calculator, Pencil, Check, X, Tag } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
 
 /** Devuelve el emoji del foco según el color del semáforo. */
@@ -393,21 +394,16 @@ export default function SimulatorPage() {
 
   return (
     <div className="flex flex-col h-full min-h-0 max-w-7xl mx-auto w-full animate-in fade-in duration-300">
-      <div className="flex shrink-0 justify-end mb-3 pt-1">
-        <button
-          type="button"
-          onClick={() => navigate('/design')}
-          className="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-bold hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm relative z-10"
-        >
+      <div className="mb-4 shrink-0 flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4">
+        <div>
+          <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+            <Calculator size={32} className="text-indigo-600" /> Simulador y Lotificación
+          </h1>
+          <p className="text-slate-500 mt-1 font-medium">Agrupa productos pagados y cruza recetas contra el inventario físico.</p>
+        </div>
+        <Button variant="outline" onClick={() => navigate('/design')} className="relative z-10">
           <ArrowLeft size={18} /> Regresar
-        </button>
-      </div>
-
-      <div className="mb-4 shrink-0 pb-3 border-b border-slate-200">
-        <h1 className="text-3xl font-black text-slate-800 flex items-center gap-3">
-          <Calculator className="text-blue-500" /> Simulador y Lotificación
-        </h1>
-        <p className="text-slate-500 mt-1">Agrupa productos pagados y cruza recetas contra el inventario físico.</p>
+        </Button>
       </div>
 
       <div className="flex flex-1 min-h-0 gap-6 items-stretch">
@@ -415,7 +411,7 @@ export default function SimulatorPage() {
         <div className="w-1/3 min-h-0 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
           <div className="shrink-0 p-4 border-b border-slate-200 bg-slate-50">
             <div className="flex justify-between items-center">
-              <h2 className="font-bold text-slate-700 flex items-center gap-2">
+              <h2 className="text-sm font-black uppercase tracking-wider text-slate-500 flex items-center gap-2">
                 <Package size={18} className="text-slate-500" /> Órdenes Pendientes
               </h2>
               <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-bold">
@@ -424,20 +420,20 @@ export default function SimulatorPage() {
             </div>
             {/* Bautizo Masivo de selección */}
             {selectedIds.length > 0 && (
-              <button
+              <Button
+                size="sm"
                 onClick={openMassBaptism}
-                className="mt-2 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition-colors"
+                className="mt-2 w-full text-xs"
               >
                 <Tag size={13} /> Bautizo Masivo ({selectedIds.length} seleccionadas)
-              </button>
+              </Button>
             )}
           </div>
 
           <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-3 pb-32">
             {loadingRadar ? (
-              <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2">
-                <RefreshCw className="animate-spin" size={24} />
-                <p className="text-sm">Escaneando ventas...</p>
+              <div className="flex flex-col gap-3 animate-pulse" aria-label="Escaneando ventas...">
+                {[0, 1, 2, 3].map(i => <div key={i} className="h-16 rounded-lg bg-slate-100" />)}
               </div>
             ) : instancesByOrder.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-slate-400">
@@ -604,19 +600,25 @@ export default function SimulatorPage() {
                                       }}
                                       className="flex-1 text-sm border border-indigo-300 rounded-lg px-2 py-1 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 h-auto"
                                     />
-                                    <button
+                                    <Button
+                                      variant="ghost"
+                                      size="icon-sm"
                                       onClick={() => saveEdit(inst.id)}
                                       disabled={savingName}
-                                      className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                                      className="text-emerald-600 hover:bg-emerald-50"
+                                      title="Guardar nombre"
                                     >
                                       <Check size={15} />
-                                    </button>
-                                    <button
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon-sm"
                                       onClick={cancelEdit}
-                                      className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-lg transition"
+                                      className="text-slate-400 hover:bg-slate-100"
+                                      title="Cancelar"
                                     >
                                       <X size={15} />
-                                    </button>
+                                    </Button>
                                   </div>
                                 ) : (
                                   <div className="flex items-start justify-between gap-1">
@@ -639,16 +641,18 @@ export default function SimulatorPage() {
                                         {inst.product_name}
                                       </p>
                                     </div>
-                                    <button
+                                    <Button
+                                      variant="ghost"
+                                      size="icon-xs"
                                       onClick={e => {
                                         e.stopPropagation();
                                         startEdit(inst);
                                       }}
-                                      className="p-1.5 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition shrink-0"
+                                      className="text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 shrink-0"
                                       title="Renombrar instancia"
                                     >
                                       <Pencil size={13} />
-                                    </button>
+                                    </Button>
                                   </div>
                                 )}
                               </div>
@@ -667,7 +671,7 @@ export default function SimulatorPage() {
         {/* COLUMNA DERECHA: EL SIMULADOR */}
         <div className="w-2/3 min-h-0 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
           <div className="shrink-0 p-4 border-b border-slate-200 bg-slate-50">
-            <h2 className="font-bold text-slate-700 flex items-center gap-2">
+            <h2 className="text-sm font-black uppercase tracking-wider text-slate-500 flex items-center gap-2">
               <Factory size={18} className="text-slate-500" /> Configuración del Lote
             </h2>
           </div>
@@ -682,16 +686,15 @@ export default function SimulatorPage() {
                 Usa los badges MDF / Piedra en cada OV para filtrar y definir el tipo de lote.
               </span>
             </p>
-            <button
+            <Button
               type="button"
+              size="lg"
               onClick={handleSimulate}
               disabled={selectedIds.length === 0 || simulating}
-              className="bg-blue-600 text-white px-8 py-3 rounded-lg font-bold shadow hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2 shrink-0"
+              className="px-8 shadow shrink-0"
             >
-              {simulating
-                ? <><RefreshCw className="animate-spin" size={18}/> Calculando...</>
-                : 'Ejecutar Simulación'}
-            </button>
+              {simulating ? 'Calculando...' : 'Ejecutar Simulación'}
+            </Button>
           </div>
 
           {/* RESULTADOS DE LA SIMULACIÓN */}
@@ -723,10 +726,11 @@ export default function SimulatorPage() {
                     </div>
                   </div>
                   
-                  <button 
+                  <Button
+                    size="lg"
                     onClick={batchType === 'MDF' ? handleCreateBatch : handleCreateStoneBatch}
                     disabled={creating}
-                    className={`px-6 py-3 rounded-lg font-bold shadow text-white transition flex items-center gap-2 ${
+                    className={`px-6 shadow ${
                       batchType === 'PIEDRA'
                         ? 'bg-stone-700 hover:bg-stone-800'
                         : simulationResult.suggested_status === 'ON_HOLD' 
@@ -734,9 +738,9 @@ export default function SimulatorPage() {
                           : 'bg-emerald-600 hover:bg-emerald-700'
                     }`}
                   >
-                    {creating ? <RefreshCw className="animate-spin" size={18}/> : <Factory size={18}/>}
+                    {!creating && <Factory size={18}/>}
                     {creating ? 'Creando lote...' : batchType === 'MDF' ? 'Crear Lote MDF' : 'Crear Lote Piedra'}
-                  </button>
+                  </Button>
                 </div>
 
                 <h4 className="font-bold text-slate-700 mb-3 text-sm flex items-center gap-2"><Beaker size={16} className="text-slate-400"/> Desglose de Receta vs Inventario Físico</h4>
@@ -793,20 +797,19 @@ export default function SimulatorPage() {
             </div>
 
             {/* Footer */}
-            <div className="px-6 pb-6 flex justify-end gap-3 border-t border-slate-100 pt-4">
-              <button
+            <div className="px-6 pb-6 flex justify-between gap-3 border-t border-slate-100 pt-4">
+              <Button
+                variant="outline"
                 onClick={() => setShowMassBaptism(false)}
-                className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-50 transition"
               >
                 Cancelar
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={saveMassBaptism}
                 disabled={savingName}
-                className="px-5 py-2 rounded-xl text-sm font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition disabled:opacity-50"
               >
                 {savingName ? 'Guardando...' : `Guardar ${selectedIds.length} aliases`}
-              </button>
+              </Button>
             </div>
           </Modal>
       )}

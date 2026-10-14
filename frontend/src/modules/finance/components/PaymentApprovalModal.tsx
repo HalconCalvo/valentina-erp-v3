@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import { toast } from '@/components/ui/VToast';
-import { formatMoney } from '@/utils/format';
+import { formatDate, formatMoney } from '@/utils/format';
 import Modal from '@/components/ui/Modal';
 
 interface PaymentApprovalModalProps {
@@ -120,9 +120,9 @@ export const PaymentApprovalModal: React.FC<PaymentApprovalModalProps> = ({ onCl
                         </h2>
                         <p className="text-sm text-slate-500">Autoriza pagos asignando la cuenta de origen.</p>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+                    <Button variant="ghost" size="icon" onClick={onClose} title="Cerrar" aria-label="Cerrar" className="rounded-full">
                         <X size={20} className="text-slate-500"/>
-                    </button>
+                    </Button>
                 </div>
 
                 <div className="overflow-y-auto p-6 bg-slate-50/50 flex-1">
@@ -145,7 +145,7 @@ export const PaymentApprovalModal: React.FC<PaymentApprovalModalProps> = ({ onCl
                                                 {req.payment_method}
                                             </span>
                                             <span className="text-xs text-slate-400 flex items-center gap-1">
-                                                <Calendar size={10}/> {new Date(req.created_at).toLocaleDateString()}
+                                                <Calendar size={10}/> {formatDate(req.created_at)}
                                             </span>
                                         </div>
                                         <h3 className="text-lg font-bold text-slate-800">{req.provider_name}</h3>
@@ -185,7 +185,7 @@ export const PaymentApprovalModal: React.FC<PaymentApprovalModalProps> = ({ onCl
                                         
                                         <div className="flex gap-2 w-full md:w-auto">
                                             <Button 
-                                                variant="danger" 
+                                                variant="destructive"
                                                 size="sm"
                                                 onClick={() => handleDecision(req.id, 'REJECTED')}
                                                 disabled={processingId === req.id}

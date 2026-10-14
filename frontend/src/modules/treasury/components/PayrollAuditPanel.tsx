@@ -27,6 +27,7 @@ import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
 import { formatDateTime, formatMoney } from '@/utils/format';
+import { TableActionEditIcon } from '@/lib/tableActionIcons';
 
 export type PayrollLevel1 = 'COMMISSIONS' | 'INSTALLATIONS' | 'WEEKLY' | null;
 type SubView = 'RETAINED' | 'PAYABLE' | 'PAID';
@@ -73,6 +74,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
   adminV4Labels = false,
 }) => {
   const [commSub, setCommSub] = useState<SubView>('RETAINED');
+  const [payingId, setPayingId] = useState<number | null>(null);
   const [instSub, setInstSub] = useState<SubView>('RETAINED');
 
   const [coOverview, setCoOverview] = useState<CommissionsPayrollOverview | null>(null);
@@ -229,9 +231,16 @@ export const PayrollAuditPanel: React.FC<Props> = ({
         return;
       }
     }
-    await treasuryService.markPayrollPaid(row.id, true, bankId);
-    await loadOverviews();
-    onRefresh();
+    setPayingId(row.id);
+    try {
+      await treasuryService.markPayrollPaid(row.id, true, bankId);
+      await loadOverviews();
+      onRefresh();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || 'Error al registrar el pago.');
+    } finally {
+      setPayingId(null);
+    }
   };
 
   const saveWeekly = async () => {
@@ -382,30 +391,36 @@ export const PayrollAuditPanel: React.FC<Props> = ({
           <div className="text-center whitespace-nowrap">
             {isEd ? (
               <>
-                <button
+                <Button
                   type="button"
+                  size="xs"
                   onClick={() => saveEdit(row)}
                   disabled={savingEdit}
-                  className="text-emerald-700 font-bold text-xs px-2 py-1 hover:bg-emerald-50 rounded"
                 >
-                  {savingEdit ? 'Guardando…' : 'Guardar'}
-                </button>
-                <button
+                  {savingEdit ? 'Guardando...' : 'Guardar'}
+                </Button>
+                <Button
                   type="button"
+                  variant="outline"
+                  size="xs"
+                  className="ml-1"
                   onClick={cancelEdit}
-                  className="text-slate-500 font-bold text-xs px-2 py-1 hover:bg-slate-100 rounded"
                 >
                   Cancelar
-                </button>
+                </Button>
               </>
             ) : (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-sm"
+                title="Editar"
+                aria-label="Editar"
+                className="group hover:bg-indigo-50"
                 onClick={() => startEdit(row)}
-                className="text-indigo-600 font-bold text-xs px-2 py-1 hover:bg-indigo-50 rounded"
               >
-                Editar
-              </button>
+                <TableActionEditIcon />
+              </Button>
             )}
           </div>
         );
@@ -467,13 +482,15 @@ export const PayrollAuditPanel: React.FC<Props> = ({
           </Button>
           {view === 'PAYABLE' && row.id != null && (
             <>
-              <button
+              <Button
                 type="button"
-                className="ml-2 text-xs text-orange-700 font-bold inline-flex items-center gap-1"
+                variant="outline"
+                size="xs"
+                className="ml-2 text-orange-700"
                 onClick={() => openCommDefer(row)}
               >
                 <SkipForward size={12} /> Diferir / Omitir
-              </button>
+              </Button>
               {expandedCommDeferKey === commKey(row) && (
                 <div className="mt-3 text-left bg-orange-50/50 p-3 rounded-lg border border-orange-100">
                   <p className="text-xs font-bold text-orange-900 mb-2">
@@ -583,20 +600,24 @@ export const PayrollAuditPanel: React.FC<Props> = ({
               placeholder="Cuenta banco"
               className="text-xs max-w-[140px]"
             />
-            <button
+            <Button
               type="button"
-              className="px-2 py-1 bg-emerald-600 text-white text-xs font-bold rounded"
+              size="xs"
+              className="bg-emerald-600 hover:bg-emerald-700"
+              disabled={payingId === r.id}
               onClick={() => handlePayInstall(r)}
             >
-              Pagar
-            </button>
-            <button
+              {payingId === r.id ? 'Procesando...' : 'Pagar'}
+            </Button>
+            <Button
               type="button"
-              className="text-xs text-orange-700 font-bold"
+              variant="outline"
+              size="xs"
+              className="text-orange-700"
               onClick={() => openInstDefer(r)}
             >
               Diferir / Omitir
-            </button>
+            </Button>
             {expandedInstDeferId === r.id && (
               <div className="w-full mt-3 text-left bg-orange-50/50 p-3 rounded-lg border border-orange-100">
                 <p className="text-xs font-bold text-orange-900 mb-2">
@@ -1016,7 +1037,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
             </label>
           </div>
           <Button className="mt-6 bg-violet-700 hover:bg-violet-800" onClick={saveWeekly} disabled={weeklySaving}>
-            {weeklySaving ? 'Guardando…' : 'Guardar cierre semanal'}
+            {weeklySaving ? 'Guardando...' : 'Guardar cierre semanal'}
           </Button>
         </Card>
       )}

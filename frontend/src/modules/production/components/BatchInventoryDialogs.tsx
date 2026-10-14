@@ -4,9 +4,9 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
+import { formatQty } from '@/utils/format';
 import type { ReversalDisposition, StockShortage } from '@/api/production-service';
 
-const qty = new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 });
 
 const DISPOSITIONS: { value: ReversalDisposition; label: string }[] = [
   { value: 'RETURN_TO_STOCK', label: 'Regresa al almacén (movimiento inverso)' },
@@ -16,12 +16,12 @@ const DISPOSITIONS: { value: ReversalDisposition; label: string }[] = [
 const shortageColumns: VTableColumn<StockShortage>[] = [
   { key: 'sku', label: 'SKU', render: (r) => r.sku },
   { key: 'name', label: 'Material', render: (r) => r.name },
-  { key: 'required', label: 'Requerido', render: (r) => `${qty.format(r.required)} ${r.usage_unit}` },
-  { key: 'available', label: 'Disponible', render: (r) => `${qty.format(r.available)} ${r.usage_unit}` },
+  { key: 'required', label: 'Requerido', render: (r) => `${formatQty(r.required)} ${r.usage_unit}` },
+  { key: 'available', label: 'Disponible', render: (r) => `${formatQty(r.available)} ${r.usage_unit}` },
   {
     key: 'missing',
     label: 'Faltante',
-    render: (r) => <span className="font-bold text-red-700">{`${qty.format(r.missing)} ${r.usage_unit}`}</span>,
+    render: (r) => <span className="font-bold text-red-700">{`${formatQty(r.missing)} ${r.usage_unit}`}</span>,
   },
 ];
 
@@ -150,7 +150,7 @@ export function ReversalDialog({ isOpen, title, message, requireDisposition, con
         <div className="flex justify-end gap-3">
           <Button variant="outline" disabled={processing} onClick={onClose}>Cancelar</Button>
           <Button variant="destructive" disabled={processing || !ready} onClick={() => void handleConfirm()}>
-            {processing ? 'Procesando…' : confirmLabel}
+            {processing ? 'Procesando...' : confirmLabel}
           </Button>
         </div>
       </div>

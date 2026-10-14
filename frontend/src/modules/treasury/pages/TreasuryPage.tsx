@@ -260,7 +260,6 @@ export const TreasuryPage = () => {
     return () => clearInterval(intervalId);
   }, [isChecker]);
 
-  const formatCurrency = (amount: number) => formatMoney(amount);
 
   const getSectionTitle = () => {
     switch(activeSection) {
@@ -288,25 +287,24 @@ export const TreasuryPage = () => {
       
       {!isSubSectionActive && (
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4">
-            <div>
-              <h1 className="text-3xl font-black text-slate-800 tracking-tight">{getSectionTitle()}</h1>
-              <p className="text-slate-500 mt-1 font-medium">
-                {activeSection === null 
-                  ? (isChecker ? 'Visión global de cuentas, autorización de pagos y bóveda.' : 'Gestión operativa: cobranza, facturas y armado de solicitudes de pago.')
-                  : activeSection === 'TASKS'
-                  ? 'Bandeja unificada de acciones requeridas por Administración.'
-                  : 'Gestión detallada y ejecución operativa.'}
-              </p>
+            <div className="flex items-center gap-3">
+              <Landmark className="text-indigo-600" size={32} />
+              <div>
+                <h1 className="text-3xl font-black text-slate-800 tracking-tight">{getSectionTitle()}</h1>
+                <p className="text-slate-500 mt-1 font-medium">
+                  {activeSection === null 
+                    ? (isChecker ? 'Visión global de cuentas, autorización de pagos y bóveda.' : 'Gestión operativa: cobranza, facturas y armado de solicitudes de pago.')
+                    : activeSection === 'TASKS'
+                    ? 'Bandeja unificada de acciones requeridas por Administración.'
+                    : 'Gestión detallada y ejecución operativa.'}
+                </p>
+              </div>
             </div>
 
             {activeSection !== null && (
-              <button
-                type="button"
-                onClick={handleRegresar}
-                className="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-bold hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm"
-              >
+              <Button type="button" variant="outline" onClick={handleRegresar}>
                 <ArrowLeft size={18} /> Regresar
-              </button>
+              </Button>
             )}
           </div>
       )}
@@ -353,7 +351,7 @@ export const TreasuryPage = () => {
                       </div>
                       <div className="flex justify-end">
                           <div className="text-lg font-black text-emerald-600 tracking-tight leading-none truncate">
-                              {formatCurrency(totalReceivables)}
+                              {formatMoney(totalReceivables)}
                           </div>
                       </div>
                       <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
@@ -377,7 +375,7 @@ export const TreasuryPage = () => {
                       </div>
                       <div className="flex justify-end">
                           <div className="text-lg font-black text-red-600 tracking-tight leading-none truncate">
-                              {formatCurrency(totalPayables)}
+                              {formatMoney(totalPayables)}
                           </div>
                       </div>
                       <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
@@ -407,7 +405,7 @@ export const TreasuryPage = () => {
                     ? 'text-red-600'
                     : 'text-emerald-600'
                 }`}>
-                  {pettyCashFund ? formatCurrency(pettyCashFund.current_balance) : 'Cargando...'}
+                  {pettyCashFund ? formatMoney(pettyCashFund.current_balance) : 'Cargando...'}
                 </div>
                 <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
                   <p className={`text-[10px] font-bold uppercase truncate ${

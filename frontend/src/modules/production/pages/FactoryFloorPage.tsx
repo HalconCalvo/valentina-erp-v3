@@ -51,26 +51,27 @@ export default function FactoryFloorPage() {
   }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-6 pb-24 
-                    animate-in fade-in duration-300">
-      <div className="flex justify-between items-center pb-4 
-                      border-b border-slate-200">
-        <div>
-          <div className="flex items-center">
-            <h1 className="text-3xl font-black text-slate-800">
-              Producción
-            </h1>
-            {productionReadOnly && (
-              <span className="text-xs font-bold px-2 py-1 rounded-lg
-                               bg-slate-100 text-slate-500 border 
-                               border-slate-200 ml-2">
-                👁 Solo Lectura
-              </span>
-            )}
+    <div className="p-8 max-w-7xl mx-auto space-y-6 pb-24 animate-fadeIn">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4">
+        <div className="flex items-center gap-3">
+          <Factory className="text-indigo-600" size={32} />
+          <div>
+            <div className="flex items-center">
+              <h1 className="text-3xl font-black text-slate-800 tracking-tight">
+                Producción
+              </h1>
+              {productionReadOnly && (
+                <span className="text-xs font-bold px-2 py-1 rounded-lg
+                                 bg-slate-100 text-slate-500 border 
+                                 border-slate-200 ml-2">
+                  👁 Solo Lectura
+                </span>
+              )}
+            </div>
+            <p className="text-slate-500 mt-1 font-medium">
+              Control de fábrica, lotes e instalación.
+            </p>
           </div>
-          <p className="text-slate-500 mt-1">
-            Control de fábrica, lotes e instalación.
-          </p>
         </div>
       </div>
 

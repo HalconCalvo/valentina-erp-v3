@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { FileDown } from 'lucide-react';
 
 import Modal from '@/components/ui/Modal';
+import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
@@ -81,10 +82,10 @@ export const QuotationRowActions: React.FC<RowActionsProps> = ({ quotation, onVi
         <button type="button" title={title} aria-label={title} onClick={onClick} className={iconBtn}>{node}</button>
     );
     const text = (label: string, onClick: () => void, tone: keyof typeof TEXT_TONES = 'neutral', title?: string) => (
-        <button type="button" title={title ?? label} onClick={onClick}
-            className={`whitespace-nowrap rounded-lg border px-2.5 py-1 text-xs font-bold transition-colors ${TEXT_TONES[tone]}`}>
+        <Button type="button" variant="outline" size="xs" title={title ?? label} onClick={onClick}
+            className={`px-2.5 font-bold ${TEXT_TONES[tone]}`}>
             {label}
-        </button>
+        </Button>
     );
     return (
         <div className="flex flex-wrap items-center justify-center gap-1">
@@ -149,8 +150,6 @@ interface DialogsProps {
     onDone: (salesOrderId?: number) => void | Promise<void>;
 }
 
-const actionButton = 'px-5 py-2 font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
-const closeButton = 'px-6 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-black rounded-lg disabled:opacity-50';
 
 /** Every change of state of a quotation that needs a confirmation, a reason, a new date or the client PO. */
 export const QuotationActionDialogs: React.FC<DialogsProps> = ({ pending, onClose, onDone }) => {
@@ -201,10 +200,10 @@ export const QuotationActionDialogs: React.FC<DialogsProps> = ({ pending, onClos
 
     const footer = (confirmLabel: string, enabled: boolean, onConfirm: () => void, tone = 'bg-red-600 hover:bg-red-700 text-white') => (
         <div className="flex items-center justify-between gap-4 pt-2">
-            <button type="button" className={closeButton} disabled={processing} onClick={onClose}>Cerrar</button>
-            <button type="button" className={`${actionButton} ${tone}`} disabled={processing || !enabled} onClick={onConfirm}>
+            <Button type="button" variant="outline" disabled={processing} onClick={onClose}>Cerrar</Button>
+            <Button type="button" className={`px-5 ${tone}`} disabled={processing || !enabled} onClick={onConfirm}>
                 {processing ? 'Procesando...' : confirmLabel}
-            </button>
+            </Button>
         </div>
     );
 

@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, User, Loader } from "lucide-react";
+import { ArrowLeft, User } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import Modal from "@/components/ui/Modal";
 import { VConfirmDialog } from "@/components/ui/VConfirmDialog";
 import { toast } from "@/components/ui/VToast";
 import { VersionRecipeForm } from "../components/VersionRecipeForm"; 
@@ -58,6 +60,8 @@ export default function DesignBuilderPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteVersionConfirm, setShowDeleteVersionConfirm] = useState(false);
+  // Name dialog for renaming the version or naming its clone (replaces window.prompt)
+  const [nameDialog, setNameDialog] = useState<{ mode: 'RENAME' | 'CLONE'; value: string } | null>(null);
   const [commercialDescription, setCommercialDescription] = useState<string>(
     version?.commercial_description || ''
   );
@@ -210,7 +214,56 @@ export default function DesignBuilderPage() {
     }
   };
 
-  if (isLoading) return <div className="p-10 flex justify-center"><Loader className="animate-spin text-indigo-600"/></div>;
+  const renameVersion = async (name: string) => {
+    if (!version) return;
+    try {
+      setIsSaving(true);
+      await designService.renameVersion(version.id!, name);
+      setVersion({ ...version, version_name: name });
+      setNameDialog(null);
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || 'Error al renombrar la versión.');
+    } finally { setIsSaving(false); }
+  };
+
+  const cloneVersion = async (name: string) => {
+    const masterId = version?.master?.id;
+    if (!version || !masterId) return;
+    try {
+      setIsSaving(true);
+      const payload: any = {
+        master_id: masterId,
+        version_name: name,
+        status: VersionStatus.DRAFT,
+        components: [],
+        // Clone the version being viewed (not the oldest of the product)
+        clone_from_version_id: version.id,
+      };
+      const response = await designService.createVersion(payload);
+      const newVersionId = response?.id || response?.data?.id;
+      setNameDialog(null);
+      if (newVersionId) {
+        // Router navigation for a smooth transition instead of a page reload
+        navigate(`/design/versions/${newVersionId}`);
+      }
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || 'Error al crear la nueva versión.');
+    } finally { setIsSaving(false); }
+  };
+
+  const submitNameDialog = () => {
+    const name = nameDialog?.value.trim() || '';
+    if (!nameDialog || name === '') return;
+    if (nameDialog.mode === 'RENAME') renameVersion(name);
+    else cloneVersion(name);
+  };
+
+  if (isLoading) return (
+    <div className="p-6 space-y-4 animate-pulse">
+      <div className="h-12 bg-slate-200 rounded-lg" />
+      <div className="max-w-6xl mx-auto h-96 bg-slate-100 rounded-xl" />
+    </div>
+  );
   if (!version) return <div className="p-10 text-red-500">Versión no encontrada</div>;
 
   const clientObj = clients.find(c => c.id === version.master?.client_id);
@@ -222,7 +275,7 @@ export default function DesignBuilderPage() {
       {/* HEADER LIMPIO (Con botonera de Versiones) */}
       <div className="bg-white border-b border-slate-200 px-5 py-3 flex justify-between items-center shadow-sm shrink-0 z-40">
         <div className="flex items-center gap-4 w-full">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/design", { state: { returnTo: 'CATALOG' } })} className="text-slate-400 hover:text-slate-700 shrink-0">
+          <Button variant="ghost" size="sm" onClick={() => navigate("/design", { state: { returnTo: 'CATALOG' } })} className="text-slate-400 hover:text-slate-700 shrink-0" title="Regresar">
             <ArrowLeft className="h-5 w-5" />
           </Button>
 
@@ -247,77 +300,50 @@ export default function DesignBuilderPage() {
                     <RecordHistoryButton tableName="design_product_versions" recordId={version.id} label={`Versión ${version.version_name || version.id}`} />
                     
                     {/* RENOMBRAR */}
-                    <button 
-                        onClick={async () => {
-                            const newName = prompt("Nuevo nombre para esta versión:", version.version_name);
-                            if (newName && newName.trim() !== "") {
-                                try {
-                                    setIsSaving(true);
-                                    await designService.renameVersion(version.id!, newName.trim());
-                                    setVersion({...version, version_name: newName.trim()});
-                                } catch (e: any) {
-                                    toast.error(e?.response?.data?.detail || 'Error al renombrar la versión.');
-                                }
-                                finally { setIsSaving(false); }
-                            }
-                        }}
-                        className="p-1.5 text-indigo-500 hover:bg-white hover:shadow-sm rounded transition-all"
+                    <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        disabled={isSaving}
+                        onClick={() => setNameDialog({ mode: 'RENAME', value: version.version_name || '' })}
+                        className="text-indigo-500 hover:bg-white hover:shadow-sm"
                         title="Renombrar esta versión"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
-                    </button>
+                    </Button>
                     
                     <div className="w-px h-4 bg-indigo-200 mx-1"></div>
 
                     {/* CLONAR (CORREGIDO) */}
-                    <button 
-                        onClick={async () => {
+                    <Button
+                        variant="ghost"
+                        size="xs"
+                        disabled={isSaving}
+                        onClick={() => {
                             if (!version || !version.master?.id) return;
-                            const newName = prompt("Nombre para la NUEVA versión:", "V2.0");
-                            if (newName && newName.trim() !== "") {
-                                try {
-                                    setIsSaving(true);
-                                    const payload: any = {
-                                        master_id: version.master.id,
-                                        version_name: newName.trim(),
-                                        status: VersionStatus.DRAFT,
-                                        components: [],
-                                        // Clone the version being viewed (not the oldest of the product)
-                                        clone_from_version_id: version.id,
-                                    };
-                                    const response = await designService.createVersion(payload);
-                                    const newVersionId = response?.id || response?.data?.id;
-                                    
-                                    if (newVersionId) {
-                                        // Usamos React Router para una transición fluida en lugar de recargar la página
-                                        navigate(`/design/versions/${newVersionId}`);
-                                    }
-                                } catch (e: any) {
-                                    toast.error(e?.response?.data?.detail || 'Error al crear la nueva versión.');
-                                }
-                                finally { setIsSaving(false); }
-                            }
+                            setNameDialog({ mode: 'CLONE', value: 'V2.0' });
                         }}
-                        className="p-1.5 text-emerald-600 hover:bg-white hover:shadow-sm rounded transition-all flex items-center gap-1 font-bold text-[10px] uppercase"
+                        className="text-emerald-600 hover:bg-white hover:shadow-sm font-bold text-[10px] uppercase"
                         title="Crear nueva versión de este producto"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                         Nueva
-                    </button>
+                    </Button>
 
                     <div className="w-px h-4 bg-indigo-200 mx-1"></div>
 
                     {/* ELIMINAR VERSIÓN AISLADA */}
-                    <button 
+                    <Button
+                        variant="ghost"
+                        size="icon-xs"
                         onClick={() => {
                             if (!version.id) return;
                             setShowDeleteVersionConfirm(true);
                         }}
-                        className="p-1.5 text-red-500 hover:bg-white hover:shadow-sm rounded transition-all"
+                        className="text-red-500 hover:bg-white hover:shadow-sm"
                         title="Eliminar esta versión (No afecta al producto maestro)"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                    </button>
+                    </Button>
                 </div>
 
                 <span className="text-slate-300 text-xl font-light">/</span>
@@ -388,6 +414,39 @@ export default function DesignBuilderPage() {
         }}
         onCancel={() => setShowDeleteVersionConfirm(false)}
       />
+
+      <Modal
+        isOpen={nameDialog !== null}
+        onClose={() => { if (!isSaving) setNameDialog(null); }}
+        title={nameDialog?.mode === 'CLONE' ? 'Nueva versión' : 'Renombrar versión'}
+        size="sm"
+      >
+        <form
+          className="space-y-4"
+          onSubmit={(e) => { e.preventDefault(); submitNameDialog(); }}
+        >
+          <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500">
+            {nameDialog?.mode === 'CLONE' ? 'Nombre para la NUEVA versión' : 'Nuevo nombre para esta versión'}
+          </label>
+          <Input
+            autoFocus
+            value={nameDialog?.value ?? ''}
+            onChange={(e) => setNameDialog((d) => (d ? { ...d, value: e.target.value } : d))}
+          />
+          <div className="flex justify-between gap-2">
+            <Button type="button" variant="outline" disabled={isSaving} onClick={() => setNameDialog(null)}>
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              disabled={isSaving || !(nameDialog?.value.trim())}
+              className={nameDialog?.mode === 'CLONE' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
+            >
+              {isSaving ? 'Guardando...' : 'Guardar'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

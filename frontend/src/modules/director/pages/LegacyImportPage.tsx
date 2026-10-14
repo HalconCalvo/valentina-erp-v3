@@ -16,13 +16,10 @@ import { VEmptyState } from '@/components/ui/VEmptyState';
 import { VStatusBadge } from '@/components/ui/VStatusBadge';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
+import { formatMoney } from '@/utils/format';
 
 const role = String(localStorage.getItem('user_role') ?? '').toUpperCase();
 
-const money = new Intl.NumberFormat('en-US', {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
 
 type CreatedRow = LegacyImportResult['orders_created_details'][number];
 
@@ -84,10 +81,10 @@ const previewColumns: VTableColumn<LegacyImportPreviewOrder>[] = [
   },
   { key: 'folio', label: 'Folio OV', render: (r) => r.folio ?? 'Nueva' },
   { key: 'project_name', label: 'Proyecto', render: (r) => r.project_name },
-  { key: 'total_price', label: 'Total con IVA', render: (r) => money.format(r.total_price) },
+  { key: 'total_price', label: 'Total con IVA', render: (r) => formatMoney(r.total_price) },
   { key: 'invoices', label: 'Facturas', render: (r) => r.invoices },
   { key: 'installments', label: 'Abonos', render: (r) => r.installments },
-  { key: 'outstanding_balance', label: 'Saldo con IVA', render: (r) => money.format(r.outstanding_balance) },
+  { key: 'outstanding_balance', label: 'Saldo con IVA', render: (r) => formatMoney(r.outstanding_balance) },
   {
     key: 'payment_status',
     label: 'Estado',
@@ -102,7 +99,7 @@ const createdColumns: VTableColumn<CreatedRow>[] = [
   {
     key: 'outstanding_balance',
     label: 'Saldo pendiente',
-    render: (r) => money.format(r.outstanding_balance),
+    render: (r) => formatMoney(r.outstanding_balance),
   },
 ];
 
@@ -129,7 +126,7 @@ function IssuesSection({ issues, kind }: { issues: LegacyImportIssue[]; kind: 'e
   return (
     <div className="space-y-3">
       <h2
-        className={`text-sm font-black uppercase flex items-center gap-2 ${
+        className={`text-sm font-black uppercase tracking-wider flex items-center gap-2 ${
           isError ? 'text-red-700' : 'text-amber-700'
         }`}
       >
@@ -245,18 +242,21 @@ export default function LegacyImportPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-8 space-y-8">
+    <div className="p-8 max-w-7xl mx-auto space-y-6 pb-24 animate-fadeIn">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-4">
-        <div>
-          <h1 className="text-2xl font-black text-slate-800">Migración de OVs (Excel)</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            La subida solo agrega lo que falta en Valentina (OVs nuevas, facturas y abonos). Nunca cambia ni
-            cancela: las diferencias se reportan para corregirlas a mano en la app, con motivo. Todo se sigue
-            capturando en la app. No toca bancos ni comisiones. Se aplica solo si no hay errores, todo o nada.
-          </p>
+        <div className="flex items-center gap-3">
+          <FileSpreadsheet className="text-indigo-600 shrink-0" size={32} />
+          <div>
+            <h1 className="text-3xl font-black text-slate-800 tracking-tight">Migración de OVs (Excel)</h1>
+            <p className="text-slate-500 mt-1 font-medium">
+              La subida solo agrega lo que falta en Valentina (OVs nuevas, facturas y abonos). Nunca cambia ni
+              cancela: las diferencias se reportan para corregirlas a mano en la app, con motivo. Todo se sigue
+              capturando en la app. No toca bancos ni comisiones. Se aplica solo si no hay errores, todo o nada.
+            </p>
+          </div>
         </div>
         <Button variant="outline" onClick={() => navigate('/director')}>
-          <ArrowLeft size={16} /> Regresar
+          <ArrowLeft size={18} /> Regresar
         </Button>
       </div>
 
@@ -329,14 +329,14 @@ export default function LegacyImportPage() {
           <IssuesSection issues={preview.warnings} kind="warning" />
           {preview.discrepancies.length > 0 && (
             <div className="space-y-3">
-              <h2 className="text-sm font-black uppercase text-amber-700 flex items-center gap-2">
+              <h2 className="text-sm font-black uppercase tracking-wider text-amber-700 flex items-center gap-2">
                 <AlertTriangle size={16} /> Diferencias ({preview.discrepancies.length}) — no se cambian; corrígelas a mano
               </h2>
               <VTable columns={discrepancyColumns} data={preview.discrepancies} />
             </div>
           )}
           <div className="space-y-3">
-            <h2 className="text-sm font-black uppercase text-slate-600 flex items-center gap-2">
+            <h2 className="text-sm font-black uppercase tracking-wider text-slate-500 flex items-center gap-2">
               <FileSpreadsheet size={16} /> Vista previa
             </h2>
             <VTable
@@ -359,7 +359,7 @@ export default function LegacyImportPage() {
           <IssuesSection issues={result.errors} kind="error" />
           {result.orders_created_details.length > 0 && (
             <div className="space-y-3">
-              <h2 className="text-sm font-black uppercase text-slate-600 flex items-center gap-2">
+              <h2 className="text-sm font-black uppercase tracking-wider text-slate-500 flex items-center gap-2">
                 <FileSpreadsheet size={16} /> OVs importadas
               </h2>
               <VTable columns={createdColumns} data={result.orders_created_details} />
@@ -374,7 +374,7 @@ export default function LegacyImportPage() {
         title="Agregar lo que falta en Valentina"
         message={
           preview
-            ? `Se crearán ${preview.orders_to_create} OV(s) nuevas (${money.format(previewTotal)} con IVA) y se ` +
+            ? `Se crearán ${preview.orders_to_create} OV(s) nuevas (${formatMoney(previewTotal)} con IVA) y se ` +
               `agregarán ${preview.additions} factura(s) o abono(s) en ${preview.orders_with_additions} OV(s) existentes.`
             : ''
         }

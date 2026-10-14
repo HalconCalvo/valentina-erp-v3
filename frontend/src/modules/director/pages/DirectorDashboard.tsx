@@ -33,7 +33,7 @@ import {
     type OrderMarginRow,
 } from '../../../api/analytics-service';
 import { SalesOrder } from '../../../types/sales';
-import { formatDate, formatMoney } from '@/utils/format';
+import { formatAmount, formatDate, formatMoney, formatPercent } from '@/utils/format';
 import Modal from '@/components/ui/Modal';
 
 // Posibles vistas desplegables (Nivel 1)
@@ -239,12 +239,8 @@ const DirectorDashboard: React.FC = () => {
         setBattingRate(totalResolved > 0 ? Math.round((won / totalResolved) * 100) : 0);
     };
 
-    const formatCurrency = (amount: number) => formatMoney(amount);
-    const formatPercent = (value: number) =>
-        new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
-
     const formatMarginPercent = (value: number | null | undefined) =>
-        value === null || value === undefined ? 'Sin costo' : `${formatPercent(value)}%`;
+        value === null || value === undefined ? 'Sin costo' : formatPercent(value);
 
     const salesDetailColumns: VTableColumn<Quotation>[] = useMemo(
         () => [
@@ -267,7 +263,7 @@ const DirectorDashboard: React.FC = () => {
                 label: 'Fecha Límite',
                 render: (order) => (
                     <span className="text-slate-600">
-                        {order.valid_until ? new Date(order.valid_until).toLocaleDateString() : 'N/A'}
+                        {order.valid_until ? formatDate(order.valid_until) : 'N/A'}
                     </span>
                 ),
             },
@@ -276,7 +272,7 @@ const DirectorDashboard: React.FC = () => {
                 label: 'Monto Total',
                 render: (order) => (
                     <span className="block text-right font-bold text-indigo-700">
-                        {formatCurrency(order.total_price || 0)}
+                        {formatMoney(order.total_price || 0)}
                     </span>
                 ),
             },
@@ -317,17 +313,17 @@ const DirectorDashboard: React.FC = () => {
             {
                 key: 'sales_without_tax',
                 label: 'Venta sin IVA',
-                render: (row) => <span className="block text-right font-bold text-slate-800">{formatCurrency(row.sales_without_tax)}</span>,
+                render: (row) => <span className="block text-right font-bold text-slate-800">{formatMoney(row.sales_without_tax)}</span>,
             },
             {
                 key: 'cost',
                 label: 'Costo',
-                render: (row) => <span className="block text-right text-slate-600">{formatCurrency(row.cost)}</span>,
+                render: (row) => <span className="block text-right text-slate-600">{formatMoney(row.cost)}</span>,
             },
             {
                 key: 'commission',
                 label: 'Comisión',
-                render: (row) => <span className="block text-right text-slate-600">{formatCurrency(row.commission)}</span>,
+                render: (row) => <span className="block text-right text-slate-600">{formatMoney(row.commission)}</span>,
             },
             {
                 key: 'net_margin_percent',
@@ -350,7 +346,7 @@ const DirectorDashboard: React.FC = () => {
             {
                 key: 'sales_without_tax',
                 label: 'Venta sin IVA',
-                render: (row) => <span className="block text-right font-bold text-emerald-700">{formatCurrency(row.sales_without_tax)}</span>,
+                render: (row) => <span className="block text-right font-bold text-emerald-700">{formatMoney(row.sales_without_tax)}</span>,
             },
             {
                 key: 'net_margin_percent',
@@ -372,12 +368,12 @@ const DirectorDashboard: React.FC = () => {
             {
                 key: 'collected',
                 label: 'Cobrado en el año (con IVA)',
-                render: (row) => <span className="block text-right text-slate-700">{formatCurrency(row.collected)}</span>,
+                render: (row) => <span className="block text-right text-slate-700">{formatMoney(row.collected)}</span>,
             },
             {
                 key: 'avg_days_to_collect',
                 label: 'Días de factura a cobro',
-                render: (row) => <span className="block text-right font-black text-slate-800">{formatPercent(row.avg_days_to_collect)}</span>,
+                render: (row) => <span className="block text-right font-black text-slate-800">{formatAmount(row.avg_days_to_collect)}</span>,
             },
         ],
         [],
@@ -389,17 +385,17 @@ const DirectorDashboard: React.FC = () => {
             {
                 key: 'sales_without_tax',
                 label: 'Venta sin IVA',
-                render: (row) => <span className="block text-right font-bold text-slate-800">{formatCurrency(row.sales_without_tax)}</span>,
+                render: (row) => <span className="block text-right font-bold text-slate-800">{formatMoney(row.sales_without_tax)}</span>,
             },
             {
                 key: 'cost',
                 label: 'Costo',
-                render: (row) => <span className="block text-right text-slate-600">{formatCurrency(row.cost)}</span>,
+                render: (row) => <span className="block text-right text-slate-600">{formatMoney(row.cost)}</span>,
             },
             {
                 key: 'commission',
                 label: 'Comisión',
-                render: (row) => <span className="block text-right text-slate-600">{formatCurrency(row.commission)}</span>,
+                render: (row) => <span className="block text-right text-slate-600">{formatMoney(row.commission)}</span>,
             },
             {
                 key: 'net_margin_percent',
@@ -420,7 +416,7 @@ const DirectorDashboard: React.FC = () => {
             {
                 key: 'amount',
                 label: 'Importe',
-                render: (row) => <span className="block text-right font-bold text-slate-800">{formatCurrency(row.amount)}</span>,
+                render: (row) => <span className="block text-right font-bold text-slate-800">{formatMoney(row.amount)}</span>,
             },
         ],
         [],
@@ -559,21 +555,24 @@ const DirectorDashboard: React.FC = () => {
         <div className="p-8 max-w-7xl mx-auto pb-24 space-y-6 animate-fadeIn">
             
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4">
-                <div>
-                    <h1 className="text-3xl font-black text-slate-800 tracking-tight">{getSectionTitle()}</h1>
-                    <p className="text-slate-500 mt-1 font-medium">
-                        {activeSection === null 
-                            ? 'Cuadro de Mando Estratégico. Pulso del negocio, auditoría y toma de decisiones.'
-                            : activeSalesView !== null 
-                                ? 'Radiografía de las cotizaciones.'
-                                : 'Radiografía detallada del pilar estratégico.'}
-                    </p>
+                <div className="flex items-center gap-3">
+                    <Shield className="text-indigo-600" size={32} />
+                    <div>
+                        <h1 className="text-3xl font-black text-slate-800 tracking-tight">{getSectionTitle()}</h1>
+                        <p className="text-slate-500 mt-1 font-medium">
+                            {activeSection === null 
+                                ? 'Cuadro de Mando Estratégico. Pulso del negocio, auditoría y toma de decisiones.'
+                                : activeSalesView !== null 
+                                    ? 'Radiografía de las cotizaciones.'
+                                    : 'Radiografía detallada del pilar estratégico.'}
+                        </p>
+                    </div>
                 </div>
 
                 {activeSection !== null && (
-                    <button onClick={handleBack} className="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-bold hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm">
-                        <ArrowLeft size={18} /> {activeSalesView !== null ? 'Regresar a Tarjetas' : 'Regresar al Tablero'}
-                    </button>
+                    <Button variant="outline" onClick={handleBack}>
+                        <ArrowLeft size={18} /> Regresar
+                    </Button>
                 )}
             </div>
 
@@ -589,8 +588,8 @@ const DirectorDashboard: React.FC = () => {
                             </div>
                             <div className="ml-16 h-full flex flex-col justify-between pl-2">
                                 <div className="flex justify-between items-start"><p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">1. Ventas</p><TrendingUp size={16} className="text-emerald-500" /></div>
-                                <div className="flex justify-end"><div className="text-2xl font-black text-emerald-600 tracking-tight leading-none truncate flex items-baseline gap-1">{summary?.sales.target_percent !== null && summary?.sales.target_percent !== undefined ? `${formatPercent(summary.sales.target_percent)}%` : '—'} <span className="text-sm font-bold text-emerald-400 uppercase">vs Meta</span></div></div>
-                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100"><p className="text-[10px] text-slate-400 font-bold uppercase truncate" title="OVs vendidas del año, sin IVA, contra la meta anual de Parámetros Globales">{summary ? `${formatCurrency(summary.sales.sales_without_tax)} sin IVA de ${formatCurrency(summary.sales.annual_target)}` : 'Ventas del año sin IVA'}</p><BarChart3 size={14} className="text-emerald-400"/></div>
+                                <div className="flex justify-end"><div className="text-2xl font-black text-emerald-600 tracking-tight leading-none truncate flex items-baseline gap-1">{summary?.sales.target_percent !== null && summary?.sales.target_percent !== undefined ? formatPercent(summary.sales.target_percent) : '—'} <span className="text-sm font-bold text-emerald-400 uppercase">vs Meta</span></div></div>
+                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100"><p className="text-[10px] text-slate-400 font-bold uppercase truncate" title="OVs vendidas del año, sin IVA, contra la meta anual de Parámetros Globales">{summary ? `${formatMoney(summary.sales.sales_without_tax)} sin IVA de ${formatMoney(summary.sales.annual_target)}` : 'Ventas del año sin IVA'}</p><BarChart3 size={14} className="text-emerald-400"/></div>
                             </div>
                         </Card>
                     </div>
@@ -680,7 +679,7 @@ const DirectorDashboard: React.FC = () => {
                                     <div className={`text-xl font-black tracking-tight leading-none truncate ${
                                         liquidityNet < 0 ? 'text-red-600' : 'text-indigo-600'
                                     }`}>
-                                        {formatCurrency(liquidityNet)}
+                                        {formatMoney(liquidityNet)}
                                     </div>
                                 </div>
                                 <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
@@ -739,7 +738,7 @@ const DirectorDashboard: React.FC = () => {
                                 <div className="flex justify-end">
                                     <div className="text-xl font-black text-slate-700 tracking-tight leading-none truncate flex items-baseline gap-1">
                                         {costKpi
-                                            ? formatCurrency(costKpi.cost_per_piece)
+                                            ? formatMoney(costKpi.cost_per_piece)
                                             : 'Sin datos'}
                                         {costKpi && (
                                             <span className="text-sm font-bold text-slate-400 uppercase">
@@ -813,7 +812,7 @@ const DirectorDashboard: React.FC = () => {
                                 </div>
                                 <div className="flex justify-end">
                                     <div className="text-xl font-black text-purple-600 tracking-tight leading-none truncate">
-                                        {formatCurrency(summary?.receivables.pending ?? 0)}
+                                        {formatMoney(summary?.receivables.pending ?? 0)}
                                     </div>
                                 </div>
                                 <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
@@ -840,7 +839,7 @@ const DirectorDashboard: React.FC = () => {
                                 </div>
                                 <div className="flex justify-end">
                                     <div className="text-xl font-black text-cyan-600 tracking-tight leading-none truncate">
-                                        {formatCurrency(summary?.top_clients.by_sales[0]?.sales_without_tax ?? 0)}
+                                        {formatMoney(summary?.top_clients.by_sales[0]?.sales_without_tax ?? 0)}
                                     </div>
                                 </div>
                                 <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
@@ -903,7 +902,7 @@ const DirectorDashboard: React.FC = () => {
                                         <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-emerald-50 text-emerald-700 border-r border-emerald-100 font-black text-3xl group-hover:bg-emerald-100 transition-colors">{sentClientOrders.length}</div>
                                         <div className="ml-16 h-full flex flex-col justify-between pl-2">
                                             <div className="flex justify-between items-start"><div><h4 className="font-bold text-slate-800 flex items-center gap-2 truncate"><TrendingUp size={18} className="text-emerald-500"/> B. En el Mercado</h4></div><ArrowLeftCircle size={20} className="text-emerald-300 group-hover:text-emerald-600 transform rotate-180 transition-all"/></div>
-                                            <div className="text-3xl font-black text-emerald-600 text-right leading-none">{formatCurrency(moneySentClient)}</div>
+                                            <div className="text-3xl font-black text-emerald-600 text-right leading-none">{formatMoney(moneySentClient)}</div>
                                         </div>
                                     </Card>
 
@@ -1098,7 +1097,7 @@ const DirectorDashboard: React.FC = () => {
                                 <div className="ml-16 h-full flex flex-col justify-between pl-2">
                                     <h4 className="font-bold text-slate-800 text-sm uppercase tracking-tight">🏦 Bancos</h4>
                                     <div className="text-xl font-black text-slate-700 text-right leading-none">
-                                        {formatCurrency(summary.liquidity.banks)}
+                                        {formatMoney(summary.liquidity.banks)}
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-bold uppercase">
                                         Ver desglose {liquidityDetail === 'BANKS' ? '▲' : '▼'}
@@ -1113,7 +1112,7 @@ const DirectorDashboard: React.FC = () => {
                                 <div className="ml-16 h-full flex flex-col justify-between pl-2">
                                     <h4 className="font-bold text-slate-800 text-sm uppercase tracking-tight">📥 CxC facturada pendiente</h4>
                                     <div className="text-xl font-black text-emerald-700 text-right leading-none">
-                                        {formatCurrency(summary.liquidity.receivables)}
+                                        {formatMoney(summary.liquidity.receivables)}
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-bold uppercase">
                                         Ver desglose {liquidityDetail === 'RECEIVABLES' ? '▲' : '▼'}
@@ -1128,7 +1127,7 @@ const DirectorDashboard: React.FC = () => {
                                 <div className="ml-16 h-full flex flex-col justify-between pl-2">
                                     <h4 className="font-bold text-slate-800 text-sm uppercase tracking-tight">📦 Inventario</h4>
                                     <div className="text-xl font-black text-amber-700 text-right leading-none">
-                                        {formatCurrency(summary.liquidity.inventory)}
+                                        {formatMoney(summary.liquidity.inventory)}
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-bold uppercase">
                                         Ver desglose {liquidityDetail === 'INVENTORY' ? '▲' : '▼'}
@@ -1143,7 +1142,7 @@ const DirectorDashboard: React.FC = () => {
                                 <div className="ml-16 h-full flex flex-col justify-between pl-2">
                                     <h4 className="font-bold text-slate-800 text-sm uppercase tracking-tight">📤 CxP</h4>
                                     <div className="text-xl font-black text-red-700 text-right leading-none">
-                                        {formatCurrency(summary.liquidity.payables)}
+                                        {formatMoney(summary.liquidity.payables)}
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-bold uppercase">
                                         Ver desglose {liquidityDetail === 'PAYABLES' ? '▲' : '▼'}
@@ -1173,7 +1172,7 @@ const DirectorDashboard: React.FC = () => {
                                             Liquidez = Bancos + CxC facturada pendiente + Inventario − CxP
                                         </p>
                                         <p className={`text-3xl font-black ${liquidityNet < 0 ? 'text-red-600' : 'text-indigo-600'}`}>
-                                            {formatCurrency(liquidityNet)}
+                                            {formatMoney(liquidityNet)}
                                         </p>
                                     </div>
                                     <p className="text-xs text-slate-500">
@@ -1197,9 +1196,9 @@ const DirectorDashboard: React.FC = () => {
                                     </p>
                                 </div>
                                 <p className="text-xs text-slate-500 mt-2">
-                                    (Venta sin IVA {formatCurrency(summary.profitability.sales_without_tax)} − costo {formatCurrency(summary.profitability.cost)} − comisión {formatCurrency(summary.profitability.commission)}) ÷ venta sin IVA.
+                                    (Venta sin IVA {formatMoney(summary.profitability.sales_without_tax)} − costo {formatMoney(summary.profitability.cost)} − comisión {formatMoney(summary.profitability.commission)}) ÷ venta sin IVA.
                                     {summary.profitability.orders_without_cost > 0 && (
-                                        <> Fuera del cálculo: {summary.profitability.orders_without_cost} OVs sin costo (importadas sin receta) por {formatCurrency(summary.profitability.sales_without_cost)} sin IVA.</>
+                                        <> Fuera del cálculo: {summary.profitability.orders_without_cost} OVs sin costo (importadas sin receta) por {formatMoney(summary.profitability.sales_without_cost)} sin IVA.</>
                                     )}
                                 </p>
                             </Card>
@@ -1221,13 +1220,13 @@ const DirectorDashboard: React.FC = () => {
                         <div className="space-y-6">
                             <Card className="p-6 border-l-4 border-l-purple-600 bg-white">
                                 <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2">Total pendiente por cobrar (con IVA)</p>
-                                <p className="text-4xl font-black text-purple-700">{formatCurrency(summary.receivables.pending)}</p>
+                                <p className="text-4xl font-black text-purple-700">{formatMoney(summary.receivables.pending)}</p>
                                 <p className="text-xs text-slate-500 mt-2">
                                     {summary.receivables.documents} facturas pendientes.{' '}
                                     {Math.abs(summary.receivables.pending - summary.liquidity.receivables) < 0.01
                                         && Math.abs(summary.receivables.pending - summary.receivables.cash_flow_income) < 0.01
                                         ? 'Cuadra con la CxC de Liquidez y con los cobros de la proyección de flujo.'
-                                        : `No cuadra: Liquidez ${formatCurrency(summary.liquidity.receivables)}, proyección ${formatCurrency(summary.receivables.cash_flow_income)}.`}
+                                        : `No cuadra: Liquidez ${formatMoney(summary.liquidity.receivables)}, proyección ${formatMoney(summary.receivables.cash_flow_income)}.`}
                                 </p>
                             </Card>
                             <Card className="p-6 border-l-4 border-l-purple-400 bg-white">
@@ -1245,7 +1244,7 @@ const DirectorDashboard: React.FC = () => {
                                     ].map(({ label, value }) => (
                                         <div key={label} className="bg-indigo-50 rounded-xl p-4 border border-indigo-100">
                                             <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">{label}</p>
-                                            <p className={`text-2xl font-black mt-1 ${value < 0 ? 'text-red-600' : 'text-indigo-700'}`}>{formatCurrency(value)}</p>
+                                            <p className={`text-2xl font-black mt-1 ${value < 0 ? 'text-red-600' : 'text-indigo-700'}`}>{formatMoney(value)}</p>
                                         </div>
                                     ))}
                                 </div>
@@ -1288,7 +1287,7 @@ const DirectorDashboard: React.FC = () => {
                                 <div className="ml-16 h-full flex flex-col justify-between pl-2">
                                     <h4 className="font-bold text-slate-800 text-sm uppercase tracking-tight">💵 Costo / Pieza</h4>
                                     <div className="text-2xl font-black text-slate-800 text-right leading-none">
-                                        {formatCurrency(costKpi?.cost_per_piece ?? 0)}
+                                        {formatMoney(costKpi?.cost_per_piece ?? 0)}
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-bold uppercase">Overhead + MO</p>
                                 </div>
@@ -1299,7 +1298,7 @@ const DirectorDashboard: React.FC = () => {
                                 <div className="ml-16 h-full flex flex-col justify-between pl-2">
                                     <h4 className="font-bold text-slate-800 text-sm uppercase tracking-tight">🏗️ Overhead / Pieza</h4>
                                     <div className="text-2xl font-black text-amber-700 text-right leading-none">
-                                        {formatCurrency(costKpi?.overhead_per_piece ?? 0)}
+                                        {formatMoney(costKpi?.overhead_per_piece ?? 0)}
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-bold uppercase">Gastos operativos</p>
                                 </div>
@@ -1310,7 +1309,7 @@ const DirectorDashboard: React.FC = () => {
                                 <div className="ml-16 h-full flex flex-col justify-between pl-2">
                                     <h4 className="font-bold text-slate-800 text-sm uppercase tracking-tight">👷 MO / Pieza</h4>
                                     <div className="text-2xl font-black text-indigo-700 text-right leading-none">
-                                        {formatCurrency(costKpi?.payroll_per_piece ?? 0)}
+                                        {formatMoney(costKpi?.payroll_per_piece ?? 0)}
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-bold uppercase">Nómina producción</p>
                                 </div>
@@ -1323,7 +1322,7 @@ const DirectorDashboard: React.FC = () => {
                                 <div className="ml-16 h-full flex flex-col justify-between pl-2">
                                     <h4 className="font-bold text-slate-800 text-sm uppercase tracking-tight">💰 Overhead</h4>
                                     <div className="text-2xl font-black text-amber-700 text-right leading-none">
-                                        {formatCurrency(costKpi?.overhead_total ?? 0)}
+                                        {formatMoney(costKpi?.overhead_total ?? 0)}
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-bold uppercase flex items-center gap-1">
                                         Gastos operativos semana
@@ -1340,7 +1339,7 @@ const DirectorDashboard: React.FC = () => {
                                 <div className="ml-16 h-full flex flex-col justify-between pl-2">
                                     <h4 className="font-bold text-slate-800 text-sm uppercase tracking-tight">👷 Nómina Producción</h4>
                                     <div className="text-2xl font-black text-indigo-700 text-right leading-none">
-                                        {formatCurrency(costKpi?.payroll_production ?? 0)}
+                                        {formatMoney(costKpi?.payroll_production ?? 0)}
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-bold uppercase flex items-center gap-1">
                                         {costKpi?.has_weekly_payroll ? 'Capturada esta semana' : '⚠️ Sin captura semanal'}
@@ -1402,19 +1401,19 @@ const DirectorDashboard: React.FC = () => {
                                         <div className="bg-indigo-50 rounded-xl p-4 border border-indigo-100">
                                             <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Producción</p>
                                             <p className="text-2xl font-black text-indigo-700 mt-1">
-                                                {formatCurrency(costKpi?.payroll_production ?? 0)}
+                                                {formatMoney(costKpi?.payroll_production ?? 0)}
                                             </p>
                                         </div>
                                         <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
                                             <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Administración</p>
                                             <p className="text-2xl font-black text-slate-700 mt-1">
-                                                {formatCurrency(costKpi?.payroll_admin ?? 0)}
+                                                {formatMoney(costKpi?.payroll_admin ?? 0)}
                                             </p>
                                         </div>
                                         <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100">
                                             <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Diseño y Ventas</p>
                                             <p className="text-2xl font-black text-emerald-700 mt-1">
-                                                {formatCurrency(costKpi?.payroll_design_sales ?? 0)}
+                                                {formatMoney(costKpi?.payroll_design_sales ?? 0)}
                                             </p>
                                         </div>
                                     </div>
@@ -1430,7 +1429,7 @@ const DirectorDashboard: React.FC = () => {
                                             Desglose Overhead por Categoría
                                         </p>
                                         <p className="text-2xl font-black text-amber-600">
-                                            {formatCurrency(costKpi?.total_cost ?? 0)}
+                                            {formatMoney(costKpi?.total_cost ?? 0)}
                                             <span className="text-sm font-bold text-slate-400 ml-2">costo total</span>
                                         </p>
                                     </div>
@@ -1438,7 +1437,7 @@ const DirectorDashboard: React.FC = () => {
                                         {Object.entries(costKpi?.overhead_by_category ?? {}).map(([cat, amt]) => (
                                             <div key={cat} className="bg-slate-50 rounded-xl p-3 border border-slate-100">
                                                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{cat}</p>
-                                                <p className="text-lg font-black text-slate-800 mt-1">{formatCurrency(amt as number)}</p>
+                                                <p className="text-lg font-black text-slate-800 mt-1">{formatMoney(amt as number)}</p>
                                             </div>
                                         ))}
                                         {Object.keys(costKpi?.overhead_by_category ?? {}).length === 0 && (
@@ -1486,12 +1485,15 @@ const DirectorDashboard: React.FC = () => {
                                     {selectedHealthGroup.instances.length} instancia{selectedHealthGroup.instances.length !== 1 ? 's' : ''}
                                 </p>
                             </div>
-                            <button
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                title="Cerrar"
                                 onClick={() => setSelectedHealthGroup(null)}
-                                className="text-slate-400 hover:text-slate-600 transition-colors"
+                                className="text-slate-400 hover:text-slate-600"
                             >
                                 <XCircle size={24} />
-                            </button>
+                            </Button>
                         </div>
 
                         {/* Lista de instancias */}

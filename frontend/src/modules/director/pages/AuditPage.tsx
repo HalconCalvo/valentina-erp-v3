@@ -242,23 +242,19 @@ const AuditPage: React.FC = () => {
 
     return (
         <div className="p-8 w-full pb-24 space-y-6 animate-fadeIn">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 pb-4">
-                <div>
-                    <h1 className="text-3xl font-black tracking-tight flex items-center gap-3 text-slate-800">
-                        <Shield className="text-slate-500" size={32} />
-                        Auditoría del Sistema
-                    </h1>
-                    <p className="text-slate-500 mt-1 font-medium">
-                        Quién, qué y cuándo: eventos de negocio y cambios por campo en todo el sistema.
-                    </p>
+            <div className="flex flex-col md:flex-row justify-between md:items-end gap-4 border-b border-slate-200 pb-4">
+                <div className="flex items-center gap-3">
+                    <Shield className="text-indigo-600" size={32} />
+                    <div>
+                        <h1 className="text-3xl font-black text-slate-800 tracking-tight">Auditoría del Sistema</h1>
+                        <p className="text-slate-500 mt-1 font-medium">
+                            Quién, qué y cuándo: eventos de negocio y cambios por campo en todo el sistema.
+                        </p>
+                    </div>
                 </div>
-                <button
-                    type="button"
-                    onClick={() => navigate('/director')}
-                    className="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-bold hover:bg-slate-50 transition-all shadow-sm"
-                >
-                    <ArrowLeft size={18} /> Regresar al Tablero
-                </button>
+                <Button type="button" variant="outline" onClick={() => navigate('/director')}>
+                    <ArrowLeft size={18} /> Regresar
+                </Button>
             </div>
 
             <div className="flex flex-wrap gap-2">

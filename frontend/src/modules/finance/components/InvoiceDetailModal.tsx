@@ -10,6 +10,7 @@ import { toast } from '@/components/ui/VToast';
 import { RecordHistoryButton } from '@/components/audit/RecordHistoryButton';
 import { formatDate, formatMoney } from '@/utils/format';
 import Modal from '@/components/ui/Modal';
+import { Button } from '@/components/ui/Button';
 
 const cleanInvoiceFolio = (folio: string | null | undefined): string => {
     const safe = String(folio ?? '').trim();
@@ -387,18 +388,19 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                     </div>
                     <div className="flex items-center gap-2">
                         <RecordHistoryButton tableName="purchase_invoices" recordId={invoice.id} label={`Factura ${invoice.invoice_number || invoice.id}`} />
-                        <button onClick={onClose} className="p-2 bg-white border border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-50 rounded-full transition-colors shadow-sm">
+                        <Button variant="outline" size="icon" onClick={onClose} title="Cerrar" aria-label="Cerrar" className="rounded-full text-slate-400 hover:text-slate-700">
                             <X size={20} />
-                        </button>
+                        </Button>
                     </div>
                 </div>
 
                 {/* CUERPO - LA TABLA CLONADA */}
                 <div className="overflow-y-auto flex-1 bg-white">
                     {isLoading ? (
-                        <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-                            <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                            <p className="font-black text-[10px] uppercase tracking-widest">Sincronizando desglose de la orden...</p>
+                        <div className="p-6 space-y-3 animate-pulse" aria-label="Sincronizando desglose de la orden...">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                                <div key={i} className="h-10 rounded-lg bg-slate-100" />
+                            ))}
                         </div>
                     ) : items.length === 0 ? (
                         isGastoOperativo ? (
@@ -503,10 +505,10 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                                 {ncExcede && <span className="text-red-600 text-[10px] uppercase font-black">⚠️ Excede el saldo pendiente</span>}
                             </div>
                             <div className="flex gap-2">
-                                <button onClick={() => setShowNCForm(false)} className="px-4 py-2 text-xs font-black uppercase text-slate-500 border border-slate-300 rounded">Cancelar</button>
-                                <button onClick={handleCreateNC} disabled={savingNC || ncExcede} className="px-4 py-2 text-xs font-black uppercase text-white bg-amber-600 hover:bg-amber-700 rounded disabled:opacity-50">
+                                <Button variant="outline" onClick={() => setShowNCForm(false)}>Cancelar</Button>
+                                <Button onClick={handleCreateNC} disabled={savingNC || ncExcede} className="bg-emerald-600 hover:bg-emerald-700">
                                     {savingNC ? 'Guardando...' : 'Registrar NC'}
-                                </button>
+                                </Button>
                             </div>
                         </div>
                     </div>
@@ -515,13 +517,13 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                 {/* PIE - TOTALES CLONADOS */}
                 <div className="p-8 bg-slate-50/50 flex justify-between items-center border-t border-slate-100">
                     <div className="flex gap-4">
-                        <button onClick={onClose} className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-800 font-black uppercase text-xs h-12 px-10 shadow-sm rounded-lg transition-colors">
+                        <Button variant="outline" onClick={onClose}>
                             Cerrar Vista
-                        </button>
+                        </Button>
                         {canRegisterNC && (
-                            <button onClick={() => setShowNCForm(v => !v)} className="bg-amber-600 hover:bg-amber-700 text-white font-black uppercase text-xs h-12 px-8 shadow-sm rounded-lg transition-colors flex items-center gap-2">
+                            <Button variant="outline" onClick={() => setShowNCForm(v => !v)}>
                                 <FileMinus size={16} /> {showNCForm ? 'Ocultar NC' : 'Registrar NC'}
-                            </button>
+                            </Button>
                         )}
                     </div>
                     <div className="w-80 space-y-1 pr-14">

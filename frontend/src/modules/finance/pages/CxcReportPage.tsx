@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
+import { Button } from '@/components/ui/Button';
+import { formatDate, formatMoney } from '@/utils/format';
 
 export interface CxcReportRow {
     cxc_id: number;
@@ -69,11 +71,6 @@ function isRetentionOverdue(dueDate?: string | null, status?: string | null): bo
     return due.getTime() < today.getTime();
 }
 
-const formatMoney = (amount: number) =>
-    new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
-        Number.isFinite(amount) ? amount : 0,
-    );
-
 const PAYMENT_TYPE_LABELS: Record<string, string> = {
     ADVANCE: 'Anticipo',
     PROGRESS: 'Avance',
@@ -83,21 +80,6 @@ const PAYMENT_TYPE_LABELS: Record<string, string> = {
 const formatPaymentTypeLabel = (type: string | null | undefined): string => {
     const key = String(type ?? '').toUpperCase();
     return PAYMENT_TYPE_LABELS[key] ?? (type || '—');
-};
-
-const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-
-const formatCurrency = (amount: number) =>
-    formatMoney(amount);
-
-const formatInvoiceDate = (iso: string | null | undefined) => {
-    if (!iso) return '—';
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return '—';
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = MESES[d.getMonth()] ?? '???';
-    const year = String(d.getFullYear()).slice(-2);
-    return `${day}/${month}/${year}`;
 };
 
 const formatOv = (salesOrderId: number) => `OV-${String(salesOrderId).padStart(4, '0')}`;
@@ -257,19 +239,21 @@ const CxcReportPage: React.FC = () => {
             key: 'invoice_folio',
             label: 'Folio',
             render: (row) => (
-                <button
+                <Button
                     type="button"
+                    variant="link"
                     onClick={() => void handleFolioClick(row.sales_order_id)}
-                    className="font-semibold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
+                    className="h-auto p-0 font-semibold text-indigo-600 hover:text-indigo-800"
+                    title="Ver Rayos X"
                 >
                     {row.invoice_folio || '—'}
-                </button>
+                </Button>
             ),
         },
         {
             key: 'invoice_date',
             label: 'Emisión',
-            render: (row) => <span className="text-slate-600">{formatInvoiceDate(row.invoice_date)}</span>,
+            render: (row) => <span className="text-slate-600">{formatDate(row.invoice_date)}</span>,
         },
         {
             key: 'project_name',
@@ -300,7 +284,7 @@ const CxcReportPage: React.FC = () => {
                 return (
                     <div className="flex flex-col gap-0.5 min-w-[88px]">
                         <span className="text-[10px] font-bold text-slate-600 uppercase">{row.nc_advance_folio}</span>
-                        <span className="text-xs font-bold text-red-600 tabular-nums">${formatMoney(row.nc_advance_amount)}</span>
+                        <span className="text-xs font-bold text-red-600 tabular-nums">{formatMoney(row.nc_advance_amount)}</span>
                     </div>
                 );
             },
@@ -316,7 +300,7 @@ const CxcReportPage: React.FC = () => {
                 return (
                     <div className="flex flex-col gap-1 min-w-[120px]">
                         <span className="text-[10px] font-bold text-slate-600 uppercase">{row.nc_retention_folio}</span>
-                        <span className="text-xs font-bold text-slate-800 tabular-nums">${formatMoney(row.nc_retention_amount)}</span>
+                        <span className="text-xs font-bold text-slate-800 tabular-nums">{formatMoney(row.nc_retention_amount)}</span>
                         <div className="flex flex-wrap items-center gap-1">
                             <RetentionStatusBadge status={row.retention_status} />
                             {overdue && (
@@ -332,26 +316,26 @@ const CxcReportPage: React.FC = () => {
         {
             key: 'monto',
             label: 'Monto',
-            render: (row) => <span className="block text-right tabular-nums">{formatCurrency(row.monto)}</span>,
+            render: (row) => <span className="block text-right tabular-nums">{formatMoney(row.monto)}</span>,
         },
         {
             key: 'amortized_advance',
             label: 'Ant. aplic.',
             render: (row) => (
                 <span className="block text-right tabular-nums text-slate-600">
-                    {row.amortized_advance > 0.01 ? formatCurrency(row.amortized_advance) : '—'}
+                    {row.amortized_advance > 0.01 ? formatMoney(row.amortized_advance) : '—'}
                 </span>
             ),
         },
         {
             key: 'abonado',
             label: 'Abonado',
-            render: (row) => <span className="block text-right tabular-nums text-emerald-700">{formatCurrency(row.abonado)}</span>,
+            render: (row) => <span className="block text-right tabular-nums text-emerald-700">{formatMoney(row.abonado)}</span>,
         },
         {
             key: 'saldo',
             label: 'Saldo',
-            render: (row) => <span className="block text-right tabular-nums font-bold text-slate-800">{formatCurrency(row.saldo)}</span>,
+            render: (row) => <span className="block text-right tabular-nums font-bold text-slate-800">{formatMoney(row.saldo)}</span>,
         },
         {
             key: 'antiguedad_dias',
@@ -372,13 +356,14 @@ const CxcReportPage: React.FC = () => {
             render: (row) => (
                 <div className="text-center">
                     {canCharge && canCobrar(row) ? (
-                        <button
+                        <Button
                             type="button"
+                            size="sm"
                             onClick={() => handleCobrar(row)}
-                            className="text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg transition-colors"
+                            className="bg-emerald-600 hover:bg-emerald-700"
                         >
                             Cobrar
-                        </button>
+                        </Button>
                     ) : (
                         <span className="text-xs text-slate-400">—</span>
                     )}
@@ -389,10 +374,10 @@ const CxcReportPage: React.FC = () => {
 
     return (
         <div className="p-8 w-full pb-24 space-y-6 animate-fadeIn">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 pb-4">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4">
                 <div>
                     <h1 className="text-3xl font-black tracking-tight flex items-center gap-3 text-slate-800">
-                        <FileText className="text-indigo-500" size={32} />
+                        <FileText className="text-indigo-600" size={32} />
                         Reporte de Cuentas por Cobrar
                     </h1>
                     <p className="text-slate-500 mt-1 font-medium">
@@ -403,22 +388,18 @@ const CxcReportPage: React.FC = () => {
                     {loading && (
                         <span className="text-xs text-slate-400 font-bold animate-pulse">Cargando...</span>
                     )}
-                    <button
+                    <Button
                         type="button"
+                        variant="outline"
                         onClick={loadReport}
                         disabled={loading}
-                        className="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-3 py-2 rounded-lg font-bold hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50"
                     >
-                        <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-                        Actualizar
-                    </button>
-                    <button
-                        type="button"
-                        onClick={handleGoBack}
-                        className="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-bold hover:bg-slate-50 hover:text-slate-900 transition-all shadow-sm"
-                    >
-                        <ArrowLeft size={18} /> Regresar a Cobranza
-                    </button>
+                        <RefreshCw size={16} />
+                        {loading ? 'Procesando...' : 'Actualizar'}
+                    </Button>
+                    <Button variant="outline" onClick={handleGoBack}>
+                        <ArrowLeft size={16} /> Regresar a Cobranza
+                    </Button>
                 </div>
             </div>
 
@@ -429,15 +410,15 @@ const CxcReportPage: React.FC = () => {
                 </div>
                 <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
                     <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Total facturado</p>
-                    <p className="text-2xl font-black text-slate-800 tabular-nums mt-1">{formatCurrency(metrics.totalFacturado)}</p>
+                    <p className="text-2xl font-black text-slate-800 tabular-nums mt-1">{formatMoney(metrics.totalFacturado)}</p>
                 </div>
                 <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
                     <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Abonos + ant. aplic.</p>
-                    <p className="text-2xl font-black text-emerald-700 tabular-nums mt-1">{formatCurrency(metrics.totalAbonado)}</p>
+                    <p className="text-2xl font-black text-emerald-700 tabular-nums mt-1">{formatMoney(metrics.totalAbonado)}</p>
                 </div>
                 <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
                     <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Saldo por cobrar</p>
-                    <p className="text-2xl font-black text-amber-700 tabular-nums mt-1">{formatCurrency(metrics.totalSaldo)}</p>
+                    <p className="text-2xl font-black text-amber-700 tabular-nums mt-1">{formatMoney(metrics.totalSaldo)}</p>
                 </div>
             </div>
 
@@ -538,7 +519,7 @@ const CxcReportPage: React.FC = () => {
                                     <div className="bg-indigo-50 border-y border-indigo-100 px-3 py-3 flex justify-between items-center">
                                         <span className="font-black text-indigo-900">{group.clientName}</span>
                                         <span className="font-black text-indigo-800 tabular-nums">
-                                            Debe: {formatCurrency(group.debe)}
+                                            Debe: {formatMoney(group.debe)}
                                         </span>
                                     </div>
                                     <VTable
@@ -553,10 +534,10 @@ const CxcReportPage: React.FC = () => {
                                     <div className="flex-[7] p-3 text-slate-700 uppercase text-xs tracking-wide min-w-0">
                                         Totales ({filteredRows.length} facturas)
                                     </div>
-                                    <div className="flex-1 p-3 text-right tabular-nums min-w-0">{formatCurrency(metrics.totalFacturado)}</div>
-                                    <div className="flex-1 p-3 text-right tabular-nums text-slate-700 min-w-0">{formatCurrency(metrics.totalAmortized)}</div>
-                                    <div className="flex-1 p-3 text-right tabular-nums text-emerald-800 min-w-0">{formatCurrency(metrics.totalAbonadoCash)}</div>
-                                    <div className="flex-1 p-3 text-right tabular-nums text-amber-800 min-w-0">{formatCurrency(metrics.totalSaldo)}</div>
+                                    <div className="flex-1 p-3 text-right tabular-nums min-w-0">{formatMoney(metrics.totalFacturado)}</div>
+                                    <div className="flex-1 p-3 text-right tabular-nums text-slate-700 min-w-0">{formatMoney(metrics.totalAmortized)}</div>
+                                    <div className="flex-1 p-3 text-right tabular-nums text-emerald-800 min-w-0">{formatMoney(metrics.totalAbonadoCash)}</div>
+                                    <div className="flex-1 p-3 text-right tabular-nums text-amber-800 min-w-0">{formatMoney(metrics.totalSaldo)}</div>
                                     <div className="flex-[2] min-w-0" />
                                 </div>
                             )}

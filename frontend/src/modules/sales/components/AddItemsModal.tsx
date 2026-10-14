@@ -4,13 +4,14 @@ import { SalesOrder } from '../../../types/sales';
 import type { ChangeOrderLine } from '../../../types/quotations';
 import { designService } from '../../../api/design-service';
 import Modal from '@/components/ui/Modal';
+import { Button } from '@/components/ui/Button';
 import { markupAsPercent, priceFromMarkup } from '../utils/margins';
 import axiosClient from '../../../api/axios-client';
 import { useFoundations } from '../../foundations/hooks/useFoundations';
 import { toast } from '@/components/ui/VToast';
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
-import { formatMoney } from '@/utils/format';
+import { formatMoney, formatQty } from '@/utils/format';
 import { canSeeCosts } from '@/utils/costVisibility';
 import { quotationService, type PriceSuggestionItem } from '../../../api/quotation-service';
 
@@ -136,7 +137,6 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
         [staging]
     );
 
-    const formatCurrency = (value: number) => formatMoney(value);
 
     /** D13: the seller gets the suggested price from the server, never the cost. */
     const setServerPrice = async (item: PriceSuggestionItem, changes: Partial<typeof lineItem>) => {
@@ -479,14 +479,14 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
                             </div>
                         </div>
 
-                        <button
+                        <Button
                             type="button"
                             onClick={handleAddToStaging}
                             disabled={pricing}
-                            className="w-full px-4 py-2 text-sm font-black text-white bg-slate-700 hover:bg-slate-800 rounded-lg transition-colors flex items-center justify-center gap-2"
+                            className="w-full font-black bg-slate-700 hover:bg-slate-800"
                         >
                             <Plus size={16} /> Agregar a la lista
-                        </button>
+                        </Button>
                     </div>
 
                     <div className="space-y-3">
@@ -504,20 +504,22 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm font-bold text-slate-700 truncate">{item.product_name}</p>
                                             <p className="text-xs text-slate-500">
-                                                {item.quantity} × {formatCurrency(item.unit_price)}
+                                                {formatQty(item.quantity)} × {formatMoney(item.unit_price)}
                                             </p>
                                         </div>
                                         <p className="text-sm font-black text-slate-600 shrink-0">
-                                            {formatCurrency(item.quantity * item.unit_price)}
+                                            {formatMoney(item.quantity * item.unit_price)}
                                         </p>
-                                        <button
+                                        <Button
                                             type="button"
+                                            variant="ghost"
+                                            size="icon-sm"
                                             onClick={() => handleRemoveFromStaging(item.tempId)}
-                                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                                            className="text-red-500 hover:bg-red-50 shrink-0"
                                             title="Quitar"
                                         >
                                             <Trash2 size={16} />
-                                        </button>
+                                        </Button>
                                     </div>
                                 ))
                             )}
@@ -525,28 +527,28 @@ export const AddItemsModal: React.FC<AddItemsModalProps> = ({ isOpen, onClose, o
                         {staging.length > 0 && (
                             <div className="flex justify-between items-center px-2 text-sm">
                                 <span className="font-bold text-slate-500 uppercase text-xs">Subtotal a agregar</span>
-                                <span className="font-black text-indigo-700 text-lg">{formatCurrency(stagingSubtotal)}</span>
+                                <span className="font-black text-indigo-700 text-lg">{formatMoney(stagingSubtotal)}</span>
                             </div>
                         )}
                     </div>
                 </div>
 
-                <div className="pt-4 mt-4 border-t border-slate-100 flex justify-end gap-3">
-                    <button
+                <div className="pt-4 mt-4 border-t border-slate-100 flex justify-between gap-3">
+                    <Button
                         type="button"
+                        variant="outline"
                         onClick={onClose}
-                        className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
                     >
                         Cancelar
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                         type="button"
                         onClick={handleSubmit}
                         disabled={staging.length === 0}
-                        className="px-6 py-2 text-sm font-black text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                        className="px-6 font-black shadow-sm"
                     >
                         Agregar a la orden de cambio
-                    </button>
+                    </Button>
                 </div>
             </div>
         </Modal>

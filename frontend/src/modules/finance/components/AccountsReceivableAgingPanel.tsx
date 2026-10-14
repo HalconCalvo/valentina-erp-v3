@@ -6,6 +6,7 @@ import { CustomerPayment, PaymentType, SalesOrder, SalesOrderStatus } from '../.
 import { enrichSalesOrdersWithPaymentsWhenMissing } from '../../sales/utils/enrichOrdersPayments';
 import { OrderStatementModal } from './OrderStatementModal';
 import { ReceivableChargeModal } from './ReceivableChargeModal';
+import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
@@ -285,8 +286,6 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
         return () => clearInterval(intervalId);
     }, []);
 
-    const formatCurrency = (amount: number) => formatMoney(amount);
-
     const carteraRows = useMemo(() => buildCarteraMonitorRows(orders), [orders]);
 
     const filteredInvoices = carteraRows.filter((inv: CarteraMonitorRow) => {
@@ -401,12 +400,12 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
         {
             key: 'orderTotal',
             label: 'Importe OV',
-            render: (inv) => <span className="block text-right font-bold text-slate-800">{formatCurrency(inv.orderTotal)}</span>,
+            render: (inv) => <span className="block text-right font-bold text-slate-800">{formatMoney(inv.orderTotal)}</span>,
         },
         {
             key: 'amount',
             label: 'Saldo pendiente',
-            render: (inv) => <span className="block text-right font-black text-slate-900">{formatCurrency(Number(inv.amount))}</span>,
+            render: (inv) => <span className="block text-right font-black text-slate-900">{formatMoney(Number(inv.amount))}</span>,
         },
         {
             key: 'daysOverdue',
@@ -431,19 +430,16 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
             label: 'Acción',
             render: (inv) => (
                 <div className="text-center">
-                    <button
+                    <Button
+                        size="sm"
                         onClick={() => {
                             setSelectedOrderForStatement(inv.order);
                             setIsStatementModalOpen(true);
                         }}
-                        className={`px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm ${
-                            allowFinanceActions
-                                ? 'text-emerald-600 hover:text-white bg-emerald-50 hover:bg-emerald-600 border border-emerald-200'
-                                : 'text-indigo-600 hover:text-white bg-indigo-50 hover:bg-indigo-600 border border-indigo-200'
-                        }`}
+                        className={allowFinanceActions ? 'bg-emerald-600 hover:bg-emerald-700' : undefined}
                     >
                         {allowFinanceActions ? 'Abrir / Pagar' : 'Rayos X'}
-                    </button>
+                    </Button>
                 </div>
             ),
         },
@@ -475,23 +471,20 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
     return (
         <div className={outerClass}>
             {!suppressTopBar && (
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 pb-4">
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4">
                     <div>
                         <h1 className={`font-black text-slate-800 tracking-tight flex items-center gap-3 ${variant === 'page' ? 'text-3xl' : 'text-2xl'}`}>
-                            <FileText className="text-emerald-500" size={variant === 'page' ? 32 : 28} />
+                            <FileText className="text-indigo-600" size={variant === 'page' ? 32 : 28} />
                             {pageTitle}
                         </h1>
-                        <p className="text-slate-500 mt-1 font-medium text-sm">{pageSubtitle}</p>
+                        <p className="text-slate-500 mt-1 font-medium">{pageSubtitle}</p>
                     </div>
 
                     <div className="flex items-center gap-4">
                         {isLoading && <span className="text-xs text-emerald-500 font-bold animate-pulse">Actualizando...</span>}
-                        <button
-                            onClick={handleGoBack}
-                            className="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-bold hover:bg-slate-50 hover:text-emerald-600 transition-all shadow-sm"
-                        >
-                            <ArrowLeft size={18} /> {backLabel}
-                        </button>
+                        <Button variant="outline" onClick={handleGoBack}>
+                            <ArrowLeft size={16} /> {backLabel}
+                        </Button>
                     </div>
                 </div>
             )}
@@ -500,7 +493,7 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
                 <div className="p-4 border-b border-emerald-100 bg-emerald-50/50 flex flex-col md:flex-row justify-between items-center gap-4">
                     <div className="bg-white border border-emerald-200 px-4 py-2 rounded-lg shadow-sm flex items-center gap-3 w-full md:w-auto justify-between">
                         <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Total en Pantalla:</span>
-                        <span className="font-black text-emerald-900 text-xl">{formatCurrency(totalFilteredAging)}</span>
+                        <span className="font-black text-emerald-900 text-xl">{formatMoney(totalFilteredAging)}</span>
                     </div>
 
                     {suppressTopBar && isLoading && (

@@ -373,7 +373,6 @@ const SalesDashboardPage: React.FC = () => {
         }
     };
 
-    const formatCurrency = (amount: number) => formatMoney(amount);
 
     const getCountSize = (count: number) => {
         const len = count.toString().length;
@@ -555,14 +554,14 @@ const SalesDashboardPage: React.FC = () => {
         goalColumns.push({
             key: 'total_price',
             label: 'Monto de Venta',
-            render: (row) => <span className="block text-right font-bold text-slate-700">{formatCurrency(row.total_price)}</span>,
+            render: (row) => <span className="block text-right font-bold text-slate-700">{formatMoney(row.total_price)}</span>,
         });
 
         if (['COMMISSIONS', 'CLOSED', 'STREET'].includes(activeGoalView || '')) {
             goalColumns.push({
                 key: 'commission_amount',
                 label: 'Tu Comisión',
-                render: (row) => <span className="block text-right font-black text-emerald-600">{formatCurrency(row.commission_amount)}</span>,
+                render: (row) => <span className="block text-right font-black text-emerald-600">{formatMoney(row.commission_amount)}</span>,
             });
         }
 
@@ -661,7 +660,7 @@ const SalesDashboardPage: React.FC = () => {
                 label: 'Monto Total',
                 render: (row) => (
                     <span className="block text-right text-slate-500">
-                        {formatCurrency(Number((row as SalesOrder).total_price) || 0)}
+                        {formatMoney(Number((row as SalesOrder).total_price) || 0)}
                     </span>
                 ),
             },
@@ -678,7 +677,7 @@ const SalesDashboardPage: React.FC = () => {
                     if (activeCollectionView === 'ADVANCES') highlightValue = total * advPerc;
                     return (
                         <span className="block text-right font-black text-indigo-600">
-                            {formatCurrency(highlightValue)}
+                            {formatMoney(highlightValue)}
                         </span>
                     );
                 },
@@ -819,7 +818,7 @@ const SalesDashboardPage: React.FC = () => {
             {
                 key: 'total_price',
                 label: 'Monto de Venta',
-                render: (row) => <span className="block text-right font-bold text-slate-700">{formatCurrency(row.total_price || 0)}</span>,
+                render: (row) => <span className="block text-right font-bold text-slate-700">{formatMoney(row.total_price || 0)}</span>,
             },
             {
                 key: 'actions',
@@ -842,14 +841,15 @@ const SalesDashboardPage: React.FC = () => {
                 <div className="overflow-hidden rounded-t-xl border border-b-0 border-slate-200 bg-slate-50 shadow-sm">
                     <div className="flex flex-wrap items-center gap-1 px-4 py-3 text-sm text-slate-500 border-b border-slate-200">
                         {quoteSortKeys.map(({ key, label }) => (
-                            <button
+                            <Button
                                 key={key}
                                 type="button"
-                                className="font-bold cursor-pointer hover:bg-slate-200 transition-colors select-none px-3 py-2 rounded inline-flex items-center"
+                                variant="ghost"
+                                className="font-bold text-slate-500 hover:bg-slate-200 select-none px-3"
                                 onClick={() => handleQuoteSort(key)}
                             >
                                 {label} {renderSortIcon(key)}
-                            </button>
+                            </Button>
                         ))}
                     </div>
                 </div>
@@ -977,13 +977,15 @@ const SalesDashboardPage: React.FC = () => {
                             const label = k === 'FOLIO' ? 'Folio' : k === 'CLIENT' ? 'Cliente' : 'Antigüedad';
                             const active = monitorSort.key === k;
                             return (
-                                <button
+                                <Button
                                     key={k}
+                                    size="xs"
+                                    variant={active ? 'default' : 'outline'}
                                     onClick={() => handleMonitorSort(k)}
-                                    className={`px-3 py-1 text-xs font-bold rounded-lg border transition-colors ${active ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                                    className="px-3 font-bold"
                                 >
                                     {label}{active ? (monitorSort.direction === 'asc' ? ' ↑' : ' ↓') : ''}
-                                </button>
+                                </Button>
                             );
                         })}
                     </div>
@@ -1032,29 +1034,32 @@ const SalesDashboardPage: React.FC = () => {
                                 </div>
 
                                 <div className="flex items-center gap-3 shrink-0">
-                                    <button
+                                    <Button
                                         type="button"
+                                        variant="outline"
+                                        size="icon-sm"
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             handleViewPDF(order.id!);
                                         }}
-                                        className="text-indigo-600 border border-indigo-200 hover:bg-indigo-50 px-2 py-1.5 rounded-lg transition-colors"
+                                        className="text-indigo-600 border-indigo-200 hover:bg-indigo-50"
                                         title="Descargar PDF"
                                     >
                                         <FileDown size={14} />
-                                    </button>
-                                    <button
+                                    </Button>
+                                    <Button
                                         type="button"
+                                        size="sm"
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             setRayosXOrder(order);
                                         }}
-                                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 text-xs font-black rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 transform hover:-translate-y-0.5"
+                                        className="text-xs font-black shadow-md"
                                     >
                                         <FileSearch size={14} />
                                         Rayos X
-                                    </button>
-                                    <p className="text-sm font-bold text-slate-700">{formatCurrency(order.total_price || 0)}</p>
+                                    </Button>
+                                    <p className="text-sm font-bold text-slate-700">{formatMoney(order.total_price || 0)}</p>
                                     {instances.length > 0 && (
                                         <span className="text-[10px] bg-slate-100 text-slate-500 rounded-full px-2 py-0.5 font-medium">
                                             {instances.length} instancia{instances.length !== 1 ? 's' : ''}
@@ -1076,12 +1081,12 @@ const SalesDashboardPage: React.FC = () => {
                                                 {instances.length} instancia{instances.length !== 1 ? 's' : ''} en esta OV.
                                                 Agrúpalas por casa (calle + lote) y asígnales su nombre.
                                             </p>
-                                            <button
+                                            <Button
                                                 onClick={() => setBaptismOrderId(order.id!)}
-                                                className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition"
+                                                className="px-4 shadow-sm"
                                             >
                                                 Bautizar / Agrupar por casa
-                                            </button>
+                                            </Button>
                                         </div>
                                     )}
                                 </div>
@@ -1098,7 +1103,9 @@ const SalesDashboardPage: React.FC = () => {
             
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-800 tracking-tight">{getSectionTitle()}</h1>
+                    <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+                        <TrendingUp size={32} className="text-indigo-600" /> {getSectionTitle()}
+                    </h1>
                     <p className="text-slate-500 mt-1 font-medium">
                         {activeSection === null
                             ? 'Radar de ventas, comisiones y seguimiento de clientes.'
@@ -1114,11 +1121,11 @@ const SalesDashboardPage: React.FC = () => {
                     </p>
                 </div>
                 <div className="flex gap-3">
-                    <Button onClick={() => navigate('/quotations/new')} className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-2"><Plus size={18} /> Nueva Cotización</Button>
+                    <Button onClick={() => navigate('/quotations/new')} className="bg-emerald-600 hover:bg-emerald-700 shadow-md"><Plus size={18} /> Nueva Cotización</Button>
                     {activeSection !== null && (
-                        <button onClick={handleBack} className="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-bold hover:bg-slate-50 hover:text-emerald-600 transition-all shadow-sm">
+                        <Button variant="outline" onClick={handleBack}>
                             <ArrowLeft size={18} /> {(activeGoalView || activeQuoteView || activeCollectionView) ? 'Regresar a Tarjetas' : 'Regresar al Tablero'}
-                        </button>
+                        </Button>
                     )}
                 </div>
             </div>
@@ -1138,7 +1145,7 @@ const SalesDashboardPage: React.FC = () => {
                                 </div>
                                 <div className="flex justify-end">
                                     <div className="text-lg font-black text-emerald-600 tracking-tight leading-none truncate">
-                                        {formatCurrency(stats.commGenerated)}
+                                        {formatMoney(stats.commGenerated)}
                                     </div>
                                 </div>
                                 <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
@@ -1179,7 +1186,7 @@ const SalesDashboardPage: React.FC = () => {
                                 </div>
                                 <div className="flex justify-end">
                                     <div className="text-lg font-black text-amber-600 tracking-tight leading-none truncate">
-                                        {formatCurrency(stats.advanceVal + stats.invoicesVal)}
+                                        {formatMoney(stats.advanceVal + stats.invoicesVal)}
                                     </div>
                                 </div>
                                 <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
@@ -1252,7 +1259,7 @@ const SalesDashboardPage: React.FC = () => {
                                                     </div>
                                                     <ArrowLeftCircle size={20} className="text-emerald-200 group-hover:text-emerald-500 transform rotate-180 transition-all"/>
                                                 </div>
-                                                <div className="text-lg font-black text-emerald-600 text-right leading-none truncate">{formatCurrency(stats.commGenerated)}</div>
+                                                <div className="text-lg font-black text-emerald-600 text-right leading-none truncate">{formatMoney(stats.commGenerated)}</div>
                                             </div>
                                         </Card>
                                     </div>
@@ -1271,10 +1278,10 @@ const SalesDashboardPage: React.FC = () => {
                                                     <ArrowLeftCircle size={20} className="text-blue-200 group-hover:text-blue-500 transform rotate-180 transition-all shrink-0"/>
                                                 </div>
                                                 <div className="text-lg font-black text-blue-600 text-right leading-tight">
-                                                    {formatCurrency(stats.closedSalesMonth ?? 0)}
+                                                    {formatMoney(stats.closedSalesMonth ?? 0)}
                                                     <span className="block text-[11px] font-bold text-slate-400 mt-1">
                                                         {monthlyQuota > 0
-                                                            ? <>de {formatCurrency(monthlyQuota)}</>
+                                                            ? <>de {formatMoney(monthlyQuota)}</>
                                                             : <>sin meta configurada</>}
                                                     </span>
                                                 </div>
@@ -1300,7 +1307,7 @@ const SalesDashboardPage: React.FC = () => {
                                                     </div>
                                                     <ArrowLeftCircle size={20} className="text-indigo-200 group-hover:text-indigo-500 transform rotate-180 transition-all"/>
                                                 </div>
-                                                <div className="text-lg font-black text-indigo-600 text-right leading-none truncate">{formatCurrency(stats.moneyOnStreet)}</div>
+                                                <div className="text-lg font-black text-indigo-600 text-right leading-none truncate">{formatMoney(stats.moneyOnStreet)}</div>
                                             </div>
                                         </Card>
                                     </div>
@@ -1340,9 +1347,9 @@ const SalesDashboardPage: React.FC = () => {
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                     />
                                     {searchQuery && (
-                                        <button onClick={() => setSearchQuery('')} className="text-slate-400 hover:text-red-500 transition-colors">
+                                        <Button variant="ghost" size="icon-xs" onClick={() => setSearchQuery('')} className="text-slate-400 hover:text-red-500" title="Limpiar búsqueda">
                                             <XCircle size={18} />
-                                        </button>
+                                        </Button>
                                     )}
                                 </div>
                             )}
@@ -1363,7 +1370,7 @@ const SalesDashboardPage: React.FC = () => {
                                                     </div>
                                                     <ArrowLeftCircle size={20} className="text-slate-300 group-hover:text-slate-500 transform rotate-180 transition-all"/>
                                                 </div>
-                                                <div className="text-lg font-black text-slate-600 text-right leading-none truncate">{formatCurrency(stats.draftsVal)}</div>
+                                                <div className="text-lg font-black text-slate-600 text-right leading-none truncate">{formatMoney(stats.draftsVal)}</div>
                                             </div>
                                         </Card>
                                     </div>
@@ -1381,7 +1388,7 @@ const SalesDashboardPage: React.FC = () => {
                                                     </div>
                                                     <ArrowLeftCircle size={20} className="text-amber-300 group-hover:text-amber-500 transform rotate-180 transition-all"/>
                                                 </div>
-                                                <div className="text-lg font-black text-amber-600 text-right leading-none truncate">{formatCurrency(stats.reviewVal)}</div>
+                                                <div className="text-lg font-black text-amber-600 text-right leading-none truncate">{formatMoney(stats.reviewVal)}</div>
                                             </div>
                                         </Card>
                                     </div>
@@ -1399,7 +1406,7 @@ const SalesDashboardPage: React.FC = () => {
                                                     </div>
                                                     <ArrowLeftCircle size={20} className="text-emerald-200 group-hover:text-emerald-500 transform rotate-180 transition-all"/>
                                                 </div>
-                                                <div className="text-lg font-black text-emerald-600 text-right leading-none truncate">{formatCurrency(stats.authVal)}</div>
+                                                <div className="text-lg font-black text-emerald-600 text-right leading-none truncate">{formatMoney(stats.authVal)}</div>
                                             </div>
                                         </Card>
                                     </div>
@@ -1417,7 +1424,7 @@ const SalesDashboardPage: React.FC = () => {
                                                     </div>
                                                     <ArrowLeftCircle size={20} className="text-red-300 group-hover:text-red-500 transform rotate-180 transition-all"/>
                                                 </div>
-                                                <div className="text-lg font-black text-red-600 text-right leading-none truncate">{formatCurrency(stats.expiringVal)}</div>
+                                                <div className="text-lg font-black text-red-600 text-right leading-none truncate">{formatMoney(stats.expiringVal)}</div>
                                             </div>
                                         </Card>
                                     </div>
@@ -1466,7 +1473,7 @@ const SalesDashboardPage: React.FC = () => {
                                                     </div>
                                                     <ArrowLeftCircle size={20} className="text-red-200 group-hover:text-red-500 transform rotate-180 transition-all"/>
                                                 </div>
-                                                <div className="text-lg font-black text-red-600 text-right leading-none truncate">{formatCurrency(stats.retainedComm)}</div>
+                                                <div className="text-lg font-black text-red-600 text-right leading-none truncate">{formatMoney(stats.retainedComm)}</div>
                                             </div>
                                         </Card>
                                     </div>
@@ -1484,7 +1491,7 @@ const SalesDashboardPage: React.FC = () => {
                                                     </div>
                                                     <ArrowLeftCircle size={20} className="text-emerald-200 group-hover:text-emerald-500 transform rotate-180 transition-all"/>
                                                 </div>
-                                                <div className="text-lg font-black text-emerald-600 text-right leading-none truncate">{formatCurrency(stats.payableComm)}</div>
+                                                <div className="text-lg font-black text-emerald-600 text-right leading-none truncate">{formatMoney(stats.payableComm)}</div>
                                             </div>
                                         </Card>
                                     </div>
@@ -1502,7 +1509,7 @@ const SalesDashboardPage: React.FC = () => {
                                                     </div>
                                                     <ArrowLeftCircle size={20} className="text-amber-300 group-hover:text-amber-500 transform rotate-180 transition-all"/>
                                                 </div>
-                                                <div className="text-lg font-black text-amber-600 text-right leading-none truncate">{formatCurrency(stats.advanceVal)}</div>
+                                                <div className="text-lg font-black text-amber-600 text-right leading-none truncate">{formatMoney(stats.advanceVal)}</div>
                                             </div>
                                         </Card>
                                     </div>
@@ -1520,7 +1527,7 @@ const SalesDashboardPage: React.FC = () => {
                                                     </div>
                                                     <ArrowLeftCircle size={20} className="text-indigo-200 group-hover:text-indigo-500 transform rotate-180 transition-all"/>
                                                 </div>
-                                                <div className="text-lg font-black text-indigo-600 text-right leading-none truncate">{formatCurrency(stats.invoicesVal)}</div>
+                                                <div className="text-lg font-black text-indigo-600 text-right leading-none truncate">{formatMoney(stats.invoicesVal)}</div>
                                             </div>
                                         </Card>
                                     </div>

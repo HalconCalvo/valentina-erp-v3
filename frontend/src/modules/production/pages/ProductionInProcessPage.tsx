@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, Factory } from 'lucide-react';
 import { productionService } from '../../../api/production-service';
+import { Button } from '@/components/ui/Button';
+import { VEmptyState } from '@/components/ui/VEmptyState';
 
 export default function ProductionInProcessPage() {
   const navigate = useNavigate();
@@ -23,38 +26,29 @@ export default function ProductionInProcessPage() {
   );
 
   return (
-    <div className="p-8 max-w-5xl mx-auto pb-24">
-      <div className="flex justify-end mb-6">
-        <button
-          onClick={() => navigate('/production')}
-          className="flex items-center gap-2 bg-white border
-                     border-slate-300 text-slate-700 px-4 py-2
-                     rounded-lg font-bold hover:bg-slate-50
-                     hover:text-blue-600 transition-all shadow-sm"
-        >
-          ← Regresar
-        </button>
-      </div>
-
-      <div className="mb-6 pb-4 border-b border-slate-200">
-        <h2 className="text-2xl font-bold text-slate-800
-                       flex items-center gap-2">
-          🔵 Instancias en Proceso
-        </h2>
-        <p className="text-slate-500 text-sm mt-1">
-          {totalInstances} instancia(s) en fabricación o empaque
-          en {batches.length} lote(s).
-        </p>
+    <div className="p-8 max-w-7xl mx-auto space-y-6 pb-24 animate-fadeIn">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4">
+        <div className="flex items-center gap-3">
+          <Factory className="text-indigo-600" size={32} />
+          <div>
+            <h1 className="text-3xl font-black text-slate-800 tracking-tight">Instancias en Proceso</h1>
+            <p className="text-slate-500 mt-1 font-medium">
+              {totalInstances} instancia(s) en fabricación o empaque
+              en {batches.length} lote(s).
+            </p>
+          </div>
+        </div>
+        <Button variant="outline" onClick={() => navigate('/production')}>
+          <ArrowLeft size={18} /> Regresar
+        </Button>
       </div>
 
       {loading ? (
-        <p className="text-slate-400 text-center py-12">
-          Cargando...
-        </p>
+        <div className="flex flex-col gap-4 animate-pulse">
+          {[0, 1, 2].map((i) => <div key={i} className="h-24 rounded-xl bg-slate-100" />)}
+        </div>
       ) : batches.length === 0 ? (
-        <p className="text-slate-400 text-center py-12">
-          No hay instancias en producción en este momento.
-        </p>
+        <VEmptyState icon={<Factory />} title="No hay instancias en producción en este momento." />
       ) : (
         <div className="flex flex-col gap-4">
           {batches.map(batch => (

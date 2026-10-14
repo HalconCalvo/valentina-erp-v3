@@ -150,7 +150,7 @@ export const RegisterInstallmentDialog: React.FC<RegisterInstallmentDialogProps>
                     <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
                     <Button onClick={() => void submit()} disabled={saving || loadingBankAccounts}
                         className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
-                        {saving ? 'Registrando…' : 'Confirmar abono'}
+                        {saving ? 'Procesando...' : 'Confirmar abono'}
                     </Button>
                 </div>
             </div>
@@ -221,7 +221,7 @@ export const EditInstallmentDialog: React.FC<EditInstallmentDialogProps> = ({
                 )}
                 <div className="flex items-center justify-between gap-4 pt-2">
                     <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
-                    <Button onClick={() => void save()} disabled={saving}>{saving ? 'Guardando…' : 'Guardar cambios'}</Button>
+                    <Button onClick={() => void save()} disabled={saving}>{saving ? 'Guardando...' : 'Guardar cambios'}</Button>
                 </div>
             </div>
         </Modal>

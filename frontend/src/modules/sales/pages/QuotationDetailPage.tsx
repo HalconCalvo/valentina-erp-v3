@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, FileDown, Loader, Save } from 'lucide-react';
+import { ArrowLeft, FileDown, FileText, Save } from 'lucide-react';
 
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
 import { RecordHistoryButton } from '@/components/audit/RecordHistoryButton';
-import { formatDate, formatDateTime } from '@/utils/format';
+import { formatDate, formatDateTime, formatPercent, formatQty } from '@/utils/format';
 
 import {
   quotationService,
@@ -90,16 +90,19 @@ const QuotationDetailPage: React.FC = () => {
         </>
       ),
     },
-    { key: 'quantity', label: 'Cantidad', render: (row) => row.quantity.toLocaleString('en-US', { maximumFractionDigits: 2 }) },
+    { key: 'quantity', label: 'Cantidad', render: (row) => formatQty(row.quantity) },
     { key: 'unit_price', label: 'Precio unit.', render: (row) => formatQuotationCurrency(row.unit_price) },
     { key: 'subtotal_price', label: 'Importe', render: (row) => formatQuotationCurrency(row.subtotal_price ?? row.quantity * row.unit_price) },
   ], []);
 
   if (isLoading || !quotation) {
     return (
-      <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50">
-        <Loader className="animate-spin text-indigo-600 mb-4" size={32} />
-        <p className="text-slate-500 font-medium">Cargando cotización...</p>
+      <div className="p-8 max-w-7xl mx-auto space-y-6 animate-pulse" aria-label="Cargando cotización...">
+        <div className="h-16 rounded-xl bg-slate-200" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 h-96 rounded-xl bg-slate-100" />
+          <div className="h-96 rounded-xl bg-slate-100" />
+        </div>
       </div>
     );
   }
@@ -139,7 +142,9 @@ const QuotationDetailPage: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-black text-slate-800 tracking-tight">{quotation.folio}</h1>
+            <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+              <FileText size={32} className="text-indigo-600" /> {quotation.folio}
+            </h1>
             <span className={`rounded-full px-3 py-1 text-xs font-bold ${quotationStatusBadgeClass(quotation.status)}`}>{QUOTATION_STATUS_LABELS[quotation.status]}</span>
             <RecordHistoryButton tableName="quotations" recordId={quotation.id} label={quotation.folio} />
           </div>
@@ -174,7 +179,7 @@ const QuotationDetailPage: React.FC = () => {
               </div>
               <div>
                 <p className="text-slate-400 font-bold text-xs uppercase">Anticipo</p>
-                <p className="font-medium text-slate-700">{Number(quotation.advance_percent).toFixed(2)}%</p>
+                <p className="font-medium text-slate-700">{formatPercent(Number(quotation.advance_percent))}</p>
               </div>
             </div>
             <div className="pt-4 border-t border-slate-100 space-y-2 text-sm">
