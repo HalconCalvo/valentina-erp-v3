@@ -7,6 +7,7 @@ import { VersionComponent, VersionStatus } from "../../../types/design";
 import { Material } from "../../../types/foundations";
 import { formatMoney as formatSharedMoney, formatQty } from '@/utils/format';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { recipeLineCost, recipeTotal } from '@/utils/recipeCost';
 
 const STATUS_SELECT_ITEMS = [
     { value: VersionStatus.DRAFT, label: '🔴 Draft (Editable)' },
@@ -383,17 +384,16 @@ export const VersionRecipeForm = ({
     return groups;
   }, [fields, watchedComponents, isReadOnly, materials]);
 
-  let totalCost = 0;
+  const costLines: number[] = [];
   if (watchedComponents) {
       watchedComponents.forEach((comp) => {
           const mat = materials.find(m => m.id === Number(comp.material_id));
           if (mat) {
-              const q = parseFloat(String(comp.quantity || 0));
-              const cost = getUsageCost(mat);
-              totalCost += Math.ceil((cost * q) * 100) / 100;
+              costLines.push(recipeLineCost(parseFloat(String(comp.quantity || 0)), getUsageCost(mat)));
           }
       });
   }
+  const totalCost = recipeTotal(costLines);
 
   const formatMoney = (amount: number) => formatSharedMoney(amount);
 
@@ -490,7 +490,7 @@ export const VersionRecipeForm = ({
                     const mat = materials.find(m => m.id === Number(val?.material_id));
                     const cost = getUsageCost(mat as Material);
                     const qty = parseFloat(String(val?.quantity || 0));
-                    const total = Math.ceil((cost * qty) * 100) / 100;
+                    const total = recipeLineCost(qty, cost);
                     
                     return (
                         <div key={field.id} className="grid grid-cols-12 gap-2 px-3 py-1 items-center hover:bg-slate-50 relative">

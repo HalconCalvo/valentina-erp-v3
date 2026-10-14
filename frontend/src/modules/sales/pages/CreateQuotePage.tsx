@@ -27,6 +27,7 @@ import {
 } from '../utils/margins';
 import { SalesOrderItem } from '../../../types/sales';
 import { QuotationStatus } from '../../../types/quotations';
+import { recipeLineCost, recipeTotal } from '@/utils/recipeCost';
 import { formatMoney } from '@/utils/format';
 import { canSeeCosts } from '@/utils/costVisibility';
 
@@ -299,23 +300,22 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
                 { version_id: selectedVersionId, commercial_description: version?.commercial_description || '' });
             return;
         }
-        // Calcular costo en tiempo real desde componentes con precios actuales
-        // Replica la lógica del backend: SUM(quantity × current_cost / conversion_factor)
-        // con Math.ceil al centavo por línea — igual que design.py
+        // Calcular costo en tiempo real desde componentes con precios actuales, con la misma regla del backend
+        // (recipe_cost_service): SUM(quantity × current_cost / conversion_factor) exacto, total a centavos.
         let realtimeCost = 0;
+        const costLines: number[] = [];
         if (version?.components && version.components.length > 0) {
             for (const comp of version.components) {
                 const qty = Number(comp.quantity) || 0;
                 const cost = Number(comp.current_cost) || 0;
                 const factor = Number(comp.conversion_factor) || 1;
                 const unitCost = cost / factor;
-                const costLine = Math.ceil(qty * unitCost * 100) / 100;
-                realtimeCost += costLine;
+                costLines.push(recipeLineCost(qty, unitCost));
                 // material_cost solo incluye componentes de tipo MATERIAL
                 // El backend marca esto con production_route === 'MATERIAL'
                 // Como no tenemos ese campo en el frontend, usamos estimated_cost como referencia
             }
-            realtimeCost = Math.round(realtimeCost * 100) / 100;
+            realtimeCost = recipeTotal(costLines);
         }
         // Si no hay componentes con precios (versión sin datos), usar estimated_cost como respaldo
         const estimatedCost = realtimeCost > 0 ? realtimeCost : Number(version?.estimated_cost ?? version?.total_cost ?? version?.cost ?? 0);
