@@ -239,6 +239,11 @@ export default function DesignBuilderPage() {
                     <span className="text-sm font-black text-indigo-700 px-2 tracking-wide">
                         {version.version_name || "V1.0"}
                     </span>
+                    {version.id != null && (
+                        <span className="font-mono text-xs font-bold text-slate-500 bg-white border border-slate-200 rounded px-1.5 py-0.5" title="Número de receta">
+                            #{version.id}
+                        </span>
+                    )}
                     <RecordHistoryButton tableName="design_product_versions" recordId={version.id} label={`Versión ${version.version_name || version.id}`} />
                     
                     {/* RENOMBRAR */}

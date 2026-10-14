@@ -28,6 +28,7 @@ import axiosClient from '../../../api/axios-client';
 import { designService } from '../../../api/design-service';
 import { productionService } from '../../../api/production-service';
 import { VersionStatus } from '../../../types/design';
+import { recipeNumberFrom } from '@/utils/recipeNumber';
 
 type ModuleView = 'HOME' | 'CATALOG' | 'DEFICIT' | 'SIMULATOR_MODULE' | 'SIMULATOR_BATCHES';
 
@@ -270,11 +271,18 @@ const DesignCatalogPage: React.FC = () => {
         [clientProducts, formState.name]
     );
 
+    const recipeSearch = recipeNumberFrom(searchTerm);
+
     const groupedProducts = useMemo(() => {
-        const filtered = masters.filter(p =>
-            p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            p.category.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        const filtered = recipeSearch !== null
+            // By recipe number: only the product with that version, showing just that version
+            ? masters
+                .filter(p => (p.versions || []).some(v => v.id === recipeSearch))
+                .map(p => ({ ...p, versions: (p.versions || []).filter(v => v.id === recipeSearch) }))
+            : masters.filter(p =>
+                p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                p.category.toLowerCase().includes(searchTerm.toLowerCase())
+            );
         const groups: Record<number, Record<string, typeof masters>> = {};
         filtered.forEach(p => {
             const cid = p.client_id;
@@ -284,7 +292,7 @@ const DesignCatalogPage: React.FC = () => {
             groups[cid][cat].push(p);
         });
         return groups;
-    }, [masters, searchTerm]);
+    }, [masters, searchTerm, recipeSearch]);
 
     const toggleClient = (clientId: number) => {
         const newExpanded = new Set(expandedClients);
@@ -653,7 +661,7 @@ const DesignCatalogPage: React.FC = () => {
                             {product.name}
                         </div>
                         <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-500 text-xs mt-1 inline-block">
-                            SKU: PRD-{product.id.toString().padStart(4, '0')} {version ? `- ${version.version_name}` : ''}
+                            SKU: PRD-{product.id.toString().padStart(4, '0')} {version ? `- ${version.version_name} · Receta #${version.id}` : ''}
                         </span>
                         {version?.commercial_description && (
                             <span className="text-[10px] text-indigo-500 font-medium mt-1 flex items-center gap-1 inline-flex">
@@ -692,7 +700,10 @@ const DesignCatalogPage: React.FC = () => {
                 const v = row.version;
                 const isReady = v?.status === VersionStatus.READY;
                 return v
-                    ? <span className={`font-mono px-2 py-1 rounded text-xs border ${isReady ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{v.version_name}</span>
+                    ? <span className="inline-flex items-center gap-1.5">
+                        <span className={`font-mono px-2 py-1 rounded text-xs border ${isReady ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{v.version_name}</span>
+                        <span className="font-mono text-xs font-bold text-slate-500" title="Número de receta">#{v.id}</span>
+                      </span>
                     : <span className="text-xs text-slate-400 italic">Pendiente</span>;
             },
         },
@@ -1103,7 +1114,7 @@ const DesignCatalogPage: React.FC = () => {
                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" size={16} />
                                         <Input
                                             type="text"
-                                            placeholder="Buscar producto..."
+                                            placeholder="Buscar producto o # de receta..."
                                             value={searchTerm}
                                             onChange={(e) => setSearchTerm(e.target.value)}
                                             className="pl-9 w-64 shadow-sm"
@@ -1129,7 +1140,7 @@ const DesignCatalogPage: React.FC = () => {
                             {Object.entries(groupedProducts).map(([clientIdStr, categories]) => {
                                 const clientId = Number(clientIdStr);
                                 const clientName = getClientName(clientId);
-                                const isExpanded = expandedClients.has(clientId);
+                                const isExpanded = expandedClients.has(clientId) || recipeSearch !== null;
                                 const productCount = Object.values(categories).reduce((acc, list) => acc + list.length, 0);
 
                                 return (

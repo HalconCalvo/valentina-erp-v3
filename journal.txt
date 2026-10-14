@@ -4813,3 +4813,6 @@ Anotado también para la revisión de indicadores de Dirección: numeración rep
 - Costo_OV (importador): columna opcional en OVs; legacy → item "Contrato legacy" frozen_unit_cost; primera captura
   se agrega; cambio = diferencia + aplica solo con motivo (form "reason"; bitácora "Importación <fecha>: <motivo>");
   OV nacida en Valentina solo se reporta. Descarga incluye Costo_OV. Tests: 4 nuevos.
+- Diseño: número de receta (#id de la versión) en catálogo (SKU y columna Versión) y editor; búsqueda "#197"/"197"
+  filtra a esa versión y abre el grupo del cliente. utils/recipeNumber.ts + test (19 frontend).
+- Prueba en pantalla de Costo_OV y #receta: pendiente de sesión local (Gabriel entra en http://localhost:3000).

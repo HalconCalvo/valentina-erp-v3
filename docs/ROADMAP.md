@@ -180,7 +180,8 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
 2. Costo_OV en el Excel de migración — hecha (commit local): columna opcional en la hoja OVs (sin IVA). OV legacy:
    la primera vez se registra; un cambio se reporta y se aplica solo con motivo. OV nacida en Valentina: solo se
    reporta. La plantilla descargada la incluye. Con costo, la OV entra al Margen neto % del tablero.
-3. Diseño: número de receta/versión (#id) en catálogo y editor, y búsqueda por número.
+3. Diseño: número de receta/versión (#id) en catálogo y editor, y búsqueda por número — hecha (commit local):
+   "Receta #id" en el SKU y junto a la versión, "#id" en el editor; buscar "#197" o "197" muestra solo esa versión.
 4. Guía de pantallas, segunda ola (Finanzas, Tesorería, Dirección, Producción/Kanban, Diseño, tablero de Ventas,
    cuerpo de Rayos X) y luego ayuda "?" (Ventas, Compras y Almacén, Diseño, Administración, Gerencia).
 ## 11. PRIORIDAD 2 — Indicadores del tablero de Dirección (con Gabriel) — hecha (2026-10-12, commit local)
