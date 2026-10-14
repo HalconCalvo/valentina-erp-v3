@@ -253,3 +253,24 @@ def test_requisition_for_an_ov_carries_the_ov_to_the_purchase_order(client_fixtu
     po_line = session_fixture.exec(select(PurchaseOrderItem)
                                    .where(PurchaseOrderItem.purchase_order_id == emitted.json()["po_id"])).one()
     assert po_line.sales_order_id == order["id"]
+
+
+def test_cancelling_a_line_recalculates_the_po_total(client_fixture, auth_header_director, session_fixture):
+    """H23: cancelling a line updates the PO estimated amount, like removing it from a draft does."""
+    provider, material = _seed_provider_and_material(session_fixture)
+    second = Material(sku="MAT-TEST-002", name="Otro", category="GENERAL", production_route=ProductionRoute.MATERIAL,
+                      purchase_unit="pza", usage_unit="pza", current_cost=50.0, provider_id=provider.id)
+    session_fixture.add(second)
+    session_fixture.commit()
+    emitted = client_fixture.post(f"{settings.API_V1_STR}/purchases/orders/bulk-emit", headers=auth_header_director,
+                                  json={"provider_id": provider.id, "items": [
+                                      {"material_id": material.id, "name": "Material Test", "qty": 10, "expected_cost": 100.0},
+                                      {"material_id": second.id, "name": "Otro", "qty": 4, "expected_cost": 50.0}]})
+    po_id = emitted.json()["po_id"]
+    line = session_fixture.exec(select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po_id,
+                                                                PurchaseOrderItem.material_id == second.id)).one()
+    cancelled = client_fixture.patch(f"{settings.API_V1_STR}/purchases/orders/{po_id}/items/{line.id}/cancel",
+                                     headers=auth_header_director, json={"cancel_reason": "Ya no se necesita"})
+    assert cancelled.status_code == 200, cancelled.text
+    session_fixture.expire_all()
+    assert session_fixture.get(PurchaseOrder, po_id).total_estimated_amount == 1000.0

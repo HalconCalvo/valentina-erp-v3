@@ -339,6 +339,11 @@ def reject_po(db: Session, po_id: int, action: str, current_user) -> dict:
     return {"status": "success", "message": f"Orden rechazada. Acción: {action}"}
 
 
+def _items_total(items: List[PurchaseOrderItem]) -> float:
+    """Estimated amount without tax of the given PO lines."""
+    return sum((it.quantity_ordered or 0) * (it.expected_unit_cost or 0) for it in items)
+
+
 def remove_po_item(db: Session, po_id: int, item_id: int, current_user) -> dict:
     _ = current_user
     po = purchase_repo.get_purchase_order_by_id(db, po_id)
@@ -366,10 +371,7 @@ def remove_po_item(db: Session, po_id: int, item_id: int, current_user) -> dict:
         po.status = "CANCELADA"
         db.add(po)
     else:
-        po.total_estimated_amount = sum(
-            (getattr(it, "quantity_ordered", 0) or 0) * (getattr(it, "expected_unit_cost", 0) or 0)
-            for it in active_items
-        )
+        po.total_estimated_amount = _items_total(active_items)
         db.add(po)
     db.commit()
     return {"status": "success", "message": "Partida removida exitosamente."}
@@ -819,16 +821,18 @@ def cancel_po_item(
     if (item.quantity_received or 0) > 0:
         raise HTTPException(
             status_code=422,
-            detail="Cannot cancel an item that has already been received",
+            detail="No se puede cancelar una partida que ya tiene mercancía recibida.",
         )
     item.is_cancelled = True
     item.cancel_reason = data.cancel_reason
     db.add(item)
     db.flush()
-    all_items = purchase_repo.get_po_items(db, po_id)
-    if all(it.is_cancelled for it in all_items):
+    active_items = [it for it in purchase_repo.get_po_items(db, po_id) if not it.is_cancelled]
+    if not active_items:
         po.status = "CANCELADA"
-        db.add(po)
+    else:
+        po.total_estimated_amount = _items_total(active_items)  # H23: like removing a line
+    db.add(po)
     db.commit()
     db.refresh(item)
     return item
