@@ -8,6 +8,7 @@ import { jsPDF } from 'jspdf';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 import { RecordHistoryButton } from '@/components/audit/RecordHistoryButton';
+import { houseLabel, matchesSearch } from '@/utils/houseLabel';
 import { Input } from '@/components/ui/Input';
 import { VTable, VTableColumn } from '@/components/ui/VTable';
 import { ReversalDialog, ShortageDialog, type ReversalInput } from '../components/BatchInventoryDialogs';
@@ -290,10 +291,18 @@ export default function ProductionKanbanPage() {
   const [reversalState, setReversalState] = useState<ReversalState | null>(null);
   const canAuthorizeInventory = INVENTORY_AUTHORIZER_ROLES.includes(userRole);
 
+  // H26: search by OV, client, project or house; a batch shows only its matching houses.
+  const [search, setSearch] = useState('');
+  const instanceMatches = (inst: any) =>
+    matchesSearch(search, [inst.order_folio, inst.client_name, inst.project_name, inst.custom_name, inst.street,
+      inst.lot, houseLabel(inst)]);
   const batchesForView = useMemo(() => {
-    if (materialFilter === 'ALL') return batches;
-    return batches.filter((b) => b.batch_type === materialFilter);
-  }, [batches, materialFilter]);
+    const byMaterial = materialFilter === 'ALL' ? batches : batches.filter((b) => b.batch_type === materialFilter);
+    if (!search.trim()) return byMaterial;
+    return byMaterial
+      .map((b) => (matchesSearch(search, [b.folio]) ? b : { ...b, instances: (b.instances || []).filter(instanceMatches) }))
+      .filter((b) => (b.instances || []).length > 0 || matchesSearch(search, [b.folio]));
+  }, [batches, materialFilter, search]);
 
   // Overflow del main controlado en MainLayout via FIXED_LAYOUT_ROUTES
 
@@ -610,6 +619,11 @@ export default function ProductionKanbanPage() {
                           {summary.projects[0]}
                         </p>
                       )}
+                      {summary.houses.length > 0 && (
+                        <p className="text-xs font-semibold text-slate-700" title={summary.houses.join(' · ')}>
+                          🏠 {summary.houses.slice(0, 4).join(' · ')}{summary.houses.length > 4 ? ` +${summary.houses.length - 4}` : ''}
+                        </p>
+                      )}
                     </div>
                   );
                 })()}
@@ -699,6 +713,11 @@ export default function ProductionKanbanPage() {
                     {summary.projects[0] && (
                       <p className="text-[10px] text-slate-400 truncate">
                         {summary.projects[0]}
+                      </p>
+                    )}
+                    {summary.houses.length > 0 && (
+                      <p className="text-xs font-semibold text-slate-700" title={summary.houses.join(' · ')}>
+                        🏠 {summary.houses.slice(0, 4).join(' · ')}{summary.houses.length > 4 ? ` +${summary.houses.length - 4}` : ''}
                       </p>
                     )}
                   </div>
@@ -1030,7 +1049,7 @@ export default function ProductionKanbanPage() {
   };
 
   const renderColumn4 = () => {
-    const allReady = readyInstances;
+    const allReady = readyInstances.filter(instanceMatches);
 
     return (
       <div
@@ -1170,7 +1189,8 @@ export default function ProductionKanbanPage() {
     const projects = [...new Set(
       instances.map((i: any) => i.project_name).filter(Boolean)
     )] as string[];
-    return { ovs, clients, projects };
+    const houses = [...new Set(instances.map((i: any) => houseLabel(i)).filter(Boolean))] as string[];
+    return { ovs, clients, projects, houses };
   };
 
   return (
@@ -1213,6 +1233,13 @@ export default function ProductionKanbanPage() {
             {key === 'ALL' ? 'Todos' : key}
           </Button>
         ))}
+        <Input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar OV, cliente o casa..."
+          className="ml-auto w-72"
+        />
       </div>
 
       {loading ? (
