@@ -62,6 +62,7 @@ export default function SimulatorPage() {
   const [simulationResult, setSimulationResult] = useState<SimulateBatchResponse | null>(null);
   // D30: missing core material (MDF or stone) blocks creating the batch; hardware and the rest may go negative.
   const shortages = coreShortages(simulationResult?.materials);
+  const [simulatedKey, setSimulatedKey] = useState('');
   const [loadingRadar, setLoadingRadar] = useState(false);
   const [simulating, setSimulating] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -177,67 +178,64 @@ export default function SimulatorPage() {
     try {
       const result = await designService.simulateBatch(selectedIds, line);
       setSimulationResult(result);
+      setSimulatedKey(`${line}:${[...selectedIds].sort((a, b) => a - b).join(',')}`);
       setRequestedIds([]);
     } catch (error: any) {
-      toast.error(error?.response?.data?.detail || 'Error al simular el lote. Verifica la conexión.');
+      toast.error(errorText(error, 'Error al simular el lote. Verifica la conexión.'));
     } finally {
       setSimulating(false);
     }
   };
 
-  const handleCreateBatch = async () => {
-    if (!simulationResult || shortages.length > 0) return;
+  /** Server error as plain text (FastAPI may send a list of validation errors). */
+  const errorText = (error: any, fallback: string): string => {
+    const detail = error?.response?.data?.detail ?? error?.message;
+    if (typeof detail === 'string' && detail.trim()) return detail;
+    if (Array.isArray(detail)) return detail.map((d) => d?.msg ?? String(d)).join(' · ') || fallback;
+    return fallback;
+  };
 
+  // H18: the batch is created from the simulated selection only, and it always ends in a success or error message.
+  const createBatch = async (line: 'MDF' | 'PIEDRA') => {
+    if (!simulationResult || simulatedKey !== selectionKey) {
+      toast.warning('La selección cambió: vuelve a simular antes de crear el lote.');
+      return;
+    }
+    if (shortages.length > 0) return;
     setCreating(true);
+    let folio: string | null = null;
+    const failed: string[] = [];
     try {
       const newBatch = await productionService.createBatch({
-        batch_type: batchType,
-        estimated_merma_percent: 5.0
+        batch_type: line,
+        estimated_merma_percent: line === 'MDF' ? 5.0 : 0.0,
       });
-
+      folio = newBatch.folio;
       for (const instanceId of selectedIds) {
-        await productionService.assignInstanceToBatch(newBatch.id, instanceId);
+        try {
+          await productionService.assignInstanceToBatch(newBatch.id, instanceId);
+        } catch (error: any) {
+          const name = allPendingInstances.find((p) => p.id === instanceId)?.custom_name ?? `#${instanceId}`;
+          failed.push(`${name}: ${errorText(error, 'no se pudo agregar')}`);
+        }
       }
-
-      toast.success(`Lote ${newBatch.folio} creado en "Lote por producir"; Producción le da entrada en su tablero.`);
-
+      if (failed.length > 0) {
+        toast.error(`Lote ${folio} creado, pero faltaron casas. ${failed.join(' | ')}`);
+      } else {
+        toast.success(`Lote ${folio} ${line === 'PIEDRA' ? 'de piedra ' : ''}creado en "Lote por producir"; Producción le da entrada en su tablero.`);
+      }
       setSelectedIds([]);
       setSimulationResult(null);
-      loadPendingInstances();
-
+      await loadPendingInstances();
     } catch (error: any) {
-      toast.error(error?.response?.data?.detail || 'Hubo un error al inyectar el lote en fábrica.');
+      toast.error(errorText(error, folio ? `Lote ${folio}: error al agregar las casas.` : 'No se pudo crear el lote.'));
     } finally {
       setCreating(false);
     }
   };
 
-  const handleCreateStoneBatch = async () => {
-    if (selectedIds.length === 0 || shortages.length > 0) return;
-    setCreating(true);
-    try {
-      const newBatch = await productionService.createBatch({
-        batch_type: 'PIEDRA',
-        estimated_merma_percent: 0.0,
-      });
-
-      for (const instanceId of selectedIds) {
-        await productionService.assignInstanceToBatch(
-          newBatch.id, instanceId
-        );
-      }
-
-      toast.success(`Lote ${newBatch.folio} de piedra creado en "Lote por producir"; Producción le da entrada en su tablero.`);
-      setSelectedIds([]);
-      setSimulationResult(null);
-      loadPendingInstances();
-    } catch (error: any) {
-      const serverError = error.response?.data?.detail || error.message;
-      toast.error(typeof serverError === 'string' ? serverError : 'Error al crear lote de Piedra.');
-    } finally {
-      setCreating(false);
-    }
-  };
+  const handleCreateBatch = () => createBatch('MDF');
+  const handleCreateStoneBatch = () => createBatch('PIEDRA');
 
   // ── Helpers de renombrado ───────────────────────────────────────────
   const startEdit = (inst: PendingInstance) => {
@@ -290,6 +288,7 @@ export default function SimulatorPage() {
   // D31: with a core shortage, ask Compras for it (confirmed: Design may only be trying combinations).
   const [requisitionFor, setRequisitionFor] = useState<CoreShortage | null>(null);
   const [requestedIds, setRequestedIds] = useState<number[]>([]);
+  const selectionKey = `${batchType}:${[...selectedIds].sort((a, b) => a - b).join(',')}`;
   const selectedOrderIds = Array.from(new Set(allPendingInstances
     .filter((p) => selectedIds.includes(p.id)).map((p) => p.order_id)));
   const orderFolios = selectedOrderIds.map((id) => `OV-${String(id).padStart(4, '0')}`).join(', ');
