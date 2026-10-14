@@ -8,6 +8,8 @@ import {
 } from '../../../api/logistics-service';
 import QRScanner from '../components/QRScanner';
 import { getLocalTodayDateKey } from '../../planning/hooks/usePlanning';
+import { groupByCrew, isLate } from '../utils/loadGroups';
+import { Input } from '@/components/ui/Input';
 
 /** "Hoy" for today's work; otherwise the weekday and date (D32: the next business day is also listed). */
 function workDayLabel(iso: string): string {
@@ -64,6 +66,8 @@ export default function FieldLoadPage() {
   const userRole =
     JSON.parse(localStorage.getItem('user') || '{}')?.role ??
     localStorage.getItem('user_role');
+  const isLeader = String(userRole ?? '').toUpperCase() === 'LOGISTICS';
+  const [search, setSearch] = useState('');
   const pageTitle =
     String(userRole ?? '').toUpperCase() === 'LOGISTICS'
       ? 'Carga del camión'
@@ -198,6 +202,59 @@ export default function FieldLoadPage() {
     </div>
   );
 
+  const renderCard = (a: WorkdayAssignment) => (
+    <li key={a.assignment_id}>
+      <button
+        type="button"
+        onClick={() => {
+          setSelected(a);
+          setView('detail');
+        }}
+        className="w-full text-left p-4 rounded-2xl bg-white border border-gray-200 shadow-sm active:bg-gray-50"
+      >
+        <div className="flex justify-between items-start gap-2 mb-2">
+          <span className="font-semibold text-gray-900">
+            {a.instance_name}
+          </span>
+          {statusBadge(a.assignment_status)}
+        </div>
+        <p className="text-sm text-gray-600 line-clamp-2">
+          {a.project_name || '—'} · {a.client_name || '—'}
+        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold text-indigo-600">
+            {laneLabel(a.lane)}
+          </p>
+          {a.assignment_date && (
+            <p className="text-xs font-semibold text-gray-600 capitalize">
+              {isLate(a, getLocalTodayDateKey()) ? 'Atrasada · ' : ''}{workDayLabel(a.assignment_date)}
+            </p>
+          )}
+        </div>
+        {String(userRole ?? '').toUpperCase() !== 'LOGISTICS' &&
+          a.leader_name && (
+            <p className="text-xs text-indigo-600 font-medium mt-1">
+              👷 {a.leader_name}
+            </p>
+          )}
+        {(a.team.helper_1 || a.team.helper_2) && (
+          <div className="flex flex-col gap-0.5">
+            {a.team.helper_1 && (
+              <p className="text-xs text-gray-500">
+                🔧 Ayudante: {a.team.helper_1.name}
+              </p>
+            )}
+            {a.team.helper_2 && (
+              <p className="text-xs text-gray-500">
+                🔧 Ayudante: {a.team.helper_2.name}
+              </p>
+            )}
+          </div>
+        )}
+      </button>
+    </li>
+  );
+
   if (loading && view === 'list' && assignments.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-[50vh] text-gray-500">
@@ -230,68 +287,37 @@ export default function FieldLoadPage() {
         <>
           <Header title={pageTitle} />
           <p className="text-sm text-gray-500 mb-4 px-1">
-            Carga del camión: escanea el QR de un bulto de cada casa. Salen los trabajos de hoy y del siguiente
-            día hábil.
+            Carga del camión: escanea el QR de un bulto de cada casa.{' '}
+            {isLeader
+              ? 'Salen los trabajos de hoy y del siguiente día hábil.'
+              : 'Por cuadrilla, de la fecha más próxima a la más lejana; las atrasadas al final.'}
           </p>
           {assignments.length === 0 ? (
             <div className="text-center py-16 text-gray-400 text-sm">
               No hay trabajos pendientes para hoy ni para el siguiente día hábil.
             </div>
           ) : (
-            <ul className="flex flex-col gap-3">
-              {assignments.map((a) => (
-                <li key={a.assignment_id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelected(a);
-                      setView('detail');
-                    }}
-                    className="w-full text-left p-4 rounded-2xl bg-white border border-gray-200 shadow-sm active:bg-gray-50"
-                  >
-                    <div className="flex justify-between items-start gap-2 mb-2">
-                      <span className="font-semibold text-gray-900">
-                        {a.instance_name}
-                      </span>
-                      {statusBadge(a.assignment_status)}
-                    </div>
-                    <p className="text-sm text-gray-600 line-clamp-2">
-                      {a.project_name || '—'} · {a.client_name || '—'}
-                    </p>
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs font-semibold text-indigo-600">
-                        {laneLabel(a.lane)}
-                      </p>
-                      {a.assignment_date && (
-                        <p className="text-xs font-semibold text-gray-600 capitalize">
-                          {workDayLabel(a.assignment_date)}
-                        </p>
-                      )}
-                    </div>
-                    {String(userRole ?? '').toUpperCase() !== 'LOGISTICS' &&
-                      a.leader_name && (
-                        <p className="text-xs text-indigo-600 font-medium mt-1">
-                          👷 {a.leader_name}
-                        </p>
-                      )}
-                    {(a.team.helper_1 || a.team.helper_2) && (
-                      <div className="flex flex-col gap-0.5">
-                        {a.team.helper_1 && (
-                          <p className="text-xs text-gray-500">
-                            🔧 Ayudante: {a.team.helper_1.name}
-                          </p>
-                        )}
-                        {a.team.helper_2 && (
-                          <p className="text-xs text-gray-500">
-                            🔧 Ayudante: {a.team.helper_2.name}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </button>
-                </li>
-              ))}
-            </ul>
+            isLeader ? (
+              <ul className="flex flex-col gap-3">{assignments.map(renderCard)}</ul>
+            ) : (
+              <>
+                <Input
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Buscar casa, OV, cliente o líder..."
+                  className="mb-4"
+                />
+                {groupByCrew(assignments, getLocalTodayDateKey(), search).map((group) => (
+                  <section key={group.leader} className="mb-6">
+                    <h2 className="text-sm font-bold text-gray-700 mb-2 px-1">
+                      👷 {group.leader} · {group.rows.length}
+                    </h2>
+                    <ul className="flex flex-col gap-3">{group.rows.map(renderCard)}</ul>
+                  </section>
+                ))}
+              </>
+            )
           )}
         </>
       )}
