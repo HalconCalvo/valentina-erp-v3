@@ -325,7 +325,8 @@ const InventoryReceptionPage: React.FC = () => {
                     <Input
                         type="text"
                         disabled={isComplete}
-                        className="font-bold text-xs uppercase bg-transparent border-b border-transparent hover:border-slate-200 focus-visible:border-indigo-500 disabled:text-slate-400 h-7 shadow-none"
+                        title={editedDescriptions[idx] !== undefined ? editedDescriptions[idx] : (item.name || '')}
+                        className="w-full min-w-[18rem] font-bold text-xs uppercase bg-transparent border-b border-transparent hover:border-slate-200 focus-visible:border-indigo-500 disabled:text-slate-400 h-7 shadow-none"
                         value={editedDescriptions[idx] !== undefined ? editedDescriptions[idx] : (item.name || '')}
                         onChange={(e) => !isComplete && handleDescriptionChange(idx, e.target.value)}
                     />
@@ -529,18 +530,21 @@ const InventoryReceptionPage: React.FC = () => {
                                             <div className="text-right">
                                                 <p className="font-black text-emerald-600 text-lg">{formatCurrency((po.total_estimated_amount || 0) * (1 + Number(po.tax_rate ?? 0.16)))}</p>
                                             </div>
-                                            <button
+                                            {/* H25: an action (ask Tesorería for an advance payment), not a label of the PO */}
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     const subtotal = po.total_estimated_amount || 0;
                                                     setAdvanceAmount(formatInitialAmount(subtotal * (1 + Number(po.tax_rate ?? 0.16))));
                                                     setAdvanceModal({ open: true, po });
                                                 }}
-                                                className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase text-orange-600 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors whitespace-nowrap"
-                                                title="Registrar anticipo para esta OC"
+                                                className="whitespace-nowrap"
+                                                title="El proveedor pide anticipo: solicitarlo a Tesorería"
                                             >
-                                                <AlertTriangle size={12} /> Anticipo
-                                            </button>
+                                                Solicitar anticipo
+                                            </Button>
                                         </div>
                                     </div>
                                 ))}
