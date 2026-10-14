@@ -7,6 +7,15 @@ import {
   type WorkdayAssignment as WorkdayAssignmentRow,
 } from '../../../api/logistics-service';
 import QRScanner from '../components/QRScanner';
+import { getLocalTodayDateKey } from '../../planning/hooks/usePlanning';
+
+/** "Hoy" for today's work; otherwise the weekday and date (D32: the next business day is also listed). */
+function workDayLabel(iso: string): string {
+  const day = new Date(iso);
+  const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+  if (key === getLocalTodayDateKey()) return 'Hoy';
+  return day.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'short' });
+}
 
 /** Campo → Carga del camión: the leader loads the truck scanning a bundle of the house (Gabriel, 12/10: Logística
  *  is no longer a module; Planning decides, Field executes). Evidence, finished work and signature: Campo home. */
@@ -188,11 +197,12 @@ export default function FieldLoadPage() {
         <>
           <Header title={pageTitle} />
           <p className="text-sm text-gray-500 mb-4 px-1">
-            Carga del camión: escanea el QR de un bulto de cada casa.
+            Carga del camión: escanea el QR de un bulto de cada casa. Salen los trabajos de hoy y del siguiente
+            día hábil.
           </p>
           {assignments.length === 0 ? (
             <div className="text-center py-16 text-gray-400 text-sm">
-              No hay trabajos pendientes para hoy.
+              No hay trabajos pendientes para hoy ni para el siguiente día hábil.
             </div>
           ) : (
             <ul className="flex flex-col gap-3">
@@ -220,12 +230,8 @@ export default function FieldLoadPage() {
                         {laneLabel(a.lane)}
                       </p>
                       {a.assignment_date && (
-                        <p className="text-xs text-gray-500">
-                          {new Date(a.assignment_date).toLocaleDateString('es-MX', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                          })}
+                        <p className="text-xs font-semibold text-gray-600 capitalize">
+                          {workDayLabel(a.assignment_date)}
                         </p>
                       )}
                     </div>

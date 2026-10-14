@@ -1,5 +1,5 @@
 """Agenda diaria de instalaciones por cuadrilla."""
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional, Set, Tuple
 
 from sqlmodel import Session, select
@@ -14,6 +14,20 @@ def _day_bounds(workday: date) -> Tuple[datetime, datetime]:
     start = datetime.combine(workday, datetime.min.time())
     end = datetime.combine(workday, datetime.max.time())
     return start, end
+
+
+def next_business_day(day: date) -> date:
+    """Next Monday–Friday after day."""
+    following = day + timedelta(days=1)
+    while following.weekday() >= 5:
+        following += timedelta(days=1)
+    return following
+
+
+def loading_window(today: date) -> Tuple[datetime, datetime]:
+    """D32: the leader loads the truck for today's work and the next business day's (crews sometimes load the
+    afternoon before)."""
+    return _day_bounds(today)[0], _day_bounds(next_business_day(today))[1]
 
 
 def _format_address(instance: SalesOrderItemInstance, client: Optional[Client]) -> Optional[str]:

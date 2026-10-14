@@ -535,7 +535,7 @@ def get_my_workday(
     current_user: CurrentUser,
 ):
     """
-    Feed de instalación: LOGISTICS ve sus asignaciones como líder (hoy);
+    Feed de instalación: LOGISTICS ve sus asignaciones como líder (hoy y el siguiente día hábil, D32);
     DIRECTOR / GERENCIA ven todas las asignaciones en curso (sin filtro de fecha).
     """
     allowed = {UserRole.LOGISTICS, UserRole.DIRECTOR, UserRole.MANAGER}
@@ -546,8 +546,7 @@ def get_my_workday(
         )
 
     workday = datetime.now(MERIDA_TZ).date()
-    day_start = datetime.combine(workday, datetime.min.time())
-    day_end = datetime.combine(workday, datetime.max.time())
+    day_start, day_end = logistics_service.loading_window(workday)
 
     if current_user.role == UserRole.LOGISTICS:
         stmt = select(InstallationAssignment).where(
@@ -617,6 +616,7 @@ def get_my_workday(
 
     return {
         "workday": workday.isoformat(),
+        "next_workday": logistics_service.next_business_day(workday).isoformat(),
         "leader": {"id": current_user.id, "name": current_user.full_name},
         "total_assignments": len(workday_items),
         "items": workday_items,

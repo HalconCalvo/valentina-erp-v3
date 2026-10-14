@@ -26,6 +26,7 @@ export interface WorkdayAssignment {
 
 export interface WorkdayResponse {
   workday: string;
+  next_workday?: string;
   leader: { id: number; name: string };
   total_assignments: number;
   items: WorkdayAssignment[];
