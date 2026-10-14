@@ -3,7 +3,7 @@
  * Modal para editar el custom_name y las 4 fechas programadas (Matriz de 4 Carriles)
  * de una instancia desde cualquier punto del módulo de planeación.
  */
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { planningService, InstanceSchedule, CalendarPill } from '../../../api/planning-service';
 import {
   getExternalDropLaneCodes,
@@ -259,15 +259,9 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
   const [imLeaderId, setImLeaderId] = useState<number | ''>('');
   const [imHelper1Id, setImHelper1Id] = useState<number | ''>('');
   const [imHelper2Id, setImHelper2Id] = useState<number | ''>('');
-  const [imSaving, setImSaving] = useState(false);
-  const [imError, setImError] = useState<string | null>(null);
-  const [imSuccess, setImSuccess] = useState(false);
   const [ipLeaderId, setIpLeaderId] = useState<number | ''>('');
   const [ipHelper1Id, setIpHelper1Id] = useState<number | ''>('');
   const [ipHelper2Id, setIpHelper2Id] = useState<number | ''>('');
-  const [ipSaving, setIpSaving] = useState(false);
-  const [ipError, setIpError] = useState<string | null>(null);
-  const [ipSuccess, setIpSuccess] = useState(false);
 
   useEffect(() => {
     if (!instance) return;
@@ -302,13 +296,9 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
     setImLeaderId('');
     setImHelper1Id('');
     setImHelper2Id('');
-    setImError(null);
-    setImSuccess(false);
     setIpLeaderId('');
     setIpHelper1Id('');
     setIpHelper2Id('');
-    setIpError(null);
-    setIpSuccess(false);
   }, [
     instance?.id,
     instance?.custom_name,
@@ -320,6 +310,9 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
     instance?.scheduled_inst_mdf_end,
     instance?.scheduled_inst_stone_end,
   ]);
+
+  // H13: teams saved with the single "Guardar"; a team that existed is updated even when emptied (removal).
+  const loadedTeams = useRef({ IM: false, IP: false });
 
   useEffect(() => {
     if (!instance) return;
@@ -341,6 +334,7 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
             setIpHelper2Id(a.helper_2_user_id ?? '');
           }
         }
+        loadedTeams.current = { IM: hasIm, IP: hasIp };
         if (!hasIm) {
           setImLeaderId('');
           setImHelper1Id('');
@@ -462,6 +456,13 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
       setError(orderError);
       return;
     }
+    const imTeamVisible = !readOnly && !!dates.scheduled_inst_mdf && installers.length > 0;
+    const ipTeamVisible = !readOnly && hasStone && (!!dates.scheduled_inst_stone || ipLeaderId !== '')
+      && installers.length > 0;
+    if ((imTeamVisible && !isImTeamEmpty && !imLeaderId) || (ipTeamVisible && !isIpTeamEmpty && !ipLeaderId)) {
+      setError('Equipo: selecciona un líder o deja todo vacío para quitar el equipo.');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -511,6 +512,24 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
             }
           : {}),
       });
+      if (imTeamVisible && (!isImTeamEmpty || loadedTeams.current.IM)) {
+        await planningService.assignTeam(instance.id, {
+          leader_user_id: isImTeamEmpty ? null : Number(imLeaderId),
+          helper_1_user_id: isImTeamEmpty ? null : (imHelper1Id ? Number(imHelper1Id) : null),
+          helper_2_user_id: isImTeamEmpty ? null : (imHelper2Id ? Number(imHelper2Id) : null),
+          assignment_date: isImTeamEmpty ? undefined : dates.scheduled_inst_mdf,
+          lane: 'IM',
+        });
+      }
+      if (ipTeamVisible && (!isIpTeamEmpty || loadedTeams.current.IP)) {
+        await planningService.assignTeam(instance.id, {
+          leader_user_id: isIpTeamEmpty ? null : Number(ipLeaderId),
+          helper_1_user_id: isIpTeamEmpty ? null : (ipHelper1Id ? Number(ipHelper1Id) : null),
+          helper_2_user_id: isIpTeamEmpty ? null : (ipHelper2Id ? Number(ipHelper2Id) : null),
+          assignment_date: isIpTeamEmpty ? undefined : dates.scheduled_inst_stone,
+          lane: 'IP',
+        });
+      }
       onSaved(res.data);
       onClose();
     } catch (e: any) {
@@ -766,123 +785,6 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
   const isIpTeamEmpty =
     ipLeaderId === '' && ipHelper1Id === '' && ipHelper2Id === '';
 
-  const handleSaveImTeam = async () => {
-    if (!instance) return;
-
-    // Bloquear si hay error de orden lógico
-    if (orderError) {
-      setImError(orderError);
-      return;
-    }
-    if (!isImTeamEmpty && !imLeaderId) {
-      setImError('Selecciona un líder o deja todo vacío para quitar el equipo.');
-      return;
-    }
-
-    setImSaving(true);
-    setImError(null);
-    setImSuccess(false);
-    try {
-      // Paso 1: Persistir las 4 fechas del estado local antes de asignar equipo.
-      // Esto garantiza que el backend no rechace el assign-team por falta de fecha.
-      const res = await planningService.updateInstance(instance.id, {
-        custom_name: name.trim() || instance.custom_name,
-        ...(!prodLanesLocked
-          ? {
-              scheduled_prod_mdf: dates.scheduled_prod_mdf ? fromInputValue(dates.scheduled_prod_mdf) : undefined,
-              scheduled_prod_stone: dates.scheduled_prod_stone ? fromInputValue(dates.scheduled_prod_stone) : undefined,
-              clear_prod_mdf: !dates.scheduled_prod_mdf && !!instance.schedule.PM,
-              clear_prod_stone: !dates.scheduled_prod_stone && !!instance.schedule.PP,
-            }
-          : {}),
-        scheduled_inst_mdf: dates.scheduled_inst_mdf ? fromInputValue(dates.scheduled_inst_mdf) : undefined,
-        scheduled_inst_stone: dates.scheduled_inst_stone ? fromInputValue(dates.scheduled_inst_stone) : undefined,
-        clear_inst_mdf: !dates.scheduled_inst_mdf && !!instance.schedule.IM,
-        clear_inst_stone: !dates.scheduled_inst_stone && !!instance.schedule.IP,
-        inst_mdf_end: endDates.scheduled_inst_mdf_end
-          ? fromInputValue(endDates.scheduled_inst_mdf_end)
-          : undefined,
-        clear_inst_mdf_end:
-          !endDates.scheduled_inst_mdf_end && !!instance.scheduled_inst_mdf_end,
-        inst_stone_end: endDates.scheduled_inst_stone_end
-          ? fromInputValue(endDates.scheduled_inst_stone_end)
-          : undefined,
-        clear_inst_stone_end:
-          !endDates.scheduled_inst_stone_end && !!instance.scheduled_inst_stone_end,
-      });
-
-      await planningService.assignTeam(instance.id, {
-        leader_user_id: isImTeamEmpty ? null : Number(imLeaderId),
-        helper_1_user_id: isImTeamEmpty ? null : (imHelper1Id ? Number(imHelper1Id) : null),
-        helper_2_user_id: isImTeamEmpty ? null : (imHelper2Id ? Number(imHelper2Id) : null),
-        assignment_date: isImTeamEmpty ? undefined : dates.scheduled_inst_mdf,
-        lane: 'IM',
-      });
-
-      onSaved(res.data);
-      setImSuccess(true);
-      setTimeout(() => setImSuccess(false), 3000);
-    } catch (e: unknown) {
-      const err = e as { response?: { data?: { detail?: string } } };
-      setImError(err?.response?.data?.detail ?? 'Error al asignar equipo IM.');
-    } finally {
-      setImSaving(false);
-    }
-  };
-
-  const handleSaveIpTeam = async () => {
-    if (!instance) return;
-
-    // Bloquear si hay error de orden lógico
-    if (orderError) {
-      setIpError(orderError);
-      return;
-    }
-    if (!isIpTeamEmpty && !ipLeaderId) {
-      setIpError('Selecciona un líder o deja todo vacío para quitar el equipo.');
-      return;
-    }
-
-    setIpSaving(true);
-    setIpError(null);
-    setIpSuccess(false);
-    try {
-      // Paso 1: Persistir las 4 fechas del estado local antes de asignar equipo.
-      const res = await planningService.updateInstance(instance.id, {
-        custom_name: name.trim() || instance.custom_name,
-        ...(!prodLanesLocked
-          ? {
-              scheduled_prod_mdf: dates.scheduled_prod_mdf ? fromInputValue(dates.scheduled_prod_mdf) : undefined,
-              scheduled_prod_stone: dates.scheduled_prod_stone ? fromInputValue(dates.scheduled_prod_stone) : undefined,
-              clear_prod_mdf: !dates.scheduled_prod_mdf && !!instance.schedule.PM,
-              clear_prod_stone: !dates.scheduled_prod_stone && !!instance.schedule.PP,
-            }
-          : {}),
-        scheduled_inst_mdf: dates.scheduled_inst_mdf ? fromInputValue(dates.scheduled_inst_mdf) : undefined,
-        scheduled_inst_stone: dates.scheduled_inst_stone ? fromInputValue(dates.scheduled_inst_stone) : undefined,
-        clear_inst_mdf: !dates.scheduled_inst_mdf && !!instance.schedule.IM,
-        clear_inst_stone: !dates.scheduled_inst_stone && !!instance.schedule.IP,
-      });
-
-      // Paso 2: Asignar equipo instalador.
-      await planningService.assignTeam(instance.id, {
-        leader_user_id: isIpTeamEmpty ? null : Number(ipLeaderId),
-        helper_1_user_id: isIpTeamEmpty ? null : (ipHelper1Id ? Number(ipHelper1Id) : null),
-        helper_2_user_id: isIpTeamEmpty ? null : (ipHelper2Id ? Number(ipHelper2Id) : null),
-        assignment_date: isIpTeamEmpty ? undefined : dates.scheduled_inst_stone,
-        lane: 'IP',
-      });
-
-      onSaved(res.data);
-      setIpSuccess(true);
-      setTimeout(() => setIpSuccess(false), 3000);
-    } catch (e: unknown) {
-      const err = e as { response?: { data?: { detail?: string } } };
-      setIpError(err?.response?.data?.detail ?? 'Error al asignar equipo IP.');
-    } finally {
-      setIpSaving(false);
-    }
-  };
 
   return (
     <>
@@ -1186,25 +1088,6 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
                       className="rounded-xl py-2.5"
                     />
                   </div>
-                  {imError && (
-                    <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
-                      {imError}
-                    </p>
-                  )}
-                  {imSuccess && (
-                    <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
-                      ✅ Equipo IM asignado correctamente.
-                    </p>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => void handleSaveImTeam()}
-                    disabled={imSaving || !!orderError}
-                    title={orderError ?? undefined}
-                    className="w-full py-2.5 rounded-xl text-sm font-bold bg-sky-600 hover:bg-sky-700 text-white transition disabled:opacity-40"
-                  >
-                    {imSaving ? 'Guardando equipo...' : '👷 Guardar equipo instalador IM'}
-                  </button>
                 </div>
               )}
             </div>
@@ -1267,25 +1150,6 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
                       className="rounded-xl py-2.5"
                     />
                   </div>
-                  {ipError && (
-                    <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
-                      {ipError}
-                    </p>
-                  )}
-                  {ipSuccess && (
-                    <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
-                      ✅ Equipo IP asignado correctamente.
-                    </p>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => void handleSaveIpTeam()}
-                    disabled={ipSaving || !!orderError}
-                    title={orderError ?? undefined}
-                    className="w-full py-2.5 rounded-xl text-sm font-bold bg-cyan-600 hover:bg-cyan-700 text-white transition disabled:opacity-40"
-                  >
-                    {ipSaving ? 'Guardando equipo...' : '👷 Guardar equipo instalador IP'}
-                  </button>
                 </div>
               )}
             </div>
