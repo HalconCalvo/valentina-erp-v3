@@ -4816,3 +4816,7 @@ Anotado también para la revisión de indicadores de Dirección: numeración rep
 - Diseño: número de receta (#id de la versión) en catálogo (SKU y columna Versión) y editor; búsqueda "#197"/"197"
   filtra a esa versión y abre el grupo del cliente. utils/recipeNumber.ts + test (19 frontend).
 - Prueba en pantalla de Costo_OV y #receta: pendiente de sesión local (Gabriel entra en http://localhost:3000).
+- Ayuda "?" nivel 1: frontend/src/help/ayuda.md (fácil de editar: "# /ruta", "## título", "### tarea", listas y
+  pasos), parser help/helpContent.ts + HelpPanel (Modal); el "?" del encabezado abre la ayuda de la pantalla.
+  Primeras pantallas: Ventas, Cotización, Compras y Almacén, Diseño, Editor de receta, Administración, Finanzas,
+  Gerencia. Textos con los nombres reales de botones; los aprueba Gabriel o el jefe de cada área. Tests: 3 nuevos.

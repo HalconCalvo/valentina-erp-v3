@@ -1,10 +1,10 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import { Search, Bell, Factory, Wifi, HelpCircle, Menu } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
+import { HelpPanel } from '@/help/HelpPanel';
 
 export default function Header({ onOpenMenu }: { onOpenMenu?: () => void }) {
-    const navigate = useNavigate();
+    const [helpOpen, setHelpOpen] = useState(false);
     return (
         <header className="h-14 bg-white border-b border-slate-200 sticky top-0 z-30 px-3 md:px-6 flex items-center justify-between gap-2 transition-all">
             {onOpenMenu && (
@@ -43,12 +43,13 @@ export default function Header({ onOpenMenu }: { onOpenMenu?: () => void }) {
                 <div className="h-6 w-px bg-slate-200 hidden lg:block"></div>
 
                 <button
-                    onClick={() => navigate('/help')}
+                    onClick={() => setHelpOpen(true)}
                     className="p-1.5 text-slate-400 hover:text-indigo-600 transition-colors rounded-lg"
-                    title="Manual de Valentina"
+                    title="Ayuda de esta pantalla"
                 >
                     <HelpCircle size={18} />
                 </button>
+                <HelpPanel isOpen={helpOpen} onClose={() => setHelpOpen(false)} />
 
                 <button className="relative p-1.5 text-slate-400 hover:text-indigo-600 transition-colors">
                     <Bell size={18} />

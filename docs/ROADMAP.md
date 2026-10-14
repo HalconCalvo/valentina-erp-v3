@@ -184,6 +184,10 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
    "Receta #id" en el SKU y junto a la versión, "#id" en el editor; buscar "#197" o "197" muestra solo esa versión.
 4. Guía de pantallas, segunda ola (Finanzas, Tesorería, Dirección, Producción/Kanban, Diseño, tablero de Ventas,
    cuerpo de Rayos X) y luego ayuda "?" (Ventas, Compras y Almacén, Diseño, Administración, Gerencia).
+   - Ayuda "?" nivel 1 (ayuda de la pantalla abierta) — hecha (commit local): textos en `frontend/src/help/ayuda.md`
+     (una sección "# /ruta" por pantalla, español sencillo, borrador para aprobación de Gabriel o del jefe de área);
+     el "?" abre la ayuda de la pantalla y un botón al manual general. Niveles 2 (manual) y 3 (preguntas
+     frecuentes) después.
 ## 11. PRIORIDAD 2 — Indicadores del tablero de Dirección (con Gabriel) — hecha (2026-10-12, commit local)
 - Decisiones de Gabriel (12/10) aplicadas con una sola fuente (`GET /analytics/director-summary`, solo DIRECTOR):
   1. Ventas: OVs vendidas del año sin IVA (tasa 0 y 16) contra la meta anual.
