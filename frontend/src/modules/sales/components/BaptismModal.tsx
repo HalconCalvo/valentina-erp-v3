@@ -4,7 +4,7 @@
  * Modal reutilizado desde:
  *  1. SalesDashboardPage → tarjeta "Monitor Operativo"
  *  2. SalesOrderDetailModal → botón "Gestionar Identidad / Bautizar"
- *  3. SimulatorPage → botón "Bautizo Masivo"
+ *  (D29, 14/10: el bautizo es solo de Ventas; el Simulador ya no bautiza en masa.)
  *
  * FLUJO DE BAUTIZO POR CASA (calle + lote):
  *  - Se captura Calle + Lote de una casa.

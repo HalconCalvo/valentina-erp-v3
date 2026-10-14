@@ -34,6 +34,10 @@ Las tarjetas de arriba son: **1. Mis Ingresos** (lo vendido en el mes contra tu 
 2. Pulsa **Generar OV** y captura el folio y la fecha de la OC del cliente.
 3. La OV nace "Esperando anticipo". Cuando Administración registra el cobro del anticipo, pasa a vendida.
 
+### Bautizar las casas
+El bautizo (calle y lote de cada casa) lo hace **solo Ventas**: en la tarjeta **4. Monitor Operativo** o en el detalle
+de la OV con **Gestionar Identidad / Bautizar**. Diseño y Producción ya ven las casas con su nombre.
+
 ### Cambiar una OV ya vendida
 Todo cambio de dinero (agregar partidas, cambiar cantidades o precios, cancelar partidas) se hace con una
 **orden de cambio** (CAM-OV-n). Dirección la autoriza y después se aplica. Solo puede haber una abierta a la vez.

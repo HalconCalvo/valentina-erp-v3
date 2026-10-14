@@ -7,8 +7,7 @@ import { planningService } from '../../../api/planning-service';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
-import { Package, CheckSquare, Square, AlertTriangle, ShieldCheck, Factory, Beaker, ArrowLeft, Calculator, Pencil, Check, X, Tag } from 'lucide-react';
-import Modal from '@/components/ui/Modal';
+import { Package, CheckSquare, Square, AlertTriangle, ShieldCheck, Factory, Beaker, ArrowLeft, Calculator, Pencil, Check, X } from 'lucide-react';
 
 /** Devuelve el emoji del foco según el color del semáforo. */
 function semaphoreDot(color?: string | null): string {
@@ -66,9 +65,6 @@ export default function SimulatorPage() {
   const [editingName, setEditingName] = useState('');
   const [savingName, setSavingName] = useState(false);
 
-  // ── Bautizo masivo de selección ────────────────────────────────────
-  const [showMassBaptism, setShowMassBaptism] = useState(false);
-  const [baptismNames, setBaptismNames] = useState<Record<number, string>>({});
 
   // ── Agrupación por OV ───────────────────────────────────────────────
   const [expandedOrderIds, setExpandedOrderIds] =
@@ -266,39 +262,6 @@ export default function SimulatorPage() {
     }
   };
 
-  const openMassBaptism = () => {
-    const selected = [...pendingByType.MDF, ...pendingByType.PIEDRA].filter(p =>
-      selectedIds.includes(p.id),
-    );
-    const initial: Record<number, string> = {};
-    selected.forEach(p => { initial[p.id] = p.custom_name; });
-    setBaptismNames(initial);
-    setShowMassBaptism(true);
-  };
-
-  const saveMassBaptism = async () => {
-    setSavingName(true);
-    try {
-      await Promise.all(
-        Object.entries(baptismNames).map(([id, name]) =>
-          planningService.updateInstance(Number(id), { custom_name: name })
-        )
-      );
-      setPendingByType(prev => ({
-        MDF: prev.MDF.map(p =>
-          baptismNames[p.id] !== undefined ? { ...p, custom_name: baptismNames[p.id] } : p,
-        ),
-        PIEDRA: prev.PIEDRA.map(p =>
-          baptismNames[p.id] !== undefined ? { ...p, custom_name: baptismNames[p.id] } : p,
-        ),
-      }));
-      setShowMassBaptism(false);
-    } catch {
-      toast.error('Error al guardar los alias. Intenta de nuevo.');
-    } finally {
-      setSavingName(false);
-    }
-  };
 
   const mdfCountByOrder = useMemo(() => {
     const counts = new Map<number, number>();
@@ -418,16 +381,6 @@ export default function SimulatorPage() {
                 {allPendingInstances.length} piezas
               </span>
             </div>
-            {/* Bautizo Masivo de selección */}
-            {selectedIds.length > 0 && (
-              <Button
-                size="sm"
-                onClick={openMassBaptism}
-                className="mt-2 w-full text-xs"
-              >
-                <Tag size={13} /> Bautizo Masivo ({selectedIds.length} seleccionadas)
-              </Button>
-            )}
           </div>
 
           <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-3 pb-32">
@@ -759,60 +712,6 @@ export default function SimulatorPage() {
 
       </div>
 
-      {/* ── Modal de Bautizo Masivo ─────────────────────────────────── */}
-      {showMassBaptism && (
-        <Modal isOpen bare size="custom" overlayZIndex={50} onClose={() => setShowMassBaptism(false)} className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg mx-4 overflow-hidden">
-            {/* Header */}
-            <div className="px-6 pt-6 pb-4 border-b border-slate-100">
-              <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
-                <Tag size={18} className="text-indigo-600" />
-                Bautizo Masivo
-              </h2>
-              <p className="text-xs text-slate-500 mt-1">
-                Asigna aliases a las {selectedIds.length} instancias seleccionadas antes de crear el lote.
-              </p>
-            </div>
-
-            {/* Instance list */}
-            <div className="px-6 py-4 max-h-80 overflow-y-auto space-y-2.5">
-              {allPendingInstances
-                .filter(p => selectedIds.includes(p.id))
-                .map((inst, idx) => (
-                  <div key={inst.id} className="flex items-center gap-3">
-                    <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold flex items-center justify-center shrink-0">
-                      {idx + 1}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[10px] text-slate-400 truncate">{inst.product_name} · {inst.order_project_name}</p>
-                      <Input
-                        type="text"
-                        value={baptismNames[inst.id] ?? inst.custom_name}
-                        onChange={e => setBaptismNames(prev => ({ ...prev, [inst.id]: e.target.value }))}
-                        placeholder="Alias / Ubicación..."
-                        className="w-full text-sm border border-slate-200 rounded-lg px-3 py-1.5 text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition mt-0.5 h-auto"
-                      />
-                    </div>
-                  </div>
-                ))}
-            </div>
-
-            {/* Footer */}
-            <div className="px-6 pb-6 flex justify-between gap-3 border-t border-slate-100 pt-4">
-              <Button
-                variant="outline"
-                onClick={() => setShowMassBaptism(false)}
-              >
-                Cancelar
-              </Button>
-              <Button
-                onClick={saveMassBaptism}
-                disabled={savingName}
-              >
-                {savingName ? 'Guardando...' : `Guardar ${selectedIds.length} aliases`}
-              </Button>
-            </div>
-          </Modal>
-      )}
     </div>
   );
 }
