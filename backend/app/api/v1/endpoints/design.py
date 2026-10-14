@@ -519,6 +519,7 @@ class LabelRequestItem(BaseModel):
     lot: Optional[str] = None
     declared_bundles: int
     is_stone: bool = False
+    stone_pieces: int = 0
 
 
 @router.get("/label_requests", response_model=List[LabelRequestItem])
@@ -559,20 +560,15 @@ def list_label_requests(
         if not order:
             continue
         client = session.get(Client, order.client_id)
-        is_stone = (inst.stone_pieces or 0) > 0
-        result.append(
-            LabelRequestItem(
-                instance_id=inst.id,
-                custom_name=inst.custom_name,
-                client_name=client.full_name if client else "",
-                project_name=order.project_name,
-                order_folio=f"OV-{str(order.id).zfill(4)}",
-                street=inst.street,
-                lot=inst.lot,
-                declared_bundles=inst.declared_bundles or 0,
-                is_stone=is_stone,
-            )
-        )
+        common = dict(instance_id=inst.id, custom_name=inst.custom_name,
+                      client_name=client.full_name if client else "", project_name=order.project_name,
+                      order_folio=f"OV-{str(order.id).zfill(4)}", street=inst.street, lot=inst.lot)
+        # H34: a house with MDF and stone is two rows: MDF bundles (labels) and stone pieces (manifest).
+        if (inst.declared_bundles or 0) > 0:
+            result.append(LabelRequestItem(**common, declared_bundles=inst.declared_bundles, is_stone=False))
+        if (inst.stone_pieces or 0) > 0:
+            result.append(LabelRequestItem(**common, declared_bundles=0, is_stone=True,
+                                           stone_pieces=inst.stone_pieces))
     return result
 
 
@@ -727,6 +723,9 @@ def generate_labels_pdf(
         project_name=order.project_name if order else "Sin proyecto",
         instance_name=instance.custom_name or f"Instancia #{instance_id}",
         qr_uuid=qr_uuid,
+        order_folio=f"OV-{str(order.id).zfill(4)}" if order else "",
+        street=instance.street,
+        lot=instance.lot,
     )
 
     filename = f"etiquetas_{instance_id}.pdf"

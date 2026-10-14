@@ -47,6 +47,43 @@ function compareLabelRequests(a: LabelRequestItem, b: LabelRequestItem): number 
   return localeCompareEs(a.custom_name ?? '', b.custom_name ?? '');
 }
 
+/** H32: "Etiquetas_OV-0157_Piloto-1.pdf" (house = street/lot or the last parts of its name). */
+export function pdfFileName(kind: string, row: LabelRequestItem): string {
+  const house = casaSortKey(row) || row.custom_name || String(row.instance_id);
+  const safe = house.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return [kind, row.order_folio, safe].filter(Boolean).join('_') + '.pdf';
+}
+
+/** H35: a failed PDF download says the server's reason (the error body comes as a Blob). */
+async function serverReason(error: unknown, fallback: string): Promise<string> {
+  const data = (error as { response?: { data?: unknown } })?.response?.data;
+  try {
+    const text = data instanceof Blob ? await data.text() : JSON.stringify(data ?? '');
+    const detail = JSON.parse(text)?.detail;
+    if (typeof detail === 'string' && detail.trim()) return detail;
+  } catch {
+    // not JSON: use the fallback
+  }
+  return fallback;
+}
+
+async function downloadPdf(url: string, fileName: string, what: string): Promise<void> {
+  try {
+    const response = await axiosClient.get(url, { responseType: 'blob' });
+    const href = window.URL.createObjectURL(response.data as Blob);
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(href);
+  } catch (error) {
+    toast.error(`No se pudo descargar ${what}: ${await serverReason(error, 'error del servidor.')}`);
+  }
+}
+
 export default function PrintCenterPage() {
   const navigate = useNavigate();
   const [rows, setRows] = useState<LabelRequestItem[]>([]);
@@ -77,46 +114,19 @@ export default function PrintCenterPage() {
 
   const pendingCount = rows.length;
 
-  const handleGenerateLabels = async (instanceId: number) => {
-    try {
-      const response = await axiosClient.get(`/design/instances/${instanceId}/labels_pdf`, { responseType: 'blob' });
-      const blob = response.data as Blob;
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `etiquetas_${instanceId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-    } catch {
-      toast.error('Error al descargar las etiquetas.');
-    }
-  };
+  const handleGenerateLabels = (row: LabelRequestItem) =>
+    downloadPdf(`/design/instances/${row.instance_id}/labels_pdf`, pdfFileName('Etiquetas', row), 'las etiquetas');
 
-  const handleDownloadManifest = async (instanceId: number) => {
-    try {
-      const response = await axiosClient.get(`/design/instances/${instanceId}/stone_manifest`, { responseType: 'blob' });
-      const blob = response.data as Blob;
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `manifiesto_piedra_${instanceId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-    } catch {
-      toast.error('Error al descargar el manifiesto.');
-    }
-  };
+  const handleDownloadManifest = (row: LabelRequestItem) =>
+    downloadPdf(`/design/instances/${row.instance_id}/stone_manifest`, pdfFileName('Manifiesto_Piedra', row),
+      'el manifiesto');
 
   const tableData = useMemo(() => {
     const sorted = [...rows].sort(compareLabelRequests);
-    return sorted.map((row) => ({ ...row, id: row.instance_id }));
+    return sorted.map((row) => ({ ...row, id: `${row.instance_id}-${row.is_stone ? 'P' : 'M'}` }));
   }, [rows]);
 
-  const labelColumns = useMemo((): VTableColumn<LabelRequestItem & { id: number }>[] => [
+  const labelColumns = useMemo((): VTableColumn<LabelRequestItem & { id: string }>[] => [
     {
       key: 'client_name',
       label: 'Cliente',
@@ -146,10 +156,10 @@ export default function PrintCenterPage() {
     },
     {
       key: 'declared_bundles',
-      label: 'Total bultos',
+      label: 'Bultos / piezas',
       render: (row) => (
         <span className="block text-right tabular-nums text-slate-700">
-          {row.declared_bundles}
+          {row.is_stone ? `${row.stone_pieces ?? 0} piezas` : `${row.declared_bundles} bultos`}
         </span>
       ),
     },
@@ -163,7 +173,7 @@ export default function PrintCenterPage() {
             <Button
               type="button"
               size="sm"
-              onClick={() => handleDownloadManifest(row.instance_id)}
+              onClick={() => void handleDownloadManifest(row)}
               className="text-xs"
             >
               🪨 Descargar Manifiesto
@@ -172,7 +182,7 @@ export default function PrintCenterPage() {
             <Button
               type="button"
               size="sm"
-              onClick={() => handleGenerateLabels(row.instance_id)}
+              onClick={() => void handleGenerateLabels(row)}
               className="text-xs bg-emerald-600 hover:bg-emerald-700"
             >
               <Printer size={14} />

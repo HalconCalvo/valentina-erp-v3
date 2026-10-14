@@ -49,6 +49,7 @@ export interface LabelRequestItem {
   lot?: string | null;
   declared_bundles: number;
   is_stone: boolean;
+  stone_pieces?: number;
 }
 
 export const designService = {

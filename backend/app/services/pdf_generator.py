@@ -13,10 +13,21 @@ from PIL import Image as PILImage
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch, cm
 from reportlab.lib.enums import TA_RIGHT, TA_LEFT
-from reportlab.lib.utils import ImageReader
+from reportlab.lib.utils import ImageReader, simpleSplit
 import structlog
 
 logger = structlog.get_logger(__name__)
+
+def house_and_product(instance_name: str | None, street: str | None, lot: str | None) -> tuple[str, str]:
+    """The house ("Calle, Lote") and the product of an instance name like "Cocina Obra Piloto - V1.0, Piloto, 1"."""
+    name = (instance_name or "").strip()
+    parts = [p.strip() for p in name.split(",") if p.strip()]
+    if street or lot:
+        return ", ".join(x for x in (street, lot) if x), parts[0] if parts else name
+    if len(parts) >= 3:
+        return ", ".join(parts[-2:]), ", ".join(parts[:-2])
+    return name, ""
+
 
 class PDFGenerator:
     def __init__(self):
@@ -527,7 +538,8 @@ class PDFGenerator:
         doc = SimpleDocTemplate(
             buffer, pagesize=LETTER,
             rightMargin=60, leftMargin=60,
-            topMargin=50, bottomMargin=70
+            topMargin=50, bottomMargin=70,
+            title=f"Manifiesto piedra {order_folio} {house_and_product(instance_name, None, None)[0]}"
         )
         elements = []
         now = datetime.now()
@@ -957,66 +969,51 @@ class PDFGenerator:
         project_name: str,
         instance_name: str,
         qr_uuid: str,
+        order_folio: str = "",
+        street: str | None = None,
+        lot: str | None = None,
     ) -> BytesIO:
         """
-        Genera un PDF con una etiqueta por bulto. Cada etiqueta en su propia página
-        tamaño 10x6.5cm. 'labels' es la lista de LabelBundle (bundle_number,
-        total_bundles, bundle_type) de generate_all_labels.
+        One label per bundle, each on its own 10x6.5 cm page. 'labels' is the LabelBundle list (bundle_number,
+        total_bundles, bundle_type) of generate_all_labels. H31: OV folio, the house (street/lot) in large type next
+        to the bundle number, and the manual code (uuid8-bundle) for when the QR cannot be read.
         """
-
         page_w, page_h = 10 * cm, 6.5 * cm
         margin = 0.4 * cm
         qr_size = 2.7 * cm
-        text_max_x = page_w - margin - qr_size - 0.2 * cm
         buffer = BytesIO()
         c = pdf_canvas.Canvas(buffer, pagesize=(page_w, page_h))
-
-        client_txt = (client_name or "")[:35]
-        project_txt = f"Proyecto: {(project_name or '')[:30]}"
-        inst_txt = (instance_name or "")[:70]
-        inst_lines = textwrap.wrap(inst_txt, width=32) if inst_txt else [""]
-        inst_lines = inst_lines[:2]
-
-        qr_x = page_w - margin - qr_size
-        qr_y = page_h - margin - qr_size
-
+        house, product = house_and_product(instance_name, street, lot)
+        c.setTitle(f"Etiquetas {order_folio} {house}".strip())
+        header = " · ".join(x for x in (order_folio, (client_name or "")[:28]) if x)
+        house_width = page_w - 2 * margin - qr_size - 0.2 * cm
+        house_size, house_lines = next(
+            ((size, lines) for size in (22, 19, 16, 13, 11)
+             if len(lines := simpleSplit(house, "Helvetica-Bold", size, house_width)) <= 2),
+            (11, simpleSplit(house, "Helvetica-Bold", 11, house_width)[:2]))
+        qr_x, qr_y = page_w - margin - qr_size, page_h - margin - qr_size
         for i, bundle in enumerate(labels):
-            # Cliente (arriba)
-            c.setFont("Helvetica-Bold", 15)
-            c.drawString(margin, page_h - margin - 0.15 * cm, client_txt)
-
-            # Proyecto
-            c.setFont("Helvetica", 10)
-            c.drawString(margin, page_h - margin - 0.62 * cm, project_txt)
-
-            # Instancia (hasta 2 líneas, por palabras)
-            c.setFont("Helvetica", 10)
-            inst_y = page_h - margin - 1.05 * cm
-            for line in inst_lines:
-                c.drawString(margin, inst_y, line)
-                inst_y -= 0.42 * cm
-
-            # Tipo y bulto (grande, desde abajo)
-            bundle_line = f"{bundle.bundle_type} {bundle.bundle_number}/{bundle.total_bundles}"
-            c.setFont("Helvetica-Bold", 26)
-            c.drawString(margin, margin + 1.0 * cm, bundle_line)
-
-            # QR (esquina superior derecha)
+            c.setFont("Helvetica-Bold", 12)
+            c.drawString(margin, page_h - margin - 0.2 * cm, header)
+            c.setFont("Helvetica", 8.5)
+            c.drawString(margin, page_h - margin - 0.65 * cm, f"Proyecto: {(project_name or '')[:30]}")
+            c.drawString(margin, page_h - margin - 1.05 * cm, product[:34])
+            c.setFont("Helvetica-Bold", house_size)  # the house, large, right above the bundle number
+            for n, line in enumerate(reversed(house_lines)):
+                c.drawString(margin, margin + 1.8 * cm + n * house_size * 1.05, line)
+            c.setFont("Helvetica-Bold", 24)
+            c.drawString(margin, margin + 0.75 * cm, f"{bundle.bundle_type} {bundle.bundle_number}/{bundle.total_bundles}")
             qr_img = qrcode.make(f"{qr_uuid}-{bundle.bundle_number}")
             qr_buffer = BytesIO()
             qr_img.save(qr_buffer, format="PNG")
             qr_buffer.seek(0)
             c.drawImage(ImageReader(qr_buffer), qr_x, qr_y, width=qr_size, height=qr_size)
-
-            # Pie
-            c.setFont("Helvetica", 9)
+            c.setFont("Helvetica", 8)
             c.drawString(margin, margin, "Grupo Incamex Koloka")
-            uuid_short = (qr_uuid or "")[:8]
-            c.drawRightString(page_w - margin, margin, uuid_short)
-
+            c.setFont("Helvetica-Bold", 10)
+            c.drawRightString(page_w - margin, margin, f"Código: {(qr_uuid or '')[:8]}-{bundle.bundle_number}")
             if i < len(labels) - 1:
                 c.showPage()
-
         c.save()
         buffer.seek(0)
         return buffer
