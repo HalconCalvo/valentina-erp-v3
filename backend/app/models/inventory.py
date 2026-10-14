@@ -48,6 +48,7 @@ class InventoryTransactionBase(SQLModel):
     # Production traceability (recipe discharge when a batch enters production)
     production_batch_id: Optional[int] = Field(default=None, index=True)
     instance_id: Optional[int] = Field(default=None, index=True)
+    purchase_order_id: Optional[int] = Field(default=None, foreign_key="purchase_orders.id")  # PO reception (H29)
     user_id: Optional[int] = Field(default=None, foreign_key="users.id")
     authorization_id: Optional[int] = Field(
         default=None, foreign_key="production_stock_authorizations.id"

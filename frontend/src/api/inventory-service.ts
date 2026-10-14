@@ -58,6 +58,8 @@ export interface KardexEntryRead {
   reason_code: string | null;
   project_id: number | null;
   reception_id: number | null;
+  /** Readable reference: "OV-0157 · LOTE-MDF-0016", the PO folio or the reason (H29). */
+  reference?: string;
   created_at: string;
   recorded_at: string | null;
   saldo_acumulado: number;

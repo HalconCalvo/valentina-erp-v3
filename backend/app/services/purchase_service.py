@@ -1043,6 +1043,7 @@ def receive_purchase_order(db: Session, po_id: int, data: dict, current_user):
                         reason="RECEPCION_OC",
                         created_at=received_effective_at,
                         commit=False,
+                        trace={"purchase_order_id": po.id},
                     )
         else:
             if item.id in received_by_item_id:

@@ -51,6 +51,7 @@ const formatMovementLabel = (entry: KardexEntryRead): string =>
   MOVEMENT_LABELS[entry.transaction_type] || entry.transaction_type.replace(/_/g, ' ');
 
 const formatReference = (entry: KardexEntryRead): string => {
+  if (entry.reference) return entry.reference;
   const parts: string[] = [];
   if (entry.reason_code) parts.push(entry.reason_code);
   if (entry.reception_id) parts.push(`Recepción #${entry.reception_id}`);

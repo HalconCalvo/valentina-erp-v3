@@ -5,6 +5,7 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.models.inventory import (
+    PurchaseOrder,
     InventoryAudit,
     InventoryAuditItem,
     InventoryAuditItemRecount,
@@ -15,6 +16,7 @@ from app.models.inventory import (
 )
 from app.models.foundations import GlobalConfig
 from app.models.material import STOCK_ROUTE, Material
+from app.models.production import ProductionBatch
 from app.models.users import User
 
 
@@ -220,3 +222,19 @@ def get_open_audit_items_for_material(db: Session, material_id: int) -> List[Inv
             InventoryAudit.status.in_(["EN_CAPTURA", "ESPERANDO_AUTORIZACION", "REABIERTA"]),
         )
     ).all())
+
+
+def get_folios(db: Session, model, ids: List[int]) -> Dict[int, str]:
+    """{id: folio} for production batches or purchase orders."""
+    wanted = [i for i in set(ids) if i]
+    if not wanted:
+        return {}
+    return {row_id: folio for row_id, folio in db.exec(select(model.id, model.folio).where(model.id.in_(wanted))).all()}
+
+
+def get_batch_folios(db: Session, ids: List[int]) -> Dict[int, str]:
+    return get_folios(db, ProductionBatch, ids)
+
+
+def get_purchase_order_folios(db: Session, ids: List[int]) -> Dict[int, str]:
+    return get_folios(db, PurchaseOrder, ids)

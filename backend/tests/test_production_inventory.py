@@ -611,3 +611,14 @@ def test_purchase_cost_rounds_up_to_the_cent_without_float_noise():
     assert _apply_purchase_cost(material, 34.45) == 34.45  # 34.45 * 100 = 3445.0000000000005 in float
     assert _apply_purchase_cost(material, 34.451) == 34.46
     assert _apply_purchase_cost(material, 0.001) == 0.01
+
+
+def test_kardex_shows_the_ov_and_batch_folio_instead_of_internal_codes(client_fixture, env):
+    """H29: a production exit reads "OV-0001 · L-MDF-1", not "ENTRADA_PRODUCCION · Proyecto #1"."""
+    _assign_all(client_fixture, env)
+    _status(env, "IN_PRODUCTION")
+    response = client_fixture.get(f"{settings.API_V1_STR}/foundations/materials/{env.board.id}/kardex",
+                                  headers=_headers(env.director))
+    assert response.status_code == 200, response.text
+    references = [e["reference"] for e in response.json()["entries"]]
+    assert f"OV-{str(env.order.id).zfill(4)} · L-MDF-1" in references

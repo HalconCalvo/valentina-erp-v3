@@ -294,3 +294,21 @@ def test_removing_a_draft_line_returns_its_requisition_to_compras(client_fixture
     assert removed.status_code == 200, removed.text
     session_fixture.expire_all()
     assert session_fixture.get(PurchaseRequisition, req["id"]).status == "PENDIENTE"
+
+
+def test_kardex_shows_the_po_folio_of_a_reception(client_fixture, auth_header_director, session_fixture):
+    """H29: a PO reception reads the PO folio in the kardex, not "RECEPCION_OC"."""
+    provider, material = _seed_provider_and_material(session_fixture)
+    po_id = _create_draft_po(client_fixture, auth_header_director, provider.id, material.id)
+    _authorize_po(client_fixture, auth_header_director, po_id)
+    _dispatch_po(client_fixture, auth_header_director, po_id)
+    item = session_fixture.exec(select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po_id)).first()
+    received = client_fixture.put(f"{settings.API_V1_STR}/purchases/orders/{po_id}/receive",
+                                  headers=auth_header_director, json={
+                                      "invoice_folio": "FAC-H29", "received_items": [
+                                          {"item_id": item.id, "sku": material.sku, "received_qty": 10}]})
+    assert received.status_code == 200, received.text
+    kardex = client_fixture.get(f"{settings.API_V1_STR}/foundations/materials/{material.id}/kardex",
+                                headers=auth_header_director).json()
+    folio = session_fixture.get(PurchaseOrder, po_id).folio
+    assert [e["reference"] for e in kardex["entries"]] == [folio]

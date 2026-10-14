@@ -204,6 +204,35 @@ def register_manual_adjustment_by_delta(
     }
 
 
+KARDEX_REASON_LABELS = {
+    "RECEPCION_OC": "Recepción de OC",
+    "CORRECCION_RECEPCION": "Corrección de recepción",
+    "ENTRADA_PRODUCCION": "Entrada a producción",
+    "SURTIDO_HERRAJES": "Surtido de herrajes",
+    "DESCARGA_EN_CARGA": "Descarga al cargar el camión",
+    "CONTEO_FISICO": "Conteo físico",
+    "SALDO_APERTURA": "Saldo de apertura",
+}
+
+
+def _kardex_references(session: Session, rows: list) -> dict:
+    """H29: readable reference per movement: "OV-0157 · LOTE-MDF-0016", "OC-2610141200", or the reason."""
+    batches = inventory_repo.get_batch_folios(session, [r.production_batch_id for r in rows])
+    orders = inventory_repo.get_purchase_order_folios(session, [r.purchase_order_id for r in rows])
+    out = {}
+    for row in rows:
+        parts = []
+        if row.project_id:
+            parts.append(f"OV-{str(row.project_id).zfill(4)}")
+        if row.production_batch_id in batches:
+            parts.append(batches[row.production_batch_id])
+        if row.purchase_order_id in orders:
+            parts.append(orders[row.purchase_order_id])
+        reason = (row.reason_code or "").strip()
+        out[row.id] = " · ".join(parts) or KARDEX_REASON_LABELS.get(reason, reason) or "—"
+    return out
+
+
 def get_material_kardex(
     session: Session,
     material_id: int,
@@ -217,6 +246,7 @@ def get_material_kardex(
         raise HTTPException(status_code=404, detail="Material no encontrado.")
 
     rows = inventory_repo.get_kardex(session, material_id, date_from, date_to)
+    references = _kardex_references(session, [row for row, _ in rows])
     saldo = 0.0
     entries = []
     for row, operator_name in rows:
@@ -232,6 +262,7 @@ def get_material_kardex(
                 "reason_code": row.reason_code,
                 "project_id": row.project_id,
                 "reception_id": row.reception_id,
+                "reference": references[row.id],
                 "created_at": row.created_at,
                 "recorded_at": row.recorded_at,
                 "saldo_acumulado": round(saldo, 4),
