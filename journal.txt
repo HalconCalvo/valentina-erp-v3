@@ -4790,3 +4790,18 @@ Anotado también para la revisión de indicadores de Dirección: numeración rep
   - Gerencia → OV y Facturación: Vigentes 36 / Cerradas (pagadas, saldo cero) 9 / Canceladas 82 (= 127); etiqueta
     "Excel" en las legacy.
 - Buzón: revisión cada 15 min reactivada (17:08).
+
+---
+## 2026-10-13 — CIERRE DEL DÍA (asesor)
+- Hecho: Valentina Pruebas en Render (base 0.1c-256mb $6 + 1 GB, API Starter, sitio; franja roja y modo seguro OK;
+  BACKEND_CORS_ORIGINS va en formato JSON ["…"]); copia de producción y obra piloto. Importador de OVs con Folio_OV
+  en producción (agrega lo que falta, reporta diferencias, no bloquea ni sobrescribe). OV y Facturación: Vigentes /
+  Cerradas / Canceladas. Inventario de septiembre aprobado por Gabriel (periodo cerrado).
+- Para mañana (14/10):
+  1. Excel de migración con Karina: descargar desde la app (Dirección → Migración OVs Legacy) y usarlo como base;
+     subir primero en Pruebas, revisar diferencias (p. ej. abono OV-0132 13/10 $49,539.54) y luego en producción.
+  2. Simulacro obra piloto en Pruebas: Ventas Sahía Patrón (ventas@), autoriza Gabriel (gabriel.frias@), Diseño
+     Arq. Gerardo Koh, Compras Delmy Barrera, Producción Juan Pech, Campo David Márquez (primera vez), Gerencia
+     CP. Karina Rivera. Asesor prepara mensaje al equipo y hoja de pasos por persona.
+- Pendientes de decisión: D27 (OV-0142/0144 vs 0149/0150, decide contadora), D28 (FG Puerto Palmeras, contadora),
+  D21, D22, usuarios DIRECTOR (g.frias.garcia, ale.garcia: confirmar; admin@example.com: recomendado dar de baja).
