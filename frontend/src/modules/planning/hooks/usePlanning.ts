@@ -331,9 +331,9 @@ export function formatDateKey(year: number, month: number, day: number): string 
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
-/** Mínimo para `<input type="date">` (parte UTC de ISO). */
+/** Mínimo para `<input type="date">`: hoy en calendario local (en UTC, después de las 18:00 de Mérida ya sería mañana). */
 export function getScheduleTodayMinIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return getLocalTodayDateKey();
 }
 
 /** Hoy en calendario local (misma convención que las celdas del mes/semana). */

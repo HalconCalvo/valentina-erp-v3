@@ -6,7 +6,7 @@ Responsabilidades:
   2. Disparar el EVENTO MAESTRO de Doble Verde (🟢🟢): cierre + garantía + nómina.
   3. Gestionar reapertura de instancias para Órdenes de Garantía (⚠️).
 """
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Optional, List, Tuple, Dict
 from sqlmodel import Session, select
 from sqlalchemy.orm import selectinload
@@ -17,6 +17,7 @@ from app.models.sales import (
     SalesOrder,
     InstanceStatus,
 )
+from app.core.business_time import today_local, utc_naive_to_local
 from app.models.design import ProductMaster, ProductVersion
 from app.models.production import (
     PayrollPayment,
@@ -496,3 +497,44 @@ def version_master_maps_for_instances(
     ).all()
     master_by_id = {m.id: m for m in masters if m.id is not None}
     return version_by_id, master_by_id
+
+
+# ============================================================
+# ORDEN LÓGICO: INSTALAR DESPUÉS DE PRODUCIR
+# ============================================================
+
+PRODUCTION_STARTED_STATUSES = {
+    InstanceStatus.IN_PRODUCTION, InstanceStatus.READY, InstanceStatus.CARGADO,
+    InstanceStatus.INSTALLED, InstanceStatus.CLOSED, InstanceStatus.WARRANTY,
+}
+
+
+def _real_production_date(session: Session, instance: SalesOrderItemInstance) -> date:
+    """Business date the house actually entered production (earliest batch start); today if unknown."""
+    batch_ids = [b for b in (instance.production_batch_id, instance.stone_batch_id) if b]
+    starts = [batch.started_at for batch in (session.get(ProductionBatch, b) for b in batch_ids)
+              if batch and batch.started_at]
+    return utc_naive_to_local(min(starts)).date() if starts else today_local()
+
+
+def production_floor_date(session: Session, instance: SalesOrderItemInstance) -> Optional[date]:
+    """Earliest valid installation date: the scheduled PM, or the real production date once
+    the house has entered production (a house produced ahead of PM can be installed earlier)."""
+    if instance.scheduled_prod_mdf is None:
+        return None
+    scheduled = utc_naive_to_local(instance.scheduled_prod_mdf).date()
+    if instance.production_status not in PRODUCTION_STARTED_STATUSES:
+        return scheduled
+    return min(scheduled, _real_production_date(session, instance))
+
+
+def install_order_error(session: Session, instance: SalesOrderItemInstance) -> Optional[str]:
+    """IM and IP cannot be before production (same day is valid)."""
+    floor = production_floor_date(session, instance)
+    if floor is None:
+        return None
+    if instance.scheduled_inst_mdf and utc_naive_to_local(instance.scheduled_inst_mdf).date() < floor:
+        return "IM no puede ser anterior a la producción. No se puede instalar MDF antes de producir MDF."
+    if instance.scheduled_inst_stone and utc_naive_to_local(instance.scheduled_inst_stone).date() < floor:
+        return "IP no puede ser anterior a la producción. No se puede instalar Piedra antes de producir MDF."
+    return None

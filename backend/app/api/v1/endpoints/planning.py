@@ -49,6 +49,7 @@ from app.services.planning_service import (
     list_health_panel_instances,
     batch_map_for_instances,
     version_master_maps_for_instances,
+    install_order_error,
 )
 
 router = APIRouter()
@@ -639,20 +640,11 @@ def update_instance_schedule(
                 detail="La fecha fin IP no puede ser anterior a la fecha inicio IP.",
             )
 
-    # Validación de orden lógico: IM y IP no pueden ser anteriores a PM.
-    # Mismo día es válido (comparación >=).
-    if inst.scheduled_inst_mdf and inst.scheduled_prod_mdf:
-        if inst.scheduled_inst_mdf < inst.scheduled_prod_mdf:
-            raise HTTPException(
-                status_code=400,
-                detail="IM no puede ser anterior a PM. No se puede instalar MDF antes de producir MDF.",
-            )
-    if inst.scheduled_inst_stone and inst.scheduled_prod_mdf:
-        if inst.scheduled_inst_stone < inst.scheduled_prod_mdf:
-            raise HTTPException(
-                status_code=400,
-                detail="IP no puede ser anterior a PM. No se puede instalar Piedra antes de producir MDF.",
-            )
+    # Orden lógico: IM e IP no antes de producir (PM, o la fecha real si ya entró a producción).
+    order_error = install_order_error(session, inst)
+    if order_error:
+        session.rollback()
+        raise HTTPException(status_code=400, detail=order_error)
 
     session.add(inst)
     session.commit()

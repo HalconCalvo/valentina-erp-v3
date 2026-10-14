@@ -10,6 +10,7 @@ import {
   getInstallationScheduleLaneCodes,
   getSemaphoreConfig,
   getScheduleTodayMinIso,
+  getLocalTodayDateKey,
   instanceHasStoneComponents,
 } from '../hooks/usePlanning';
 import { X } from 'lucide-react';
@@ -427,17 +428,23 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
     return null;
   })();
 
-  // ── Validación de orden lógico: IM y IP no pueden ser anteriores a PM ──
+  // ── Validación de orden lógico: IM y IP no pueden ser anteriores a la producción ──
+  // Antes de producir el límite es la PM programada; si la casa ya entró a producción, la fecha real
+  // (a más tardar hoy), para poder adelantar la instalación de una casa producida antes de su PM.
   const orderError = (() => {
     if (pastDateError) return pastDateError;
-    const pm = dates.scheduled_prod_mdf;
+    const scheduledPm = dates.scheduled_prod_mdf;
+    const today = getLocalTodayDateKey();
+    const pm = scheduledPm && isProductionTrackLocked(instance.production_status) && today < scheduledPm
+      ? today
+      : scheduledPm;
     const im = dates.scheduled_inst_mdf;
     const ip = hasStone ? dates.scheduled_inst_stone : '';
     if (im && pm && im < pm) {
-      return `IM (${formatDisplayDate(im)}) no puede ser anterior a PM (${formatDisplayDate(pm)}). No se puede instalar antes de producir.`;
+      return `IM (${formatDisplayDate(im)}) no puede ser anterior a la producción (${formatDisplayDate(pm)}). No se puede instalar antes de producir.`;
     }
     if (hasStone && ip && pm && ip < pm) {
-      return `IP (${formatDisplayDate(ip)}) no puede ser anterior a PM (${formatDisplayDate(pm)}). No se puede instalar antes de producir.`;
+      return `IP (${formatDisplayDate(ip)}) no puede ser anterior a la producción (${formatDisplayDate(pm)}). No se puede instalar antes de producir.`;
     }
     const imEnd = endDates.scheduled_inst_mdf_end;
     if (im && imEnd && imEnd < im) {
