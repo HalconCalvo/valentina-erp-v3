@@ -18,10 +18,15 @@ Código y comentarios en inglés. Comunicación con Gabriel en español, breve y
 4. **Fuera de alcance:** si aparece algo que no es de la tarea, se anota en ROADMAP o DECISIONES_PENDIENTES
    y se sigue. No se arregla "de pasada" lo que cambia comportamiento.
 
+### Primero Pruebas (Gabriel, 14/10)
+Todo cambio se sube primero a la rama `pruebas` (`git push origin HEAD:pruebas`; Render despliega Valentina Pruebas
+desde ella, también en horario laboral, porque no toca producción). `main` solo después de probarlo en Pruebas y con
+las condiciones de abajo.
+
 ### Push a producción (main → Render despliega solo)
 Permitido sin pedir autorización SOLO si se cumplen todas:
 - pasan todos los tests (backend y frontend) y el build;
-- se probó en pantalla en la copia local;
+- se probó en pantalla en la copia local y en Valentina Pruebas (rama `pruebas`);
 - las migraciones se probaron en la copia local (subir, bajar, subir);
 - es fuera de horario laboral (hora Mérida). Horario laboral: lunes a viernes de 8:00 a 18:00; fuera de eso (noches, sábados y domingos) se permite.
 Si alguna no se cumple: commit local y se sigue con otra tarea.
