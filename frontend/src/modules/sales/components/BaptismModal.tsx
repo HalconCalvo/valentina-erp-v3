@@ -99,6 +99,9 @@ export default function BaptismModal({ orderId, order: orderProp, onClose, onCom
       });
     });
     setRows(all);
+    // H12: the street comes prefilled with the last one captured in this OV (houses usually share it); editable.
+    const lastStreet = [...all].reverse().find((r) => r.street)?.street;
+    if (lastStreet) setNewStreet((current) => current || lastStreet);
   }
 
   // Instancias sin asignar (sin street/lot): el "pool" para armar casas
@@ -184,8 +187,7 @@ export default function BaptismModal({ orderId, order: orderProp, onClose, onCom
       }));
       setLastDeliveryDate(trimmedDelivery);
       setDeliveryDate(trimmedDelivery);
-      setNewStreet('');
-      setNewLot('');
+      setNewLot('');  // H12: the street stays for the next house
       setSelected(new Set());
     } catch (e: any) {
       setError(e?.response?.data?.detail ?? 'No se pudo guardar la casa. Intenta de nuevo.');
