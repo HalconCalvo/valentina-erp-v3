@@ -19,7 +19,7 @@ const MODULE_CONTENT: Record<string, ModuleInfo> = {
     description: 'Define las reglas de negocio que se aplican automáticamente en toda la operación. Solo Dirección puede modificarlos. Un cambio aquí afecta cotizaciones, costeos y nómina.',
     cards: [
       { name: 'Identidad Corporativa', desc: 'Logo, nombre, RFC, dirección y contacto de Koloka. Aparece en todos los documentos emitidos.' },
-      { name: 'Sobreprecio objetivo (45%)', desc: 'Sobreprecio % = (precio sin comisión − costo) / costo. Con él se fija el precio: costo × (1 + sobreprecio) × (1 + comisión).' },
+      { name: 'Sobreprecio objetivo (45%)', desc: 'Sobreprecio % = (precio sin comisión − costo) / costo. Con él se fija el precio: costo × (1 + sobreprecio) ÷ (1 − comisión).' },
       { name: 'Sobreprecio mínimo (25%)', desc: 'Partidas o cotizaciones por debajo se marcan en rojo en la captura y en la revisión del Director. Solo Dirección lo cambia.' },
       { name: 'Margen neto % sobre venta', desc: '(precio sin IVA − costo − comisión) / precio sin IVA. Es la cifra para analizar y comparar rentabilidad (después de comisión).' },
       { name: 'Tolerancia (3%)', desc: 'Variación máxima permitida sobre el precio antes de requerir autorización de Dirección.' },
