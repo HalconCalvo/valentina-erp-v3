@@ -4824,3 +4824,34 @@ Anotado también para la revisión de indicadores de Dirección: numeración rep
   director, production, design y sales. Sin cambios de comportamiento; tsc 156 → 149 sin errores nuevos (comparado
   error por error); 22 tests frontend; build OK. Doble clic evitado en Pagar (nómina) y Solicitar Etiquetas.
   Prueba en pantalla pendiente (sesión local vencida).
+
+---
+## 2026-10-14 (tarde) — Hallazgos del ensayo general, obra piloto OV-0157 (buzón del asesor 13:15)
+- Gabriel: "quedas con el asesor" (13:20); revisión del buzón cada 15 min. Asesor 13:40: sin push hasta que Gabriel
+  decida; seguir en commits locales con tests.
+- Bloqueo para Pruebas: Pruebas despliega de `main` igual que producción → subir a Pruebas = subir a producción.
+  En horario laboral no se sube sin Gabriel. Propuesta (buzón): rama `pruebas` para los servicios de Pruebas.
+- Prioridad 1: H38 (IM/IP contra la fecha real de producción, la del lote; si no hay, hoy; backend y modal; además
+  "hoy" del calendario en hora Mérida, antes UTC = mañana después de las 18:00), D32 (carga del camión: hoy +
+  siguiente día hábil), H37 (cámara: dice por qué falla, código manual, "Reintentar cámara"; la casa abierta
+  sobrevive a una recarga del iPhone; no reproducido sin iPhone, confirmar en el equipo de Gabriel).
+- D29–D31: sin bautizo masivo en el Simulador; sin lote con faltante núcleo (MDF/Piedra) — botón deshabilitado con
+  "Falta <material>: <cantidad>"; "Generar requisición a Compras" con confirmación, ligada a la OV (si el lote
+  tiene varias OVs, sin OV y con nota).
+- Migración x3y4z5a6b7c8 (local sube/baja/sube): purchase_requisitions.sales_order_id, purchase_order_items
+  .sales_order_id y .requisition_id (antes el requisition_id se perdía: "Quitar partida" no regresaba la
+  solicitud), inventory_transactions.purchase_order_id (Kárdex con folio de OC; movimientos viejos sin OC).
+- Compras/Almacén: H18, H20, H21 (selector de OV; "Sin OV" en vez de GENERAL/S/PROYECTO), H22, H23, H24, H25 (era
+  el botón de solicitar anticipo, ahora dice "Solicitar anticipo"), H29.
+- Producción/Etiquetas: H26, H27, H30, H31 (etiqueta: OV · cliente, casa grande junto al bulto, "Código:
+  bd5662bf-1"), H32 (nombre y título del PDF), H33 + hallazgo: la tarjeta de Piedra pedía etiquetas con 1/1 y
+  pisaba los bultos MDF; ahora declara piezas. H34 (dos renglones), H35 (no reproducido: el manifiesto de Piloto 1
+  se genera bien con sus datos; el aviso ya muestra el detalle del servidor), H36.
+- Ventas/Facturación: H2/H4 (editor de receta y captura redondeaban cada renglón hacia arriba: $10,398.61; regla
+  única = exacto por renglón, total a centavos: $10,398.57), H3 (D33 aplicada), H5, H6 (VTable con encabezado fijo
+  y scroll propio de 70vh; reportes agrupados con encabezado de columnas y de grupo fijos), H7 (ya en la guía),
+  H8, H9 (fecha del depósito), H12 (la calle se queda para la siguiente casa), H13 (un solo Guardar), H14.
+  H1 no reproducido: precio de Pruebas = costo × 1.45 ÷ 0.95 (correcto); 52.63% = sobreprecio sin descontar la
+  comisión; falta ver la pantalla exacta. Ayuda: fórmula de precio corregida (÷ (1 − comisión)).
+- Pruebas: backend 337, frontend 37, build OK, tsc 148 (sin errores nuevos), alembic una cabeza x3y4z5a6b7c8.
+- Pendiente: prueba en pantalla de todo (sesión local vencida) y push (decide Gabriel). Decisiones: D33, D34.

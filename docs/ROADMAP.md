@@ -195,6 +195,19 @@ Estados: **en curso** · **en espera** (de quién) · **pendiente** · **hecha**
      (una sección "# /ruta" por pantalla, español sencillo, borrador para aprobación de Gabriel o del jefe de área);
      el "?" abre la ayuda de la pantalla y un botón al manual general. Niveles 2 (manual) y 3 (preguntas
      frecuentes) después.
+## 17. Hallazgos del ensayo general, obra piloto OV-0157 (buzón del asesor, 14/10) — hecha en commits locales
+Push pendiente: Pruebas despliega de `main` igual que producción (pregunta en el buzón, 13:27). Prueba en pantalla
+pendiente (sesión local vencida). Migración nueva `x3y4z5a6b7c8` (sube/baja/sube probada en local).
+1. Prioridad 1: H38 (IM/IP contra la fecha real de producción), D32 (carga: hoy + siguiente día hábil), H37 (cámara
+   del iPhone: aviso, código manual, reintentar; no regresa a la lista).
+2. Decisiones D29 (sin bautizo masivo en el Simulador), D30 (sin lote con faltante núcleo), D31 (requisición a
+   Compras desde el Simulador, ligada a la OV).
+3. Simulador/Compras/Almacén: H18, H20, H21 (requisición ↔ OV hasta la OC), H22 (quitar partida regresa la
+   solicitud), H23, H24, H25, H29 (Kárdex con OV, lote y folio de OC).
+4. Producción/Etiquetas: H26, H27, H30, H31, H32, H33, H34, H35 (aviso con el detalle del servidor), H36.
+5. Ventas/Facturación: H2/H4 (costo de receta con una sola cifra), H3 (D33 aplicada), H5, H6, H7 (ya en la guía),
+   H8, H9, H12, H13, H14. H1 no reproducido con los datos (ver buzón).
+
 ## 11. PRIORIDAD 2 — Indicadores del tablero de Dirección (con Gabriel) — hecha (2026-10-12, commit local)
 - Decisiones de Gabriel (12/10) aplicadas con una sola fuente (`GET /analytics/director-summary`, solo DIRECTOR):
   1. Ventas: OVs vendidas del año sin IVA (tasa 0 y 16) contra la meta anual.

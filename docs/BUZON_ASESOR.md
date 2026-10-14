@@ -8,7 +8,113 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Pendientes
 
+## Preguntas para el asesor
+
+- [2026-10-14 13:27] SUBIR A PRUEBAS EN HORARIO LABORAL. Prioridad 1 corregida y con tests: H38 (502aaea), D32 (7a66fc0)
+  y H37 (66dda73).
+  Pruebas despliega de la rama `main`, igual que producción: subirlo a Pruebas = subirlo también a producción. Son
+  las 13:27 (horario laboral) y CLAUDE.md no permite push sin autorización de Gabriel. Además, el push llevaría 5
+  commits del 14/10 que aún no prueba en pantalla (Costo_OV, #receta, ayuda "?", guía segunda ola).
+  Opciones: (a) Gabriel autoriza el push ahora (todo a producción y Pruebas); (b) esperar a las 18:04;
+  (c) Gabriel cambia en Render la rama de valentina-pruebas-api y valentina-pruebas a una rama `pruebas`, y desde
+  entonces subo ahí primero sin tocar producción. Recomiendo (c) desde ahora (es lo que pide "probar en Pruebas
+  antes de producción") y, para hoy, (a) si el ensayo no puede esperar.
+  También: la sesión de la copia local venció (403); para probar en pantalla, Gabriel debe entrar en
+  http://localhost:3000.
+  RESPUESTA DEL ASESOR [13:40]: Gabriel salió; no hay push hasta que él decida. No subir nada ahora.
+  - Le planteo (a)/(b)/(c) a su regreso; (c) es cambio en Render y lo decide él.
+  - Mientras tanto: sigue con el resto de la instrucción (D30 ya va; luego D31, simulador/compras/almacén,
+    producción/etiquetas, ventas) en commits locales, con tests. Deja la prueba en pantalla para cuando Gabriel
+    entre en localhost:3000.
+  - Agrega a tu reporte final la lista de commits pendientes de prueba en pantalla.
+
 ## Hechas
+
+- [2026-10-14 13:15] HALLAZGOS DEL ENSAYO GENERAL — OBRA PILOTO (OV-0157, Pruebas). Gabriel autorizó. Trabajar en este orden;
+  probar cada cambio en Pruebas antes de producción; push según la regla de horario o autorización de Gabriel.
+  Reportar en "Hechas" qué se corrigió y qué quedó pendiente con motivo.
+
+  PRIORIDAD 1 — BLOQUEA EL ENSAYO (paso 11 en adelante):
+  H38. Planeación, InstanceEditModal (orderError): cuando la casa ya se produjo (PM bloqueada), IM/IP se siguen validando
+       contra la PM PROGRAMADA y no dejan adelantar la instalación. Corregir: si la casa ya entró/salió de producción,
+       validar IM/IP contra la fecha REAL de producción (o hoy), no contra la PM programada. Caso de prueba: Piloto 1
+       (OV-0157), PM 19/10 ya producida hoy; debe dejar poner IM = 14/10.
+  D32. Campo → Carga del camión para el líder: mostrar trabajos de HOY y del SIGUIENTE día hábil (los muchachos a veces
+       cargan la tarde anterior). Hoy solo muestra los de hoy.
+  H37. Campo en iPhone (Safari/Chrome): "Escanear QR del bulto" no abre la cámara y regresa a la lista de casas.
+       El código manual (bd5662bf-1) sí funciona desde la laptop. Reproducir y corregir (permiso de cámara iOS /
+       html5-qrcode); si la cámara falla, mostrar el campo de código manual con un aviso, nunca regresar a la lista.
+
+  DECISIONES NUEVAS DE GABRIEL (14/10):
+  D29. El bautizo es solo de Ventas: quitar el botón "Bautizo Masivo" y su modal del Simulador (SimulatorPage).
+       Actualizar BaptismModal (comentario de puntos de entrada) y la ayuda.
+  D30. Simulador: si falta material núcleo (MDF o Piedra), NO se puede crear el lote, ni MDF ni Piedra. Botón deshabilitado
+       con aviso "Falta <material>: <cantidad>". (Hoy MDF crea en ON_HOLD y Piedra crea sin bloqueo —
+       handleCreateStoneBatch ignora suggested_status.) Herrajes y demás pueden quedar negativos: no bloquean.
+       El bloqueo al entrar a producción (discharge_reservations) se queda como segunda barrera.
+  D31. Con faltante núcleo, el Simulador ofrece "Generar requisición a Compras", con confirmación
+       "¿Generar requisición por X de <material>?" (Diseño puede estar solo probando). La requisición queda ligada a la OV.
+
+  SIMULADOR / COMPRAS / ALMACÉN:
+  H18. "Crear Lote MDF" no respondió hasta recargar (Cmd+R); sin aviso de error. Revisar estado viejo tras cambiar
+       selección; siempre mostrar éxito o error.
+  H20. Nueva solicitud de compra: mostrar la unidad del catálogo junto a Cantidad.
+  H21. Requisición sin liga a OV: agregar selector de OV/proyecto. Hoy sale "S/PROYECTO" en una pantalla y "GENERAL" en otra.
+  H22. Mesa de Control: "Quitar partida" y "Cancelar partida" usan el mismo ícono rojo. Quitar = flecha de regreso (no destructivo).
+  H23. cancel_po_item no recalcula total_estimated_amount de la OC (remove_po_item sí).
+  H24. Recepción (Andén): la descripción del material sale cortada ("GRANITO T").
+  H25. Andén de Descarga: todas las OCs muestran etiqueta "ANTICIPO", aunque no pidieron anticipo. Revisar significado o quitarla.
+  H29. Kárdex: referencias con códigos internos ("ENTRADA_PRODUCCION · Proyecto #157", "RECEPCION_OC"). Mostrar
+       "OV-0157 · LOTE-MDF-0016" y el folio de la OC.
+
+  PRODUCCIÓN / ETIQUETAS:
+  H26. Piso de Producción: búsqueda que filtre tarjetas por OV, cliente o casa.
+  H27. Tarjetas de lote en columnas 1 y 2: mostrar la casa (custom_name, ej. "Piloto, 1"), no solo el producto.
+       (Mismo caso que H14 en el calendario.) En Empaque ya se ve bien.
+  H30. Empaque: al marcar "Herrajes surtidos" se borran los bultos MDF/Herrajes ya escritos sin solicitar.
+  H31. Etiqueta de bulto: falta folio de OV y dirección (calle/lote); la casa debe ir en letra grande junto al número de bulto.
+  H32. PDF de etiquetas sale como "untitled": nombrarlo Etiquetas_OV-0157_Piloto-1.pdf (o similar).
+  H33. Empaque: "Etiquetas solicitadas" se guarda por instancia (labelsRequestedInstanceIds); la tarjeta de Piedra
+       hereda la marca de MDF. Debe ser por instancia + tipo de lote.
+  H34. Centro de Impresión: una casa con MDF y Piedra sale en un solo renglón, tipo Piedra con el total de bultos MDF (5).
+       Deben ser dos renglones: MDF (bultos) y Piedra (piezas).
+  H35. "Descargar Manifiesto" (stone_manifest) falla: "Error al descargar el manifiesto". Revisar logs de
+       valentina-pruebas-api (instancia Piloto 1 de OV-0157). El aviso debe mostrar el detalle del servidor.
+  H36. Campo → Carga del camión (vista de Dirección): lista todas las cuadrillas desde las más viejas (julio,
+       "Programado"). Ordenar por fecha próxima, agrupar por cuadrilla y agregar búsqueda.
+
+  VENTAS / COTIZACIÓN / FACTURACIÓN (hallazgos de la mañana):
+  H1.  Captura de cotización muestra Sobreprecio 52.63% en lugar de 45%.
+  H2/H4. Centavos distintos entre pantallas (costo unitario $10,398.61 vs $10,398.57; total $31,195.83 vs $31,195.71).
+       Unificar redondeo: una sola cifra en todo el sistema.
+  H3.  "Saldo vivo" vs "Saldo por cobrar": nombres confusos; proponer nombres claros a Gabriel.
+  H5.  Folio de factura debe ser obligatorio.
+  H6.  Encabezados de tabla fijos (sticky) en todo el sistema, incluido el encabezado de grupo en reportes agrupados
+       y el Kárdex.
+  H7.  Reporte CxC muestra importes sin signo $.
+  H8.  Tipo de factura sale "ADVANCE" en inglés: traducir.
+  H9.  Registro de ingreso (depósito) sin campo de fecha del depósito.
+  H12. Bautizo: el campo Calle se precarga con el último valor capturado y sigue editable.
+  H13. Modal de edición de instancia con tres botones de guardar: dejar un solo "Guardar".
+  H14. Calendario de Planeación: las píldoras muestran solo "Cocina Obra Piloto"; deben mostrar la casa (calle/lote).
+  HECHO [2026-10-14 14:25 Mérida] — todo en commits locales con tests (backend 337, frontend 37, build OK).
+  NO está en Pruebas ni en producción: Pruebas despliega de `main` (ver pregunta 13:27); sin push hasta que Gabriel
+  decida. Prueba en pantalla pendiente: la sesión local venció (Gabriel entra en http://localhost:3000).
+  Migración nueva x3y4z5a6b7c8 (probada sube/baja/sube en local).
+  - Corregido: H38, D32, H37 (sin iPhone para reproducir: aviso con la causa, código manual, reintentar, no regresa
+    a la lista), D29, D30, D31, H18, H20, H21, H22 (además "Quitar partida" ahora sí regresa la solicitud), H23,
+    H24, H25 (era el botón "solicitar anticipo"), H29, H26, H27, H30, H31, H32, H33 (además la tarjeta de Piedra
+    pisaba los bultos MDF con 1/1), H34, H36, H2/H4 (editor de receta y captura redondeaban cada renglón hacia
+    arriba), H3 (aplicada D33: "Falta cobrar del contrato" / "Facturado sin cobrar"), H5, H6, H7 (ya venía en la
+    guía), H8, H9, H12 (la calle se queda para la siguiente casa), H13, H14.
+  - Pendiente con motivo:
+    · H35: no reproducido; el manifiesto de Piloto 1 se genera bien con sus datos. El aviso ya muestra el detalle
+      del servidor; si vuelve a fallar, el mensaje dirá la causa (o revisar logs de valentina-pruebas-api).
+    · H1: no reproducido con los datos (precio = costo × 1.45 ÷ 0.95, correcto con comisión 5%). 52.63% es el
+      sobreprecio sin descontar la comisión. Necesito saber en qué pantalla y con qué usuario salió.
+    · D34 (lápiz de renombrar en el Simulador) en DECISIONES_PENDIENTES.
+  - Commits pendientes de prueba en pantalla (31): 44e93cd…c933fde (los 5 del 14/10 en la mañana y los 26 de esta
+    instrucción; lista en el journal y en `git log origin/main..HEAD`).
 
 - [2026-10-13 13:55] IMPORTADOR DE OVs + VISTA DE OVs CERRADAS (decisiones de Gabriel, 13/10). Prioridad 1 al terminar la copia de Pruebas.
   A. El Excel de migración es la verdad SOLO del dinero de las OVs que contiene: qué OVs existen, facturas, notas de crédito,
