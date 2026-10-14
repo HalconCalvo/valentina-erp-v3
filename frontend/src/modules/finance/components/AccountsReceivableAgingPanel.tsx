@@ -514,8 +514,8 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
                     </div>
                 </div>
 
-                <div className="overflow-x-auto">
-                    <div className="flex text-xs uppercase tracking-wider text-slate-500 font-bold bg-slate-50 border-b border-slate-200">
+                <div className="overflow-auto max-h-[75vh]">
+                    <div className="sticky top-0 z-20 flex text-xs uppercase tracking-wider text-slate-500 font-bold bg-slate-50 border-b border-slate-200">
                         <SortableHeader field="CLIENT" label="Cliente / Proyecto" />
                         <SortableHeader field="OV_DATE" label="Fecha OV" className="w-32 shrink-0" />
                         <SortableHeader field="ORDER_TOTAL" label="Importe OV" align="right" className="w-36 shrink-0" />
@@ -533,6 +533,7 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
                                 : 'No hay resultados para tu búsqueda.',
                         }}
                         className="border-0 shadow-none rounded-none [&_thead]:hidden"
+                        stickyHeader={false}
                     />
                 </div>
             </div>

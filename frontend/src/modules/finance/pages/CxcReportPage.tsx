@@ -481,7 +481,8 @@ const CxcReportPage: React.FC = () => {
             </div>
 
             <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                <div className="overflow-x-auto">
+                {/* H6: column header and client header stay visible while scrolling the report */}
+                <div className="overflow-auto max-h-[75vh]">
                     {loading && filteredRows.length === 0 ? (
                         <VTable
                             columns={cxcColumns as unknown as VTableColumn<Record<string, unknown>>[]}
@@ -498,7 +499,7 @@ const CxcReportPage: React.FC = () => {
                         />
                     ) : (
                         <>
-                            <div className="flex w-full text-sm bg-slate-50 border-b border-slate-200 text-left">
+                            <div className="sticky top-0 z-20 flex w-full text-sm bg-slate-50 border-b border-slate-200 text-left">
                                 {cxcColumns.map((col) => (
                                     <div key={col.key} className="flex-1 p-3 font-bold text-slate-600 min-w-0">
                                         {col.label}
@@ -507,7 +508,7 @@ const CxcReportPage: React.FC = () => {
                             </div>
                             {grouped.map((group) => (
                                 <div key={`${group.clientId ?? 'x'}-${group.clientName}`}>
-                                    <div className="bg-indigo-50 border-y border-indigo-100 px-3 py-3 flex justify-between items-center">
+                                    <div className="sticky top-11 z-10 bg-indigo-50 border-y border-indigo-100 px-3 py-3 flex justify-between items-center">
                                         <span className="font-black text-indigo-900">{group.clientName}</span>
                                         <span className="font-black text-indigo-800 tabular-nums">
                                             Debe: {formatMoney(group.debe)}
@@ -517,6 +518,7 @@ const CxcReportPage: React.FC = () => {
                                         columns={cxcColumns as unknown as VTableColumn<Record<string, unknown>>[]}
                                         data={group.rows as unknown as Record<string, unknown>[]}
                                         className="border-0 rounded-none shadow-none [&_thead]:hidden"
+                                        stickyHeader={false}
                                     />
                                 </div>
                             ))}

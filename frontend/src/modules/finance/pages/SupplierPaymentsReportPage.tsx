@@ -349,8 +349,8 @@ const SupplierPaymentsReportPage: React.FC = () => {
                             No hay pagos para los filtros seleccionados
                         </div>
                     ) : (
-                        <div className="overflow-x-auto">
-                            <div className="flex text-xs uppercase tracking-wider text-slate-500 font-bold bg-slate-50 border-b border-slate-200">
+                        <div className="overflow-auto max-h-[75vh]">
+                            <div className="sticky top-0 z-20 flex text-xs uppercase tracking-wider text-slate-500 font-bold bg-slate-50 border-b border-slate-200">
                                 <div className="flex-1 p-4 min-w-0">Folio</div>
                                 <div className="w-36 shrink-0 p-4 text-right">Importe</div>
                                 <div className="w-40 shrink-0 p-4">Fecha de pago</div>
@@ -365,6 +365,7 @@ const SupplierPaymentsReportPage: React.FC = () => {
                                         data={[row] as unknown as Record<string, unknown>[]}
                                         onRowClick={() => void toggleRow(row.invoice_number)}
                                         className="border-0 rounded-none shadow-none [&_thead]:hidden [&>div]:border-0"
+                                        stickyHeader={false}
                                     />
                                     {expandedFolio === row.invoice_number && (
                                         <div className="bg-slate-50/70 px-4 py-4 border-b border-slate-100">

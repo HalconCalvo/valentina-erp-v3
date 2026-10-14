@@ -824,8 +824,8 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                 <p className="text-2xl font-black text-amber-800 tabular-nums mt-1">{formatMoney(reportMetrics.totalSaldo)}</p>
                             </div>
                         </div>
-                        <div className="overflow-x-auto">
-                            <div className={`flex text-xs text-slate-600 uppercase tracking-wider ${theme.bgLight} border-b ${theme.border} font-black`}>
+                        <div className="overflow-auto max-h-[75vh]">
+                            <div className={`sticky top-0 z-20 flex text-xs text-slate-600 uppercase tracking-wider ${theme.bgLight} border-b ${theme.border} font-black`}>
                                 {renderSortableHeader('Factura', 'invoice_number')}
                                 {renderSortableHeader('Vencimiento', 'due_date')}
                                 <div className="flex-1 p-4">Antigüedad</div>
@@ -841,7 +841,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                             ) : (
                                 groupedByProvider.map((group) => (
                                     <div key={group.providerName}>
-                                        <div className="bg-indigo-50 px-4 py-3 flex justify-between items-center border-b border-indigo-100">
+                                        <div className="sticky top-12 z-10 bg-indigo-50 px-4 py-3 flex justify-between items-center border-b border-indigo-100">
                                             <span className="font-black text-indigo-800">{group.providerName}</span>
                                             <span className="font-black text-indigo-800">{formatMoney(group.subtotal)}</span>
                                         </div>
@@ -849,6 +849,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                             columns={payableColumns as unknown as VTableColumn<Record<string, unknown>>[]}
                                             data={group.invoices as unknown as Record<string, unknown>[]}
                                             className="border-0 rounded-none shadow-none [&_thead]:hidden"
+                                            stickyHeader={false}
                                         />
                                     </div>
                                 ))

@@ -37,6 +37,9 @@ interface VTableProps<T = Record<string, unknown>> {
   defaultSortKey?: string | null;
   defaultSortDirection?: SortDirection;
   onSortedDataChange?: (data: T[]) => void;
+  /** H6: the header stays visible while the rows scroll inside the table (default 70vh tall). false: no own scroll. */
+  stickyHeader?: boolean;
+  maxHeight?: string;
 }
 
 type SortDirection = 'asc' | 'desc';
@@ -77,6 +80,8 @@ export const VTable = <T extends Record<string, unknown>>({
   defaultSortKey = null,
   defaultSortDirection = 'asc',
   onSortedDataChange,
+  stickyHeader = true,
+  maxHeight = '70vh',
 }: VTableProps<T>) => {
   const [sortKey, setSortKey] = useState<string | null>(defaultSortKey);
   const [sortDirection, setSortDirection] = useState<SortDirection>(defaultSortDirection);
@@ -212,16 +217,16 @@ export const VTable = <T extends Record<string, unknown>>({
         className,
       )}
     >
-      <div className="overflow-x-auto">
+      <div className={stickyHeader ? 'overflow-auto' : 'overflow-x-auto'} style={stickyHeader ? { maxHeight } : undefined}>
         <table className="w-full text-sm">
-          <thead className="bg-slate-50">
+          <thead className={cn('bg-slate-50', stickyHeader && 'sticky top-0 z-10 shadow-[0_1px_0_0_rgb(226_232_240)]')}>
             <tr>
               {columns.map((column) => (
                 <th
                   key={column.key}
                   style={column.width ? { width: column.width } : undefined}
                   className={cn(
-                    'px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500',
+                    'bg-slate-50 px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500',
                     column.sortable && 'cursor-pointer select-none hover:text-slate-700',
                   )}
                   onClick={() => handleSort(column)}
@@ -233,7 +238,7 @@ export const VTable = <T extends Record<string, unknown>>({
                 </th>
               ))}
               {actions && (
-                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">
+                <th className="bg-slate-50 px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">
                   Acciones
                 </th>
               )}
