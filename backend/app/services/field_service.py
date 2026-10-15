@@ -10,7 +10,8 @@ from sqlmodel import Session, select, or_
 
 from app.models.design import ProductVersion, VersionComponent
 from app.models.foundations import Client
-from app.models.material import Material
+from app.core import material_groups
+from app.models.material import Material, holds_stock
 from app.models.production import InstallationAssignment
 from app.repositories import installation_repository as installation_repo
 from app.models.sales import SalesOrder, SalesOrderItem, SalesOrderItemInstance
@@ -105,7 +106,8 @@ def _components_for_version(session: Session, version_id: Optional[int]) -> Fiel
         mat = session.get(Material, comp.material_id)
         if not mat:
             continue
-        ctype = "HERRAJE" if (mat.category or "").upper() == "HERRAJE" else "EMPAQUE"
+        # H43: same criterion as the hardware dispatch in Production (stock materials of the dispatch group).
+        ctype = "HERRAJE" if holds_stock(mat) and material_groups.is_hardware(mat.category) else "EMPAQUE"
         line = FieldMaterialLine(
             quantity=float(comp.quantity or 0),
             unit=mat.usage_unit or "",

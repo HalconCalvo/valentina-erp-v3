@@ -34,3 +34,8 @@ def group_for(category: str | None, batch_type: str | None) -> str:
     if normalize(category) in FACTORY_CONSUMABLES:
         return CONSUMABLE
     return DISPATCH_GROUP
+
+
+def is_hardware(category: str | None) -> bool:
+    """Dispatched to the house (hardware, accessories…): neither a main material nor a factory consumable."""
+    return normalize(category) not in MAIN_MDF | MAIN_STONE | FACTORY_CONSUMABLES
