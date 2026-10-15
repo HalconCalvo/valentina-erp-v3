@@ -208,6 +208,16 @@ pendiente (sesión local vencida). Migración nueva `x3y4z5a6b7c8` (sube/baja/su
 5. Ventas/Facturación: H2/H4 (costo de receta con una sola cifra), H3 (D33 aplicada), H5, H6, H7 (ya en la guía),
    H8, H9, H12, H13, H14. H1 no reproducido con los datos (ver buzón).
 
+## 18. Hallazgos del ensayo, segunda parte (pasos 11–13, buzón del asesor 15/10 12:25) — hecha en `pruebas`
+Confirmados en Pruebas: H38, H37, H14, D32. Sin migración nueva. Prueba en pantalla en Pruebas pendiente.
+1. H42 cuadrilla sigue la fecha de su carril (modal y arrastre), nunca se borra al reprogramar; arrastre respeta H38.
+2. H45 Centro de Impresión por carril hasta que ese carril se carga. H39 ✓ del calendario por carril.
+3. Campo: H43 herrajes con el criterio de surtido, H41 paso "Trabajo terminado" entre Fotos y Firma, H40 encabezado
+   de Carga en el teléfono.
+4. H46 Pendiente de Facturar en español y con IVA indicado; D35 (suma con/sin IVA) pendiente.
+5. Pendiente menor: el modal de la casa bloquea PM y PP juntos por el estado de la casa (debería ser por lote de
+   cada carril, como H39).
+
 ## 11. PRIORIDAD 2 — Indicadores del tablero de Dirección (con Gabriel) — hecha (2026-10-12, commit local)
 - Decisiones de Gabriel (12/10) aplicadas con una sola fuente (`GET /analytics/director-summary`, solo DIRECTOR):
   1. Ventas: OVs vendidas del año sin IVA (tasa 0 y 16) contra la meta anual.

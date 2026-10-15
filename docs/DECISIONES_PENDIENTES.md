@@ -66,6 +66,14 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 - **Recomendación:** B, cuando Gabriel decida meter las comisiones legacy (no antes).
 - **Estado:** pendiente (sin aplicar)
 
+### D35. Derecho a facturación suma montos con y sin IVA — 2026-10-15 — buzón del asesor (H46)
+- **Contexto:** en Pendiente de Facturar (y la tarjeta de Cobranza), los anticipos salen del total de la OV (con IVA) y
+  los avances de obra del subtotal de la partida (sin IVA); el total los suma. Hoy cada monto ya dice si lleva IVA.
+- **Opciones:** A) avances también con IVA (subtotal × (1 + tasa de la OV)), así el total es lo que se factura.
+  B) todo sin IVA. C) dejarlo así, con la etiqueta.
+- **Recomendación:** A (la factura de avance se captura con IVA, igual que el anticipo).
+- **Estado:** pendiente (sin aplicar: cambia cifras de Cobranza; pregunta en el buzón)
+
 ## Resueltas
 
 ### D33. Nombres de los saldos de cobranza (H3 del ensayo general) — 2026-10-14 — buzón del asesor

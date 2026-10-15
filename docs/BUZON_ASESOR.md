@@ -10,6 +10,10 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Preguntas para el asesor
 
+- [2026-10-15 12:40] D35 (de H46). En Pendiente de Facturar el total suma anticipos con IVA y avances de obra sin
+  IVA. Recomiendo (A) avances también con IVA, para que el total sea lo que se factura. Cambia cifras de Cobranza, así
+  que no lo apliqué. ¿A, B (todo sin IVA) o C (dejarlo con la etiqueta)?
+
 - [2026-10-14 13:27] SUBIR A PRUEBAS EN HORARIO LABORAL. Prioridad 1 corregida y con tests: H38 (502aaea), D32 (7a66fc0)
   y H37 (66dda73).
   Pruebas despliega de la rama `main`, igual que producción: subirlo a Pruebas = subirlo también a producción. Son
@@ -29,6 +33,50 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   - Agrega a tu reporte final la lista de commits pendientes de prueba en pantalla.
 
 ## Hechas
+
+- [2026-10-15 12:25] HALLAZGOS DEL ENSAYO, SEGUNDA PARTE (pasos 11–13 en Pruebas, Piloto 1 de OV-0157).
+  Confirmado en Pruebas: H38, H37 (cámara iPhone escanea), H14, D32. Trabajar en `pruebas`; tests; avisar en "Hechas".
+  PRIORIDAD:
+  H42. Reprogramar una instalación BORRA su cuadrilla: IP de Piloto 1 tenía cuadrilla el 22/10; al moverla a hoy y
+       guardar, quedó sin cuadrilla (y Campo decía "Sin cuadrilla asignada" para Piedra). Probable efecto del "Guardar"
+       único (H13). Además Piloto 2 y 3 aparecen sin cuadrilla y Gabriel se las había puesto: revisar en la BD de Pruebas
+       si se perdieron y por qué. Cambiar fecha nunca debe tocar la cuadrilla.
+  H45. Centro de Impresión: cuando la casa pasa a CARGADO por MDF, desaparece y ya no se puede imprimir el manifiesto de
+       Piedra aunque la piedra no se ha cargado. Mostrar cada carril hasta que ese carril se cargue.
+  H39. Calendario: Piloto 2 y 3 muestran ✓ PM (producción MDF hecha) aunque sus lotes MDF (0017/0018) siguen en
+       "Lote por producir"; parece que el lote de piedra marcó ambos carriles. Cada carril con su propio estado.
+  H43. Campo, pestaña Herrajes: "Sin herrajes en receta", pero la receta tiene bisagras, taquetes y tornillos y salen
+       mezclados en Empaque. Clasificar bien (mismo criterio que el surtido de herrajes en Producción).
+  H41. Campo: "Trabajo terminado" está arriba, fuera del flujo de pestañas; ponerlo como paso visible en el orden
+       fotos → Trabajo terminado → firma (y en la pestaña Firma, cuando falte, un botón que lleve a él).
+  H40. Campo, pantalla de casa cargada: el renglón "Asignación: Cargada · Instancia:" queda escondido bajo el encabezado.
+  H46. Pendiente de Facturar (Avances): textos técnicos en pantalla ("CLOSED", "administration_invoice_folio vacío",
+       "customer_payment_id", "TOTAL BUCKET"); pasar a español claro y decir si los montos son con o sin IVA.
+  Decisión confirmada por Gabriel: la firma del cliente es UNA por casa, al final de todas sus instalaciones (MDF y
+  Piedra). Se queda como está.
+  HECHO [15/10 12:40, Mérida] — rama `pruebas` (push solo a pruebas; main sigue en 081b2ab). Tests: backend 344,
+  frontend 39, build OK, una sola cabeza de migraciones (no hay migración nueva). Sin prueba en pantalla todavía.
+  - H42 (559804c). Revisé la BD de Pruebas (solo lectura) y la bitácora: NO se borró ninguna cuadrilla. La IP de
+    Piloto 1 y la de Piloto 2 nunca se guardaron (el 14/10 Pruebas aún tenía el modal viejo, con un botón por carril, y
+    Piloto 1 no tenía piezas de piedra al asignar). Hoy: P2 tiene cuadrilla IM; P3 tiene IM e IP; P1 se firmó.
+    Hueco real que sí corregí: al mover una fecha (modal o arrastrando en el calendario) la cuadrilla se quedaba con la
+    fecha vieja (el líder la veía otro día). Ahora la cuadrilla sigue la fecha de su carril, nunca se borra al cambiar
+    o quitar la fecha, el modal solo manda el equipo si cambió, y arrastrar también respeta "no antes de producir"
+    (H38 no cubría el arrastre).
+  - H45 (9566aad). Centro de Impresión: cada carril (etiquetas MDF / manifiesto de Piedra) sigue visible hasta que ESE
+    carril se carga, aunque la casa ya esté CARGADO por el otro.
+  - H39 (08190f9). Calendario: ✓ por carril. PM/PP se marcan cuando arrancó el lote de ese carril; IM/IP cuando ese
+    carril se cargó. Causa: LOTE-PIEDRA-0011 puso las 3 casas "en producción" y el ✓ PM usaba el estado de la casa.
+    Pendiente menor: el modal de la casa aún bloquea PM y PP juntos por el estado de la casa (lo anoto en ROADMAP).
+  - H43 (81436cd). Campo/Herrajes: se comparaba la categoría con "HERRAJE" y el catálogo dice "Herrajes"; ahora usa el
+    mismo criterio del surtido de herrajes de Producción.
+  - H41 (5f2f02b). Campo: pestañas Empaque → Herrajes → Plano → Fotos → Trabajo terminado → Firma; en Firma, mientras
+    falte, botón "Ir a Trabajo terminado". Arriba queda solo el estado de cada carril.
+  - H40 (5f2f02b). Carga: el encabezado fijo usaba márgenes de escritorio y en el teléfono tapaba el renglón
+    "Asignación"; además el detalle abre arriba (antes conservaba el scroll de la lista).
+  - H46 (afb3919). Pendiente de Facturar en español claro y con IVA indicado en cada monto. Hallazgo: los anticipos
+    van con IVA y los avances sin IVA, y el total los suma (D35, ver pregunta abajo).
+  - Firma una por casa: sin cambios, como confirmó Gabriel.
 
 - [2026-10-14 14:40] RESPUESTAS DE GABRIEL (14:35) A LO PENDIENTE DEL ENSAYO.
   1. Subida: opción (c). Crea la rama `pruebas` desde el HEAD actual (con los 31 commits) y haz push SOLO de esa rama

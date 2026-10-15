@@ -4866,3 +4866,37 @@ Anotado también para la revisión de indicadores de Dirección: numeración rep
   comisión del usuario. Tests: backend 338, frontend 37, build OK.
 - Lección: dos fuentes para el mismo dato (comisión en la pantalla y en el servidor) dan cifras distintas sin error
   visible; el servidor no debe "rellenar" con `or` un valor que el cliente mandó a propósito.
+
+================================================================
+CIERRE DEL DÍA — 14/10/2026 (asesor)
+================================================================
+- Ensayo general Obra Piloto (OV-0157) en Pruebas: pasos 7–10 hechos (lotes MDF 0016/0017/0018 una casa c/u,
+  LOTE-PIEDRA-0011 con 3 casas; requisición y OC-2610141820 MIDO de 2 placas Granito Tulum recibida; Piloto 1 en
+  "Listo para instalarse" con etiquetas MDF). Detenido en paso 11 (carga del camión) por H38.
+- Hallazgos H1–H38 + D29–D34 corregidos por Claude Code; en la rama `pruebas` (main sigue en 081b2ab). Sin prueba en pantalla.
+- Decisiones de Gabriel hoy: D29 bautizo solo Ventas; D30 sin MDF/Piedra no se crea lote; D31 ofrecer requisición
+  con confirmación; D32 líder ve hoy y siguiente día hábil (cargan cuando pueden); D33 nombres "Falta cobrar del
+  contrato" / "Facturado sin cobrar"; D34 quitar lápiz del Simulador; herrajes y no-núcleo pueden quedar negativos.
+- Regla nueva: todo se sube primero a la rama `pruebas`; main solo después de probarlo en Pruebas.
+
+PARA MAÑANA (en orden):
+1. Gabriel cambia en Render la rama de valentina-pruebas-api y valentina-pruebas a `pruebas` (una pieza a la vez).
+2. Confirmar despliegue y migración x3y4z5a6b7c8 en Pruebas.
+3. Retomar ensayo paso 11 con Piloto 1: IM → hoy, entrar como David, carga (bd5662bf-1), fotos, trabajo terminado,
+   firma; luego paso 13 Gerencia (facturar, cobrar, nómina de cuadrilla). Probar manifiesto de piedra (H35).
+4. Gabriel entra en localhost:3000 o Pruebas para la revisión en pantalla de los 31+ commits.
+5. Revisar borrador de ayuda "?" (frontend/src/help/ayuda.md).
+
+================================================================
+SESIÓN 15/10/2026 — Hallazgos del ensayo, segunda parte (buzón 12:25) — rama pruebas
+================================================================
+- Trabajo en la rama `pruebas` (push solo ahí; main sigue en 081b2ab). Revisión del buzón cada 15 min.
+- H42: en la BD de Pruebas (solo lectura) no se borró ninguna cuadrilla; las IP de Piloto 1 y 2 nunca se guardaron
+  (modal viejo con botón por carril). Corregido el hueco real: la fecha de la cuadrilla no seguía al carril al
+  reprogramar (modal y arrastre); arrastre ahora respeta H38; el modal solo manda el equipo si cambió.
+- H45 Centro de Impresión por carril; H39 ✓ del calendario por carril (lote de piedra marcaba PM).
+- H43 categoría "Herrajes" vs "HERRAJE"; H41 paso Trabajo terminado; H40 encabezado de Carga en el teléfono.
+- H46 textos de Pendiente de Facturar; D35 abierta: anticipos con IVA + avances sin IVA en un mismo total.
+- Tests: backend 344, frontend 39, build OK, una cabeza (x3y4z5a6b7c8).
+- Lección: antes de "arreglar" una pérdida de datos, mirar la bitácora; aquí no hubo borrado sino datos nunca
+  guardados, y el hueco real era otro (fecha desfasada).
