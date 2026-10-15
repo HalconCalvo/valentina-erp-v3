@@ -12,6 +12,7 @@ import {
   getScheduleTodayMinIso,
   getLocalTodayDateKey,
   instanceHasStoneComponents,
+  instanceHasMdfComponents,
 } from '../hooks/usePlanning';
 import { X } from 'lucide-react';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
@@ -419,6 +420,8 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
       : new Set(getExternalDropLaneCodes(instance));
     if (!prodLanesLocked && (pmLocked || ppLocked)) {
       getInstallationScheduleLaneCodes(instance).forEach((code) => allowed.add(code));
+      if (!pmLocked && instanceHasMdfComponents(instance)) allowed.add('PM');
+      if (!ppLocked && instanceHasStoneComponents(instance)) allowed.add('PP');
       if (pmLocked) allowed.delete('PM');
       if (ppLocked) allowed.delete('PP');
     }
