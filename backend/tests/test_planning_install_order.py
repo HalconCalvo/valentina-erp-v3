@@ -54,3 +54,22 @@ def test_produced_ahead_of_pm_the_bound_is_the_real_production_date(client_fixtu
     session_fixture.expire_all()
     stored = session_fixture.get(SalesOrderItemInstance, house)
     assert stored.scheduled_inst_mdf.date().isoformat() == "2026-12-01"
+
+
+def test_a_started_stone_batch_does_not_open_mdf_installation(client_fixture, session_fixture,
+                                                              auth_header_director, seed_client_and_tax):
+    """Piloto 2: the stone batch started (house IN_PRODUCTION) but its MDF batch is a draft, so the bound is
+    still the scheduled PM."""
+    house = _house(client_fixture, session_fixture, auth_header_director, seed_client_and_tax,
+                   InstanceStatus.IN_PRODUCTION)
+    mdf = ProductionBatch(folio="LOTE-MDF-P2", batch_type="MDF", status=ProductionBatchStatus.DRAFT)
+    stone = ProductionBatch(folio="LOTE-PIEDRA-P2", batch_type="PIEDRA", status=ProductionBatchStatus.PACKING,
+                            started_at=datetime(2026, 12, 1, 16))
+    session_fixture.add_all([mdf, stone])
+    session_fixture.commit()
+    instance = session_fixture.get(SalesOrderItemInstance, house)
+    instance.production_batch_id, instance.stone_batch_id = mdf.id, stone.id
+    session_fixture.add(instance)
+    session_fixture.commit()
+    assert _set_im(client_fixture, auth_header_director, house, "2026-12-05").status_code == 400
+    assert _set_im(client_fixture, auth_header_director, house, "2026-12-10").status_code == 200

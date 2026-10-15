@@ -510,23 +510,28 @@ PRODUCTION_STARTED_STATUSES = {
 }
 
 
-def _real_production_date(session: Session, instance: SalesOrderItemInstance) -> date:
-    """Business date the house actually entered production (earliest batch start); today if unknown."""
-    batch_ids = [b for b in (instance.production_batch_id, instance.stone_batch_id) if b]
-    starts = [batch.started_at for batch in (session.get(ProductionBatch, b) for b in batch_ids)
-              if batch and batch.started_at]
-    return utc_naive_to_local(min(starts)).date() if starts else today_local()
+def _real_production_date(session: Session, instance: SalesOrderItemInstance) -> Optional[date]:
+    """Business date MDF production actually started, or None while it has not. Only the MDF batch counts
+    (a started stone batch does not mean MDF was produced); houses without batches (older data) use the house
+    status, dated today when unknown."""
+    if instance.production_batch_id:
+        batch = session.get(ProductionBatch, instance.production_batch_id)
+        if not _batch_started(batch):
+            return None
+        return utc_naive_to_local(batch.started_at).date() if batch.started_at else today_local()
+    if instance.stone_batch_id or instance.production_status not in PRODUCTION_STARTED_STATUSES:
+        return None
+    return today_local()
 
 
 def production_floor_date(session: Session, instance: SalesOrderItemInstance) -> Optional[date]:
-    """Earliest valid installation date: the scheduled PM, or the real production date once
-    the house has entered production (a house produced ahead of PM can be installed earlier)."""
+    """Earliest valid installation date: the scheduled PM, or the real MDF production date once it
+    started (a house produced ahead of PM can be installed earlier)."""
     if instance.scheduled_prod_mdf is None:
         return None
     scheduled = utc_naive_to_local(instance.scheduled_prod_mdf).date()
-    if instance.production_status not in PRODUCTION_STARTED_STATUSES:
-        return scheduled
-    return min(scheduled, _real_production_date(session, instance))
+    real = _real_production_date(session, instance)
+    return scheduled if real is None else min(scheduled, real)
 
 
 def install_order_error(session: Session, instance: SalesOrderItemInstance) -> Optional[str]:

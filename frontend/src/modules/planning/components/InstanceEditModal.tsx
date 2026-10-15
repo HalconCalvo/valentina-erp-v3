@@ -393,22 +393,37 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
       .catch(() => setInstallers([]));
   }, [instance?.id, dates.scheduled_inst_mdf, dates.scheduled_inst_stone]);
 
-  const prodLanesLocked = useMemo(
-    () =>
-      instance?.is_resale === true ||
-      isProductionTrackLocked(instance?.production_status),
-    [instance?.is_resale, instance?.production_status],
-  );
+  // Each production lane locks on its own (H39): the calendar pills carry whether that lane's batch started;
+  // without them, the house status decides (older behaviour).
+  const laneDone = useMemo(() => {
+    const done: Partial<Record<string, boolean>> = {};
+    for (const pills of Object.values(calendarData)) {
+      for (const p of pills) {
+        if (p.instance_id === instance?.id && typeof p.lane_done === 'boolean') done[p.lane] = p.lane_done;
+      }
+    }
+    return done;
+  }, [calendarData, instance?.id]);
+  const houseLocked = isProductionTrackLocked(instance?.production_status);
+  const resale = instance?.is_resale === true;
+  const pmLocked = resale || (laneDone.PM ?? houseLocked);
+  const ppLocked = resale || (laneDone.PP ?? houseLocked);
+  const prodLanesLocked = pmLocked && ppLocked;
 
   const hasStone = instance ? instanceHasStoneComponents(instance) : false;
 
   const visibleLanes = useMemo(() => {
     if (!instance) return [];
-    const allowed = prodLanesLocked
+    const allowed: Set<string> = prodLanesLocked
       ? new Set(getInstallationScheduleLaneCodes(instance))
       : new Set(getExternalDropLaneCodes(instance));
+    if (!prodLanesLocked && (pmLocked || ppLocked)) {
+      getInstallationScheduleLaneCodes(instance).forEach((code) => allowed.add(code));
+      if (pmLocked) allowed.delete('PM');
+      if (ppLocked) allowed.delete('PP');
+    }
     return LANE_META.filter((lane) => allowed.has(lane.code));
-  }, [instance, prodLanesLocked]);
+  }, [instance, prodLanesLocked, pmLocked, ppLocked]);
 
   if (!instance) return null;
 
@@ -439,7 +454,7 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
     if (pastDateError) return pastDateError;
     const scheduledPm = dates.scheduled_prod_mdf;
     const today = getLocalTodayDateKey();
-    const pm = scheduledPm && isProductionTrackLocked(instance.production_status) && today < scheduledPm
+    const pm = scheduledPm && pmLocked && !resale && today < scheduledPm
       ? today
       : scheduledPm;
     const im = dates.scheduled_inst_mdf;
@@ -478,7 +493,7 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
     try {
       const res = await planningService.updateInstance(instance.id, {
         custom_name: name.trim() || instance.custom_name,
-        ...(!prodLanesLocked
+        ...(!pmLocked
           ? {
               scheduled_prod_mdf: dates.scheduled_prod_mdf
                 ? fromInputValue(dates.scheduled_prod_mdf)
@@ -499,7 +514,7 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
           !endDates.scheduled_inst_mdf_end && !!instance.scheduled_inst_mdf_end,
         ...(hasStone
           ? {
-              ...(!prodLanesLocked
+              ...(!ppLocked
                 ? {
                     scheduled_prod_stone: dates.scheduled_prod_stone
                       ? fromInputValue(dates.scheduled_prod_stone)
