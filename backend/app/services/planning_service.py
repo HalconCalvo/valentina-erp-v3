@@ -538,3 +538,22 @@ def install_order_error(session: Session, instance: SalesOrderItemInstance) -> O
     if instance.scheduled_inst_stone and utc_naive_to_local(instance.scheduled_inst_stone).date() < floor:
         return "IP no puede ser anterior a la producción. No se puede instalar Piedra antes de producir MDF."
     return None
+
+
+_LANE_DATE_FIELDS = {"IM": "scheduled_inst_mdf", "IP": "scheduled_inst_stone"}
+
+
+def sync_crew_dates(session: Session, instance: SalesOrderItemInstance) -> None:
+    """H42: a scheduled crew follows its lane date. Rescheduling never removes or changes the crew;
+    an unscheduled lane keeps its crew for when it gets a date again."""
+    rows = session.exec(select(InstallationAssignment).where(
+        InstallationAssignment.instance_id == instance.id,
+        InstallationAssignment.status == InstallationAssignmentStatus.SCHEDULED)).all()
+    for row in rows:
+        lane_dt = getattr(instance, _LANE_DATE_FIELDS.get(row.lane, ""), None)
+        if lane_dt is None:
+            continue
+        new_date = datetime.combine(utc_naive_to_local(lane_dt).date(), datetime.min.time())
+        if row.assignment_date != new_date:
+            row.assignment_date = new_date
+            session.add(row)

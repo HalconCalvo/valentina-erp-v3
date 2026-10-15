@@ -230,6 +230,9 @@ function computeTrackStatus(
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+const teamKey = (leader: number | '', helper1: number | '', helper2: number | ''): string =>
+  `${leader}|${helper1}|${helper2}`;
+
 export default function InstanceEditModal({ instance, onClose, onSaved, readOnly = false, onDateSelect, onUnscheduleAll, calendarData = {} }: Props) {
   const [name, setName]   = useState('');
   const [dates, setDates] = useState<Record<LaneField, string>>({
@@ -312,7 +315,9 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
   ]);
 
   // H13: teams saved with the single "Guardar"; a team that existed is updated even when emptied (removal).
+  // H42: a team is only sent when it changed; the server moves the crew date with the lane date.
   const loadedTeams = useRef({ IM: false, IP: false });
+  const loadedTeamKeys = useRef({ IM: '||', IP: '||' });
 
   useEffect(() => {
     if (!instance) return;
@@ -335,6 +340,11 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
           }
         }
         loadedTeams.current = { IM: hasIm, IP: hasIp };
+        const keyOf = (lane: string) => {
+          const a = rows.find((r) => r.lane === lane);
+          return a ? teamKey(a.leader_user_id, a.helper_1_user_id ?? '', a.helper_2_user_id ?? '') : '||';
+        };
+        loadedTeamKeys.current = { IM: keyOf('IM'), IP: keyOf('IP') };
         if (!hasIm) {
           setImLeaderId('');
           setImHelper1Id('');
@@ -512,7 +522,9 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
             }
           : {}),
       });
-      if (imTeamVisible && (!isImTeamEmpty || loadedTeams.current.IM)) {
+      const imChanged = teamKey(imLeaderId, imHelper1Id, imHelper2Id) !== loadedTeamKeys.current.IM;
+      const ipChanged = teamKey(ipLeaderId, ipHelper1Id, ipHelper2Id) !== loadedTeamKeys.current.IP;
+      if (imTeamVisible && imChanged && (!isImTeamEmpty || loadedTeams.current.IM)) {
         await planningService.assignTeam(instance.id, {
           leader_user_id: isImTeamEmpty ? null : Number(imLeaderId),
           helper_1_user_id: isImTeamEmpty ? null : (imHelper1Id ? Number(imHelper1Id) : null),
@@ -521,7 +533,7 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
           lane: 'IM',
         });
       }
-      if (ipTeamVisible && (!isIpTeamEmpty || loadedTeams.current.IP)) {
+      if (ipTeamVisible && ipChanged && (!isIpTeamEmpty || loadedTeams.current.IP)) {
         await planningService.assignTeam(instance.id, {
           leader_user_id: isIpTeamEmpty ? null : Number(ipLeaderId),
           helper_1_user_id: isIpTeamEmpty ? null : (ipHelper1Id ? Number(ipHelper1Id) : null),

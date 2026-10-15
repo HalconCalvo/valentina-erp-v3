@@ -50,6 +50,7 @@ from app.services.planning_service import (
     batch_map_for_instances,
     version_master_maps_for_instances,
     install_order_error,
+    sync_crew_dates,
 )
 
 router = APIRouter()
@@ -647,6 +648,7 @@ def update_instance_schedule(
         raise HTTPException(status_code=400, detail=order_error)
 
     session.add(inst)
+    sync_crew_dates(session, inst)
     session.commit()
     session.refresh(inst)
 
@@ -687,7 +689,13 @@ def reschedule_pill(
     for field, value in updates.items():
         setattr(inst, field, value)
 
+    order_error = install_order_error(session, inst)
+    if order_error:
+        session.rollback()
+        raise HTTPException(status_code=400, detail=order_error)
+
     session.add(inst)
+    sync_crew_dates(session, inst)
     session.commit()
     session.refresh(inst)
 
