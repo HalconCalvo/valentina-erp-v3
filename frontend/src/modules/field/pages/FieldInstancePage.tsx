@@ -18,7 +18,7 @@ import { formatDateTime } from '@/utils/format';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 
-type TabId = 'empaque' | 'herrajes' | 'plano' | 'fotos' | 'firma';
+type TabId = 'empaque' | 'herrajes' | 'plano' | 'fotos' | 'terminado' | 'firma';
 
 const LANE_LABEL: Record<string, string> = { IM: 'Muebles (MDF)', IP: 'Piedra' };
 const INSTALL_TYPE: Record<string, string> = { MDF: 'Muebles', STONE: 'Piedra', BOTH: 'Muebles y piedra' };
@@ -167,6 +167,7 @@ export default function FieldInstancePage() {
     { id: 'herrajes', label: 'Herrajes' },
     { id: 'plano', label: 'Plano' },
     { id: 'fotos', label: 'Fotos' },
+    { id: 'terminado', label: 'Trabajo terminado' },
     { id: 'firma', label: 'Firma' },
   ];
 
@@ -205,26 +206,12 @@ export default function FieldInstancePage() {
       </section>
 
       {(row.lanes ?? []).length > 0 && (
-        <section className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
+        <section className="mb-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 space-y-1">
           {(row.lanes ?? []).map((lane) => (
-            <div key={`${lane.lane}-${lane.assignment_id}`} className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-sm font-bold text-slate-800">{LANE_LABEL[lane.lane] ?? lane.lane}</p>
-                <p className="text-xs text-slate-500">
-                  {LANE_STATUS[lane.status] ?? lane.status}{lane.leader_name ? ` · ${lane.leader_name}` : ''}
-                </p>
-              </div>
-              {lane.status === 'IN_PROGRESS' && (lane.is_mine || isSupervisor) && (
-                <button
-                  type="button"
-                  disabled={!isOnline}
-                  onClick={() => setFinishingLane(lane.assignment_id)}
-                  className="min-h-12 shrink-0 rounded-xl bg-emerald-600 px-4 text-sm font-bold text-white disabled:opacity-40"
-                >
-                  Trabajo terminado
-                </button>
-              )}
-            </div>
+            <p key={`${lane.lane}-${lane.assignment_id}`} className="text-xs text-slate-600">
+              <span className="font-bold text-slate-800">{LANE_LABEL[lane.lane] ?? lane.lane}:</span>{' '}
+              {LANE_STATUS[lane.status] ?? lane.status}{lane.leader_name ? ` · ${lane.leader_name}` : ''}
+            </p>
           ))}
         </section>
       )}
@@ -310,6 +297,34 @@ export default function FieldInstancePage() {
             </button>
           </div>
         )}
+        {/* H41: step between the photos and the signature, one button per loaded lane. */}
+        {tab === 'terminado' && (
+          <div className="space-y-3">
+            {(row.lanes ?? []).length === 0 && (
+              <p className="text-slate-400 text-sm">Sin carriles de instalación.</p>
+            )}
+            {(row.lanes ?? []).map((lane) => (
+              <div key={`${lane.lane}-${lane.assignment_id}`} className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-slate-800">{LANE_LABEL[lane.lane] ?? lane.lane}</p>
+                  <p className="text-xs text-slate-500">
+                    {LANE_STATUS[lane.status] ?? lane.status}{lane.leader_name ? ` · ${lane.leader_name}` : ''}
+                  </p>
+                </div>
+                {lane.status === 'IN_PROGRESS' && (lane.is_mine || isSupervisor) && (
+                  <button
+                    type="button"
+                    disabled={!isOnline}
+                    onClick={() => setFinishingLane(lane.assignment_id)}
+                    className="min-h-12 shrink-0 rounded-xl bg-emerald-600 px-4 text-sm font-bold text-white disabled:opacity-40"
+                  >
+                    Trabajo terminado
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
         {tab === 'firma' && (
           <div className="space-y-3">
             {row.signed_received_at ? (
@@ -317,9 +332,18 @@ export default function FieldInstancePage() {
                 Firmado: {formatDateTime(row.signed_received_at)}
               </p>
             ) : !row.can_sign ? (
-              <p className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm font-medium text-amber-800">
-                La firma del cliente va después de marcar el trabajo terminado en cada carril de la casa.
-              </p>
+              <div className="space-y-2">
+                <p className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm font-medium text-amber-800">
+                  La firma del cliente va después de marcar el trabajo terminado en cada carril de la casa.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setTab('terminado')}
+                  className="min-h-12 w-full rounded-xl bg-emerald-600 text-sm font-bold text-white"
+                >
+                  Ir a Trabajo terminado
+                </button>
+              </div>
             ) : (
               <>
                 <div className="rounded-xl border-2 border-slate-200 bg-white overflow-hidden">

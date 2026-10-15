@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   getMyWorkday,
@@ -57,6 +57,11 @@ export default function FieldLoadPage() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<WorkdayAssignment | null>(null);
   const [view, setView] = useState<View>('list');
+  // H40: each view opens at the top; the list scroll would leave the first rows under the sticky header.
+  const pageRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    pageRef.current?.closest('main')?.scrollTo({ top: 0 });
+  }, [view, selected?.assignment_id]);
   const [preview, setPreview] = useState<any | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -179,7 +184,7 @@ export default function FieldLoadPage() {
   };
 
   const Header = ({ title, onBack }: { title: string; onBack?: () => void }) => (
-    <div className="flex items-center gap-3 px-4 py-4 bg-white border-b border-gray-200 sticky top-0 z-10 -mx-6 -mt-6 mb-4">
+    <div className="flex items-center gap-3 px-4 py-4 bg-white border-b border-gray-200 sticky top-0 z-10 -mx-3 -mt-3 md:-mx-6 md:-mt-6 mb-4">
       {onBack && (
         <button
           type="button"
@@ -270,7 +275,7 @@ export default function FieldLoadPage() {
   };
 
   return (
-    <div className="max-w-lg mx-auto pb-12">
+    <div ref={pageRef} className="max-w-lg mx-auto pb-12">
       {message && (
         <div className="mb-3 px-4 py-3 rounded-xl bg-emerald-50 text-emerald-900 text-sm border border-emerald-200">
           {message}
