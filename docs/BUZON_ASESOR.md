@@ -120,6 +120,8 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
     casa; si eso pasaba después de cargarla, "Guardar" la habría quitado. Ahora solo se reinicia al cambiar de casa.
     No lo reproduje en Pruebas (la cuadrilla se vio bien), así que no lo doy por causa confirmada de lo que vio Gabriel.
   - Pendiente aparte: quitar cuadrilla hace borrado físico de la asignación programada (regla de oro); lo anoto.
+  - [13:23] Hecho: quitar la cuadrilla de un carril ya no la borra; queda CANCELADA (la bitácora guarda quién y
+    cuándo) y todas las consultas la ignoran; volver a asignar crea una nueva. Sin migración. Tests backend 347.
 
 - [2026-10-14 14:40] RESPUESTAS DE GABRIEL (14:35) A LO PENDIENTE DEL ENSAYO.
   1. Subida: opción (c). Crea la rama `pruebas` desde el HEAD actual (con los 31 commits) y haz push SOLO de esa rama
