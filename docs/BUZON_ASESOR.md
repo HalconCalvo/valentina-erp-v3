@@ -77,6 +77,21 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   - H46 (afb3919). Pendiente de Facturar en español claro y con IVA indicado en cada monto. Hallazgo: los anticipos
     van con IVA y los avances sin IVA, y el total los suma (D35, ver pregunta abajo).
   - Firma una por casa: sin cambios, como confirmó Gabriel.
+  PRUEBA EN PANTALLA EN PRUEBAS [15/10 13:05] (sesión de Dirección):
+  - H39 ✓: Piloto 2 y 3 ya sin ✓ PM (✓ PP sí: su lote de piedra arrancó). Al guardar en el modal el ✓ PM reaparecía
+    (el calendario se rearmaba con el estado de la casa); corregido (545c440) y confirmado.
+  - H42 ✓: Piloto 2, IM 23→22 y Guardar: la cuadrilla (David Márquez + Miguel Sosa) se conservó y su fecha pasó al
+    22 (lo vi en la BD, solo lectura). Lo regresé al 23/10; quedó como estaba.
+  - H45: la primera versión metía casas READY viejas al Centro de Impresión; ajustada (f47c5de): solo una casa ya
+    CARGADO/INSTALADA conserva el carril que falta cargar. Hoy en Pruebas no hay casa en ese caso (cubierto por test).
+  - H43 ✓ (Herrajes con bisagras, tornillos, taquetes; Empaque sin herrajes), H41 ✓ (pestaña Trabajo terminado),
+    H46 ✓ (textos e IVA). H40: seguía recortado; la causa real era el `sticky` contra el padding del contenedor;
+    corregido (a165dac) y confirmado; "Instancia" ahora dice "En producción" (antes IN_PRODUCTION).
+  - No pude reducir Chrome a ancho de teléfono: H40 y H41 conviene verlos en el iPhone.
+  - Aviso para Gabriel (Render, no es código): la CDN de Render guarda index.html 5 min por ruta
+    (`s-maxage=300`); entrar directo a /planning dio la versión anterior aunque "/" ya tenía la nueva, y "Recargar"
+    no lo arregla hasta que vence. Sugerencia: en Render, sitio estático → Headers, regla `/*` con
+    `Cache-Control: no-cache` (en Pruebas y en producción).
 
 - [2026-10-14 14:40] RESPUESTAS DE GABRIEL (14:35) A LO PENDIENTE DEL ENSAYO.
   1. Subida: opción (c). Crea la rama `pruebas` desde el HEAD actual (con los 31 commits) y haz push SOLO de esa rama
