@@ -215,8 +215,9 @@ Confirmados en Pruebas: H38, H37, H14, D32. Sin migración nueva. Prueba en pant
 3. Campo: H43 herrajes con el criterio de surtido, H41 paso "Trabajo terminado" entre Fotos y Firma, H40 encabezado
    de Carga en el teléfono.
 4. H46 Pendiente de Facturar en español y con IVA indicado; D35 (suma con/sin IVA) pendiente.
-5. Pendiente menor: el modal de la casa bloquea PM y PP juntos por el estado de la casa (debería ser por lote de
-   cada carril, como H39).
+5. Hecho: el modal bloquea PM y PP cada uno por su carril; el límite de H38 usa solo el lote MDF.
+6. Pendiente: quitar la cuadrilla de un carril borra físicamente la asignación programada (regla de oro: debería
+   cancelarse con traza).
 
 ## 11. PRIORIDAD 2 — Indicadores del tablero de Dirección (con Gabriel) — hecha (2026-10-12, commit local)
 - Decisiones de Gabriel (12/10) aplicadas con una sola fuente (`GET /analytics/director-summary`, solo DIRECTOR):

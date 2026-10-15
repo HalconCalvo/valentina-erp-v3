@@ -4900,3 +4900,6 @@ SESIÓN 15/10/2026 — Hallazgos del ensayo, segunda parte (buzón 12:25) — ra
 - Tests: backend 344, frontend 39, build OK, una cabeza (x3y4z5a6b7c8).
 - Lección: antes de "arreglar" una pérdida de datos, mirar la bitácora; aquí no hubo borrado sino datos nunca
   guardados, y el hueco real era otro (fecha desfasada).
+- 13:03 Seguimiento: H38 usaba cualquier lote (el de piedra abría la instalación MDF); ahora solo el lote MDF. Modal con
+  PM/PP por carril. H42: el modal ya no reinicia la cuadrilla al refrescar la casa (protección; no reproducido).
+  Lección: `find` del navegador reporta el placeholder de un campo, no su valor; confirmar con captura.

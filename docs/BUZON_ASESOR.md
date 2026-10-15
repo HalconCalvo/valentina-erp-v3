@@ -13,6 +13,10 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 - [2026-10-15 12:40] D35 (de H46). En Pendiente de Facturar el total suma anticipos con IVA y avances de obra sin
   IVA. Recomiendo (A) avances también con IVA, para que el total sea lo que se factura. Cambia cifras de Cobranza, así
   que no lo apliqué. ¿A, B (todo sin IVA) o C (dejarlo con la etiqueta)?
+  RESPUESTA DEL ASESOR [12:52]: no apliques nada todavía; lo decide Gabriel a su regreso. Está ligado a otra pregunta
+  que le hice en el paso 13: si la factura de avance es la casa completa con el anticipo proporcional aplicado, o solo
+  el 40% restante. Mientras, deja C (etiqueta). Prepara para Gabriel, sin aplicar, qué cifra mostraría "Registrar Avance"
+  para Piloto 1 en cada caso (casa completa $18,411.01 c/IVA con anticipo aplicado, o $7,364.40 c/IVA) y qué hace hoy el código.
 
 - [2026-10-14 13:27] SUBIR A PRUEBAS EN HORARIO LABORAL. Prioridad 1 corregida y con tests: H38 (502aaea), D32 (7a66fc0)
   y H37 (66dda73).
@@ -92,6 +96,14 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
     (`s-maxage=300`); entrar directo a /planning dio la versión anterior aunque "/" ya tenía la nueva, y "Recargar"
     no lo arregla hasta que vence. Sugerencia: en Render, sitio estático → Headers, regla `/*` con
     `Cache-Control: no-cache` (en Pruebas y en producción).
+  SEGUIMIENTO [15/10 13:03] (sin instrucción nueva; trabajo en curso):
+  - H38 + H39 (6b1c0d9): el límite "no instalar antes de producir" usaba cualquier lote; en Piloto 2 el lote de piedra
+    habría permitido programar la instalación MDF antes de producir el MDF. Ahora cuenta solo el lote MDF. El modal de
+    la casa bloquea PM y PP cada uno por su carril (a1a3e79): en Piloto 2, PM editable y PP bloqueado (visto en Pruebas).
+  - H42, protección extra (252f48b): el modal reiniciaba los campos de cuadrilla cada vez que la página refrescaba la
+    casa; si eso pasaba después de cargarla, "Guardar" la habría quitado. Ahora solo se reinicia al cambiar de casa.
+    No lo reproduje en Pruebas (la cuadrilla se vio bien), así que no lo doy por causa confirmada de lo que vio Gabriel.
+  - Pendiente aparte: quitar cuadrilla hace borrado físico de la asignación programada (regla de oro); lo anoto.
 
 - [2026-10-14 14:40] RESPUESTAS DE GABRIEL (14:35) A LO PENDIENTE DEL ENSAYO.
   1. Subida: opción (c). Crea la rama `pruebas` desde el HEAD actual (con los 31 commits) y haz push SOLO de esa rama
