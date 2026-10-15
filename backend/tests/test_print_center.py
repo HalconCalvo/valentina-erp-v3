@@ -76,3 +76,18 @@ def test_each_lane_stays_until_that_lane_is_loaded(client_fixture, session_fixtu
     session_fixture.add(stone)
     session_fixture.commit()
     assert rows() == []
+
+
+def test_a_ready_house_without_packing_batches_stays_out(client_fixture, session_fixture, auth_header_director,
+                                                        seed_client_and_tax):
+    """H45: widening to loaded houses does not bring back READY houses already packed (as before)."""
+    order = create_order_via_quotation(client_fixture, auth_header_director, seed_client_and_tax[0].id,
+                                       seed_client_and_tax[1].id)
+    item = session_fixture.exec(select(SalesOrderItem).where(SalesOrderItem.sales_order_id == order["id"])).first()
+    house = session_fixture.exec(select(SalesOrderItemInstance)
+                                 .where(SalesOrderItemInstance.sales_order_item_id == item.id)).first()
+    house.production_status, house.declared_bundles = InstanceStatus.READY, 5
+    session_fixture.add(house)
+    session_fixture.commit()
+    rows = client_fixture.get(f"{API}/design/label_requests", headers=auth_header_director).json()
+    assert [r for r in rows if r["instance_id"] == house.id] == []

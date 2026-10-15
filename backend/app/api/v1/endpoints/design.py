@@ -3,7 +3,7 @@ import time
 import uuid as uuid_lib
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy import or_
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import aliased, selectinload
 from sqlmodel import Session, select
 import os
 from uuid import uuid4
@@ -523,8 +523,8 @@ class LabelRequestItem(BaseModel):
     stone_pieces: int = 0
 
 
-PRINTABLE_STATUSES = [InstanceStatus.IN_PRODUCTION, InstanceStatus.READY, InstanceStatus.CARGADO,
-                      InstanceStatus.INSTALLED]
+# H45: CARGADO / INSTALLED keep the lane that has not been loaded yet (e.g. stone after the MDF load).
+PRINTABLE_STATUSES = [InstanceStatus.IN_PRODUCTION, InstanceStatus.CARGADO, InstanceStatus.INSTALLED]
 
 
 @router.get("/label_requests", response_model=List[LabelRequestItem])
@@ -536,9 +536,11 @@ def list_label_requests(
     Instancias con bultos MDF o piezas de piedra, desde producción hasta la carga; enriquecidas con
     cliente y proyecto. H45: cada carril (MDF / Piedra) se muestra hasta que ese carril se carga.
     """
+    stone_batch = aliased(ProductionBatch)
     instances = session.exec(
         select(SalesOrderItemInstance)
         .outerjoin(ProductionBatch, SalesOrderItemInstance.production_batch_id == ProductionBatch.id)
+        .outerjoin(stone_batch, SalesOrderItemInstance.stone_batch_id == stone_batch.id)
         .where(
             SalesOrderItemInstance.is_cancelled == False,  # noqa: E712
             or_(
@@ -548,6 +550,7 @@ def list_label_requests(
             or_(
                 SalesOrderItemInstance.production_status.in_(PRINTABLE_STATUSES),
                 ProductionBatch.status == ProductionBatchStatus.PACKING,
+                stone_batch.status == ProductionBatchStatus.PACKING,
             ),
         )
     ).all()
