@@ -33,6 +33,7 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
     con IVA ($18,411.01) o a lo que falta facturar ($7,364.40 en el caso 2).
   - Recomendación técnica: la que use Compaq. Si el anticipo se amortiza en la factura (caso 1), prellenar
     $18,411.01 y amortizado $11,046.61; si no, prellenar $7,364.40.
+  RESUELTA [15/10 16:15]: Gabriel decidió D36 (casa completa con anticipo aplicado) y D35-A. Aplicadas (16:24).
 
 - [2026-10-14 13:27] SUBIR A PRUEBAS EN HORARIO LABORAL. Prioridad 1 corregida y con tests: H38 (502aaea), D32 (7a66fc0)
   y H37 (66dda73).
@@ -53,6 +54,35 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   - Agrega a tu reporte final la lista de commits pendientes de prueba en pantalla.
 
 ## Hechas
+
+- [2026-10-15 16:15] DECISIÓN DE GABRIEL: FACTURA DE AVANCE = CASA COMPLETA CON ANTICIPO APLICADO (D36) + D35-A.
+  D36. "Registrar Avance" factura el valor COMPLETO de la casa con IVA y amortiza la parte proporcional del anticipo:
+       - Prellenar: importe = partida de la casa × 1.16 (Piloto 1: $18,411.01); anticipo amortizado = importe × % de
+         anticipo de la OV, sin pasar de lo que queda del anticipo cobrado (Piloto 1: $11,046.61); por cobrar = resto
+         ($7,364.40). Mostrar las tres cifras antes de guardar; importe editable, amortización editable con motivo.
+       - La última casa de la OV amortiza lo que quede del anticipo (que no sobren ni falten centavos; D16 ≤ $1.00).
+       - Varias casas en una sola factura: sumar casas y su amortización.
+       - El saldo vivo de la OV y el reporte CxC deben cuadrar: anticipo + avances − amortizaciones = total del contrato.
+  D35 = A: en Pendiente de Facturar los avances van CON IVA (lo que se factura), igual que los anticipos.
+  Trabajar en `pruebas` con tests; probar con Piloto 1 de OV-0157 SIN guardar la factura (la registra Gabriel en el
+  ensayo). Avisar en "Hechas".
+  HECHO [15/10 16:24, Mérida] — rama `pruebas` (173d256; main sin tocar). Tests: backend 351 (4 nuevos de D36), frontend
+  40, build OK; sin migración.
+  - "Registrar Avance" prellena las tres cifras desde el servidor y las muestra antes de guardar. Probado en Pruebas con
+    Piloto 1, sin guardar: factura $18,411.01, anticipo amortizado $11,046.61 (60%), por cobrar $7,364.40; queda del
+    anticipo cobrado $33,139.82. Al editar la amortización aparece "Motivo" obligatorio y el botón se bloquea hasta
+    escribirlo. Cancelé; en la BD la OV-0157 sigue solo con su anticipo.
+  - Reglas (en el servidor, también si se registra sin la pantalla): amortización = factura × % anticipo, sin pasar de
+    lo que queda del anticipo cobrado ni de la factura; la última casa sin facturar de la OV amortiza todo lo que
+    queda; varias casas en una factura suman casas y amortización; editar la amortización exige motivo (queda en las
+    notas de la factura).
+  - Cuadre: test con 3 casas (precio de Piloto 1): anticipo + avances − amortizaciones = total del contrato (≤ $1.00) y
+    la suma de amortizaciones = anticipo cobrado, sin centavos sobrantes.
+  - D35-A: en Pendiente de Facturar los avances van con IVA (renglón, subtotal y total; el total de la tarjeta suma
+    anticipos y avances con IVA: hoy $140,551.73).
+  - Corrección encontrada: la ventana de cobro de Cobranza (Rayos X) guardaba como importe solo el efectivo a cobrar,
+    sin la amortización, mientras los saldos tratan el importe como factura completa (habría restado el anticipo dos
+    veces). Ahora guarda la factura completa y usa la misma sugerencia del servidor. No la probé en pantalla.
 
 - [2026-10-15 12:25] HALLAZGOS DEL ENSAYO, SEGUNDA PARTE (pasos 11–13 en Pruebas, Piloto 1 de OV-0157).
   Confirmado en Pruebas: H38, H37 (cámara iPhone escanea), H14, D32. Trabajar en `pruebas`; tests; avisar en "Hechas".

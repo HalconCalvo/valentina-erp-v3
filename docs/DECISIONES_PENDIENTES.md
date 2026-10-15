@@ -66,15 +66,20 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 - **Recomendación:** B, cuando Gabriel decida meter las comisiones legacy (no antes).
 - **Estado:** pendiente (sin aplicar)
 
+## Resueltas
+
+### D36. Factura de avance = casa completa con anticipo aplicado — 2026-10-15 — buzón del asesor (paso 13)
+- **Decisión de Gabriel (15/10 16:15):** la factura de avance es la casa completa con IVA y amortiza la parte
+  proporcional del anticipo cobrado; la última casa amortiza lo que quede; amortización editable con motivo.
+- **Estado:** aplicada 16:24 (173d256).
+
 ### D35. Derecho a facturación suma montos con y sin IVA — 2026-10-15 — buzón del asesor (H46)
 - **Contexto:** en Pendiente de Facturar (y la tarjeta de Cobranza), los anticipos salen del total de la OV (con IVA) y
   los avances de obra del subtotal de la partida (sin IVA); el total los suma. Hoy cada monto ya dice si lleva IVA.
 - **Opciones:** A) avances también con IVA (subtotal × (1 + tasa de la OV)), así el total es lo que se factura.
   B) todo sin IVA. C) dejarlo así, con la etiqueta.
 - **Recomendación:** A (la factura de avance se captura con IVA, igual que el anticipo).
-- **Estado:** pendiente (sin aplicar: cambia cifras de Cobranza; pregunta en el buzón)
-
-## Resueltas
+- **Estado:** resuelta (Gabriel, 15/10 16:15): A. Aplicada 16:24 (173d256).
 
 ### D33. Nombres de los saldos de cobranza (H3 del ensayo general) — 2026-10-14 — buzón del asesor
 - **Contexto:** "Saldo vivo (por cobrar)" (Gerencia → OV y Facturación) es el contrato menos lo cobrado, facturado o

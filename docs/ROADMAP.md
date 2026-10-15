@@ -218,6 +218,11 @@ Confirmados en Pruebas: H38, H37, H14, D32. Sin migración nueva. Prueba en pant
 5. Hecho: el modal bloquea PM y PP cada uno por su carril; el límite de H38 usa solo el lote MDF.
 6. Hecho: quitar la cuadrilla de un carril la cancela (CANCELLED, con bitácora); ya no se borra.
 
+## 19. D36 + D35-A: factura de avance = casa completa con IVA y anticipo proporcional (Gabriel 15/10 16:15) — hecha en `pruebas`
+Servicio `progress_invoice_service` (sugerencia, tope, última casa); vista previa `GET /sales/orders/{id}/progress_preview`;
+"Registrar Avance" con tres cifras y motivo; Pendiente de Facturar con IVA; la ventana de cobro de Cobranza guarda
+la factura completa. Probado en Pruebas con Piloto 1 sin guardar.
+
 ## 11. PRIORIDAD 2 — Indicadores del tablero de Dirección (con Gabriel) — hecha (2026-10-12, commit local)
 - Decisiones de Gabriel (12/10) aplicadas con una sola fuente (`GET /analytics/director-summary`, solo DIRECTOR):
   1. Ventas: OVs vendidas del año sin IVA (tasa 0 y 16) contra la meta anual.

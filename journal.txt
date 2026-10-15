@@ -4905,3 +4905,8 @@ SESIÓN 15/10/2026 — Hallazgos del ensayo, segunda parte (buzón 12:25) — ra
   Lección: `find` del navegador reporta el placeholder de un campo, no su valor; confirmar con captura.
 - 13:23 Quitar cuadrilla = cancelar (status CANCELLED, sin migración: columna de texto); consultas de asignaciones
   excluyen canceladas. Tests backend 347.
+- 16:24 D36 + D35-A (Gabriel 16:15): factura de avance = casa completa con IVA, amortiza anticipo proporcional (última
+  casa amortiza el resto; editar con motivo; tope = anticipo cobrado restante). Pendiente de Facturar con IVA.
+  Hallazgo: ReceivableChargeModal guardaba amount = efectivo (sin amortización) y los saldos restan la amortización
+  del importe: corregido a factura completa. Probado en Pruebas con Piloto 1 sin guardar. Tests backend 351.
+  Lección: antes de agregar un cálculo de dinero, revisar todas las pantallas que escriben el mismo registro.
