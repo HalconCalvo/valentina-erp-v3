@@ -26,7 +26,7 @@ from app.models.treasury import BankAccount, BankTransaction, TransactionType
 from app.services.pdf_generator import PDFGenerator
 
 # --- IMPORTAMOS LOS MOTORES (V3.5) ---
-from app.services import credit_note_service, sales_service
+from app.services import credit_note_service, progress_invoice_service, sales_service
 from app.services import inventory_service, legacy_import_service, legacy_template_service
 from app.schemas.legacy_import_schema import LegacyImportPreviewRead, LegacyImportRead
 from app.schemas.production_inventory_schema import OVCancelCreate
@@ -34,6 +34,7 @@ from app.repositories import sales_repository as sales_repo
 from app.core.permissions import allow, FINANCE_ROLES, SALES_ORDER_ROLES, SALES_READ_ROLES, allow_payment_execution
 
 from app.schemas.sales_schema import (
+    ProgressInvoicePreviewRead,
     SalesOrderRead, SalesOrderUpdate,
     SalesOrderItemCreate,
     SalesOrderItemRead,
@@ -91,17 +92,6 @@ def _is_seller_scoped_role(user: User) -> bool:
     completo de órdenes en GET /sales/orders (monitor tipo administración), sin filtro por user_id.
     """
     return _normalized_role(user) in ("SALES",)
-
-
-def _line_amount_per_instance(item: SalesOrderItem) -> float:
-    """Valor contable por instancia (partida / cantidad)."""
-    qty = float(item.quantity) if item.quantity else 1.0
-    if qty < 1e-9:
-        qty = 1.0
-    sub = float(item.subtotal_price or 0.0)
-    if sub <= 0:
-        sub = float(item.unit_price or 0.0) * qty
-    return sub / qty
 
 
 def _can_edit_client_po_meta(user: User) -> bool:
@@ -466,12 +456,12 @@ def _instance_to_progress_dict(inst: SalesOrderItemInstance) -> Dict[str, Any]:
     item = inst.item
     order = item.order if item else None
     client = order.client if order else None
-    line_amount = _line_amount_per_instance(item) if item else 0.0
     return {
         "instance_id": inst.id,
         "custom_name": inst.custom_name or f"Instancia #{inst.id}",
         "production_status": inst.production_status.value,
-        "line_amount": line_amount,
+        "line_amount": progress_invoice_service.house_amount_with_tax(item, order) if item else 0.0,
+        "line_amount_net": progress_invoice_service.house_amount(item) if item else 0.0,
         "signed_received_at": inst.signed_received_at.isoformat() if inst.signed_received_at else None,
         "order_id": order.id if order else None,
         "order_folio": f"OV-{str(order.id).zfill(4)}" if order else "—",
@@ -539,6 +529,18 @@ def get_invoicing_rights(
         advances=advances_out,
         progress_instances=progress_rows,
     )
+
+
+@router.get("/orders/{order_id}/progress_preview", response_model=ProgressInvoicePreviewRead,
+            dependencies=[allow(FINANCE_ROLES)])
+def preview_progress_invoice(
+    order_id: int,
+    instance_ids: List[int] = Query(default=[]),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """D36: suggested invoice, amortization and amount to collect for the selected houses (nothing is saved)."""
+    return sales_service.progress_invoice_preview(session, order_id, instance_ids)
 
 
 @router.post("/orders/{order_id}/register_progress", dependencies=[allow(FINANCE_ROLES)])

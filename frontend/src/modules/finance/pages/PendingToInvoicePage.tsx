@@ -5,6 +5,7 @@ import { salesService } from '../../../api/sales-service';
 import { SalesOrder, CustomerPayment, PendingProgressInstance, InvoicingRightsRead, InvoicingRightAdvanceRow } from '../../../types/sales';
 import { OrderStatementModal } from '../components/OrderStatementModal';
 import { ReceivableChargeModal } from '../components/ReceivableChargeModal';
+import ProgressInvoiceForm from '../components/ProgressInvoiceForm';
 import { toast } from '@/components/ui/VToast';
 import { Input } from '@/components/ui/Input';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
@@ -42,9 +43,6 @@ const PendingToInvoicePage = () => {
         const t = (location.state as { progressTab?: string } | null)?.progressTab;
         if (t === 'AVANCES' || t === 'ANTICIPOS') setProgressTab(t);
     }, [location.state]);
-    const [registeringProgress, setRegisteringProgress] = useState<number | null>(null);
-    const [progressFolio, setProgressFolio] = useState('');
-    const [progressAmount, setProgressAmount] = useState('');
     const [progressModalOrderId, setProgressModalOrderId] = useState<number | null>(null);
     const [selectedInstanceIds, setSelectedInstanceIds] = useState<number[]>([]);
 
@@ -243,7 +241,7 @@ const PendingToInvoicePage = () => {
                 <span className="block text-right font-black text-indigo-700">
                     {formatMoney(Number(row.amount) || 0)}
                     <span className="ml-1 text-[10px] font-bold text-slate-400">
-                        {row.kindSort === 'ADVANCE' ? 'con IVA' : 'sin IVA'}
+                        con IVA
                     </span>
                 </span>
             ),
@@ -294,7 +292,7 @@ const PendingToInvoicePage = () => {
                     <div>
                         <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Derecho a facturación</p>
                         <p className="text-xs text-slate-600 mt-0.5">
-                            Anticipos (con IVA): {formatMoney(invoicingRights.advance_pending_total)} + Avances de obra (sin IVA):{' '}
+                            Anticipos (con IVA): {formatMoney(invoicingRights.advance_pending_total)} + Avances de obra (con IVA):{' '}
                             {formatMoney(invoicingRights.progress_work_total)}
                         </p>
                     </div>
@@ -390,12 +388,12 @@ const PendingToInvoicePage = () => {
                                 Casas firmadas — derecho a facturar avance
                             </h2>
                             <p className="text-xs text-slate-500 mt-0.5">
-                                Casas con firma del cliente que aún no están en una factura de avance. Montos sin IVA.
+                                Casas con firma del cliente que aún no están en una factura de avance. Montos con IVA (la casa completa; el anticipo se amortiza al facturar).
                             </p>
                         </div>
                         <div className="flex items-center gap-3">
                             <div className="bg-white border border-emerald-200 rounded-lg px-4 py-2 shadow-sm">
-                                <span className="text-xs font-bold uppercase text-emerald-700">Total sin IVA: </span>
+                                <span className="text-xs font-bold uppercase text-emerald-700">Total con IVA: </span>
                                 <span className="font-black text-xl text-emerald-900">{formatMoney(invoicingRights?.progress_work_total ?? 0)}</span>
                             </div>
                             <Button type="button" variant="ghost" size="icon" onClick={loadSalesData} className="hover:bg-emerald-100" aria-label="Actualizar" title="Actualizar">
@@ -429,15 +427,13 @@ const PendingToInvoicePage = () => {
                                                 {instances[0].project_name && (
                                                     <span className="ml-2 text-xs text-slate-400 italic">{instances[0].project_name}</span>
                                                 )}
-                                                <span className="ml-3 text-xs font-bold text-emerald-700">Subtotal sin IVA: {formatMoney(groupSum)}</span>
+                                                <span className="ml-3 text-xs font-bold text-emerald-700">Subtotal con IVA: {formatMoney(groupSum)}</span>
                                             </div>
                                             <Button
                                                 size="sm"
                                                 onClick={() => {
                                                     setProgressModalOrderId(isOpen ? null : orderId);
                                                     setSelectedInstanceIds(instances.map((i) => i.instance_id));
-                                                    setProgressFolio('');
-                                                    setProgressAmount('');
                                                 }}
                                                 className="bg-emerald-600 hover:bg-emerald-700"
                                             >
@@ -479,61 +475,15 @@ const PendingToInvoicePage = () => {
                                         </div>
 
                                         {isOpen && (
-                                            <div className="px-6 pb-4 pt-2 bg-emerald-50/40 flex flex-wrap items-end gap-3">
-                                                <div className="flex flex-col gap-1">
-                                                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">Folio de Factura *</label>
-                                                    <Input
-                                                        type="text"
-                                                        placeholder="Ej. F-2026-0042"
-                                                        value={progressFolio}
-                                                        onChange={(e) => setProgressFolio(e.target.value)}
-                                                        className="border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 w-44"
-                                                    />
-                                                </div>
-                                                <div className="flex flex-col gap-1">
-                                                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">Importe de la factura (con IVA)</label>
-                                                    <Input
-                                                        type="number"
-                                                        placeholder="0.00"
-                                                        value={progressAmount}
-                                                        onChange={(e) => setProgressAmount(e.target.value)}
-                                                        className="border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 w-36"
-                                                    />
-                                                </div>
-                                                <Button
-                                                    disabled={registeringProgress === orderId || selectedInstanceIds.length === 0 || !progressFolio.trim()}
-                                                    title={!progressFolio.trim() ? 'El folio de la factura es obligatorio' : undefined}
-                                                    onClick={async () => {
-                                                        if (selectedInstanceIds.length === 0) return;
-                                                        setRegisteringProgress(orderId);
-                                                        try {
-                                                            await salesService.registerProgressPayment(orderId, {
-                                                                invoice_folio: progressFolio.trim(),
-                                                                amount: parseFloat(progressAmount) || 0,
-                                                                amortized_advance: 0,
-                                                                instance_ids: selectedInstanceIds,
-                                                            });
-                                                            setProgressModalOrderId(null);
-                                                            await loadSalesData();
-                                                        } catch (err: any) {
-                                                            toast.error(err?.response?.data?.detail || 'No se pudo registrar el avance.');
-                                                        } finally {
-                                                            setRegisteringProgress(null);
-                                                        }
-                                                    }}
-                                                    className="bg-emerald-600 hover:bg-emerald-700"
-                                                >
-                                                    <FilePlus size={14} />
-                                                    {registeringProgress === orderId ? 'Procesando...' : `Confirmar Avance (${selectedInstanceIds.length})`}
-                                                </Button>
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    onClick={() => setProgressModalOrderId(null)}
-                                                >
-                                                    Cancelar
-                                                </Button>
-                                            </div>
+                                            <ProgressInvoiceForm
+                                                orderId={orderId}
+                                                instanceIds={selectedInstanceIds}
+                                                onDone={async () => {
+                                                    setProgressModalOrderId(null);
+                                                    await loadSalesData();
+                                                }}
+                                                onCancel={() => setProgressModalOrderId(null)}
+                                            />
                                         )}
                                     </div>
                                 );
@@ -549,7 +499,7 @@ const PendingToInvoicePage = () => {
                         <div className="space-y-1">
                             <h2 className="text-sm font-black uppercase tracking-wider text-slate-500">Derecho a facturación</h2>
                             <p className="text-xs text-slate-600 max-w-xl">
-                                Anticipos aún sin factura (con IVA) y casas firmadas sin factura de avance (sin IVA).
+                                Anticipos aún sin factura y casas firmadas sin factura de avance; todo con IVA.
                             </p>
                         </div>
                         <div className="bg-white border border-indigo-200 px-4 py-2 rounded-lg shadow-sm flex items-center gap-3 w-full md:w-auto justify-between">

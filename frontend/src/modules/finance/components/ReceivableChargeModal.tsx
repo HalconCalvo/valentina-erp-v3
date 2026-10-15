@@ -95,6 +95,8 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({
     
     const [amount, setAmount] = useState<number>(0);
     const [amortizedAdvance, setAmortizedAdvance] = useState<number>(0);
+    const [suggestedAmortization, setSuggestedAmortization] = useState<number | null>(null);
+    const [amortizationReason, setAmortizationReason] = useState('');
     
     const [displayAmount, setDisplayAmount] = useState<string>('');
     const [displayAmortized, setDisplayAmortized] = useState<string>('');
@@ -300,34 +302,18 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({
                 return;
             }
 
-            // 1. Suma base cruda de lo que palomeaste
-            const rawValueOfSelected = pendingInstances
-                .filter(inst => selectedInstances.includes(inst.id))
-                .reduce((sum, inst) => sum + (Number(inst.unit_price) || 0), 0);
-            
-            // 2. Suma base cruda de TODA la orden
-            let totalRawAllInstances = 0;
-            uniqueItems.forEach((item: any) => {
-                totalRawAllInstances += (Number(item.quantity) || 1) * (Number(item.unit_price) || 0);
+            // D36: whole houses with IVA and the proportional advance collected, computed by the server.
+            if (selectedInstances.length === 0) return;
+            const money = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            salesService.getProgressPreview(order.id!, selectedInstances).then((preview) => {
+                setSuggestedAmortization(preview.amortized_advance);
+                setAmortizedAdvance(preview.amortized_advance);
+                setDisplayAmortized(money.format(preview.amortized_advance));
+                setAmount(preview.to_collect);
+                setDisplayAmount(money.format(preview.to_collect));
+            }).catch((error: any) => {
+                toast.error(error?.response?.data?.detail || 'No se pudo calcular el avance.');
             });
-
-            // 3. Aplicar proporción al precio total (con IVA y Comisión)
-            const ratio = totalRawAllInstances > 0 ? (rawValueOfSelected / totalRawAllInstances) : 1;
-            const commercialValueOfSelected = totalOrder * ratio;
-
-            // 4. Calcular Anticipo y Efectivo a cobrar
-            const tieneAnticipo = Boolean(order.has_advance_invoice) ||
-                Number(order.advance_invoice_amount || 0) > 0;
-            const suggestedAmortization = tieneAnticipo
-                ? commercialValueOfSelected * (pct / 100)
-                : 0;
-            const suggestedCash = commercialValueOfSelected - suggestedAmortization;
-
-            setAmortizedAdvance(Number(suggestedAmortization.toFixed(2)));
-            setDisplayAmortized(new Intl.NumberFormat('en-US').format(Number(suggestedAmortization.toFixed(2))));
-            
-            setAmount(Number(suggestedCash.toFixed(2)));
-            setDisplayAmount(new Intl.NumberFormat('en-US').format(Number(suggestedCash.toFixed(2))));
         }
     }, [
         selectedInstances,
@@ -395,8 +381,10 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({
         try {
             const payload: PaymentPayload = {
                 invoice_folio: invoiceFolio.trim(),
-                amount: Number(amount),
+                // D36: the invoice is the gross amount (cash to collect + amortized advance).
+                amount: Number((Number(amount) + Number(amortizedAdvance)).toFixed(2)),
                 amortized_advance: Number(amortizedAdvance),
+                amortization_reason: amortizationReason.trim() || null,
                 instance_ids: selectedInstances,
                 invoice_date: invoiceDate || null,
                 nc_advance_folio: ncAdvanceFolio.trim() === '' ? null : ncAdvanceFolio.trim(),
@@ -734,8 +722,16 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({
                                         />
                                     </div>
                                     <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
-                                        <AlertTriangle size={10}/> Puedes editar este monto en acuerdos especiales.
+                                        <AlertTriangle size={10}/> Puedes editar este monto en acuerdos especiales (con motivo).
                                     </p>
+                                    {suggestedAmortization != null && Math.abs(amortizedAdvance - suggestedAmortization) > 0.01 && (
+                                        <Input
+                                            type="text"
+                                            value={amortizationReason}
+                                            onChange={(e) => setAmortizationReason(e.target.value)}
+                                            placeholder={`Motivo: la amortización sugerida es ${formatMoney(suggestedAmortization)}`}
+                                        />
+                                    )}
                                 </div>
                             )}
                         </div>

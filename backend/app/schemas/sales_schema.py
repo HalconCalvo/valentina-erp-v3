@@ -346,8 +346,9 @@ class ProductionItemPatch(BaseModel):
 
 class RegisterProgressPayload(BaseModel):
     invoice_folio: Optional[str] = None
-    amount: float = 0.0
-    amortized_advance: float = 0.0
+    amount: float = 0.0  # invoice amount with IVA (whole houses); 0 = the suggested one (D36)
+    amortized_advance: Optional[float] = None  # None = the suggested proportional advance (D36)
+    amortization_reason: Optional[str] = None  # required when the amortization differs from the suggested one
     instance_ids: List[int] = []
     invoice_date: Optional[datetime] = None
     nc_advance_folio: Optional[str] = None
@@ -369,7 +370,8 @@ class InvoicingRightProgressRow(BaseModel):
     instance_id: int
     custom_name: str
     production_status: str
-    line_amount: float
+    line_amount: float  # with IVA (D35-A: what gets invoiced)
+    line_amount_net: float = 0.0
     signed_received_at: Optional[str] = None
     order_id: Optional[int] = None
     order_folio: str
@@ -569,3 +571,15 @@ class OrderMoneySummaryRead(BaseModel):
     advance_invoiced: float
     complementary_advances: List[PendingComplementaryAdvance] = []
     credit_notes: List[CustomerCreditNoteRead] = []
+
+
+class ProgressInvoicePreviewRead(BaseModel):
+    """D36: suggested figures of a progress invoice (whole houses with IVA, proportional advance amortized)."""
+    order_id: int
+    instance_ids: List[int]
+    amount: float
+    amortized_advance: float
+    to_collect: float
+    advance_percent: float
+    advance_remaining: float
+    is_last: bool

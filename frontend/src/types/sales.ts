@@ -171,6 +171,8 @@ export interface PaymentPayload {
     nc_retention_amount?: number;
     /** Anticipo complementario de una orden de cambio */
     change_quotation_id?: number | null;
+    /** D36: required when the amortization differs from the suggested one */
+    amortization_reason?: string | null;
 }
 
 export interface PayrollCommissionRow {
@@ -221,7 +223,9 @@ export interface PendingProgressInstance {
     custom_name: string;
     production_status: string;
     /** Valor contable de la pieza (partida / cantidad) — suma = bucket avances Tarjeta B. */
+    /** With IVA (D35-A) */
     line_amount: number;
+    line_amount_net?: number;
     signed_received_at: string | null;
     order_id: number | null;
     order_folio: string;
@@ -317,4 +321,16 @@ export interface CustomerCreditNotePayload {
     reason: string;
     customer_payment_id?: number | null;
     change_quotation_id?: number | null;
+}
+
+/** D36: suggested progress invoice for the selected houses (whole houses with IVA, proportional advance). */
+export interface ProgressInvoicePreview {
+    order_id: number;
+    instance_ids: number[];
+    amount: number;
+    amortized_advance: number;
+    to_collect: number;
+    advance_percent: number;
+    advance_remaining: number;
+    is_last: boolean;
 }

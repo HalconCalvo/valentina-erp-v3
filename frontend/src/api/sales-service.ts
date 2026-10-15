@@ -16,6 +16,7 @@ import {
   OrderMoneySummary,
   CustomerCreditNote,
   CustomerCreditNotePayload,
+    ProgressInvoicePreview,
 } from '../types/sales';
 
 export type LegacyImportOrderCreated = {
@@ -272,6 +273,16 @@ export const salesService = {
     /**
      * ADMINISTRACIÓN: Registra un Avance/Estimación (Cobro por Instancias)
      */
+    /** D36: suggested invoice, amortization and amount to collect for the selected houses (saves nothing). */
+    getProgressPreview: async (orderId: number, instanceIds: number[]): Promise<ProgressInvoicePreview> => {
+        const params = new URLSearchParams();
+        instanceIds.forEach((id) => params.append('instance_ids', String(id)));
+        const response = await axiosClient.get<ProgressInvoicePreview>(
+            `/sales/orders/${orderId}/progress_preview?${params.toString()}`,
+        );
+        return response.data;
+    },
+
     registerProgressPayment: async (orderId: number, payload: PaymentPayload) => {
         const response = await axiosClient.post(`/sales/orders/${orderId}/register_progress`, payload);
         return response.data;

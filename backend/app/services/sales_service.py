@@ -48,7 +48,8 @@ from app.schemas.sales_schema import (
     RetentionAlertRead,
 )
 from app.core.audit_context import audit_reason
-from app.services import audit_service, margin_service, production_inventory_service, recipe_cost_service
+from app.services import (audit_service, margin_service, production_inventory_service, progress_invoice_service,
+                          recipe_cost_service)
 from app.schemas.production_inventory_schema import OVCancelCreate
 
 
@@ -1117,6 +1118,25 @@ def emit_advance_invoice(
     }
 
 
+def _progress_candidates(session: Session, order_id: int, instance_ids: List[int]) -> tuple:
+    order = sales_repo.get_sales_order_by_id(session, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Orden de venta no encontrada.")
+    pending = progress_invoice_service.uninvoiced_houses(order)
+    candidates = [inst for inst in pending if inst.id in instance_ids] if instance_ids else pending
+    if not candidates:
+        raise HTTPException(
+            status_code=422,
+            detail="No hay instancias pendientes de facturación para esta orden.",
+        )
+    return order, candidates
+
+
+def progress_invoice_preview(session: Session, order_id: int, instance_ids: List[int]) -> dict:
+    order, candidates = _progress_candidates(session, order_id, instance_ids)
+    return progress_invoice_service.preview(session, order, candidates)
+
+
 def register_progress_invoice(
     session: Session,
     order_id: int,
@@ -1124,33 +1144,13 @@ def register_progress_invoice(
     current_user: User,
 ) -> dict:
     require_invoice_folio(payload.invoice_folio)
-    order = sales_repo.get_sales_order_by_id(session, order_id)
-    if not order:
-        raise HTTPException(status_code=404, detail="Orden de venta no encontrada.")
-
-    all_instances: List[SalesOrderItemInstance] = []
-    for item in order.items or []:
-        all_instances.extend(i for i in (item.instances or []) if not i.is_cancelled)
-
-    if payload.instance_ids:
-        candidates = [
-            inst for inst in all_instances
-            if inst.id in payload.instance_ids
-            and inst.customer_payment_id is None
-            and inst.administration_invoice_folio is None
-        ]
-    else:
-        candidates = [
-            inst for inst in all_instances
-            if inst.customer_payment_id is None
-            and inst.administration_invoice_folio is None
-        ]
-
-    if not candidates:
-        raise HTTPException(
-            status_code=422,
-            detail="No hay instancias pendientes de facturación para esta orden.",
-        )
+    order, candidates = _progress_candidates(session, order_id, payload.instance_ids)
+    # D36: whole houses with IVA and the proportional advance amortized, unless edited (with a reason).
+    suggested = progress_invoice_service.preview(session, order, candidates)
+    amount = float(payload.amount or 0.0) or suggested["amount"]
+    amortized = suggested["amortized_advance"] if payload.amortized_advance is None else float(payload.amortized_advance)
+    progress_invoice_service.check_amortization({**suggested, "amount": amount}, amortized, payload.amortization_reason)
+    reason = (payload.amortization_reason or "").strip() or None
 
     invoice_dt = payload.invoice_date or datetime.utcnow()
     nc_advance_folio = (payload.nc_advance_folio or "").strip() or None
@@ -1161,8 +1161,9 @@ def register_progress_invoice(
         sales_order_id=order.id,
         payment_type=PaymentType.PROGRESS,
         invoice_folio=invoice_folio,
-        amount=float(payload.amount or 0.0),
-        amortized_advance=float(payload.amortized_advance or 0.0),
+        amount=amount,
+        amortized_advance=amortized,
+        notes=f"Amortización ajustada: {reason}" if reason else None,
         status=CXCStatus.PENDING,
         created_by_user_id=current_user.id,
         invoice_date=invoice_dt,
