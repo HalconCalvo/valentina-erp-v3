@@ -68,6 +68,7 @@ class InstallationAssignmentStatus(str, Enum):
     IN_PROGRESS = "IN_PROGRESS"
     INSTALLED = "INSTALLED"
     COMPLETED = "COMPLETED"
+    CANCELLED = "CANCELLED"  # crew removed before loading; kept with its change log, never deleted
 
 
 class InstallationAssignment(SQLModel, table=True):

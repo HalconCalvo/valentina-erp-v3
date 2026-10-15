@@ -73,3 +73,26 @@ def test_unscheduling_a_lane_keeps_its_crew(client_fixture, session_fixture,
                                json={"clear_inst_stone": True})
     assert res.status_code == 200
     assert "IP" in _crews(session_fixture, house)
+
+
+def test_removing_a_crew_cancels_it_and_never_deletes(client_fixture, session_fixture,
+                                                      auth_header_director, seed_client_and_tax):
+    """Golden rule: clearing the team of a lane keeps the row as CANCELLED; assigning again creates a new one."""
+    house = _house_with_crews(client_fixture, session_fixture, auth_header_director, seed_client_and_tax)
+    url = f"{API}/planning/instances/{house}/assign-team"
+    assert client_fixture.post(url, headers=auth_header_director,
+                               json={"lane": "IP", "leader_user_id": None}).status_code == 200
+    session_fixture.expire_all()
+    rows = session_fixture.exec(select(InstallationAssignment).where(InstallationAssignment.instance_id == house)).all()
+    assert sorted((r.lane, r.status) for r in rows) == [("IM", "SCHEDULED"), ("IP", "CANCELLED")]
+    listed = client_fixture.get(f"{API}/planning/instances/{house}/assignments", headers=auth_header_director).json()
+    assert [a["lane"] for a in listed] == ["IM"]
+
+    stone = next(r for r in rows if r.lane == "IP")
+    again = client_fixture.post(url, headers=auth_header_director, json={
+        "lane": "IP", "leader_user_id": stone.leader_user_id, "assignment_date": "2026-12-22"})
+    assert again.status_code == 200, again.text
+    assert _crews(session_fixture, house)["IP"][0] == stone.leader_user_id
+    session_fixture.expire_all()
+    total = session_fixture.exec(select(InstallationAssignment).where(InstallationAssignment.instance_id == house)).all()
+    assert len(total) == 3

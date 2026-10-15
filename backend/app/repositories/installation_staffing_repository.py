@@ -3,7 +3,7 @@ from typing import List, Set, Tuple
 
 from sqlmodel import Session, or_, select
 
-from app.models.production import InstallationAssignment
+from app.models.production import InstallationAssignment, InstallationAssignmentStatus
 from app.models.sales import InstanceStatus, SalesOrderItemInstance
 
 DONE = (InstanceStatus.CLOSED, InstanceStatus.WARRANTY)
@@ -23,5 +23,6 @@ def get_staffed_lanes(session: Session, instance_ids) -> Set[Tuple[int, str]]:
     if not ids:
         return set()
     rows = session.exec(select(InstallationAssignment.instance_id, InstallationAssignment.lane)
-                        .where(InstallationAssignment.instance_id.in_(ids))).all()
+                        .where(InstallationAssignment.instance_id.in_(ids),
+                               InstallationAssignment.status != InstallationAssignmentStatus.CANCELLED)).all()
     return {(iid, lane) for iid, lane in rows}

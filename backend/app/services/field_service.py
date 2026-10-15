@@ -12,7 +12,7 @@ from app.models.design import ProductVersion, VersionComponent
 from app.models.foundations import Client
 from app.core import material_groups
 from app.models.material import Material, holds_stock
-from app.models.production import InstallationAssignment
+from app.models.production import InstallationAssignment, InstallationAssignmentStatus
 from app.repositories import installation_repository as installation_repo
 from app.models.sales import SalesOrder, SalesOrderItem, SalesOrderItemInstance
 from app.models.users import User, UserRole
@@ -80,6 +80,7 @@ def _leader_for_lane(session: Session, inst: SalesOrderItemInstance, lane: str) 
         select(InstallationAssignment).where(
             InstallationAssignment.instance_id == inst.id,
             InstallationAssignment.lane == lane,
+            InstallationAssignment.status != InstallationAssignmentStatus.CANCELLED,
         )
     ).first()
     return row.leader_user_id if row else None

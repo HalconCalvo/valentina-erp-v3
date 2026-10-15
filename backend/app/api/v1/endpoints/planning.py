@@ -904,7 +904,9 @@ def assign_installation_team(
     if payload.leader_user_id is None:
         existing_clear = session.exec(stmt_scheduled).first()
         if existing_clear:
-            session.delete(existing_clear)
+            # Golden rule: removing a crew cancels the lane assignment (change log keeps who/when), never deletes.
+            existing_clear.status = InstallationAssignmentStatus.CANCELLED
+            session.add(existing_clear)
             session.commit()
         return {
             "action": "cleared",

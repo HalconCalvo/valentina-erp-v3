@@ -14,11 +14,13 @@ def get_open_lanes(session: Session, instance_id: int) -> List[InstallationAssig
     """Lanes of an instance not completed yet (one per IM / IP)."""
     return session.exec(select(InstallationAssignment).where(
         InstallationAssignment.instance_id == instance_id,
-        InstallationAssignment.status != InstallationAssignmentStatus.COMPLETED)).all()
+        InstallationAssignment.status.notin_([InstallationAssignmentStatus.COMPLETED,
+                                              InstallationAssignmentStatus.CANCELLED]))).all()
 
 
 def get_lanes(session: Session, instance_id: int) -> List[InstallationAssignment]:
-    return session.exec(select(InstallationAssignment).where(InstallationAssignment.instance_id == instance_id)
+    return session.exec(select(InstallationAssignment).where(InstallationAssignment.instance_id == instance_id,
+                                                             InstallationAssignment.status != InstallationAssignmentStatus.CANCELLED)
                         .order_by(InstallationAssignment.lane)).all()
 
 
@@ -93,7 +95,8 @@ def get_loaded_lanes(session: Session, instance_ids: List[int]) -> set:
         return set()
     rows = session.exec(select(InstallationAssignment.instance_id, InstallationAssignment.lane).where(
         InstallationAssignment.instance_id.in_(instance_ids),
-        InstallationAssignment.status != InstallationAssignmentStatus.SCHEDULED)).all()
+        InstallationAssignment.status.notin_([InstallationAssignmentStatus.SCHEDULED,
+                                              InstallationAssignmentStatus.CANCELLED]))).all()
     return {(r[0], r[1]) for r in rows}
 
 
@@ -103,5 +106,6 @@ def get_lane_statuses(session: Session, instance_ids: List[int]) -> dict:
         return {}
     rows = session.exec(select(InstallationAssignment.instance_id, InstallationAssignment.lane,
                                InstallationAssignment.status)
-                        .where(InstallationAssignment.instance_id.in_(instance_ids))).all()
+                        .where(InstallationAssignment.instance_id.in_(instance_ids),
+                               InstallationAssignment.status != InstallationAssignmentStatus.CANCELLED)).all()
     return {(r[0], r[1]): r[2] for r in rows}

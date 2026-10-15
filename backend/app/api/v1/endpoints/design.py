@@ -24,7 +24,7 @@ from app.models.design import (
 )
 from app.models.material import Material
 from app.models.foundations import Client
-from app.models.production import ProductionBatch, ProductionBatchStatus, PrintJob
+from app.models.production import InstallationAssignment, InstallationAssignmentStatus, ProductionBatch, ProductionBatchStatus, PrintJob
 from app.models.sales import (
     InstanceStatus,
     SalesOrder,
@@ -760,7 +760,6 @@ def generate_stone_manifest(
     """
     from fastapi.responses import StreamingResponse
     from app.services.pdf_generator import PDFGenerator
-    from app.models.production import InstallationAssignment
     from app.models.foundations import GlobalConfig
 
     instance = session.get(SalesOrderItemInstance, instance_id)
@@ -791,6 +790,7 @@ def generate_stone_manifest(
         select(InstallationAssignment)
         .where(InstallationAssignment.instance_id == instance_id)
         .where(InstallationAssignment.lane == "IP")
+        .where(InstallationAssignment.status != InstallationAssignmentStatus.CANCELLED)
         .order_by(InstallationAssignment.id.desc())
     ).first()
 

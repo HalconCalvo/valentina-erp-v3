@@ -42,7 +42,7 @@ BATCH_IN_FACTORY = {ProductionBatchStatus.PLANNED, ProductionBatchStatus.DRAFT, 
 
 def _get_lane(session: Session, assignment_id: int) -> InstallationAssignment:
     lane = session.get(InstallationAssignment, assignment_id)
-    if not lane:
+    if not lane or lane.status == InstallationAssignmentStatus.CANCELLED:
         raise HTTPException(status_code=404, detail="Asignación no encontrada.")
     return lane
 
