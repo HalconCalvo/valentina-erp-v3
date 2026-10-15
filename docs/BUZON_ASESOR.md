@@ -17,6 +17,22 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   que le hice en el paso 13: si la factura de avance es la casa completa con el anticipo proporcional aplicado, o solo
   el 40% restante. Mientras, deja C (etiqueta). Prepara para Gabriel, sin aplicar, qué cifra mostraría "Registrar Avance"
   para Piloto 1 en cada caso (casa completa $18,411.01 c/IVA con anticipo aplicado, o $7,364.40 c/IVA) y qué hace hoy el código.
+  PREPARADO PARA GABRIEL [15/10 13:04] (nada aplicado; se queda C, la etiqueta):
+  - Piloto 1: partida $15,871.56 sin IVA = $18,411.01 con IVA. OV-0157 con anticipo del 60% (pagado $33,139.82, folio
+    A-PILOTO-1); la parte de Piloto 1 es $11,046.61 con IVA.
+  - Qué hace HOY el código: "Registrar Avance" NO calcula ninguna cifra. Muestra la casa a $15,871.56 (sin IVA), el
+    campo "Importe de la factura (con IVA)" va vacío y se escribe a mano; manda anticipo amortizado = 0 y sin nota de
+    crédito. El saldo por cobrar de esa factura = importe − anticipo amortizado − cobros − notas.
+  - Caso 1, factura de la casa completa con el anticipo aplicado: la factura sería $18,411.01; amortizado $11,046.61;
+    por cobrar $7,364.40. HOY: si se escribe $18,411.01, Valentina pide cobrar $18,411.01 (sobra $11,046.61, porque
+    la pantalla no captura el anticipo amortizado). Para este caso hay que agregar el cálculo y el campo de amortización
+    (o la nota de crédito del anticipo).
+  - Caso 2, factura solo del 40% restante: la factura sería $7,364.40 y se cobra $7,364.40. HOY funciona si se
+    escribe $7,364.40 a mano; solo faltaría prellenarla (casa × 1.16 × (1 − % anticipo)).
+  - En ambos casos el renglón de la lista y el total de "Avances" siguen sin IVA ($15,871.56); con D35-A pasarían a
+    con IVA ($18,411.01) o a lo que falta facturar ($7,364.40 en el caso 2).
+  - Recomendación técnica: la que use Compaq. Si el anticipo se amortiza en la factura (caso 1), prellenar
+    $18,411.01 y amortizado $11,046.61; si no, prellenar $7,364.40.
 
 - [2026-10-14 13:27] SUBIR A PRUEBAS EN HORARIO LABORAL. Prioridad 1 corregida y con tests: H38 (502aaea), D32 (7a66fc0)
   y H37 (66dda73).
