@@ -427,10 +427,17 @@ export function applyInstanceToCalendarFeed(
 
   const instance = normalizeInstanceFromApi(updated);
   const calendar: Record<string, CalendarPill[]> = {};
+  // H39: editing dates does not change a lane's production/load state; keep the server's per-lane value.
+  const laneDone: Partial<Record<string, boolean>> = {};
   for (const [dayKey, pills] of Object.entries(feed.calendar)) {
+    for (const p of pills) {
+      if (p.instance_id === instance.id && typeof p.lane_done === 'boolean') laneDone[p.lane] = p.lane_done;
+    }
     const kept = pills.filter((p) => p.instance_id !== instance.id);
     if (kept.length > 0) calendar[dayKey] = kept;
   }
+  const withLaneDone = (pill: CalendarPill): CalendarPill =>
+    laneDone[pill.lane] === undefined ? pill : { ...pill, lane_done: laneDone[pill.lane] };
 
   for (const { lane, key } of SCHEDULE_LANES) {
     const raw = instance.schedule[key];
@@ -450,7 +457,7 @@ export function applyInstanceToCalendarFeed(
       for (const dayKey of eachDayKeyInRange(raw, endRaw)) {
         if (!scheduleValueInMonth(`${dayKey}T09:00:00`, year, month)) continue;
         if (!calendar[dayKey]) calendar[dayKey] = [];
-        calendar[dayKey].push(buildCalendarPill(instance, lane, dayKey, rangeMeta));
+        calendar[dayKey].push(withLaneDone(buildCalendarPill(instance, lane, dayKey, rangeMeta)));
       }
       continue;
     }
@@ -458,7 +465,7 @@ export function applyInstanceToCalendarFeed(
     if (!scheduleValueInMonth(raw, year, month)) continue;
     const dayKey = raw.slice(0, 10);
     if (!calendar[dayKey]) calendar[dayKey] = [];
-    calendar[dayKey].push(buildCalendarPill(instance, lane, dayKey));
+    calendar[dayKey].push(withLaneDone(buildCalendarPill(instance, lane, dayKey)));
   }
 
   const total_pills = Object.values(calendar).reduce((sum, arr) => sum + arr.length, 0);
