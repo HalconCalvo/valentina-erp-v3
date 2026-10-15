@@ -178,7 +178,7 @@ const PendingToInvoicePage = () => {
         },
         {
             key: 'amount',
-            label: 'Monto anticipo',
+            label: 'Monto anticipo (con IVA)',
             sortable: true,
             render: (row) => (
                 <span className="block text-right font-black text-amber-800">
@@ -242,6 +242,9 @@ const PendingToInvoicePage = () => {
             render: (row) => (
                 <span className="block text-right font-black text-indigo-700">
                     {formatMoney(Number(row.amount) || 0)}
+                    <span className="ml-1 text-[10px] font-bold text-slate-400">
+                        {row.kindSort === 'ADVANCE' ? 'con IVA' : 'sin IVA'}
+                    </span>
                 </span>
             ),
         },
@@ -273,8 +276,8 @@ const PendingToInvoicePage = () => {
                     </h1>
                     <p className="text-slate-500 mt-1 font-medium">
                         {canView
-                            ? 'Derecho a facturación: anticipos sin CXC de anticipo + piezas cerradas sin folio administrativo.'
-                            : 'Mismo criterio que la tarjeta B en Cobranzas (vista resumida).'}
+                            ? 'Lo que ya se puede facturar: anticipos aún sin factura y casas firmadas por el cliente sin factura de avance.'
+                            : 'Lo mismo que ve Cobranza, en vista resumida.'}
                     </p>
                 </div>
 
@@ -289,9 +292,9 @@ const PendingToInvoicePage = () => {
             {canView && invoicingRights && (
                 <div className="bg-blue-50 border border-blue-200 rounded-xl px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div>
-                        <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Tarjeta B — Derecho a facturación</p>
+                        <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Derecho a facturación</p>
                         <p className="text-xs text-slate-600 mt-0.5">
-                            Anticipos: {formatMoney(invoicingRights.advance_pending_total)} + Avances obra:{' '}
+                            Anticipos (con IVA): {formatMoney(invoicingRights.advance_pending_total)} + Avances de obra (sin IVA):{' '}
                             {formatMoney(invoicingRights.progress_work_total)}
                         </p>
                     </div>
@@ -350,12 +353,11 @@ const PendingToInvoicePage = () => {
                                 Anticipos pendientes (primer pago)
                             </h2>
                             <p className="text-xs text-slate-600 mt-0.5">
-                                <span className="font-bold">WAITING_ADVANCE</span> y sin registro{' '}
-                                <span className="font-bold">ADVANCE</span> en <span className="font-bold">customer_payments</span>.
+                                OVs esperando anticipo que aún no tienen factura de anticipo. Montos con IVA.
                             </p>
                         </div>
                         <div className="bg-white border border-amber-200 rounded-lg px-4 py-2 shadow-sm">
-                            <span className="text-xs font-bold uppercase text-amber-700">Total bucket: </span>
+                            <span className="text-xs font-bold uppercase text-amber-700">Total con IVA: </span>
                             <span className="font-black text-xl text-amber-900">{formatMoney(invoicingRights?.advance_pending_total ?? 0)}</span>
                         </div>
                     </div>
@@ -385,16 +387,15 @@ const PendingToInvoicePage = () => {
                         <div>
                             <h2 className="font-black text-slate-800 text-lg flex items-center gap-2">
                                 <CheckCircle2 size={20} className="text-emerald-600" />
-                                Instancias 🟢🟢 Cerradas — derecho a facturar avance
+                                Casas firmadas — derecho a facturar avance
                             </h2>
                             <p className="text-xs text-slate-500 mt-0.5">
-                                <span className="font-bold">CLOSED</span>, <span className="font-bold">administration_invoice_folio</span> vacío, sin{' '}
-                                <span className="font-bold">customer_payment_id</span>.
+                                Casas con firma del cliente que aún no están en una factura de avance. Montos sin IVA.
                             </p>
                         </div>
                         <div className="flex items-center gap-3">
                             <div className="bg-white border border-emerald-200 rounded-lg px-4 py-2 shadow-sm">
-                                <span className="text-xs font-bold uppercase text-emerald-700">Total bucket: </span>
+                                <span className="text-xs font-bold uppercase text-emerald-700">Total sin IVA: </span>
                                 <span className="font-black text-xl text-emerald-900">{formatMoney(invoicingRights?.progress_work_total ?? 0)}</span>
                             </div>
                             <Button type="button" variant="ghost" size="icon" onClick={loadSalesData} className="hover:bg-emerald-100" aria-label="Actualizar" title="Actualizar">
@@ -404,7 +405,7 @@ const PendingToInvoicePage = () => {
                     </div>
 
                     {filteredProgress.length === 0 ? (
-                        <div className="p-12 text-center text-slate-500 italic">No hay piezas en este criterio.</div>
+                        <div className="p-12 text-center text-slate-500 italic">No hay casas firmadas pendientes de facturar.</div>
                     ) : (
                         <>
                             {Object.entries(
@@ -428,7 +429,7 @@ const PendingToInvoicePage = () => {
                                                 {instances[0].project_name && (
                                                     <span className="ml-2 text-xs text-slate-400 italic">{instances[0].project_name}</span>
                                                 )}
-                                                <span className="ml-3 text-xs font-bold text-emerald-700">Subtotal grupo: {formatMoney(groupSum)}</span>
+                                                <span className="ml-3 text-xs font-bold text-emerald-700">Subtotal sin IVA: {formatMoney(groupSum)}</span>
                                             </div>
                                             <Button
                                                 size="sm"
@@ -490,7 +491,7 @@ const PendingToInvoicePage = () => {
                                                     />
                                                 </div>
                                                 <div className="flex flex-col gap-1">
-                                                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">Importe (MXN)</label>
+                                                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">Importe de la factura (con IVA)</label>
                                                     <Input
                                                         type="number"
                                                         placeholder="0.00"
@@ -546,9 +547,9 @@ const PendingToInvoicePage = () => {
                 <div className="bg-white rounded-xl border border-indigo-200 shadow-md overflow-hidden">
                     <div className="p-4 border-b border-indigo-100 bg-indigo-50/50 flex flex-col md:flex-row justify-between items-start gap-4">
                         <div className="space-y-1">
-                            <h2 className="text-sm font-black uppercase tracking-wider text-slate-500">Derecho a facturación (tarjeta B)</h2>
+                            <h2 className="text-sm font-black uppercase tracking-wider text-slate-500">Derecho a facturación</h2>
                             <p className="text-xs text-slate-600 max-w-xl">
-                                Mismas filas que en administración: anticipos sin CXC ADVANCE y piezas cerradas sin folio.
+                                Anticipos aún sin factura (con IVA) y casas firmadas sin factura de avance (sin IVA).
                             </p>
                         </div>
                         <div className="bg-white border border-indigo-200 px-4 py-2 rounded-lg shadow-sm flex items-center gap-3 w-full md:w-auto justify-between">
