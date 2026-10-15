@@ -51,6 +51,7 @@ from app.services.planning_service import (
     version_master_maps_for_instances,
     install_order_error,
     sync_crew_dates,
+    lanes_done,
 )
 
 router = APIRouter()
@@ -381,6 +382,7 @@ def get_calendar_feed(
     }
     month_start_d = month_start.date()
     month_end_d = month_end.date()
+    done_by_instance = lanes_done(session, instances)
 
     for inst in instances:
         semaphore = compute_semaphore(inst, now, session=session)
@@ -404,6 +406,7 @@ def get_calendar_feed(
                 "semaphore": semaphore,
                 "semaphore_label": compute_semaphore_label(semaphore),
                 "production_status": inst.production_status,
+                "lane_done": done_by_instance[inst.id][code],
                 "sales_order_item_id": item_id,
                 "is_warranty_reopened": inst.is_warranty_reopened,
                 "project_name": project_name,
@@ -436,6 +439,7 @@ def get_calendar_feed(
                     "semaphore": semaphore,
                     "semaphore_label": compute_semaphore_label(semaphore),
                     "production_status": inst.production_status,
+                    "lane_done": done_by_instance[inst.id][code],
                     "sales_order_item_id": item_id,
                     "is_warranty_reopened": inst.is_warranty_reopened,
                     "project_name": project_name,

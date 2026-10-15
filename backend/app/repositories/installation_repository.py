@@ -95,3 +95,13 @@ def get_loaded_lanes(session: Session, instance_ids: List[int]) -> set:
         InstallationAssignment.instance_id.in_(instance_ids),
         InstallationAssignment.status != InstallationAssignmentStatus.SCHEDULED)).all()
     return {(r[0], r[1]) for r in rows}
+
+
+def get_lane_statuses(session: Session, instance_ids: List[int]) -> dict:
+    """{(instance_id, lane): status} of the installation lanes of the instances."""
+    if not instance_ids:
+        return {}
+    rows = session.exec(select(InstallationAssignment.instance_id, InstallationAssignment.lane,
+                               InstallationAssignment.status)
+                        .where(InstallationAssignment.instance_id.in_(instance_ids))).all()
+    return {(r[0], r[1]): r[2] for r in rows}

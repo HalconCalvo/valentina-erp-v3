@@ -59,6 +59,8 @@ export interface CalendarPill {
   semaphore: PlanningSemaphore | string;
   semaphore_label: string;
   production_status: string;
+  /** H39: this lane is done (PM/PP: its batch started; IM/IP: that lane was loaded). */
+  lane_done?: boolean;
   sales_order_item_id: number;
   is_warranty_reopened: boolean;
   project_name?: string | null;

@@ -148,6 +148,7 @@ function normalizePillProductionStatus(status: unknown): string {
 
 /** Píldora ya producida / instalada — muestra ✓ y no se puede reprogramar. */
 export function isPlanningPillProductionLocked(pill: CalendarPill): boolean {
+  if (typeof pill.lane_done === 'boolean') return pill.lane_done;
   const ps = normalizePillProductionStatus(pill.production_status);
   if (pill.lane === 'PM' || pill.lane === 'PP') {
     return PM_PP_PILL_CHECK_STATUSES.has(ps);

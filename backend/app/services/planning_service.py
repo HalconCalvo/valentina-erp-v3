@@ -17,6 +17,7 @@ from app.models.sales import (
     SalesOrder,
     InstanceStatus,
 )
+from app.repositories import installation_repository
 from app.core.business_time import today_local, utc_naive_to_local
 from app.models.design import ProductMaster, ProductVersion
 from app.models.production import (
@@ -557,3 +558,35 @@ def sync_crew_dates(session: Session, instance: SalesOrderItemInstance) -> None:
         if row.assignment_date != new_date:
             row.assignment_date = new_date
             session.add(row)
+
+
+_BATCH_STARTED = {ProductionBatchStatus.IN_PRODUCTION, ProductionBatchStatus.PACKING,
+                  ProductionBatchStatus.READY_TO_INSTALL, ProductionBatchStatus.FINISHED}
+_LEGACY_PRODUCED = {InstanceStatus.IN_PRODUCTION, InstanceStatus.READY, InstanceStatus.CARGADO,
+                    InstanceStatus.INSTALLED, InstanceStatus.CLOSED}
+_LEGACY_LOADED = {InstanceStatus.CARGADO, InstanceStatus.INSTALLED, InstanceStatus.CLOSED}
+
+
+def _batch_started(batch: Optional[ProductionBatch]) -> bool:
+    return batch is not None and (batch.started_at is not None or batch.status in _BATCH_STARTED)
+
+
+def lanes_done(session: Session, instances: List[SalesOrderItemInstance]) -> Dict[int, Dict[str, bool]]:
+    """H39: each calendar lane has its own state. PM/PP: that lane's batch started; IM/IP: that lane was
+    loaded. Houses without batches or crews (older data) fall back to the house status."""
+    batches = batch_map_for_instances(session, instances)
+    lanes = installation_repository.get_lane_statuses(session, [i.id for i in instances])
+    out: Dict[int, Dict[str, bool]] = {}
+    for inst in instances:
+        status = inst.production_status
+        no_batches = inst.production_batch_id is None and inst.stone_batch_id is None
+        has_crews = any(key[0] == inst.id for key in lanes)
+        out[inst.id] = {
+            code: (status in _LEGACY_PRODUCED) if no_batches else _batch_started(batches.get(batch_id))
+            for code, batch_id in (("PM", inst.production_batch_id), ("PP", inst.stone_batch_id))
+        }
+        for code in ("IM", "IP"):
+            lane_status = lanes.get((inst.id, code))
+            out[inst.id][code] = (lane_status is not None and lane_status != InstallationAssignmentStatus.SCHEDULED) \
+                if has_crews else status in _LEGACY_LOADED
+    return out
