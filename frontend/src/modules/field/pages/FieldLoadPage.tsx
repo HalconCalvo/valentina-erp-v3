@@ -167,6 +167,10 @@ export default function FieldLoadPage() {
   const statusBadge = (status: string) => {
     const map: Record<string, { label: string; color: string }> = {
       SCHEDULED: { label: 'Programado', color: 'bg-gray-200 text-gray-700' },
+      PENDING: { label: 'Por producir', color: 'bg-gray-200 text-gray-700' },
+      IN_PRODUCTION: { label: 'En producción', color: 'bg-indigo-100 text-indigo-700' },
+      CLOSED: { label: '🟢🟢 Firmado', color: 'bg-green-200 text-green-800' },
+      COMPLETED: { label: '🟢🟢 Firmado', color: 'bg-green-200 text-green-800' },
       IN_PROGRESS: { label: '🔵🔵 Cargada', color: 'bg-blue-100 text-blue-700' },
       READY: { label: 'Listo', color: 'bg-blue-100 text-blue-700' },
       CARGADO: { label: '🔵🔵 Cargado', color: 'bg-blue-200 text-blue-800' },
@@ -184,7 +188,7 @@ export default function FieldLoadPage() {
   };
 
   const Header = ({ title, onBack }: { title: string; onBack?: () => void }) => (
-    <div className="flex items-center gap-3 px-4 py-4 bg-white border-b border-gray-200 sticky top-0 z-10 -mx-3 -mt-3 md:-mx-6 md:-mt-6 mb-4">
+    <div className="flex items-center gap-3 px-4 py-4 bg-white border-b border-gray-200 sticky -top-3 md:-top-6 z-10 -mx-3 -mt-3 md:-mx-6 md:-mt-6 mb-4">
       {onBack && (
         <button
           type="button"
