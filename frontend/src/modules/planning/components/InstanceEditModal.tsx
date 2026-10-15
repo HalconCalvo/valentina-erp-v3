@@ -297,12 +297,8 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
     setPickerOpenField(null);
     setPickerOpenEndField(null);
     setCalendarOpen(false);
-    setImLeaderId('');
-    setImHelper1Id('');
-    setImHelper2Id('');
-    setIpLeaderId('');
-    setIpHelper1Id('');
-    setIpHelper2Id('');
+    // H42: the crew is not reset here. The page first opens the house it has and then the one from the
+    // server; resetting on that second update emptied a crew already loaded, and "Guardar" then removed it.
   }, [
     instance?.id,
     instance?.custom_name,
@@ -322,9 +318,19 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
 
   useEffect(() => {
     if (!instance) return;
+    loadedTeams.current = { IM: false, IP: false };
+    loadedTeamKeys.current = { IM: '||', IP: '||' };
+    setImLeaderId('');
+    setImHelper1Id('');
+    setImHelper2Id('');
+    setIpLeaderId('');
+    setIpHelper1Id('');
+    setIpHelper2Id('');
+    let cancelled = false;
     planningService
       .getInstanceAssignments(instance.id)
       .then((rows) => {
+        if (cancelled) return;
         let hasIm = false;
         let hasIp = false;
         for (const a of rows) {
@@ -358,6 +364,7 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
         }
       })
       .catch(() => {
+        if (cancelled) return;
         setImLeaderId('');
         setImHelper1Id('');
         setImHelper2Id('');
@@ -365,6 +372,9 @@ export default function InstanceEditModal({ instance, onClose, onSaved, readOnly
         setIpHelper1Id('');
         setIpHelper2Id('');
       });
+    return () => {
+      cancelled = true;
+    };
   }, [instance?.id]);
 
   useEffect(() => {
