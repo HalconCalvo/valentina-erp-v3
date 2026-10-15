@@ -77,7 +77,7 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   - H46 (afb3919). Pendiente de Facturar en español claro y con IVA indicado en cada monto. Hallazgo: los anticipos
     van con IVA y los avances sin IVA, y el total los suma (D35, ver pregunta abajo).
   - Firma una por casa: sin cambios, como confirmó Gabriel.
-  PRUEBA EN PANTALLA EN PRUEBAS [15/10 13:05] (sesión de Dirección):
+  PRUEBA EN PANTALLA EN PRUEBAS [15/10 12:48] (sesión de Dirección):
   - H39 ✓: Piloto 2 y 3 ya sin ✓ PM (✓ PP sí: su lote de piedra arrancó). Al guardar en el modal el ✓ PM reaparecía
     (el calendario se rearmaba con el estado de la casa); corregido (545c440) y confirmado.
   - H42 ✓: Piloto 2, IM 23→22 y Guardar: la cuadrilla (David Márquez + Miguel Sosa) se conservó y su fecha pasó al
