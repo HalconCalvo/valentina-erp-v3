@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from app.core import material_groups
 from app.core.database import get_session
+from app.repositories import installation_repository
 # --- IMPORTS DE SEGURIDAD ---
 from app.core.deps import get_current_active_user
 # IMPORTANTE: Importamos UserRole para validar correctamente los permisos
@@ -522,14 +523,18 @@ class LabelRequestItem(BaseModel):
     stone_pieces: int = 0
 
 
+PRINTABLE_STATUSES = [InstanceStatus.IN_PRODUCTION, InstanceStatus.READY, InstanceStatus.CARGADO,
+                      InstanceStatus.INSTALLED]
+
+
 @router.get("/label_requests", response_model=List[LabelRequestItem])
 def list_label_requests(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ):
     """
-    Instancias con declared_bundles > 0 en producción activa (IN_PRODUCTION)
-    o cuyo lote está en PACKING; enriquecidas con cliente y proyecto.
+    Instancias con bultos MDF o piezas de piedra, desde producción hasta la carga; enriquecidas con
+    cliente y proyecto. H45: cada carril (MDF / Piedra) se muestra hasta que ese carril se carga.
     """
     instances = session.exec(
         select(SalesOrderItemInstance)
@@ -541,11 +546,12 @@ def list_label_requests(
                 SalesOrderItemInstance.stone_pieces > 0,
             ),
             or_(
-                SalesOrderItemInstance.production_status == InstanceStatus.IN_PRODUCTION,
+                SalesOrderItemInstance.production_status.in_(PRINTABLE_STATUSES),
                 ProductionBatch.status == ProductionBatchStatus.PACKING,
             ),
         )
     ).all()
+    loaded = installation_repository.get_loaded_lanes(session, [inst.id for inst in instances])
 
     result: List[LabelRequestItem] = []
     for inst in instances:
@@ -564,9 +570,9 @@ def list_label_requests(
                       client_name=client.full_name if client else "", project_name=order.project_name,
                       order_folio=f"OV-{str(order.id).zfill(4)}", street=inst.street, lot=inst.lot)
         # H34: a house with MDF and stone is two rows: MDF bundles (labels) and stone pieces (manifest).
-        if (inst.declared_bundles or 0) > 0:
+        if (inst.declared_bundles or 0) > 0 and (inst.id, "IM") not in loaded:
             result.append(LabelRequestItem(**common, declared_bundles=inst.declared_bundles, is_stone=False))
-        if (inst.stone_pieces or 0) > 0:
+        if (inst.stone_pieces or 0) > 0 and (inst.id, "IP") not in loaded:
             result.append(LabelRequestItem(**common, declared_bundles=0, is_stone=True,
                                            stone_pieces=inst.stone_pieces))
     return result

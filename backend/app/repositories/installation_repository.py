@@ -85,3 +85,13 @@ def get_required_lanes(session: Session, instance: SalesOrderItemInstance) -> se
         return set()
     return {lane for lane, needed in (("IM", version.has_mdf_components), ("IP", needs_stone_lane(session, version)))
             if needed}
+
+
+def get_loaded_lanes(session: Session, instance_ids: List[int]) -> set:
+    """(instance_id, lane) pairs already loaded on the truck (the lane left SCHEDULED)."""
+    if not instance_ids:
+        return set()
+    rows = session.exec(select(InstallationAssignment.instance_id, InstallationAssignment.lane).where(
+        InstallationAssignment.instance_id.in_(instance_ids),
+        InstallationAssignment.status != InstallationAssignmentStatus.SCHEDULED)).all()
+    return {(r[0], r[1]) for r in rows}
