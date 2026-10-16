@@ -8,6 +8,17 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Pendientes
 
+- [2026-10-16 14:16] H70 IMPORTANTE ANTES DE PASAR A `main`: COMISIONES VIEJAS QUE AHORA SALEN "POR PAGAR". NO cambies nada aún.
+  Tras H67, en Gerencia → 5. Nómina → Comisiones, "B. Por pagar" subió a $74,202.75 (antes $952.29) y "A. Retenidas" bajó de
+  $137,498.90 a $64,248.45: aparecen comisiones de OVs reales copiadas de producción (OV-0054, 0038, 0039, 0020, 0041,
+  0156…) con "Pagar todo a Ing. Gabriel Frías (7 · $35,341.85)" y "Lic. Gabriel Frías García (7 · $38,560.89)".
+  Riesgo: en producción esas comisiones pudieron pagarse fuera de Valentina (D24: comisiones fuera del Excel de migración)
+  y se pagarían dos veces.
+  Prepara (solo lectura) en "Hechas" una tabla: OV, factura, tipo, asesor, monto, fecha del cobro, cuál regla la liberó
+  (la de antes o H67), y cuántas serían en PRODUCCIÓN con el mismo criterio. Propón opciones (p. ej. fecha de corte: todo
+  cobro anterior a <fecha> se marca "pagada fuera de Valentina", sin movimiento, con bitácora; o revisión una por una con
+  Karina). Gabriel decide. Hasta entonces el pase a `main` queda detenido.
+
 ## Preguntas para el asesor
 
 - [2026-10-15 12:40] D35 (de H46). En Pendiente de Facturar el total suma anticipos con IVA y avances de obra sin
@@ -54,6 +65,27 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   - Agrega a tu reporte final la lista de commits pendientes de prueba en pantalla.
 
 ## Hechas
+
+- [2026-10-16 14:12] AYUDA: RUTA DE NÓMINA Y COMISIONES (Gabriel 14:07). El asesor ya editó frontend/src/help/ayuda.md
+  (sin commit): las tareas "Pagar comisiones" y "Pagar la nómina de cuadrillas" pasan de /treasury a /management, con la
+  ruta real "Gerencia → 5. Nómina → Nómina → Comisiones por pagar" / "→ Instalaciones". En /treasury queda solo un aviso.
+  1. Verifica que los nombres de los niveles coincidan con la pantalla (corrige el texto si no) y que el buscador
+     ("comisiones", "nómina") lleve a Gerencia → 5. Nómina y no a Tesorería. Si el enlace puede abrir directo el nivel
+     de Comisiones/Instalaciones, mejor.
+  2. Si el panel de Nómina también vive en Tesorería, dime en "Hechas" quién entra por cada lado.
+  3. Commit y push SOLO a `pruebas`.
+  HECHO [16/10 14:35, Pruebas]:
+  1. Nombres corregidos a como se ven en pantalla. En 5. Nómina las tarjetas son **Nómina** (vendedores) y **Destajos**
+     (no "Instalaciones"; "Instalaciones" es el rótulo de las tarjetas de adentro). Texto final: "Gerencia → 5. Nómina →
+     Nómina (vendedores) → B. Por Pagar" y "Gerencia → 5. Nómina → Destajos → Por pagar (doble verde)".
+  2. Buscador: "comisiones", "nómina" y "destajos" dan primero la tarea de Gerencia y "Ir" abre directo el nivel
+     (Comisiones en B. Por Pagar, o Destajos en Por pagar). Va con una línea nueva "Enlace: /management?nomina=…" bajo la
+     tarea (no se muestra; explicada en el comentario de arriba de ayuda.md). El aviso de Tesorería se quedó sin esas claves
+     para que no gane. Comisiones ahora también abre en "B. Por Pagar" (antes en Retenidas), igual que Destajos desde H51.
+  3. El panel NO vive en Tesorería: Tesorería solo lee los totales; 5. Nómina está solo en Gerencia (/management), que
+     abren DIRECTOR y MANAGER. ADMIN no entra a Gerencia: si busca "comisiones" ve el aviso de Tesorería, sin enlace que no
+     pueda abrir. (Si Gabriel quiere que ADMIN pague nómina o comisiones, es decisión aparte.)
+  Tests frontend 48, tsc sin errores nuevos, build OK. No probado en pantalla (no se pudo abrir sesión local de prueba).
 
 - [2026-10-16 11:26] COMISIONES EN TESORERÍA → 5. NÓMINA → COMISIONES (Gabriel, Pruebas). Hacer después de 11:22 y antes de D38.
   Hoy "B. Por pagar" muestra 3 renglones de OV-0157 de $317.43 (total $952.29) con solo "Rayos X" y "Diferir/Omitir".

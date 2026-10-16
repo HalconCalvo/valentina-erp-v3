@@ -83,7 +83,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
   onRefresh,
   adminV4Labels = false,
 }) => {
-  const [commSub, setCommSub] = useState<SubView>('RETAINED');
+  const [commSub, setCommSub] = useState<SubView>('PAYABLE');
   const [payingId, setPayingId] = useState<number | null>(null);
   // H51: open on "Por pagar" (the tray with actions); "Retenidas" empty looked like the pending rows were gone.
   const [instSub, setInstSub] = useState<SubView>('PAYABLE');

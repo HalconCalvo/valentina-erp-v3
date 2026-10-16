@@ -13,6 +13,8 @@ Buscador "¿En qué te ayudo?" (D38):
 - Debajo de cada "### tarea" puede ir una línea "Claves: palabra, otra palabra, frase" con las palabras con que la
   gente buscaría esa tarea (p. ej. "Claves: OC, orden de compra, compras"). Separa con comas.
 - Para agregar una clave, escríbela en esa línea. No importan acentos ni mayúsculas ("Nómina" = "nomina").
+- Una línea "Enlace: /ruta?..." debajo de una tarea hace que el botón "Ir" del buscador abra directo ese nivel
+  (p. ej. "Enlace: /management?nomina=comisiones"). Tampoco se muestra.
 - La línea "Claves:" no se muestra en la ayuda; solo sirve para buscar. El buscador también busca en el título
   de la tarea y en su texto.
 - Cada quien solo ve resultados de las pantallas que su puesto puede abrir.
@@ -276,18 +278,9 @@ Claves: cobrar, cobro, depósito, ingreso, registrar ingreso, bancos, cuentas po
 3. El importe se propone solo (la suma de los saldos); corrígelo si el depósito fue distinto.
 4. Pon la **fecha del depósito** y la referencia, y pulsa **Registrar Ingreso**.
 
-### Pagar la nómina de cuadrillas (5. Nómina)
-Claves: nómina, pagar instaladores, cuadrillas, destajo, pagar todo, efectivo, bancos
-1. Abre la bandeja **Por pagar**. Cada renglón dice la casa y si es Muebles o Piedra.
-2. Pulsa **Pagar todo a [persona]** (o paga renglón por renglón).
-3. Elige el medio: **Banco** (con su cuenta) o **Efectivo**, y confirma.
-
-### Pagar comisiones
-Claves: comisión, comisiones, pagar comisión, vendedor, efectivo, bancos
-1. Entra a **5. Nómina → Comisiones → Por pagar**. Cada renglón dice la factura, si es Anticipo o Avance, y la casa.
-2. Pulsa **Pagar** en el renglón, o **Pagar todo a [asesor]** para pagarle todas con un solo movimiento.
-3. Revisa el monto (lo cobrado sin IVA × el % de la OV), elige **Banco** (con su cuenta) o **Efectivo** y confirma.
-También se puede pagar desde la OV (**Rayos X**), en la factura cobrada.
+### Pagar nómina y comisiones
+Claves: pagar
+Se pagan desde **Gerencia → 5. Nómina** (ver la ayuda de Gerencia).
 
 ### Bueno saber
 Claves: Compaq, IVA, facturas
@@ -328,6 +321,22 @@ Claves: gerencia, bancos, cuentas por cobrar, cuentas por pagar, nómina, OV y f
 - **OV y Facturación**: las OVs separadas en **Vigentes**, **Cerradas** (pagadas, saldo cero) y **Canceladas**.
   Nada se borra; solo se separan.
 - **5. Nómina**: nómina de las cuadrillas; se libera cuando el cliente firma la casa.
+
+### Pagar comisiones
+Claves: comisión, comisiones, pagar comisión, vendedor, asesor, efectivo, bancos
+Enlace: /management?nomina=comisiones
+1. Entra a **Gerencia → 5. Nómina → Nómina** (vendedores) y abre **B. Por Pagar**. Cada renglón dice la factura, si
+   es Anticipo o Avance, y la casa. Ahí están todas, aunque la OV ya esté cerrada.
+2. Pulsa **Pagar** en el renglón, o **Pagar todo a [asesor]** para pagarle todas con un solo movimiento.
+3. Revisa el monto (lo cobrado sin IVA × el % de la OV), elige **Banco** (con su cuenta) o **Efectivo** y confirma.
+
+### Pagar la nómina de cuadrillas
+Claves: nómina, pagar instaladores, cuadrillas, destajo, destajos, instalaciones, pagar todo, efectivo, bancos
+Enlace: /management?nomina=destajos
+1. Entra a **Gerencia → 5. Nómina → Destajos** y abre **Por pagar (doble verde)**. Cada renglón dice la casa y si es
+   Muebles o Piedra. La nómina se libera cuando el cliente firma la casa.
+2. Pulsa **Pagar todo a [persona]** (o paga renglón por renglón).
+3. Elige el medio: **Banco** (con su cuenta) o **Efectivo**, y confirma.
 
 ### Bueno saber
 Claves: cancelar, bitácora, pagos, bancos

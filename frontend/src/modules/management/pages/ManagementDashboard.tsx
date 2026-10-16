@@ -203,6 +203,16 @@ const ManagementDashboard: React.FC = () => {
         if (root !== 'PAYROLL') setPayrollSub(null);
     }, [root]);
 
+    // H70: the help's "Ir" opens 5. Nómina at Comisiones or Destajos (/management?nomina=comisiones|destajos)
+    useEffect(() => {
+        const level = new URLSearchParams(location.search).get('nomina');
+        const sub: PayrollLevel1 = level === 'comisiones' ? 'COMMISSIONS' : level === 'destajos' ? 'INSTALLATIONS' : null;
+        if (!sub) return;
+        setRoot('PAYROLL');
+        setPayrollSub(sub);
+        navigate(location.pathname, { replace: true });
+    }, [location.search, location.pathname, navigate]);
+
     const formatCurrency = (n: number) =>
         formatMoney(n);
 

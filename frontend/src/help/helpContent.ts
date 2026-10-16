@@ -10,12 +10,13 @@ export type HelpBlock =
     | { kind: 'bullets' | 'steps'; items: string[] };
 
 /** A task (###) of a screen: its title, search keys ("Claves:" line) and its own blocks. */
-export type HelpTask = { title: string; keywords: string[]; blocks: HelpBlock[] };
+export type HelpTask = { title: string; keywords: string[]; blocks: HelpBlock[]; link?: string };
 
 export type HelpSection = { route: string; title: string; blocks: HelpBlock[]; tasks: HelpTask[] };
 
 const ROUTE_LINE = /^#\s+(\/\S*)\s*$/;
 const KEYS_LINE = /^Claves:\s*(.*)$/i;
+const LINK_LINE = /^Enlace:\s*(\/\S*)\s*$/i;
 
 function appendText(blocks: HelpBlock[], text: string, newParagraph: boolean): void {
     const last = blocks[blocks.length - 1];
@@ -43,35 +44,40 @@ function parseLine(blocks: HelpBlock[], line: string, afterBlank: boolean): void
     else appendText(blocks, text, afterBlank || (!line.startsWith(' ') && blocks[blocks.length - 1]?.kind !== 'paragraph'));
 }
 
-function splitTasks(blocks: HelpBlock[], keywordsByTask: Map<number, string[]>): HelpTask[] {
+function splitTasks(blocks: HelpBlock[], keywordsByTask: Map<number, string[]>, linkByTask: Map<number, string>): HelpTask[] {
     const tasks: HelpTask[] = [];
     blocks.forEach((block, i) => {
-        if (block.kind === 'task') tasks.push({ title: block.text, keywords: keywordsByTask.get(i) ?? [], blocks: [] });
+        if (block.kind === 'task') tasks.push({ title: block.text, keywords: keywordsByTask.get(i) ?? [], blocks: [], link: linkByTask.get(i) });
         else if (block.kind !== 'title' && tasks.length) tasks[tasks.length - 1].blocks.push(block);
     });
     return tasks;
 }
 
-function finishSection(route: string, blocks: HelpBlock[], keywordsByTask: Map<number, string[]>): HelpSection {
+function finishSection(route: string, blocks: HelpBlock[], keywordsByTask: Map<number, string[]>, linkByTask: Map<number, string>): HelpSection {
     const title = blocks.find((b) => b.kind === 'title');
-    return { route, title: title && 'text' in title ? title.text : route, blocks, tasks: splitTasks(blocks, keywordsByTask) };
+    return { route, title: title && 'text' in title ? title.text : route, blocks, tasks: splitTasks(blocks, keywordsByTask, linkByTask) };
 }
 
 export function parseHelp(markdown: string): HelpSection[] {
     const sections: HelpSection[] = [];
-    let current: { route: string; blocks: HelpBlock[]; keys: Map<number, string[]> } | null = null;
-    const close = () => { if (current) sections.push(finishSection(current.route, current.blocks, current.keys)); };
+    let current: { route: string; blocks: HelpBlock[]; keys: Map<number, string[]>; links: Map<number, string> } | null = null;
+    const close = () => { if (current) sections.push(finishSection(current.route, current.blocks, current.keys, current.links)); };
     let afterBlank = true;
     for (const line of markdown.replace(/<!--[\s\S]*?-->/g, '').split('\n')) {
         const route = line.match(ROUTE_LINE);
         const keys = line.trim().match(KEYS_LINE);
+        const link = line.trim().match(LINK_LINE);
         if (route) {
             close();
-            current = { route: route[1], blocks: [], keys: new Map() };
+            current = { route: route[1], blocks: [], keys: new Map(), links: new Map() };
         } else if (current && keys) {
             // D38: search keys of the last task; never shown
             const taskIndex = current.blocks.map((b) => b.kind).lastIndexOf('task');
             current.keys.set(taskIndex, keys[1].split(',').map((k) => k.trim()).filter(Boolean));
+            continue;
+        } else if (current && link) {
+            // H70: "Ir" opens this level of the screen (e.g. /management?nomina=comisiones); never shown
+            current.links.set(current.blocks.map((b) => b.kind).lastIndexOf('task'), link[1]);
             continue;
         } else if (current && line.trim()) {
             parseLine(current.blocks, line, afterBlank);
@@ -106,7 +112,8 @@ export function searchHelp(sections: HelpSection[], query: string, role: string)
             const body = normalizeText(task.blocks.map(blockText).join(' '));
             if (!words.every((w) => keys.includes(w) || title.includes(w) || body.includes(w))) continue;
             const score = words.reduce((sum, w) => sum + (keys.includes(w) ? 3 : 0) + (title.includes(w) ? 2 : 0), 0);
-            results.push({ route: section.route, screen: section.title, task, score });
+            const route = task.link && canOpen(role, task.link.split('?')[0]) ? task.link : section.route;
+            results.push({ route, screen: section.title, task, score });
         }
     }
     return results.sort((a, b) => b.score - a.score).slice(0, 12);

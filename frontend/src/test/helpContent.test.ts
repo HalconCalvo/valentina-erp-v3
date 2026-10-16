@@ -64,6 +64,20 @@ describe('help texts', () => {
         expect(searchHelp(HELP_SECTIONS, 'x', 'DIRECTOR')).toEqual([]);
     });
 
+    it('payroll and commissions lead to Gerencia → 5. Nómina at the right level (H70)', () => {
+        expect(searchHelp(HELP_SECTIONS, 'comisiones', 'DIRECTOR')[0].route).toBe('/management?nomina=comisiones');
+        expect(searchHelp(HELP_SECTIONS, 'nomina', 'MANAGER')[0].route).toMatch(/^\/management\?nomina=/);
+        expect(searchHelp(HELP_SECTIONS, 'destajos', 'DIRECTOR')[0].route).toBe('/management?nomina=destajos');
+        // ADMIN cannot open Gerencia: it only gets the Tesorería notice, never a link it cannot open
+        expect(searchHelp(HELP_SECTIONS, 'comisiones', 'ADMIN').every((r) => !r.route.startsWith('/management'))).toBe(true);
+    });
+
+    it('keeps the link line of a task out of the text (H70)', () => {
+        const [m] = parseHelp('# /management\n## Gerencia\n### Pagar\nClaves: pagar\nEnlace: /management?nomina=comisiones\n1. Paga.\n');
+        expect(m.tasks[0]).toMatchObject({ link: '/management?nomina=comisiones', blocks: [{ kind: 'steps', items: ['Paga.'] }] });
+        expect(searchHelp([m], 'pagar', 'SALES')).toEqual([]);
+    });
+
     it('every task of the help file has search keys', () => {
         const missing = HELP_SECTIONS.flatMap((s) => s.tasks.filter((t) => !t.keywords.length).map((t) => `${s.route} ${t.title}`));
         expect(missing).toEqual([]);
