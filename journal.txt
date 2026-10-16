@@ -5053,14 +5053,14 @@ PENDIENTE PARA CERRAR EL ENSAYO:
   Configuración, el campo queda). Nómina y comisiones: botones "Pagar" ocultos a Gerencia. Autorizar pagos a proveedor:
   solo DIRECTOR.
 
-### D21 (16/10 17:35, rama pruebas): ruta CLIENTE "Lo pone el cliente"
+### D21 (16/10 17:30, rama pruebas): ruta CLIENTE "Lo pone el cliente"
 - Enum productionroute + CLIENTE y material PIEDRA-CLIENTE (Piedra, m², $0) en migración 5cd6e914c375; downgrade
   reconstruye el enum. `is_client_supplied()`; guardas en requisición, OC (bulk-emit y manual), costo $0 (catálogo,
   corrección de receta, cambio de ruta). Simulador: `client_supplied`, nunca faltante. Reservas/descarga ya la excluían.
 - Lección: una revisión "c8d9e0f1a2b3" ya existía en otro archivo (alembic: ciclo); usar ids aleatorios.
 - Lección: al revisar en pantalla, esperar a que cargue antes de leer (dije que no había nada por pagar y sí había).
 
-### D42 (16/10 17:58, solo documentos)
+### D42 (16/10 17:34, solo documentos)
 - GUIA_PANTALLAS.md versión 2: modelo Cobranza (/finance/cxc-report) y Antigüedad (/finance/aging), clases exactas;
   donde difieren manda Cobranza. Legacy-import deja de ser modelo. REVISION_PANTALLAS_OLA3.md ajustada.
 - Pendiente: aprobación de Gabriel (verde de Antigüedad, ancho del contenedor). Tercera ola sin aplicar.

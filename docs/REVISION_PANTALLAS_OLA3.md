@@ -1,6 +1,6 @@
 # Tercera ola de la guía de pantallas — revisión (16/10/2026)
 
-> **Ajustada por D42 (16/10, 17:55).** El modelo ahora es Cobranza (/finance/cxc-report) y Antigüedad de saldos
+> **Ajustada por D42 (16/10, 17:34).** El modelo ahora es Cobranza (/finance/cxc-report) y Antigüedad de saldos
 > (/finance/aging); ver `docs/GUIA_PANTALLAS.md` versión 2, pendiente de aprobación. Cambios en esta lista:
 > - /finance/cxc-report y /finance/aging pasan a **cumplir** (son el modelo). Lo que antes se les marcaba ("Regresar a
 >   Cobranza", ancho completo) ahora es la regla. Cobranza sí tiene vacío y carga en sus tablas.

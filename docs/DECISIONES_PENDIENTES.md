@@ -86,7 +86,7 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
   5. Recetas ya vendidas (#197, #201, #202, #231): son inmutables. Con visto bueno de Gabriel, Dirección clona cada una
      agregando "PIEDRA DEL CLIENTE" (m² por casa, los da Diseño) y la OV se liga a la versión nueva con motivo; sin costo,
      así que no cambia precio ni margen. Sin visto bueno no se toca nada.
-- **Estado:** APLICADA en Pruebas (Gabriel 15:43, 17:35): ruta CLIENTE y PIEDRA DEL CLIENTE construidas; las 4 recetas
+- **Estado:** APLICADA en Pruebas (Gabriel 15:43, 17:30): ruta CLIENTE y PIEDRA DEL CLIENTE construidas; las 4 recetas
   Nadira 33 no se clonan hasta que se vuelvan a vender (Gerardo da los m²).
 
 ### D40. Efectivo Dirección y pago dividido — 2026-10-16 — buzón del asesor (Gabriel 14:20–14:25)
