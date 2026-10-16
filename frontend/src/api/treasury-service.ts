@@ -21,6 +21,8 @@ export interface PayrollPaymentRecord {
   created_at: string;
   paid_at: string | null;
   instance_name: string | null;
+  /** Installation lane of the payment: IM (furniture) or IP (stone). */
+  lane?: string | null;
   admin_notes?: string | null;
   days_waiting?: number;
   bank_account_id?: number | null;

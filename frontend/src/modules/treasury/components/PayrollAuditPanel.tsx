@@ -38,6 +38,16 @@ function daysWaitingClass(days: number): string {
   return 'text-slate-600';
 }
 
+const PAYROLL_LANE_LABEL: Record<string, string> = { IM: 'Muebles', IP: 'Piedra' };
+
+const SUB_VIEW_LABEL: Record<SubView, string> = { RETAINED: 'Retenidas (sin firma)', PAYABLE: 'Por pagar', PAID: 'Pagadas' };
+
+/** H50: each payment is one installation (lane) of the house: "Piloto 1 · Muebles". */
+export function payrollInstallationLabel(r: Pick<PayrollPaymentRecord, 'instance_name' | 'lane'>): string {
+  const lane = r.lane ? PAYROLL_LANE_LABEL[r.lane] ?? r.lane : null;
+  return [r.instance_name || '—', lane].filter(Boolean).join(' · ');
+}
+
 function groupByInstaller(rows: PayrollPaymentRecord[]): Map<number, PayrollPaymentRecord[]> {
   const m = new Map<number, PayrollPaymentRecord[]>();
   rows.forEach((r) => {
@@ -75,7 +85,8 @@ export const PayrollAuditPanel: React.FC<Props> = ({
 }) => {
   const [commSub, setCommSub] = useState<SubView>('RETAINED');
   const [payingId, setPayingId] = useState<number | null>(null);
-  const [instSub, setInstSub] = useState<SubView>('RETAINED');
+  // H51: open on "Por pagar" (the tray with actions); "Retenidas" empty looked like the pending rows were gone.
+  const [instSub, setInstSub] = useState<SubView>('PAYABLE');
 
   const [coOverview, setCoOverview] = useState<CommissionsPayrollOverview | null>(null);
   const [instOverview, setInstOverview] = useState<InstallerPayrollOverview | null>(null);
@@ -543,8 +554,8 @@ export const PayrollAuditPanel: React.FC<Props> = ({
     const cols: VTableColumn<PayrollPaymentRecord>[] = [
       {
         key: 'instance',
-        label: 'Instancia',
-        render: (r) => r.instance_name || '—',
+        label: 'Instalación',
+        render: (r) => payrollInstallationLabel(r),
       },
       {
         // D18: days of the recipe's installation line × daily rate
@@ -670,9 +681,12 @@ export const PayrollAuditPanel: React.FC<Props> = ({
     const columns = buildInstallationColumns(view);
     return (
       <div className="space-y-8">
+        <p className="text-sm font-black text-slate-700">
+          {SUB_VIEW_LABEL[view]} · {rows.length} {rows.length === 1 ? 'pago' : 'pagos'}
+        </p>
         {rows.length === 0 && (
           <div className="p-8 text-center text-slate-500 italic bg-white rounded-xl border shadow-sm">
-            Sin registros.
+            Sin registros en {SUB_VIEW_LABEL[view]}.
           </div>
         )}
         {Array.from(grouped.entries()).map(([uid, list]) => (

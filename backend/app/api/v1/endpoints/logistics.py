@@ -76,6 +76,7 @@ class PayrollPaymentRead(BaseModel):
     created_at: datetime
     paid_at: Optional[datetime] = None
     instance_name: Optional[str] = None
+    lane: Optional[str] = None
     admin_notes: Optional[str] = None
     days_waiting: int = 0
     bank_account_id: Optional[int] = None
@@ -141,6 +142,7 @@ def _serialize_payroll_row(r: PayrollPayment, session: Session) -> PayrollPaymen
         created_at=r.created_at,
         paid_at=r.paid_at,
         instance_name=instance.custom_name if instance else None,
+        lane=assignment.lane if assignment else None,
         admin_notes=getattr(r, "admin_notes", None),
         days_waiting=_days_waiting_logistics(r.created_at),
         bank_account_id=getattr(r, "bank_account_id", None),

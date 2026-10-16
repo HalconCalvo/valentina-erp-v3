@@ -282,3 +282,27 @@ def test_installations_without_crew_are_listed_and_red_at_three_days(client_fixt
     assert installation_staffing_service.get_unstaffed(session_fixture, today.date())[0]["is_urgent"] is False
     listed = client_fixture.get(f"{API}/planning/installations/unstaffed", headers=auth_header_director)
     assert listed.status_code == 200 and listed.json()[0]["lane"] == "IP"
+
+
+def test_paying_one_lane_keeps_the_other_lane_of_the_same_leader_payable(client_fixture, session_fixture,
+                                                                         auth_header_director, seed_client_and_tax):
+    """H50/H51: the same leader on furniture and stone has one payment per lane; paying one leaves the other."""
+    from app.models.production import PayrollPaymentType
+    instance, im_lane, im_leader = _ready_house(client_fixture, session_fixture, auth_header_director,
+                                                seed_client_and_tax)
+    ip_lane = InstallationAssignment(instance_id=instance.id, lane="IP", assignment_date=datetime(2026, 10, 12, 9),
+                                     leader_user_id=im_lane.leader_user_id)
+    session_fixture.add(ip_lane)
+    session_fixture.commit()
+    rows = [PayrollPayment(installation_assignment_id=lane.id, user_id=im_lane.leader_user_id,
+                           payment_type=PayrollPaymentType.LEADER, days_worked=1, daily_rate=800.0,
+                           total_amount=800.0, status=PayrollStatus.READY_TO_PAY) for lane in (im_lane, ip_lane)]
+    session_fixture.add_all(rows)
+    session_fixture.commit()
+    paid = client_fixture.patch(f"{API}/logistics/payroll/{rows[0].id}/mark-paid", headers=auth_header_director,
+                                json={"paid": True})
+    assert paid.status_code == 200, paid.text
+    overview = client_fixture.get(f"{API}/logistics/payroll/overview", headers=auth_header_director).json()
+    assert [(r["id"], r["lane"]) for r in overview["payable"]] == [(rows[1].id, "IP")]
+    assert [(r["id"], r["lane"]) for r in overview["paid"]] == [(rows[0].id, "IM")]
+    assert (overview["payable_total"], overview["paid_total"]) == (800.0, 800.0)
