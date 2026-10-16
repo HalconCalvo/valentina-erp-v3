@@ -8,6 +8,20 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Pendientes
 
+- [2026-10-16 15:50] D42 PANTALLAS MODELO PARA LA TERCERA OLA (Gabriel 15:47). Hacer después de D41 y D21.
+  Gabriel vio /director/legacy-import y NO le gusta. Las que SÍ le gustan y quedan como modelo:
+  - Gerencia → CxC → Antigüedad de saldos (/finance/aging, AgingReportPage)
+  - Gerencia → CxC → Cobranza (/finance/cxc-report, CxcReportPage)
+  1. Antes de tocar nada: en "Hechas" describe en lenguaje sencillo qué tienen esas dos que no tiene legacy-import
+     (encabezado, tarjetas, filtros, tabla, agrupado, colores, tamaños, botones), con capturas si puedes.
+  2. Actualiza docs/GUIA_PANTALLAS.md: el modelo son esas dos; todo lo que la guía diga y no coincida con ellas, se ajusta
+     a ellas (lo que Gabriel aprobó es lo que ve, no la guía).
+  3. Ajusta docs/REVISION_PANTALLAS_OLA3.md con el nuevo modelo (puede cambiar qué pantallas cumplen).
+  4. NO apliques la tercera ola: Gabriel aprueba primero la guía actualizada.
+  Lo que a Gabriel le gusta de Cobranza (/finance/cxc-report), 15:49 — son reglas de la guía: los COLORES, la UBICACIÓN de
+  los botones, la CLARIDAD y LÓGICA (orden de la información) y el TAMAÑO DE LETRA. Que la guía los describa con
+  precisión (clases y valores exactos tomados de esa pantalla) para copiarlos igual en las demás.
+
 - [2026-10-16 15:45] D21 APROBADA (Gabriel 15:43): construir la ruta "Lo pone el cliente" con el material "PIEDRA DEL CLIENTE"
   (m², costo $0 fijo, sin compra, sin existencia, sin faltante en Simulador, sin descarga; sí lote de piedra, carril,
   manifiesto y nómina). NO clonar las 4 recetas Nadira 33 ahora: se clonan cuando se vuelva a vender (Gerardo da los m²).
@@ -23,6 +37,8 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   3. Autorizar solicitudes de pago a proveedor: la API aún deja a Gerencia autorizar (sin pagar). En pantalla hoy
      autorizar va junto con pagar, así que no lo puede usar. ¿Se le quita también?
   4. El interruptor "Gerencia puede ejecutar pagos" ya no abre pagos a proveedores ni Bancos; solo nómina y comisiones.
+  RESUELTA [16/10 17:06]: Gabriel aprobó las 3 (Gerencia solo ve caja chica, no paga nómina ni comisiones, no autoriza
+  pagos a proveedor). Aplicadas 17:18 (ver Hechas).
 
 - [2026-10-15 12:40] D35 (de H46). En Pendiente de Facturar el total suma anticipos con IVA y avances de obra sin
   IVA. Recomiendo (A) avances también con IVA, para que el total sea lo que se factura. Cambia cifras de Cobranza, así
@@ -68,6 +84,29 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   - Agrega a tu reporte final la lista de commits pendientes de prueba en pantalla.
 
 ## Hechas
+
+- [2026-10-16 17:06] RESPUESTAS A LAS 3 DUDAS DE D41 (Gabriel 17:04, aprobadas las 3). Cambio mínimo, en `pruebas`.
+  1. Caja chica: Gerencia (MANAGER) SOLO VER (no registra, no edita, no cancela, no configura el fondo). Operan:
+     Administración (registra) y Dirección; el fondo lo configuran Dirección y Administración.
+  2. Pagar nómina de cuadrillas y comisiones: ocultar el botón "Pagar" / "Pagar todo" a Gerencia (y bloquear en backend
+     aunque se encienda el interruptor). Paga Dirección (Alejandrina).
+  3. Autorizar solicitudes de pago a proveedor: quitárselo a Gerencia también en backend.
+  Actualiza la tabla de antes/después en "Hechas" y la ayuda "?" si menciona algo de esto. Luego sigue con D21 y D42.
+  HECHO [16/10 17:18, Pruebas]: aplicadas las 3 respuestas. Tabla de antes y después (MANAGER = Gerencia):
+  | Acción | ANTES (después de D41 15:44) | AHORA |
+  |---|---|---|
+  | Caja chica: ver fondo y movimientos | sí | sí (sin cambio) |
+  | Caja chica: registrar egreso o reposición, editar, subir comprobante | Gerencia sí | no lo ve · API 403. Registra Administración o Dirección |
+  | Caja chica: cancelar movimiento | Dirección y Gerencia | solo Dirección |
+  | Caja chica: configurar fondo | Dirección y Gerencia | Dirección y Administración |
+  | Pagar nómina de cuadrillas ("Pagar", "Pagar todo") | ve el botón · API con interruptor | no lo ve · API 403 aunque se encienda |
+  | Pagar comisiones ("Pagar", "Pagar todo", "Diferir / Omitir") | ve el botón · API con interruptor | no lo ve · API 403 aunque se encienda |
+  | Autorizar o rechazar solicitud de pago a proveedor | API sí (pantalla no) | API 403; solo Dirección |
+  | Interruptor "Gerencia puede ejecutar pagos" (Configuración) | abría nómina y comisiones | ya no abre nada: se quitó de Configuración (el dato queda en la base, sin efecto) |
+  Mensajes: "Caja chica la operan Administración y Dirección; Gerencia solo la consulta (D41)." y "Solo Dirección
+  ejecuta pagos; Gerencia no paga (D41)." Gerencia sigue viendo las bandejas de Nómina y Destajos (y diferir destajos).
+  Ayuda "?": en Pagar comisiones y Pagar la nómina de cuadrillas dice "Solo Dirección paga; Gerencia ve la lista".
+  Tests: 2 nuevos (caja chica y pagos); backend y frontend en verde, build OK.
 
 - [2026-10-16 15:32] AUDITORÍA DEL ROL GERENCIA (Karina, contabilidad@incamex.com) — SOLO LECTURA, sin cambiar nada.
   Contexto (Gabriel 15:25): Alejandrina García (rol DIRECTOR) maneja Bancos: registra cobros y pagos. Karina (Gerencia)

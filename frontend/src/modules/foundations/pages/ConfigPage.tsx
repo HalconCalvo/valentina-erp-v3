@@ -10,7 +10,6 @@ import { GlobalConfig } from '../../../types/foundations';
 import { toast } from '@/components/ui/VToast';
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
-import { VToggle } from '@/components/ui/VToggle';
 
 export default function ConfigPage() {
   
@@ -33,7 +32,7 @@ export default function ConfigPage() {
   // --- 2. ESTADOS: FINANCIEROS Y TÉCNICOS ---
   const [marginInput, setMarginInput] = useState('');
   const [minMarkupInput, setMinMarkupInput] = useState('25');
-  const [managerCanPay, setManagerCanPay] = useState(false);
+  const [managerCanPay, setManagerCanPay] = useState(false);  // kept as stored; D41 left it without effect
   const [paidToleranceInput, setPaidToleranceInput] = useState('1.00');
   // Only Dirección changes the minimum markup (the backend answers 403 otherwise)
   const isDirector = (localStorage.getItem('user_role') || '').toUpperCase() === 'DIRECTOR';
@@ -239,12 +238,6 @@ export default function ConfigPage() {
                         title={isDirector ? undefined : 'Solo Dirección cambia el sobreprecio mínimo'}
                         onChange={(e) => setMinMarkupInput(e.target.value)} className="input-large border-orange-200 focus:border-orange-500" /><span className="unit-label">%</span></div>
                     <p className="text-[11px] text-slate-500 mt-2">Partidas o cotizaciones por debajo se marcan en rojo en la captura y en la revisión.</p>
-                </div>
-                <div className="card-std">
-                    <div className="flex items-start justify-between mb-4"><h2 className="text-base font-bold text-slate-700">Ejecución de pagos</h2><span className="badge-orange">Dirección</span></div>
-                    <VToggle checked={managerCanPay} disabled={!isDirector} onCheckedChange={setManagerCanPay}
-                        label="Gerencia puede ejecutar pagos" />
-                    <p className="text-[11px] text-slate-500 mt-2">Dirección siempre ejecuta pagos, transferencias y pago de comisiones y nómina. Administración solo los solicita.</p>
                 </div>
                 <div className="card-std">
                     <div className="flex items-start justify-between mb-4"><h2 className="text-base font-bold text-slate-700">Saldo que cuenta como pagado</h2><span className="badge-orange">Dirección</span></div>

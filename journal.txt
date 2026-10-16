@@ -5046,3 +5046,9 @@ PENDIENTE PARA CERRAR EL ENSAYO:
 - Karina = MANAGER, Alejandrina = DIRECTOR (Pruebas y producción). Dudas sin cambiar en el buzón: caja chica (Gerencia
   la opera), pagar nómina/comisiones, autorizar pagos a proveedor.
 - Dos pruebas viejas (D7) actualizadas a D41 por decisión de Gabriel.
+
+### D41 ampliada (16/10 17:18, rama pruebas): respuestas de Gabriel a las 3 dudas
+- Caja chica: escribir/editar/comprobante = DIRECTOR y ADMIN; cancelar = DIRECTOR; fondo = DIRECTOR y ADMIN; MANAGER solo ve.
+- `can_execute_payments` = solo DIRECTOR (el interruptor `manager_can_execute_payments` ya no abre nada; se quitó de
+  Configuración, el campo queda). Nómina y comisiones: botones "Pagar" ocultos a Gerencia. Autorizar pagos a proveedor:
+  solo DIRECTOR.

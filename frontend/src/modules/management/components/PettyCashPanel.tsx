@@ -23,7 +23,8 @@ const CATEGORIES: PettyCashCategory[] = [
   'INSUMOS', 'MAQUINARIA', 'EXTERNOS', 'MAQUILA', 'OTRO',
 ];
 
-const MANAGER_ROLES = ['DIRECTOR', 'MANAGER'];
+// D41 (17:04): Administración registers and sets the fund, Dirección also cancels; Gerencia only sees
+const OPERATE_ROLES = ['DIRECTOR', 'ADMIN'];
 
 function fmt(n: number) {
   return formatMoney(n);
@@ -68,7 +69,9 @@ interface PettyCashPanelProps {
 // ─── COMPONENT ────────────────────────────────────────────────────────────────
 
 export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelProps) {
-  const isManager = MANAGER_ROLES.includes(userRole.toUpperCase().trim());
+  const role = userRole.toUpperCase().trim();
+  const canOperate = OPERATE_ROLES.includes(role);
+  const canCancel = role === 'DIRECTOR';
 
   const [fund, setFund] = useState<PettyCashFund | null>(null);
   const [movements, setMovements] = useState<PettyCashMovement[]>([]);
@@ -266,16 +269,16 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
             className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-xs font-semibold transition-colors">
             📎 Ver
           </a>
-        ) : (
+        ) : canOperate ? (
           <button
             onClick={() => { setUploadTarget(m.id); receiptRef.current?.click(); }}
             className="inline-flex items-center gap-1 px-2 py-1 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded text-xs font-semibold transition-colors">
             📤 Subir
           </button>
-        )
+        ) : <span className="text-xs text-slate-400">—</span>
       ),
     },
-  ], []);
+  ], [canOperate]);
 
   // ── RENDER ─────────────────────────────────────────────────────────────────
 
@@ -295,12 +298,13 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
 
       {/* ── ACTION BAR ────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap gap-3 justify-end">
-        {isManager && (
+        {canOperate && (
           <button onClick={openConfig}
             className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-sm font-bold shadow-sm transition-all transform hover:-translate-y-0.5">
             ⚙️ Configurar Fondo
           </button>
         )}
+        {canOperate && (<>
         <button
           onClick={() => { setFormError(null); setEgresoForm(emptyEgreso()); setEgresoFile(null); setShowEgresoModal(true); }}
           className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all transform hover:-translate-y-0.5">
@@ -311,6 +315,7 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
           className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all transform hover:-translate-y-0.5">
           🔄 Registrar Reposición
         </button>
+        </>)}
       </div>
 
       {/* ── FUND CARD ────────────────────────────────────────────────────── */}
@@ -347,7 +352,7 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
           columns={movementColumns as unknown as VTableColumn<Record<string, unknown>>[]}
           data={movements as unknown as Record<string, unknown>[]}
           emptyState={{ title: 'No hay movimientos registrados.' }}
-          actions={isManager ? (row) => {
+          actions={canOperate ? (row) => {
             const m = row as unknown as PettyCashMovement;
             if (m.is_cancelled) return [];
             return [
@@ -366,12 +371,12 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
                   });
                 },
               },
-              {
+              ...(canCancel ? [{
                 label: 'Cancelar',
                 title: 'Cancelar movimiento',
                 variant: 'danger' as const,
                 onClick: () => handleDelete(m.id),
-              },
+              }] : []),
             ];
           } : undefined}
           className="border-0 shadow-none rounded-none"

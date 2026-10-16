@@ -20,7 +20,7 @@ from app.models.foundations import Client
 from app.models.users import User, UserRole
 from app.services.cloud_storage import upload_to_gcs
 from app.services import installation_service, installer_payroll_service, logistics_service
-from app.core.permissions import allow, can_execute_payments, FIELD_ROLES, FINANCE_ROLES, INSTALLATION_ROLES
+from app.core.permissions import PAYMENT_DENIED, allow, can_execute_payments, FIELD_ROLES, FINANCE_ROLES, INSTALLATION_ROLES
 from app.core.audit_context import audit_reason
 from app.schemas.payout_schema import PayoutPartCreate
 from app.schemas.logistics_schema import (
@@ -272,9 +272,9 @@ def mark_payroll_paid(
     session: SessionDep,
     current_user: CurrentUser,
 ):
-    """(DIRECTOR; GERENCIA si está habilitada) Ejecuta el pago y opcionalmente registra salida bancaria."""
+    """(Solo DIRECTOR, D41) Ejecuta el pago y opcionalmente registra salida bancaria."""
     if not can_execute_payments(session, current_user):
-        raise HTTPException(status_code=403, detail="Solo Dirección ejecuta pagos (Gerencia, si Dirección lo habilita).")
+        raise HTTPException(status_code=403, detail=PAYMENT_DENIED)
 
     record = session.get(PayrollPayment, payroll_id)
     if not record:
@@ -296,7 +296,7 @@ def mark_payroll_paid(
 def pay_person_payroll(payload: PayrollPayPersonPayload, session: SessionDep, current_user: CurrentUser):
     """H66: pays every selected row of one person with ONE movement for the total (Banco or Efectivo, D37)."""
     if not can_execute_payments(session, current_user):
-        raise HTTPException(status_code=403, detail="Solo Dirección ejecuta pagos (Gerencia, si Dirección lo habilita).")
+        raise HTTPException(status_code=403, detail=PAYMENT_DENIED)
     return installer_payroll_service.pay_rows(session, current_user, payload.payroll_ids, payload.payment_method,
                                               payload.bank_account_id, person_id=payload.user_id, parts=payload.parts)
 

@@ -2,20 +2,24 @@
 from typing import Iterable
 
 from fastapi import Depends, HTTPException
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from app.core.deps import CurrentUser, SessionDep
-from app.models.foundations import GlobalConfig
 
 # Role groups (CLAUDE.md §4; reviewed by Gabriel in DECISIONES_PENDIENTES D7)
 FINANCE_ROLES = {"DIRECTOR", "MANAGER", "ADMIN"}          # money: invoices, payments, bank, receivables
 SALES_READ_ROLES = FINANCE_ROLES | {"SALES"}              # quotations/OVs/receivables; SALES scoped to its own
-# Money actually leaves: DIRECTOR; MANAGER only with GlobalConfig.manager_can_execute_payments (D7). ADMIN requests.
-EXECUTE_PAYMENT_ROLES = {"DIRECTOR", "MANAGER"}
+# Money actually leaves: DIRECTOR only. D41 (Gabriel 17:04) removed MANAGER even with the D7 switch on, so
+# GlobalConfig.manager_can_execute_payments no longer opens anything. ADMIN requests.
+EXECUTE_PAYMENT_ROLES = {"DIRECTOR"}
 # D41 (Gabriel 16/10): Gerencia (MANAGER) does not see or operate Bancos, does not register customer collections and
 # does not register supplier payments; Bancos are run by Dirección (Alejandrina). Other roles keep what they had.
 BANK_ROLES = FINANCE_ROLES - {"MANAGER"}
 BANK_DENIED = "Bancos, cobros y pagos a proveedores los registra Dirección; Gerencia no los opera (D41)."
+# D41: petty cash is run by Administración (registers) and Dirección; Gerencia only sees it.
+PETTY_CASH_ROLES = BANK_ROLES
+PETTY_CASH_DENIED = "Caja chica la operan Administración y Dirección; Gerencia solo la consulta (D41)."
+PAYMENT_DENIED = "Solo Dirección ejecuta pagos; Gerencia no paga (D41)."
 PURCHASING_ROLES = {"DIRECTOR", "MANAGER", "ADMIN", "WAREHOUSE"}
 REQUISITION_ROLES = PURCHASING_ROLES | {"PRODUCTION", "DESIGN"}
 STOCK_ROLES = {"DIRECTOR", "MANAGER", "ADMIN", "WAREHOUSE"}
@@ -55,19 +59,14 @@ def allow_banks():
 
 
 def can_execute_payments(session: Session, user) -> bool:
-    role = role_of(user)
-    if role == "DIRECTOR":
-        return True
-    if role != "MANAGER":
-        return False
-    config = session.exec(select(GlobalConfig)).first()
-    return bool(config and config.manager_can_execute_payments)
+    """Only DIRECTOR pays (D41); the session stays in the signature for the callers."""
+    return role_of(user) in EXECUTE_PAYMENT_ROLES
 
 
 def allow_payment_execution():
     """Route dependency for anything that makes money leave (pay, transfer, mark paid)."""
     def _check(current_user: CurrentUser, session: SessionDep) -> None:
         if not can_execute_payments(session, current_user):
-            raise HTTPException(status_code=403, detail="Solo Dirección ejecuta pagos (Gerencia, si Dirección lo habilita).")
+            raise HTTPException(status_code=403, detail=PAYMENT_DENIED)
 
     return Depends(_check)

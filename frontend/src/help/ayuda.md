@@ -326,19 +326,20 @@ Claves: gerencia, bancos, cuentas por cobrar, cuentas por pagar, nómina, OV y f
 Claves: comisión, comisiones, pagar comisión, vendedor, asesor, efectivo, efectivo dirección, dividir, bancos
 Enlace: /management?nomina=comisiones
 1. Entra a **Gerencia → 5. Nómina → Nómina** (vendedores) y abre **B. Por Pagar**. Cada renglón dice la factura, si
-   es Anticipo o Avance, y la casa. Ahí están todas, aunque la OV ya esté cerrada.
+   es Anticipo o Avance, y la casa. Ahí están todas, aunque la OV ya esté cerrada. Solo Dirección paga; Gerencia
+   ve la lista.
 2. Pulsa **Pagar** en el renglón, o **Pagar todo a [asesor]** para pagarle todas con un solo movimiento.
 3. Revisa el monto (lo cobrado sin IVA × el % de la OV), elige el medio y confirma: **Banco** (con su cuenta),
-   **Efectivo** (caja chica) o, solo Dirección, **Efectivo Dirección** (no mueve banco ni caja; queda en la bitácora).
+   **Efectivo** (caja chica) o **Efectivo Dirección** (no mueve banco ni caja; queda en la bitácora).
 4. Si una parte va por un medio y otra por otro, pulsa **Dividir pago** y reparte el total; debe cuadrar exacto.
 
 ### Pagar la nómina de cuadrillas
 Claves: nómina, pagar instaladores, cuadrillas, destajo, destajos, instalaciones, pagar todo, efectivo, efectivo dirección, dividir, bancos
 Enlace: /management?nomina=destajos
 1. Entra a **Gerencia → 5. Nómina → Destajos** y abre **Por pagar (doble verde)**. Cada renglón dice la casa y si es
-   Muebles o Piedra. La nómina se libera cuando el cliente firma la casa.
+   Muebles o Piedra. La nómina se libera cuando el cliente firma la casa. Solo Dirección paga; Gerencia ve la lista.
 2. Pulsa **Pagar todo a [persona]** (o paga renglón por renglón).
-3. Elige el medio: **Banco** (con su cuenta), **Efectivo** (caja chica) o, solo Dirección, **Efectivo Dirección**
+3. Elige el medio: **Banco** (con su cuenta), **Efectivo** (caja chica) o **Efectivo Dirección**
    (no mueve banco ni caja; queda en la bitácora), y confirma. Con **Dividir pago** se reparte el total en varios medios.
 
 ### Bueno saber

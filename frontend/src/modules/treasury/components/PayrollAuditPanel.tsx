@@ -83,6 +83,8 @@ export const PayrollAuditPanel: React.FC<Props> = ({
   onRefresh,
   adminV4Labels = false,
 }) => {
+  // D41 (17:04): only Dirección pays crew payroll and commissions; Gerencia sees the trays (the API enforces it too)
+  const canPay = (localStorage.getItem('user_role') || '').toUpperCase().trim() === 'DIRECTOR';
   const [commSub, setCommSub] = useState<SubView>('PAYABLE');
   const [payingId, setPayingId] = useState<number | null>(null);
   // H51: open on "Por pagar" (the tray with actions); "Retenidas" empty looked like the pending rows were gone.
@@ -498,7 +500,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
       label: 'Acción',
       render: (row) => (
         <div className="text-center">
-          {view === 'PAYABLE' && row.id != null && (
+          {canPay && view === 'PAYABLE' && row.id != null && (
             <Button type="button" size="xs" className="mr-2 bg-emerald-600 hover:bg-emerald-700"
               disabled={payingCommission} onClick={() => setPayComm({ rows: [row] })}>
               Pagar
@@ -513,7 +515,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
           >
             Rayos X
           </Button>
-          {view === 'PAYABLE' && row.id != null && (
+          {canPay && view === 'PAYABLE' && row.id != null && (
             <>
               <Button
                 type="button"
@@ -572,7 +574,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
     }
     return (
       <div className="space-y-3">
-        {Array.from(bySeller.values()).filter((list) => list.length > 1).map((list) => (
+        {Array.from(bySeller.values()).filter((list) => canPay && list.length > 1).map((list) => (
           <div key={String(list[0].seller_id ?? list[0].seller_name)} className="flex flex-wrap justify-end">
             <Button type="button" size="sm" className="bg-emerald-600 hover:bg-emerald-700"
               disabled={payingCommission} onClick={() => setPayComm({ rows: list })}>
@@ -654,15 +656,17 @@ export const PayrollAuditPanel: React.FC<Props> = ({
         label: 'Pago',
         render: (r) => (
           <div className="text-center flex flex-wrap gap-1 justify-center items-center">
-            <Button
-              type="button"
-              size="xs"
-              className="bg-emerald-600 hover:bg-emerald-700"
-              disabled={payingId === r.id}
-              onClick={() => setPayInstall({ rows: [r] })}
-            >
-              {payingId === r.id ? 'Procesando...' : 'Pagar'}
-            </Button>
+            {canPay && (
+              <Button
+                type="button"
+                size="xs"
+                className="bg-emerald-600 hover:bg-emerald-700"
+                disabled={payingId === r.id}
+                onClick={() => setPayInstall({ rows: [r] })}
+              >
+                {payingId === r.id ? 'Procesando...' : 'Pagar'}
+              </Button>
+            )}
             <Button
               type="button"
               variant="outline"
@@ -744,7 +748,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
                 <span className="text-emerald-700">
                   {fmt(list.reduce((s, r) => s + r.total_amount, 0))}
                 </span>
-                {view === 'PAYABLE' && list.length > 1 && (
+                {canPay && view === 'PAYABLE' && list.length > 1 && (
                   <Button type="button" size="xs" className="bg-emerald-600 hover:bg-emerald-700"
                     disabled={payingId != null} onClick={() => setPayInstall({ rows: list })}>
                     Pagar todo a {list[0]?.user_name?.split(' ')[0] || 'instalador'}

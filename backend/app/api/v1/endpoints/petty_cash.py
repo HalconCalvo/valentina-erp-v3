@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlmodel import Session, select
 
 from app.core.deps import get_session, CurrentUser
+from app.core.permissions import PETTY_CASH_DENIED, PETTY_CASH_ROLES
 from app.models.petty_cash import PettyCashFund, PettyCashMovement
 from app.models.users import User
 from app.schemas.petty_cash_schema import (
@@ -19,14 +20,14 @@ from app.services.cloud_storage import upload_to_gcs
 
 router = APIRouter()
 
-ALLOWED_ROLES = {"DIRECTOR", "MANAGER", "ADMIN"}
-MANAGER_ROLES = {"DIRECTOR", "MANAGER"}
+ALLOWED_ROLES = {"DIRECTOR", "MANAGER", "ADMIN"}  # read
 
 
 def _check_role(current_user: User, allowed: set = ALLOWED_ROLES):
     role = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
     if role.upper() not in allowed:
-        raise HTTPException(status_code=403, detail="No tienes permisos para esta operación.")
+        message = PETTY_CASH_DENIED if role.upper() in ALLOWED_ROLES else "No tienes permisos para esta operación."
+        raise HTTPException(status_code=403, detail=message)
 
 
 def _get_or_create_fund(db: Session) -> PettyCashFund:
@@ -69,7 +70,7 @@ def update_fund(
     current_user: CurrentUser,
     db: Session = Depends(get_session),
 ):
-    _check_role(current_user, MANAGER_ROLES)
+    _check_role(current_user, PETTY_CASH_ROLES)
     fund = _get_or_create_fund(db)
     if body.fund_amount is not None:
         fund.fund_amount = body.fund_amount
@@ -111,7 +112,7 @@ def create_movement(
     current_user: CurrentUser,
     db: Session = Depends(get_session),
 ):
-    _check_role(current_user)
+    _check_role(current_user, PETTY_CASH_ROLES)
     fund = _get_or_create_fund(db)
 
     movement_type = body.movement_type.upper()
@@ -158,7 +159,7 @@ def update_movement(
     current_user: CurrentUser,
     db: Session = Depends(get_session),
 ):
-    _check_role(current_user)
+    _check_role(current_user, PETTY_CASH_ROLES)
 
     movement = db.get(PettyCashMovement, movement_id)
     if not movement:
@@ -214,7 +215,7 @@ async def upload_receipt(
     file: UploadFile = File(...),
     db: Session = Depends(get_session),
 ):
-    _check_role(current_user)
+    _check_role(current_user, PETTY_CASH_ROLES)
     movement = db.get(PettyCashMovement, movement_id)
     if not movement:
         raise HTTPException(status_code=404, detail="Movimiento no encontrado.")

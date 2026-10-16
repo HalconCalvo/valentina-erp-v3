@@ -9,7 +9,7 @@ from app.core.permissions import require_roles
 from app.models.petty_cash import PettyCashFund, PettyCashMovement
 from app.schemas.petty_cash_schema import PettyCashMovementCancel
 
-CANCEL_ROLES = {"DIRECTOR", "MANAGER"}
+CANCEL_ROLES = {"DIRECTOR"}  # D41: Administración registers, Dirección cancels; Gerencia only sees
 
 
 def assert_editable(movement: PettyCashMovement) -> None:
@@ -18,7 +18,7 @@ def assert_editable(movement: PettyCashMovement) -> None:
 
 
 def cancel_movement(session: Session, movement_id: int, data: PettyCashMovementCancel, user) -> PettyCashMovement:
-    require_roles(user, CANCEL_ROLES, "Solo Dirección o Gerencia cancelan movimientos de caja chica.")
+    require_roles(user, CANCEL_ROLES, "Solo Dirección cancela movimientos de caja chica (D41).")
     reason = (data.reason or "").strip()
     if not reason:
         raise HTTPException(status_code=422, detail="El motivo de la cancelación es obligatorio.")

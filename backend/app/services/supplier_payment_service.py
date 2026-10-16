@@ -13,7 +13,7 @@ from app.repositories import supplier_payment_repository as repo
 from app.schemas.finance_schema import PaymentApprovalUpdate, PaymentRequestCreate
 from app.services import payable_service
 
-APPROVER_ROLES = {"DIRECTOR", "MANAGER"}
+APPROVER_ROLES = {"DIRECTOR"}  # D41: Gerencia no longer approves supplier payments
 ZERO_TOLERANCE = 0.01
 
 
@@ -78,7 +78,7 @@ def request_payment(session: Session, data: PaymentRequestCreate, user) -> Suppl
         status=PaymentStatus.PENDING, created_by_user_id=user.id)
     session.add(payment)
     session.flush()
-    if can_execute_payments(session, user):  # D7: MANAGER only with the switch; otherwise it stays a request
+    if can_execute_payments(session, user):  # DIRECTOR pays directly; otherwise it stays a request
         account = session.get(BankAccount, data.suggested_account_id) if data.suggested_account_id else None
         if not account:
             raise HTTPException(status_code=400, detail="Cuenta bancaria no válida para el pago directo.")
@@ -112,7 +112,7 @@ def update_request(session: Session, payment_id: int, data: PaymentRequestCreate
 
 def decide_request(session: Session, payment_id: int, data: PaymentApprovalUpdate, user) -> SupplierPayment:
     """Approve (assigns the account; Treasury executes later) or reject a pending request."""
-    require_roles(user, APPROVER_ROLES, "Acceso denegado. Solo Dirección o Gerencia autorizan.")
+    require_roles(user, APPROVER_ROLES, "Solo Dirección autoriza pagos a proveedores (D41).")
     payment = session.get(SupplierPayment, payment_id)
     if not payment:
         raise HTTPException(status_code=404, detail="Pago no encontrado")

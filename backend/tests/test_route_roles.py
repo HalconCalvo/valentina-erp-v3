@@ -62,7 +62,7 @@ def _token_for(session, role):
     return {"Authorization": f"Bearer {create_access_token(subject=user.email, user_id=user.id, user_role=role)}"}
 
 
-def test_payment_execution_is_director_only_unless_switched_on(client_fixture, session_fixture, auth_header_director):
+def test_payment_execution_is_director_only_even_switched_on(client_fixture, session_fixture, auth_header_director):
     manager, admin = _token_for(session_fixture, "MANAGER"), _token_for(session_fixture, "ADMIN")
     url = f"{API}/finance/payments/999/execute"
     assert client_fixture.post(url, headers=admin, json={}).status_code == 403
@@ -72,7 +72,7 @@ def test_payment_execution_is_director_only_unless_switched_on(client_fixture, s
                                      quote_validity_days=15, default_edgebanding_factor=1.1,
                                      manager_can_execute_payments=True))
     session_fixture.commit()
-    # D41 (16/10): Gerencia never pays suppliers, not even with the switch on (it still governs commissions/payroll)
+    # D41 (16/10 17:04): Gerencia never pays, not even with the switch on
     assert client_fixture.post(url, headers=manager, json={}).status_code == 403
     assert client_fixture.post(url, headers=admin, json={}).status_code == 403
 

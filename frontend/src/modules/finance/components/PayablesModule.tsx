@@ -20,7 +20,6 @@ import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { TableActionCancelIcon, TableActionEditIcon } from '@/lib/tableActionIcons';
 import { formatDate, formatMoney } from '@/utils/format';
-import { useFoundations } from '../../foundations/hooks/useFoundations';
 
 type PayableFilter =
  | 'ALL'
@@ -65,9 +64,8 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
     const navigate = useNavigate();
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase().trim();
     const isChecker = ['DIRECTOR', 'MANAGER'].includes(userRole);
-    // D7: money leaves only with DIRECTOR, or MANAGER when Dirección turned the switch on (the server enforces it too)
-    const managerCanPay = Boolean(useFoundations()?.config?.manager_can_execute_payments);
-    const canPay = userRole === 'DIRECTOR' || (userRole === 'MANAGER' && managerCanPay);
+    // D41: money leaves only with DIRECTOR (the server enforces it too)
+    const canPay = userRole === 'DIRECTOR';
     // D41: Gerencia does not register supplier payments (neither requests nor payments)
     const canRegisterPayments = userRole !== 'MANAGER';
 
