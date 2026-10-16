@@ -238,6 +238,8 @@ la factura completa. Probado en Pruebas con Piloto 1 sin guardar.
   píldora PM/PP en la fecha real de arranque del lote.
 - H58–H60 (72cc4f0): firma única por casa y avisos en pantalla en Campo; código corto en el manifiesto; cargas pendientes.
 - H63/H62/H49 (e7dea28): un depósito a varias facturas (liga bancaria única); importe = suma de saldos.
+- H64–H66 + D37 (e95d71c, migración z5a6b7c8d9e0): pagos de comisión y nómina con medio (Banco/Efectivo) y movimiento;
+  "Pagar todo a <persona>"; facturas de la OV ordenadas.
 - Pendiente de todo el bloque: prueba en pantalla en Pruebas.
 
 ## 11. PRIORIDAD 2 — Indicadores del tablero de Dirección (con Gabriel) — hecha (2026-10-12, commit local)

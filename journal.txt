@@ -4972,3 +4972,39 @@ SESIÓN 16/10/2026 — Hallazgos H47–H51 (buzón 09:10 y 09:25) — rama `prue
 - H63 (e7dea28): bulk-cxc con dos facturas fallaba por UNIQUE customer_payments.treasury_transaction_id (500 sin
   detalle, todo revertido; verificado en BD de Pruebas). Lección: un campo único "liga" no sirve para relaciones N:1;
   la traza va en el abono (bank_transaction_id). H49/H62: importe = suma de saldos. H58–H60 (72cc4f0).
+
+================================================================
+ENSAYO GENERAL OBRA PILOTO — RESUMEN (asesor, 16/10/2026 11:10)
+================================================================
+Obra: OV-0157 "Cocina Obra Piloto" (cliente OBRA PILOTO #38, receta #422), 3 casas (Piloto 1, 2, 3), en Valentina Pruebas.
+Recorrido completo probado por Gabriel como Director (14–16/10), del cotizar al cobrar:
+  Cotización COT-0089 (45% sobreprecio, 5% comisión, 60% anticipo) → OV-0157 + anticipo A-PILOTO-1 cobrado →
+  bautizo de casas → Planeación (fechas y cuadrillas) → Simulador y lotes (MDF 0016/0017/0018, PIEDRA 0011) →
+  requisición y OC-2610141820 (MIDO, 2 placas Granito Tulum) recibida → Producción (descarga automática de material,
+  empaque, bultos, herrajes surtidos, etiquetas y manifiestos) → Campo en iPhone (carga con QR y código manual, fotos,
+  trabajo terminado por carril, firma del cliente) → facturas de avance con anticipo amortizado (D36) → cobro en
+  Tesorería (un depósito para dos facturas) → nómina de cuadrillas → comisiones.
+Resultado en dinero (cuadra al centavo):
+  Contrato $55,233.03 = anticipo $33,139.82 + avances 3 × $18,411.01 − amortizaciones ($11,046.61 + $11,046.61 + $11,046.60).
+  Facturado = cobrado = $55,233.03; falta cobrar $0.00; 4 facturas PAGADA; 3 casas Cerrado/FACTURADO.
+  Rentabilidad sin cambio: venta $47,614.68, costo $31,195.71, comisión $2,380.73, utilidad $14,038.24 (29.48%, sobreprecio 45%).
+  Nómina: Piloto 1 pagada ($3,000); Piloto 2 y 3 por pagar ($6,000, 8 pagos). Comisión del anticipo marcada pagada (H65).
+Hallazgos: H1–H66 (H10, H16, H17, H28, H44 retirados). Corregidos en `pruebas` y probados en pantalla la gran mayoría.
+Decisiones nuevas del ensayo: D29 bautizo solo Ventas; D30 sin MDF/Piedra no se crea lote; D31 requisición con
+  confirmación; D32 líder ve hoy y siguiente día hábil; D33 nombres de saldos; D34 sin lápiz en Simulador; D35 todo con
+  IVA en Pendiente de Facturar; D36 avance = casa completa con anticipo amortizado (última casa toma el resto);
+  firma = una por casa al final; comisión por cada cobro (cobrado sin IVA × % de la OV); D37 medio de pago Banco o
+  Efectivo en comisiones y nómina; H66 "Pagar todo a <persona>".
+Regla vigente: todo se sube a `pruebas` primero; `main` (producción, 081b2ab) sin tocar desde el 14/10.
+
+PENDIENTE PARA CERRAR EL ENSAYO:
+1. Claude Code: H65 (confirmación al pagar comisión), D37, H66, H64 (buzón 11:05).
+2. Pagar con la pantalla nueva: nómina Piloto 2 y 3 ($6,000; "Pagar todo a David" por Banco, Miguel/Dariel en Efectivo)
+   y las 3 comisiones de avance ($317.43 c/u). Verificar total vendedor $2,380.73.
+3. Ver en el iPhone los avisos de firma/sincronizar (H60) y el contador de cargas (H59).
+4. Revisión general en Pruebas y decidir el pase de `pruebas` a `main` (producción), fuera de horario o con autorización.
+5. Después: simulacro con el equipo (cada quien en su rol) y pendientes con Karina y Gerardo.
+- H65/D37/H66/H64 (e95d71c): payout_service (BANK cuenta + BankTransaction OUT, o CASH = egreso de caja chica);
+  pay_commission y installer_payroll_service.pay_rows (un movimiento por el total). Anticipo: comisión liberada al
+  cobrarse. En Pruebas la comisión 65 quedó pagada sin movimiento (botón viejo); caja chica de Pruebas $164.57.
+  Lección: un botón que paga dinero siempre muestra monto, medio y crea el movimiento; "marcar pagado" no existe.

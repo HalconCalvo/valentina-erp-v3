@@ -55,6 +55,45 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Hechas
 
+- [2026-10-16 11:05] OBRA PILOTO CERRADA EN DINERO + H65/D37 + H64.
+  Confirmado OK en Pruebas: OV-0157 facturado = cobrado = $55,233.03; pendiente, sin cobrar y falta cobrar $0.00; 4 facturas
+  PAGADA; 3 casas Cerrado/FACTURADO; H63/H62 (un depósito de $14,728.81 a dos facturas) OK.
+  H65. Comisiones: Gabriel dio "Pagar" a la comisión del vendedor del anticipo (A-PILOTO-1) y se marcó pagada SIN mostrar
+       el monto, sin confirmar y sin medio de pago. Debe abrir una confirmación: vendedor, factura, monto (cobrado sin IVA ×
+       % de la OV; aquí $1,428.44), medio de pago y "Confirmar". Reporta qué monto quedó registrado en la BD de Pruebas
+       (solo lectura) y si generó movimiento de banco/caja.
+  D37 CONFIRMADA por Gabriel (11:04): medio de pago de la comisión = Banco (elige cuenta) o
+       Efectivo (Caja), nunca vacío, para que Bancos/Caja cuadren. Gabriel pidió que la cuenta no sea obligatoria porque a
+       veces paga en efectivo. Aplícala junto con H65 (Efectivo = movimiento de Caja chica).
+  H64 (menor). Lista de facturas de la OV desordenada: ordenar por fecha y folio.
+  Nómina Piloto 2 y 3 confirmada OK: $6,000 en 8 pagos con su carril (H50/H51 ✓).
+  H66 (aceptado por Gabriel 11:07): en Tesorería → 5. Nómina, botón "Pagar todo a <persona>" que paga todos sus renglones
+       por pagar con UN solo movimiento (un monto total), con confirmación (persona, renglones, total, medio de pago).
+  D37 aplica también a la nómina de instaladores: medio de pago Banco (cuenta) o Efectivo (Caja chica), nunca vacío
+       (Gabriel 11:07: "muchas veces pago en efectivo").
+  HECHO [16/10 11:16] en `pruebas` (e95d71c, migración z5a6b7c8d9e0), sin tocar `main`:
+  - H65, BD de Pruebas (solo lectura): la comisión del anticipo (A-PILOTO-1, vendedor, $1,428.44, id 56) SIGUE SIN
+    PAGAR. La que quedó pagada es la del vendedor de F-Piloto2-01 (id 65, $317.43), sin movimiento de banco ni de caja
+    (el botón solo marcaba). Además el anticipo nunca se "liberaba" (el código solo liberaba avances), así que su
+    comisión no se podía pagar. Para que Bancos/Caja cuadren, decide si esa comisión pagada sin movimiento se registra
+    aparte (no la toqué).
+  - H65/D37: "Pagar" abre el diálogo con Vendedor, Factura, Cobrado sin IVA, % de la OV y Monto a pagar ($1,428.44 en el
+    anticipo), y el medio de pago obligatorio: Efectivo (caja chica) o Banco (cuenta). Crea el movimiento (salida de
+    banco o egreso de caja chica, categoría "Comisiones") y guarda quién/cuándo/cómo. El botón ahora toma la comisión del
+    VENDEDOR de esa factura (antes podía tomar otra fila de la misma factura). La comisión del anticipo queda pagable al
+    cobrarse (regla H57). Marcar pagada sin medio ya no es posible.
+  - D37 en nómina de instaladores: cada "Pagar" abre el mismo diálogo (Efectivo o Banco); ya no se paga sin medio. Un pago
+    hecho no se regresa a "Por pagar" (antes se podía, sin revertir el banco).
+  - H66: en "Por pagar", cada persona con 2+ renglones tiene "Pagar todo a <nombre>": confirmación con persona,
+    renglones (Piloto 2 · Muebles…), total y medio de pago; UN solo movimiento por el total.
+  - H64: facturas de la OV ordenadas por fecha y folio.
+  - AVISO: la caja chica de Pruebas tiene $164.57. Pagar en Efectivo $1,428.44 dará "Saldo insuficiente en caja chica"
+    hasta hacer una reposición (Caja chica → Reposición). Por Banco funciona.
+  - Tests backend 359 (2 nuevos: comisión en efectivo con su egreso; pagar todo a una persona con un movimiento), frontend
+    43, build OK, migración subir/bajar/subir en local. Sin prueba en pantalla.
+  QUÉ PROBAR (Gabriel): OV-0157 → comisión del anticipo → Pagar → ver $1,428.44 → Banco Santander → Confirmar (o reponer
+  caja chica y usar Efectivo). Tesorería → 5. Nómina → Por pagar → "Pagar todo a David".
+
 - [2026-10-16 10:18] URGENTE H63 + H49/H62 (Tesorería → Registrar Ingreso con dos facturas). Gabriel salió ~2 h.
   Contexto: OV-0157 facturada completa. F-Piloto2-01 ($18,411.01, amortiza $11,046.61, saldo $7,364.40) y
   F-Piloto3-01 ($18,411.01, última casa, amortiza $11,046.60, saldo $7,364.41) — D36 confirmado al centavo en pantalla.
