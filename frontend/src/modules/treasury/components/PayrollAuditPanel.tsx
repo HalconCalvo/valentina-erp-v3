@@ -1162,7 +1162,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
           ] : [
             ['Vendedor', payComm.rows[0].seller_name || '—'],
             ...payComm.rows.map((r): [string, string] => [r.reference_label, fmt(r.amount)]),
-            ['Movimientos', '1 (un solo pago por el total)'],
+            ['Pago', 'Uno por el total (o dividido por medio)'],
           ]}
           amount={Math.round(payComm.rows.reduce((sum, r) => sum + r.amount, 0) * 100) / 100}
           accounts={accounts}
@@ -1177,7 +1177,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
           details={[
             ['Persona', payInstall.rows[0].user_name || '—'],
             ...payInstall.rows.map((r): [string, string] => [payrollInstallationLabel(r), fmt(r.total_amount)]),
-            ['Movimientos', '1 (un solo pago por el total)'],
+            ['Pago', 'Uno por el total (o dividido por medio)'],
           ]}
           amount={payInstall.rows.reduce((sum, r) => sum + r.total_amount, 0)}
           accounts={accounts}

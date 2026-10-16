@@ -78,8 +78,9 @@ export function PayoutDialog({ title, details, amount, accounts, confirmLabel = 
   ];
   const split = lines.length > 1;
   const missing = (cents(amount) - lines.reduce((sum, l) => sum + cents(l.amount), 0)) / 100;
-  const kinds = lines.map((l) => (isBank(l.method) ? 'BANK' : l.method));
+  const kinds = lines.filter((l) => l.method).map((l) => (isBank(l.method) ? 'BANK' : l.method));
   const eachOnce = new Set(kinds).size === kinds.length;
+  const zeroPart = lines.some((l) => l.amount <= 0);
   const valid = lines.every((l) => l.method && l.amount > 0) && cents(missing) === 0 && eachOnce;
 
   const update = (i: number, patch: Partial<Line>) =>
@@ -138,10 +139,10 @@ export function PayoutDialog({ title, details, amount, accounts, confirmLabel = 
             </Button>
           ) : <span />}
           {split && (
-            <span className={cents(missing) === 0 ? 'text-emerald-700 font-bold' : 'text-rose-600 font-bold'}>
-              {cents(missing) === 0
-                ? 'La suma cuadra con el total'
-                : missing > 0 ? `Faltan ${formatMoney(missing)}` : `Sobran ${formatMoney(-missing)}`}
+            <span className={cents(missing) === 0 && !zeroPart ? 'text-emerald-700 font-bold' : 'text-rose-600 font-bold'}>
+              {cents(missing) !== 0
+                ? missing > 0 ? `Faltan ${formatMoney(missing)}` : `Sobran ${formatMoney(-missing)}`
+                : zeroPart ? 'Pon el monto de cada medio' : 'La suma cuadra con el total'}
             </span>
           )}
         </div>
