@@ -195,6 +195,10 @@ export interface PayrollCommissionRow {
   house_names?: string[];
   base_amount?: number | null;
   rate?: number | null;
+  /** D40: how it was paid (paid tray) */
+  paid_at?: string | null;
+  payment_method?: string | null;
+  payment_detail?: string | null;
 }
 
 export interface CommissionsPayrollOverview {

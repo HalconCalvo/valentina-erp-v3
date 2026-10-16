@@ -2,6 +2,8 @@
 unspecified; the amount is the commission's own; one movement can pay all the rows of a person."""
 from datetime import datetime
 
+import pytest
+from fastapi import HTTPException
 from sqlmodel import select
 
 from app.core.config import settings
@@ -10,6 +12,7 @@ from app.models.production import InstallationAssignment, PayrollPayment, Payrol
 from app.models.sales import (CommissionType, CustomerPayment, CXCStatus, PaymentType, SalesCommission,
                               SalesOrderItem, SalesOrderItemInstance)
 from app.models.treasury import BankAccount, BankTransaction
+from app.services import payout_service
 from tests.sales_helpers import create_order_via_quotation
 from tests.test_installation_flow import _user
 from app.models.users import UserRole
@@ -120,3 +123,79 @@ def test_collected_commissions_are_payable_from_the_list_with_one_movement(clien
     session_fixture.expire_all()
     tx = session_fixture.exec(select(BankTransaction)).one()
     assert {session_fixture.get(SalesCommission, i).bank_transaction_id for i in (advance.id, progress.id)} == {tx.id}
+
+
+def test_director_cash_records_the_payment_without_any_movement(client_fixture, session_fixture, auth_header_director,
+                                                                 seed_client_and_tax):
+    """D40: Gabriel pays commissions from his own cash: no bank or petty cash movement, only the record; only the
+    DIRECTOR."""
+    commission = _commission(client_fixture, session_fixture, auth_header_director, seed_client_and_tax)
+    pay = f"{API}/sales/commissions/{commission.id}/pay"
+    _, manager = _user(session_fixture, UserRole.MANAGER, "Karina")
+    assert client_fixture.post(pay, headers=manager, json={"payment_method": "DIRECTOR_CASH"}).status_code == 403
+    paid = client_fixture.post(pay, headers=auth_header_director, json={"payment_method": "DIRECTOR_CASH"})
+    assert paid.status_code == 200, paid.text
+    session_fixture.expire_all()
+    done = session_fixture.get(SalesCommission, commission.id)
+    assert (done.is_paid, done.payment_method, done.paid_by_user_id) == (True, "DIRECTOR_CASH", 1)
+    assert done.paid_at is not None and done.bank_transaction_id is None and done.petty_cash_movement_id is None
+    assert session_fixture.exec(select(PettyCashMovement)).all() == []
+    assert session_fixture.exec(select(BankTransaction)).all() == []
+    assert session_fixture.exec(select(PettyCashFund)).one().current_balance == 5000.0
+    with pytest.raises(HTTPException) as rejected:
+        payout_service.check_method("OUTSIDE", None)  # D39's mark is never chosen on screen
+    assert rejected.value.status_code == 422
+
+
+def test_a_payment_can_be_split_among_bank_and_director_cash(client_fixture, session_fixture, auth_header_director,
+                                                             seed_client_and_tax):
+    """D40: Banco $1,000 + Efectivo Dirección $428.44 = $1,428.44; the bank part has its movement, the Director's cash
+    none; the parts must add up exactly to the total and each medio goes once."""
+    commission = _commission(client_fixture, session_fixture, auth_header_director, seed_client_and_tax)
+    account = BankAccount(name="Santander", account_number="1", current_balance=5000.0, initial_balance=5000.0)
+    session_fixture.add(account)
+    session_fixture.commit()
+    pay = f"{API}/sales/commissions/{commission.id}/pay"
+    short = [{"payment_method": "BANK", "account_id": account.id, "amount": 1000.0},
+             {"payment_method": "DIRECTOR_CASH", "amount": 400.0}]
+    assert client_fixture.post(pay, headers=auth_header_director, json={"parts": short}).status_code == 422
+    twice = [{"payment_method": "DIRECTOR_CASH", "amount": 1000.0}, {"payment_method": "DIRECTOR_CASH", "amount": 428.44}]
+    assert client_fixture.post(pay, headers=auth_header_director, json={"parts": twice}).status_code == 422
+    parts = [short[0], {"payment_method": "DIRECTOR_CASH", "amount": 428.44}]
+    paid = client_fixture.post(pay, headers=auth_header_director, json={"parts": parts})
+    assert paid.status_code == 200, paid.text
+    session_fixture.expire_all()
+    tx = session_fixture.exec(select(BankTransaction)).one()
+    assert tx.amount == 1000.0 and session_fixture.get(BankAccount, account.id).current_balance == 4000.0
+    done = session_fixture.get(SalesCommission, commission.id)
+    assert (done.is_paid, done.payment_method, done.bank_transaction_id) == (True, "SPLIT", tx.id)
+    assert done.payment_detail == "Banco · Santander $1,000.00 + Efectivo Dirección $428.44"
+    assert done.commission_amount == 1428.4405  # the cost stays the full commission, whatever the medio
+
+
+def test_crew_payroll_takes_director_cash_too(client_fixture, session_fixture, auth_header_director,
+                                              seed_client_and_tax):
+    """D40 (14:24): crew payroll can be paid (or split) with Efectivo Dirección, only by the DIRECTOR."""
+    order = create_order_via_quotation(client_fixture, auth_header_director, seed_client_and_tax[0].id,
+                                       seed_client_and_tax[1].id)
+    item = session_fixture.exec(select(SalesOrderItem).where(SalesOrderItem.sales_order_id == order["id"])).first()
+    house = session_fixture.exec(select(SalesOrderItemInstance)
+                                 .where(SalesOrderItemInstance.sales_order_item_id == item.id)).first()
+    david, _ = _user(session_fixture, UserRole.LOGISTICS, "David")
+    lane = InstallationAssignment(instance_id=house.id, lane="IM", assignment_date=datetime(2026, 10, 16),
+                                  leader_user_id=david.id)
+    session_fixture.add(lane)
+    session_fixture.commit()
+    row = PayrollPayment(installation_assignment_id=lane.id, user_id=david.id, payment_type=PayrollPaymentType.LEADER,
+                         days_worked=1, daily_rate=800.0, total_amount=800.0, status=PayrollStatus.READY_TO_PAY)
+    session_fixture.add(row)
+    session_fixture.commit()
+    url = f"{API}/logistics/payroll/pay-person"
+    body = {"user_id": david.id, "payroll_ids": [row.id], "parts": [{"payment_method": "DIRECTOR_CASH", "amount": 800.0}]}
+    paid = client_fixture.post(url, headers=auth_header_director, json=body)
+    assert paid.status_code == 200, paid.text
+    session_fixture.expire_all()
+    done = session_fixture.get(PayrollPayment, row.id)
+    assert (done.status, done.payment_method, done.bank_transaction_id, done.petty_cash_movement_id) == \
+        (PayrollStatus.PAID, "DIRECTOR_CASH", None, None)
+    assert done.payment_detail == "Efectivo Dirección $800.00" and done.total_amount == 800.0

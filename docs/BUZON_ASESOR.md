@@ -55,6 +55,43 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Hechas
 
+- [2026-10-16 14:22] D40 MEDIO DE PAGO "EFECTIVO DIRECCIÓN" PARA COMISIONES (Gabriel 14:20). Hacer antes que D39/H70 y la ayuda.
+  Gabriel paga las comisiones en efectivo desde una caja propia fuera de registro; hoy "Efectivo" usa Caja chica y marca
+  "saldo insuficiente".
+  - Al pagar comisión (renglón y "Pagar todo a <asesor>"), tercer medio: "Efectivo Dirección" (solo rol DIRECTOR).
+    Marca la comisión pagada con fecha, monto, quién y medio en la bitácora; NO crea movimiento de banco ni de caja chica.
+  - LO IMPORTANTE (Gabriel): el pago debe quedar como COSTO de la OV: que la comisión pagada cuente en la rentabilidad real
+    de la OV y en los reportes de costos/gastos (y tablero de Dirección), igual que si se pagara por Banco. Revisa dónde se
+    suma hoy la comisión y confirma que este medio entra igual.
+  - Banco (cuenta) y Efectivo (Caja chica) se quedan como están (D37).
+  - Reporte en "Hechas": dónde se ve la comisión pagada como costo para OV-0157.
+  - AMPLIACIÓN (Gabriel 14:24): "Efectivo Dirección" también en la NÓMINA DE CUADRILLAS (renglón y "Pagar todo a <persona>"),
+    mismas reglas: solo DIRECTOR, sin movimiento de banco ni caja chica, con bitácora, y el pago cuenta como COSTO de la
+    instalación de esa OV (rentabilidad real y reportes), igual que por Banco.
+  - PAGO DIVIDIDO (Gabriel 14:25): hay semanas en que una parte se paga por Banco y otra de Efectivo Dirección. En la
+    confirmación de pago (renglón o "Pagar todo a <persona>") permitir dividir el total en varios medios (p. ej. Banco
+    Santander $2,000 + Efectivo Dirección $1,200 = $3,200); la suma debe ser exactamente el total. Banco crea su
+    movimiento por su parte; Efectivo Dirección solo bitácora; Caja chica su movimiento. El costo de cada renglón
+    (instalación/comisión) es su monto completo, sin importar el medio. Aplica a nómina de cuadrillas y a comisiones.
+  HECHO [16/10 14:39, Pruebas]:
+  - Tercer medio "Efectivo Dirección" en comisiones (renglón, "Pagar todo a <asesor>" y la ventana de la OV) y en la
+    nómina de cuadrillas (renglón y "Pagar todo a <persona>"). Solo lo ve y lo puede usar DIRECTOR (otro rol: 403). Marca
+    pagado con fecha, quién y medio; bitácora "Pagó comisión/nómina $X a <persona> (Efectivo Dirección $X)"; no crea
+    movimiento de banco ni de caja chica.
+  - Pago dividido: en la confirmación, "Dividir pago" agrega medios (hasta 3: Banco con una cuenta, Caja chica, Efectivo
+    Dirección), cada uno con su monto; no deja confirmar hasta que la suma cuadre exacto ("Faltan $…"/"Sobran $…").
+    Banco y Caja chica crean su movimiento por su parte. El renglón guarda el desglose ("Banco · Santander $2,000.00 +
+    Efectivo Dirección $1,200.00") y se ve en el histórico de pagos.
+  - COSTO (lo importante): en Valentina el costo de la OV NO sale del pago, sale de la venta. La comisión es costo desde que
+    se vende: comisión de la OV = % × venta sin IVA, y se resta en "Margen neto % sobre venta". La instalación es costo por
+    la receta (renglón INSTALACOCINA / INSTALAGRANITO). Por eso Banco, Caja chica y Efectivo Dirección cuentan igual: el
+    medio de pago no cambia ningún costo. Ningún reporte de costos o gastos suma movimientos de banco de comisiones.
+  - OV-0157 en Pruebas: venta sin IVA $47,614.68; costo de partidas $31,195.71; comisión $2,380.73 (5%, igual a la suma de
+    sus 4 comisiones: $1,428.44 + 3 × $317.43). Dónde se ve: ventana de la OV (Rayos X) → "Comisión incluida" y "Margen
+    neto % sobre venta"; tablero de Dirección → Rentabilidad (venta − costo − comisión).
+  - Ayuda de Gerencia actualizada (Efectivo Dirección y Dividir pago). Migración b7c8d9e0f1a2 (desglose del pago).
+  Tests backend 363, frontend 48, build OK; migraciones probadas en local.
+
 - [2026-10-16 14:16] H70 IMPORTANTE ANTES DE PASAR A `main`: COMISIONES VIEJAS QUE AHORA SALEN "POR PAGAR". NO cambies nada aún.
   Tras H67, en Gerencia → 5. Nómina → Comisiones, "B. Por pagar" subió a $74,202.75 (antes $952.29) y "A. Retenidas" bajó de
   $137,498.90 a $64,248.45: aparecen comisiones de OVs reales copiadas de producción (OV-0054, 0038, 0039, 0020, 0041,
@@ -65,7 +102,21 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   (la de antes o H67), y cuántas serían en PRODUCCIÓN con el mismo criterio. Propón opciones (p. ej. fecha de corte: todo
   cobro anterior a <fecha> se marca "pagada fuera de Valentina", sin movimiento, con bitácora; o revisión una por una con
   Karina). Gabriel decide. Hasta entonces el pase a `main` queda detenido.
-  PREPARADO [16/10 14:45] (solo lectura en Pruebas y en PRODUCCIÓN; nada cambiado). Decisión D39.
+  DECISIÓN D39 (Gabriel 14:17): TODAS las comisiones existentes ya fueron pagadas fuera de Valentina. Sin prisa.
+  Al pasar a `main` (y también ahora en Pruebas, excepto las 4 de OV-0157): una migración marca como "pagada fuera de
+  Valentina" toda comisión cobrada antes del pase, sin movimiento de banco ni caja, con bitácora y motivo "D39: pagada
+  antes de Valentina". Desde el pase, las comisiones nuevas siguen el flujo normal (Por pagar → Pagar con Banco/Efectivo).
+  Ya no hace falta la tabla de análisis; solo reporta cuántas y qué total marcó en Pruebas y cuántas marcaría en producción.
+  HECHO D39 [16/10 14:39, Pruebas]: migración a6b7c8d9e0f1. Marca toda comisión no pagada como "Pagada fuera de Valentina"
+  (is_paid, medio OUTSIDE, fecha), sin movimiento de banco ni caja, con 2 renglones de bitácora por comisión (pagada y medio)
+  y motivo "D39: pagada antes de Valentina". Respeta la obra piloto (cliente OBRA PILOTO, que solo existe en Pruebas).
+  - Pruebas: 55 comisiones por $185,383.50 (18 de vendedor $91,057.08 y 37 de Dirección global $94,326.42). Las 12 de
+    OV-0157 (4 de vendedor por $2,380.73 y 8 de Dirección global) siguen igual.
+  - PRODUCCIÓN, si se pasara hoy: las mismas 55 por $185,383.50. Ojo: también marca las 37 de "Dirección global" (la
+    instrucción dice "toda comisión"); si esas no se pagaban, dímelo antes del pase.
+  - Al pasar a `main` marca lo que haya sin pagar en ese momento; lo que se cobre después sigue Por pagar → Pagar.
+  - Probada en la copia local (subir, bajar, subir: 52 marcadas en la copia, con su bitácora; al bajar se regresan).
+  PREPARADO [16/10 14:25] (solo lectura en Pruebas y en PRODUCCIÓN; nada cambiado). Decisión D39.
   Regla: "antes" = comisión liberada (is_released); "H67" = comisión de anticipo no liberada que H67 pasa a Por pagar.
   | OV | Factura | Tipo | Asesor | Monto | Cobro | Regla | Pruebas | Prod. |
   |---|---|---|---|---|---|---|---|---|
@@ -103,7 +154,7 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
      de Comisiones/Instalaciones, mejor.
   2. Si el panel de Nómina también vive en Tesorería, dime en "Hechas" quién entra por cada lado.
   3. Commit y push SOLO a `pruebas`.
-  HECHO [16/10 14:35, Pruebas]:
+  HECHO [16/10 14:20, Pruebas]:
   1. Nombres corregidos a como se ven en pantalla. En 5. Nómina las tarjetas son **Nómina** (vendedores) y **Destajos**
      (no "Instalaciones"; "Instalaciones" es el rótulo de las tarjetas de adentro). Texto final: "Gerencia → 5. Nómina →
      Nómina (vendedores) → B. Por Pagar" y "Gerencia → 5. Nómina → Destajos → Por pagar (doble verde)".

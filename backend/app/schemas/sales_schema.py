@@ -2,6 +2,7 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field, field_validator
 from sqlmodel import SQLModel
 from datetime import datetime, date
+from app.schemas.payout_schema import PayoutPartCreate
 
 # Importamos los Enums directamente desde los modelos
 from app.models.sales import (
@@ -443,6 +444,10 @@ class PayrollCommissionRow(BaseModel):
     house_names: List[str] = []
     base_amount: Optional[float] = None
     rate: Optional[float] = None
+    # D40: how it was paid (paid tray)
+    paid_at: Optional[datetime] = None
+    payment_method: Optional[str] = None
+    payment_detail: Optional[str] = None
 
 
 class CommissionsPayrollOverview(BaseModel):
@@ -464,9 +469,11 @@ class CommissionPaidUpdate(BaseModel):
 
 
 class CommissionPayCreate(BaseModel):
-    """D37: BANK with its account, or CASH (petty cash); never unspecified."""
-    payment_method: str
+    """D37: BANK with its account, or CASH (petty cash); D40: DIRECTOR_CASH (Director only, no movement), or `parts`
+    splitting the total among them."""
+    payment_method: Optional[str] = None
     account_id: Optional[int] = None
+    parts: Optional[List[PayoutPartCreate]] = None
 
 
 class CommissionPayPersonCreate(CommissionPayCreate):

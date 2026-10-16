@@ -1,4 +1,5 @@
 import client from './axios-client';
+import type { PayoutChoice } from '@/modules/treasury/components/PayoutDialog';
 import {
   BankAccount,
   BankAccountCreate,
@@ -27,6 +28,7 @@ export interface PayrollPaymentRecord {
   days_waiting?: number;
   bank_account_id?: number | null;
   payment_method?: string | null;
+  payment_detail?: string | null;
 }
 
 export interface InstallerPayrollOverview {
@@ -83,27 +85,18 @@ export const treasuryService = {
   // 7. Pagar un destajo (D37: Banco con cuenta o Efectivo de caja chica)
   markPayrollPaid: async (
     payrollId: number,
-    choice: { payment_method: 'BANK' | 'CASH'; account_id: number | null },
+    choice: PayoutChoice,
   ): Promise<void> => {
-    await client.patch(`/logistics/payroll/${payrollId}/mark-paid`, {
-      paid: true,
-      payment_method: choice.payment_method,
-      bank_account_id: choice.account_id,
-    });
+    await client.patch(`/logistics/payroll/${payrollId}/mark-paid`, { paid: true, parts: choice.parts });
   },
 
   // H66: todos los renglones por pagar de una persona con un solo movimiento
   payPersonPayroll: async (
     userId: number,
     payrollIds: number[],
-    choice: { payment_method: 'BANK' | 'CASH'; account_id: number | null },
+    choice: PayoutChoice,
   ): Promise<void> => {
-    await client.post('/logistics/payroll/pay-person', {
-      user_id: userId,
-      payroll_ids: payrollIds,
-      payment_method: choice.payment_method,
-      bank_account_id: choice.account_id,
-    });
+    await client.post('/logistics/payroll/pay-person', { user_id: userId, payroll_ids: payrollIds, parts: choice.parts });
   },
 
   deferInstallerPayroll: async (payrollId: number, reason: string): Promise<void> => {

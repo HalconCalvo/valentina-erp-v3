@@ -22,6 +22,7 @@ from app.services.cloud_storage import upload_to_gcs
 from app.services import installation_service, installer_payroll_service, logistics_service
 from app.core.permissions import allow, can_execute_payments, FIELD_ROLES, FINANCE_ROLES, INSTALLATION_ROLES
 from app.core.audit_context import audit_reason
+from app.schemas.payout_schema import PayoutPartCreate
 from app.schemas.logistics_schema import (
     TeamAgendaRead,
     DayTeamUpdate,
@@ -80,6 +81,7 @@ class PayrollPaymentRead(BaseModel):
     days_waiting: int = 0
     bank_account_id: Optional[int] = None
     payment_method: Optional[str] = None
+    payment_detail: Optional[str] = None  # D40
 
     class Config:
         from_attributes = True
@@ -89,14 +91,16 @@ class PayrollMarkPaidPayload(BaseModel):
     paid: bool
     bank_account_id: Optional[int] = None
     payment_method: Optional[str] = None  # D37: BANK (with bank_account_id) or CASH (petty cash)
+    parts: Optional[List[PayoutPartCreate]] = None  # D40: split among Banco, Caja chica and Efectivo Dirección
 
 
 class PayrollPayPersonPayload(BaseModel):
     """H66: every selected row of one person paid with one movement."""
     user_id: int
     payroll_ids: List[int]
-    payment_method: str
+    payment_method: Optional[str] = None
     bank_account_id: Optional[int] = None
+    parts: Optional[List[PayoutPartCreate]] = None  # D40
 
 
 class PayrollDeferPayload(BaseModel):
@@ -156,6 +160,7 @@ def _serialize_payroll_row(r: PayrollPayment, session: Session) -> PayrollPaymen
         days_waiting=_days_waiting_logistics(r.created_at),
         bank_account_id=getattr(r, "bank_account_id", None),
         payment_method=r.payment_method,
+        payment_detail=r.payment_detail,
     )
 
 
@@ -277,7 +282,8 @@ def mark_payroll_paid(
 
     if payload.paid:
         method = payload.payment_method or ("BANK" if payload.bank_account_id else None)
-        return installer_payroll_service.pay_rows(session, current_user, [payroll_id], method, payload.bank_account_id)
+        return installer_payroll_service.pay_rows(session, current_user, [payroll_id], method, payload.bank_account_id,
+                                                  parts=payload.parts)
     if record.status == PayrollStatus.PAID:
         raise HTTPException(status_code=409, detail="Un pago hecho no se regresa a Por pagar: se cancela su movimiento.")
     record.status, record.paid_at = PayrollStatus.READY_TO_PAY, None
@@ -292,7 +298,7 @@ def pay_person_payroll(payload: PayrollPayPersonPayload, session: SessionDep, cu
     if not can_execute_payments(session, current_user):
         raise HTTPException(status_code=403, detail="Solo Dirección ejecuta pagos (Gerencia, si Dirección lo habilita).")
     return installer_payroll_service.pay_rows(session, current_user, payload.payroll_ids, payload.payment_method,
-                                              payload.bank_account_id, person_id=payload.user_id)
+                                              payload.bank_account_id, person_id=payload.user_id, parts=payload.parts)
 
 
 # ==========================================

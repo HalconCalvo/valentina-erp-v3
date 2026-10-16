@@ -5025,3 +5025,11 @@ PENDIENTE PARA CERRAR EL ENSAYO:
 
 ### Pendientes:
 - D39 antes de pasar a main. 14:12 probado en pantalla en Pruebas; en local no (no hubo sesión de prueba).
+
+### D40 y D39 (16/10 14:39, rama pruebas):
+- D40: medio "Efectivo Dirección" (solo DIRECTOR, sin movimiento, con bitácora) y pago dividido (Banco + Caja chica +
+  Efectivo Dirección, suma exacta) en comisiones y nómina de cuadrillas; desglose en `payment_detail` (b7c8d9e0f1a2).
+  El costo de la OV no depende del pago: comisión = % × venta (margen neto), instalación = receta.
+- D39 (a6b7c8d9e0f1): toda comisión no pagada → OUTSIDE "Pagada fuera de Valentina", con bitácora; respeta OBRA PILOTO.
+  Pruebas y producción hoy: 55 por $185,383.50 (incluye 37 de Dirección global; preguntado a Gabriel).
+- Lección: en zsh `$c` con espacios no se divide en palabras; un for con "upgrade head" falla en silencio.

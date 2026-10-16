@@ -27,7 +27,7 @@ import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
 import { formatDateTime, formatMoney } from '@/utils/format';
 import { TableActionEditIcon } from '@/lib/tableActionIcons';
-import { PayoutDialog, type PayoutChoice } from './PayoutDialog';
+import { PayoutDialog, payoutMethodLabel, type PayoutChoice } from './PayoutDialog';
 
 export type PayrollLevel1 = 'COMMISSIONS' | 'INSTALLATIONS' | 'WEEKLY' | null;
 type SubView = 'RETAINED' | 'PAYABLE' | 'PAID';
@@ -469,6 +469,19 @@ export const PayrollAuditPanel: React.FC<Props> = ({
         ),
       },
     ];
+    if (view === 'PAID') {
+      columns.push({
+        key: 'paid_at',
+        label: 'Pagado',
+        render: (row) => (
+          <span className="text-xs text-slate-500">
+            {row.paid_at ? formatDateTime(row.paid_at) : '—'}
+            {(row.payment_detail || row.payment_method) &&
+              ` · ${row.payment_detail || payoutMethodLabel(row.payment_method || '')}`}
+          </span>
+        ),
+      });
+    }
     if (view === 'RETAINED') {
       columns.push({
         key: 'days_waiting',
@@ -698,7 +711,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
         render: (r) => (
           <span className="text-xs text-slate-500">
             {formatDateTime(r.paid_at)}
-            {r.payment_method && ` · ${r.payment_method === 'CASH' ? 'Efectivo' : 'Banco'}`}
+            {(r.payment_detail || r.payment_method) && ` · ${r.payment_detail || payoutMethodLabel(r.payment_method || '')}`}
           </span>
         ),
       });

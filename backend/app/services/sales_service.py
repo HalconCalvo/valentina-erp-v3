@@ -1625,6 +1625,7 @@ def get_commissions_overview(session: Session) -> CommissionsPayrollOverview:
             cxc_status=(cx.status.value if cx and hasattr(cx.status, "value") else (str(cx.status) if cx else None)),
             admin_notes=c.admin_notes,
             payroll_deferred=False,
+            paid_at=c.paid_at, payment_method=c.payment_method, payment_detail=c.payment_detail,
         ))
 
     return CommissionsPayrollOverview(
@@ -1725,8 +1726,9 @@ def pay_commissions(session: Session, ids: List[int], data: CommissionPayCreate,
     total = round(sum(float(c.commission_amount or 0.0) for c in rows), 2)
     folios = ", ".join(_commission_detail(session, c, sales_repo.get_cxc_by_id(session, c.customer_payment_id))
                        ["reference_label"] for c in rows)
-    payout = payout_service.pay_out(session, current_user, method=data.payment_method, account_id=data.account_id,
-                                    amount=total, concept=f"Comisión {seller.full_name if seller else ''} · {folios}",
+    parts = data.parts or payout_service.single_part(data.payment_method, data.account_id, total)
+    payout = payout_service.pay_out(session, current_user, parts=parts, amount=total,
+                                    concept=f"Comisión {seller.full_name if seller else ''} · {folios}",
                                     category="Comisiones", entity_type="SALES_COMMISSION",
                                     entity_id=rows[0].id if len(rows) == 1 else None)
     now = datetime.utcnow()
@@ -1734,13 +1736,15 @@ def pay_commissions(session: Session, ids: List[int], data: CommissionPayCreate,
         c.is_paid, c.is_released, c.released_at = True, True, c.released_at or now
         c.paid_at, c.paid_by_user_id, c.payment_method = now, current_user.id, payout.method
         c.bank_transaction_id, c.petty_cash_movement_id = payout.bank_transaction_id, payout.petty_cash_movement_id
+        c.payment_detail = payout.detail
         session.add(c)
     audit_service.log_action(session, current_user, audit_service.PAY, audit_service.COMMISSION, rows[0].id, None,
-                             f"Pagó comisión ${total:,.2f} a {seller.full_name if seller else '—'} ({payout.method})",
+                             f"Pagó comisión ${total:,.2f} a {seller.full_name if seller else '—'} ({payout.detail})",
                              old_values={"is_paid": False}, new_values={"is_paid": True, "commission_amount": total})
     session.commit()
     return {"ok": True, "commission_ids": [c.id for c in rows], "amount": total, "payment_method": payout.method,
-            "bank_transaction_id": payout.bank_transaction_id, "petty_cash_movement_id": payout.petty_cash_movement_id}
+            "payment_detail": payout.detail, "bank_transaction_id": payout.bank_transaction_id,
+            "petty_cash_movement_id": payout.petty_cash_movement_id}
 
 
 def pay_commission(session: Session, commission_id: int, data: CommissionPayCreate, current_user: User) -> dict:

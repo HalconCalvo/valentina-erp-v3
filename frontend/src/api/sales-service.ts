@@ -1,5 +1,6 @@
 import type { ReversalPayload } from './production-service';
 import axiosClient from './axios-client';
+import type { PayoutChoice } from '@/modules/treasury/components/PayoutDialog';
 import { API_ROUTES } from './endpoints';
 import {
   SalesOrder,
@@ -490,7 +491,7 @@ export const salesService = {
     payPersonCommissions: async (
         userId: number,
         commissionIds: number[],
-        choice: { payment_method: 'BANK' | 'CASH'; account_id: number | null },
+        choice: PayoutChoice,
     ): Promise<void> => {
         await axiosClient.post('/sales/commissions/pay-person', { user_id: userId, commission_ids: commissionIds, ...choice });
     },
@@ -498,7 +499,7 @@ export const salesService = {
     /** H65/D37: pay a commission through Banco (account) or Efectivo (petty cash). */
     payCommission: async (
         commissionId: number,
-        choice: { payment_method: 'BANK' | 'CASH'; account_id: number | null },
+        choice: PayoutChoice,
     ): Promise<void> => {
         await axiosClient.post(`/sales/commissions/${commissionId}/pay`, choice);
     },
