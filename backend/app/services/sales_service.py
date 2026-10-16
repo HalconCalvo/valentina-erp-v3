@@ -770,9 +770,8 @@ def confirm_payment(
 
     is_advance = cxc.payment_type == PaymentType.ADVANCE
     if not cxc.commission_paid:
-        _add_cxc_commissions(
-            session, order, cxc_id, float(cxc.amount or 0.0), is_advance=is_advance
-        )
+        # H57: commission on the cash collected (an amortized advance already earned its commission)
+        _add_cxc_commissions(session, order, cxc_id, collected_cash(session, cxc), is_advance=is_advance)
         cxc.commission_paid = True
     session.add(cxc)
     session.add(order)
@@ -930,19 +929,30 @@ def _link_paid_instances(session: Session, cxc, instance_ids: List[int]) -> None
         session.add(inst_obj)
 
 
-def _mark_cxc_paid(session: Session, cxc, order, payload: PaymentPayload, credited: float, amortized: float) -> None:
-    """Paid invoice: commission on the net (amount − credit notes − amortized advance), once; a paid advance
-    moves the order from waiting the advance to sold."""
+def collected_cash(session: Session, cxc: CustomerPayment) -> float:
+    """Cash the client pays on an invoice (with IVA): amount − credit notes − advance it amortizes."""
+    return (float(cxc.amount or 0.0) - sales_repo.sum_active_credit_notes(session, cxc.id)
+            - float(cxc.amortized_advance or 0.0))
+
+
+def settle_cxc(session: Session, cxc: CustomerPayment, order: Optional[SalesOrder], paid_at: datetime) -> None:
+    """A settled invoice is PAID. H57: the seller earns a commission on each collection (advance and each progress
+    invoice) = cash collected without IVA × the order's own commission %, once. A paid advance moves the order
+    from waiting the advance to sold."""
     cxc.status = CXCStatus.PAID
-    cxc.payment_date = payload.payment_date or datetime.utcnow()
+    cxc.payment_date = paid_at
     if not cxc.commission_paid and order:
         session.flush()
         is_advance = cxc.payment_type == PaymentType.ADVANCE
-        _add_cxc_commissions(session, order, cxc.id, float(cxc.amount or 0.0) - credited - amortized,
-                             is_advance=is_advance)
+        _add_cxc_commissions(session, order, cxc.id, collected_cash(session, cxc), is_advance=is_advance)
         cxc.commission_paid = True
         if is_advance and order.status == SalesOrderStatus.WAITING_ADVANCE:
             order.status = SalesOrderStatus.SOLD
+    session.add(cxc)
+
+
+def _mark_cxc_paid(session: Session, cxc, order, payload: PaymentPayload) -> None:
+    settle_cxc(session, cxc, order, payload.payment_date or datetime.utcnow())
     session.add(cxc)
 
 
@@ -974,7 +984,7 @@ def register_installment(
     tolerance = paid_tolerance(session)
     factura_saldada = is_settled(float(cxc.amount or 0.0) - abonado_despues - acreditado - amortizado, tolerance)
     if factura_saldada and cxc.status != CXCStatus.PAID:
-        _mark_cxc_paid(session, cxc, order, payload, acreditado, amortizado)
+        _mark_cxc_paid(session, cxc, order, payload)
     if order:
         if is_settled(order.outstanding_balance, tolerance):
             order.status = SalesOrderStatus.FINISHED

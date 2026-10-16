@@ -11,7 +11,7 @@ from app.core.business_time import effective_datetime_for, today_local
 from app.models.treasury import BankAccount, BankTransaction, TransactionType, WeeklyFixedCost
 from app.models.sales import CustomerPayment
 from app.repositories import sales_repository as sales_repo
-from app.services import progress_invoice_service
+from app.services import progress_invoice_service, sales_service
 from app.models.finance import SupplierPayment
 from app.core.permissions import allow, FINANCE_ROLES, allow_payment_execution
 from app.schemas.treasury_schema import (
@@ -163,7 +163,7 @@ def _aplicar_abono_a_factura(session, cxc_id, monto, bank_tx, current_user):
     ingreso bancario real; acumula, salda la factura (PAID + comisión ADVANCE) y reduce
     el saldo de la OV cuando corresponde. La fuente de verdad es el banco."""
     from app.models.sales import (CustomerPayment, CustomerPaymentInstallment,
-                                   SalesOrder, PaymentType, CXCStatus, SalesOrderStatus)
+                                   SalesOrder, CXCStatus, SalesOrderStatus)
     from sqlalchemy import func
     from datetime import datetime
 
@@ -212,16 +212,8 @@ def _aplicar_abono_a_factura(session, cxc_id, monto, bank_tx, current_user):
     # H47: the advance amortized by a progress invoice also covers it (same rule as CxC)
     amortizado = round(float(cxc.amortized_advance or 0.0), 2)
     if abonado_despues + acreditado + amortizado + 0.01 >= round(float(cxc.amount or 0.0), 2):
-        cxc.status = CXCStatus.PAID
-        cxc.payment_date = bank_tx.transaction_date or datetime.utcnow()
-        if cxc.payment_type == PaymentType.ADVANCE and not cxc.commission_paid and order:
-            session.flush()
-            from app.api.v1.endpoints.sales import _liberar_comision_anticipo
-            _liberar_comision_anticipo(session, order, cxc, float(cxc.amount or 0.0) - acreditado)
-            cxc.commission_paid = True
-            if order.status == SalesOrderStatus.WAITING_ADVANCE:
-                order.status = SalesOrderStatus.SOLD
-        session.add(cxc)
+        # H57: every collection (advance or progress) earns its commission, same as Cobranza
+        sales_service.settle_cxc(session, cxc, order, bank_tx.transaction_date or datetime.utcnow())
 
     if order:
         if round(float(order.outstanding_balance or 0.0), 2) <= 0.1:

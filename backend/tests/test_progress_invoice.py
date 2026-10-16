@@ -126,3 +126,28 @@ def test_order_figures_count_the_amortized_advance_once(client_fixture, session_
     summary = client_fixture.get(f"{API}/{order.id}/billing_summary", headers=auth_header_director).json()
     assert summary["invoiced_uncollected"] == 0.0
     assert summary["collected"] == round(preview["to_collect"], 2)
+
+
+def test_each_collection_earns_its_commission(client_fixture, session_fixture, auth_header_director,
+                                              seed_client_and_tax):
+    """H57: a progress invoice collected through Tesorería earns the seller's commission on the cash collected
+    without IVA × the order's own % (Piloto 1: $7,364.40 / 1.16 × 5% = $317.43)."""
+    from app.models.sales import CommissionType, SalesCommission
+    from app.models.treasury import BankAccount
+    order, houses = _order_with_paid_advance(client_fixture, session_fixture, auth_header_director, seed_client_and_tax)
+    order.applied_commission_percent = 5.0
+    account = BankAccount(name="Banco H57", account_number="57", current_balance=0.0, initial_balance=0.0)
+    session_fixture.add_all([order, account])
+    session_fixture.commit()
+    preview = _preview(client_fixture, auth_header_director, order.id, houses[:1])
+    cxc_id = _register(client_fixture, auth_header_director, order.id, houses[:1]).json()["cxc_id"]
+    paid = client_fixture.post(f"{settings.API_V1_STR}/treasury/transactions", headers=auth_header_director,
+                               json={"account_id": account.id, "transaction_type": "IN", "amount": preview["to_collect"],
+                                     "related_entity_type": "CUSTOMER_PAYMENT", "related_entity_id": cxc_id})
+    assert paid.status_code == 200, paid.text
+    session_fixture.expire_all()
+    seller = session_fixture.exec(select(SalesCommission).where(
+        SalesCommission.customer_payment_id == cxc_id, SalesCommission.commission_type == CommissionType.SELLER)).all()
+    assert len(seller) == 1
+    assert round(seller[0].base_amount, 2) == round(preview["to_collect"] / 1.16, 2)
+    assert round(seller[0].commission_amount, 2) == round(preview["to_collect"] / 1.16 * 0.05, 2)
