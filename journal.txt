@@ -4910,3 +4910,50 @@ SESIÓN 15/10/2026 — Hallazgos del ensayo, segunda parte (buzón 12:25) — ra
   Hallazgo: ReceivableChargeModal guardaba amount = efectivo (sin amortización) y los saldos restan la amortización
   del importe: corregido a factura completa. Probado en Pruebas con Piloto 1 sin guardar. Tests backend 351.
   Lección: antes de agregar un cálculo de dinero, revisar todas las pantallas que escriben el mismo registro.
+
+================================================================
+CIERRE DEL DÍA — 15/10/2026 (asesor)
+================================================================
+- Render: valentina-pruebas-api y valentina-pruebas ya despliegan la rama `pruebas` (cambiado por Gabriel 10:14–10:17).
+  Regla vigente: todo va primero a `pruebas`; `main` (producción, 081b2ab) solo después de probarlo en Pruebas.
+- Ensayo general Obra Piloto (OV-0157) en Pruebas, Piloto 1 completo hasta firma:
+  · H38 confirmado (IM adelantada a 15/10). H37 confirmado (cámara del iPhone escanea la etiqueta). H14 y D32 confirmados.
+  · Carga MDF por David (QR de la etiqueta) y carga de Piedra por código manual (bd5662bf), equipo David + Dariel Tun.
+  · Fotos, Trabajo terminado (MDF y Piedra) y firma del cliente 15/10/2026 12:20.
+  · Piloto 1 aparece en Pendiente de Facturar → Avances. Falta registrar la factura (Gabriel).
+- Hallazgos 39–46 corregidos por Claude Code en `pruebas` (H39 ✓ por carril, H40, H41, H42 la cuadrilla sigue la fecha y
+  quitarla la CANCELA en vez de borrarla, H43, H45, H46). H44 retirado.
+- Decisiones de Gabriel hoy:
+  · La firma del cliente es UNA por casa, al final de todas sus instalaciones (MDF y Piedra). La cuadrilla de muebles
+    cobra hasta la firma de la casa completa.
+  · D36: la factura de avance es la casa completa con IVA y se le amortiza la parte proporcional del anticipo
+    (Piloto 1: $18,411.01 − $11,046.61 = $7,364.40 por cobrar); la última casa toma lo que quede del anticipo.
+  · D35-A: en Pendiente de Facturar todo con IVA (total hoy $140,551.73).
+- Claude Code corrigió además: la ventana de cobro de Cobranza restaba el anticipo dos veces (sin prueba en pantalla).
+- Aviso pendiente (Render, no es código): la CDN guarda index.html 5 min; sugerencia de agregar en el sitio estático
+  → Headers, regla /* con Cache-Control: no-cache (Pruebas y producción). Decide Gabriel.
+
+PARA MAÑANA (en orden):
+1. Paso 13: Gerencia → Pendiente de Facturar → Avances → Registrar Avance de Piloto 1 (Cmd+Shift+R antes); revisar las
+   tres cifras y guardar con folio de prueba.
+2. Cobrar los $7,364.40 en Cobranza (probar la corrección del doble descuento del anticipo).
+3. Nómina de la cuadrilla de Piloto 1 (D15/D18: días de INSTALACOCINA/INSTALAGRANITO × tarifa; líder $800, ayudante $700).
+4. Piloto 2 y 3: terminar producción (lotes MDF 0017/0018), carga, firma y facturación; la última casa debe agotar
+   el anticipo sin centavos.
+5. Ver en el iPhone H40 y H41. Revisión en pantalla general de los cambios en `pruebas` y decidir cuándo pasar a `main`.
+6. Pendientes con Karina (D27, D28, Viveyuc, Cerámica) y con Gerardo (recetas sin instalación, D21 Nadira).
+
+================================================================
+SESIÓN 16/10/2026 — Hallazgos H47–H51 (buzón 09:10 y 09:25) — rama `pruebas`
+================================================================
+- H51 (03a5988): la base de Pruebas tenía bien los 4 pagos (3 PAID, el de David por Piedra READY_TO_PAY, id 3). El
+  servidor sí lo mandaba en "Por pagar"; la pantalla abre en "Retenidas" (vacía, "Sin registros"). Ahora abre en
+  "Por pagar" y cada bandeja dice cuál es y cuántos pagos tiene. La hipótesis "por instancia y no por carril" no era la
+  causa: cada pago ya es por carril (installation_assignment_id). H50: renglón "Piloto 1 · Muebles / Piedra".
+- H47–H49 (1afd9c7): `invoice_balance` pasó a progress_invoice_service (una regla para todos);
+  `billing_summary` para la ventana de la OV; Tesorería (_aplicar_abono_a_factura) ignoraba la amortización: por eso
+  F-Piloto1-01 quedó PENDING aunque está cubierta ($11,046.61 + $7,364.40). Ahora salda con la amortización y rechaza
+  ingresos mayores al saldo antes de crear el movimiento bancario. La ventana muestra PAGADA por saldo (el registro 85
+  de Pruebas sigue PENDING en la base; no se modificó).
+- Tests backend 353, frontend 43, build OK, una cabeza (x3y4z5a6b7c8).
+- Lección: un saldo de factura se calcula en un solo lugar; toda pantalla o endpoint que lo necesite lo pide al servidor.

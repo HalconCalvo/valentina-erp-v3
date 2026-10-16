@@ -223,6 +223,15 @@ Servicio `progress_invoice_service` (sugerencia, tope, última casa); vista prev
 "Registrar Avance" con tres cifras y motivo; Pendiente de Facturar con IVA; la ventana de cobro de Cobranza guarda
 la factura completa. Probado en Pruebas con Piloto 1 sin guardar.
 
+## 20. Hallazgos del 16/10 (buzón del asesor 09:10 y 09:25: H47–H51) — hecha en `pruebas`
+- H51/H50 (03a5988): Nómina de instaladores abre en "Por pagar" y titula cada bandeja; cada renglón dice su instalación
+  ("Piloto 1 · Muebles / Piedra"). En la base de Pruebas el pago de David por Piedra (id 3, $800) sigue por pagar.
+- H47–H49 (1afd9c7): `GET /sales/orders/{id}/billing_summary` (una sola regla de saldo, la de CxC); ventana de la OV con
+  facturado sin doble anticipo, casas pendientes con IVA, "Falta cobrar del contrato" y PAGADA por saldo; abono propone
+  el saldo y muestra las casas de la factura; Tesorería salda con la amortización y no acepta más que el saldo;
+  antigüedad de CxC (analítica, Gerencia, Cobranza) por saldo abierto.
+- Pendiente: prueba en pantalla (Chrome no conectado al terminar).
+
 ## 11. PRIORIDAD 2 — Indicadores del tablero de Dirección (con Gabriel) — hecha (2026-10-12, commit local)
 - Decisiones de Gabriel (12/10) aplicadas con una sola fuente (`GET /analytics/director-summary`, solo DIRECTOR):
   1. Ventas: OVs vendidas del año sin IVA (tasa 0 y 16) contra la meta anual.

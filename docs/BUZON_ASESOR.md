@@ -55,6 +55,54 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Hechas
 
+- [2026-10-16 09:25] NÓMINA DE INSTALADORES (Tesorería → 5. Nómina), Piloto 1 de OV-0157. PRIORIDAD H51.
+  H51. Por pagar $3,000 (Dariel $700, David $800 + $800, Miguel $700). Gabriel pagó 3 renglones (Santander):
+       Pagadas $2,200 y la tarjeta "Por pagar" dice $800, pero la lista quedó "Sin registros": el segundo renglón de
+       David desapareció sin pagarse. Probable: los renglones se identifican por instancia (+ persona) y no por carril
+       (MDF/Piedra), así que pagar uno escondió el otro. Corregir para que cada pago sea por instalación (carril) y
+       el renglón pendiente vuelva a aparecer; no borrar ni duplicar pagos. Verifica en la BD de Pruebas (solo lectura)
+       qué quedó registrado y deja el $800 pendiente visible para que Gabriel lo pague.
+  H50. Cada renglón debe decir la instalación: "Piloto 1 · Muebles" / "Piloto 1 · Piedra" (hoy los de David son iguales).
+  Confirmado OK: cálculo D18 (1 día × $800 líder / $700 ayudante por carril), total $3,000.
+  Trabajar en `pruebas` con tests; avisar en "Hechas". Junto con H47–H49 de arriba.
+
+- [2026-10-16 09:10] H47 (D36 en Pruebas): la ventana de la OV no descuenta la amortización del anticipo.
+  OV-0157 tras registrar F-Piloto1-01 ($18,411.01, amortiza $11,046.61):
+  - CxC (lista) está bien: monto $18,411.01, ant. aplic. $11,046.61, saldo $7,364.40.
+  - Ventana de la OV MAL: "Total facturado" $51,550.83 (suma anticipo + avance bruto = cuenta el anticipo dos veces),
+    "Pendiente de facturar" $3,682.20 (debería ser $36,822.02 = 2 casas con IVA), "Facturado sin cobrar" $18,411.01
+    (debería ser $7,364.40, igual que CxC). Revisar también tablero de Dirección/Gerencia, Rayos X, saldo vivo y KPIs
+    que sumen facturas: toda cifra debe tratar la amortización del anticipo igual que CxC.
+  - La ventana no muestra "Falta cobrar del contrato" (D33); agregarla: $55,233.03 − cobrado.
+  - Confirmado OK en la misma ventana: Sobreprecio 45.00% (H1), costo $31,195.71 (H2/H4), Piloto 1 "Cerrado / FACTURADO".
+  - "Registrar Abono" desde la ventana de la OV (OrderStatementModal → Abono): propone $18,411.01 (importe bruto) en
+    vez del saldo $7,364.40; además en "Instancias cubiertas por este abono" ofrece Piloto 2 y Piloto 3 y NO Piloto 1,
+    que es la casa de esa factura; y muestra "¿Es anticipo?" en una factura de avance. Debe proponer el saldo real
+    (mismo cálculo que CxC), mostrar las casas de esa factura y ocultar "¿Es anticipo?" en avances.
+  - Tras cobrar $7,364.40 por Tesorería (Registrar Ingreso, saldo correcto): la ventana de la OV muestra Total cobrado
+    $40,504.22 (bien), pero "Facturado sin cobrar" $11,046.61 (debería ser $0.00: es el anticipo amortizado) y la fila
+    F-Piloto1-01 sigue con botón "Abono" en vez de "PAGADA". Mismo origen: la ventana no resta la amortización.
+  - H49 (menor): Registrar Ingreso de Tesorería, al elegir la factura, deja el importe en 0.00; proponer el saldo.
+  Trabajar en `pruebas` con tests; avisar en "Hechas".
+  HECHO [16/10 09:39] en `pruebas` (03a5988 y 1afd9c7), sin tocar `main`:
+  - H51: en la BD de Pruebas no se perdió nada: David IM $800 PAGADO, Miguel IM $700 PAGADO, Dariel IP $700 PAGADO y
+    David IP $800 POR PAGAR (id 3). Cada pago ya es por carril; el servidor sí lo enviaba. La lista abría en "Retenidas"
+    (vacía → "Sin registros") aunque la tarjeta dijera $800 por pagar. Ahora abre en "Por pagar" y cada bandeja dice su
+    nombre y cuántos pagos tiene. El $800 de David queda visible para pagarlo.
+  - H50: cada renglón dice "Piloto 1 · Muebles" o "Piloto 1 · Piedra" (columna "Instalación").
+  - H47: nueva consulta de cifras de la OV en el servidor, con la misma regla de saldo que CxC. Para OV-0157 hoy:
+    Total facturado $40,504.22 · Pendiente de facturar $36,822.02 (2 casas con IVA; amortizarán $22,093.21 de anticipo)
+    · Total cobrado $40,504.22 · Facturado sin cobrar $0.00 · Falta cobrar del contrato $14,728.81. F-Piloto1-01
+    se muestra PAGADA.
+    Causa de fondo: el ingreso de Tesorería no restaba la amortización, por eso F-Piloto1-01 quedó PENDIENTE en la base
+    aunque está cubierta. Corregido para cobros nuevos (salda con la amortización y no acepta más que el saldo); el
+    registro de Piloto 1 sigue PENDIENTE en la base (no lo modifiqué; la ventana y CxC lo tratan como pagado por saldo).
+    También pasan a saldo abierto la antigüedad de CxC (analítica y flujo), la tarjeta de Gerencia y la de Cobranza.
+  - H48: "Registrar Abono" propone el saldo real, muestra "Casas de esta factura" y oculta "¿Es anticipo?" en avances.
+  - H49: Registrar Ingreso propone el saldo de la factura elegida.
+  - Tests: backend 353 (2 nuevos), frontend 43 (2 archivos nuevos), build OK. Sin migración.
+  - NO probado en pantalla: la extensión de Chrome no estaba conectada. Pendiente de revisar en Pruebas.
+
 - [2026-10-15 16:15] DECISIÓN DE GABRIEL: FACTURA DE AVANCE = CASA COMPLETA CON ANTICIPO APLICADO (D36) + D35-A.
   D36. "Registrar Avance" factura el valor COMPLETO de la casa con IVA y amortiza la parte proporcional del anticipo:
        - Prellenar: importe = partida de la casa × 1.16 (Piloto 1: $18,411.01); anticipo amortizado = importe × % de
