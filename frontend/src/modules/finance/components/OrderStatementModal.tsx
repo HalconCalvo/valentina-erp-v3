@@ -256,7 +256,8 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const canEditOcInRayos = !readOnly && ['ADMIN', 'ADMINISTRADOR', 'MANAGER', 'DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
     const canEditProjectName = ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'MANAGER', 'SALES', 'VENTAS'].includes(userRole);
     const canEditAdvance = ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'MANAGER'].includes(userRole);
-    const canRegisterInstallment = ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'MANAGER'].includes(userRole);
+    // D41: collections (abonos, retention collected) are registered by Dirección, not by Gerencia
+    const canRegisterInstallment = ['DIRECTOR', 'DIRECCION', 'DIRECTION'].includes(userRole);
     const canManageRetention = ['DIRECTOR', 'DIRECCION', 'DIRECTION', 'MANAGER'].includes(userRole);
     // Role-based, not tied to readOnly (that flag only removes finance actions, e.g. Rayos X from the sales monitor).
     const canEditDescription = ['DIRECTOR', 'MANAGER', 'SALES'].includes(userRole);
@@ -1794,7 +1795,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                                                 </div>
                                                             )}
 
-                                                            {canManageRetention && retentionStatus === 'INVOICED' && (
+                                                            {canManageRetention && canRegisterInstallment && retentionStatus === 'INVOICED' && (
                                                                 <Button
                                                                     type="button"
                                                                     onClick={() => void handleCollectRetention(cxc.id)}

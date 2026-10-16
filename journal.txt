@@ -5038,3 +5038,11 @@ PENDIENTE PARA CERRAR EL ENSAYO:
 - D21 resuelta por Gabriel (piedra del cliente en Nadira 33): propuesta ruta CLIENTE + "PIEDRA DEL CLIENTE" a $0; sin aplicar.
 - Tercera ola de la guía: docs/REVISION_PANTALLAS_OLA3.md (42 de 50 pantallas no cumplen). Requisito antes de `main`;
   espera aprobación de la lista.
+
+### D41 (16/10 15:44, rama pruebas): Gerencia fuera de Bancos, cobros y pagos a proveedores
+- `BANK_ROLES = FINANCE_ROLES - {MANAGER}` y `allow_banks()` (403 con mensaje D41) en cuentas, movimientos, depósitos,
+  abonos, cobrar, retención cobrada, solicitudes y ejecución de pagos a proveedores, alta de cuenta y traspaso; corregir o
+  cancelar movimientos solo DIRECTOR. Pantalla: ocultos abono, Cobrar, Registrar Cobro y pagar/solicitar a proveedor.
+- Karina = MANAGER, Alejandrina = DIRECTOR (Pruebas y producción). Dudas sin cambiar en el buzón: caja chica (Gerencia
+  la opera), pagar nómina/comisiones, autorizar pagos a proveedor.
+- Dos pruebas viejas (D7) actualizadas a D41 por decisión de Gabriel.

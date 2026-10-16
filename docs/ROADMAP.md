@@ -245,6 +245,7 @@ la factura completa. Probado en Pruebas con Piloto 1 sin guardar.
 - 14:12 (173cbdb): ayuda de nómina y comisiones apunta a Gerencia → 5. Nómina; "Ir" abre Comisiones o Destajos.
 - H70/D39 (a6b7c8d9e0f1): toda comisión existente se marca "Pagada fuera de Valentina" (Pruebas: 55, $185,383.50; obra piloto aparte).
 - D40 (b7c8d9e0f1a2): "Efectivo Dirección" (solo DIRECTOR, sin movimiento) y pago dividido en comisiones y nómina de cuadrillas.
+- D41: Gerencia no ve Bancos ni registra cobros ni pagos a proveedores (pantalla y API 403). Dudas de caja chica en el buzón.
 
 ## 11. PRIORIDAD 2 — Indicadores del tablero de Dirección (con Gabriel) — hecha (2026-10-12, commit local)
 - Decisiones de Gabriel (12/10) aplicadas con una sola fuente (`GET /analytics/director-summary`, solo DIRECTOR):

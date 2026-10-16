@@ -8,16 +8,21 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Pendientes
 
-- [2026-10-16 15:32] AUDITORÍA DEL ROL GERENCIA (Karina, contabilidad@incamex.com) — SOLO LECTURA, sin cambiar nada.
-  Contexto (Gabriel 15:25): Alejandrina García (rol DIRECTOR) maneja Bancos: registra cobros y pagos. Karina (Gerencia)
-  por ahora NO debe operar Bancos; más adelante sí. Karina sí registra facturas (anticipo y avances).
-  Entrega en "Hechas" una tabla: pantalla/acción → ¿lo puede ver MANAGER? → ¿lo puede hacer MANAGER? (frontend Y backend),
-  para: 2. Bancos (saldos y movimientos), Registrar Ingreso/cobros, abonos desde la OV, pagos a proveedores, Caja chica,
-  Nómina de cuadrillas (Pagar), Comisiones (Pagar), Pendiente de Facturar (registrar facturas), conciliación, cancelar
-  movimientos. Confirma también el rol real de contabilidad@incamex.com y de Alejandrina en la BD de Pruebas.
-  Con la tabla, Gabriel decide qué se le cierra a MANAGER (D41). Hazlo antes que D21 y la tercera ola.
+- [2026-10-16 15:45] D21 APROBADA (Gabriel 15:43): construir la ruta "Lo pone el cliente" con el material "PIEDRA DEL CLIENTE"
+  (m², costo $0 fijo, sin compra, sin existencia, sin faltante en Simulador, sin descarga; sí lote de piedra, carril,
+  manifiesto y nómina). NO clonar las 4 recetas Nadira 33 ahora: se clonan cuando se vuelva a vender (Gerardo da los m²).
+  Hacer DESPUÉS de D41. Tercera ola: ESPERA, Gabriel quiere ver primero la pantalla modelo antes de aprobar el diseño.
 
 ## Preguntas para el asesor
+
+- [2026-10-16 15:44] D41, dudas que NO cambié:
+  1. Caja chica: hoy Gerencia la OPERA (registra, edita, cancela movimientos y configura el fondo); Administración
+     registra pero no configura el fondo. ¿Dejo a Gerencia solo en ver, y configurar el fondo a DIRECTOR y ADMIN?
+  2. Pagar nómina de cuadrillas y comisiones: Gerencia ve el botón, pero la API solo la deja con el interruptor
+     encendido (hoy apagado). ¿Ocultamos el botón a Gerencia, o se queda para cuando se encienda?
+  3. Autorizar solicitudes de pago a proveedor: la API aún deja a Gerencia autorizar (sin pagar). En pantalla hoy
+     autorizar va junto con pagar, así que no lo puede usar. ¿Se le quita también?
+  4. El interruptor "Gerencia puede ejecutar pagos" ya no abre pagos a proveedores ni Bancos; solo nómina y comisiones.
 
 - [2026-10-15 12:40] D35 (de H46). En Pendiente de Facturar el total suma anticipos con IVA y avances de obra sin
   IVA. Recomiendo (A) avances también con IVA, para que el total sea lo que se factura. Cambia cifras de Cobranza, así
@@ -63,6 +68,51 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   - Agrega a tu reporte final la lista de commits pendientes de prueba en pantalla.
 
 ## Hechas
+
+- [2026-10-16 15:32] AUDITORÍA DEL ROL GERENCIA (Karina, contabilidad@incamex.com) — SOLO LECTURA, sin cambiar nada.
+  Contexto (Gabriel 15:25): Alejandrina García (rol DIRECTOR) maneja Bancos: registra cobros y pagos. Karina (Gerencia)
+  por ahora NO debe operar Bancos; más adelante sí. Karina sí registra facturas (anticipo y avances).
+  Entrega en "Hechas" una tabla: pantalla/acción → ¿lo puede ver MANAGER? → ¿lo puede hacer MANAGER? (frontend Y backend),
+  para: 2. Bancos (saldos y movimientos), Registrar Ingreso/cobros, abonos desde la OV, pagos a proveedores, Caja chica,
+  Nómina de cuadrillas (Pagar), Comisiones (Pagar), Pendiente de Facturar (registrar facturas), conciliación, cancelar
+  movimientos. Confirma también el rol real de contabilidad@incamex.com y de Alejandrina en la BD de Pruebas.
+  Con la tabla, Gabriel decide qué se le cierra a MANAGER (D41). Hazlo antes que D21 y la tercera ola.
+  D41 DECIDIDA (Gabriel 15:33) — cambio MÍNIMO, nada radical, no muevas pantallas ni roles de los demás:
+  - MANAGER (Gerencia/Karina) NO ve el módulo de Bancos ni saldos de bancos (tarjeta "2. Bancos" y cualquier saldo
+    bancario en tableros), NO registra cobros de clientes (Registrar Ingreso, Abono, Cobrar) y NO registra pagos a
+    proveedores. Bloquéalo en frontend (ocultar) Y backend (403 con mensaje claro).
+  - Eso lo hace solo Alejandrina García, ale.garcia@incamex.com, rol DIRECTOR (confirma en la BD de Pruebas).
+  - Caja chica: la opera Administración (ADMIN); Gerencia SÍ puede verla (solo ver). Si hoy MANAGER la opera, dímelo
+    en la tabla antes de cambiarlo.
+  - Todo lo demás de MANAGER queda igual (registrar facturas, CxC, reportes, Nómina de Gerencia, etc.). Si encuentras
+    algo dudoso (p. ej. pagar nómina/comisiones), NO lo cambies: anótalo en "Preguntas para el asesor".
+  - Entrega la tabla de antes y después en "Hechas". Trabajar en `pruebas`.
+  HECHO [16/10 15:44, Pruebas]:
+  Roles confirmados (Pruebas y producción, solo lectura): contabilidad@incamex.com = CP. Karina Rivera, MANAGER;
+  ale.garcia@incamex.com = Lic. Alejandrina García, DIRECTOR. El interruptor "Gerencia puede ejecutar pagos" está
+  APAGADO en Pruebas y en producción.
+  | Pantalla / acción | ANTES: ¿lo ve MANAGER? / ¿lo hace? (pantalla · API) | DESPUÉS (D41) |
+  |---|---|---|
+  | Gerencia → 2. Bancos (saldos y movimientos) | no la ve (solo DIRECTOR) · la API sí le daba cuentas y movimientos | no · API 403 |
+  | Saldos bancarios en tableros | Tesorería cargaba las cuentas para MANAGER (no mostraba el total) · tablero de Dirección solo DIRECTOR | no se cargan · API 403 |
+  | Registrar Ingreso / depósito a varias facturas | botón dentro de Bancos (no lo veía) · API sí lo permitía | no · API 403 |
+  | Abono desde la OV (registrar, corregir, cancelar) | sí · sí | no lo ve · API 403 |
+  | Cobrar (reporte de CxC) y "Registrar Cobro" de retención | sí · sí | no lo ve · API 403 |
+  | Corregir / cancelar movimiento bancario | dentro de Bancos · API sí (DIRECTOR y MANAGER) | API solo DIRECTOR |
+  | Pagos a proveedores: solicitar pago / pago urgente | sí (quedaba como solicitud) · sí | no lo ve · API 403 |
+  | Pagos a proveedores: ejecutar | no (interruptor apagado) · con interruptor sí | no, aunque se encienda el interruptor · API 403 |
+  | Alta de cuenta y traspaso entre cuentas | no (interruptor apagado) · con interruptor sí | no, aunque se encienda · API 403 |
+  | Caja chica | SÍ LA OPERA: registra, edita y cancela movimientos, y es de los únicos que configura el fondo (DIRECTOR y MANAGER) | SIN CAMBIO (ver Preguntas) |
+  | Nómina de cuadrillas (Pagar) | ve el botón · API solo con interruptor (hoy no) | sin cambio (ver Preguntas) |
+  | Comisiones (Pagar) | ve el botón · API solo con interruptor (hoy no) | sin cambio (ver Preguntas) |
+  | Pendiente de Facturar (registrar facturas de anticipo y avance) | sí · sí | sin cambio |
+  | Conciliación bancaria | no hay pantalla de conciliación; los movimientos se corrigen en Bancos | ver arriba |
+  | CxC, reportes, Nómina de Gerencia (ver), facturas de proveedor | sí · sí | sin cambio |
+  ADMIN y DIRECTOR quedan como estaban. Mensaje del 403: "Bancos, cobros y pagos a proveedores los registra
+  Dirección; Gerencia no los opera (D41)." Dos pruebas viejas decían lo contrario (Gerencia solicita pagos a proveedores y
+  con el interruptor los ejecuta); se actualizaron a D41. Tests backend 364, frontend 48, build OK.
+  Probado en pantalla en Pruebas solo como Dirección (que todo siga igual); como Gerencia no, porque no tengo sesión de
+  Karina: las pruebas automáticas cubren los 403.
 
 - [2026-10-16 15:25] PARA DESPUÉS DE D40/H70/AYUDA (no urgente).
   A. D21 RESUELTA (Gabriel 15:21): en las recetas Nadira 33 de VEINTE VEINTITRES CONSTRUCTORA (#197 COCINA NADIRA GRANITO,

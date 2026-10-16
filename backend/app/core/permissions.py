@@ -12,6 +12,10 @@ FINANCE_ROLES = {"DIRECTOR", "MANAGER", "ADMIN"}          # money: invoices, pay
 SALES_READ_ROLES = FINANCE_ROLES | {"SALES"}              # quotations/OVs/receivables; SALES scoped to its own
 # Money actually leaves: DIRECTOR; MANAGER only with GlobalConfig.manager_can_execute_payments (D7). ADMIN requests.
 EXECUTE_PAYMENT_ROLES = {"DIRECTOR", "MANAGER"}
+# D41 (Gabriel 16/10): Gerencia (MANAGER) does not see or operate Bancos, does not register customer collections and
+# does not register supplier payments; Bancos are run by Dirección (Alejandrina). Other roles keep what they had.
+BANK_ROLES = FINANCE_ROLES - {"MANAGER"}
+BANK_DENIED = "Bancos, cobros y pagos a proveedores los registra Dirección; Gerencia no los opera (D41)."
 PURCHASING_ROLES = {"DIRECTOR", "MANAGER", "ADMIN", "WAREHOUSE"}
 REQUISITION_ROLES = PURCHASING_ROLES | {"PRODUCTION", "DESIGN"}
 STOCK_ROLES = {"DIRECTOR", "MANAGER", "ADMIN", "WAREHOUSE"}
@@ -43,6 +47,11 @@ def allow(roles: Iterable[str], message: str = "No tienes permisos para esta ope
         require_roles(current_user, allowed, message)
 
     return Depends(_check)
+
+
+def allow_banks():
+    """D41 route dependency: banks, collections and supplier payments (never MANAGER)."""
+    return allow(BANK_ROLES, BANK_DENIED)
 
 
 def can_execute_payments(session: Session, user) -> bool:

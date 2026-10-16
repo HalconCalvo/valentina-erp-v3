@@ -81,7 +81,7 @@ const CxcReportPage: React.FC = () => {
     const returnTo: string = (location.state as { returnTo?: string } | null)?.returnTo ?? '/treasury';
 
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase().trim();
-    const canCharge = ['DIRECTOR', 'MANAGER'].includes(userRole);
+    const canCharge = userRole === 'DIRECTOR';  // D41: Gerencia does not register collections
 
     const [rows, setRows] = useState<CxcReportRow[]>([]);
     const [loading, setLoading] = useState(false);

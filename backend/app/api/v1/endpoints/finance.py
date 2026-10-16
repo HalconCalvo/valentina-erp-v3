@@ -4,7 +4,7 @@ from typing import Any, List
 from fastapi import APIRouter
 
 from app.core.deps import CurrentUser, SessionDep
-from app.core.permissions import FINANCE_ROLES, allow, allow_payment_execution
+from app.core.permissions import FINANCE_ROLES, allow, allow_banks, allow_payment_execution
 from app.models.finance import PaymentStatus
 from app.schemas.finance_schema import (AccountsPayableDashboardStats, CreditNoteCreate, CreditNoteRead,
                                         PaymentApprovalUpdate, PaymentRequestCancel, PaymentRequestCreate,
@@ -15,12 +15,12 @@ from app.services import payable_service, supplier_credit_note_service, supplier
 router = APIRouter()
 
 
-@router.post("/payments/request", response_model=SupplierPaymentRead, dependencies=[allow(FINANCE_ROLES)])
+@router.post("/payments/request", response_model=SupplierPaymentRead, dependencies=[allow_banks()])
 def request_supplier_payment(*, session: SessionDep, current_user: CurrentUser, payment_in: PaymentRequestCreate) -> Any:
     return payments.request_payment(session, payment_in, current_user)
 
 
-@router.put("/payments/request/{payment_id}", response_model=SupplierPaymentRead, dependencies=[allow(FINANCE_ROLES)])
+@router.put("/payments/request/{payment_id}", response_model=SupplierPaymentRead, dependencies=[allow_banks()])
 def update_payment_request(*, session: SessionDep, payment_id: int, payment_in: PaymentRequestCreate) -> Any:
     return payments.update_request(session, payment_id, payment_in)
 
@@ -43,7 +43,7 @@ def update_payment_status(*, session: SessionDep, current_user: CurrentUser, pay
 
 
 @router.post("/payments/{payment_id}/execute", response_model=SupplierPaymentRead,
-             dependencies=[allow_payment_execution()])
+             dependencies=[allow_banks(), allow_payment_execution()])
 def execute_supplier_payment(*, session: SessionDep, payment_id: int) -> Any:
     return payments.execute_payment(session, payment_id)
 

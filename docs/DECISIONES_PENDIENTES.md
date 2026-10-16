@@ -57,6 +57,11 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 
 ## Resueltas
 
+### D41. Gerencia fuera de Bancos, cobros y pagos a proveedores — 2026-10-16 — buzón del asesor (Gabriel 15:33)
+- **Decisión:** MANAGER no ve Bancos ni saldos, no registra cobros ni pagos a proveedores (pantalla oculta y API 403).
+  Lo opera Alejandrina García (DIRECTOR). Aplicada en Pruebas (15:44). Dudas (caja chica, pagar nómina/comisiones,
+  autorizar pagos) en el buzón, sin cambiar.
+
 ### D21. Casas que solo llevan instalación (sin muebles ni piedra que fabricar) — 2026-10-12 — ROADMAP tarea 10
 - **Contexto:** con D19, las 4 recetas de Nadira (#197, #201, #202, #231) ya piden el carril de piedra, pero solo llevan
   procesos: no entran a ningún lote, así que la casa nunca pasa a "Lista para instalarse" ni se puede cargar, y la

@@ -13,7 +13,7 @@ from app.models.sales import CustomerPayment
 from app.repositories import sales_repository as sales_repo
 from app.services import progress_invoice_service, sales_service
 from app.models.finance import SupplierPayment
-from app.core.permissions import allow, FINANCE_ROLES, allow_payment_execution
+from app.core.permissions import BANK_DENIED, allow, FINANCE_ROLES, allow_banks, allow_payment_execution
 from app.schemas.treasury_schema import (
     BankAccountCreate, BankAccountResponse, 
     BankTransactionCreate, BankTransactionResponse,
@@ -27,8 +27,8 @@ router = APIRouter()
 
 def _require_treasury_manager(current_user: CurrentUser) -> None:
     role = (current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)).upper()
-    if role not in ("DIRECTOR", "MANAGER"):
-        raise HTTPException(status_code=403, detail="Sin permisos para operaciones de tesorería.")
+    if role != "DIRECTOR":  # D41: Gerencia no longer corrects or cancels bank movements
+        raise HTTPException(status_code=403, detail=BANK_DENIED)
 
 
 def _revert_account_balance(account: BankAccount, transaction: BankTransaction) -> None:
@@ -46,7 +46,7 @@ def _revert_account_balance(account: BankAccount, transaction: BankTransaction) 
 # ------------------------------------------------------------------
 # 1. CUENTAS BANCARIAS
 # ------------------------------------------------------------------
-@router.post("/accounts", response_model=BankAccountResponse, dependencies=[allow_payment_execution()])
+@router.post("/accounts", response_model=BankAccountResponse, dependencies=[allow_banks(), allow_payment_execution()])
 def create_bank_account(
     *,
     session: SessionDep,
@@ -62,7 +62,7 @@ def create_bank_account(
     session.refresh(account)
     return account
 
-@router.get("/accounts", response_model=List[BankAccountResponse], dependencies=[allow(FINANCE_ROLES)])
+@router.get("/accounts", response_model=List[BankAccountResponse], dependencies=[allow_banks()])
 def get_bank_accounts(session: SessionDep, current_user: CurrentUser) -> Any:
     """Listar todas las cuentas bancarias.
     Saldos visibles solo para DIRECTOR y GERENCIA; el resto recibe current_balance = 0.
@@ -99,7 +99,7 @@ def movement_datetime(deposit_date: Optional[date]) -> datetime:
     return effective_datetime_for(day)
 
 
-@router.post("/transactions", response_model=BankTransactionResponse, dependencies=[allow(FINANCE_ROLES)])
+@router.post("/transactions", response_model=BankTransactionResponse, dependencies=[allow_banks()])
 def create_transaction(
     *,
     session: SessionDep,
@@ -240,7 +240,7 @@ class BulkCxcPayload(BaseModel):
     description: Optional[str] = None
     items: List[BulkCxcItem]  # lista de {cxc_id, amount}
 
-@router.post("/transactions/bulk-cxc", dependencies=[allow(FINANCE_ROLES)])
+@router.post("/transactions/bulk-cxc", dependencies=[allow_banks()])
 def create_bulk_cxc_payment(
     payload: BulkCxcPayload,
     session: SessionDep,
@@ -295,7 +295,7 @@ def create_bulk_cxc_payment(
 # ------------------------------------------------------------------
 # 3. TRANSFERENCIAS ENTRE CUENTAS
 # ------------------------------------------------------------------
-@router.post("/transfer", dependencies=[allow_payment_execution()])
+@router.post("/transfer", dependencies=[allow_banks(), allow_payment_execution()])
 def transfer_funds(
     *,
     session: SessionDep,
@@ -346,7 +346,7 @@ def transfer_funds(
 # ------------------------------------------------------------------
 # 4. HISTORIAL DE UNA CUENTA (NUEVO)
 # ------------------------------------------------------------------
-@router.get("/accounts/{account_id}/transactions", response_model=List[BankTransactionResponse], dependencies=[allow(FINANCE_ROLES)])
+@router.get("/accounts/{account_id}/transactions", response_model=List[BankTransactionResponse], dependencies=[allow_banks()])
 def get_account_transactions(
     account_id: int,
     session: SessionDep,
@@ -607,7 +607,7 @@ def get_cost_kpi(
     }
 
 
-@router.put("/transactions/{transaction_id}/description", dependencies=[allow(FINANCE_ROLES)])
+@router.put("/transactions/{transaction_id}/description", dependencies=[allow_banks()])
 def update_transaction_description(
     *,
     session: SessionDep,

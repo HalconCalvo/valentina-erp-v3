@@ -31,7 +31,8 @@ from app.services import inventory_service, legacy_import_service, legacy_templa
 from app.schemas.legacy_import_schema import LegacyImportPreviewRead, LegacyImportRead
 from app.schemas.production_inventory_schema import OVCancelCreate
 from app.repositories import sales_repository as sales_repo
-from app.core.permissions import allow, FINANCE_ROLES, SALES_ORDER_ROLES, SALES_READ_ROLES, allow_payment_execution
+from app.core.permissions import (allow, FINANCE_ROLES, SALES_ORDER_ROLES, SALES_READ_ROLES, allow_banks,
+                                  allow_payment_execution)
 
 from app.schemas.sales_schema import (
     OrderBillingSummaryRead,
@@ -308,7 +309,7 @@ def register_advance(
     return sales_service.mark_sold(session, order_id, payload.amount)
 
 
-@router.post("/orders/{order_id}/confirm_payment/{cxc_id}", response_model=SalesOrderRead, dependencies=[allow(FINANCE_ROLES)])
+@router.post("/orders/{order_id}/confirm_payment/{cxc_id}", response_model=SalesOrderRead, dependencies=[allow_banks()])
 def confirm_cxc_payment(
     order_id: int,
     cxc_id: int,
@@ -595,7 +596,7 @@ def _sum_active_installments(session: Session, cxc_id: int) -> float:
     return sales_repo.sum_active_installments(session, cxc_id)
 
 
-@router.post("/invoices/{cxc_id}/installments", response_model=dict, dependencies=[allow(FINANCE_ROLES)])
+@router.post("/invoices/{cxc_id}/installments", response_model=dict, dependencies=[allow_banks()])
 def register_installment(
     cxc_id: int,
     payload: PaymentPayload,
@@ -657,7 +658,7 @@ def list_installments(cxc_id: int, session: Session = Depends(get_session),
     }
 
 
-@router.patch("/installments/{installment_id}", response_model=dict)
+@router.patch("/installments/{installment_id}", response_model=dict, dependencies=[allow_banks()])
 def update_installment(
     installment_id: int,
     data: InstallmentUpdate,
@@ -667,7 +668,7 @@ def update_installment(
     return sales_service.update_installment(session, installment_id, data, current_user)
 
 
-@router.patch("/installments/{installment_id}/cancel", response_model=dict)
+@router.patch("/installments/{installment_id}/cancel", response_model=dict, dependencies=[allow_banks()])
 def cancel_installment(
     installment_id: int,
     data: InstallmentCancel,
@@ -787,7 +788,7 @@ def post_retention_invoice(
     return sales_service.invoice_retention(session, payment_id, payload.folio, current_user)
 
 
-@router.post("/payments/{payment_id}/retention/collect", response_model=CustomerPaymentRead)
+@router.post("/payments/{payment_id}/retention/collect", response_model=CustomerPaymentRead, dependencies=[allow_banks()])
 def post_retention_collect(
     payment_id: int,
     session: Session = Depends(get_session),

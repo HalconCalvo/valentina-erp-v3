@@ -152,7 +152,7 @@ export const TreasuryPage = () => {
           const cfgData = Array.isArray(cfgRes.data) ? cfgRes.data[0] : cfgRes.data;
           setConfig(cfgData);
       } catch { /* ignore */ }
-      if (isChecker) {
+      if (userRole === 'DIRECTOR') {  // D41: Gerencia does not see bank accounts or balances
         setIsAccountsLoading(true);
         const accs = await treasuryService.getAccounts();
         setAccounts(accs || []);

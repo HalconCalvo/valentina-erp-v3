@@ -43,7 +43,7 @@ def _account(session) -> BankAccount:
     return account
 
 
-def test_fast_track_by_manager_without_switch_is_only_a_request(client_fixture, session_fixture, auth_header_director):
+def test_manager_cannot_request_and_admin_only_requests(client_fixture, session_fixture, auth_header_director):
     session_fixture.add(GlobalConfig(company_name="K", target_profit_margin=0.45, cost_tolerance_percent=0.03,
                                      quote_validity_days=15, default_edgebanding_factor=1.1))
     provider, _ = _seed_provider_and_material(session_fixture)
@@ -53,8 +53,11 @@ def test_fast_track_by_manager_without_switch_is_only_a_request(client_fixture, 
             "payment_method": "TRANSFER", "suggested_account_id": account.id}
     manager = client_fixture.post(f"{API}/finance/payments/request", headers=_headers(session_fixture, UserRole.MANAGER),
                                   json=body)
-    assert manager.status_code == 200, manager.text
-    assert manager.json()["status"] == "PENDING"
+    assert manager.status_code == 403  # D41: Gerencia does not register supplier payments
+    admin = client_fixture.post(f"{API}/finance/payments/request", headers=_headers(session_fixture, UserRole.ADMIN),
+                                json=body)
+    assert admin.status_code == 200, admin.text
+    assert admin.json()["status"] == "PENDING"  # without the right to execute it stays a request
     assert session_fixture.exec(select(BankTransaction)).all() == []
     director = client_fixture.post(f"{API}/finance/payments/request", headers=auth_header_director, json=body)
     assert director.json()["status"] == "PAID"

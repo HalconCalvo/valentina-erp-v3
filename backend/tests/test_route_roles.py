@@ -72,7 +72,8 @@ def test_payment_execution_is_director_only_unless_switched_on(client_fixture, s
                                      quote_validity_days=15, default_edgebanding_factor=1.1,
                                      manager_can_execute_payments=True))
     session_fixture.commit()
-    assert client_fixture.post(url, headers=manager, json={}).status_code != 403
+    # D41 (16/10): Gerencia never pays suppliers, not even with the switch on (it still governs commissions/payroll)
+    assert client_fixture.post(url, headers=manager, json={}).status_code == 403
     assert client_fixture.post(url, headers=admin, json={}).status_code == 403
 
 

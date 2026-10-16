@@ -68,6 +68,8 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
     // D7: money leaves only with DIRECTOR, or MANAGER when Dirección turned the switch on (the server enforces it too)
     const managerCanPay = Boolean(useFoundations()?.config?.manager_can_execute_payments);
     const canPay = userRole === 'DIRECTOR' || (userRole === 'MANAGER' && managerCanPay);
+    // D41: Gerencia does not register supplier payments (neither requests nor payments)
+    const canRegisterPayments = userRole !== 'MANAGER';
 
     const [stats, setStats] = useState<AccountsPayableStats | null>(null);
     const [invoices, setInvoices] = useState<PendingInvoice[]>([]);
@@ -540,7 +542,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
 
                 return (
                     <div className="flex items-center justify-center gap-2">
-                        {hasActive ? (
+                        {!canRegisterPayments ? null : hasActive ? (
                             canPay ? (
                                 <Button
                                     size="sm"
@@ -602,7 +604,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                 );
             },
         },
-    ], [theme, sentRequests, approvedRequests, isChecker, canPay, cancellingId]);
+    ], [theme, sentRequests, approvedRequests, isChecker, canPay, canRegisterPayments, cancellingId]);
 
     const renderSortableHeader = (label: string, key: SortKey, align: 'left' | 'right' = 'left', className = 'flex-1') => {
         const isActive = sortConfig?.key === key;
