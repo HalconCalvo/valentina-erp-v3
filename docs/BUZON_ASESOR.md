@@ -8,6 +8,15 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Pendientes
 
+- [2026-10-16 09:50] H57 COMISIÓN POR CADA COBRO (Gabriel, 16/10). Confirmado OK H47 y H51 en Pruebas.
+  Regla de Gabriel: la comisión del vendedor se paga por cada cobro (anticipo y cada avance). En OV-0157 la factura
+  F-Piloto1-01 (avance, PAGADA) muestra comisión "—"; el anticipo sí muestra "Pagar".
+  Base propuesta por el asesor (confirmar con Gabriel antes de cerrar): comisión de cada cobro = efectivo cobrado sin IVA
+  × % de comisión de la OV. OV-0157 (5%): anticipo $33,139.82/1.16×5% = $1,428.44; cada casa $7,364.40/1.16×5% = $317.43;
+  total 1,428.44 + 3×317.43 = $2,380.73 = comisión de la cotización (cuadre, D16 ≤ $1.00 en la última).
+  Revisa qué hace hoy el código con la comisión del anticipo y de los avances, aplica la regla y deja "Pagar" en
+  F-Piloto1-01. Reporta en "Hechas" las cifras de OV-0157. Trabajar en `pruebas`.
+
 ## Preguntas para el asesor
 
 - [2026-10-15 12:40] D35 (de H46). En Pendiente de Facturar el total suma anticipos con IVA y avances de obra sin
@@ -54,6 +63,37 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   - Agrega a tu reporte final la lista de commits pendientes de prueba en pantalla.
 
 ## Hechas
+
+- [2026-10-16 09:42] URGENTE PARA SEGUIR EL ENSAYO + H56.
+  1. AHORA (solo lectura en la BD de Pruebas): escribe aquí abajo el código corto de etiqueta (el que se teclea en Campo,
+     p. ej. bd5662bf) de Piloto 2 y Piloto 3 de OV-0157, MDF y Piedra. Gabriel no los puede imprimir (ver H56).
+  2. H56. Centro de Impresión vacío para Piloto 2 y 3: se pidieron etiquetas MDF y Piedra en Empaque y luego se pasaron a
+     "Listo para instalarse" (READY) antes de imprimir; como la lista filtra por estado, desaparecieron. Regla: una
+     solicitud de etiquetas/manifiesto sigue en la bandeja hasta que se descargue (marca "impresa" con fecha y usuario),
+     sin importar el estado de la casa; y en Empaque, al mover a Listo sin haber impreso, avisar.
+  Otros del ensayo de hoy (no urgentes): H52 piedra: un solo botón "Declarar y solicitar manifiesto"; H53 Piloto 1 ya
+  firmada sigue en Empaque dentro de LOTE-PIEDRA-0011; H54 tarjetas dicen "Piedra: DEAD" (decir "Piedra: lista");
+  H55 calendario: una vez producida, la píldora PM/PP debe ir a la fecha real de producción.
+  Confirmado OK hoy: H26, H27, H30 (pendiente confirmar), H33, H42 (cuadrillas se conservan), D36 (cifras correctas), H9.
+  RESPUESTA AL PUNTO 1 [16/10 09:40] (lectura en la BD de Pruebas): Piloto 2 (id 1652) y Piloto 3 (id 1653) NO tienen
+  código todavía: su qr_code está vacío. El código corto (Piloto 1 = bd5662bf) se crea la primera vez que se genera el
+  PDF de etiquetas o el manifiesto de piedra en el Centro de Impresión, y ahí no aparecen (H56). Ambas en READY, 4
+  bultos MDF + 1 herraje y 2 piezas de piedra. En cuanto suba la corrección de H56 aparecerán en el Centro de Impresión;
+  al imprimirlas se crea el código. Voy con H56 ya.
+  HECHO H56 [16/10 09:49] en `pruebas` (1c80fc2, migración y4z5a6b7c8d9), sin tocar `main`:
+  - Causa: mi H45 (15/10) quitó READY de la lista para no traer casas viejas; Piloto 2 y 3 se pasaron a READY sin imprimir.
+  - Regla nueva: pedir etiquetas (bultos) o declarar piezas de piedra en Empaque deja la solicitud "pendiente de imprimir";
+    sigue en el Centro de Impresión, sin importar el estado de la casa, hasta que se descarga. La descarga la marca
+    impresa con fecha y usuario (columna "Impresión"); se puede reimprimir mientras la casa siga en la ventana de H45.
+  - Empaque: al pasar a Listo una casa con algo sin imprimir sale el aviso "falta imprimir …; sigue en el Centro de
+    Impresión".
+  - La migración marca como solicitadas solo las casas con carril de instalación pendiente y sin etiquetas nunca
+    generadas: en Pruebas son exactamente Piloto 2 y 3 (MDF y Piedra); las 21 casas viejas en READY siguen fuera.
+    En producción no marca ninguna.
+  - Al imprimirlas se crea su código corto (el punto 1): Piloto 2 y 3 aún no tienen.
+  - Tests backend 354, frontend 43, build OK, migración subir/bajar/subir en local.
+  Pendientes (no urgentes, sin empezar): H52, H53, H54, H55.
+
 
 - [2026-10-16 09:25] NÓMINA DE INSTALADORES (Tesorería → 5. Nómina), Piloto 1 de OV-0157. PRIORIDAD H51.
   H51. Por pagar $3,000 (Dariel $700, David $800 + $800, Miguel $700). Gabriel pagó 3 renglones (Santander):

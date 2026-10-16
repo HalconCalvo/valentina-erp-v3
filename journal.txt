@@ -4957,3 +4957,9 @@ SESIÓN 16/10/2026 — Hallazgos H47–H51 (buzón 09:10 y 09:25) — rama `prue
   de Pruebas sigue PENDING en la base; no se modificó).
 - Tests backend 353, frontend 43, build OK, una cabeza (x3y4z5a6b7c8).
 - Lección: un saldo de factura se calcula en un solo lugar; toda pantalla o endpoint que lo necesite lo pide al servidor.
+- H56 (1c80fc2): Piloto 2 y 3 no tenían código de etiqueta (qr_code se crea al generar el PDF) y no salían en el
+  Centro de Impresión porque H45 excluyó READY. Nuevos campos labels_/manifest_ requested_at, printed_at,
+  printed_by_user_id (migración y4z5a6b7c8d9, backfill solo casas con carril SCHEDULED y sin qr: Piloto 2 y 3).
+  Lección: al angostar una lista por estado, revisar qué solicitudes vivas quedan fuera; una solicitud se cierra por
+  su propio evento (la descarga), no por el estado de la casa.
+- La copia local estaba apagada (PG16 5433); se encendió con pg_ctl.

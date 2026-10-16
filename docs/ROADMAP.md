@@ -231,6 +231,10 @@ la factura completa. Probado en Pruebas con Piloto 1 sin guardar.
   el saldo y muestra las casas de la factura; Tesorería salda con la amortización y no acepta más que el saldo;
   antigüedad de CxC (analítica, Gerencia, Cobranza) por saldo abierto.
 - Pendiente: prueba en pantalla (Chrome no conectado al terminar).
+- H56 (1c80fc2, migración y4z5a6b7c8d9): una solicitud de etiquetas/manifiesto sigue en el Centro de Impresión hasta
+  descargarse (impresa con fecha y usuario); Empaque avisa al pasar a Listo sin imprimir.
+- Siguen: H52 (un botón "Declarar y solicitar manifiesto"), H53 (Piloto 1 firmada sigue en Empaque en
+  LOTE-PIEDRA-0011), H54 ("Piedra: DEAD" → "Piedra: lista"), H55 (píldora PM/PP a la fecha real de producción).
 
 ## 11. PRIORIDAD 2 — Indicadores del tablero de Dirección (con Gabriel) — hecha (2026-10-12, commit local)
 - Decisiones de Gabriel (12/10) aplicadas con una sola fuente (`GET /analytics/director-summary`, solo DIRECTOR):
