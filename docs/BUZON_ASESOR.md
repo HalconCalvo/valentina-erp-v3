@@ -124,6 +124,8 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   - Como es categoría Piedra, la casa lleva lote de piedra, carril, etiquetas, manifiesto e INSTALAGRANITO como siempre.
   - Las 4 recetas Nadira 33 NO se clonaron (se hace cuando se vuelva a vender, con los m² de Gerardo).
   - Ayuda "?": "Piedra que pone el cliente" (Diseño) y nota en el Simulador. Tests: 3 nuevos; backend 369, frontend 48, build OK.
+  - En Pruebas: migración aplicada; Materiales muestra PIEDRA-CLIENTE con ruta "CLIENTE (Lo pone el cliente, $0)", m², $0.
+    El Simulador no lo probé en pantalla: ninguna receta usa todavía la piedra del cliente.
 
 - [2026-10-16 17:24] VERIFICAR (solo lectura, rápido): dijiste que "no hay comisiones ni destajos por pagar en Pruebas".
   Deberían estar por pagar: las 4 comisiones de OV-0157 ($1,428.44 + 3 × $317.43 = $2,380.73; D39 las excluía) y la nómina
