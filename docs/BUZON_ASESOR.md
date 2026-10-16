@@ -106,7 +106,8 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   Mensajes: "Caja chica la operan Administración y Dirección; Gerencia solo la consulta (D41)." y "Solo Dirección
   ejecuta pagos; Gerencia no paga (D41)." Gerencia sigue viendo las bandejas de Nómina y Destajos (y diferir destajos).
   Ayuda "?": en Pagar comisiones y Pagar la nómina de cuadrillas dice "Solo Dirección paga; Gerencia ve la lista".
-  Tests: 2 nuevos (caja chica y pagos); backend y frontend en verde, build OK.
+  Tests: 2 nuevos (caja chica y pagos); backend y frontend en verde, build OK. En pantalla en Pruebas (Dirección):
+  caja chica completa, Configuración ya sin el interruptor; Nómina sin renglones por pagar para ver el botón.
 
 - [2026-10-16 15:32] AUDITORÍA DEL ROL GERENCIA (Karina, contabilidad@incamex.com) — SOLO LECTURA, sin cambiar nada.
   Contexto (Gabriel 15:25): Alejandrina García (rol DIRECTOR) maneja Bancos: registra cobros y pagos. Karina (Gerencia)
