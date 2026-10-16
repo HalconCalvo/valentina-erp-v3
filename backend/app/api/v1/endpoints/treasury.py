@@ -200,8 +200,12 @@ def _aplicar_abono_a_factura(session, cxc_id, monto, bank_tx, current_user):
     session.flush()
     inst.bank_transaction_id = bank_tx.id
 
-    # Ligar la factura al movimiento bancario si aún no tiene uno (rastreabilidad)
-    if getattr(cxc, 'treasury_transaction_id', None) is None:
+    # Ligar la factura al movimiento bancario si aún no tiene uno (rastreabilidad). H63: the link is unique per
+    # bank movement; a deposit split over several invoices links the first one, and every payment keeps its own
+    # bank_transaction_id.
+    already_linked = session.exec(select(CustomerPayment.id).where(
+        CustomerPayment.treasury_transaction_id == bank_tx.id)).first()
+    if getattr(cxc, 'treasury_transaction_id', None) is None and already_linked is None:
         cxc.treasury_transaction_id = bank_tx.id
 
     if order:

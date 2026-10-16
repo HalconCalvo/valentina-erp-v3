@@ -29,6 +29,8 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
   
   // 👇 Estado local para mostrar el texto bonito con comas
   const [displayAmount, setDisplayAmount] = useState('');
+  // H49/H62: until the user types an amount, it is the sum of the chosen invoices' balances
+  const [amountTouched, setAmountTouched] = useState(false);
 
   // Camino A: facturas de CxC pendientes que un ingreso puede afectar (opcional)
   const [pendingInvoices, setPendingInvoices] = useState<any[]>([]);
@@ -48,6 +50,7 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
         deposit_date: getLocalTodayDateKey(),
       });
       setDisplayAmount(''); // Limpiamos la pantalla visual del importe
+      setAmountTouched(false);
       setSelectedCxcId(initialCxcId ?? '');
       setExtraCxcItems([]);
       salesService.getPendingInvoices().then(setPendingInvoices).catch(() => setPendingInvoices([]));
@@ -77,13 +80,18 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
   const sobrante = Math.max(importeCobro - totalAplicado, 0);
   const excedido = totalAplicado > importeCobro + 0.01;
 
-  // H49: choosing an invoice proposes its balance (amount − amortized advance − payments) when no amount was typed
+  // H49/H62: the amount proposes the sum of the chosen invoices' balances (amount − amortized advance − payments)
+  // and follows when invoices are added or removed, until the user types an amount
+  const extrasKey = extraCxcItems.map((i) => `${i.cxc_id}:${i.amount}`).join('|');
   useEffect(() => {
-    if (!selectedInvoice || Number(watchAmount) > 0 || saldoActual <= 0) return;
-    setValue('amount', saldoActual, { shouldValidate: true });
-    setDisplayAmount(new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(saldoActual));
+    if (amountTouched || watchType !== 'IN' || !selectedInvoice) return;
+    const sum = Math.round((saldoActual
+      + extraCxcItems.reduce((acc, item) => acc + (item.cxc_id !== '' ? parseFloat(item.amount) || 0 : 0), 0)) * 100) / 100;
+    if (sum <= 0) return;
+    setValue('amount', sum, { shouldValidate: true });
+    setDisplayAmount(new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(sum));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedInvoice?.cxc_id]);
+  }, [selectedInvoice?.cxc_id, saldoActual, extrasKey, amountTouched, watchType]);
 
   if (!isOpen) return null;
 
@@ -125,7 +133,10 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
       onSuccess();
       onClose();
     } catch (error: any) {
-      toast.error(error?.response?.data?.detail || 'Hubo un error al registrar el movimiento.');
+      // H63: say why (server detail, or the HTTP status when the server gave none)
+      const status = error?.response?.status;
+      toast.error(error?.response?.data?.detail
+        || (status ? `Hubo un error al registrar el movimiento (servidor ${status}).` : 'Hubo un error al registrar el movimiento: sin conexión con el servidor.'));
     }
   };
 
@@ -341,6 +352,7 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
                   placeholder="0.00"
                   value={displayAmount}
                   onChange={(e) => {
+                    setAmountTouched(true);
                     // Limpiamos todo menos números y puntos
                     let raw = e.target.value.replace(/[^0-9.]/g, '');
                     

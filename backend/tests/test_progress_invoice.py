@@ -151,3 +151,31 @@ def test_each_collection_earns_its_commission(client_fixture, session_fixture, a
     assert len(seller) == 1
     assert round(seller[0].base_amount, 2) == round(preview["to_collect"] / 1.16, 2)
     assert round(seller[0].commission_amount, 2) == round(preview["to_collect"] / 1.16 * 0.05, 2)
+
+
+def test_one_deposit_pays_two_progress_invoices(client_fixture, session_fixture, auth_header_director,
+                                                seed_client_and_tax):
+    """H63: one bank deposit split over two progress invoices settles both (it failed on the unique bank link)."""
+    from app.models.sales import CustomerPaymentInstallment
+    from app.models.treasury import BankAccount
+    order, houses = _order_with_paid_advance(client_fixture, session_fixture, auth_header_director, seed_client_and_tax)
+    first = _register(client_fixture, auth_header_director, order.id, houses[:1]).json()["cxc_id"]
+    last = _register(client_fixture, auth_header_director, order.id, houses[1:]).json()["cxc_id"]
+    account = BankAccount(name="Banco H63", account_number="63", current_balance=0.0, initial_balance=0.0)
+    session_fixture.add(account)
+    session_fixture.commit()
+    balances = {r["cxc_id"]: r["saldo"] for r in
+                client_fixture.get(f"{API}/{order.id}/billing_summary", headers=auth_header_director).json()
+                ["invoice_balances"].items() for r in [{"cxc_id": int(r[0]), "saldo": r[1]}]}
+    total = round(balances[first] + balances[last], 2)
+    res = client_fixture.post(f"{settings.API_V1_STR}/treasury/transactions/bulk-cxc", headers=auth_header_director,
+                              json={"account_id": account.id, "amount": total, "reference": "DEP-H63",
+                                    "items": [{"cxc_id": first, "amount": balances[first]},
+                                              {"cxc_id": last, "amount": balances[last]}]})
+    assert res.status_code == 200, res.text
+    session_fixture.expire_all()
+    assert {session_fixture.get(CustomerPayment, i).status for i in (first, last)} == {CXCStatus.PAID}
+    payments = session_fixture.exec(select(CustomerPaymentInstallment).where(
+        CustomerPaymentInstallment.customer_payment_id.in_([first, last]))).all()
+    assert len({p.bank_transaction_id for p in payments}) == 1 and len(payments) == 2
+    assert round(session_fixture.get(BankAccount, account.id).current_balance, 2) == total
