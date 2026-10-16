@@ -1,5 +1,22 @@
 # Tercera ola de la guía de pantallas — revisión (16/10/2026)
 
+> **Ajustada por D42 (16/10, 17:55).** El modelo ahora es Cobranza (/finance/cxc-report) y Antigüedad de saldos
+> (/finance/aging); ver `docs/GUIA_PANTALLAS.md` versión 2, pendiente de aprobación. Cambios en esta lista:
+> - /finance/cxc-report y /finance/aging pasan a **cumplir** (son el modelo). Lo que antes se les marcaba ("Regresar a
+>   Cobranza", ancho completo) ahora es la regla. Cobranza sí tiene vacío y carga en sus tablas.
+> - /director/legacy-import pasa a **no cumplir**: ícono fuera del título; subtítulo de tres frases; "Regresar" sin
+>   destino; botones de acción en una tarjeta del cuerpo con primario índigo relleno; tarjetas teñidas; títulos de
+>   sección en mayúsculas de color entre tablas apiladas; dinero sin alinear a la derecha ni `tabular-nums`; sin
+>   totales; etiquetas `rounded-md bg-X-100` sin borde.
+> - Criterios nuevos que se revisan en cada pantalla al aplicarla: tarjetas blancas con cifra de color (no teñidas),
+>   filtros en tarjeta `rounded-xl p-4`, encabezado de columnas `text-sm` normal, agrupador índigo con subtotal y fila
+>   de totales donde haya dinero, acción de renglón en botón verde `size="sm"` en la última columna, "Regresar a
+>   <origen>" con Actualizar a la derecha. Las 5 pantallas que se daban por cumplidas con observación menor
+>   (/production/ready, /finance/pending-invoices, /director/audit, /ov-tracking, hub de /design) y
+>   /production/in-process se vuelven a revisar contra estos puntos antes de darlas por buenas.
+> - Cuenta nueva: cumplen 2 (cxc-report, aging); por revisar con los criterios nuevos 6; no cumplen 42 (sale aging y
+>   cxc-report, entra legacy-import; las demás siguen igual).
+
 Revisión de solo lectura de todas las rutas contra `docs/GUIA_PANTALLAS.md` y la checklist de CLAUDE.md §3.
 **Nada cambiado todavía.** Con la lista aprobada por Gabriel se aplica pantalla por pantalla en `pruebas`.
 
@@ -59,7 +76,7 @@ Patrón general a corregir: 32 `Modal size="custom"` en 23 archivos; muchos `<bu
 | /treasury → Cuentas por cobrar | `h3` con subtítulo genérico; "Regresar a Tarjetas/Tareas" |
 | /treasury → Gastos operativos | 3 modales custom; 2 textarea |
 | /treasury → Caja chica | 13 botones nativos; fechas `es-MX` |
-| /finance/cxc-report | contenedor sin `max-w-7xl`; "Regresar a Cobranza"; 2 VTable sin vacío ni carga |
+| /director/legacy-import | ver nota D42 arriba (ya no es modelo) |
 | /finance/supplier-payments, /finance/provider-statement | VTable sin vacío ni carga |
 | /director | modal de salud custom con título en mayúsculas; 3 VTable sin vacío |
 | /director/sanitation | contenedor `p-6`; `h1` sin ícono; "Regresar" solo ícono a la izquierda |

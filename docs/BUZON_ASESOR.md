@@ -8,20 +8,6 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Pendientes
 
-- [2026-10-16 15:50] D42 PANTALLAS MODELO PARA LA TERCERA OLA (Gabriel 15:47). Hacer después de D41 y D21.
-  Gabriel vio /director/legacy-import y NO le gusta. Las que SÍ le gustan y quedan como modelo:
-  - Gerencia → CxC → Antigüedad de saldos (/finance/aging, AgingReportPage)
-  - Gerencia → CxC → Cobranza (/finance/cxc-report, CxcReportPage)
-  1. Antes de tocar nada: en "Hechas" describe en lenguaje sencillo qué tienen esas dos que no tiene legacy-import
-     (encabezado, tarjetas, filtros, tabla, agrupado, colores, tamaños, botones), con capturas si puedes.
-  2. Actualiza docs/GUIA_PANTALLAS.md: el modelo son esas dos; todo lo que la guía diga y no coincida con ellas, se ajusta
-     a ellas (lo que Gabriel aprobó es lo que ve, no la guía).
-  3. Ajusta docs/REVISION_PANTALLAS_OLA3.md con el nuevo modelo (puede cambiar qué pantallas cumplen).
-  4. NO apliques la tercera ola: Gabriel aprueba primero la guía actualizada.
-  Lo que a Gabriel le gusta de Cobranza (/finance/cxc-report), 15:49 — son reglas de la guía: los COLORES, la UBICACIÓN de
-  los botones, la CLARIDAD y LÓGICA (orden de la información) y el TAMAÑO DE LETRA. Que la guía los describa con
-  precisión (clases y valores exactos tomados de esa pantalla) para copiarlos igual en las demás.
-
 
 ## Preguntas para el asesor
 
@@ -80,6 +66,48 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   - Agrega a tu reporte final la lista de commits pendientes de prueba en pantalla.
 
 ## Hechas
+
+- [2026-10-16 15:50] D42 PANTALLAS MODELO PARA LA TERCERA OLA (Gabriel 15:47). Hacer después de D41 y D21.
+  Gabriel vio /director/legacy-import y NO le gusta. Las que SÍ le gustan y quedan como modelo:
+  - Gerencia → CxC → Antigüedad de saldos (/finance/aging, AgingReportPage)
+  - Gerencia → CxC → Cobranza (/finance/cxc-report, CxcReportPage)
+  1. Antes de tocar nada: en "Hechas" describe en lenguaje sencillo qué tienen esas dos que no tiene legacy-import
+     (encabezado, tarjetas, filtros, tabla, agrupado, colores, tamaños, botones), con capturas si puedes.
+  2. Actualiza docs/GUIA_PANTALLAS.md: el modelo son esas dos; todo lo que la guía diga y no coincida con ellas, se ajusta
+     a ellas (lo que Gabriel aprobó es lo que ve, no la guía).
+  3. Ajusta docs/REVISION_PANTALLAS_OLA3.md con el nuevo modelo (puede cambiar qué pantallas cumplen).
+  4. NO apliques la tercera ola: Gabriel aprueba primero la guía actualizada.
+  Lo que a Gabriel le gusta de Cobranza (/finance/cxc-report), 15:49 — son reglas de la guía: los COLORES, la UBICACIÓN de
+  los botones, la CLARIDAD y LÓGICA (orden de la información) y el TAMAÑO DE LETRA. Que la guía los describa con
+  precisión (clases y valores exactos tomados de esa pantalla) para copiarlos igual en las demás.
+  HECHO [16/10 17:58, solo documentos; ninguna pantalla tocada]:
+  1. Qué tienen Cobranza y Antigüedad que no tiene legacy-import (capturas en Pruebas, fuera del repo:
+     /private/tmp/claude-501/-Users-gabrielfrias-Proyectos-SGP-V3/638f72ef-dc67-4746-af12-6c131698d812/scratchpad/d42_cobranza.jpg,
+     /private/tmp/claude-501/-Users-gabrielfrias-Proyectos-SGP-V3/638f72ef-dc67-4746-af12-6c131698d812/scratchpad/d42_antiguedad.jpg,
+     /private/tmp/claude-501/-Users-gabrielfrias-Proyectos-SGP-V3/638f72ef-dc67-4746-af12-6c131698d812/scratchpad/d42_legacy_import.jpg):
+     - Encabezado: el ícono va pegado al título; abajo, UNA línea que dice qué muestra; a la derecha, botones blancos
+       con contorno "Actualizar" y "Regresar a Cobranza" (dice a dónde regresa). Legacy-import: ícono suelto a la
+       izquierda, un párrafo de tres frases y "Regresar" abajo a la izquierda sin decir a dónde.
+     - Tarjetas: blancas con borde gris; la etiqueta pequeña en gris y SOLO la cifra en color (morado conteo, negro
+       total, verde abonado, naranja por cobrar). Legacy-import pinta toda la tarjeta de color.
+     - Filtros: en su propia tarjeta, cuatro en fila (Cliente, Tipo, Desde, Hasta) con etiquetas pequeñas en
+       mayúsculas, y abajo las casillas (Incluir pagadas, Ver solo canceladas). Legacy-import no tiene.
+     - Tabla: una sola, con encabezado fijo al bajar; agrupada por cliente en una franja morada clara con "Debe: $…"
+       a la derecha; dinero alineado a la derecha y en columna; abonado en verde, notas de crédito en rojo,
+       antigüedad en naranja si pasa de 30 días; fila de totales gris al final. Legacy-import apila varias tablas con
+       títulos en mayúsculas de colores, sin agrupar, sin totales y con el dinero sin alinear.
+     - Botones: arriba a la derecha solo los de la pantalla (contorno); en cada renglón, al final, un botón verde
+       chico con el verbo ("Cobrar", "Abrir / Pagar"). Legacy-import pone sus botones en una tarjeta del cuerpo y
+       el principal relleno morado.
+     - Tamaños: título grande (3xl), cifras 2xl, tabla y botones en letra normal (sm, no mayúsculas), detalles xs,
+       etiquetas de estado 10 px.
+  2. docs/GUIA_PANTALLAS.md reescrita como versión 2 (pendiente de aprobación): modelo Cobranza y Antigüedad, con las
+     clases exactas de colores, ubicación de botones, orden de la información y tamaños de letra; donde difieren
+     manda Cobranza. Al final, qué cambió frente a la versión 1 y 2 decisiones para Gabriel (verde de Antigüedad;
+     ancho completo o max-w-7xl).
+  3. docs/REVISION_PANTALLAS_OLA3.md ajustada: cumplen cxc-report y aging; legacy-import ya no cumple; 6 por
+     revisar con los criterios nuevos; 42 no cumplen.
+  4. Tercera ola NO aplicada: espera la aprobación de la guía.
 
 - [2026-10-16 15:45] D21 APROBADA (Gabriel 15:43): construir la ruta "Lo pone el cliente" con el material "PIEDRA DEL CLIENTE"
   (m², costo $0 fijo, sin compra, sin existencia, sin faltante en Simulador, sin descarga; sí lote de piedra, carril,

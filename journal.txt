@@ -5059,3 +5059,8 @@ PENDIENTE PARA CERRAR EL ENSAYO:
   corrección de receta, cambio de ruta). Simulador: `client_supplied`, nunca faltante. Reservas/descarga ya la excluían.
 - Lección: una revisión "c8d9e0f1a2b3" ya existía en otro archivo (alembic: ciclo); usar ids aleatorios.
 - Lección: al revisar en pantalla, esperar a que cargue antes de leer (dije que no había nada por pagar y sí había).
+
+### D42 (16/10 17:58, solo documentos)
+- GUIA_PANTALLAS.md versión 2: modelo Cobranza (/finance/cxc-report) y Antigüedad (/finance/aging), clases exactas;
+  donde difieren manda Cobranza. Legacy-import deja de ser modelo. REVISION_PANTALLAS_OLA3.md ajustada.
+- Pendiente: aprobación de Gabriel (verde de Antigüedad, ancho del contenedor). Tercera ola sin aplicar.
