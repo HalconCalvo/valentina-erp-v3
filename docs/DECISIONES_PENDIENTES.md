@@ -41,17 +41,6 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 - **Reversible:** sí (aplicada A).
 - **Estado:** aprobada (2026-10-12, A).
 
-### D21. Casas que solo llevan instalación (sin muebles ni piedra que fabricar) — 2026-10-12 — ROADMAP tarea 10
-- **Contexto:** con D19, las 4 recetas de Nadira (#197, #201, #202, #231) ya piden el carril de piedra, pero solo llevan
-  procesos: no entran a ningún lote, así que la casa nunca pasa a "Lista para instalarse" ni se puede cargar, y la
-  cuadrilla no llega a la firma.
-- **Opciones:** A) un camino "solo instalación": Planeación programa y asigna; la casa sin nada que fabricar queda lista
-  para instalarse sola y el carril se marca "en obra" sin escaneo de carga. B) que Diseño agregue la piedra (si se
-  maquila en fábrica) para que entre a un lote de piedra. C) dejarlas fuera del sistema de instalación.
-- **Recomendación:** A, salvo que la piedra pase por la fábrica (entonces B).
-- **Reversible:** sí. No aplicada (cambia la regla de carga, D17).
-- **Estado:** pendiente
-
 ### D23. Plan de la base de Valentina Pruebas en Render — 2026-10-12 — ROADMAP tarea 13
 - **Contexto:** la base de PostgreSQL gratuita de Render vence a los 30 días; Pruebas se quiere permanente.
 - **Opciones:** A) el plan de pago más chico (permanente). B) gratuita y recrearla cada mes con el script de copia.
@@ -67,6 +56,30 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 - **Estado:** pendiente (sin aplicar)
 
 ## Resueltas
+
+### D21. Casas que solo llevan instalación (sin muebles ni piedra que fabricar) — 2026-10-12 — ROADMAP tarea 10
+- **Contexto:** con D19, las 4 recetas de Nadira (#197, #201, #202, #231) ya piden el carril de piedra, pero solo llevan
+  procesos: no entran a ningún lote, así que la casa nunca pasa a "Lista para instalarse" ni se puede cargar, y la
+  cuadrilla no llega a la firma.
+- **Opciones:** A) un camino "solo instalación": Planeación programa y asigna; la casa sin nada que fabricar queda lista
+  para instalarse sola y el carril se marca "en obra" sin escaneo de carga. B) que Diseño agregue la piedra (si se
+  maquila en fábrica) para que entre a un lote de piedra. C) dejarlas fuera del sistema de instalación.
+- **Recomendación:** A, salvo que la piedra pase por la fábrica (entonces B).
+- **Reversible:** sí. No aplicada (cambia la regla de carga, D17).
+- **Decisión (Gabriel 15:21):** en las 4 recetas Nadira 33 (VEINTE VEINTITRES CONSTRUCTORA) la piedra la pone el cliente.
+- **Propuesta (Claude, 15:31; sin aplicar):** las recetas ya traen MAQGRANITO (la piedra sí pasa por la fábrica) e
+  INSTALAGRANITO, así que no hace falta el camino "solo instalación" (opción A original). Se modela como material:
+  1. Ruta nueva **CLIENTE ("Lo pone el cliente")** junto a MATERIAL / PROCESO / CONSUMIBLE / SERVICIO. Como no es
+     MATERIAL, ya hoy no lleva existencia, conteo, valuación ni reservas.
+  2. Material de catálogo "PIEDRA DEL CLIENTE" (categoría de piedra, unidad m²), costo fijo $0 y bloqueado: no entra al
+     Simulador como faltante, ni a requisiciones, OC, recepción o descarga de almacén.
+  3. Al ser categoría de piedra, la receta queda con piedra: la casa entra a un lote de piedra (MAQGRANITO en fábrica),
+     tiene carril PP/IP, etiquetas, manifiesto e INSTALAGRANITO con su nómina, como cualquier piedra.
+  4. En lote, manifiesto y Piso de Producción se muestra "Piedra del cliente" para que nadie la busque en almacén.
+  5. Recetas ya vendidas (#197, #201, #202, #231): son inmutables. Con visto bueno de Gabriel, Dirección clona cada una
+     agregando "PIEDRA DEL CLIENTE" (m² por casa, los da Diseño) y la OV se liga a la versión nueva con motivo; sin costo,
+     así que no cambia precio ni margen. Sin visto bueno no se toca nada.
+- **Estado:** RESUELTA (falta el visto bueno de Gabriel para construir la ruta CLIENTE y clonar las 4 recetas).
 
 ### D40. Efectivo Dirección y pago dividido — 2026-10-16 — buzón del asesor (Gabriel 14:20–14:25)
 - **Decisión:** tercer medio "Efectivo Dirección" (solo DIRECTOR, sin movimiento, con bitácora) en comisiones y nómina

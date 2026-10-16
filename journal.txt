@@ -5033,3 +5033,8 @@ PENDIENTE PARA CERRAR EL ENSAYO:
 - D39 (a6b7c8d9e0f1): toda comisión no pagada → OUTSIDE "Pagada fuera de Valentina", con bitácora; respeta OBRA PILOTO.
   Pruebas y producción hoy: 55 por $185,383.50 (incluye 37 de Dirección global; preguntado a Gabriel).
 - Lección: en zsh `$c` con espacios no se divide en palabras; un for con "upgrade head" falla en silencio.
+
+### Buzón 15:25 (16/10, solo documentos):
+- D21 resuelta por Gabriel (piedra del cliente en Nadira 33): propuesta ruta CLIENTE + "PIEDRA DEL CLIENTE" a $0; sin aplicar.
+- Tercera ola de la guía: docs/REVISION_PANTALLAS_OLA3.md (42 de 50 pantallas no cumplen). Requisito antes de `main`;
+  espera aprobación de la lista.

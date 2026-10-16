@@ -8,6 +8,15 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Pendientes
 
+- [2026-10-16 15:32] AUDITORÍA DEL ROL GERENCIA (Karina, contabilidad@incamex.com) — SOLO LECTURA, sin cambiar nada.
+  Contexto (Gabriel 15:25): Alejandrina García (rol DIRECTOR) maneja Bancos: registra cobros y pagos. Karina (Gerencia)
+  por ahora NO debe operar Bancos; más adelante sí. Karina sí registra facturas (anticipo y avances).
+  Entrega en "Hechas" una tabla: pantalla/acción → ¿lo puede ver MANAGER? → ¿lo puede hacer MANAGER? (frontend Y backend),
+  para: 2. Bancos (saldos y movimientos), Registrar Ingreso/cobros, abonos desde la OV, pagos a proveedores, Caja chica,
+  Nómina de cuadrillas (Pagar), Comisiones (Pagar), Pendiente de Facturar (registrar facturas), conciliación, cancelar
+  movimientos. Confirma también el rol real de contabilidad@incamex.com y de Alejandrina en la BD de Pruebas.
+  Con la tabla, Gabriel decide qué se le cierra a MANAGER (D41). Hazlo antes que D21 y la tercera ola.
+
 ## Preguntas para el asesor
 
 - [2026-10-15 12:40] D35 (de H46). En Pendiente de Facturar el total suma anticipos con IVA y avances de obra sin
@@ -54,6 +63,29 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   - Agrega a tu reporte final la lista de commits pendientes de prueba en pantalla.
 
 ## Hechas
+
+- [2026-10-16 15:25] PARA DESPUÉS DE D40/H70/AYUDA (no urgente).
+  A. D21 RESUELTA (Gabriel 15:21): en las recetas Nadira 33 de VEINTE VEINTITRES CONSTRUCTORA (#197 COCINA NADIRA GRANITO,
+     #201, #202, #231) la PIEDRA LA PUSO EL CLIENTE. Propón cómo modelar "material que pone el cliente": no se compra, no
+     tiene costo para Koloka, no exige existencia en el Simulador ni descarga de almacén, pero sí lleva carril de piedra
+     para producción/instalación (INSTALAGRANITO y su nómina). Pasa D21 a Resueltas con tu propuesta; no cambies recetas
+     ya vendidas sin visto bueno.
+  B. TERCERA OLA DE LA GUÍA DE PANTALLAS (Gabriel 15:21: "unificar todas las pantallas con un solo diseño" es requisito
+     antes de pasar a `main`). Revisa TODAS las rutas contra docs/GUIA_PANTALLAS.md y entrega primero (sin cambiar código)
+     una lista: pantalla → qué no cumple. Vistas en el ensayo que no cumplen: Compras (Nueva Solicitud, Mesa de Control /
+     Freno, Centro de Despacho en mayúsculas y otro estilo), Andén de Descarga y su recepción, Piso de Producción
+     (encabezado distinto), Centro de impresión, Campo (celular), Nómina de Gerencia ("5. Nómina" con "Use «Regresar»…").
+     Con la lista aprobada por Gabriel se aplica pantalla por pantalla en `pruebas`.
+  HECHO [16/10 15:31] (solo documentos, sin código):
+  A. D21 pasada a Resueltas con la propuesta: ruta nueva CLIENTE + material "PIEDRA DEL CLIENTE" (categoría piedra, m²,
+     costo $0 bloqueado; sin compra, existencia, Simulador ni descarga). Las recetas Nadira ya llevan MAQGRANITO e
+     INSTALAGRANITO, así que con esa línea entran a lote de piedra, carril PP/IP, manifiesto y nómina como cualquier piedra.
+     Las 4 recetas vendidas solo se clonan con visto bueno de Gabriel (y los m² por casa de Diseño). Nada aplicado.
+  B. Lista completa en docs/REVISION_PANTALLAS_OLA3.md: 50 pantallas revisadas; 2 cumplen, 6 con observación menor,
+     42 no cumplen. Las del ensayo están confirmadas (Compras en mayúsculas y otro estilo, Andén y su recepción, Piso de
+     Producción, Centro de impresión, Campo, Gerencia con "Use «Regresar»…"). Propongo empezar por los componentes base
+     (Modal sin "custom", VTable con vacío y carga, encabezado y "Regresar" de los hubs) y luego las pantallas del ensayo.
+     Espera aprobación de Gabriel para empezar.
 
 - [2026-10-16 14:22] D40 MEDIO DE PAGO "EFECTIVO DIRECCIÓN" PARA COMISIONES (Gabriel 14:20). Hacer antes que D39/H70 y la ayuda.
   Gabriel paga las comisiones en efectivo desde una caja propia fuera de registro; hoy "Efectivo" usa Caja chica y marca
