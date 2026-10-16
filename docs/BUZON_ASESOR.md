@@ -8,15 +8,6 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Pendientes
 
-- [2026-10-16 10:08] MÁS DEL ENSAYO (Piloto 2 y 3). Confirmado OK: H31, H32, H35, H56 (códigos 431c966e Piloto 2), carga de 4 carriles.
-  H60 (PRIORIDAD). Campo, pestaña Firma (Piloto 2/3, iPhone, David): después de "Confirmar firma" la pantalla no cambia y
-       se puede seguir dando "Confirmar firma" indefinidamente; igual con "Sincronizar": no hay aviso de éxito/error ni
-       cambio de estado. Debe: deshabilitar el botón mientras guarda; al guardar mostrar "Firma guardada" (local) y al
-       sincronizar "Sincronizado ✓" o el error; reemplazar el lienzo por "Firmado: fecha hora" como en Piloto 1;
-       nunca registrar dos firmas. Revisa en la BD de Pruebas (solo lectura) si quedaron firmas duplicadas en Piloto 2/3.
-  H58. Manifiesto de Piedra: mostrar el código corto ("Código: 431c966e") además del UUID largo.
-  H59. Campo inicio: el botón "Carga del camión" debe decir cuántas cargas faltan (o verse apagado si no hay).
-
 ## Preguntas para el asesor
 
 - [2026-10-15 12:40] D35 (de H46). En Pendiente de Facturar el total suma anticipos con IVA y avances de obra sin
@@ -63,6 +54,53 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   - Agrega a tu reporte final la lista de commits pendientes de prueba en pantalla.
 
 ## Hechas
+
+- [2026-10-16 10:18] URGENTE H63 + H49/H62 (Tesorería → Registrar Ingreso con dos facturas). Gabriel salió ~2 h.
+  Contexto: OV-0157 facturada completa. F-Piloto2-01 ($18,411.01, amortiza $11,046.61, saldo $7,364.40) y
+  F-Piloto3-01 ($18,411.01, última casa, amortiza $11,046.60, saldo $7,364.41) — D36 confirmado al centavo en pantalla.
+  H63. Un solo depósito de $14,728.81 (Santander) aplicado a las dos facturas (F-Piloto2-01 → $0.00 saldada; abono
+       $7,364.41 a F-Piloto3-01; "Depósito aplicado al 100%") → al dar "Registrar Ingreso": "Hubo un error al registrar
+       el movimiento". Reproduce (logs de valentina-pruebas-api, hora ~10:15 Mérida), corrige y confirma en la BD de
+       Pruebas (solo lectura) que NO quedó nada a medias (ingreso sin aplicar, una factura pagada y la otra no). El
+       aviso debe mostrar la causa. NO registres el cobro tú: lo hace Gabriel al regresar.
+  H49 (no quedó): al elegir la primera factura el importe se queda en 0.00.
+  H62. Al "Agregar factura" el importe toma el saldo de una sola factura; debe ser la suma de los saldos elegidos
+       ($14,728.81) y actualizarse al quitar/agregar.
+  Después, en orden: H60 (Campo firma/sincronizar sin aviso; revisar firmas duplicadas en Piloto 2/3), H57 si no está,
+  H52–H55, H58, H59. Trabajar en `pruebas`; avisar en "Hechas" con lo que Gabriel debe probar al volver.
+
+- [2026-10-16 10:08] MÁS DEL ENSAYO (Piloto 2 y 3). Confirmado OK: H31, H32, H35, H56 (códigos 431c966e Piloto 2), carga de 4 carriles.
+  H60 (PRIORIDAD). Campo, pestaña Firma (Piloto 2/3, iPhone, David): después de "Confirmar firma" la pantalla no cambia y
+       se puede seguir dando "Confirmar firma" indefinidamente; igual con "Sincronizar": no hay aviso de éxito/error ni
+       cambio de estado. Debe: deshabilitar el botón mientras guarda; al guardar mostrar "Firma guardada" (local) y al
+       sincronizar "Sincronizado ✓" o el error; reemplazar el lienzo por "Firmado: fecha hora" como en Piloto 1;
+       nunca registrar dos firmas. Revisa en la BD de Pruebas (solo lectura) si quedaron firmas duplicadas en Piloto 2/3.
+  H58. Manifiesto de Piedra: mostrar el código corto ("Código: 431c966e") además del UUID largo.
+  H59. Campo inicio: el botón "Carga del camión" debe decir cuántas cargas faltan (o verse apagado si no hay).
+  HECHO [16/10 10:23] en `pruebas`, sin tocar `main` (e7dea28 H63/H62/H49; 72cc4f0 H58–H60; 657cbd1 H57; edde989 H52–H55):
+  - H63, causa: en la base cada factura liga UN movimiento bancario (campo único). Un depósito repartido en dos facturas
+    intentaba ligar el mismo movimiento a las dos → error 500, sin detalle. Reproducido en test. Ahora la primera
+    factura queda ligada y cada abono guarda su movimiento bancario; un solo movimiento de $14,728.81.
+    BD de Pruebas (solo lectura): NO quedó nada a medias. No hay movimiento bancario nuevo, ni abonos; F-Piloto2-01 y
+    F-Piloto3-01 siguen PENDIENTES; saldo de OV-0157 $14,728.81. El aviso ahora muestra la causa (o el código del servidor).
+  - H49/H62: el importe del ingreso es la suma de los saldos de las facturas elegidas y se actualiza al agregar/quitar
+    (hasta que se escriba un importe a mano).
+  - H60: en Pruebas NO hay firmas duplicadas: Piloto 2 y 3 tienen una firma cada una (16:01/16:02 UTC) y 4 pagos de nómina
+    por casa, sin repetidos (el servidor ya cerraba la casa una vez). Ahora además: el servidor ignora una segunda firma
+    y el endpoint directo la rechaza; "Confirmar firma" cambia el lienzo por "Firma guardada en el teléfono. Falta
+    Sincronizar" con la imagen y "Volver a firmar"; "Sincronizar" muestra en pantalla "Sincronizando…", "Sincronizado ✓
+    hh:mm" o el error, y no se puede tocar dos veces. Firmada: "Firmado: fecha hora" (como Piloto 1).
+  - H58: el manifiesto de piedra dice "Código: 431c966e" debajo del QR.
+  - H59: Campo inicio: "Carga del camión · N por cargar", o gris "sin cargas pendientes".
+  - H57 y H52–H55: ya hechos (ver abajo).
+  - Tests backend 357, frontend 43, build OK. Nada probado en pantalla (Chrome no conectado).
+  QUÉ PROBAR AL VOLVER (Gabriel):
+  1. Tesorería → Registrar Ingreso: elegir F-Piloto2-01 (importe $7,364.40), "Agregar factura" F-Piloto3-01 (importe
+     $14,728.81) → Registrar. Esperado: ambas PAGADAS, un movimiento de $14,728.81, OV-0157 "Falta cobrar" $0.00 y
+     comisiones de $317.43 por casa (total vendedor $2,380.73).
+  2. Campo (iPhone) en una casa por firmar: Confirmar firma → Sincronizar; ver los avisos en pantalla.
+  3. Empaque piedra (un botón), Centro de Impresión (columna Impresión), calendario (PM/PP en fecha real),
+     "Piedra: lista", manifiesto con código corto, botón de Carga con el número.
 
 - [2026-10-16 09:42, parte 2] H52–H55 (del mismo ensayo). HECHO [16/10 10:09] en `pruebas` (edde989), sin tocar `main`:
   - H52: en Empaque, piedra lleva un solo botón "🪨 Declarar y solicitar manifiesto" (se quitó "Declarar" suelto).
