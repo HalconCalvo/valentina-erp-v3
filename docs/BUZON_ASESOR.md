@@ -8,17 +8,6 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Pendientes
 
-- [2026-10-16 11:26] COMISIONES EN TESORERÍA → 5. NÓMINA → COMISIONES (Gabriel, Pruebas). Hacer después de 11:22 y antes de D38.
-  Hoy "B. Por pagar" muestra 3 renglones de OV-0157 de $317.43 (total $952.29) con solo "Rayos X" y "Diferir/Omitir".
-  H67. Falta la comisión del ANTICIPO ($1,428.44, A-PILOTO-1) en "Por pagar" (¿quedó en "A. Retenidas"?). Toda comisión
-       ya cobrada debe estar en Por pagar, aunque la OV esté cerrada.
-  H68. Pagar DESDE esta lista (no obligar a buscar la OV, que ya está en Cerradas): botón "Pagar" por renglón con la misma
-       confirmación de H65/D37 (vendedor, factura, cobrado sin IVA, % de la OV, monto, Banco o Efectivo) y
-       "Pagar todo a <asesor>" como H66. "Rayos X" se queda solo para consultar.
-  H69. La referencia dice "Cobro #85 liquidado": mostrar el folio de la factura y su tipo (p. ej. "F-Piloto1-01 · Avance",
-       "A-PILOTO-1 · Anticipo") y la casa.
-  En la ayuda v2 (D38), sección /treasury "Pagar comisiones": que diga Tesorería → 5. Nómina → Comisiones → Por pagar.
-
 ## Preguntas para el asesor
 
 - [2026-10-15 12:40] D35 (de H46). En Pendiente de Facturar el total suma anticipos con IVA y avances de obra sin
@@ -65,6 +54,27 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   - Agrega a tu reporte final la lista de commits pendientes de prueba en pantalla.
 
 ## Hechas
+
+- [2026-10-16 11:26] COMISIONES EN TESORERÍA → 5. NÓMINA → COMISIONES (Gabriel, Pruebas). Hacer después de 11:22 y antes de D38.
+  Hoy "B. Por pagar" muestra 3 renglones de OV-0157 de $317.43 (total $952.29) con solo "Rayos X" y "Diferir/Omitir".
+  H67. Falta la comisión del ANTICIPO ($1,428.44, A-PILOTO-1) en "Por pagar" (¿quedó en "A. Retenidas"?). Toda comisión
+       ya cobrada debe estar en Por pagar, aunque la OV esté cerrada.
+  H68. Pagar DESDE esta lista (no obligar a buscar la OV, que ya está en Cerradas): botón "Pagar" por renglón con la misma
+       confirmación de H65/D37 (vendedor, factura, cobrado sin IVA, % de la OV, monto, Banco o Efectivo) y
+       "Pagar todo a <asesor>" como H66. "Rayos X" se queda solo para consultar.
+  H69. La referencia dice "Cobro #85 liquidado": mostrar el folio de la factura y su tipo (p. ej. "F-Piloto1-01 · Avance",
+       "A-PILOTO-1 · Anticipo") y la casa.
+  En la ayuda v2 (D38), sección /treasury "Pagar comisiones": que diga Tesorería → 5. Nómina → Comisiones → Por pagar.
+  HECHO [16/10 11:31] en `pruebas`, sin tocar `main`:
+  - H67: sí, la comisión del anticipo estaba en "A. Retenidas": se creó el 14/10 marcada "no liberada" (antes solo se
+    liberaban las de avance). Ahora toda comisión de anticipo cobrado va a "Por pagar", con la OV cerrada o no. En
+    Pruebas aparecen 4: anticipo $1,428.44 + 3 × $317.43 (incluye la de F-Piloto2-01 regresada a por pagar a las 11:21).
+  - H68: botón "Pagar" por renglón con la confirmación de H65/D37 (vendedor, factura, cobrado sin IVA, % de la OV,
+    monto, Banco o Efectivo) y "Pagar todo a <asesor> (N · total)" con UN movimiento. "Rayos X" queda para consultar.
+  - H69: la referencia dice "A-PILOTO-1 · Anticipo", "F-Piloto1-01 · Avance · <casa>" (antes "Cobro #85 liquidado").
+  - Ayuda /treasury "Pagar comisiones": Tesorería → 5. Nómina → Comisiones → Por pagar (y también desde la OV).
+  - Tests backend 360 (1 nuevo), frontend 46, build OK. Sin migración. Sin prueba en pantalla.
+  Recordatorio: caja chica de Pruebas $164.57 (Efectivo no alcanza para $2,380.73 sin reposición).
 
 - [2026-10-16 11:20] AYUDA "?" VERSIÓN 2 + BUSCADOR (D38, aprobado por Gabriel 11:18). Hacer DESPUÉS de H65/D37/H66/H64.
   1. Textos: reemplaza frontend/src/help/ayuda.md por docs/AYUDA_PROPUESTA_ASESOR.md (versión 2 del asesor, revisada por

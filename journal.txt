@@ -5010,3 +5010,5 @@ PENDIENTE PARA CERRAR EL ENSAYO:
   Lección: un botón que paga dinero siempre muestra monto, medio y crea el movimiento; "marcar pagado" no existe.
 - Buzón 11:22: comisión 65 de Pruebas regresada a por pagar con audit_reason (bitácora). D38: ayuda v2 y buscador por
   rol (lib/routeAccess.ts = permisos de rutas, una sola fuente con el menú); "Claves:" bajo cada ### en ayuda.md.
+- H67–H69: comisiones de anticipo cobrado = por pagar (repo: is_released OR is_advance); pay_commissions (varias, un
+  movimiento) y botones en Nómina → Comisiones; referencia folio · tipo · casa.
