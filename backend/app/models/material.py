@@ -12,6 +12,7 @@ class ProductionRoute(str, Enum):
     PROCESO = "PROCESO"
     CONSUMIBLE = "CONSUMIBLE"
     SERVICIO = "SERVICIO"
+    CLIENTE = "CLIENTE"  # D21: the client supplies it (e.g. PIEDRA DEL CLIENTE): never bought, $0, no stock
 
 
 # Only MATERIAL holds stock: it is counted, valued and reserved by production. PROCESO (maquila,
@@ -22,6 +23,12 @@ STOCK_ROUTE = ProductionRoute.MATERIAL
 def holds_stock(material) -> bool:
     route = getattr(material, "production_route", None)
     return str(route.value if hasattr(route, "value") else route or "MATERIAL").upper() == STOCK_ROUTE.value
+
+
+def is_client_supplied(material) -> bool:
+    """D21: route CLIENTE ("Lo pone el cliente"): no purchase, no stock, no shortage, cost fixed at $0."""
+    route = getattr(material, "production_route", None)
+    return str(route.value if hasattr(route, "value") else route or "").upper() == ProductionRoute.CLIENTE.value
 
 
 def to_usage_units(material, purchase_quantity: float) -> float:

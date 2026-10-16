@@ -870,7 +870,7 @@ async def import_materials_csv(
     material_map = {m.sku: m for m in existing_materials}
 
     new_materials_to_create = []
-    valid_routes = ["MATERIAL", "PROCESO", "CONSUMIBLE", "SERVICIO"]
+    valid_routes = ["MATERIAL", "PROCESO", "CONSUMIBLE", "SERVICIO", "CLIENTE"]
 
     # =========================================================
     # FASE 4: Cruce de datos en la memoria RAM (Milisegundos)

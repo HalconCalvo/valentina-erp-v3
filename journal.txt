@@ -5052,3 +5052,10 @@ PENDIENTE PARA CERRAR EL ENSAYO:
 - `can_execute_payments` = solo DIRECTOR (el interruptor `manager_can_execute_payments` ya no abre nada; se quitó de
   Configuración, el campo queda). Nómina y comisiones: botones "Pagar" ocultos a Gerencia. Autorizar pagos a proveedor:
   solo DIRECTOR.
+
+### D21 (16/10 17:35, rama pruebas): ruta CLIENTE "Lo pone el cliente"
+- Enum productionroute + CLIENTE y material PIEDRA-CLIENTE (Piedra, m², $0) en migración 5cd6e914c375; downgrade
+  reconstruye el enum. `is_client_supplied()`; guardas en requisición, OC (bulk-emit y manual), costo $0 (catálogo,
+  corrección de receta, cambio de ruta). Simulador: `client_supplied`, nunca faltante. Reservas/descarga ya la excluían.
+- Lección: una revisión "c8d9e0f1a2b3" ya existía en otro archivo (alembic: ciclo); usar ids aleatorios.
+- Lección: al revisar en pantalla, esperar a que cargue antes de leer (dije que no había nada por pagar y sí había).

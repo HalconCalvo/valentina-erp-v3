@@ -346,7 +346,8 @@ export default function SimulatorPage() {
         <div className="flex justify-center">
           {mat.status_color === 'RED' && <span className="bg-red-100 text-red-700 text-[10px] font-bold px-2 py-1 rounded border border-red-200 shadow-sm">FALTANTE CRÍTICO</span>}
           {mat.status_color === 'YELLOW' && <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-1 rounded border border-amber-200 shadow-sm">FALTANTE MENOR</span>}
-          {mat.status_color === 'GREEN' && <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-1 rounded border border-emerald-200 shadow-sm">SUFICIENTE</span>}
+          {mat.client_supplied && <span className="bg-sky-100 text-sky-700 text-[10px] font-bold px-2 py-1 rounded border border-sky-200 shadow-sm">LO PONE EL CLIENTE</span>}
+          {mat.status_color === 'GREEN' && !mat.client_supplied && <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-1 rounded border border-emerald-200 shadow-sm">SUFICIENTE</span>}
         </div>
       ),
     },

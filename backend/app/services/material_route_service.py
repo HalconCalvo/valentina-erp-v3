@@ -105,6 +105,8 @@ def change_route(session: Session, material_id: int, data: MaterialRouteUpdate, 
         if holds_stock(material) and new_route != ProductionRoute.MATERIAL:
             _send_stock_to_expense(session, material, reason, user)
         material.production_route = new_route
+        if new_route == ProductionRoute.CLIENTE:
+            material.current_cost = 0.0  # D21: client-supplied costs $0
         session.add(material)
         session.commit()
     session.refresh(material)

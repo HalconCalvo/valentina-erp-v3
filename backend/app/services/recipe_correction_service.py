@@ -14,7 +14,7 @@ from app.models.sales import Quotation
 from app.models.users import User
 from app.repositories import design_repository as design_repo
 from app.schemas.quotation_schema import QuotationAuthorize, RecipeCorrection
-from app.services import design_version_service
+from app.services import design_version_service, material_service
 
 
 def _clean(reason: str) -> str:
@@ -30,6 +30,7 @@ def _apply_prices(session: Session, data: QuotationAuthorize, label: str) -> int
         material = materials.get(price.material_id)
         if not material:
             raise HTTPException(status_code=404, detail=f"Material {price.material_id} no encontrado.")
+        material_service.assert_client_cost(material, price.current_cost)
         with audit_reason(f"{label}: {_clean(price.reason)}"):
             material.current_cost = round(float(price.current_cost), 4)
             session.add(material)

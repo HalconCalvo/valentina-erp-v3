@@ -13,7 +13,7 @@ from app.models.finance import PurchaseInvoice
 from app.models.users import UserRole
 from app.core.deps import get_session, CurrentUser
 from app.services.purchase_manager import PurchaseManager
-from app.services import payable_service, purchase_service
+from app.services import material_service, payable_service, purchase_service
 from app.services.pdf_generator import PDFGenerator
 from app.services.email_service import send_purchase_order_email
 from app.services.inventory_manager import registrar_movimiento_inventario
@@ -141,6 +141,8 @@ def emit_bulk_purchase_order(*, db: Session = Depends(get_session), data: POCrea
 
     total_amount = 0.0
     for item in data.items:
+        if item.get("material_id"):
+            material_service.assert_purchasable(db.get(Material, item.get("material_id")))
         po_item = PurchaseOrderItem(
             purchase_order_id=po.id,
             material_id=item.get("material_id"),
@@ -317,6 +319,7 @@ def create_manual_order(
                     status_code=400,
                     detail=f"El material '{item_in.sku or item_in.name}' no existe en el catálogo. Debe darse de alta antes de crear la orden."
                 )
+            material_service.assert_purchasable(material)
 
             po_item = PurchaseOrderItem(
                 purchase_order_id=new_order.id,

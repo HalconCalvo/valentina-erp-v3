@@ -23,6 +23,7 @@ const ROUTES = [
     { value: 'PROCESO', label: 'PROCESO (Interno)' },
     { value: 'CONSUMIBLE', label: 'CONSUMIBLE (Gasto)' },
     { value: 'SERVICIO', label: 'SERVICIO (Externo)' },
+    { value: 'CLIENTE', label: 'CLIENTE (Lo pone el cliente, $0)' },
 ];
 
 const emptyForm = (initialSku = '', initialProviderId = 0) => ({

@@ -10,7 +10,7 @@ from app.models.finance import InvoiceStatus, PaymentStatus, PurchaseInvoice, Pu
 
 AccountsPayable = SupplierPayment.AccountsPayable
 from app.models.foundations import Provider
-from app.models.material import holds_stock
+from app.models.material import Material, holds_stock
 from app.models.inventory import PurchaseOrder, PurchaseOrderItem, PurchaseRequisition
 from app.repositories import purchase_repository as purchase_repo
 from app.schemas.finance_schema import (
@@ -28,7 +28,7 @@ from app.schemas.inventory_schema import (
 from app.schemas.treasury_schema import OperationalExpenseCreate
 from app.services.purchase_manager import PurchaseManager
 from app.core.business_time import effective_datetime_for, today_local
-from app.services import inventory_service
+from app.services import inventory_service, material_service
 
 OVERHEAD_CATEGORIES = [
     "MATERIALES", "PLANTA", "COMUNICACIONES", "COMBUSTIBLES", "TRANSPORTE",
@@ -502,6 +502,8 @@ def _require_roles(current_user, roles: list[str]) -> None:
 def create_requisition(db: Session, req_in: RequisitionCreate) -> PurchaseRequisition:
     if not req_in.material_id and not req_in.custom_description:
         raise HTTPException(status_code=400, detail="Debe indicar un material o una descripción.")
+    if req_in.material_id:
+        material_service.assert_purchasable(db.get(Material, req_in.material_id))
     if req_in.sales_order_id and not purchase_repo.get_active_sales_order(db, req_in.sales_order_id):
         raise HTTPException(status_code=400, detail="La OV no existe o está cancelada.")
     requisition = PurchaseRequisition(

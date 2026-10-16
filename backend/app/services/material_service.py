@@ -10,11 +10,24 @@ from sqlmodel import Session
 
 from app.core.audit_context import audit_reason
 from app.core.permissions import require_roles, role_of
-from app.models.material import Material
+from app.models.material import Material, is_client_supplied
 
 CATALOG_ROLES = {"DIRECTOR", "MANAGER", "ADMIN", "WAREHOUSE", "DESIGN"}
 PRICE_ROLES = {"DIRECTOR", "MANAGER", "ADMIN"}
 PRICE_FIELDS = ("current_cost", "conversion_factor")
+CLIENT_NOT_PURCHASABLE = "Lo pone el cliente: no se compra ni se pide a Compras (D21)."
+CLIENT_COST_FIXED = "Lo pone el cliente: su costo es $0 fijo (D21)."
+
+
+def assert_purchasable(material: Optional[Material]) -> None:
+    """D21: a client-supplied material never goes to requisitions or purchase orders."""
+    if material is not None and is_client_supplied(material):
+        raise HTTPException(status_code=409, detail=f"{material.name}: {CLIENT_NOT_PURCHASABLE}")
+
+
+def assert_client_cost(material: Material, cost) -> None:
+    if is_client_supplied(material) and float(cost or 0) != 0:
+        raise HTTPException(status_code=409, detail=f"{material.name}: {CLIENT_COST_FIXED}")
 
 
 def can_change_price(user) -> bool:
@@ -37,6 +50,7 @@ def _changes_price(current: Material, data: dict) -> bool:
 def check_new_material(material: Material, user) -> None:
     """A new material may only carry a price or a conversion factor if the user can set them."""
     assert_catalog_role(user)
+    assert_client_cost(material, material.current_cost)
     if (float(material.current_cost or 0) != 0 or float(material.conversion_factor or 1) != 1) and not can_change_price(user):
         assert_price_role(user)
 
@@ -56,6 +70,8 @@ def update_material(session: Session, material: Material, data: dict, user, reas
     assert_catalog_role(user)
     data.pop("id", None)
     _assert_same_route(material, data)
+    if "current_cost" in data:
+        assert_client_cost(material, data["current_cost"])
     if _changes_price(material, data):
         assert_price_role(user)
     for key in ("sku", "name"):

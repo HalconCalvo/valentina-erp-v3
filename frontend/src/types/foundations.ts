@@ -5,7 +5,7 @@ export interface Material {
     category: string;
     
     // ENUM estricto para coincidir con backend y evitar errores de dedo
-    production_route: 'MATERIAL' | 'PROCESO' | 'CONSUMIBLE' | 'SERVICIO';
+    production_route: 'MATERIAL' | 'PROCESO' | 'CONSUMIBLE' | 'SERVICIO' | 'CLIENTE';
     
     purchase_unit: string;
     usage_unit: string;

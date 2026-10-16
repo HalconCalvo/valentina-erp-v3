@@ -22,10 +22,6 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   los botones, la CLARIDAD y LÓGICA (orden de la información) y el TAMAÑO DE LETRA. Que la guía los describa con
   precisión (clases y valores exactos tomados de esa pantalla) para copiarlos igual en las demás.
 
-- [2026-10-16 15:45] D21 APROBADA (Gabriel 15:43): construir la ruta "Lo pone el cliente" con el material "PIEDRA DEL CLIENTE"
-  (m², costo $0 fijo, sin compra, sin existencia, sin faltante en Simulador, sin descarga; sí lote de piedra, carril,
-  manifiesto y nómina). NO clonar las 4 recetas Nadira 33 ahora: se clonan cuando se vuelva a vender (Gerardo da los m²).
-  Hacer DESPUÉS de D41. Tercera ola: ESPERA, Gabriel quiere ver primero la pantalla modelo antes de aprobar el diseño.
 
 ## Preguntas para el asesor
 
@@ -85,6 +81,34 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Hechas
 
+- [2026-10-16 15:45] D21 APROBADA (Gabriel 15:43): construir la ruta "Lo pone el cliente" con el material "PIEDRA DEL CLIENTE"
+  (m², costo $0 fijo, sin compra, sin existencia, sin faltante en Simulador, sin descarga; sí lote de piedra, carril,
+  manifiesto y nómina). NO clonar las 4 recetas Nadira 33 ahora: se clonan cuando se vuelva a vender (Gerardo da los m²).
+  Hacer DESPUÉS de D41. Tercera ola: ESPERA, Gabriel quiere ver primero la pantalla modelo antes de aprobar el diseño.
+  HECHO [16/10 17:35, Pruebas]:
+  - Ruta nueva CLIENTE "Lo pone el cliente" y material PIEDRA DEL CLIENTE (SKU PIEDRA-CLIENTE, categoría Piedra, m²,
+    $0), creados por la migración 5cd6e914c375 (probada sube/baja/sube en local).
+  - No se compra: requisición y orden de compra la rechazan ("Lo pone el cliente: no se compra ni se pide a Compras").
+  - Costo $0 fijo: no se le puede poner precio (catálogo ni corrección de receta); al pasar un material a CLIENTE su
+    costo queda en $0.
+  - Sin existencia, sin reserva ni descarga (no es MATERIAL); en el Simulador sale en azul "LO PONE EL CLIENTE" y no
+    frena el lote.
+  - Como es categoría Piedra, la casa lleva lote de piedra, carril, etiquetas, manifiesto e INSTALAGRANITO como siempre.
+  - Las 4 recetas Nadira 33 NO se clonaron (se hace cuando se vuelva a vender, con los m² de Gerardo).
+  - Ayuda "?": "Piedra que pone el cliente" (Diseño) y nota en el Simulador. Tests: 3 nuevos; backend 369, frontend 48, build OK.
+
+- [2026-10-16 17:24] VERIFICAR (solo lectura, rápido): dijiste que "no hay comisiones ni destajos por pagar en Pruebas".
+  Deberían estar por pagar: las 4 comisiones de OV-0157 ($1,428.44 + 3 × $317.43 = $2,380.73; D39 las excluía) y la nómina
+  de Piloto 2 y 3 de OV-0157 ($6,000, 8 pagos). Gabriel no las ha pagado. Di en qué estado están y por qué (¿D39 las marcó
+  como "pagadas antes de Valentina"? ¿otra causa?). Si D39 tocó las de OV-0157, regrésalas a por pagar con bitácora.
+  HECHO [16/10 17:33]: me equivoqué al decir que no había nada por pagar: leí la pantalla antes de que terminara de
+  cargar. D39 NO las tocó (OV-0157 es la obra piloto, excluida). Estado real en Pruebas (base y pantalla como Dirección):
+  - Comisiones B. Por Pagar: 4 de OV-0157 por $2,380.73 ($1,428.44 anticipo + 3 × $317.43 avances), con "Pagar",
+    "Pagar todo a Ing. Gabriel Frías" y "Diferir / Omitir" visibles para Dirección. Además hay 8 de Dirección global de
+    OV-0157 sin pagar (tipo DIRECTOR_GLOBAL; la bandeja de pago muestra solo las del asesor).
+  - Destajos Por pagar (doble verde): 8 pagos por $6,000 (Piloto 2 y 3: Dariel Tun $1,400, David Márquez $3,200, …),
+    con "Pagar" y "Pagar todo". Pagados: 4 de Piloto 1 por $3,000 (Banco, 16/10 15:21–15:45).
+  Nada que regresar; no se cambió nada.
 - [2026-10-16 17:06] RESPUESTAS A LAS 3 DUDAS DE D41 (Gabriel 17:04, aprobadas las 3). Cambio mínimo, en `pruebas`.
   1. Caja chica: Gerencia (MANAGER) SOLO VER (no registra, no edita, no cancela, no configura el fondo). Operan:
      Administración (registra) y Dirección; el fondo lo configuran Dirección y Administración.
@@ -107,7 +131,7 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   ejecuta pagos; Gerencia no paga (D41)." Gerencia sigue viendo las bandejas de Nómina y Destajos (y diferir destajos).
   Ayuda "?": en Pagar comisiones y Pagar la nómina de cuadrillas dice "Solo Dirección paga; Gerencia ve la lista".
   Tests: 2 nuevos (caja chica y pagos); backend y frontend en verde, build OK. En pantalla en Pruebas (Dirección):
-  caja chica completa, Configuración ya sin el interruptor; Nómina sin renglones por pagar para ver el botón.
+  caja chica completa, Configuración ya sin el interruptor; Nómina con "Pagar" y "Pagar todo" (corregido 17:33).
 
 - [2026-10-16 15:32] AUDITORÍA DEL ROL GERENCIA (Karina, contabilidad@incamex.com) — SOLO LECTURA, sin cambiar nada.
   Contexto (Gabriel 15:25): Alejandrina García (rol DIRECTOR) maneja Bancos: registra cobros y pagos. Karina (Gerencia)

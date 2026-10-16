@@ -144,6 +144,12 @@ Claves: clonar, versión nueva, cambiar receta, corregir receta
 Si una versión ya está en una OV o en una cotización en revisión o autorizada, **no se puede cambiar**: se
 clona y se corrige la versión nueva. Lo ya vendido conserva su receta.
 
+### Piedra que pone el cliente
+Claves: piedra del cliente, lo pone el cliente, cliente, piedra, CLIENTE
+Si el cliente entrega la piedra, agrega a la receta el material **PIEDRA DEL CLIENTE** (en m²). Cuesta $0 y no se
+compra: no sale como faltante en el Simulador ni se pide a Compras. La casa sí lleva lote de piedra, etiquetas,
+manifiesto e instalación de piedra como cualquier otra.
+
 ### Otras pantallas de Diseño
 Claves: simulador, centro de impresión, plano
 - **Simulador**: arma los lotes de producción (MDF o piedra) con las casas pagadas.
@@ -167,6 +173,7 @@ Claves: lote, simulador, simulación, lotificación, MDF, piedra, crear lote, re
 Claves: faltante menor, simular
 - Si cambias las casas marcadas, vuelve a simular antes de crear el lote.
 - Herrajes y tornillos que falten salen como "faltante menor" y no detienen el lote.
+- **Lo pone el cliente** (azul): esa piedra la entrega el cliente; no cuenta como faltante.
 
 # /design/print-center
 ## Centro de impresión

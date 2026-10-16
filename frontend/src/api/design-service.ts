@@ -32,6 +32,8 @@ export interface SimulatedMaterial {
   conversion_factor?: number;
   is_blocking: boolean;
   status_color: 'RED' | 'YELLOW' | 'GREEN';
+  /** D21: route CLIENTE, the client brings it (never a shortage). */
+  client_supplied?: boolean;
 }
 
 export interface SimulateBatchResponse {

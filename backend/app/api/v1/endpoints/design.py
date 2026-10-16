@@ -22,7 +22,7 @@ from app.models.users import User, UserRole
 from app.models.design import (
     ProductMaster, ProductVersion, VersionComponent, VersionStatus
 )
-from app.models.material import Material
+from app.models.material import Material, is_client_supplied
 from app.models.foundations import Client
 from app.models.production import InstallationAssignment, InstallationAssignmentStatus, ProductionBatch, ProductionBatchStatus, PrintJob
 from app.models.sales import (
@@ -367,6 +367,7 @@ class SimulatedMaterial(BaseModel):
     conversion_factor: float = 1.0  # usage units per purchase unit
     is_blocking: bool
     status_color: str  # "RED", "YELLOW", "GREEN"
+    client_supplied: bool = False  # D21: route CLIENTE, the client brings it
 
 class SimulateBatchResponse(BaseModel):
     suggested_status: str  # "DRAFT" (Pasa a Fábrica) o "ON_HOLD" (Frenado)
@@ -439,7 +440,8 @@ def simulate_batch(
             continue
 
         available_qty = material.physical_stock - material.committed_stock
-        is_shortage = req_qty > available_qty
+        client_supplied = is_client_supplied(material)  # D21: the client brings it; never a shortage
+        is_shortage = req_qty > available_qty and not client_supplied
         
         is_blocking = False
         status_color = "GREEN"
@@ -465,7 +467,8 @@ def simulate_batch(
                 purchase_unit=material.purchase_unit,
                 conversion_factor=material.conversion_factor or 1.0,
                 is_blocking=is_blocking,
-                status_color=status_color
+                status_color=status_color,
+                client_supplied=client_supplied,
             )
         )
 
