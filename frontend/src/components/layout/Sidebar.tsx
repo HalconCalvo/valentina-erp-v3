@@ -1,3 +1,4 @@
+import { ROUTE_ROLES } from '@/lib/routeAccess';
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { 
@@ -17,30 +18,30 @@ type UserRole = 'DIRECTOR' | 'MANAGER' | 'ADMIN' | 'SALES' | 'DESIGN' | 'WAREHOU
 
 // --- CONFIGURACIÓN DEL MENÚ ---
 const menuItems = [
-  { icon: LayoutDashboard, label: 'Principal', path: '/', allowedRoles: ['DIRECTOR', 'MANAGER', 'ADMIN', 'SALES', 'DESIGN', 'WAREHOUSE', 'PRODUCTION', 'LOGISTICS'] },
+  { icon: LayoutDashboard, label: 'Principal', path: '/', allowedRoles: ROUTE_ROLES['/'] },
   
   // ---> LA NUEVA PUERTA EXCLUSIVA DEL DIRECTOR <---
-  { icon: Shield, label: 'Dirección', path: '/director', allowedRoles: ['DIRECTOR'] },
+  { icon: Shield, label: 'Dirección', path: '/director', allowedRoles: ROUTE_ROLES['/director'] },
   
   // ---> INTACTO COMO ESTABA <---
-  { icon: TrendingUp, label: 'Gerencia', path: '/management', allowedRoles: ['DIRECTOR', 'MANAGER'] },
+  { icon: TrendingUp, label: 'Gerencia', path: '/management', allowedRoles: ROUTE_ROLES['/management'] },
   
-  { icon: ShoppingCart, label: 'Ventas', path: '/sales', allowedRoles: ['DIRECTOR', 'MANAGER', 'SALES'] },
-  { icon: Users, label: 'Monitor Clientes', path: '/clients', allowedRoles: ['DIRECTOR', 'MANAGER', 'SALES', 'ADMIN'] },
+  { icon: ShoppingCart, label: 'Ventas', path: '/sales', allowedRoles: ROUTE_ROLES['/sales'] },
+  { icon: Users, label: 'Monitor Clientes', path: '/clients', allowedRoles: ROUTE_ROLES['/clients'] },
   
   // 🔒 CANDADO APLICADO: Ventas ya NO puede entrar a Diseño e Ingeniería.
-  { icon: Ruler, label: 'Diseño e Ingeniería', path: '/design', allowedRoles: ['DIRECTOR', 'MANAGER', 'DESIGN'] },
+  { icon: Ruler, label: 'Diseño e Ingeniería', path: '/design', allowedRoles: ROUTE_ROLES['/design'] },
   
   // Recorrido (Gabriel, 12/10): Diseño → Ventas → Planeación → Compras → Producción → Campo → Administración.
   // Logística ya no es módulo: Planeación decide fechas y cuadrilla; Campo ejecuta (carga, fotos, firma).
-  { icon: CalendarDays, label: 'Planeación Maestra', path: '/planning', allowedRoles: ['DIRECTOR', 'MANAGER', 'DESIGN', 'PRODUCTION', 'ADMIN', 'SALES'] },
-  { icon: ClipboardList, label: 'Compras y Almacén', path: '/inventory', allowedRoles: ['DIRECTOR', 'MANAGER', 'ADMIN', 'WAREHOUSE', 'PRODUCTION'] },
-  { icon: Factory, label: 'Producción', path: '/production', allowedRoles: ['DIRECTOR', 'MANAGER', 'ADMIN', 'DESIGN', 'PRODUCTION'] },
-  { icon: HardHat, label: 'Campo', path: '/field', allowedRoles: ['DIRECTOR', 'MANAGER', 'LOGISTICS', 'PRODUCTION', 'DESIGN'] },
-  { icon: Landmark, label: 'Administración', path: '/treasury', allowedRoles: ['DIRECTOR', 'MANAGER', 'ADMIN'] },
-  { icon: UserCog, label: 'Usuarios y Comisiones', path: '/users', allowedRoles: ['DIRECTOR'] },
-  { icon: Percent, label: 'Registro Impuestos', path: '/tax-rates', allowedRoles: ['DIRECTOR', 'ADMIN'] }, 
-  { icon: Settings, label: 'Parámetros Globales', path: '/config', allowedRoles: ['DIRECTOR'] }, 
+  { icon: CalendarDays, label: 'Planeación Maestra', path: '/planning', allowedRoles: ROUTE_ROLES['/planning'] },
+  { icon: ClipboardList, label: 'Compras y Almacén', path: '/inventory', allowedRoles: ROUTE_ROLES['/inventory'] },
+  { icon: Factory, label: 'Producción', path: '/production', allowedRoles: ROUTE_ROLES['/production'] },
+  { icon: HardHat, label: 'Campo', path: '/field', allowedRoles: ROUTE_ROLES['/field'] },
+  { icon: Landmark, label: 'Administración', path: '/treasury', allowedRoles: ROUTE_ROLES['/treasury'] },
+  { icon: UserCog, label: 'Usuarios y Comisiones', path: '/users', allowedRoles: ROUTE_ROLES['/users'] },
+  { icon: Percent, label: 'Registro Impuestos', path: '/tax-rates', allowedRoles: ROUTE_ROLES['/tax-rates'] }, 
+  { icon: Settings, label: 'Parámetros Globales', path: '/config', allowedRoles: ROUTE_ROLES['/config'] }, 
 ];
 
 // --- REORDENAMIENTO ---
