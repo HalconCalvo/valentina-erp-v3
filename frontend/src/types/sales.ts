@@ -188,6 +188,13 @@ export interface PayrollCommissionRow {
   cxc_status: string | null;
   admin_notes: string | null;
   payroll_deferred: boolean;
+  /** H68/H69: what the payment confirmation shows */
+  seller_id?: number | null;
+  invoice_folio?: string | null;
+  payment_type?: string | null;
+  house_names?: string[];
+  base_amount?: number | null;
+  rate?: number | null;
 }
 
 export interface CommissionsPayrollOverview {

@@ -88,3 +88,35 @@ def test_pay_everything_to_a_person_with_one_movement(client_fixture, session_fi
     single = client_fixture.patch(f"{API}/logistics/payroll/{stranger.id}/mark-paid", headers=auth_header_director,
                                   json={"paid": True})
     assert single.status_code == 422  # D37: never without a payment method
+
+
+def test_collected_commissions_are_payable_from_the_list_with_one_movement(client_fixture, session_fixture,
+                                                                           auth_header_director, seed_client_and_tax):
+    """H67: an advance commission (even created unreleased) is in "Por pagar"; H69: its reference is folio · type;
+    H68: every commission of a seller paid from the list with one movement."""
+    advance = _commission(client_fixture, session_fixture, auth_header_director, seed_client_and_tax)
+    cxc = session_fixture.get(CustomerPayment, advance.customer_payment_id)
+    progress_cxc = CustomerPayment(sales_order_id=cxc.sales_order_id, payment_type=PaymentType.PROGRESS,
+                                   amount=18411.01, amortized_advance=11046.61, status=CXCStatus.PAID,
+                                   invoice_folio="F-Piloto1-01", created_by_user_id=1)
+    session_fixture.add(progress_cxc)
+    session_fixture.commit()
+    progress = SalesCommission(customer_payment_id=progress_cxc.id, user_id=1, commission_type=CommissionType.SELLER,
+                               base_amount=6348.62, rate=0.05, commission_amount=317.431, is_released=True)
+    account = BankAccount(name="Santander", account_number="1", current_balance=5000.0, initial_balance=5000.0)
+    session_fixture.add_all([progress, account])
+    session_fixture.commit()
+    overview = client_fixture.get(f"{API}/sales/commissions/payroll-overview", headers=auth_header_director).json()
+    payable = {r["id"]: r for r in overview["payable"]}
+    assert set(payable) == {advance.id, progress.id}
+    assert [r for r in overview["retained"] if r["kind"] == "ACCRUED"] == []
+    assert payable[advance.id]["reference_label"] == "A-PILOTO-1 · Anticipo"
+    assert payable[progress.id]["reference_label"] == "F-Piloto1-01 · Avance"
+    assert (payable[advance.id]["base_amount"], payable[advance.id]["rate"]) == (28568.81, 0.05)
+    paid = client_fixture.post(f"{API}/sales/commissions/pay-person", headers=auth_header_director, json={
+        "user_id": 1, "commission_ids": [advance.id, progress.id], "payment_method": "BANK", "account_id": account.id})
+    assert paid.status_code == 200, paid.text
+    assert paid.json()["amount"] == round(1428.4405 + 317.431, 2)
+    session_fixture.expire_all()
+    tx = session_fixture.exec(select(BankTransaction)).one()
+    assert {session_fixture.get(SalesCommission, i).bank_transaction_id for i in (advance.id, progress.id)} == {tx.id}

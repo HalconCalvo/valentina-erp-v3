@@ -88,6 +88,8 @@ export const PayrollAuditPanel: React.FC<Props> = ({
   // H51: open on "Por pagar" (the tray with actions); "Retenidas" empty looked like the pending rows were gone.
   const [instSub, setInstSub] = useState<SubView>('PAYABLE');
   const [payInstall, setPayInstall] = useState<{ rows: PayrollPaymentRecord[] } | null>(null);
+  const [payComm, setPayComm] = useState<{ rows: PayrollCommissionRow[] } | null>(null);
+  const [payingCommission, setPayingCommission] = useState(false);
 
   const [coOverview, setCoOverview] = useState<CommissionsPayrollOverview | null>(null);
   const [instOverview, setInstOverview] = useState<InstallerPayrollOverview | null>(null);
@@ -483,10 +485,17 @@ export const PayrollAuditPanel: React.FC<Props> = ({
       label: 'Acción',
       render: (row) => (
         <div className="text-center">
+          {view === 'PAYABLE' && row.id != null && (
+            <Button type="button" size="xs" className="mr-2 bg-emerald-600 hover:bg-emerald-700"
+              disabled={payingCommission} onClick={() => setPayComm({ rows: [row] })}>
+              Pagar
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
             className="text-xs"
+            title="Consultar la OV"
             onClick={() => onOrderInspect(row.sales_order_id)}
           >
             Rayos X
@@ -540,14 +549,51 @@ export const PayrollAuditPanel: React.FC<Props> = ({
       ),
     });
 
+    // H68: one "Pagar todo a <asesor>" per seller with two or more commissions to pay
+    const bySeller = new Map<string, PayrollCommissionRow[]>();
+    if (view === 'PAYABLE') {
+      rows.filter((r) => r.id != null).forEach((r) => {
+        const key = String(r.seller_id ?? r.seller_name ?? '');
+        bySeller.set(key, [...(bySeller.get(key) ?? []), r]);
+      });
+    }
     return (
-      <VTable
-        columns={columns as unknown as VTableColumn<Record<string, unknown>>[]}
-        data={rows as unknown as Record<string, unknown>[]}
-        emptyState={{ title: 'Sin registros en esta bandeja.' }}
-        className="shadow-sm"
-      />
+      <div className="space-y-3">
+        {Array.from(bySeller.values()).filter((list) => list.length > 1).map((list) => (
+          <div key={String(list[0].seller_id ?? list[0].seller_name)} className="flex flex-wrap justify-end">
+            <Button type="button" size="sm" className="bg-emerald-600 hover:bg-emerald-700"
+              disabled={payingCommission} onClick={() => setPayComm({ rows: list })}>
+              Pagar todo a {list[0].seller_name || 'asesor'} ({list.length} · {fmt(list.reduce((sum, r) => sum + r.amount, 0))})
+            </Button>
+          </div>
+        ))}
+        <VTable
+          columns={columns as unknown as VTableColumn<Record<string, unknown>>[]}
+          data={rows as unknown as Record<string, unknown>[]}
+          emptyState={{ title: 'Sin registros en esta bandeja.' }}
+          className="shadow-sm"
+        />
+      </div>
     );
+  };
+
+  const handlePayCommissions = async (choice: PayoutChoice): Promise<boolean> => {
+    if (!payComm) return false;
+    const ids = payComm.rows.map((r) => r.id as number);
+    setPayingCommission(true);
+    try {
+      if (ids.length === 1) await salesService.payCommission(ids[0], choice);
+      else await salesService.payPersonCommissions(payComm.rows[0].seller_id as number, ids, choice);
+      toast.success(`Comisión pagada: ${fmt(payComm.rows.reduce((sum, r) => sum + r.amount, 0))}.`);
+      await loadOverviews();
+      onRefresh();
+      return true;
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || 'No se pudo registrar el pago de comisión.');
+      return false;
+    } finally {
+      setPayingCommission(false);
+    }
   };
 
   const buildInstallationColumns = (view: SubView): VTableColumn<PayrollPaymentRecord>[] => {
@@ -1090,6 +1136,26 @@ export const PayrollAuditPanel: React.FC<Props> = ({
 
       {level1 === 'WEEKLY' && !canCaptureWeeklyFixed && (
         <p className="text-slate-500">Solo personal autorizado puede capturar el cierre semanal.</p>
+      )}
+
+      {payComm && (
+        <PayoutDialog
+          title={payComm.rows.length > 1 ? `Pagar todo a ${payComm.rows[0].seller_name || 'asesor'}` : 'Pagar comisión'}
+          details={payComm.rows.length === 1 ? [
+            ['Vendedor', payComm.rows[0].seller_name || '—'],
+            ['Factura', payComm.rows[0].reference_label],
+            ['Cobrado sin IVA', payComm.rows[0].base_amount != null ? fmt(payComm.rows[0].base_amount) : '—'],
+            ['% de comisión de la OV', payComm.rows[0].rate != null ? `${(payComm.rows[0].rate * 100).toFixed(2)}%` : '—'],
+          ] : [
+            ['Vendedor', payComm.rows[0].seller_name || '—'],
+            ...payComm.rows.map((r): [string, string] => [r.reference_label, fmt(r.amount)]),
+            ['Movimientos', '1 (un solo pago por el total)'],
+          ]}
+          amount={Math.round(payComm.rows.reduce((sum, r) => sum + r.amount, 0) * 100) / 100}
+          accounts={accounts}
+          onConfirm={handlePayCommissions}
+          onClose={() => setPayComm(null)}
+        />
       )}
 
       {payInstall && (

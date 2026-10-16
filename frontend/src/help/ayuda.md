@@ -284,8 +284,10 @@ Claves: nómina, pagar instaladores, cuadrillas, destajo, pagar todo, efectivo, 
 
 ### Pagar comisiones
 Claves: comisión, comisiones, pagar comisión, vendedor, efectivo, bancos
-1. En la OV, en la factura cobrada, pulsa **Pagar** en la comisión del vendedor.
-2. Revisa el monto, elige **Banco** o **Efectivo** y confirma.
+1. Entra a **5. Nómina → Comisiones → Por pagar**. Cada renglón dice la factura, si es Anticipo o Avance, y la casa.
+2. Pulsa **Pagar** en el renglón, o **Pagar todo a [asesor]** para pagarle todas con un solo movimiento.
+3. Revisa el monto (lo cobrado sin IVA × el % de la OV), elige **Banco** (con su cuenta) o **Efectivo** y confirma.
+También se puede pagar desde la OV (**Rayos X**), en la factura cobrada.
 
 ### Bueno saber
 Claves: Compaq, IVA, facturas

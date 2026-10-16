@@ -486,6 +486,15 @@ export const salesService = {
     },
 
     /** Tesorería: marca comisión en tabla sales_commissions (verdad única para nómina). */
+    /** H68: every selected commission of one seller with one movement (Banco or Efectivo). */
+    payPersonCommissions: async (
+        userId: number,
+        commissionIds: number[],
+        choice: { payment_method: 'BANK' | 'CASH'; account_id: number | null },
+    ): Promise<void> => {
+        await axiosClient.post('/sales/commissions/pay-person', { user_id: userId, commission_ids: commissionIds, ...choice });
+    },
+
     /** H65/D37: pay a commission through Banco (account) or Efectivo (petty cash). */
     payCommission: async (
         commissionId: number,

@@ -1528,6 +1528,20 @@ def update_order(
     return db_order
 
 
+_PAYMENT_TYPE_LABEL = {PaymentType.ADVANCE: "Anticipo", PaymentType.PROGRESS: "Avance", PaymentType.FULL: "Total",
+                       PaymentType.SETTLEMENT: "Finiquito"}
+
+
+def _commission_detail(session: Session, c: SalesCommission, cx: Optional[CustomerPayment]) -> dict:
+    """H69: "F-Piloto1-01 · Avance · Piloto 1" instead of "Cobro #85"; H68: what the payment confirmation needs."""
+    houses = [i.custom_name for i in sales_repo.get_instances_by_cxc(session, cx.id) if not i.is_cancelled] if cx else []
+    kind = _PAYMENT_TYPE_LABEL.get(cx.payment_type, str(cx.payment_type)) if cx else None
+    label = " · ".join(p for p in [(cx.invoice_folio or "S/F") if cx else None, kind, ", ".join(houses)] if p)
+    return {"seller_id": c.user_id, "invoice_folio": cx.invoice_folio if cx else None, "payment_type": kind,
+            "house_names": houses, "base_amount": round(float(c.base_amount or 0.0), 2), "rate": float(c.rate or 0.0),
+            "reference_label": label or f"Cobro #{c.customer_payment_id}"}
+
+
 def get_commissions_overview(session: Session) -> CommissionsPayrollOverview:
     raw = sales_repo.get_commissions_payroll_overview_data(session)
     retained: List[PayrollCommissionRow] = []
@@ -1587,11 +1601,11 @@ def get_commissions_overview(session: Session) -> CommissionsPayrollOverview:
             seller_name=user.full_name if user else None,
             amount=float(c.commission_amount),
             days_waiting=_days_waiting(c.created_at),
-            reference_label=f"Cobro #{cx.id} liquidado",
             customer_payment_id=cx.id,
             cxc_status=cx.status.value if hasattr(cx.status, "value") else str(cx.status),
             admin_notes=c.admin_notes,
             payroll_deferred=bool(c.payroll_deferred),
+            **_commission_detail(session, c, cx),
         ))
 
     for c in raw["paid"]:
@@ -1606,7 +1620,7 @@ def get_commissions_overview(session: Session) -> CommissionsPayrollOverview:
             seller_name=user.full_name if user else None,
             amount=float(c.commission_amount),
             days_waiting=0,
-            reference_label="Comisión pagada",
+            **_commission_detail(session, c, cx),
             customer_payment_id=c.customer_payment_id,
             cxc_status=(cx.status.value if cx and hasattr(cx.status, "value") else (str(cx.status) if cx else None)),
             admin_notes=c.admin_notes,
@@ -1688,35 +1702,49 @@ def get_commissions_report(
     return results
 
 
-def pay_commission(session: Session, commission_id: int, data: CommissionPayCreate, current_user: User) -> dict:
-    """H65/D37: pay one commission with its amount shown and confirmed, through Banco (account) or Efectivo (Caja)."""
-    commission = sales_repo.get_commission_by_id(session, commission_id)
-    if not commission:
+def _payable_commissions(session: Session, ids: List[int], person_id: Optional[int]) -> List[SalesCommission]:
+    rows = [sales_repo.get_commission_by_id(session, i) for i in dict.fromkeys(ids)]
+    if not rows or any(c is None for c in rows):
         raise HTTPException(status_code=404, detail="Comisión no encontrada.")
-    if commission.is_paid:
+    if any(c.is_paid for c in rows):
         raise HTTPException(status_code=409, detail="Esta comisión ya está pagada.")
-    if not (commission.is_released or commission.is_advance):
+    if any(not (c.is_released or c.is_advance) for c in rows):
         raise HTTPException(status_code=400, detail="Comisión no liberada aún: la casa debe estar firmada y facturada.")
-    cxc = sales_repo.get_cxc_by_id(session, commission.customer_payment_id)
-    seller = sales_repo.get_user_by_id(session, commission.user_id)
-    amount = round(float(commission.commission_amount or 0.0), 2)
-    concept = (f"Comisión {seller.full_name if seller else ''} · {_order_reference(cxc.sales_order_id) if cxc else ''}"
-               f" · Fact. {cxc.invoice_folio if cxc else 'S/F'}")
+    people = {c.user_id for c in rows}
+    if len(people) > 1 or (person_id is not None and people != {person_id}):
+        raise HTTPException(status_code=422, detail="Un pago conjunto es para una sola persona.")
+    return rows
+
+
+def pay_commissions(session: Session, ids: List[int], data: CommissionPayCreate, current_user: User,
+                    person_id: Optional[int] = None) -> dict:
+    """H65/H68/D37: pay one commission, or every selected one of a seller (H66-style), with ONE movement through
+    Banco (account) or Efectivo (petty cash); each keeps how, when and by whom."""
+    rows = _payable_commissions(session, ids, person_id)
+    seller = sales_repo.get_user_by_id(session, rows[0].user_id)
+    total = round(sum(float(c.commission_amount or 0.0) for c in rows), 2)
+    folios = ", ".join(_commission_detail(session, c, sales_repo.get_cxc_by_id(session, c.customer_payment_id))
+                       ["reference_label"] for c in rows)
     payout = payout_service.pay_out(session, current_user, method=data.payment_method, account_id=data.account_id,
-                                    amount=amount, concept=concept, category="Comisiones",
-                                    entity_type="SALES_COMMISSION", entity_id=commission.id)
-    commission.is_paid, commission.is_released = True, True
-    commission.released_at = commission.released_at or datetime.utcnow()
-    commission.paid_at, commission.paid_by_user_id = datetime.utcnow(), current_user.id
-    commission.payment_method = payout.method
-    commission.bank_transaction_id, commission.petty_cash_movement_id = payout.bank_transaction_id, payout.petty_cash_movement_id
-    session.add(commission)
-    audit_service.log_action(session, current_user, audit_service.PAY, audit_service.COMMISSION, commission.id, None,
-                             f"Pagó comisión ${amount:,.2f} a {seller.full_name if seller else '—'} ({payout.method})",
-                             old_values={"is_paid": False}, new_values={"is_paid": True, "commission_amount": amount})
+                                    amount=total, concept=f"Comisión {seller.full_name if seller else ''} · {folios}",
+                                    category="Comisiones", entity_type="SALES_COMMISSION",
+                                    entity_id=rows[0].id if len(rows) == 1 else None)
+    now = datetime.utcnow()
+    for c in rows:
+        c.is_paid, c.is_released, c.released_at = True, True, c.released_at or now
+        c.paid_at, c.paid_by_user_id, c.payment_method = now, current_user.id, payout.method
+        c.bank_transaction_id, c.petty_cash_movement_id = payout.bank_transaction_id, payout.petty_cash_movement_id
+        session.add(c)
+    audit_service.log_action(session, current_user, audit_service.PAY, audit_service.COMMISSION, rows[0].id, None,
+                             f"Pagó comisión ${total:,.2f} a {seller.full_name if seller else '—'} ({payout.method})",
+                             old_values={"is_paid": False}, new_values={"is_paid": True, "commission_amount": total})
     session.commit()
-    return {"ok": True, "commission_id": commission.id, "amount": amount, "payment_method": payout.method,
+    return {"ok": True, "commission_ids": [c.id for c in rows], "amount": total, "payment_method": payout.method,
             "bank_transaction_id": payout.bank_transaction_id, "petty_cash_movement_id": payout.petty_cash_movement_id}
+
+
+def pay_commission(session: Session, commission_id: int, data: CommissionPayCreate, current_user: User) -> dict:
+    return pay_commissions(session, [commission_id], data, current_user)
 
 
 def mark_commission_paid(

@@ -436,6 +436,13 @@ class PayrollCommissionRow(BaseModel):
     cxc_status: Optional[str] = None
     admin_notes: Optional[str] = None
     payroll_deferred: bool = False
+    # H68/H69: what the payment confirmation shows (invoice, type, houses, base without IVA, rate)
+    seller_id: Optional[int] = None
+    invoice_folio: Optional[str] = None
+    payment_type: Optional[str] = None
+    house_names: List[str] = []
+    base_amount: Optional[float] = None
+    rate: Optional[float] = None
 
 
 class CommissionsPayrollOverview(BaseModel):
@@ -460,6 +467,12 @@ class CommissionPayCreate(BaseModel):
     """D37: BANK with its account, or CASH (petty cash); never unspecified."""
     payment_method: str
     account_id: Optional[int] = None
+
+
+class CommissionPayPersonCreate(CommissionPayCreate):
+    """H68: every selected commission of one seller paid with one movement."""
+    user_id: int
+    commission_ids: List[int]
 
 
 class InstanceStatusSummary(BaseModel):

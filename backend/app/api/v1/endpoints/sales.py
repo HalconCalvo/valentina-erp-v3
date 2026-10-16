@@ -65,6 +65,7 @@ from app.schemas.sales_schema import (
     CommissionPayrollUpdate,
     CommissionPaidUpdate,
     CommissionPayCreate,
+    CommissionPayPersonCreate,
     InstanceStatusSummary,
     HouseStatusSummary,
     OrderHousesStatus,
@@ -856,6 +857,16 @@ def get_commissions_report(
     return sales_service.get_commissions_report(
         session, current_user, user_id=user_id, commission_type=commission_type, is_paid=is_paid
     )
+
+
+@router.post("/commissions/pay-person", dependencies=[allow_payment_execution()])
+def pay_person_commissions(
+    payload: CommissionPayPersonCreate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """H68: pays every selected commission of one seller with one movement (Banco or Efectivo, D37)."""
+    return sales_service.pay_commissions(session, payload.commission_ids, payload, current_user, person_id=payload.user_id)
 
 
 @router.post("/commissions/{commission_id}/pay", dependencies=[allow_payment_execution()])

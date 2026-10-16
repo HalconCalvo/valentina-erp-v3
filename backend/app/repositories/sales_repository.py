@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlmodel import Session, select
 from sqlalchemy.orm import selectinload
 
@@ -327,6 +327,7 @@ def get_commissions_payroll_overview_data(session: Session) -> dict:
                 SalesCommission.commission_type == CommissionType.SELLER,
                 SalesCommission.is_paid == False,  # noqa: E712
                 SalesCommission.is_released == False,  # noqa: E712
+                SalesCommission.is_advance == False,  # noqa: E712  (H67: a collected advance is payable)
             )
         ).all()
     )
@@ -337,7 +338,7 @@ def get_commissions_payroll_overview_data(session: Session) -> dict:
             .where(
                 SalesCommission.commission_type == CommissionType.SELLER,
                 SalesCommission.is_paid == False,  # noqa: E712
-                SalesCommission.is_released == True,  # noqa: E712
+                or_(SalesCommission.is_released == True, SalesCommission.is_advance == True),  # noqa: E712
                 SalesCommission.payroll_deferred == False,  # noqa: E712
             )
         ).all()
