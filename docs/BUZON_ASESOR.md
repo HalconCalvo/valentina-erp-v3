@@ -114,7 +114,7 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   3. El panel NO vive en Tesorería: Tesorería solo lee los totales; 5. Nómina está solo en Gerencia (/management), que
      abren DIRECTOR y MANAGER. ADMIN no entra a Gerencia: si busca "comisiones" ve el aviso de Tesorería, sin enlace que no
      pueda abrir. (Si Gabriel quiere que ADMIN pague nómina o comisiones, es decisión aparte.)
-  Tests frontend 48, tsc sin errores nuevos, build OK. No probado en pantalla (no se pudo abrir sesión local de prueba).
+  Tests frontend 48, tsc sin errores nuevos, build OK. Probado en pantalla en Pruebas (DIRECTOR): "comisiones" y "destajos" dan primero Gerencia e "Ir" abre B. Por Pagar / Por pagar (doble verde), también desde dentro de Gerencia. No probado en local.
 
 - [2026-10-16 11:26] COMISIONES EN TESORERÍA → 5. NÓMINA → COMISIONES (Gabriel, Pruebas). Hacer después de 11:22 y antes de D38.
   Hoy "B. Por pagar" muestra 3 renglones de OV-0157 de $317.43 (total $952.29) con solo "Rayos X" y "Diferir/Omitir".

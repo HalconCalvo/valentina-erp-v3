@@ -5024,4 +5024,4 @@ PENDIENTE PARA CERRAR EL ENSAYO:
   importación del 14/09). Decisión D39; pase a main detenido hasta que Gabriel decida.
 
 ### Pendientes:
-- D39 antes de pasar a main. Prueba en pantalla (no se pudo abrir sesión local de prueba).
+- D39 antes de pasar a main. 14:12 probado en pantalla en Pruebas; en local no (no hubo sesión de prueba).
