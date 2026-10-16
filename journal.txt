@@ -4963,3 +4963,6 @@ SESIÓN 16/10/2026 — Hallazgos H47–H51 (buzón 09:10 y 09:25) — rama `prue
   Lección: al angostar una lista por estado, revisar qué solicitudes vivas quedan fuera; una solicitud se cierra por
   su propio evento (la descarga), no por el estado de la casa.
 - La copia local estaba apagada (PG16 5433); se encendió con pg_ctl.
+- H57 (657cbd1): comisión por cada cobro = efectivo sin IVA × % de la OV; settle_cxc único (Cobranza, Tesorería,
+  confirmación). Tesorería no generaba comisión de avances. Corrección autorizada en Pruebas de F-Piloto1-01 (cxc 85)
+  a PAID con settle_cxc y audit_reason("corrección H47"): comisión vendedor $317.43 liberada.

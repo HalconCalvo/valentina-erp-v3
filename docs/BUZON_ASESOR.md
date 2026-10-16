@@ -8,15 +8,6 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Pendientes
 
-- [2026-10-16 09:50] H57 COMISIÓN POR CADA COBRO (Gabriel, 16/10). Confirmado OK H47 y H51 en Pruebas.
-  Regla de Gabriel: la comisión del vendedor se paga por cada cobro (anticipo y cada avance). En OV-0157 la factura
-  F-Piloto1-01 (avance, PAGADA) muestra comisión "—"; el anticipo sí muestra "Pagar".
-  Base propuesta por el asesor (confirmar con Gabriel antes de cerrar): comisión de cada cobro = efectivo cobrado sin IVA
-  × % de comisión de la OV. OV-0157 (5%): anticipo $33,139.82/1.16×5% = $1,428.44; cada casa $7,364.40/1.16×5% = $317.43;
-  total 1,428.44 + 3×317.43 = $2,380.73 = comisión de la cotización (cuadre, D16 ≤ $1.00 en la última).
-  Revisa qué hace hoy el código con la comisión del anticipo y de los avances, aplica la regla y deja "Pagar" en
-  F-Piloto1-01. Reporta en "Hechas" las cifras de OV-0157. Trabajar en `pruebas`.
-
 ## Preguntas para el asesor
 
 - [2026-10-15 12:40] D35 (de H46). En Pendiente de Facturar el total suma anticipos con IVA y avances de obra sin
@@ -63,6 +54,30 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   - Agrega a tu reporte final la lista de commits pendientes de prueba en pantalla.
 
 ## Hechas
+
+- [2026-10-16 09:50] H57 COMISIÓN POR CADA COBRO (Gabriel, 16/10). Confirmado OK H47 y H51 en Pruebas.
+  Regla de Gabriel: la comisión del vendedor se paga por cada cobro (anticipo y cada avance). En OV-0157 la factura
+  F-Piloto1-01 (avance, PAGADA) muestra comisión "—"; el anticipo sí muestra "Pagar".
+  CONFIRMADO por Gabriel (09:49): comisión de cada cobro = efectivo cobrado sin IVA × el % de comisión DE ESA OV (cada OV
+  tiene el suyo; nunca un % global). OV-0157 (5%): anticipo $33,139.82/1.16×5% = $1,428.44; cada casa $7,364.40/1.16×5% = $317.43;
+  total 1,428.44 + 3×317.43 = $2,380.73 = comisión de la cotización (cuadre, D16 ≤ $1.00 en la última).
+  Revisa qué hace hoy el código con la comisión del anticipo y de los avances, aplica la regla y deja "Pagar" en
+  F-Piloto1-01. Reporta en "Hechas" las cifras de OV-0157. Trabajar en `pruebas`.
+  HECHO [16/10 10:00] en `pruebas` (657cbd1), sin tocar `main`:
+  - Qué hacía el código: la comisión se crea cuando la factura queda saldada, sobre lo cobrado. Por Cobranza (abono)
+    ya era así para anticipo y avances; por Tesorería (Registrar Ingreso) solo se creaba para anticipos, y la de
+    avances nunca. Por eso F-Piloto1-01 decía "—". "Confirmar cobro" la calculaba sobre el importe completo (incluía el
+    anticipo amortizado, que ya cobró comisión).
+  - Ahora: una sola función salda la factura (Cobranza, Tesorería y confirmación). Comisión = efectivo cobrado sin IVA
+    (importe − anticipo amortizado − notas de crédito) × el % de esa OV (applied_commission_percent), una vez por cobro.
+  - Corrección de F-Piloto1-01 en la base de Pruebas (autorizada por Gabriel 16/10): con esa misma función, motivo
+    "corrección H47". Bitácora: 6 cambios (status PENDING→PAID, fecha de pago = la del cobro, commission_paid, 3
+    comisiones nuevas), fuente "system".
+  - Cifras OV-0157 (5%): anticipo $1,428.44 (base $28,568.81) · F-Piloto1-01 $317.43 (base $6,348.62, liberada → "Pagar").
+    Con Piloto 2 y 3 al mismo cobro: $1,428.44 + 3 × $317.43 = $2,380.73.
+  - Ojo, para Gabriel: además del vendedor, el sistema crea la comisión "Director global" (2%) a los dos usuarios
+    Director con tarifa (ids 2 y 3: $571.38 c/u en el anticipo, $126.97 c/u en F-Piloto1-01). Ya existía; no la toqué.
+  - Tests backend 355 (1 nuevo: cobro de avance por Tesorería con su comisión).
 
 - [2026-10-16 09:42] URGENTE PARA SEGUIR EL ENSAYO + H56.
   1. AHORA (solo lectura en la BD de Pruebas): escribe aquí abajo el código corto de etiqueta (el que se teclea en Campo,
