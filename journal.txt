@@ -4966,3 +4966,6 @@ SESIÓN 16/10/2026 — Hallazgos H47–H51 (buzón 09:10 y 09:25) — rama `prue
 - H57 (657cbd1): comisión por cada cobro = efectivo sin IVA × % de la OV; settle_cxc único (Cobranza, Tesorería,
   confirmación). Tesorería no generaba comisión de avances. Corrección autorizada en Pruebas de F-Piloto1-01 (cxc 85)
   a PAID con settle_cxc y audit_reason("corrección H47"): comisión vendedor $317.43 liberada.
+- H52–H55 (edde989): Empaque piedra con un botón; _still_packing saca casas firmadas o con el carril cargado;
+  DEAD/FINISHED = "lista" y cuenta como lote arrancado; real_production_dates mueve PM/PP al arranque real del lote.
+  Prueba en pantalla pendiente (Chrome sin conexión toda la mañana).

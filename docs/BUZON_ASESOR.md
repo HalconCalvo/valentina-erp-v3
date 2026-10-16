@@ -8,6 +8,15 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Pendientes
 
+- [2026-10-16 10:08] MÁS DEL ENSAYO (Piloto 2 y 3). Confirmado OK: H31, H32, H35, H56 (códigos 431c966e Piloto 2), carga de 4 carriles.
+  H60 (PRIORIDAD). Campo, pestaña Firma (Piloto 2/3, iPhone, David): después de "Confirmar firma" la pantalla no cambia y
+       se puede seguir dando "Confirmar firma" indefinidamente; igual con "Sincronizar": no hay aviso de éxito/error ni
+       cambio de estado. Debe: deshabilitar el botón mientras guarda; al guardar mostrar "Firma guardada" (local) y al
+       sincronizar "Sincronizado ✓" o el error; reemplazar el lienzo por "Firmado: fecha hora" como en Piloto 1;
+       nunca registrar dos firmas. Revisa en la BD de Pruebas (solo lectura) si quedaron firmas duplicadas en Piloto 2/3.
+  H58. Manifiesto de Piedra: mostrar el código corto ("Código: 431c966e") además del UUID largo.
+  H59. Campo inicio: el botón "Carga del camión" debe decir cuántas cargas faltan (o verse apagado si no hay).
+
 ## Preguntas para el asesor
 
 - [2026-10-15 12:40] D35 (de H46). En Pendiente de Facturar el total suma anticipos con IVA y avances de obra sin
@@ -54,6 +63,17 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   - Agrega a tu reporte final la lista de commits pendientes de prueba en pantalla.
 
 ## Hechas
+
+- [2026-10-16 09:42, parte 2] H52–H55 (del mismo ensayo). HECHO [16/10 10:09] en `pruebas` (edde989), sin tocar `main`:
+  - H52: en Empaque, piedra lleva un solo botón "🪨 Declarar y solicitar manifiesto" (se quitó "Declarar" suelto).
+  - H53: una casa sale de Empaque de su lote cuando ya está firmada (CLOSED/garantía) o ya se cargó el carril de ese
+    lote. Antes solo salía al pasar a READY; Piloto 1 seguía en LOTE-PIEDRA-0011.
+  - H54: las tarjetas de "Listo para instalarse" dicen "Piedra: lista" / "MDF: lista" cuando el lote ya terminó (DEAD);
+    un lote terminado cuenta como producido en el calendario y su semáforo queda azul-verde.
+  - H55: en el calendario, cuando el lote de un carril arrancó, la píldora PM/PP se mueve a la fecha real de arranque
+    del lote (día de Mérida); la fecha programada no se borra (sigue en la ventana de la casa).
+  - Tests backend 356 (1 nuevo con H53 y H55), frontend 43, build OK. Sin migración.
+  - NO probado en pantalla (Chrome no conectado).
 
 - [2026-10-16 09:50] H57 COMISIÓN POR CADA COBRO (Gabriel, 16/10). Confirmado OK H47 y H51 en Pruebas.
   Regla de Gabriel: la comisión del vendedor se paga por cada cobro (anticipo y cada avance). En OV-0157 la factura

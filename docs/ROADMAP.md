@@ -233,8 +233,10 @@ la factura completa. Probado en Pruebas con Piloto 1 sin guardar.
 - Pendiente: prueba en pantalla (Chrome no conectado al terminar).
 - H56 (1c80fc2, migración y4z5a6b7c8d9): una solicitud de etiquetas/manifiesto sigue en el Centro de Impresión hasta
   descargarse (impresa con fecha y usuario); Empaque avisa al pasar a Listo sin imprimir.
-- Siguen: H52 (un botón "Declarar y solicitar manifiesto"), H53 (Piloto 1 firmada sigue en Empaque en
-  LOTE-PIEDRA-0011), H54 ("Piedra: DEAD" → "Piedra: lista"), H55 (píldora PM/PP a la fecha real de producción).
+- H57 (657cbd1): comisión por cada cobro (efectivo sin IVA × % de la OV); Tesorería salda con settle_cxc.
+- H52–H55 (edde989): un botón de piedra en Empaque; casa firmada o cargada sale de Empaque; "Piedra: lista";
+  píldora PM/PP en la fecha real de arranque del lote.
+- Pendiente de todo el bloque: prueba en pantalla en Pruebas.
 
 ## 11. PRIORIDAD 2 — Indicadores del tablero de Dirección (con Gabriel) — hecha (2026-10-12, commit local)
 - Decisiones de Gabriel (12/10) aplicadas con una sola fuente (`GET /analytics/director-summary`, solo DIRECTOR):
