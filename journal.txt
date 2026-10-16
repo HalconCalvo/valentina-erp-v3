@@ -5012,3 +5012,16 @@ PENDIENTE PARA CERRAR EL ENSAYO:
   rol (lib/routeAccess.ts = permisos de rutas, una sola fuente con el menú); "Claves:" bajo cada ### en ayuda.md.
 - H67–H69: comisiones de anticipo cobrado = por pagar (repo: is_released OR is_advance); pay_commissions (varias, un
   movimiento) y botones en Nómina → Comisiones; referencia folio · tipo · casa.
+
+---
+## SESIÓN 2026-10-16 (tarde) — AYUDA DE NÓMINA (14:12) Y H70
+
+### Hecho (rama pruebas):
+- 14:12 (173cbdb): ayuda de comisiones y destajos apunta a Gerencia → 5. Nómina con los nombres de pantalla
+  (Nómina / Destajos, B. Por Pagar / Por pagar (doble verde)); línea "Enlace:" en ayuda.md hace que "Ir" abra el nivel
+  (/management?nomina=comisiones|destajos, revisado por rol); Comisiones abre en B. Por Pagar. Nómina solo vive en Gerencia.
+- H70 (solo lectura): H67 pasaría a "Por pagar" en producción 11 comisiones de anticipo por $71,822.02 (10 de la
+  importación del 14/09). Decisión D39; pase a main detenido hasta que Gabriel decida.
+
+### Pendientes:
+- D39 antes de pasar a main. Prueba en pantalla (no se pudo abrir sesión local de prueba).

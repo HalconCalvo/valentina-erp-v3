@@ -66,6 +66,16 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 - **Recomendación:** B, cuando Gabriel decida meter las comisiones legacy (no antes).
 - **Estado:** pendiente (sin aplicar)
 
+### D39. Comisiones de anticipo de la migración que H67 pasa a "Por pagar" — 2026-10-16 — buzón del asesor (H70)
+- **Contexto:** H67 (aún no en `main`) pone en "Por pagar" toda comisión de anticipo cobrado. En producción eso suma 11
+  comisiones por $71,822.02: 10 creadas por la importación del 14/09/2026 (OVs legacy, ya pudieron pagarse fuera de
+  Valentina, ver D24) y 1 de OV-0156 ($300, cobro del 13/10 en Valentina). Detalle en el buzón (H70).
+- **Opciones:** A) corte por fecha: las comisiones de cobros importados el 14/09 se marcan "pagada fuera de Valentina"
+  (sin movimiento, con motivo en bitácora) al pasar a `main`; las posteriores quedan por pagar. B) revisión una por
+  una con Karina (pagada fuera / por pagar). C) H67 solo para comisiones nuevas; las viejas siguen en Retenidas.
+- **Recomendación:** A, y OV-0156 ($300) confirmarla con Karina.
+- **Estado:** pendiente; el pase a `main` queda detenido hasta que Gabriel decida.
+
 ## Resueltas
 
 ### D36. Factura de avance = casa completa con anticipo aplicado — 2026-10-15 — buzón del asesor (paso 13)

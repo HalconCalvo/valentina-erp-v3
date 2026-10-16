@@ -8,17 +8,6 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Pendientes
 
-- [2026-10-16 14:16] H70 IMPORTANTE ANTES DE PASAR A `main`: COMISIONES VIEJAS QUE AHORA SALEN "POR PAGAR". NO cambies nada aún.
-  Tras H67, en Gerencia → 5. Nómina → Comisiones, "B. Por pagar" subió a $74,202.75 (antes $952.29) y "A. Retenidas" bajó de
-  $137,498.90 a $64,248.45: aparecen comisiones de OVs reales copiadas de producción (OV-0054, 0038, 0039, 0020, 0041,
-  0156…) con "Pagar todo a Ing. Gabriel Frías (7 · $35,341.85)" y "Lic. Gabriel Frías García (7 · $38,560.89)".
-  Riesgo: en producción esas comisiones pudieron pagarse fuera de Valentina (D24: comisiones fuera del Excel de migración)
-  y se pagarían dos veces.
-  Prepara (solo lectura) en "Hechas" una tabla: OV, factura, tipo, asesor, monto, fecha del cobro, cuál regla la liberó
-  (la de antes o H67), y cuántas serían en PRODUCCIÓN con el mismo criterio. Propón opciones (p. ej. fecha de corte: todo
-  cobro anterior a <fecha> se marca "pagada fuera de Valentina", sin movimiento, con bitácora; o revisión una por una con
-  Karina). Gabriel decide. Hasta entonces el pase a `main` queda detenido.
-
 ## Preguntas para el asesor
 
 - [2026-10-15 12:40] D35 (de H46). En Pendiente de Facturar el total suma anticipos con IVA y avances de obra sin
@@ -65,6 +54,46 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   - Agrega a tu reporte final la lista de commits pendientes de prueba en pantalla.
 
 ## Hechas
+
+- [2026-10-16 14:16] H70 IMPORTANTE ANTES DE PASAR A `main`: COMISIONES VIEJAS QUE AHORA SALEN "POR PAGAR". NO cambies nada aún.
+  Tras H67, en Gerencia → 5. Nómina → Comisiones, "B. Por pagar" subió a $74,202.75 (antes $952.29) y "A. Retenidas" bajó de
+  $137,498.90 a $64,248.45: aparecen comisiones de OVs reales copiadas de producción (OV-0054, 0038, 0039, 0020, 0041,
+  0156…) con "Pagar todo a Ing. Gabriel Frías (7 · $35,341.85)" y "Lic. Gabriel Frías García (7 · $38,560.89)".
+  Riesgo: en producción esas comisiones pudieron pagarse fuera de Valentina (D24: comisiones fuera del Excel de migración)
+  y se pagarían dos veces.
+  Prepara (solo lectura) en "Hechas" una tabla: OV, factura, tipo, asesor, monto, fecha del cobro, cuál regla la liberó
+  (la de antes o H67), y cuántas serían en PRODUCCIÓN con el mismo criterio. Propón opciones (p. ej. fecha de corte: todo
+  cobro anterior a <fecha> se marca "pagada fuera de Valentina", sin movimiento, con bitácora; o revisión una por una con
+  Karina). Gabriel decide. Hasta entonces el pase a `main` queda detenido.
+  PREPARADO [16/10 14:45] (solo lectura en Pruebas y en PRODUCCIÓN; nada cambiado). Decisión D39.
+  Regla: "antes" = comisión liberada (is_released); "H67" = comisión de anticipo no liberada que H67 pasa a Por pagar.
+  | OV | Factura | Tipo | Asesor | Monto | Cobro | Regla | Pruebas | Prod. |
+  |---|---|---|---|---|---|---|---|---|
+  | OV-0157 | F-Piloto1-01 | Avance | Ing. Gabriel Frías | $317.43 | 16/10 | antes | sí | no |
+  | OV-0157 | F-Piloto2-01 | Avance | Ing. Gabriel Frías | $317.43 | 16/10 | antes | sí | no |
+  | OV-0157 | F-Piloto3-01 | Avance | Ing. Gabriel Frías | $317.43 | 16/10 | antes | sí | no |
+  | OV-0157 | A-PILOTO-1 | Anticipo | Ing. Gabriel Frías | $1,428.44 | 14/10 | H67 | sí | no |
+  | OV-0053 | 561 | Anticipo | Ing. Gabriel Frías | $11,227.68 | 14/09* | H67 | sí | sí |
+  | OV-0056 | 464 | Anticipo | Ing. Gabriel Frías | $10,866.72 | 14/09* | H67 | sí | sí |
+  | OV-0054 | 549 | Anticipo | Ing. Gabriel Frías | $10,866.72 | 14/09* | H67 | sí | sí |
+  | OV-0038 | 452 | Anticipo | Lic. Gabriel Frías García | $10,151.75 | 14/09* | H67 | sí | sí |
+  | OV-0039 | 546 | Anticipo | Lic. Gabriel Frías García | $1,500.00 | 14/09* | H67 | sí | sí |
+  | OV-0039 | 557 | Anticipo | Lic. Gabriel Frías García | $1,000.00 | 14/09* | H67 | sí | sí |
+  | OV-0039 | 574 | Anticipo | Lic. Gabriel Frías García | $3,321.93 | 14/09* | H67 | sí | sí |
+  | OV-0020 | F570AAE16 | Anticipo | Lic. Gabriel Frías García | $9,000.00 | 14/09* | H67 | sí | sí |
+  | OV-0041 | F440 | Anticipo | Lic. Gabriel Frías García | $7,417.76 | 14/09* | H67 | sí | sí |
+  | OV-0069 | 589 | Anticipo | Lic. Gabriel Frías García | $6,169.46 | 14/09* | H67 | sí | sí |
+  | OV-0156 | 639 | Anticipo | Sahía Patrón | $300.00 | 13/10 | H67 | sí | sí |
+  *14/09 es la fecha de la importación (cobro y comisión se crearon ese día); la fecha real del cobro no está en Valentina.
+  - Pruebas: 15 por $74,202.75 (coincide con lo que viste). Antes de H67 solo las 3 de $317.43 ($952.29).
+  - PRODUCCIÓN con el mismo criterio: 11 por $71,822.02 (Ing. $32,961.12 · Lic. $38,560.89 · Sahía $300.00). Hoy en
+    producción siguen en "Retenidas" porque H67 no ha llegado a `main`; el riesgo empieza al pasar a `main`.
+  - Las 10 del 14/09 son de OVs legacy (D24: sus comisiones se pagan fuera de Valentina). OV-0156 sí se cobró en
+    Valentina (13/10).
+  Opciones (D39): A) corte por fecha: al pasar a `main`, una migración marca las comisiones de cobros importados el
+  14/09 como "pagada fuera de Valentina" (sin movimiento, medio "Fuera de Valentina", motivo en bitácora); lo posterior
+  queda por pagar. B) revisión una por una con Karina. C) H67 solo para comisiones nuevas; las viejas siguen en Retenidas.
+  Recomiendo A, con OV-0156 ($300) confirmada con Karina. Pase a `main` detenido hasta que Gabriel decida.
 
 - [2026-10-16 14:12] AYUDA: RUTA DE NÓMINA Y COMISIONES (Gabriel 14:07). El asesor ya editó frontend/src/help/ayuda.md
   (sin commit): las tareas "Pagar comisiones" y "Pagar la nómina de cuadrillas" pasan de /treasury a /management, con la

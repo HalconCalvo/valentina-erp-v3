@@ -242,6 +242,8 @@ la factura completa. Probado en Pruebas con Piloto 1 sin guardar.
   "Pagar todo a <persona>"; facturas de la OV ordenadas.
 - D38: ayuda v2 + buscador "¿En qué te ayudo?" por puesto, con claves editables en ayuda.md.
 - Pendiente de todo el bloque: prueba en pantalla en Pruebas.
+- 14:12 (173cbdb): ayuda de nómina y comisiones apunta a Gerencia → 5. Nómina; "Ir" abre Comisiones o Destajos.
+- H70: **pase a `main` detenido** hasta D39 (11 comisiones de anticipo de la migración, $71,822.02, saldrían "Por pagar").
 
 ## 11. PRIORIDAD 2 — Indicadores del tablero de Dirección (con Gabriel) — hecha (2026-10-12, commit local)
 - Decisiones de Gabriel (12/10) aplicadas con una sola fuente (`GET /analytics/director-summary`, solo DIRECTOR):
