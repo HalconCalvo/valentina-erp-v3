@@ -112,6 +112,12 @@ class SalesCommission(SQLModel, table=True):
     # Tesorería / nómina: observaciones y aplazamiento de pago de comisión
     admin_notes: Optional[str] = Field(default=None)
     payroll_deferred: bool = Field(default=False)
+    # H65/D37: how it was paid (BANK with its movement, or CASH from petty cash), when and by whom
+    paid_at: Optional[datetime] = Field(default=None)
+    paid_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    payment_method: Optional[str] = Field(default=None)
+    bank_transaction_id: Optional[int] = Field(default=None, foreign_key="bank_transactions.id")
+    petty_cash_movement_id: Optional[int] = Field(default=None, foreign_key="petty_cash_movements.id")
 
 # ==========================================
 # 3. MODELO DE COBROS (CUENTAS POR COBRAR - CXC)

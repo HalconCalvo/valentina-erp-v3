@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { X, Receipt, CheckCircle, Clock, FileText, AlertCircle, PieChart, Users, Coins, Pencil, PlusCircle, Shield } from 'lucide-react';
-import { SalesOrder, CustomerPayment, RetentionAlertRead } from '../../../types/sales';
+import { SalesOrder, CustomerPayment, RetentionAlertRead, SalesCommissionRecord } from '../../../types/sales';
+import { PayoutDialog, type PayoutChoice } from '../../treasury/components/PayoutDialog';
 import { salesService } from '../../../api/sales-service';
 import { getInventoryConflict } from '../../../api/production-service';
 import { ReversalDialog, type ReversalInput } from '../../production/components/BatchInventoryDialogs';
@@ -41,7 +42,7 @@ import {
 
 type OrderStatementPendingConfirm =
     | { kind: 'CANCEL_OV' }
-    | { kind: 'PAY_COMMISSION'; customerPaymentId: number };
+    | { kind: 'NONE' }; // H65: paying a commission uses PayoutDialog
 
 /** Días desde emisión hasta hoy; solo documentos sin pago registrado / no pagados. */
 function daysOpenForCxc(cxc: {
@@ -284,6 +285,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const [cancelling, setCancelling] = useState(false);
     const [ovReversalMessage, setOvReversalMessage] = useState<string | null>(null);
     const [pendingConfirm, setPendingConfirm] = useState<OrderStatementPendingConfirm | null>(null);
+    const [payCommissionFor, setPayCommissionFor] = useState<SalesCommissionRecord | null>(null);
     const [deliveryApplyPrompt, setDeliveryApplyPrompt] = useState<{ instanceId: number; dateKey: string } | null>(null);
     const [savingDeliveryInstanceId, setSavingDeliveryInstanceId] = useState<number | null>(null);
 
@@ -344,7 +346,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const editInstallmentsQuery = useInstallments(editInstallmentCxcId);
 
     const { data: bankAccounts = [], isLoading: loadingBankAccounts, isError: bankAccountsError } = useBankAccounts(
-        installmentModal.open && canRegisterInstallment,
+        (installmentModal.open && canRegisterInstallment) || payCommissionFor != null,
     );
 
     useEffect(() => {
@@ -374,6 +376,10 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     }, [expandedInvoiceId, localOrder.payments, order.payments]);
 
     const paymentsList = localOrder.payments ?? order.payments ?? [];
+    // H64: invoices by date, then folio
+    const sortedInvoices = [...paymentsList].sort((a, b) =>
+        String(a.invoice_date ?? '').localeCompare(String(b.invoice_date ?? ''))
+        || String(a.invoice_folio ?? '').localeCompare(String(b.invoice_folio ?? ''), 'es', { numeric: true }));
 
     const orderRetentionAlerts = useMemo(
         () => retentionAlerts.filter((a) => a.sales_order_id === orderId),
@@ -494,12 +500,13 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const loadingInstallments =
         expandedInvoiceId != null && expandedInstallmentsQuery.isFetching ? expandedInvoiceId : null;
 
+    // H65: the seller's commission of each invoice (director global rows are not this button's)
     const commissionByPaymentId = useMemo(() => {
-        const m: Record<number, { id: number; is_paid: boolean }> = {};
+        const m: Record<number, SalesCommissionRecord> = {};
         if (!orderId) return m;
         commissionsList.forEach((c) => {
-            if (c.sales_order_id === orderId) {
-                m[c.customer_payment_id] = { id: c.id, is_paid: c.is_paid };
+            if (c.sales_order_id === orderId && c.commission_type === 'SELLER') {
+                m[c.customer_payment_id] = c;
             }
         });
         return m;
@@ -1026,24 +1033,23 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
             return;
         }
         if (comm.is_paid) return;
-        setPendingConfirm({ kind: 'PAY_COMMISSION', customerPaymentId });
+        setPayCommissionFor(comm);
     };
 
-    const executePayCommission = async (customerPaymentId: number) => {
-        const comm = commissionByPaymentId[customerPaymentId];
-        if (!comm) return;
-
+    const executePayCommission = async (choice: PayoutChoice): Promise<boolean> => {
+        if (!payCommissionFor) return false;
         setIsUpdatingCommission(true);
         try {
-            await salesService.markCommissionPayrollPaid(comm.id, true);
+            await salesService.payCommission(payCommissionFor.id, choice);
+            toast.success(`Comisión pagada: ${formatMoney(payCommissionFor.commission_amount)}.`);
             await queryClient.invalidateQueries({ queryKey: orderStatementQueryKeys.commissions() });
-            onSuccess();
-            onClose();
-        } catch {
-            toast.error('No se pudo registrar el pago de comisión.');
+            await queryClient.invalidateQueries({ queryKey: orderStatementQueryKeys.bankAccounts() });
+            return true;
+        } catch (e: any) {
+            toast.error(e?.response?.data?.detail || 'No se pudo registrar el pago de comisión.');
+            return false;
         } finally {
             setIsUpdatingCommission(false);
-            setPendingConfirm(null);
         }
     };
 
@@ -1529,7 +1535,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                         },
                                     },
                                 ]}
-                                data={paymentsList as unknown as Record<string, unknown>[]}
+                                data={sortedInvoices as unknown as Record<string, unknown>[]}
                                 emptyState={{
                                     icon: <AlertCircle size={24} className="text-slate-300" />,
                                     title: 'No se ha emitido ninguna factura para este proyecto aún.',
@@ -2008,33 +2014,31 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
             <VConfirmDialog
                 isOpen={pendingConfirm !== null}
                 title={
-                    pendingConfirm.kind === 'CANCEL_OV' ? 'Cancelar orden de venta'
-                    : 'Pagar comisión'
+                    'Cancelar orden de venta'
                 }
-                message={
-                    pendingConfirm.kind === 'CANCEL_OV'
-                        ? '¿Cancelar esta OV?'
-                        : '¿Confirmar pago de comisión al vendedor?'
-                }
-                consequence={
-                    pendingConfirm.kind === 'CANCEL_OV'
-                        ? 'Las instancias se cancelarán y la OV no podrá reactivarse. Los productos cotizados se conservan.'
-                        : 'La comisión quedará marcada como pagada en nómina.'
-                }
-                variant={
-                    pendingConfirm.kind === 'CANCEL_OV'
-                        ? 'danger'
-                        : 'default'
-                }
-                confirmLabel={
-                    pendingConfirm.kind === 'CANCEL_OV' ? 'Sí, cancelar OV'
-                    : 'Sí, confirmar pago'
-                }
+                message="¿Cancelar esta OV?"
+                consequence="Las instancias se cancelarán y la OV no podrá reactivarse. Los productos cotizados se conservan."
+                variant="danger"
+                confirmLabel="Sí, cancelar OV"
                 onConfirm={async () => {
                     if (pendingConfirm.kind === 'CANCEL_OV') await executeCancelOv();
-                    else if (pendingConfirm.kind === 'PAY_COMMISSION') await executePayCommission(pendingConfirm.customerPaymentId);
                 }}
                 onCancel={() => setPendingConfirm(null)}
+            />
+        )}
+        {payCommissionFor && (
+            <PayoutDialog
+                title="Pagar comisión"
+                details={[
+                    ['Vendedor', payCommissionFor.user_name || '—'],
+                    ['Factura', (paymentsList.find((p) => p.id === payCommissionFor.customer_payment_id)?.invoice_folio) || 'S/F'],
+                    ['Cobrado sin IVA', formatMoney(payCommissionFor.base_amount)],
+                    ['% de comisión de la OV', `${(payCommissionFor.rate * 100).toFixed(2)}%`],
+                ]}
+                amount={Math.round(payCommissionFor.commission_amount * 100) / 100}
+                accounts={bankAccounts}
+                onConfirm={executePayCommission}
+                onClose={() => setPayCommissionFor(null)}
             />
         )}
         </>

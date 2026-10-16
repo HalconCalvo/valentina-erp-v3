@@ -28,6 +28,7 @@ from app.services.paid_balance_service import is_settled, paid_tolerance
 from app.services.planning_service import compute_semaphore, compute_semaphore_label
 from app.schemas.sales_schema import (
     CommissionPaidUpdate,
+    CommissionPayCreate,
     CommissionPayrollUpdate,
     CommissionsPayrollOverview,
     CustomerPaymentCancel,
@@ -48,8 +49,8 @@ from app.schemas.sales_schema import (
     RetentionAlertRead,
 )
 from app.core.audit_context import audit_reason
-from app.services import (audit_service, margin_service, production_inventory_service, progress_invoice_service,
-                          recipe_cost_service)
+from app.services import (audit_service, margin_service, payout_service, production_inventory_service,
+                          progress_invoice_service, recipe_cost_service)
 from app.schemas.production_inventory_schema import OVCancelCreate
 
 
@@ -653,7 +654,8 @@ def _resolve_commission_release(
     session: Session, cxc_id: int, *, is_advance: bool
 ) -> tuple[bool, Optional[datetime]]:
     if is_advance:
-        return False, None
+        # H57/H65: the advance is a collection like any other; its commission is payable once collected
+        return True, datetime.utcnow()
     if _cxc_all_instances_ready(session, cxc_id):
         return True, datetime.utcnow()
     return False, None
@@ -1680,8 +1682,41 @@ def get_commissions_report(
             payment_amount=cxc.amount if cxc else None,
             admin_notes=getattr(c, "admin_notes", None),
             payroll_deferred=bool(getattr(c, "payroll_deferred", False)),
+            payment_method=c.payment_method,
+            paid_at=c.paid_at,
         ))
     return results
+
+
+def pay_commission(session: Session, commission_id: int, data: CommissionPayCreate, current_user: User) -> dict:
+    """H65/D37: pay one commission with its amount shown and confirmed, through Banco (account) or Efectivo (Caja)."""
+    commission = sales_repo.get_commission_by_id(session, commission_id)
+    if not commission:
+        raise HTTPException(status_code=404, detail="Comisión no encontrada.")
+    if commission.is_paid:
+        raise HTTPException(status_code=409, detail="Esta comisión ya está pagada.")
+    if not (commission.is_released or commission.is_advance):
+        raise HTTPException(status_code=400, detail="Comisión no liberada aún: la casa debe estar firmada y facturada.")
+    cxc = sales_repo.get_cxc_by_id(session, commission.customer_payment_id)
+    seller = sales_repo.get_user_by_id(session, commission.user_id)
+    amount = round(float(commission.commission_amount or 0.0), 2)
+    concept = (f"Comisión {seller.full_name if seller else ''} · {_order_reference(cxc.sales_order_id) if cxc else ''}"
+               f" · Fact. {cxc.invoice_folio if cxc else 'S/F'}")
+    payout = payout_service.pay_out(session, current_user, method=data.payment_method, account_id=data.account_id,
+                                    amount=amount, concept=concept, category="Comisiones",
+                                    entity_type="SALES_COMMISSION", entity_id=commission.id)
+    commission.is_paid, commission.is_released = True, True
+    commission.released_at = commission.released_at or datetime.utcnow()
+    commission.paid_at, commission.paid_by_user_id = datetime.utcnow(), current_user.id
+    commission.payment_method = payout.method
+    commission.bank_transaction_id, commission.petty_cash_movement_id = payout.bank_transaction_id, payout.petty_cash_movement_id
+    session.add(commission)
+    audit_service.log_action(session, current_user, audit_service.PAY, audit_service.COMMISSION, commission.id, None,
+                             f"Pagó comisión ${amount:,.2f} a {seller.full_name if seller else '—'} ({payout.method})",
+                             old_values={"is_paid": False}, new_values={"is_paid": True, "commission_amount": amount})
+    session.commit()
+    return {"ok": True, "commission_id": commission.id, "amount": amount, "payment_method": payout.method,
+            "bank_transaction_id": payout.bank_transaction_id, "petty_cash_movement_id": payout.petty_cash_movement_id}
 
 
 def mark_commission_paid(
@@ -1691,8 +1726,9 @@ def mark_commission_paid(
     commission = sales_repo.get_commission_by_id(session, commission_id)
     if not commission:
         raise HTTPException(status_code=404, detail="Comisión no encontrada.")
-    if data.is_paid and not commission.is_released:
-        raise HTTPException(status_code=400, detail="Comisión no liberada aún")
+    if data.is_paid:
+        # D37: a commission is paid with a payment method (POST /commissions/{id}/pay), never just marked
+        raise HTTPException(status_code=422, detail="Para pagar una comisión elige el medio de pago (Banco o Efectivo).")
     commission.is_paid = data.is_paid
     session.add(commission)
     if data.is_paid:

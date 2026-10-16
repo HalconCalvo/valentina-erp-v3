@@ -23,11 +23,11 @@ import { BankAccount, WeeklyFixedCostPayload, WeeklyFixedCostRecord } from '../.
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
 import { formatDateTime, formatMoney } from '@/utils/format';
 import { TableActionEditIcon } from '@/lib/tableActionIcons';
+import { PayoutDialog, type PayoutChoice } from './PayoutDialog';
 
 export type PayrollLevel1 = 'COMMISSIONS' | 'INSTALLATIONS' | 'WEEKLY' | null;
 type SubView = 'RETAINED' | 'PAYABLE' | 'PAID';
@@ -87,6 +87,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
   const [payingId, setPayingId] = useState<number | null>(null);
   // H51: open on "Por pagar" (the tray with actions); "Retenidas" empty looked like the pending rows were gone.
   const [instSub, setInstSub] = useState<SubView>('PAYABLE');
+  const [payInstall, setPayInstall] = useState<{ rows: PayrollPaymentRecord[] } | null>(null);
 
   const [coOverview, setCoOverview] = useState<CommissionsPayrollOverview | null>(null);
   const [instOverview, setInstOverview] = useState<InstallerPayrollOverview | null>(null);
@@ -95,7 +96,6 @@ export const PayrollAuditPanel: React.FC<Props> = ({
   const [expandedCommDeferKey, setExpandedCommDeferKey] = useState<string | null>(null);
   const [instDeferReason, setInstDeferReason] = useState<Record<number, string>>({});
   const [expandedInstDeferId, setExpandedInstDeferId] = useState<number | null>(null);
-  const [instBankPick, setInstBankPick] = useState<Record<number, number>>({});
 
   const [weekly, setWeekly] = useState<WeeklyFixedCostPayload>({
     week_reference_date: new Date().toISOString().slice(0, 10),
@@ -234,21 +234,21 @@ export const PayrollAuditPanel: React.FC<Props> = ({
     onRefresh();
   };
 
-  const handlePayInstall = async (row: PayrollPaymentRecord) => {
-    const bankId = instBankPick[row.id];
-    if (accounts.length > 0) {
-      if (bankId == null || Number.isNaN(bankId)) {
-        toast.warning('Selecciona la cuenta bancaria de salida.');
-        return;
-      }
-    }
-    setPayingId(row.id);
+  // D37/H66: one row or every row of a person, through Banco (account) or Efectivo (petty cash), one movement
+  const handlePayInstall = async (choice: PayoutChoice): Promise<boolean> => {
+    if (!payInstall) return false;
+    const { rows } = payInstall;
+    setPayingId(rows[0].id);
     try {
-      await treasuryService.markPayrollPaid(row.id, true, bankId);
+      if (rows.length === 1) await treasuryService.markPayrollPaid(rows[0].id, choice);
+      else await treasuryService.payPersonPayroll(rows[0].user_id, rows.map((r) => r.id), choice);
+      toast.success(`Pagado ${fmt(rows.reduce((sum, r) => sum + r.total_amount, 0))} a ${rows[0].user_name || 'instalador'}.`);
       await loadOverviews();
       onRefresh();
+      return true;
     } catch (e: any) {
       toast.error(e?.response?.data?.detail || 'Error al registrar el pago.');
+      return false;
     } finally {
       setPayingId(null);
     }
@@ -595,28 +595,12 @@ export const PayrollAuditPanel: React.FC<Props> = ({
         label: 'Pago',
         render: (r) => (
           <div className="text-center flex flex-wrap gap-1 justify-center items-center">
-            <SearchableSelect
-              items={accounts}
-              value={instBankPick[r.id] != null ? String(instBankPick[r.id]) : ''}
-              onChange={(v) => {
-                setInstBankPick((m) => {
-                  const n = { ...m };
-                  if (!v) delete n[r.id];
-                  else n[r.id] = Number(v);
-                  return n;
-                });
-              }}
-              getLabel={(a) => a.name}
-              getValue={(a) => String(a.id)}
-              placeholder="Cuenta banco"
-              className="text-xs max-w-[140px]"
-            />
             <Button
               type="button"
               size="xs"
               className="bg-emerald-600 hover:bg-emerald-700"
               disabled={payingId === r.id}
-              onClick={() => handlePayInstall(r)}
+              onClick={() => setPayInstall({ rows: [r] })}
             >
               {payingId === r.id ? 'Procesando...' : 'Pagar'}
             </Button>
@@ -668,6 +652,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
         render: (r) => (
           <span className="text-xs text-slate-500">
             {formatDateTime(r.paid_at)}
+            {r.payment_method && ` · ${r.payment_method === 'CASH' ? 'Efectivo' : 'Banco'}`}
           </span>
         ),
       });
@@ -694,10 +679,18 @@ export const PayrollAuditPanel: React.FC<Props> = ({
             key={uid}
             className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm"
           >
-            <div className="bg-slate-100 px-4 py-2 font-black text-slate-800 flex justify-between items-center">
+            <div className="bg-slate-100 px-4 py-2 font-black text-slate-800 flex justify-between items-center gap-3">
               <span>{list[0]?.user_name || `Instalador #${uid}`}</span>
-              <span className="text-emerald-700">
-                {fmt(list.reduce((s, r) => s + r.total_amount, 0))}
+              <span className="flex items-center gap-3">
+                <span className="text-emerald-700">
+                  {fmt(list.reduce((s, r) => s + r.total_amount, 0))}
+                </span>
+                {view === 'PAYABLE' && list.length > 1 && (
+                  <Button type="button" size="xs" className="bg-emerald-600 hover:bg-emerald-700"
+                    disabled={payingId != null} onClick={() => setPayInstall({ rows: list })}>
+                    Pagar todo a {list[0]?.user_name?.split(' ')[0] || 'instalador'}
+                  </Button>
+                )}
               </span>
             </div>
             <VTable
@@ -1097,6 +1090,21 @@ export const PayrollAuditPanel: React.FC<Props> = ({
 
       {level1 === 'WEEKLY' && !canCaptureWeeklyFixed && (
         <p className="text-slate-500">Solo personal autorizado puede capturar el cierre semanal.</p>
+      )}
+
+      {payInstall && (
+        <PayoutDialog
+          title={payInstall.rows.length > 1 ? `Pagar todo a ${payInstall.rows[0].user_name || 'instalador'}` : 'Pagar destajo'}
+          details={[
+            ['Persona', payInstall.rows[0].user_name || '—'],
+            ...payInstall.rows.map((r): [string, string] => [payrollInstallationLabel(r), fmt(r.total_amount)]),
+            ['Movimientos', '1 (un solo pago por el total)'],
+          ]}
+          amount={payInstall.rows.reduce((sum, r) => sum + r.total_amount, 0)}
+          accounts={accounts}
+          onConfirm={handlePayInstall}
+          onClose={() => setPayInstall(null)}
+        />
       )}
     </div>
   );

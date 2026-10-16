@@ -64,6 +64,7 @@ from app.schemas.sales_schema import (
     CommissionsPayrollOverview,
     CommissionPayrollUpdate,
     CommissionPaidUpdate,
+    CommissionPayCreate,
     InstanceStatusSummary,
     HouseStatusSummary,
     OrderHousesStatus,
@@ -855,6 +856,17 @@ def get_commissions_report(
     return sales_service.get_commissions_report(
         session, current_user, user_id=user_id, commission_type=commission_type, is_paid=is_paid
     )
+
+
+@router.post("/commissions/{commission_id}/pay", dependencies=[allow_payment_execution()])
+def pay_commission(
+    commission_id: int,
+    payload: CommissionPayCreate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """H65/D37: pays a commission through Banco (account) or Efectivo (petty cash), with its movement."""
+    return sales_service.pay_commission(session, commission_id, payload, current_user)
 
 
 @router.patch("/commissions/{commission_id}/mark-paid", dependencies=[allow_payment_execution()])

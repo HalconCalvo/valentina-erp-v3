@@ -18,9 +18,8 @@ from app.models.production import (
 from app.models.sales import SalesOrderItemInstance, SalesOrderItem, SalesOrder
 from app.models.foundations import Client
 from app.models.users import User, UserRole
-from app.models.treasury import BankAccount, BankTransaction, TransactionType
 from app.services.cloud_storage import upload_to_gcs
-from app.services import installation_service, logistics_service
+from app.services import installation_service, installer_payroll_service, logistics_service
 from app.core.permissions import allow, can_execute_payments, FIELD_ROLES, FINANCE_ROLES, INSTALLATION_ROLES
 from app.core.audit_context import audit_reason
 from app.schemas.logistics_schema import (
@@ -80,6 +79,7 @@ class PayrollPaymentRead(BaseModel):
     admin_notes: Optional[str] = None
     days_waiting: int = 0
     bank_account_id: Optional[int] = None
+    payment_method: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -87,6 +87,15 @@ class PayrollPaymentRead(BaseModel):
 
 class PayrollMarkPaidPayload(BaseModel):
     paid: bool
+    bank_account_id: Optional[int] = None
+    payment_method: Optional[str] = None  # D37: BANK (with bank_account_id) or CASH (petty cash)
+
+
+class PayrollPayPersonPayload(BaseModel):
+    """H66: every selected row of one person paid with one movement."""
+    user_id: int
+    payroll_ids: List[int]
+    payment_method: str
     bank_account_id: Optional[int] = None
 
 
@@ -146,6 +155,7 @@ def _serialize_payroll_row(r: PayrollPayment, session: Session) -> PayrollPaymen
         admin_notes=getattr(r, "admin_notes", None),
         days_waiting=_days_waiting_logistics(r.created_at),
         bank_account_id=getattr(r, "bank_account_id", None),
+        payment_method=r.payment_method,
     )
 
 
@@ -266,36 +276,23 @@ def mark_payroll_paid(
         raise HTTPException(status_code=404, detail="Registro de nómina no encontrado.")
 
     if payload.paid:
-        if record.status != PayrollStatus.READY_TO_PAY:
-            raise HTTPException(status_code=400, detail="Solo se pagan registros en READY_TO_PAY.")
-        if payload.bank_account_id:
-            account = session.get(BankAccount, payload.bank_account_id)
-            if not account:
-                raise HTTPException(status_code=404, detail="Cuenta bancaria no encontrada.")
-            if account.current_balance < record.total_amount:
-                raise HTTPException(status_code=400, detail="Saldo insuficiente en la cuenta seleccionada.")
-            tx = BankTransaction(
-                account_id=account.id,
-                transaction_type=TransactionType.OUT,
-                amount=record.total_amount,
-                reference=f"Destajo nómina #{record.id}",
-                description="Pago instalador (destajo)",
-                related_entity_type="PAYROLL_PAYMENT",
-                related_entity_id=record.id,
-            )
-            session.add(tx)
-            account.current_balance -= record.total_amount
-            session.add(account)
-            record.bank_account_id = payload.bank_account_id
-        record.status = PayrollStatus.PAID
-        record.paid_at = datetime.utcnow()
-    else:
-        record.status = PayrollStatus.READY_TO_PAY
-        record.paid_at = None
-
+        method = payload.payment_method or ("BANK" if payload.bank_account_id else None)
+        return installer_payroll_service.pay_rows(session, current_user, [payroll_id], method, payload.bank_account_id)
+    if record.status == PayrollStatus.PAID:
+        raise HTTPException(status_code=409, detail="Un pago hecho no se regresa a Por pagar: se cancela su movimiento.")
+    record.status, record.paid_at = PayrollStatus.READY_TO_PAY, None
     session.add(record)
     session.commit()
     return {"ok": True, "payroll_id": payroll_id, "status": record.status}
+
+
+@router.post("/payroll/pay-person")
+def pay_person_payroll(payload: PayrollPayPersonPayload, session: SessionDep, current_user: CurrentUser):
+    """H66: pays every selected row of one person with ONE movement for the total (Banco or Efectivo, D37)."""
+    if not can_execute_payments(session, current_user):
+        raise HTTPException(status_code=403, detail="Solo Dirección ejecuta pagos (Gerencia, si Dirección lo habilita).")
+    return installer_payroll_service.pay_rows(session, current_user, payload.payroll_ids, payload.payment_method,
+                                              payload.bank_account_id, person_id=payload.user_id)
 
 
 # ==========================================

@@ -415,6 +415,8 @@ class SalesCommissionRead(BaseModel):
     payment_amount: Optional[float] = None
     admin_notes: Optional[str] = None
     payroll_deferred: bool = False
+    payment_method: Optional[str] = None
+    paid_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -452,6 +454,12 @@ class CommissionPayrollUpdate(BaseModel):
 
 class CommissionPaidUpdate(BaseModel):
     is_paid: bool
+
+
+class CommissionPayCreate(BaseModel):
+    """D37: BANK with its account, or CASH (petty cash); never unspecified."""
+    payment_method: str
+    account_id: Optional[int] = None
 
 
 class InstanceStatusSummary(BaseModel):

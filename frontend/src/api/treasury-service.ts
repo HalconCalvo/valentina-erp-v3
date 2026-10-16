@@ -26,6 +26,7 @@ export interface PayrollPaymentRecord {
   admin_notes?: string | null;
   days_waiting?: number;
   bank_account_id?: number | null;
+  payment_method?: string | null;
 }
 
 export interface InstallerPayrollOverview {
@@ -79,15 +80,29 @@ export const treasuryService = {
     return response.data;
   },
 
-  // 7. Marcar un destajo como PAGADO (o revertir a READY_TO_PAY)
+  // 7. Pagar un destajo (D37: Banco con cuenta o Efectivo de caja chica)
   markPayrollPaid: async (
     payrollId: number,
-    paid: boolean,
-    bankAccountId?: number
+    choice: { payment_method: 'BANK' | 'CASH'; account_id: number | null },
   ): Promise<void> => {
     await client.patch(`/logistics/payroll/${payrollId}/mark-paid`, {
-      paid,
-      bank_account_id: bankAccountId,
+      paid: true,
+      payment_method: choice.payment_method,
+      bank_account_id: choice.account_id,
+    });
+  },
+
+  // H66: todos los renglones por pagar de una persona con un solo movimiento
+  payPersonPayroll: async (
+    userId: number,
+    payrollIds: number[],
+    choice: { payment_method: 'BANK' | 'CASH'; account_id: number | null },
+  ): Promise<void> => {
+    await client.post('/logistics/payroll/pay-person', {
+      user_id: userId,
+      payroll_ids: payrollIds,
+      payment_method: choice.payment_method,
+      bank_account_id: choice.account_id,
     });
   },
 

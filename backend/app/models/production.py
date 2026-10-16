@@ -127,6 +127,11 @@ class PayrollPayment(SQLModel, table=True):
 
     admin_notes: Optional[str] = Field(default=None)
     bank_account_id: Optional[int] = Field(default=None, foreign_key="bank_accounts.id")
+    # D37: BANK (bank_account_id + its movement) or CASH (petty cash); H66 one movement can pay several rows
+    payment_method: Optional[str] = Field(default=None)
+    bank_transaction_id: Optional[int] = Field(default=None, foreign_key="bank_transactions.id")
+    petty_cash_movement_id: Optional[int] = Field(default=None, foreign_key="petty_cash_movements.id")
+    paid_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
 
 
 # ==========================================

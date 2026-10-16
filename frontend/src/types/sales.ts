@@ -215,6 +215,10 @@ export interface SalesCommissionRecord {
     sales_order_id: number | null;
     project_name: string | null;
     payment_amount: number | null;
+    is_advance?: boolean;
+    is_released?: boolean;
+    payment_method?: string | null;
+    paid_at?: string | null;
 }
 
 // Instancias 🟢🟢 CERRADAS pendientes de Factura de Avance

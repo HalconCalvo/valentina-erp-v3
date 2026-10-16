@@ -486,8 +486,12 @@ export const salesService = {
     },
 
     /** Tesorería: marca comisión en tabla sales_commissions (verdad única para nómina). */
-    markCommissionPayrollPaid: async (commissionId: number, isPaid: boolean): Promise<void> => {
-        await axiosClient.patch(`/sales/commissions/${commissionId}/mark-paid`, { is_paid: isPaid });
+    /** H65/D37: pay a commission through Banco (account) or Efectivo (petty cash). */
+    payCommission: async (
+        commissionId: number,
+        choice: { payment_method: 'BANK' | 'CASH'; account_id: number | null },
+    ): Promise<void> => {
+        await axiosClient.post(`/sales/commissions/${commissionId}/pay`, choice);
     },
 
     /**

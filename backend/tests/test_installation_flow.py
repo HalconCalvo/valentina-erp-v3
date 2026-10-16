@@ -307,8 +307,12 @@ def test_paying_one_lane_keeps_the_other_lane_of_the_same_leader_payable(client_
                            total_amount=800.0, status=PayrollStatus.READY_TO_PAY) for lane in (im_lane, ip_lane)]
     session_fixture.add_all(rows)
     session_fixture.commit()
+    from app.models.treasury import BankAccount
+    account = BankAccount(name="Santander", account_number="1", current_balance=5000.0, initial_balance=5000.0)
+    session_fixture.add(account)
+    session_fixture.commit()
     paid = client_fixture.patch(f"{API}/logistics/payroll/{rows[0].id}/mark-paid", headers=auth_header_director,
-                                json={"paid": True})
+                                json={"paid": True, "payment_method": "BANK", "bank_account_id": account.id})
     assert paid.status_code == 200, paid.text
     overview = client_fixture.get(f"{API}/logistics/payroll/overview", headers=auth_header_director).json()
     assert [(r["id"], r["lane"]) for r in overview["payable"]] == [(rows[1].id, "IP")]
