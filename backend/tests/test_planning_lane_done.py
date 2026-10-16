@@ -51,3 +51,38 @@ def test_each_lane_has_its_own_state(client_fixture, session_fixture, auth_heade
                                                status=InstallationAssignmentStatus.IN_PROGRESS))
     session_fixture.commit()
     assert _pills(client_fixture, auth_header_director, house.id) == {"PM": False, "PP": True, "IM": True, "IP": False}
+
+
+def test_a_produced_lane_pill_goes_to_the_real_production_date(client_fixture, session_fixture, auth_header_director,
+                                                               seed_client_and_tax):
+    """H55: once the stone batch started (Dec 1, 10:00 Mérida), PP moves from its scheduled day (Dec 4) to Dec 1;
+    PM, not started, stays on its scheduled day. H53: a signed house leaves Empaque of its packing batch."""
+    order = create_order_via_quotation(client_fixture, auth_header_director, seed_client_and_tax[0].id,
+                                       seed_client_and_tax[1].id)
+    item = session_fixture.exec(select(SalesOrderItem).where(SalesOrderItem.sales_order_id == order["id"])).first()
+    house = session_fixture.exec(select(SalesOrderItemInstance)
+                                 .where(SalesOrderItemInstance.sales_order_item_id == item.id)).first()
+    mdf = ProductionBatch(folio="LOTE-MDF-H55", batch_type="MDF", status=ProductionBatchStatus.DRAFT)
+    stone = ProductionBatch(folio="LOTE-PIEDRA-H55", batch_type="PIEDRA", status=ProductionBatchStatus.PACKING,
+                            started_at=datetime(2026, 12, 1, 16))
+    session_fixture.add_all([mdf, stone])
+    session_fixture.commit()
+    house.production_batch_id, house.stone_batch_id = mdf.id, stone.id
+    house.production_status = InstanceStatus.IN_PRODUCTION
+    house.scheduled_prod_mdf, house.scheduled_prod_stone = datetime(2026, 12, 3, 15), datetime(2026, 12, 4, 15)
+    session_fixture.add(house)
+    session_fixture.commit()
+    data = client_fixture.get(f"{API}/planning/calendar", params={"year": 2026, "month": 12},
+                              headers=auth_header_director).json()
+    days = {p["lane"]: day for day, pills in data["calendar"].items() for p in pills if p["instance_id"] == house.id}
+    assert days == {"PM": "2026-12-03", "PP": "2026-12-01"}
+
+    def in_packing():
+        batches = client_fixture.get(f"{API}/production/batches", headers=auth_header_director).json()
+        return [i["id"] for b in batches if b["id"] == stone.id for i in b.get("instances", [])]
+
+    assert in_packing() == [house.id]
+    house.production_status = InstanceStatus.CLOSED
+    session_fixture.add(house)
+    session_fixture.commit()
+    assert in_packing() == []

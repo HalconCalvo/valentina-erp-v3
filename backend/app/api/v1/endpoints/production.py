@@ -18,6 +18,7 @@ from app.models.inventory import InventoryReservation
 from app.models.design import VersionComponent, ProductVersion
 from app.models.material import Material, holds_stock
 from app.services.planning_service import compute_semaphore
+from app.repositories import installation_repository
 from app.services import label_service, production_inventory_service
 from app.core.permissions import allow, PRODUCTION_ROLES
 from app.core.audit_context import audit_reason
@@ -204,6 +205,17 @@ def create_production_batch(
     return new_batch
 
 
+_PACKING_DONE = {InstanceStatus.CLOSED, InstanceStatus.WARRANTY}
+
+
+def _still_packing(db: Session, instances: list, batch: ProductionBatch) -> list:
+    """H53: a house leaves Empaque once this batch's lane was loaded on the truck or the house was signed."""
+    lane = "IP" if batch.batch_type.upper() == "PIEDRA" else "IM"
+    loaded = installation_repository.get_loaded_lanes(db, [inst.id for inst in instances])
+    return [inst for inst in instances
+            if inst.production_status not in _PACKING_DONE and (inst.id, lane) not in loaded]
+
+
 @router.get("/", response_model=List[ProductionBatchResponse])
 @router.get("/batches", response_model=List[ProductionBatchResponse])
 def read_batches(current_user: CurrentUser, db: Session = Depends(get_session)):
@@ -237,6 +249,7 @@ def read_batches(current_user: CurrentUser, db: Session = Depends(get_session)):
                         SalesOrderItemInstance.is_cancelled == False,  # noqa: E712
                     )
                 ).all()
+            instances = _still_packing(db, instances, batch)
         elif batch.batch_type.upper() == "PIEDRA":
             instances = db.exec(
                 select(SalesOrderItemInstance)

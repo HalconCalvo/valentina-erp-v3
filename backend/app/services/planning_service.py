@@ -86,7 +86,9 @@ def _compute_track_semaphore(
     """
     # Si el lote ya existe, el semáforo lo determina el avance del lote.
     if batch_id and batch_status is not None:
-        if batch_status == ProductionBatchStatus.READY_TO_INSTALL:
+        # DEAD / FINISHED: every house of the batch already left packing (H54)
+        if batch_status in (ProductionBatchStatus.READY_TO_INSTALL, ProductionBatchStatus.DEAD,
+                            ProductionBatchStatus.FINISHED):
             return SemaphoreColor.BLUE_GREEN
         if batch_status == ProductionBatchStatus.PACKING:
             # En empaque = ya pasó producción, listo para instalar operativamente.
@@ -566,7 +568,7 @@ def sync_crew_dates(session: Session, instance: SalesOrderItemInstance) -> None:
 
 
 _BATCH_STARTED = {ProductionBatchStatus.IN_PRODUCTION, ProductionBatchStatus.PACKING,
-                  ProductionBatchStatus.READY_TO_INSTALL, ProductionBatchStatus.FINISHED}
+                  ProductionBatchStatus.READY_TO_INSTALL, ProductionBatchStatus.FINISHED, ProductionBatchStatus.DEAD}
 _LEGACY_PRODUCED = {InstanceStatus.IN_PRODUCTION, InstanceStatus.READY, InstanceStatus.CARGADO,
                     InstanceStatus.INSTALLED, InstanceStatus.CLOSED}
 _LEGACY_LOADED = {InstanceStatus.CARGADO, InstanceStatus.INSTALLED, InstanceStatus.CLOSED}
@@ -574,6 +576,25 @@ _LEGACY_LOADED = {InstanceStatus.CARGADO, InstanceStatus.INSTALLED, InstanceStat
 
 def _batch_started(batch: Optional[ProductionBatch]) -> bool:
     return batch is not None and (batch.started_at is not None or batch.status in _BATCH_STARTED)
+
+
+def real_production_dates(session: Session, instances: List[SalesOrderItemInstance]
+                          ) -> Dict[int, Dict[str, Optional[datetime]]]:
+    """H55: once a lane's batch started, its PM/PP pill goes to the real production date (the batch start, Mérida
+    day, keeping the scheduled hour). None while not started or when the start time is unknown."""
+    batches = batch_map_for_instances(session, instances)
+    out: Dict[int, Dict[str, Optional[datetime]]] = {}
+    for inst in instances:
+        out[inst.id] = {}
+        for code, batch_id, scheduled in (("PM", inst.production_batch_id, inst.scheduled_prod_mdf),
+                                          ("PP", inst.stone_batch_id, inst.scheduled_prod_stone)):
+            batch = batches.get(batch_id) if batch_id else None
+            real = None
+            if batch is not None and batch.started_at is not None:
+                hour = scheduled.time() if scheduled else datetime.min.time()
+                real = datetime.combine(utc_naive_to_local(batch.started_at).date(), hour)
+            out[inst.id][code] = real
+    return out
 
 
 def lanes_done(session: Session, instances: List[SalesOrderItemInstance]) -> Dict[int, Dict[str, bool]]:

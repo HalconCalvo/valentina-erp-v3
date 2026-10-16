@@ -536,6 +536,9 @@ export default function ProductionKanbanPage() {
       IN_PRODUCTION: 'En Producción',
       PACKING: 'En Empaque',
       READY_TO_INSTALL: 'Listo para Instalar',
+      FINISHED: 'Terminado',
+      DEAD: 'Terminado',
+      CANCELLED: 'Cancelado',
     };
     return map[status] ?? status;
   };
@@ -958,24 +961,14 @@ export default function ProductionKanbanPage() {
                   <div className="mt-2 mb-3 pt-2 border-t border-violet-100">
                     <label className="flex flex-col gap-1">
                       <span className="text-[10px] font-bold text-gray-500 uppercase">Piezas de Piedra</span>
-                      <div className="flex gap-2">
-                        <Input
-                          type="number"
-                          min={1}
-                          step={1}
-                          className="flex-1"
-                          value={stoneByInstanceId[instance.id] || ''}
-                          onChange={(e) => setStonePieces(instance.id, e.target.value)}
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDeclareStonePieces(instance.id)}
-                        >
-                          🪨 Declarar
-                        </Button>
-                      </div>
+                      {/* H52: one button below declares the pieces and requests the manifest */}
+                      <Input
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={stoneByInstanceId[instance.id] || ''}
+                        onChange={(e) => setStonePieces(instance.id, e.target.value)}
+                      />
                     </label>
                   </div>
                 )}
@@ -983,7 +976,7 @@ export default function ProductionKanbanPage() {
                 {/* Botón etiquetas */}
                 {labelsDone ? (
                   <p className="w-full py-2 text-center text-xs font-bold text-emerald-600">
-                    {isStone ? '✓ Piezas declaradas (manifiesto)' : '✓ Etiquetas solicitadas'}
+                    {isStone ? '✓ Piezas declaradas y manifiesto solicitado' : '✓ Etiquetas solicitadas'}
                   </p>
                 ) : (
                   <Button
@@ -1019,7 +1012,9 @@ export default function ProductionKanbanPage() {
                     size="sm"
                     className="w-full text-xs"
                   >
-                    {requestingLabelsId === instance.id ? 'Procesando...' : '🏷️ Solicitar Etiquetas'}
+                    {requestingLabelsId === instance.id
+                      ? 'Procesando...'
+                      : isStone ? '🪨 Declarar y solicitar manifiesto' : '🏷️ Solicitar Etiquetas'}
                   </Button>
                 )}
 
@@ -1112,14 +1107,21 @@ export default function ProductionKanbanPage() {
               const ots = instance.other_track_status;
               const otherName = isStoneTrack ? 'MDF' : 'Piedra';
               if (!ots) return null;
+              // H54: DEAD / FINISHED = every house of that batch already left packing
+              if (ots === 'DEAD' || ots === 'FINISHED') {
+                return `${otherName}: lista`;
+              }
               if (ots === 'READY_TO_INSTALL' || ots === 'PACKING') {
                 return `${otherName}: listo / empacando`;
               }
               if (ots === 'IN_PRODUCTION') {
                 return `${otherName}: en producción`;
               }
-              if (ots === 'DRAFT' || ots === 'ON_HOLD') {
+              if (ots === 'DRAFT' || ots === 'ON_HOLD' || ots === 'PLANNED') {
                 return `${otherName}: pendiente`;
+              }
+              if (ots === 'CANCELLED') {
+                return `${otherName}: lote cancelado`;
               }
               return `${otherName}: ${ots}`;
             })();

@@ -429,9 +429,12 @@ export function applyInstanceToCalendarFeed(
   const calendar: Record<string, CalendarPill[]> = {};
   // H39: editing dates does not change a lane's production/load state; keep the server's per-lane value.
   const laneDone: Partial<Record<string, boolean>> = {};
+  // H55: a produced PM/PP pill sits on the real production date given by the server; keep that day.
+  const producedDay: Partial<Record<string, string>> = {};
   for (const [dayKey, pills] of Object.entries(feed.calendar)) {
     for (const p of pills) {
       if (p.instance_id === instance.id && typeof p.lane_done === 'boolean') laneDone[p.lane] = p.lane_done;
+      if (p.instance_id === instance.id && p.lane_done && (p.lane === 'PM' || p.lane === 'PP')) producedDay[p.lane] = dayKey;
     }
     const kept = pills.filter((p) => p.instance_id !== instance.id);
     if (kept.length > 0) calendar[dayKey] = kept;
@@ -462,8 +465,9 @@ export function applyInstanceToCalendarFeed(
       continue;
     }
 
-    if (!scheduleValueInMonth(raw, year, month)) continue;
-    const dayKey = raw.slice(0, 10);
+    const realDay = producedDay[lane];
+    if (!realDay && !scheduleValueInMonth(raw, year, month)) continue;
+    const dayKey = realDay ?? raw.slice(0, 10);
     if (!calendar[dayKey]) calendar[dayKey] = [];
     calendar[dayKey].push(withLaneDone(buildCalendarPill(instance, lane, dayKey)));
   }

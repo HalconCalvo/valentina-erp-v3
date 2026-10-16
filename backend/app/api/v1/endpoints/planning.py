@@ -52,6 +52,7 @@ from app.services.planning_service import (
     install_order_error,
     sync_crew_dates,
     lanes_done,
+    real_production_dates,
 )
 
 router = APIRouter()
@@ -278,10 +279,15 @@ def get_calendar_feed(
     now = datetime.utcnow()
 
     # Buscar todas las instancias que tengan al menos una fecha en el mes
+    # H55: houses whose batch really started this month show their PM/PP pill here
+    started_here = select(ProductionBatch.id).where(ProductionBatch.started_at >= month_start - timedelta(days=1),
+                                                    ProductionBatch.started_at <= month_end + timedelta(days=1))
     stmt = select(SalesOrderItemInstance).where(
         SalesOrderItemInstance.is_cancelled == False
     ).where(
-        (
+        SalesOrderItemInstance.production_batch_id.in_(started_here)
+        | SalesOrderItemInstance.stone_batch_id.in_(started_here)
+        | (
             (SalesOrderItemInstance.scheduled_prod_mdf >= month_start) &
             (SalesOrderItemInstance.scheduled_prod_mdf <= month_end)
         ) | (
@@ -383,6 +389,7 @@ def get_calendar_feed(
     month_start_d = month_start.date()
     month_end_d = month_end.date()
     done_by_instance = lanes_done(session, instances)
+    real_by_instance = real_production_dates(session, instances)
 
     for inst in instances:
         semaphore = compute_semaphore(inst, now, session=session)
@@ -392,7 +399,7 @@ def get_calendar_feed(
         order_folio = order_folio_by_item.get(item_id)
 
         for field, code in prod_field_map.items():
-            dt: Optional[datetime] = getattr(inst, field)
+            dt: Optional[datetime] = real_by_instance[inst.id][code] or getattr(inst, field)
             if dt is None or not (month_start <= dt <= month_end):
                 continue
             day_key = dt.strftime("%Y-%m-%d")
