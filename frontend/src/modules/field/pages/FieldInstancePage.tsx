@@ -50,6 +50,8 @@ export default function FieldInstancePage() {
   const [signature, setSignature] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
+  // H60: what happened with the last sync, shown on screen (not only as a toast)
+  const [syncStatus, setSyncStatus] = useState<{ kind: 'ok' | 'error' | 'queued'; text: string } | null>(null);
   const sigRef = useRef<SignatureCanvas>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
@@ -102,7 +104,8 @@ export default function FieldInstancePage() {
 
   const buildPayload = (): SyncPayload => ({
     photos,
-    signature_base64: signature,
+    // H60: a signed house never sends a second signature
+    signature_base64: row?.signed_received_at ? null : signature,
     notes,
     scanned_packages: [],
     incidents: [],
@@ -113,24 +116,35 @@ export default function FieldInstancePage() {
       toast.warning('No hay datos pendientes.');
       return;
     }
-    if (!isOnline) {
-      await queueSync(instanceId, buildPayload());
-      toast.info('Sincronización en cola offline.');
-      await refresh();
-      return;
-    }
+    if (busy) return;
     setBusy(true);
+    setSyncStatus(null);
     try {
+      if (!isOnline) {
+        await queueSync(instanceId, buildPayload());
+        setPhotos([]);
+        setSignature(null);
+        setSyncStatus({ kind: 'queued', text: 'Sin conexión: guardado en el teléfono; se enviará al volver la señal.' });
+        toast.info('Sincronización en cola offline.');
+        await refresh();
+        return;
+      }
       if (pendingCount > 0) await flushQueue();
       if (hasLocalPending) {
         await syncInstance(instanceId, buildPayload());
         setPhotos([]);
         setSignature(null);
       }
+      const time = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+      setSyncStatus({ kind: 'ok', text: `Sincronizado ✓ ${time}` });
       toast.success('Sincronizado con el servidor.');
       await refresh();
-    } catch {
+    } catch (error: unknown) {
+      const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       await queueSync(instanceId, buildPayload());
+      setPhotos([]);
+      setSignature(null);
+      setSyncStatus({ kind: 'error', text: `No se pudo sincronizar${detail ? `: ${detail}` : ''}. Quedó en cola en el teléfono.` });
       toast.error('Falló la sync; guardado en cola offline.');
     } finally {
       setBusy(false);
@@ -344,6 +358,22 @@ export default function FieldInstancePage() {
                   Ir a Trabajo terminado
                 </button>
               </div>
+            ) : signature ? (
+              <div className="space-y-2">
+                {/* H60: confirmed once; the canvas goes away until it is synced or redone */}
+                <p className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm font-medium text-emerald-800">
+                  Firma guardada en el teléfono. Falta Sincronizar para cerrar la casa.
+                </p>
+                <img src={signature} alt="Firma del cliente" className="max-h-32 rounded-lg border border-slate-200 bg-white" />
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setSignature(null)}
+                  className="min-h-12 w-full rounded-xl border border-slate-300 text-sm font-bold text-slate-700 disabled:opacity-40"
+                >
+                  Volver a firmar
+                </button>
+              </div>
             ) : (
               <>
                 <div className="rounded-xl border-2 border-slate-200 bg-white overflow-hidden">
@@ -393,6 +423,14 @@ export default function FieldInstancePage() {
 
       <div className="fixed bottom-0 left-0 right-0 border-t border-slate-200 bg-white/95 backdrop-blur p-4 ml-0 md:ml-64">
         <div className="max-w-lg mx-auto space-y-2">
+          {(busy || syncStatus) && (
+            <p className={`text-center text-sm font-bold ${
+              busy ? 'text-slate-600' : syncStatus?.kind === 'ok' ? 'text-emerald-700'
+                : syncStatus?.kind === 'error' ? 'text-red-700' : 'text-amber-700'}`}
+            >
+              {busy ? 'Sincronizando…' : syncStatus?.text}
+            </p>
+          )}
           <button
             type="button"
             disabled={busy || (!isOnline && !hasLocalPending && pendingCount === 0)}

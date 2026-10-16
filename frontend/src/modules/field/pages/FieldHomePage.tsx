@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getMyWorkday } from '@/api/logistics-service';
 import { CloudOff, RefreshCw, Truck, Wifi } from 'lucide-react';
 import { useOfflineSync } from '@/field/useOfflineSync';
 import type { FieldAssignment } from '@/field/field-service';
@@ -27,6 +29,26 @@ export default function FieldHomePage() {
   const navigate = useNavigate();
   const userName = localStorage.getItem('user_name') || localStorage.getItem('full_name') || 'Instalador';
   const { isOnline, isSyncing, pendingCount, assignments, workday, refresh, flushQueue } = useOfflineSync();
+  // H59: how many loads are still waiting (same list as Carga del camión); null = unknown (offline)
+  const [loadsPending, setLoadsPending] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!isOnline) {
+      setLoadsPending(null);
+      return;
+    }
+    let cancelled = false;
+    getMyWorkday()
+      .then((data) => {
+        if (!cancelled) setLoadsPending(data.items.filter((a) => a.assignment_status === 'SCHEDULED').length);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadsPending(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOnline, assignments]);
 
   return (
     <div className="max-w-lg mx-auto pb-24">
@@ -55,10 +77,18 @@ export default function FieldHomePage() {
       <button
         type="button"
         onClick={() => navigate('/field/load')}
-        className="mb-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-sm font-bold text-white active:bg-blue-700"
+        className={`mb-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-bold ${
+          loadsPending === 0
+            ? 'border border-slate-200 bg-slate-100 text-slate-500'
+            : 'bg-blue-600 text-white active:bg-blue-700'
+        }`}
       >
         <Truck size={18} />
-        Carga del camión (escanear bultos)
+        {loadsPending === null
+          ? 'Carga del camión (escanear bultos)'
+          : loadsPending === 0
+            ? 'Carga del camión · sin cargas pendientes'
+            : `Carga del camión · ${loadsPending} por cargar`}
       </button>
 
       <div className="mb-4 flex gap-2">

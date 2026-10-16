@@ -229,6 +229,8 @@ def sign_and_close(session: Session, instance_id: int, signature: str) -> dict:
     """Client's signature of receipt: completes every installed lane, closes the instance (warranty, commissions)
     and creates the crew payroll ready to pay."""
     instance = _get_instance(session, instance_id)
+    if instance.signed_received_at:
+        raise HTTPException(status_code=409, detail="Esta casa ya está firmada; no se registra una segunda firma.")
     if not all_lanes_installed(session, instance.id):
         raise HTTPException(status_code=409, detail="La firma va después de marcar el trabajo terminado "
                                                     "en todos los carriles de la casa.")

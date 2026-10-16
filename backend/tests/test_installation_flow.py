@@ -127,6 +127,14 @@ def test_signature_closes_the_house_and_creates_payroll_ready_to_pay(client_fixt
     assert rows == [(600.0, PayrollStatus.READY_TO_PAY), (900.0, PayrollStatus.READY_TO_PAY)]
     # the test recipe has no INSTALACOCINA line: 1 day and the payroll says the recipe needs correcting
     assert all("INSTALACOCINA" in p.admin_notes for p in _payroll(session_fixture))
+    # H60: a repeated "Confirmar firma" / replayed sync never signs twice nor duplicates payroll
+    again = client_fixture.post(f"{API}/field/instances/{instance.id}/sync", headers=leader,
+                                json={"signature_base64": "data:image/png;base64,iVBORw0KGgo="})
+    assert again.status_code == 200 and again.json()["signed_at"] == signed.json()["signed_at"]
+    assert len(_payroll(session_fixture)) == 2
+    direct = client_fixture.patch(f"{API}/logistics/equipos/{lane.id}/firma", headers=leader,
+                                  json={"signature_url": "data:image/png;base64,iVBORw0KGgo="})
+    assert direct.status_code == 409
 
 
 def test_progress_invoice_does_not_touch_payroll(client_fixture, session_fixture, auth_header_director,

@@ -235,7 +235,10 @@ def sync_instance(session: Session, user: User, instance_id: int, payload: Field
     session.add(inst)
     session.commit()
     signed_at: Optional[str] = None
-    if payload.signature_base64 and payload.signature_base64.strip():
+    if inst.signed_received_at:
+        # H60: one signature per house; a repeated tap or a replayed offline sync never signs twice
+        signed_at = inst.signed_received_at.isoformat()
+    elif payload.signature_base64 and payload.signature_base64.strip():
         signed_at = installation_service.sign_and_close(session, instance_id, payload.signature_base64)["signed_at"]
     return FieldSyncRead(success=True, signed_at=signed_at, photo_urls=photo_urls)
 
