@@ -34,7 +34,7 @@ from app.models.sales import (
 from app.services.cloud_storage import upload_to_gcs
 from app.services.label_printer import generate_all_labels, concatenate_zpl
 from app.services.design_service import build_pending_instance_rows
-from app.services import design_version_service
+from app.services import design_version_service, label_service
 from datetime import datetime
 from app.core.permissions import allow, PRODUCTION_ROLES
 
@@ -521,10 +521,26 @@ class LabelRequestItem(BaseModel):
     declared_bundles: int
     is_stone: bool = False
     stone_pieces: int = 0
+    # H56: downloaded (printed) mark of this request; None = pending to print
+    printed_at: Optional[datetime] = None
+    printed_by: Optional[str] = None
 
 
 # H45: CARGADO / INSTALLED keep the lane that has not been loaded yet (e.g. stone after the MDF load).
 PRINTABLE_STATUSES = [InstanceStatus.IN_PRODUCTION, InstanceStatus.CARGADO, InstanceStatus.INSTALLED]
+
+
+def _in_print_window(session: Session, inst: SalesOrderItemInstance) -> bool:
+    """H45: from production until the lane is loaded (house in a printable state or a batch in packing)."""
+    if inst.production_status in PRINTABLE_STATUSES:
+        return True
+    batches = [session.get(ProductionBatch, bid) for bid in (inst.production_batch_id, inst.stone_batch_id) if bid]
+    return any(b and b.status == ProductionBatchStatus.PACKING for b in batches)
+
+
+def _printed(session: Session, inst: SalesOrderItemInstance, kind: str) -> dict:
+    return {"printed_at": getattr(inst, f"{kind}_printed_at"),
+            "printed_by": label_service.printed_by_name(session, inst, kind)}
 
 
 @router.get("/label_requests", response_model=List[LabelRequestItem])
@@ -551,6 +567,11 @@ def list_label_requests(
                 SalesOrderItemInstance.production_status.in_(PRINTABLE_STATUSES),
                 ProductionBatch.status == ProductionBatchStatus.PACKING,
                 stone_batch.status == ProductionBatchStatus.PACKING,
+                # H56: a request not downloaded yet stays, whatever the state of the house
+                (SalesOrderItemInstance.labels_requested_at != None)  # noqa: E711
+                & (SalesOrderItemInstance.labels_printed_at == None),  # noqa: E711
+                (SalesOrderItemInstance.manifest_requested_at != None)  # noqa: E711
+                & (SalesOrderItemInstance.manifest_printed_at == None),  # noqa: E711
             ),
         )
     ).all()
@@ -572,12 +593,16 @@ def list_label_requests(
         common = dict(instance_id=inst.id, custom_name=inst.custom_name,
                       client_name=client.full_name if client else "", project_name=order.project_name,
                       order_folio=f"OV-{str(order.id).zfill(4)}", street=inst.street, lot=inst.lot)
+        in_window = _in_print_window(session, inst)
         # H34: a house with MDF and stone is two rows: MDF bundles (labels) and stone pieces (manifest).
-        if (inst.declared_bundles or 0) > 0 and (inst.id, "IM") not in loaded:
-            result.append(LabelRequestItem(**common, declared_bundles=inst.declared_bundles, is_stone=False))
-        if (inst.stone_pieces or 0) > 0 and (inst.id, "IP") not in loaded:
-            result.append(LabelRequestItem(**common, declared_bundles=0, is_stone=True,
-                                           stone_pieces=inst.stone_pieces))
+        if (inst.declared_bundles or 0) > 0 and (inst.id, "IM") not in loaded and (
+                in_window or label_service.is_pending(inst, label_service.LABELS)):
+            result.append(LabelRequestItem(**common, **_printed(session, inst, label_service.LABELS),
+                                           declared_bundles=inst.declared_bundles, is_stone=False))
+        if (inst.stone_pieces or 0) > 0 and (inst.id, "IP") not in loaded and (
+                in_window or label_service.is_pending(inst, label_service.MANIFEST)):
+            result.append(LabelRequestItem(**common, **_printed(session, inst, label_service.MANIFEST),
+                                           declared_bundles=0, is_stone=True, stone_pieces=inst.stone_pieces))
     return result
 
 
@@ -635,6 +660,7 @@ def generate_labels(
         instance.qr_code = qr_uuid
         session.add(instance)
         session.commit()
+    label_service.mark_printed(session, instance, label_service.LABELS, current_user)  # H56
 
     mdf = instance.mdf_bundles or 0
     hardware = instance.hardware_bundles or 0
@@ -712,6 +738,7 @@ def generate_labels_pdf(
         instance.qr_code = qr_uuid
         session.add(instance)
         session.commit()
+    label_service.mark_printed(session, instance, label_service.LABELS, current_user)  # H56
 
     mdf = instance.mdf_bundles or 0
     hardware = instance.hardware_bundles or 0
@@ -814,6 +841,7 @@ def generate_stone_manifest(
         instance.qr_code = qr_uuid
         session.add(instance)
         session.commit()
+    label_service.mark_printed(session, instance, label_service.MANIFEST, current_user)  # H56
 
     # Obtener config de empresa
     config = session.exec(select(GlobalConfig)).first()

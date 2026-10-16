@@ -50,6 +50,9 @@ export interface LabelRequestItem {
   declared_bundles: number;
   is_stone: boolean;
   stone_pieces?: number;
+  /** H56: when this request was downloaded (printed) and by whom; null = pending to print. */
+  printed_at?: string | null;
+  printed_by?: string | null;
 }
 
 export const designService = {

@@ -788,7 +788,11 @@ export default function ProductionKanbanPage() {
     if (instanceIds.length === 0) return;
     try {
       for (const id of instanceIds) {
-        await productionService.markInstanceReady(id);
+        const moved = await productionService.markInstanceReady(id);
+        // H56: moved to Listo without printing; the request stays in the print center
+        if (moved?.unprinted?.length) {
+          toast.warning(`${moved.custom_name}: falta imprimir ${moved.unprinted.join(' y ')}. Sigue en el Centro de Impresión.`);
+        }
       }
       // Limpiar estados de bultos de las instancias movidas
       setBultosByInstanceId(prev => {

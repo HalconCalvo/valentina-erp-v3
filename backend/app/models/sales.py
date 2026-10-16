@@ -227,6 +227,13 @@ class SalesOrderItemInstance(SQLModel, table=True):
     hardware_dispatched_at: Optional[datetime] = Field(default=None)
     hardware_dispatched_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
     stone_pieces: Optional[int] = Field(default=None)
+    # H56: a label (MDF) or manifest (stone) request stays in the print center until it is downloaded
+    labels_requested_at: Optional[datetime] = Field(default=None)
+    labels_printed_at: Optional[datetime] = Field(default=None)
+    labels_printed_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    manifest_requested_at: Optional[datetime] = Field(default=None)
+    manifest_printed_at: Optional[datetime] = Field(default=None)
+    manifest_printed_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
     customer_payment_id: Optional[int] = Field(default=None, foreign_key="customer_payments.id")
     
     # ========================================================

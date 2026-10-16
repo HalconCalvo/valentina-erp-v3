@@ -91,3 +91,40 @@ def test_a_ready_house_without_packing_batches_stays_out(client_fixture, session
     session_fixture.commit()
     rows = client_fixture.get(f"{API}/design/label_requests", headers=auth_header_director).json()
     assert [r for r in rows if r["instance_id"] == house.id] == []
+
+
+def test_a_request_stays_until_it_is_downloaded_whatever_the_state(client_fixture, session_fixture,
+                                                                   auth_header_director, seed_client_and_tax):
+    """H56: labels and manifest requested in Empaque stay in the print center until downloaded, even if the house was
+    moved to READY first; the download marks it printed (date and user)."""
+    from app.services import label_service
+    order = create_order_via_quotation(client_fixture, auth_header_director, seed_client_and_tax[0].id,
+                                       seed_client_and_tax[1].id)
+    item = session_fixture.exec(select(SalesOrderItem).where(SalesOrderItem.sales_order_id == order["id"])).first()
+    house = session_fixture.exec(select(SalesOrderItemInstance)
+                                 .where(SalesOrderItemInstance.sales_order_item_id == item.id)).first()
+    house.production_status = InstanceStatus.IN_PRODUCTION
+    session_fixture.add(house)
+    session_fixture.commit()
+    assert client_fixture.post(f"{API}/production/instances/{house.id}/request_labels", headers=auth_header_director,
+                               json={"mdf_bundles": 4, "hardware_bundles": 1}).status_code == 200
+    assert client_fixture.patch(f"{API}/production/instances/{house.id}/stone_pieces", headers=auth_header_director,
+                                json={"stone_pieces": 2}).status_code == 200
+    session_fixture.expire_all()
+    house = session_fixture.get(SalesOrderItemInstance, house.id)
+    house.production_status = InstanceStatus.READY
+    session_fixture.add(house)
+    session_fixture.commit()
+    assert label_service.unprinted(house) == ["etiquetas de muebles", "manifiesto de piedra"]
+
+    def mine():
+        rows = client_fixture.get(f"{API}/design/label_requests", headers=auth_header_director).json()
+        return sorted((r["is_stone"], r["printed_at"] is None) for r in rows if r["instance_id"] == house.id)
+
+    assert mine() == [(False, True), (True, True)]
+    pdf = client_fixture.get(f"{API}/design/instances/{house.id}/labels_pdf", headers=auth_header_director)
+    assert pdf.status_code == 200, pdf.text
+    session_fixture.expire_all()
+    printed = session_fixture.get(SalesOrderItemInstance, house.id)
+    assert printed.labels_printed_at is not None and printed.labels_printed_by_user_id is not None
+    assert mine() == [(True, True)]  # READY and printed: the MDF row leaves; the manifest is still pending

@@ -6,6 +6,7 @@ import { toast } from '@/components/ui/VToast';
 import { Button } from '@/components/ui/Button';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import axiosClient from '@/api/axios-client';
+import { formatDateTime } from '@/utils/format';
 
 function localeCompareEs(a: string, b: string): number {
   return a.localeCompare(b, 'es', { sensitivity: 'base', numeric: true });
@@ -68,7 +69,7 @@ async function serverReason(error: unknown, fallback: string): Promise<string> {
   return fallback;
 }
 
-async function downloadPdf(url: string, fileName: string, what: string): Promise<void> {
+async function downloadPdf(url: string, fileName: string, what: string): Promise<boolean> {
   try {
     const response = await axiosClient.get(url, { responseType: 'blob' });
     const href = window.URL.createObjectURL(response.data as Blob);
@@ -79,8 +80,10 @@ async function downloadPdf(url: string, fileName: string, what: string): Promise
     a.click();
     a.remove();
     window.URL.revokeObjectURL(href);
+    return true;
   } catch (error) {
     toast.error(`No se pudo descargar ${what}: ${await serverReason(error, 'error del servidor.')}`);
+    return false;
   }
 }
 
@@ -114,12 +117,27 @@ export default function PrintCenterPage() {
 
   const pendingCount = rows.length;
 
-  const handleGenerateLabels = (row: LabelRequestItem) =>
-    downloadPdf(`/design/instances/${row.instance_id}/labels_pdf`, pdfFileName('Etiquetas', row), 'las etiquetas');
+  // H56: the download marks the request printed; reload so the row shows it
+  const reloadRows = async () => {
+    try {
+      setRows(await designService.getLabelRequests());
+    } catch {
+      // the list keeps its last state
+    }
+  };
 
-  const handleDownloadManifest = (row: LabelRequestItem) =>
-    downloadPdf(`/design/instances/${row.instance_id}/stone_manifest`, pdfFileName('Manifiesto_Piedra', row),
-      'el manifiesto');
+  const handleGenerateLabels = async (row: LabelRequestItem) => {
+    if (await downloadPdf(`/design/instances/${row.instance_id}/labels_pdf`, pdfFileName('Etiquetas', row), 'las etiquetas')) {
+      await reloadRows();
+    }
+  };
+
+  const handleDownloadManifest = async (row: LabelRequestItem) => {
+    if (await downloadPdf(`/design/instances/${row.instance_id}/stone_manifest`, pdfFileName('Manifiesto_Piedra', row),
+      'el manifiesto')) {
+      await reloadRows();
+    }
+  };
 
   const tableData = useMemo(() => {
     const sorted = [...rows].sort(compareLabelRequests);
@@ -162,6 +180,17 @@ export default function PrintCenterPage() {
           {row.is_stone ? `${row.stone_pieces ?? 0} piezas` : `${row.declared_bundles} bultos`}
         </span>
       ),
+    },
+    {
+      key: 'printed_at',
+      label: 'Impresión',
+      render: (row) => (row.printed_at ? (
+        <span className="text-xs text-slate-500">
+          Impresa {formatDateTime(row.printed_at)}{row.printed_by ? ` · ${row.printed_by}` : ''}
+        </span>
+      ) : (
+        <span className="text-xs font-bold text-amber-700">Pendiente de imprimir</span>
+      )),
     },
     {
       key: 'action',

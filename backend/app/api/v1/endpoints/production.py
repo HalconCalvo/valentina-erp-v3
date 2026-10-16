@@ -18,7 +18,7 @@ from app.models.inventory import InventoryReservation
 from app.models.design import VersionComponent, ProductVersion
 from app.models.material import Material, holds_stock
 from app.services.planning_service import compute_semaphore
-from app.services import production_inventory_service
+from app.services import label_service, production_inventory_service
 from app.core.permissions import allow, PRODUCTION_ROLES
 from app.core.audit_context import audit_reason
 from app.schemas.production_inventory_schema import (
@@ -133,6 +133,7 @@ def request_labels(
     instance.mdf_bundles = body.mdf_bundles
     instance.hardware_bundles = body.hardware_bundles
     instance.declared_bundles = body.mdf_bundles + body.hardware_bundles
+    label_service.mark_requested(instance, label_service.LABELS)
     db.add(instance)
     db.commit()
     db.refresh(instance)
@@ -604,6 +605,7 @@ def declare_stone_pieces(
         raise HTTPException(status_code=404, detail="Instancia no encontrada.")
 
     instance.stone_pieces = body.stone_pieces
+    label_service.mark_requested(instance, label_service.MANIFEST)
     db.add(instance)
     db.commit()
     db.refresh(instance)
@@ -878,6 +880,8 @@ def mark_instance_ready(
         "instance_id": instance.id,
         "custom_name": instance.custom_name,
         "production_status": instance.production_status,
+        # H56: requests not downloaded yet; they stay in the print center and Empaque warns about them
+        "unprinted": label_service.unprinted(instance),
     }
 
 
