@@ -5008,3 +5008,5 @@ PENDIENTE PARA CERRAR EL ENSAYO:
   pay_commission y installer_payroll_service.pay_rows (un movimiento por el total). Anticipo: comisión liberada al
   cobrarse. En Pruebas la comisión 65 quedó pagada sin movimiento (botón viejo); caja chica de Pruebas $164.57.
   Lección: un botón que paga dinero siempre muestra monto, medio y crea el movimiento; "marcar pagado" no existe.
+- Buzón 11:22: comisión 65 de Pruebas regresada a por pagar con audit_reason (bitácora). D38: ayuda v2 y buscador por
+  rol (lib/routeAccess.ts = permisos de rutas, una sola fuente con el menú); "Claves:" bajo cada ### en ayuda.md.

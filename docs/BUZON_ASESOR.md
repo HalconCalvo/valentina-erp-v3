@@ -8,6 +8,17 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Pendientes
 
+- [2026-10-16 11:26] COMISIONES EN TESORERÍA → 5. NÓMINA → COMISIONES (Gabriel, Pruebas). Hacer después de 11:22 y antes de D38.
+  Hoy "B. Por pagar" muestra 3 renglones de OV-0157 de $317.43 (total $952.29) con solo "Rayos X" y "Diferir/Omitir".
+  H67. Falta la comisión del ANTICIPO ($1,428.44, A-PILOTO-1) en "Por pagar" (¿quedó en "A. Retenidas"?). Toda comisión
+       ya cobrada debe estar en Por pagar, aunque la OV esté cerrada.
+  H68. Pagar DESDE esta lista (no obligar a buscar la OV, que ya está en Cerradas): botón "Pagar" por renglón con la misma
+       confirmación de H65/D37 (vendedor, factura, cobrado sin IVA, % de la OV, monto, Banco o Efectivo) y
+       "Pagar todo a <asesor>" como H66. "Rayos X" se queda solo para consultar.
+  H69. La referencia dice "Cobro #85 liquidado": mostrar el folio de la factura y su tipo (p. ej. "F-Piloto1-01 · Avance",
+       "A-PILOTO-1 · Anticipo") y la casa.
+  En la ayuda v2 (D38), sección /treasury "Pagar comisiones": que diga Tesorería → 5. Nómina → Comisiones → Por pagar.
+
 ## Preguntas para el asesor
 
 - [2026-10-15 12:40] D35 (de H46). En Pendiente de Facturar el total suma anticipos con IVA y avances de obra sin
@@ -54,6 +65,46 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   - Agrega a tu reporte final la lista de commits pendientes de prueba en pantalla.
 
 ## Hechas
+
+- [2026-10-16 11:20] AYUDA "?" VERSIÓN 2 + BUSCADOR (D38, aprobado por Gabriel 11:18). Hacer DESPUÉS de H65/D37/H66/H64.
+  1. Textos: reemplaza frontend/src/help/ayuda.md por docs/AYUDA_PROPUESTA_ASESOR.md (versión 2 del asesor, revisada por
+     Gabriel: el vendedor NO ve sobreprecio, margen ni costos). Agrega las rutas nuevas que trae: /design/simulator,
+     /design/print-center, /planning, /production, /field, /finance/pending-invoices. Verifica que cada texto describa lo
+     que hoy hace la pantalla (si algo no coincide, corrige el texto, no la pantalla, y anótalo).
+  2. Buscador (D38): al abrir el "?" se muestra la ayuda de la pantalla actual y arriba un campo "¿En qué te ayudo?".
+     Al escribir (p. ej. "comisiones", "orden de compra", "OC", "bancos", "proveedores", "cuentas por cobrar") muestra
+     las tareas (###) relacionadas de todo el sistema, con el nombre de la pantalla y un enlace para ir a ella.
+     - Solo resultados de pantallas que el rol del usuario puede abrir (mismos permisos de las rutas). Un vendedor que
+       busca "bancos" no ve nada de Gerencia.
+     - Palabras clave por tema en el mismo ayuda.md, editables sin programar (p. ej. una línea "Claves: OC, orden de
+       compra, compras" bajo cada ###), con búsqueda sin acentos ni mayúsculas.
+     - Documenta en el comentario de arriba de ayuda.md cómo agregar claves.
+  Trabajar en `pruebas`, con tests; avisar en "Hechas".
+  HECHO [16/10 11:24] en `pruebas` (commit de ayuda D38), sin tocar `main`:
+  1. Textos: frontend/src/help/ayuda.md = versión 2 del asesor (15 pantallas; nuevas /design/simulator,
+     /design/print-center, /planning, /production, /field, /finance/pending-invoices). Revisé contra las pantallas los
+     botones y nombres que menciona (Ejecutar Simulación, Crear lote, Quitar/Cancelar partida, Marcar como enviado,
+     Confirmar ingreso, Registrar/Confirmar Avance, Escanear QR, Confirmar carga, Agregar factura, Pagar todo a…,
+     secciones 1–5 de Gerencia, etc.): existen. Una corrección de texto: Campo decía "ve solo sus instalaciones de hoy y
+     del siguiente día hábil"; eso aplica a Carga del camión. El inicio de Campo muestra las casas de hoy y las ya
+     cargadas que faltan por firmar. Corregido en el texto, no en la pantalla.
+  2. Buscador: al abrir el "?" sale la ayuda de la pantalla y arriba "¿En qué te ayudo?". Al escribir muestra las tareas
+     (###) de todas las pantallas que el puesto puede abrir (mismos permisos del menú: una sola lista para el menú y el
+     buscador), con el nombre de la pantalla, sus pasos al tocarla y el botón "Ir". Sin acentos ni mayúsculas. Ejemplos
+     probados en tests: "NOMINA" (Dirección) encuentra Administración; "orden de compra" (Almacén) → Compras;
+     "comisiones" (Ventas) → solo Ventas; "bancos" (Ventas) → nada.
+     Claves: cada ### tiene una línea "Claves: …" (40 de 40); el comentario de arriba de ayuda.md explica cómo agregar
+     claves. Un test falla si una tarea nueva no trae claves.
+  Tests frontend 46 (3 nuevos), build OK. Sin prueba en pantalla.
+
+- [2026-10-16 11:22] COMISIÓN DE $317.43 DE F-Piloto2-01 PAGADA SIN MOVIMIENTO (resultado de H65), solo en Pruebas.
+  Regresarla a "por pagar" con motivo "pago marcado sin movimiento ni medio de pago (H65)", dejando registro en la
+  bitácora (quién, cuándo, valor anterior y nuevo). Sin borrar nada. Gabriel la paga de nuevo con la confirmación.
+  Hazlo ANTES de la instrucción de las 11:20 (ayuda v2 y buscador, D38).
+  HECHO [16/10 17:21 UTC = 11:21 Mérida] en la BD de Pruebas: comisión id 65 (vendedor, F-Piloto2-01, $317.43)
+  regresada a "por pagar". Bitácora: sales_commissions 65 · is_paid true → false · motivo "pago marcado sin movimiento
+  ni medio de pago (H65)" · fuente "system" (script con la misma conexión de la app). Nada borrado. Gabriel la paga de
+  nuevo con la confirmación.
 
 - [2026-10-16 11:05] OBRA PILOTO CERRADA EN DINERO + H65/D37 + H64.
   Confirmado OK en Pruebas: OV-0157 facturado = cobrado = $55,233.03; pendiente, sin cobrar y falta cobrar $0.00; 4 facturas

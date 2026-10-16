@@ -240,6 +240,7 @@ la factura completa. Probado en Pruebas con Piloto 1 sin guardar.
 - H63/H62/H49 (e7dea28): un depósito a varias facturas (liga bancaria única); importe = suma de saldos.
 - H64–H66 + D37 (e95d71c, migración z5a6b7c8d9e0): pagos de comisión y nómina con medio (Banco/Efectivo) y movimiento;
   "Pagar todo a <persona>"; facturas de la OV ordenadas.
+- D38: ayuda v2 + buscador "¿En qué te ayudo?" por puesto, con claves editables en ayuda.md.
 - Pendiente de todo el bloque: prueba en pantalla en Pruebas.
 
 ## 11. PRIORIDAD 2 — Indicadores del tablero de Dirección (con Gabriel) — hecha (2026-10-12, commit local)

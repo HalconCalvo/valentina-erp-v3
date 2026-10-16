@@ -240,8 +240,8 @@ Lo usan Administración, Gerencia y Dirección. Administración prepara los pago
 3. Elige el medio: **Banco** (con su cuenta) o **Efectivo**, y confirma.
 
 ### Pagar comisiones
-1. En la OV, en la factura cobrada, pulsa **Pagar** en la comisión del vendedor.
-2. Revisa el monto, elige **Banco** o **Efectivo** y confirma.
+1. Entra a **5. Nómina → Comisiones → Por pagar**. Ahí están todas las comisiones ya cobradas, aunque la OV esté cerrada.
+2. Pulsa **Pagar** (o **Pagar todo a [vendedor]**), revisa el monto, elige **Banco** o **Efectivo** y confirma.
 
 ### Bueno saber
 - Las facturas se emiten en Compaq; aquí solo se registran.
