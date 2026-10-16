@@ -46,6 +46,7 @@ import {
 import { OrderStatementModal } from '../../finance/components/OrderStatementModal';
 import { SalesOrder } from '../../../types/sales';
 import { formatMoney } from '@/utils/format';
+import { invoiceOpenBalance } from '@/utils/invoiceBalance';
 
 /** Raíz del tablero Administración / Gerencia V4.0 */
 type AdminV4Root = null | 'PENDING' | 'BANKS' | 'CXC' | 'CXP' | 'PAYROLL' | 'OV_FACTURACION';
@@ -153,9 +154,11 @@ const ManagementDashboard: React.FC = () => {
             const pays = order.payments;
             if (!pays?.length) continue;
             for (const cxc of pays) {
-                if (String(cxc.status).toUpperCase() === 'PENDING') {
+                // H47: open balance (amortized advance and payments out), as in CxC
+                const balance = invoiceOpenBalance(cxc);
+                if (String(cxc.status).toUpperCase() === 'PENDING' && balance > 0) {
                     agingN += 1;
-                    agingAmt += Number(cxc.amount) || 0;
+                    agingAmt += balance;
                 }
             }
         }

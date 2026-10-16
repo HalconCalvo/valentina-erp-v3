@@ -34,6 +34,7 @@ from app.repositories import sales_repository as sales_repo
 from app.core.permissions import allow, FINANCE_ROLES, SALES_ORDER_ROLES, SALES_READ_ROLES, allow_payment_execution
 
 from app.schemas.sales_schema import (
+    OrderBillingSummaryRead,
     ProgressInvoicePreviewRead,
     SalesOrderRead, SalesOrderUpdate,
     SalesOrderItemCreate,
@@ -531,6 +532,17 @@ def get_invoicing_rights(
     )
 
 
+@router.get("/orders/{order_id}/billing_summary", response_model=OrderBillingSummaryRead,
+            dependencies=[allow(SALES_READ_ROLES)])
+def read_order_billing_summary(
+    order_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """H47: invoiced, pending to invoice, collected and balances of the order, with the amortized advance counted once."""
+    return sales_service.order_billing_summary(session, order_id, current_user)
+
+
 @router.get("/orders/{order_id}/progress_preview", response_model=ProgressInvoicePreviewRead,
             dependencies=[allow(FINANCE_ROLES)])
 def preview_progress_invoice(
@@ -633,8 +645,10 @@ def list_installments(cxc_id: int, session: Session = Depends(get_session),
         "invoice_folio": cxc.invoice_folio,
         "payment_type": cxc.payment_type,
         "monto_factura": monto_factura,
+        "amortized_advance": round(float(cxc.amortized_advance or 0.0), 2),
         "total_abonado": total_abonado,
-        "saldo": max(monto_factura - total_abonado, 0.0),
+        # H47/H48: same balance as CxC (amortized advance and credit notes included)
+        "saldo": max(progress_invoice_service.invoice_balance(session, cxc), 0.0),
         "status": cxc.status,
         "linked_instance_ids": linked_instance_ids,
         "abonos": abonos,

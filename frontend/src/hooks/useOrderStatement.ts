@@ -7,6 +7,8 @@ import type { BankAccount } from '../types/treasury';
 
 export const orderStatementQueryKeys = {
   order: (orderId: number) => ['order', orderId] as const,
+  // Under the order key: refreshing the order also refreshes its billing figures
+  billing: (orderId: number) => ['order', orderId, 'billing'] as const,
   installments: (cxcId: number) => ['installments', cxcId] as const,
   commissions: () => ['commissions'] as const,
   bankAccounts: () => ['bank-accounts'] as const,
@@ -40,6 +42,15 @@ export function useOrderDetail(orderId: number | undefined, isOpen: boolean) {
   return useQuery({
     queryKey: orderStatementQueryKeys.order(orderId ?? 0),
     queryFn: () => salesService.getOrderDetail(orderId!),
+    enabled: isOpen && !!orderId,
+    staleTime: 0,
+  });
+}
+
+export function useOrderBillingSummary(orderId: number | undefined, isOpen: boolean) {
+  return useQuery({
+    queryKey: orderStatementQueryKeys.billing(orderId ?? 0),
+    queryFn: () => salesService.getOrderBillingSummary(orderId!),
     enabled: isOpen && !!orderId,
     staleTime: 0,
   });

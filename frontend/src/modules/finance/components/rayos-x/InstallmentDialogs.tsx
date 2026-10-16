@@ -72,6 +72,8 @@ interface RegisterInstallmentDialogProps {
     bankAccounts: BankAccountOption[];
     loadingBankAccounts: boolean;
     houses: UnlinkedHouseGroup[];
+    /** H48: houses the invoice already bills (a progress invoice links them when it is registered). */
+    invoiceHouseNames?: string[];
     formatCurrency: (value: number) => string;
     renderCongruence: (selectedIds: number[], amount: number) => React.ReactNode;
     /** Resolves true when registered (the dialog then closes). */
@@ -81,7 +83,8 @@ interface RegisterInstallmentDialogProps {
 
 /** Customer payment (abono) against an invoice: bank account, and the installed instances it covers. */
 export const RegisterInstallmentDialog: React.FC<RegisterInstallmentDialogProps> = ({
-    cxc, initialAmount, bankAccounts, loadingBankAccounts, houses, formatCurrency, renderCongruence, onSubmit, onClose,
+    cxc, initialAmount, bankAccounts, loadingBankAccounts, houses, invoiceHouseNames = [], formatCurrency, renderCongruence,
+    onSubmit, onClose,
 }) => {
     const [amount, setAmount] = useState(initialAmount);
     const [date, setDate] = useState(todayYmd());
@@ -91,7 +94,9 @@ export const RegisterInstallmentDialog: React.FC<RegisterInstallmentDialogProps>
     const [instanceIds, setInstanceIds] = useState<number[]>([]);
     const [isAdvance, setIsAdvance] = useState(false);
     const [saving, setSaving] = useState(false);
-    const canLinkInstances = cxc.payment_type !== 'ADVANCE' && houses.some((h) => h.instances.length > 0);
+    // H48: a progress invoice already carries its houses and is never an advance
+    const isProgress = cxc.payment_type === 'PROGRESS';
+    const canLinkInstances = !isProgress && cxc.payment_type !== 'ADVANCE' && houses.some((h) => h.instances.length > 0);
 
     const submit = async () => {
         if (amount <= 0) {
@@ -136,6 +141,12 @@ export const RegisterInstallmentDialog: React.FC<RegisterInstallmentDialogProps>
                             getValue={(a) => String(a.id)} placeholder="Buscar cuenta bancaria..." />
                     )}
                 </div>
+                {isProgress && invoiceHouseNames.length > 0 && (
+                    <div>
+                        <label className={labelClass}>Casas de esta factura</label>
+                        <p className="text-sm text-slate-700">{invoiceHouseNames.join(' · ')}</p>
+                    </div>
+                )}
                 {canLinkInstances && (
                     <VToggle label="¿Es anticipo?" checked={isAdvance}
                         onCheckedChange={(checked) => { setIsAdvance(checked); if (checked) setInstanceIds([]); }} />
@@ -179,7 +190,8 @@ export const EditInstallmentDialog: React.FC<EditInstallmentDialogProps> = ({
     const [instanceIds, setInstanceIds] = useState<number[]>([]);
     const [isAdvance, setIsAdvance] = useState(Boolean(abono.is_advance) || cxc.payment_type === 'ADVANCE');
     const [saving, setSaving] = useState(false);
-    const canLinkInstances = cxc.payment_type !== 'ADVANCE' && houses.some((h) => h.instances.length > 0);
+    // H48: a progress invoice keeps its own houses and is never an advance
+    const canLinkInstances = !['ADVANCE', 'PROGRESS'].includes(cxc.payment_type ?? '') && houses.some((h) => h.instances.length > 0);
 
     const save = async () => {
         if (amount <= 0) {

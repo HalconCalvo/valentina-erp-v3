@@ -9,6 +9,7 @@ import { OrderStatementModal } from './OrderStatementModal';
 import { toast } from '@/components/ui/VToast';
 import { useSalesOrders, useInvoicingRights } from '../../../hooks/useReceivables';
 import { formatDate, formatMoney } from '@/utils/format';
+import { invoiceOpenBalance } from '@/utils/invoiceBalance';
 import { Button } from '@/components/ui/Button';
 
 // ---> 1. AGREGAMOS EL FILTRO 'ALL' <---
@@ -126,9 +127,11 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
     const installmentsVal = invoicingRights?.progress_work_total ?? 0;
 
     const pendingInvoices = orders.flatMap(
-        (order) => order.payments?.filter((cxc) => String((cxc as { status?: string }).status).toUpperCase() === 'PENDING') || []
+        (order) => order.payments?.filter((cxc) => String((cxc as { status?: string }).status).toUpperCase() === 'PENDING'
+            && invoiceOpenBalance(cxc) > 0) || []
     );
-    const agingVal = pendingInvoices.reduce((sum, inv) => sum + Number(inv.amount), 0);
+    // H47: open balance (amortized advance and payments out), as in CxC
+    const agingVal = pendingInvoices.reduce((sum, inv) => sum + invoiceOpenBalance(inv), 0);
 
     const ordersByGroup = useMemo(() => {
         const groups: Record<OrderGroup, SalesOrder[]> = { OPEN: [], CLOSED: [], CANCELLED: [] };

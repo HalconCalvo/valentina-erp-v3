@@ -89,3 +89,40 @@ def test_pending_progress_rows_are_with_iva(client_fixture, session_fixture, aut
     row = next(r for r in rights["progress_instances"] if r["instance_id"] == houses[0])
     assert row["line_amount"] == round(15871.56 * order.total_price / order.subtotal, 2)
     assert row["line_amount_net"] == 15871.56
+
+
+def test_order_figures_count_the_amortized_advance_once(client_fixture, session_fixture, auth_header_director,
+                                                        seed_client_and_tax):
+    """H47: the order window, the payment form and Tesorería use the CxC balance (amount − amortized − payments)."""
+    from app.models.treasury import BankAccount
+    order, houses = _order_with_paid_advance(client_fixture, session_fixture, auth_header_director, seed_client_and_tax)
+    advance = session_fixture.exec(select(CustomerPayment).where(CustomerPayment.sales_order_id == order.id)).one()
+    preview = _preview(client_fixture, auth_header_director, order.id, houses[:1])
+    cxc_id = _register(client_fixture, auth_header_director, order.id, houses[:1]).json()["cxc_id"]
+    summary = client_fixture.get(f"{API}/{order.id}/billing_summary", headers=auth_header_director).json()
+    assert summary["invoiced"] == round(advance.amount + preview["to_collect"], 2)
+    assert summary["pending_to_invoice"] == round(preview["amount"] * 2, 2)
+    assert summary["advance_to_amortize"] == round(advance.amount - preview["amortized_advance"], 2)
+    assert summary["invoiced_uncollected"] == preview["to_collect"]
+    assert summary["invoice_balances"][str(cxc_id)] == preview["to_collect"]
+    installments = client_fixture.get(f"{settings.API_V1_STR}/sales/invoices/{cxc_id}/installments",
+                                      headers=auth_header_director)
+    assert installments.status_code == 200, installments.text
+    assert installments.json()["saldo"] == preview["to_collect"]
+    account = BankAccount(name="Banco H47", account_number="47", current_balance=0.0, initial_balance=0.0)
+    session_fixture.add(account)
+    session_fixture.commit()
+    income = {"account_id": account.id, "transaction_type": "IN", "related_entity_type": "CUSTOMER_PAYMENT",
+              "related_entity_id": cxc_id}
+    treasury = f"{settings.API_V1_STR}/treasury/transactions"
+    too_much = client_fixture.post(treasury, headers=auth_header_director, json={**income, "amount": preview["amount"]})
+    assert too_much.status_code == 400
+    session_fixture.refresh(account)
+    assert account.current_balance == 0.0
+    paid = client_fixture.post(treasury, headers=auth_header_director, json={**income, "amount": preview["to_collect"]})
+    assert paid.status_code == 200, paid.text
+    session_fixture.expire_all()
+    assert session_fixture.get(CustomerPayment, cxc_id).status == CXCStatus.PAID
+    summary = client_fixture.get(f"{API}/{order.id}/billing_summary", headers=auth_header_director).json()
+    assert summary["invoiced_uncollected"] == 0.0
+    assert summary["collected"] == round(preview["to_collect"], 2)

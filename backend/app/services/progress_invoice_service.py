@@ -34,6 +34,15 @@ def house_amount_with_tax(item: SalesOrderItem, order: Optional[SalesOrder]) -> 
     return round(house_amount(item) * tax_factor(order), 2)
 
 
+def invoice_balance(session: Session, cxc: CustomerPayment) -> float:
+    """What the client still owes on an invoice: amount minus advance amortized, payments and credit notes."""
+    return round(
+        float(cxc.amount or 0.0) - float(cxc.amortized_advance or 0.0)
+        - sales_repo.sum_active_installments(session, cxc.id) - sales_repo.sum_active_credit_notes(session, cxc.id),
+        2,
+    )
+
+
 def _advance_collected(session: Session, payment: CustomerPayment) -> float:
     if payment.status == CXCStatus.PAID:
         return float(payment.amount or 0.0)
@@ -79,3 +88,28 @@ def check_amortization(suggested: dict, amortized: float, reason: Optional[str])
     if abs(amortized - suggested["amortized_advance"]) > AMORTIZATION_TOLERANCE and not (reason or "").strip():
         raise HTTPException(status_code=400, detail=(
             f"La amortización sugerida es ${suggested['amortized_advance']:,.2f}; para cambiarla escribe el motivo."))
+
+
+def _live_invoices(order: SalesOrder) -> List[CustomerPayment]:
+    return [p for p in order.payments or [] if p.status != CXCStatus.CANCELLED]
+
+
+def billing_summary(session: Session, order: SalesOrder) -> dict:
+    """H47: the order's billing figures treat the amortized advance like CxC does. An advance amortized by a progress
+    invoice is not billed twice: invoiced = amount − amortized; an invoice's balance = invoice_balance."""
+    invoices = _live_invoices(order)
+    balances = {p.id: 0.0 if p.status == CXCStatus.PAID else round(max(invoice_balance(session, p), 0.0), 2)
+                for p in invoices}
+    collected = sum(sales_repo.sum_active_installments(session, p.id) for p in invoices)
+    return {
+        "order_id": order.id,
+        "total": round(float(order.total_price or 0.0), 2),
+        "invoiced": round(sum(float(p.amount or 0.0) - float(p.amortized_advance or 0.0) for p in invoices), 2),
+        "pending_to_invoice": round(sum(house_amount_with_tax(inst.item, order)
+                                        for inst in uninvoiced_houses(order) if inst.item), 2),
+        "advance_to_amortize": advance_remaining(session, order.id),
+        "collected": round(collected, 2),
+        "invoiced_uncollected": round(sum(balances.values()), 2),
+        "contract_remaining": round(max(float(order.outstanding_balance or 0.0), 0.0), 2),
+        "invoice_balances": balances,
+    }

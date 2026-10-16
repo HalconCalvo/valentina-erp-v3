@@ -14,6 +14,7 @@ import {
   RetentionAlertRead,
   RetentionUpdatePayload,
   OrderMoneySummary,
+  OrderBillingSummary,
   CustomerCreditNote,
   CustomerCreditNotePayload,
     ProgressInvoicePreview,
@@ -274,6 +275,11 @@ export const salesService = {
      * ADMINISTRACIÓN: Registra un Avance/Estimación (Cobro por Instancias)
      */
     /** D36: suggested invoice, amortization and amount to collect for the selected houses (saves nothing). */
+    getOrderBillingSummary: async (orderId: number): Promise<OrderBillingSummary> => {
+        const response = await axiosClient.get<OrderBillingSummary>(`/sales/orders/${orderId}/billing_summary`);
+        return response.data;
+    },
+
     getProgressPreview: async (orderId: number, instanceIds: number[]): Promise<ProgressInvoicePreview> => {
         const params = new URLSearchParams();
         instanceIds.forEach((id) => params.append('instance_ids', String(id)));

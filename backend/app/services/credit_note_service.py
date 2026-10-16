@@ -33,6 +33,7 @@ from app.schemas.sales_schema import (
     PendingComplementaryAdvance,
 )
 from app.services import sales_service
+from app.services.progress_invoice_service import invoice_balance
 
 _FINANCE_ROLES = {"DIRECTOR", "MANAGER", "ADMIN"}
 _SUMMARY_ROLES = _FINANCE_ROLES | {"SALES"}
@@ -48,15 +49,6 @@ def _get_order(session: Session, order_id: int) -> SalesOrder:
     if not order:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
     return order
-
-
-def invoice_balance(session: Session, cxc: CustomerPayment) -> float:
-    """What the client still owes on an invoice: amount minus advance amortized, payments and credit notes."""
-    return round(
-        float(cxc.amount or 0.0) - float(cxc.amortized_advance or 0.0)
-        - sales_repo.sum_active_installments(session, cxc.id) - sales_repo.sum_active_credit_notes(session, cxc.id),
-        2,
-    )
 
 
 def _get_invoice_with_balance(session: Session, order: SalesOrder, cxc_id: int, amount: float) -> CustomerPayment:

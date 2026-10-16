@@ -77,6 +77,14 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
   const sobrante = Math.max(importeCobro - totalAplicado, 0);
   const excedido = totalAplicado > importeCobro + 0.01;
 
+  // H49: choosing an invoice proposes its balance (amount − amortized advance − payments) when no amount was typed
+  useEffect(() => {
+    if (!selectedInvoice || Number(watchAmount) > 0 || saldoActual <= 0) return;
+    setValue('amount', saldoActual, { shouldValidate: true });
+    setDisplayAmount(new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(saldoActual));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedInvoice?.cxc_id]);
+
   if (!isOpen) return null;
 
   const onSubmit = async (data: BankTransactionCreate) => {

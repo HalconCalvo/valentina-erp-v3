@@ -324,6 +324,19 @@ export interface CustomerCreditNotePayload {
 }
 
 /** D36: suggested progress invoice for the selected houses (whole houses with IVA, proportional advance). */
+/** H47: billing figures of an order with the amortized advance counted once (same rule as CxC). */
+export interface OrderBillingSummary {
+    order_id: number;
+    total: number;
+    invoiced: number;
+    pending_to_invoice: number;
+    advance_to_amortize: number;
+    collected: number;
+    invoiced_uncollected: number;
+    contract_remaining: number;
+    invoice_balances: Record<string, number>;
+}
+
 export interface ProgressInvoicePreview {
     order_id: number;
     instance_ids: number[];

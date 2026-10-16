@@ -573,6 +573,19 @@ class OrderMoneySummaryRead(BaseModel):
     credit_notes: List[CustomerCreditNoteRead] = []
 
 
+class OrderBillingSummaryRead(BaseModel):
+    """H47: billing figures of an order with the amortized advance counted once (same rule as CxC)."""
+    order_id: int
+    total: float
+    invoiced: float                 # invoices minus the advance they amortize (with IVA)
+    pending_to_invoice: float       # houses not invoiced yet, whole value with IVA (D36)
+    advance_to_amortize: float      # advance collected that future progress invoices will amortize
+    collected: float
+    invoiced_uncollected: float     # sum of invoice balances, as in CxC
+    contract_remaining: float       # "Falta cobrar del contrato" (D33)
+    invoice_balances: Dict[int, float]
+
+
 class ProgressInvoicePreviewRead(BaseModel):
     """D36: suggested figures of a progress invoice (whole houses with IVA, proportional advance amortized)."""
     order_id: int

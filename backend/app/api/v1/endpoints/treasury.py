@@ -11,6 +11,7 @@ from app.core.business_time import effective_datetime_for, today_local
 from app.models.treasury import BankAccount, BankTransaction, TransactionType, WeeklyFixedCost
 from app.models.sales import CustomerPayment
 from app.repositories import sales_repository as sales_repo
+from app.services import progress_invoice_service
 from app.models.finance import SupplierPayment
 from app.core.permissions import allow, FINANCE_ROLES, allow_payment_execution
 from app.schemas.treasury_schema import (
@@ -113,6 +114,12 @@ def create_transaction(
     db_transaction = BankTransaction(**transaction_in.model_dump(exclude={"deposit_date"}),
                                      transaction_date=movement_datetime(transaction_in.deposit_date))
     
+    linked_cxc = (session.get(CustomerPayment, transaction_in.related_entity_id)
+                  if transaction_in.related_entity_type == 'CUSTOMER_PAYMENT' and transaction_in.related_entity_id
+                  else None)
+    if linked_cxc and transaction_in.transaction_type == TransactionType.IN:
+        _assert_income_fits_invoice(session, linked_cxc, transaction_in.amount)
+
     # Lógica financiera
     if transaction_in.transaction_type == TransactionType.IN:
         account.current_balance += transaction_in.amount
@@ -143,6 +150,14 @@ def create_transaction(
     return db_transaction
 
 
+def _assert_income_fits_invoice(session, cxc: CustomerPayment, monto: float) -> None:
+    """An income never exceeds the invoice balance (amount − amortized advance − payments − credit notes)."""
+    saldo = progress_invoice_service.invoice_balance(session, cxc)
+    if round(float(monto), 2) > saldo + 0.01:
+        raise HTTPException(400, f"El ingreso (${float(monto):,.2f}) supera el saldo de la factura "
+                                 f"{cxc.invoice_folio or ''} (${saldo:,.2f}).")
+
+
 def _aplicar_abono_a_factura(session, cxc_id, monto, bank_tx, current_user):
     """Camino A: genera el abono (installment) contra la factura de CxC a partir de un
     ingreso bancario real; acumula, salda la factura (PAID + comisión ADVANCE) y reduce
@@ -161,6 +176,7 @@ def _aplicar_abono_a_factura(session, cxc_id, monto, bank_tx, current_user):
         raise HTTPException(409, "La factura ya está saldada.")
 
     order = session.get(SalesOrder, cxc.sales_order_id)
+    _assert_income_fits_invoice(session, cxc, monto)
 
     abonado_antes = session.exec(
         select(func.coalesce(func.sum(CustomerPaymentInstallment.amount), 0.0)).where(
@@ -193,7 +209,9 @@ def _aplicar_abono_a_factura(session, cxc_id, monto, bank_tx, current_user):
 
     abonado_despues = round(abonado_antes + monto_r, 2)
     acreditado = round(sales_repo.sum_active_credit_notes(session, cxc.id), 2)
-    if abonado_despues + acreditado + 0.01 >= round(float(cxc.amount or 0.0), 2):
+    # H47: the advance amortized by a progress invoice also covers it (same rule as CxC)
+    amortizado = round(float(cxc.amortized_advance or 0.0), 2)
+    if abonado_despues + acreditado + amortizado + 0.01 >= round(float(cxc.amount or 0.0), 2):
         cxc.status = CXCStatus.PAID
         cxc.payment_date = bank_tx.transaction_date or datetime.utcnow()
         if cxc.payment_type == PaymentType.ADVANCE and not cxc.commission_paid and order:

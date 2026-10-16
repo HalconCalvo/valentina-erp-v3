@@ -1132,6 +1132,10 @@ def _progress_candidates(session: Session, order_id: int, instance_ids: List[int
     return order, candidates
 
 
+def order_billing_summary(session: Session, order_id: int, current_user: User) -> dict:
+    return progress_invoice_service.billing_summary(session, get_order(session, order_id, current_user))
+
+
 def progress_invoice_preview(session: Session, order_id: int, instance_ids: List[int]) -> dict:
     order, candidates = _progress_candidates(session, order_id, instance_ids)
     return progress_invoice_service.preview(session, order, candidates)

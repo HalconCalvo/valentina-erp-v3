@@ -9,7 +9,7 @@ from app.models.foundations import Client
 from app.models.sales import SalesOrder, SalesOrderItem, SalesOrderStatus
 from app.models.treasury import BankAccount, WeeklyFixedCost
 from app.repositories import sales_repository as sales_repo
-from app.services import margin_service
+from app.services import margin_service, progress_invoice_service
 from app.schemas.analytics_schema import (
     CashFlowEntry,
     CashFlowProjection,
@@ -52,8 +52,7 @@ def get_cxc_aging(session: Session) -> CxcAgingStats:
     total_pending = 0.0
     count = 0
     for cxc in sales_repo.get_pending_cxc(session):
-        paid = sales_repo.sum_active_installments(session, cxc.id)
-        balance = round(float(cxc.amount or 0.0) - paid, 2)
+        balance = progress_invoice_service.invoice_balance(session, cxc)
         if balance <= 0.01:
             continue
         inv_date = cxc.invoice_date.date() if cxc.invoice_date else today
@@ -154,8 +153,7 @@ def _opex_daily_avg(session: Session) -> float:
 def _build_cxc_income(session: Session) -> List[CashFlowEntry]:
     items: List[CashFlowEntry] = []
     for cxc in sales_repo.get_pending_cxc(session):
-        paid = sales_repo.sum_active_installments(session, cxc.id)
-        balance = round(float(cxc.amount or 0.0) - paid, 2)
+        balance = progress_invoice_service.invoice_balance(session, cxc)
         if balance <= 0.01:
             continue
         inv_dt = cxc.invoice_date or datetime.utcnow()

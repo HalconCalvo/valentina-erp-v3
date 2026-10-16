@@ -13,6 +13,7 @@ import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import Modal from '@/components/ui/Modal';
 import { VSummaryCard } from '@/components/ui/VSummaryCard';
 import { formatDate, formatMoney } from '@/utils/format';
+import { invoiceOpenBalance, type InvoiceBalanceFields } from '@/utils/invoiceBalance';
 import { EditPaymentDialog, TextConfirmDialog, type PaymentEditForm } from './rayos-x/RayosXDialogs';
 import { type UnlinkedHouseGroup } from './rayos-x/HouseInstancePicker';
 import { EditInstallmentDialog, RegisterInstallmentDialog, type InstallmentPayload } from './rayos-x/InstallmentDialogs';
@@ -24,6 +25,7 @@ import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useOrderDetail,
+  useOrderBillingSummary,
   useInstallments,
   useCommissions,
   useBankAccounts,
@@ -332,6 +334,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const orderId = order?.id ?? localOrder?.id;
 
     const { data: orderDetail, refetch: refetchOrderDetail } = useOrderDetail(orderId, isOpen);
+    const { data: billing, refetch: refetchBilling } = useOrderBillingSummary(orderId, isOpen);
     const { data: commissionsList = [] } = useCommissions(isOpen && !!orderId);
 
     const expandedInstallmentsQuery = useInstallments(expandedInvoiceId ?? undefined);
@@ -393,8 +396,8 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
 
     const refreshOrderInPlace = useCallback(async () => {
         if (!orderId) return;
-        await refetchOrderDetail();
-    }, [orderId, refetchOrderDetail]);
+        await Promise.all([refetchOrderDetail(), refetchBilling()]);
+    }, [orderId, refetchOrderDetail, refetchBilling]);
 
     const countOtherInstancesWithoutDelivery = useCallback((instanceId: number) => {
         let count = 0;
@@ -677,16 +680,15 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const clientName = (order as any).client_name || (order as any).client?.full_name || (order as any).client?.name || (order as any).customer?.name || 'Cliente por Defecto';
 
     const totalOrder = order.total_price || 0;
-    const totalInvoiced = order.payments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
-    const totalPaidInBank = order.payments?.reduce((sum, p) => {
-        if (p.status === 'CANCELLED') return sum;
-        const installmentsTotal = (p.installments || [])
-            .filter((inst) => !inst.is_cancelled)
-            .reduce((s, inst) => s + (inst.amount || 0), 0);
-        return sum + installmentsTotal;
-    }, 0) ?? 0;
-    const pendingToInvoice = totalOrder - totalInvoiced;
-    const balanceDue = totalInvoiced - totalPaidInBank;
+    // H47: server figures, with the advance amortized by progress invoices counted once (same rule as CxC)
+    const totalInvoiced = billing?.invoiced ?? 0;
+    const totalPaidInBank = billing?.collected ?? 0;
+    const pendingToInvoice = billing?.pending_to_invoice ?? 0;
+    const balanceDue = billing?.invoiced_uncollected ?? 0;
+    const contractRemaining = billing?.contract_remaining ?? 0;
+    const advanceToAmortize = billing?.advance_to_amortize ?? 0;
+    const invoiceBalance = (cxc: InvoiceBalanceFields & { id: number }) =>
+        billing?.invoice_balances[String(cxc.id)] ?? invoiceOpenBalance(cxc);
     const advanceInvoiced = order.payments
         ?.filter(p => p.payment_type === 'ADVANCE')
         .reduce((sum, p) => sum + Number(p.amount), 0) || 0;
@@ -703,7 +705,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     const handleOpenInstallmentModal = async (cxc: any) => {
         await refreshOrderInPlace();
 
-        let saldo = Number(cxc.amount || 0);
+        let saldo = invoiceBalance(cxc);
         try {
             const data = await queryClient.fetchQuery({
                 queryKey: orderStatementQueryKeys.installments(cxc.id),
@@ -713,7 +715,7 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
         } catch {
             // keep saldo from invoice amount
         }
-        setInstallmentModal({ open: true, cxc, amount: saldo > 0 ? saldo : Number(cxc.amount || 0) });
+        setInstallmentModal({ open: true, cxc, amount: saldo });
     };
 
     const handleSubmitInstallment = async (payload: InstallmentPayload): Promise<boolean> => {
@@ -1253,12 +1255,15 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                         <VSummaryCard label="Valor del proyecto (con IVA)" value={formatMoney(totalOrder)} tone="slate" />
-                        <VSummaryCard label="Total facturado" value={formatMoney(totalInvoiced)} tone="indigo" />
-                        <VSummaryCard label="Pendiente de facturar" value={formatMoney(pendingToInvoice)} tone="amber" />
+                        <VSummaryCard label="Total facturado (con IVA)" value={formatMoney(totalInvoiced)} tone="indigo"
+                            hint="Sin contar dos veces el anticipo amortizado" />
+                        <VSummaryCard label="Pendiente de facturar (con IVA)" value={formatMoney(pendingToInvoice)} tone="amber"
+                            hint={advanceToAmortize > 0.01 ? `Casas sin factura; amortizarán ${formatMoney(advanceToAmortize)} de anticipo` : 'Casas sin factura'} />
                         <VSummaryCard label="Total cobrado" value={formatMoney(totalPaidInBank)} tone="emerald" />
                         <VSummaryCard label="Facturado sin cobrar" value={formatMoney(balanceDue)} tone="total" />
+                        <VSummaryCard label="Falta cobrar del contrato" value={formatMoney(contractRemaining)} tone="orange" />
                     </div>
 
                     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
@@ -1385,8 +1390,10 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                                         label: 'Cobro',
                                         width: '220px',
                                         render: (cxc: any) => {
-                                            const isFacturaPagada = cxc.status === 'PAID';
                                             const isFacturaCancelada = cxc.status === 'CANCELLED';
+                                            // H47: an invoice covered by the amortized advance and payments is paid
+                                            const isFacturaPagada = cxc.status === 'PAID'
+                                                || (!isFacturaCancelada && billing != null && invoiceBalance(cxc) <= 0.01);
                                             return (
                                                 <span className="block text-right">
                                                     {isFacturaPagada ? (
@@ -1872,6 +1879,9 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                 bankAccounts={activeBankAccounts}
                 loadingBankAccounts={loadingBankAccounts}
                 houses={unlinkedInstancesByHouse}
+                invoiceHouseNames={uniqueItems.flatMap((item: any) => (item.instances ?? [])
+                    .filter((inst: any) => !inst.is_cancelled && inst.customer_payment_id === installmentModal.cxc?.id)
+                    .map((inst: any) => inst.custom_name || `Instancia ${inst.id}`))}
                 formatCurrency={formatMoney}
                 renderCongruence={(selectedIds, amount) => (
                     <InstallmentCongruenceCompare selectedInstanceIds={selectedIds} capturedAmount={amount} cxcId={installmentModal.cxc?.id}
