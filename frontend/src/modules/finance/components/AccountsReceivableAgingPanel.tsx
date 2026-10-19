@@ -340,18 +340,18 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
         const alignClass = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left';
         return (
             <div
-                className={`${className} p-4 ${alignClass} cursor-pointer hover:bg-slate-200 transition-colors select-none`}
+                className={`${className} ${ui.headerCell} ${alignClass} cursor-pointer hover:bg-slate-200 transition-colors select-none`}
                 onClick={() => handleSort(field)}
             >
                 <div
                     className={`flex items-center gap-1 ${align === 'right' ? 'flex-row-reverse justify-end' : ''} ${align === 'center' ? 'justify-center' : ''} ${align === 'left' ? 'inline-flex' : 'inline-flex'}`}
                 >
-                    <span className={isActive ? 'text-emerald-800' : 'text-slate-600 font-bold'}>{label}</span>
+                    <span className={isActive ? (pilot ? 'text-indigo-700' : 'text-emerald-800') : 'text-slate-600 font-bold'}>{label}</span>
                     {isActive ? (
                         sortDirection === 'asc' ? (
-                            <ArrowUp size={16} className="text-emerald-600" />
+                            <ArrowUp size={16} className={pilot ? 'text-indigo-600' : 'text-emerald-600'} />
                         ) : (
-                            <ArrowDown size={16} className="text-emerald-600" />
+                            <ArrowDown size={16} className={pilot ? 'text-indigo-600' : 'text-emerald-600'} />
                         )
                     ) : (
                         <ArrowUpDown size={16} className="text-slate-400 hover:text-slate-600" />
@@ -400,12 +400,12 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
         {
             key: 'orderTotal',
             label: 'Importe OV',
-            render: (inv) => <span className="block text-right font-bold text-slate-800">{formatMoney(inv.orderTotal)}</span>,
+            render: (inv) => <span className={`block text-right font-bold text-slate-800${variant === 'page' ? ' tabular-nums' : ''}`}>{formatMoney(inv.orderTotal)}</span>,
         },
         {
             key: 'amount',
             label: 'Saldo pendiente',
-            render: (inv) => <span className="block text-right font-black text-slate-900">{formatMoney(Number(inv.amount))}</span>,
+            render: (inv) => <span className={`block text-right font-black text-slate-900${variant === 'page' ? ' tabular-nums' : ''}`}>{formatMoney(Number(inv.amount))}</span>,
         },
         {
             key: 'daysOverdue',
@@ -443,7 +443,7 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
                 </div>
             ),
         },
-    ], [allowFinanceActions]);
+    ], [allowFinanceActions, variant]);
 
     const handleGoBack = () => {
         if (variant === 'embedded') {
@@ -458,8 +458,31 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
         navigate('/finance');
     };
 
+    // Third-wave pilot (guide v2, Gabriel 17/10): only the /finance/aging page; the embedded panel keeps its look
+    const pilot = variant === 'page';
     const outerClass =
-        variant === 'page' ? 'p-8 max-w-7xl mx-auto pb-24 space-y-6 animate-fadeIn' : 'space-y-6 animate-fadeIn pb-8';
+        pilot ? 'p-8 w-full pb-24 space-y-6 animate-fadeIn' : 'space-y-6 animate-fadeIn pb-8';
+    const ui = pilot
+        ? {
+            card: 'bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden',
+            toolbar: 'p-4 border-b border-slate-200 bg-slate-50 flex flex-col md:flex-row justify-between items-center gap-4',
+            pill: 'bg-white border border-slate-200 px-4 py-2 rounded-lg shadow-sm flex items-center gap-3 w-full md:w-auto justify-between',
+            pillLabel: 'text-xs font-bold text-slate-500 uppercase tracking-wider',
+            pillValue: 'font-black text-slate-900 text-xl tabular-nums',
+            headerRow: 'sticky top-0 z-20 flex text-sm text-slate-600 font-bold bg-slate-50 border-b border-slate-200',
+            headerCell: 'p-3',
+            loading: 'text-xs text-slate-400 font-bold animate-pulse',
+        }
+        : {
+            card: 'bg-white rounded-xl border border-emerald-200 shadow-md overflow-hidden',
+            toolbar: 'p-4 border-b border-emerald-100 bg-emerald-50/50 flex flex-col md:flex-row justify-between items-center gap-4',
+            pill: 'bg-white border border-emerald-200 px-4 py-2 rounded-lg shadow-sm flex items-center gap-3 w-full md:w-auto justify-between',
+            pillLabel: 'text-xs font-bold text-emerald-600 uppercase tracking-wider',
+            pillValue: 'font-black text-emerald-900 text-xl',
+            headerRow: 'sticky top-0 z-20 flex text-xs uppercase tracking-wider text-slate-500 font-bold bg-slate-50 border-b border-slate-200',
+            headerCell: 'p-4',
+            loading: 'text-xs text-emerald-500 font-bold animate-pulse',
+        };
 
     const pageTitle = allowFinanceActions ? 'Antigüedad de Saldos' : 'Cartera Viva (Facturas Pendientes)';
     const pageSubtitle = allowFinanceActions
@@ -480,8 +503,8 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
                         <p className="text-slate-500 mt-1 font-medium">{pageSubtitle}</p>
                     </div>
 
-                    <div className="flex items-center gap-4">
-                        {isLoading && <span className="text-xs text-emerald-500 font-bold animate-pulse">Actualizando...</span>}
+                    <div className={`flex items-center ${pilot ? 'gap-3' : 'gap-4'}`}>
+                        {isLoading && <span className={ui.loading}>{pilot ? 'Cargando...' : 'Actualizando...'}</span>}
                         <Button variant="outline" onClick={handleGoBack}>
                             <ArrowLeft size={16} /> {backLabel}
                         </Button>
@@ -489,11 +512,11 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
                 </div>
             )}
 
-            <div className="bg-white rounded-xl border border-emerald-200 shadow-md overflow-hidden">
-                <div className="p-4 border-b border-emerald-100 bg-emerald-50/50 flex flex-col md:flex-row justify-between items-center gap-4">
-                    <div className="bg-white border border-emerald-200 px-4 py-2 rounded-lg shadow-sm flex items-center gap-3 w-full md:w-auto justify-between">
-                        <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Total en Pantalla:</span>
-                        <span className="font-black text-emerald-900 text-xl">{formatMoney(totalFilteredAging)}</span>
+            <div className={ui.card}>
+                <div className={ui.toolbar}>
+                    <div className={ui.pill}>
+                        <span className={ui.pillLabel}>{pilot ? 'Total en pantalla:' : 'Total en Pantalla:'}</span>
+                        <span className={ui.pillValue}>{formatMoney(totalFilteredAging)}</span>
                     </div>
 
                     {suppressTopBar && isLoading && (
@@ -515,13 +538,13 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
                 </div>
 
                 <div className="overflow-auto max-h-[75vh]">
-                    <div className="sticky top-0 z-20 flex text-xs uppercase tracking-wider text-slate-500 font-bold bg-slate-50 border-b border-slate-200">
+                    <div className={ui.headerRow}>
                         <SortableHeader field="CLIENT" label="Cliente / Proyecto" />
                         <SortableHeader field="OV_DATE" label="Fecha OV" className="w-32 shrink-0" />
                         <SortableHeader field="ORDER_TOTAL" label="Importe OV" align="right" className="w-36 shrink-0" />
                         <SortableHeader field="BALANCE" label="Saldo pendiente" align="right" className="w-40 shrink-0" />
                         <SortableHeader field="OVERDUE" label="Vencido" align="center" className="w-32 shrink-0" />
-                        <div className="w-36 shrink-0 p-4 text-center">Acción</div>
+                        <div className={`w-36 shrink-0 ${ui.headerCell} text-center`}>Acción</div>
                     </div>
                     <VTable
                         columns={carteraColumns as unknown as VTableColumn<Record<string, unknown>>[]}

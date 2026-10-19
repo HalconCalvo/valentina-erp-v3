@@ -13,8 +13,10 @@ import {
   PettyCashMovementUpdate,
   PettyCashCategory,
 } from '../../../types/petty_cash';
-import { formatMoney } from '@/utils/format';
+import { formatDateTime, formatMoney } from '@/utils/format';
 import UiModal from '@/components/ui/Modal';
+import { Button } from '@/components/ui/Button';
+import { ArrowLeft, Wallet } from 'lucide-react';
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
@@ -30,11 +32,6 @@ function fmt(n: number) {
   return formatMoney(n);
 }
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('es-MX', {
-    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  });
-}
 
 function todayIso() {
   return new Date().toISOString().substring(0, 16);
@@ -47,14 +44,18 @@ function Modal({ title, onClose, children }: {
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  return <UiModal isOpen size="md" overlayZIndex={50} onClose={onClose} title={title}>{children}</UiModal>;
+}
+
+/** Modal footer (guide v2): secondary on the left, primary on the right. */
+function ModalFooter({ onCancel, onConfirm, confirmLabel, disabled, busy }: {
+  onCancel: () => void; onConfirm: () => void; confirmLabel: string; disabled?: boolean; busy?: boolean;
+}) {
   return (
-    <UiModal isOpen bare size="custom" overlayZIndex={50} onClose={onClose} className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-          <h2 className="text-lg font-bold text-slate-800">{title}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-2xl leading-none">&times;</button>
-        </div>
-        <div className="px-6 py-5">{children}</div>
-      </UiModal>
+    <div className="flex items-center justify-between gap-4 pt-2">
+      <Button type="button" variant="outline" onClick={onCancel} disabled={busy}>Cancelar</Button>
+      <Button type="button" onClick={onConfirm} disabled={disabled || busy}>{busy ? 'Procesando...' : confirmLabel}</Button>
+    </div>
   );
 }
 
@@ -68,7 +69,7 @@ interface PettyCashPanelProps {
 
 // ─── COMPONENT ────────────────────────────────────────────────────────────────
 
-export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelProps) {
+export default function PettyCashPanel({ onBack, onRefresh, userRole }: PettyCashPanelProps) {
   const role = userRole.toUpperCase().trim();
   const canOperate = OPERATE_ROLES.includes(role);
   const canCancel = role === 'DIRECTOR';
@@ -217,23 +218,23 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
     {
       key: 'movement_date',
       label: 'Fecha',
-      render: (m) => <span className="text-slate-600 whitespace-nowrap">{formatDate(m.movement_date)}</span>,
+      render: (m) => <span className="text-slate-600 whitespace-nowrap">{formatDateTime(m.movement_date)}</span>,
     },
     {
       key: 'movement_type',
       label: 'Tipo',
       render: (m) => (
-        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${
-          m.movement_type === 'EGRESO' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
+        <span className={`inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+          m.movement_type === 'EGRESO' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
         }`}>
-          {m.movement_type}
+          {m.movement_type === 'EGRESO' ? 'Egreso' : 'Reposición'}
         </span>
       ),
     },
     {
       key: 'category',
       label: 'Categoría',
-      render: (m) => <span className="text-slate-500">{m.category || '—'}</span>,
+      render: (m) => <span className="text-slate-600">{m.category || '—'}</span>,
     },
     {
       key: 'concept',
@@ -241,7 +242,7 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
       render: (m) => (
         <span className={`font-medium max-w-xs truncate block ${m.is_cancelled ? 'text-slate-400 line-through' : 'text-slate-800'}`}
           title={m.is_cancelled ? `Cancelado: ${m.cancel_reason ?? ''}` : undefined}>
-          {m.is_cancelled && <span className="mr-2 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 no-underline">Cancelado</span>}
+          {m.is_cancelled && <span className="mr-2 rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-700 no-underline">Cancelado</span>}
           {m.concept}
         </span>
       ),
@@ -250,8 +251,8 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
       key: 'amount',
       label: 'Monto',
       render: (m) => (
-        <span className={`text-right font-bold block ${m.movement_type === 'EGRESO' ? 'text-red-600' : 'text-emerald-600'}`}>
-          {m.movement_type === 'EGRESO' ? '−' : '+'}{fmt(m.amount)}
+        <span className={`block text-right tabular-nums font-bold ${m.movement_type === 'EGRESO' ? 'text-red-600' : 'text-emerald-700'}`}>
+          {m.movement_type === 'EGRESO' ? fmt(-m.amount) : fmt(m.amount)}
         </span>
       ),
     },
@@ -266,126 +267,111 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
       render: (m) => (
         m.receipt_url ? (
           <a href={m.receipt_url} target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-xs font-semibold transition-colors">
-            📎 Ver
+            className="font-semibold text-indigo-600 hover:text-indigo-800">
+            Ver
           </a>
         ) : canOperate ? (
-          <button
-            onClick={() => { setUploadTarget(m.id); receiptRef.current?.click(); }}
-            className="inline-flex items-center gap-1 px-2 py-1 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded text-xs font-semibold transition-colors">
-            📤 Subir
-          </button>
+          <Button type="button" variant="outline" size="sm" onClick={() => { setUploadTarget(m.id); receiptRef.current?.click(); }}>
+            Subir
+          </Button>
         ) : <span className="text-xs text-slate-400">—</span>
       ),
     },
   ], [canOperate]);
 
   // ── RENDER ─────────────────────────────────────────────────────────────────
-
-  if (loading) {
-    return <div className="flex items-center justify-center h-48 text-slate-400">Cargando caja chica…</div>;
-  }
-  if (error) {
-    return <div className="flex items-center justify-center h-48 text-red-500">{error}</div>;
-  }
+  // Third-wave pilot (guide v2): own standard header (Treasury hides its own for this section), white KPI cards,
+  // the table with its loading and empty states, standard Modal and Button.
 
   const isLow = fund && fund.current_balance <= fund.minimum_balance;
+  const kpi = (label: string, value: string, tone: string) => (
+    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className={`text-2xl font-black tabular-nums mt-1 ${tone}`}>{value}</p>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
-      {/* Hidden receipt input */}
       <Input type="file" ref={receiptRef} className="hidden" accept="image/*,.pdf" onChange={handleUploadReceipt} />
 
-      {/* ── ACTION BAR ────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap gap-3 justify-end">
-        {canOperate && (
-          <button onClick={openConfig}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-sm font-bold shadow-sm transition-all transform hover:-translate-y-0.5">
-            ⚙️ Configurar Fondo
-          </button>
-        )}
-        {canOperate && (<>
-        <button
-          onClick={() => { setFormError(null); setEgresoForm(emptyEgreso()); setEgresoFile(null); setShowEgresoModal(true); }}
-          className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all transform hover:-translate-y-0.5">
-          ➕ Registrar Egreso
-        </button>
-        <button
-          onClick={() => { setFormError(null); setReposForm(emptyRepos()); setShowReposModal(true); }}
-          className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all transform hover:-translate-y-0.5">
-          🔄 Registrar Reposición
-        </button>
-        </>)}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4">
+        <div>
+          <h1 className="text-3xl font-black tracking-tight flex items-center gap-3 text-slate-800">
+            <Wallet className="text-indigo-600" size={32} /> Caja Chica
+          </h1>
+          <p className="text-slate-500 mt-1 font-medium">Saldo del fondo y sus egresos y reposiciones.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          {loading && <span className="text-xs text-slate-400 font-bold animate-pulse">Cargando...</span>}
+          {canOperate && (<>
+            <Button type="button" variant="outline" onClick={openConfig}>Configurar Fondo</Button>
+            <Button type="button" variant="outline"
+              onClick={() => { setFormError(null); setReposForm(emptyRepos()); setShowReposModal(true); }}>
+              Registrar Reposición
+            </Button>
+            <Button type="button"
+              onClick={() => { setFormError(null); setEgresoForm(emptyEgreso()); setEgresoFile(null); setShowEgresoModal(true); }}>
+              Registrar Egreso
+            </Button>
+          </>)}
+          <Button type="button" variant="outline" onClick={onBack}>
+            <ArrowLeft size={16} /> Regresar a Tesorería
+          </Button>
+        </div>
       </div>
 
-      {/* ── FUND CARD ────────────────────────────────────────────────────── */}
+      {error && <p className="text-sm font-bold text-red-600">{error}</p>}
+
       {fund && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          {isLow && (
-            <div className="mb-4 flex items-center gap-3 bg-amber-50 border border-amber-300 rounded-xl px-4 py-3 text-amber-800 text-sm font-semibold">
-              ⚠️ Saldo bajo — Se recomienda reponer el fondo pronto.
-            </div>
-          )}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
-            <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Saldo Actual</p>
-              <p className={`text-4xl font-black ${isLow ? 'text-red-600' : 'text-emerald-600'}`}>{fmt(fund.current_balance)}</p>
-            </div>
-            <div className="border-x border-slate-100">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Fondo Configurado</p>
-              <p className="text-2xl font-bold text-slate-700">{fmt(fund.fund_amount)}</p>
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Mínimo Configurado</p>
-              <p className="text-2xl font-bold text-slate-700">{fmt(fund.minimum_balance)}</p>
-            </div>
+        <div className="space-y-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {kpi('Saldo actual', fmt(fund.current_balance), isLow ? 'text-red-600' : 'text-emerald-700')}
+            {kpi('Fondo configurado', fmt(fund.fund_amount), 'text-slate-800')}
+            {kpi('Mínimo para reponer', fmt(fund.minimum_balance), 'text-slate-800')}
           </div>
+          {isLow && <p className="text-sm font-bold text-amber-700">Saldo bajo: conviene reponer el fondo pronto.</p>}
         </div>
       )}
 
-      {/* ── MOVEMENTS TABLE ──────────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100">
-          <h2 className="text-base font-bold text-slate-700">Historial de Movimientos</h2>
-        </div>
-        <VTable
-          columns={movementColumns as unknown as VTableColumn<Record<string, unknown>>[]}
-          data={movements as unknown as Record<string, unknown>[]}
-          emptyState={{ title: 'No hay movimientos registrados.' }}
-          actions={canOperate ? (row) => {
-            const m = row as unknown as PettyCashMovement;
-            if (m.is_cancelled) return [];
-            return [
-              {
-                label: '',
-                title: 'Editar movimiento',
-                icon: <TableActionEditIcon />,
-                onClick: () => {
-                  setEditingMovement(m);
-                  setEditForm({
-                    amount: m.amount,
-                    concept: m.concept,
-                    category: m.category ?? undefined,
-                    notes: m.notes ?? undefined,
-                    movement_date: m.movement_date?.slice(0, 10),
-                  });
-                },
+      <VTable
+        columns={movementColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+        data={movements as unknown as Record<string, unknown>[]}
+        isLoading={loading && movements.length === 0}
+        emptyState={{ title: 'No hay movimientos registrados.' }}
+        className="shadow-sm [&_th]:text-sm [&_th]:normal-case [&_th]:tracking-normal [&_th]:text-slate-600"
+        actions={canOperate ? (row) => {
+          const m = row as unknown as PettyCashMovement;
+          if (m.is_cancelled) return [];
+          return [
+            {
+              label: '',
+              title: 'Editar movimiento',
+              icon: <TableActionEditIcon />,
+              onClick: () => {
+                setEditingMovement(m);
+                setEditForm({
+                  amount: m.amount,
+                  concept: m.concept,
+                  category: m.category ?? undefined,
+                  notes: m.notes ?? undefined,
+                  movement_date: m.movement_date?.slice(0, 10),
+                });
               },
-              ...(canCancel ? [{
-                label: 'Cancelar',
-                title: 'Cancelar movimiento',
-                variant: 'danger' as const,
-                onClick: () => handleDelete(m.id),
-              }] : []),
-            ];
-          } : undefined}
-          className="border-0 shadow-none rounded-none"
-        />
-      </div>
+            },
+            ...(canCancel ? [{
+              label: 'Cancelar',
+              title: 'Cancelar movimiento',
+              variant: 'danger' as const,
+              onClick: () => handleDelete(m.id),
+            }] : []),
+          ];
+        } : undefined}
+      />
 
       {/* ── MODAL CONFIGURAR FONDO ────────────────────────────────────────── */}
       {showConfigModal && (
-        <Modal title="⚙️ Configurar Fondo" onClose={() => setShowConfigModal(false)}>
+        <Modal title="Configurar Fondo" onClose={() => setShowConfigModal(false)}>
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Monto del Fondo ($)</label>
@@ -398,23 +384,15 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
                 onChange={e => setConfigForm(f => ({ ...f, minimum_balance: parseFloat(e.target.value) || 0 }))} />
             </div>
             {formError && <p className="text-red-600 text-sm">{formError}</p>}
-            <div className="flex gap-3 pt-2">
-              <button onClick={handleUpdateFund} disabled={submitting}
-                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 rounded-lg text-sm disabled:opacity-50">
-                {submitting ? 'Guardando…' : 'Guardar'}
-              </button>
-              <button onClick={() => setShowConfigModal(false)}
-                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-lg text-sm">
-                Cancelar
-              </button>
-            </div>
+            <ModalFooter onCancel={() => setShowConfigModal(false)} onConfirm={handleUpdateFund}
+              confirmLabel="Guardar" busy={submitting} />
           </div>
         </Modal>
       )}
 
       {/* ── MODAL EGRESO ─────────────────────────────────────────────────── */}
       {showEgresoModal && (
-        <Modal title="➕ Registrar Egreso" onClose={() => setShowEgresoModal(false)}>
+        <Modal title="Registrar Egreso" onClose={() => setShowEgresoModal(false)}>
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Concepto *</label>
@@ -454,27 +432,18 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Comprobante (opcional)</label>
               <Input type="file" accept="image/*,.pdf" onChange={e => setEgresoFile(e.target.files?.[0] || null)}
                 className="w-full text-sm text-slate-600 file:mr-3 file:py-1 file:px-3 file:border-0 file:rounded file:bg-slate-100 file:text-slate-700 file:font-semibold" />
-              {egresoFile && <p className="text-xs text-slate-400 mt-1">📎 {egresoFile.name}</p>}
+              {egresoFile && <p className="text-xs text-slate-400 mt-1">{egresoFile.name}</p>}
             </div>
             {formError && <p className="text-red-600 text-sm">{formError}</p>}
-            <div className="flex gap-3 pt-2">
-              <button onClick={() => handleCreateMovement(true)}
-                disabled={submitting || !egresoForm.concept || !egresoForm.amount}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 rounded-lg text-sm disabled:opacity-50">
-                {submitting ? 'Registrando…' : 'Registrar Egreso'}
-              </button>
-              <button onClick={() => setShowEgresoModal(false)}
-                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-lg text-sm">
-                Cancelar
-              </button>
-            </div>
+            <ModalFooter onCancel={() => setShowEgresoModal(false)} onConfirm={() => handleCreateMovement(true)}
+              confirmLabel="Registrar Egreso" busy={submitting} disabled={!egresoForm.concept || !egresoForm.amount} />
           </div>
         </Modal>
       )}
 
       {/* ── MODAL REPOSICIÓN ─────────────────────────────────────────────── */}
       {showReposModal && (
-        <Modal title="🔄 Registrar Reposición" onClose={() => setShowReposModal(false)}>
+        <Modal title="Registrar Reposición" onClose={() => setShowReposModal(false)}>
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Concepto *</label>
@@ -498,17 +467,8 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
                 className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 resize-none" />
             </div>
             {formError && <p className="text-red-600 text-sm">{formError}</p>}
-            <div className="flex gap-3 pt-2">
-              <button onClick={() => handleCreateMovement(false)}
-                disabled={submitting || !reposForm.concept || !reposForm.amount}
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-lg text-sm disabled:opacity-50">
-                {submitting ? 'Registrando…' : 'Registrar Reposición'}
-              </button>
-              <button onClick={() => setShowReposModal(false)}
-                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-lg text-sm">
-                Cancelar
-              </button>
-            </div>
+            <ModalFooter onCancel={() => setShowReposModal(false)} onConfirm={() => handleCreateMovement(false)}
+              confirmLabel="Registrar Reposición" busy={submitting} disabled={!reposForm.concept || !reposForm.amount} />
           </div>
         </Modal>
       )}
@@ -521,7 +481,7 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
         >
           <div className="space-y-3">
             <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Concepto</label>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Concepto</label>
               <Input
                 type="text"
                 value={editForm.concept ?? ''}
@@ -530,7 +490,7 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
               />
             </div>
             <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Monto</label>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Monto</label>
               <Input
                 type="number"
                 min="0"
@@ -542,7 +502,7 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
             </div>
             {editingMovement.movement_type === 'EGRESO' && (
               <div>
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Categoría</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Categoría</label>
                 <SearchableSelect
                   items={CATEGORIES}
                   value={editForm.category ?? 'OTRO'}
@@ -554,7 +514,7 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
               </div>
             )}
             <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Fecha</label>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Fecha</label>
               <Input
                 type="date"
                 value={editForm.movement_date ?? ''}
@@ -563,7 +523,7 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
               />
             </div>
             <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Notas</label>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Notas</label>
               <textarea
                 rows={2}
                 value={editForm.notes ?? ''}
@@ -572,20 +532,8 @@ export default function PettyCashPanel({ onRefresh, userRole }: PettyCashPanelPr
               />
             </div>
             {formError && <p className="text-xs text-red-600 font-bold">{formError}</p>}
-            <div className="flex gap-2 justify-end pt-2">
-              <button
-                onClick={() => { setEditingMovement(null); setEditForm({}); setFormError(null); }}
-                className="px-4 py-2 text-xs font-black uppercase border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleEdit}
-                className="px-4 py-2 text-xs font-black uppercase bg-amber-500 hover:bg-amber-600 text-white rounded-lg shadow"
-              >
-                Guardar Cambios
-              </button>
-            </div>
+            <ModalFooter onCancel={() => { setEditingMovement(null); setEditForm({}); setFormError(null); }}
+              onConfirm={handleEdit} confirmLabel="Guardar Cambios" />
           </div>
         </Modal>
       )}

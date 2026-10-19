@@ -2,8 +2,9 @@ import { useState, useRef, useMemo } from 'react';
 import { useClients, Client } from '../hooks/useClients';
 import { 
   Plus, User, Mail, Phone, 
-  FileText, X, Users, Building2, Upload
+  FileText, Users, Building2, Upload
 } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
 
 import ExportButton from '@/components/ui/ExportButton';
 import { Input } from '@/components/ui/Input';
@@ -232,8 +233,12 @@ export default function ClientsPage() {
     }
   };
 
+  const tabClass = (tab: 'general' | 'contacts') =>
+    `flex-1 rounded-none border-b-2 ${activeTab === tab ? 'border-indigo-600 text-indigo-700 bg-white' : 'border-transparent text-slate-500 hover:text-slate-700'}`;
+
+  // Third-wave pilot (guide v2): catalog with a form → max-w-7xl container, standard header, Button and Modal
   return (
-    <div className="space-y-6 p-6">
+    <div className="p-8 max-w-7xl mx-auto pb-24 space-y-6 animate-fadeIn">
       <Input
         type="file"
         ref={csvInputRef}
@@ -242,39 +247,31 @@ export default function ClientsPage() {
         onChange={handleCsvImport}
       />
 
-      {/* HEADER */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
-            <h1 className="text-2xl font-bold text-slate-900">Cartera de Clientes</h1>
-            <p className="text-sm text-slate-500">Gestión comercial y agenda de contactos.</p>
+          <h1 className="text-3xl font-black tracking-tight flex items-center gap-3 text-slate-800">
+            <Users className="text-indigo-600" size={32} /> Cartera de Clientes
+          </h1>
+          <p className="text-slate-500 mt-1 font-medium">Clientes, sus datos fiscales y sus contactos.</p>
         </div>
-        
-        <div className="flex gap-3">
-            <ExportButton data={clients} fileName="Cartera_Clientes_Completa" mapping={mapClientsForExcel}/>
-            <button
-                onClick={() => csvInputRef.current?.click()}
-                disabled={importingCsv}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all transform hover:-translate-y-0.5 disabled:opacity-50"
-            >
-                <Upload size={18} />
-                {importingCsv ? 'Importando...' : 'Importar CSV'}
-            </button>
-            <button 
-                onClick={() => { setIsEditing(false); setForm(initialForm); setShowModal(true); }} 
-                className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 font-medium shadow-sm"
-            >
-                <Plus size={18} /> Nuevo Cliente
-            </button>
+        <div className="flex items-center gap-3">
+          {loading && <span className="text-xs text-slate-400 font-bold animate-pulse">Cargando...</span>}
+          <ExportButton data={clients} fileName="Cartera_Clientes_Completa" mapping={mapClientsForExcel}/>
+          <Button type="button" variant="outline" onClick={() => csvInputRef.current?.click()} disabled={importingCsv}>
+            <Upload size={16} /> {importingCsv ? 'Procesando...' : 'Importar CSV'}
+          </Button>
+          <Button type="button" onClick={() => { setIsEditing(false); setForm(initialForm); setShowModal(true); }}>
+            <Plus size={16} /> Nuevo Cliente
+          </Button>
         </div>
       </div>
 
-      {/* TABLA DE CLIENTES */}
       <VTable
         columns={clientColumns as unknown as VTableColumn<Record<string, unknown>>[]}
         data={clients as unknown as Record<string, unknown>[]}
         isLoading={loading}
         emptyState={{ title: 'No hay clientes registrados.' }}
-        className="shadow-sm"
+        className="shadow-sm [&_th]:text-sm [&_th]:normal-case [&_th]:tracking-normal [&_th]:text-slate-600 [&_th]:px-3"
         actions={(row) => {
           const c = row as unknown as Client;
           return [
@@ -295,109 +292,80 @@ export default function ClientsPage() {
         }}
       />
 
-      {/* MODAL AVANZADO CON PESTAÑAS */}
       {showModal && (
-        <Modal isOpen bare size="custom" overlayZIndex={50} onClose={closeModal} className="bg-white rounded-xl w-full max-w-2xl shadow-2xl animate-in zoom-in duration-200 overflow-hidden flex flex-col max-h-[90vh]">
-                
-                {/* Header Modal */}
-                <div className="flex justify-between items-center p-5 border-b border-slate-100 bg-white">
-                    <h2 className="text-lg font-bold text-slate-800">
-                        {isEditing ? 'Editar Cliente' : 'Nuevo Cliente'}
-                    </h2>
-                    <div className="flex items-center gap-1">
-                        {isEditing && form.id && <RecordHistoryButton tableName="clients_v2" recordId={form.id} label={form.full_name || `Cliente #${form.id}`} />}
-                        <button onClick={closeModal} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
-                    </div>
+        <Modal isOpen size="lg" overlayZIndex={50} onClose={closeModal} title={isEditing ? 'Editar Cliente' : 'Nuevo Cliente'}>
+          {isEditing && form.id && (
+            <div className="flex justify-end -mt-2 mb-2">
+              <RecordHistoryButton tableName="clients_v2" recordId={form.id} label={form.full_name || `Cliente #${form.id}`} />
+            </div>
+          )}
+          <div className="flex border-b border-slate-200 bg-slate-50 -mx-6 mb-4">
+            <Button type="button" variant="ghost" className={tabClass('general')} onClick={() => setActiveTab('general')}>
+              <Building2 size={16}/> Datos Empresa
+            </Button>
+            <Button type="button" variant="ghost" className={tabClass('contacts')} onClick={() => setActiveTab('contacts')}>
+              <Users size={16}/> Agenda de Contactos (4)
+            </Button>
+          </div>
+
+          <form id="client-form" onSubmit={handleSubmit} className="flex-1">
+            {activeTab === 'general' && (
+              <div className="space-y-4">
+                <div>
+                  <label className="label-std">Razón social / nombre del cliente *</label>
+                  <Input required className="input-std" value={form.full_name} onChange={e => setForm({...form, full_name: e.target.value})} />
                 </div>
-                
-                {/* Tabs */}
-                <div className="flex border-b border-slate-200 bg-slate-50">
-                    <button 
-                        onClick={() => setActiveTab('general')}
-                        className={`flex-1 py-3 text-sm font-bold flex justify-center items-center gap-2 border-b-2 transition-colors ${activeTab === 'general' ? 'border-indigo-600 text-indigo-700 bg-white' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-                    >
-                        <Building2 size={16}/> Datos Empresa
-                    </button>
-                    <button 
-                        onClick={() => setActiveTab('contacts')}
-                        className={`flex-1 py-3 text-sm font-bold flex justify-center items-center gap-2 border-b-2 transition-colors ${activeTab === 'contacts' ? 'border-indigo-600 text-indigo-700 bg-white' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-                    >
-                        <Users size={16}/> Agenda de Contactos (4)
-                    </button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="label-std">RFC</label>
+                    <Input className="input-std" value={form.rfc_tax_id || ''} onChange={e => setForm({...form, rfc_tax_id: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="label-std">Teléfono oficina *</label>
+                    <Input required className="input-std" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} />
+                  </div>
                 </div>
-
-                {/* CORRECCIÓN APLICADA AQUÍ: ID en el form */}
-                <form id="client-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 bg-white">
-                    
-                    {/* PESTAÑA 1: GENERAL */}
-                    {activeTab === 'general' && (
-                        <div className="space-y-4 animate-in fade-in duration-300">
-                            <div>
-                                <label className="label-std">Razón Social / Nombre Cliente *</label>
-                                <Input required className="input-std" value={form.full_name} onChange={e => setForm({...form, full_name: e.target.value})} />
-                            </div>
-                            
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="label-std">RFC</label>
-                                    <Input className="input-std" value={form.rfc_tax_id || ''} onChange={e => setForm({...form, rfc_tax_id: e.target.value})} />
-                                </div>
-                                <div>
-                                    <label className="label-std">Teléfono Oficina *</label>
-                                    <Input required className="input-std" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="label-std">Email Facturación / Empresa *</label>
-                                <Input type="email" required className="input-std" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
-                            </div>
-
-                            <div>
-                                <label className="label-std">Dirección Fiscal</label>
-                                <Input className="input-std" value={form.fiscal_address || ''} onChange={e => setForm({...form, fiscal_address: e.target.value})} />
-                            </div>
-
-                            <div>
-                                <label className="label-std">Observaciones Generales</label>
-                                <textarea className="input-std min-h-[80px]" value={form.notes || ''} onChange={e => setForm({...form, notes: e.target.value})} />
-                            </div>
-                        </div>
-                    )}
-
-                    {/* PESTAÑA 2: CONTACTOS */}
-                    {activeTab === 'contacts' && (
-                        <div className="space-y-4 animate-in fade-in duration-300">
-                            <div className="bg-indigo-50 border border-indigo-100 p-3 rounded-lg mb-4 text-xs text-indigo-800 flex gap-2">
-                                <Users size={14} className="mt-0.5"/>
-                                <p>Puedes registrar hasta 4 contactos clave para este cliente. Asegúrate de llenar al menos el Contacto Principal.</p>
-                            </div>
-
-                            {renderContactFields(1, "Contacto Principal (Obligatorio)")}
-                            {renderContactFields(2, "Contacto Adicional 2")}
-                            {renderContactFields(3, "Contacto Adicional 3")}
-                            {renderContactFields(4, "Contacto Adicional 4")}
-                        </div>
-                    )}
-
-                </form>
-
-                {/* Footer Modal - CORRECCIÓN APLICADA AQUÍ: Botón vinculado al form */}
-                <div className="p-5 border-t border-slate-100 bg-slate-50 flex gap-3">
-                    <button type="button" onClick={closeModal} className="flex-1 px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-100 text-slate-600 font-medium transition-colors">Cancelar</button>
-                    <button type="submit" form="client-form" className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium shadow-sm transition-colors">
-                        {isEditing ? 'Guardar Cambios' : 'Crear Cliente'}
-                    </button>
+                <div>
+                  <label className="label-std">Email facturación / empresa *</label>
+                  <Input type="email" required className="input-std" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
                 </div>
-            </Modal>
+                <div>
+                  <label className="label-std">Dirección fiscal</label>
+                  <Input className="input-std" value={form.fiscal_address || ''} onChange={e => setForm({...form, fiscal_address: e.target.value})} />
+                </div>
+                <div>
+                  <label className="label-std">Observaciones generales</label>
+                  <textarea className="input-std min-h-[80px]" value={form.notes || ''} onChange={e => setForm({...form, notes: e.target.value})} />
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'contacts' && (
+              <div className="space-y-4">
+                <p className="text-sm text-slate-500">
+                  Hasta 4 contactos por cliente; llena al menos el Contacto Principal.
+                </p>
+                {renderContactFields(1, "Contacto Principal (Obligatorio)")}
+                {renderContactFields(2, "Contacto Adicional 2")}
+                {renderContactFields(3, "Contacto Adicional 3")}
+                {renderContactFields(4, "Contacto Adicional 4")}
+              </div>
+            )}
+          </form>
+
+          <div className="flex items-center justify-between gap-4 pt-6 mt-2 border-t border-slate-100">
+            <Button type="button" variant="outline" onClick={closeModal}>Cancelar</Button>
+            <Button type="submit" form="client-form">{isEditing ? 'Guardar Cambios' : 'Crear Cliente'}</Button>
+          </div>
+        </Modal>
       )}
-      
+
       <style>{`
         .input-std { width: 100%; padding: 0.6rem; border: 1px solid #e2e8f0; border-radius: 0.5rem; font-size: 0.875rem; outline: none; transition: border-color 0.2s; }
         .input-std:focus { border-color: #6366f1; ring: 1px; }
         .input-mini { width: 100%; padding: 0.4rem; border: 1px solid #e2e8f0; border-radius: 0.3rem; font-size: 0.75rem; outline: none; }
         .input-mini:focus { border-color: #6366f1; }
-        .label-std { display: block; font-size: 0.75rem; font-weight: 700; color: #64748b; margin-bottom: 0.25rem; }
+        .label-std { display: block; font-size: 0.75rem; font-weight: 700; color: #64748b; margin-bottom: 0.25rem; text-transform: uppercase; }
       `}</style>
 
       {pendingDeleteId !== null && (
