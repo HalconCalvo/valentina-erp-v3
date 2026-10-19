@@ -5159,3 +5159,11 @@ MEJORAS A NUESTRA FORMA DE TRABAJAR (correo de Anthropic, 17/10) — pendientes 
 5. Haiku 5.5 (rápido y barato) para el agente IA del "?" (D43, paso 2), usando los créditos de API del plan.
 NO se usarán: tareas en paralelo sobre el código (riesgo de choques en componentes comunes; solo revisiones de
 lectura), Managed Agents, network secrets.
+
+### D44 (19/10 12:51, rama pruebas, 9e1f434): comisión global
+- GlobalConfig.global_commission_user_id + global_commission_percent (migración 969c63689777, siembra Lic. Gabriel
+  Frías García 2 %). Un solo beneficiario; antes cada DIRECTOR con tasa (2 de ellos) generaba la suya (doble).
+- Bandeja de comisiones incluye DIRECTOR_GLOBAL (marca "Global"). D39 ya las incluía (no filtra por tipo).
+- Lección: normalize_commission trata 1 como 100 %; el campo nuevo se guarda en % y se divide entre 100.
+- Pendiente del asesor: las 4 globales de OV-0157 del Ing. Gabriel Frías ($952.29), de la regla vieja.
+- Postgres local 5433 estaba apagado (reinicio de la Mac); se encendió con pg_ctl.

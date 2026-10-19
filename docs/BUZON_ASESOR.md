@@ -21,21 +21,6 @@ solo en estas 4. Tomar capturas antes/después de cada una (escritorio; /field t
 Reportar en Hechas: commit, rutas, qué cambió en cada una y cualquier punto de la guía que no encajó. NO avanzar con el resto
 hasta que Gabriel y el asesor aprueben.
 
-### 17/10 20:30 — D44 Comisión global en Configuraciones Globales (aprobada por Gabriel)
-Contexto: hoy la comisión DIRECTOR_GLOBAL se genera para TODO usuario con rol DIRECTOR activo y `global_commission_rate > 0`
-(sales_service.py ~185 y ~690, sales_repository.get_directors). Gabriel decide: la comisión global existe y su beneficiario
-es el gerente general, Lic. Gabriel Frías García (g.frias.garcia@koloka.com.mx). Debe capturarse en Configuraciones Globales.
-Hacer, en rama `pruebas`:
-1. GlobalConfig: dos campos nuevos — usuario beneficiario de la comisión global (cualquier usuario activo) y porcentaje.
-   Pantalla Configuraciones Globales: capturarlos (selector de usuario + %). Solo Dirección puede editarlos. Bitácora del cambio.
-2. Cálculo: reemplazar el ciclo sobre directores por ese único beneficiario y ese %. Misma regla que vendedor: por cada cobro,
-   sobre lo cobrado sin IVA. Sin beneficiario o % = 0 → no se genera.
-3. Migración: `users.global_commission_rate` deja de usarse (no borrar la columna aún). No cambiar comisiones ya generadas.
-4. Explicar por qué las 8 DIRECTOR_GLOBAL de OV-0157 no salen en Comisiones por pagar y que salgan (pagables con el diálogo D40,
-   costo de la OV). NO pagarlas ni modificarlas: reportar a quién están asignadas y sus montos; el asesor decide con Gabriel.
-5. D39 debe incluir también las DIRECTOR_GLOBAL anteriores al go-live.
-6. Pruebas + verificación en Pruebas. Reportar en Hechas con commit. Pantallas: solo lo mínimo para capturar; sin restyling.
-
 
 ## Preguntas para el asesor
 
@@ -94,6 +79,51 @@ Hacer, en rama `pruebas`:
   - Agrega a tu reporte final la lista de commits pendientes de prueba en pantalla.
 
 ## Hechas
+
+- 17/10 20:30 — D44 Comisión global en Configuraciones Globales (aprobada por Gabriel)
+Contexto: hoy la comisión DIRECTOR_GLOBAL se genera para TODO usuario con rol DIRECTOR activo y `global_commission_rate > 0`
+(sales_service.py ~185 y ~690, sales_repository.get_directors). Gabriel decide: la comisión global existe y su beneficiario
+es el gerente general, Lic. Gabriel Frías García (g.frias.garcia@koloka.com.mx). Debe capturarse en Configuraciones Globales.
+Hacer, en rama `pruebas`:
+1. GlobalConfig: dos campos nuevos — usuario beneficiario de la comisión global (cualquier usuario activo) y porcentaje.
+   Pantalla Configuraciones Globales: capturarlos (selector de usuario + %). Solo Dirección puede editarlos. Bitácora del cambio.
+2. Cálculo: reemplazar el ciclo sobre directores por ese único beneficiario y ese %. Misma regla que vendedor: por cada cobro,
+   sobre lo cobrado sin IVA. Sin beneficiario o % = 0 → no se genera.
+3. Migración: `users.global_commission_rate` deja de usarse (no borrar la columna aún). No cambiar comisiones ya generadas.
+4. Explicar por qué las 8 DIRECTOR_GLOBAL de OV-0157 no salen en Comisiones por pagar y que salgan (pagables con el diálogo D40,
+   costo de la OV). NO pagarlas ni modificarlas: reportar a quién están asignadas y sus montos; el asesor decide con Gabriel.
+5. D39 debe incluir también las DIRECTOR_GLOBAL anteriores al go-live.
+6. Pruebas + verificación en Pruebas. Reportar en Hechas con commit. Pantallas: solo lo mínimo para capturar; sin restyling.
+7. [Agregado 19/10 12:48, aprobado por Gabriel] Ventana de la OV (Rayos X) → "Rentabilidad (sin IVA)": hoy "Comisión incluida"
+   es solo la del vendedor (OV-0157: $2,380.73) y la utilidad no resta la global. Agregar una columna "Comisión global" = venta sin
+   IVA × % global de Configuraciones Globales, y restarla en Utilidad neta y Margen neto. NO cambiar el cálculo del Sobreprecio %
+   ni de precios; si crees que debe cambiar, pregúntalo aquí. Revisar si el tablero de Dirección (4. Rentabilidad) usa la misma
+   fórmula y reportar si también debe restarla (sin cambiarlo aún).
+HECHO [19/10 12:51, Pruebas, commit 9e1f434; migración 969c63689777]:
+1. Configuración → tarjeta "Comisión global": beneficiario (cualquier usuario activo) y %. Solo Dirección la cambia (API 403
+   para otros; usuario inactivo o % fuera de 0–100 → 400). Bitácora: el cambio queda en audit_field_changes (global_config).
+   La migración dejó a Lic. Gabriel Frías García al 2 % (su tasa actual); Pruebas lo confirma (usuario 2, 2 %).
+2. Cálculo: un solo beneficiario y un solo %: por cada cobro, sobre lo cobrado sin IVA (anticipo, avance y fondo de
+   garantía). Sin beneficiario o en 0 % no se genera. Antes la generaban TODOS los DIRECTOR activos con tasa > 0: Lic.
+   Gabriel Frías García e Ing. Gabriel Frías tenían 2 % cada uno, así que cada cobro generaba dos (doble).
+3. users.global_commission_rate ya no se lee (la columna queda). En Usuarios se ocultó el campo "Comisión Global (%)" y su
+   etiqueta, para no capturar algo sin efecto. Comisiones ya generadas: sin cambio.
+4. Por qué no salían: la bandeja de Comisiones solo traía el tipo vendedor (SELLER). Ahora trae también las globales,
+   marcadas "Global" junto al nombre; se pagan con el diálogo D40 (dice "% de comisión global") y cuentan como costo
+   igual que las del vendedor. Las 8 DIRECTOR_GLOBAL de OV-0157, SIN pagar ni modificar:
+   | Beneficiario | Anticipo A-PILOTO-1 | Avances F-Piloto1/2/3-01 | Total |
+   |---|---|---|---|
+   | Lic. Gabriel Frías García (id 2) | $571.38 | 3 × $126.97 | $952.29 |
+   | Ing.Gabriel Frías (id 3) | $571.38 | 3 × $126.97 | $952.29 |
+   Las 4 del Ing. Gabriel Frías salen del cálculo viejo (doble); con D44 ya no se generarían. El asesor decide con
+   Gabriel si se pagan, se omiten (Diferir / Omitir, con motivo) o se dejan. (Las 4 del vendedor de OV-0157 ya se
+   pagaron hoy 12:42 con Efectivo Dirección, $2,380.73.)
+5. D39 ya incluye las DIRECTOR_GLOBAL: su migración no filtra por tipo. En Pruebas marcó 55 por $185,383.50, de ellas
+   37 globales; en producción, al pasar a main, marcará las 37 globales sin pagar (Lic. 19 por $47,978.39 e Ing. 18
+   por $46,348.04) igual que las del vendedor.
+6. Tests: 3 nuevos (beneficiario único, sin beneficiario no genera, solo Dirección con usuario activo y % válido);
+   backend 372, frontend 48, build OK; migración sube/baja/sube en local. En Pruebas: Configuración muestra la
+   tarjeta; Nómina → Comisiones → B. Por Pagar muestra las 8 globales con "Global" y "Pagar todo a …" por persona.
 
 - [2026-10-16 15:50] D42 PANTALLAS MODELO PARA LA TERCERA OLA (Gabriel 15:47). Hacer después de D41 y D21.
   Gabriel vio /director/legacy-import y NO le gusta. Las que SÍ le gustan y quedan como modelo:

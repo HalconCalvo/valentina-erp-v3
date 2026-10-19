@@ -57,6 +57,13 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 
 ## Resueltas
 
+### D44. Comisión global en Configuración — 2026-10-17 — Gabriel (vía asesor)
+- **Decisión:** la comisión global existe; beneficiario hoy Lic. Gabriel Frías García. Se captura en Configuración
+  (usuario + %), solo Dirección. Por cada cobro, sobre lo cobrado sin IVA; sale en Comisiones por pagar y se paga con
+  el diálogo D40. Aplicada en Pruebas (19/10 12:51, 9e1f434).
+- **Pendiente:** qué hacer con las 4 globales de OV-0157 del Ing. Gabriel Frías ($952.29), generadas por la regla
+  vieja (dos directores con 2 %).
+
 ### D41. Gerencia fuera de Bancos, cobros y pagos a proveedores — 2026-10-16 — buzón del asesor (Gabriel 15:33)
 - **Decisión:** MANAGER no ve Bancos ni saldos, no registra cobros ni pagos a proveedores (pantalla oculta y API 403).
   Lo opera Alejandrina García (DIRECTOR). Aplicada en Pruebas (15:44).

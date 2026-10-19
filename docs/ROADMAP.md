@@ -247,6 +247,7 @@ la factura completa. Probado en Pruebas con Piloto 1 sin guardar.
 - D40 (b7c8d9e0f1a2): "Efectivo Dirección" (solo DIRECTOR, sin movimiento) y pago dividido en comisiones y nómina de cuadrillas.
 - D41: Gerencia no ve Bancos ni registra cobros ni pagos a proveedores (pantalla y API 403). 17:18: solo ve caja chica,
   no paga nómina ni comisiones, no autoriza pagos a proveedor; el interruptor de pagos de Gerencia queda sin efecto.
+- D44 (969c63689777): comisión global con un beneficiario y % en Configuración; las globales salen en la bandeja.
 - D42: guía de pantallas versión 2 (modelo Cobranza y Antigüedad) y lista de la tercera ola ajustada; espera aprobación.
 - D21 (5cd6e914c375): ruta CLIENTE y PIEDRA DEL CLIENTE ($0, no se compra, sin faltante ni descarga; sí lote de piedra).
 
