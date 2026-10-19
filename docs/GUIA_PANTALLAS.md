@@ -92,7 +92,11 @@ Títulos sin color por módulo y sin números ("5. Nómina" → "Nómina"); sin 
 | Fila de totales | `flex w-full text-sm bg-slate-100 border-t-2 border-slate-300 font-black`; etiqueta `p-3 text-slate-700 uppercase text-xs tracking-wide` "Totales (22 facturas)"; cifras `p-3 text-right tabular-nums` con el color de su columna (abonado `text-emerald-800`, saldo `text-amber-800`) |
 | Vacío / carga | `VTable` con `emptyState` ("No hay facturas con los filtros seleccionados.") e `isLoading` (esqueleto) |
 | Total en barra (variante Antigüedad) | barra `p-4 border-b bg-slate-50 flex flex-col md:flex-row justify-between items-center gap-4`; total en `bg-white border border-slate-200 px-4 py-2 rounded-lg shadow-sm`, etiqueta `text-xs font-bold text-slate-500 uppercase tracking-wider` "Total en pantalla:", cifra `font-black text-slate-900 text-xl tabular-nums` |
-- Columnas ordenables (Antigüedad): clic en el título; flecha `ArrowUpDown size={16}` gris, activa en indigo.
+- Columnas ordenables (Gabriel 19/10): en toda tabla de listado o reporte las columnas principales se ordenan con clic
+  en el título; flecha `ArrowUpDown size={16}` gris, activa `ArrowUp`/`ArrowDown` en indigo. Con `VTable`:
+  `headerStyle="report"`, `sortable: true` y, si hace falta, `sortValue` (fechas por fecha real, montos con signo);
+  el texto se ordena sin distinguir mayúsculas ni acentos. El orden se combina con los filtros.
+  Orden inicial: el más útil (en movimientos, fecha más reciente primero).
 - Se implementa dentro de `VTable` (encabezado `text-sm` normal, agrupador y totales como opciones), no con un
   encabezado hecho aparte: en las dos pantallas modelo el encabezado de flex puede desalinearse de las columnas.
 

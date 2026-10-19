@@ -228,6 +228,8 @@ export default function PettyCashPanel({ onBack, onRefresh, userRole }: PettyCas
     {
       key: 'movement_date',
       label: 'Fecha',
+      sortable: true,
+      sortValue: (m) => new Date(m.movement_date).getTime(),  // real date, not text
       render: (m) => <span className="text-slate-600 whitespace-nowrap">{formatDateTime(m.movement_date)}</span>,
     },
     {
@@ -244,11 +246,13 @@ export default function PettyCashPanel({ onBack, onRefresh, userRole }: PettyCas
     {
       key: 'category',
       label: 'Categoría',
+      sortable: true,
       render: (m) => <span className="text-slate-600">{m.category || '—'}</span>,
     },
     {
       key: 'concept',
       label: 'Concepto',
+      sortable: true,
       render: (m) => (
         <span className={`font-medium max-w-xs truncate block ${m.is_cancelled ? 'text-slate-400 line-through' : 'text-slate-800'}`}
           title={m.is_cancelled ? `Cancelado: ${m.cancel_reason ?? ''}` : undefined}>
@@ -261,6 +265,8 @@ export default function PettyCashPanel({ onBack, onRefresh, userRole }: PettyCas
       key: 'amount',
       label: 'Monto',
       align: 'right',
+      sortable: true,
+      sortValue: (m) => (m.movement_type === 'EGRESO' ? -m.amount : m.amount),  // as shown: egresos negative
       render: (m) => (
         <span className={`block text-right tabular-nums font-bold ${m.movement_type === 'EGRESO' ? 'text-red-600' : 'text-emerald-700'}`}>
           {m.movement_type === 'EGRESO' ? fmt(-m.amount) : fmt(m.amount)}
@@ -377,6 +383,8 @@ export default function PettyCashPanel({ onBack, onRefresh, userRole }: PettyCas
         emptyState={{ title: movements.length === 0 ? 'No hay movimientos registrados.' : 'No hay movimientos con los filtros seleccionados.' }}
         className="shadow-sm"
         headerStyle="report"
+        defaultSortKey="movement_date"
+        defaultSortDirection="desc"
         actions={canOperate ? (row) => {
           const m = row as unknown as PettyCashMovement;
           if (m.is_cancelled) return [];

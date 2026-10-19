@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, ChevronUp } from 'lucide-react';
 import { VEmptyState } from '@/components/ui/VEmptyState';
 import { cn } from '@/lib/utils';
 
@@ -10,6 +10,8 @@ export interface VTableColumn<T = Record<string, unknown>> {
   header?: React.ReactNode;
   render?: (row: T) => React.ReactNode;
   sortable?: boolean;
+  /** Value used to sort (e.g. a date as a timestamp, a signed amount); default: row[key]. */
+  sortValue?: (row: T) => unknown;
   width?: string;
   /** Aligns title and cells of the column together (amounts: 'right'). */
   align?: 'left' | 'right' | 'center';
@@ -73,7 +75,7 @@ export const groupRows = <T,>(rows: T[], groupBy: (row: T) => string): [string, 
   return Array.from(groups.entries());
 };
 
-const compareValues = (a: unknown, b: unknown): number => {
+export const compareValues = (a: unknown, b: unknown): number => {
   if (a == null && b == null) return 0;
   if (a == null) return 1;
   if (b == null) return -1;
@@ -123,11 +125,13 @@ export const VTable = <T extends Record<string, unknown>>({
   const sortedData = useMemo(() => {
     if (!sortKey) return data;
 
+    const column = columns.find((c) => c.key === sortKey);
+    const valueOf = (row: T) => (column?.sortValue ? column.sortValue(row) : row[sortKey]);
     return [...data].sort((rowA, rowB) => {
-      const result = compareValues(rowA[sortKey], rowB[sortKey]);
+      const result = compareValues(valueOf(rowA), valueOf(rowB));
       return sortDirection === 'asc' ? result : -result;
     });
-  }, [data, sortDirection, sortKey]);
+  }, [data, sortDirection, sortKey, columns]);
 
   useLayoutEffect(() => {
     onSortedDataChange?.(sortedData);
@@ -149,6 +153,13 @@ export const VTable = <T extends Record<string, unknown>>({
     if (!column.sortable) return null;
 
     const isActive = sortKey === column.key;
+
+    if (headerStyle === 'report') {  // guide v2 §5: same sortable header as Antigüedad / Cobranza
+      if (!isActive) return <ArrowUpDown size={16} className="ml-1 text-slate-400" />;
+      return sortDirection === 'asc'
+        ? <ArrowUp size={16} className="ml-1 text-indigo-600" />
+        : <ArrowDown size={16} className="ml-1 text-indigo-600" />;
+    }
 
     return (
       <span className="ml-1 inline-flex flex-col text-slate-400">
