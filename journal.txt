@@ -5219,3 +5219,5 @@ LUNES 19/10/2026
 - Lección: una etiqueta de totales en una sola línea ensanchó Folio 110 px y sacó "Debe" de la tarjeta; medir el
   ancho de la tabla (scrollWidth) en pantalla, no solo verla.
 - Pendiente: Gabriel aprueba para pasar las 42 pantallas; push a main sigue sujeto a CLAUDE.md.
+- 17:39 (f7804b4): Caja chica ordenable (Fecha reciente primero, Categoría, Concepto, Monto con signo); VTable sortValue;
+  guía: columnas principales ordenables en toda tabla de listado o reporte.
