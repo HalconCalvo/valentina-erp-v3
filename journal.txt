@@ -5064,3 +5064,98 @@ PENDIENTE PARA CERRAR EL ENSAYO:
 - GUIA_PANTALLAS.md versión 2: modelo Cobranza (/finance/cxc-report) y Antigüedad (/finance/aging), clases exactas;
   donde difieren manda Cobranza. Legacy-import deja de ser modelo. REVISION_PANTALLAS_OLA3.md ajustada.
 - Pendiente: aprobación de Gabriel (verde de Antigüedad, ancho del contenedor). Tercera ola sin aplicar.
+
+================================================================
+CIERRE DEL DÍA — 16/10/2026 (asesor)
+================================================================
+ENSAYO OBRA PILOTO (OV-0157) — CERRADO EN DINERO EN PRUEBAS
+- Facturado = cobrado = $55,233.03; falta cobrar $0.00; 4 facturas PAGADA; 3 casas Cerrado/FACTURADO.
+- D36 confirmado al centavo: avances $18,411.01 c/u, amortizaciones $11,046.61 + $11,046.61 + $11,046.60 (última casa).
+- Un depósito de $14,728.81 aplicado a dos facturas (H63 corregido).
+- Nómina Piloto 1 pagada ($3,000, Banco). POR PAGAR: nómina Piloto 2 y 3 ($6,000, 8 pagos) y 4 comisiones de OV-0157
+  ($2,380.73). Se pagan con la pantalla nueva (Efectivo Dirección / pago dividido).
+- Hallazgos del día: H47–H70 (casi todos corregidos y probados en Pruebas). main sigue sin tocar (081b2ab).
+
+DECISIONES DE GABRIEL HOY
+- Comisión por cada cobro = cobrado sin IVA × % de comisión DE ESA OV.
+- D37: medio de pago Banco o Efectivo en comisiones y nómina. H66: "Pagar todo a <persona>".
+- D38: ayuda "?" v2 con buscador "¿En qué te ayudo?" (solo lo que el rol puede abrir). Rutas: nómina y comisiones se
+  pagan en Gerencia → 5. Nómina → Nómina → (Comisiones por pagar | Instalaciones).
+- D39: todas las comisiones existentes ya fueron pagadas fuera de Valentina; al pasar a main se marcan "pagada antes de
+  Valentina" sin movimiento (excepto la obra piloto). Pase a main detenido hasta aplicarlo.
+- D40: "Efectivo Dirección" (caja privada de Gabriel, solo DIRECTOR, sin movimiento de banco ni caja chica, con
+  bitácora) en comisiones y nómina; el pago cuenta como COSTO de la OV. Pago dividido entre medios (Banco + Efectivo
+  Dirección…). Hecho en Pruebas.
+- Equipo: Alejandrina García (ale.garcia@incamex.com, DIRECTOR) maneja Bancos, registra cobros y pagos.
+  Karina (contabilidad@incamex.com, Gerencia) registra facturas; por ahora no opera Bancos (más adelante sí).
+- D41: Gerencia no ve Bancos ni saldos, no registra cobros ni pagos a proveedores, solo VE caja chica (la opera
+  Administración; fondo: Dirección y Administración), no paga nómina/comisiones, no autoriza pagos a proveedor.
+  Confirmado en pantalla por Gabriel con el usuario de Karina.
+- D21: piedra de las recetas Nadira 33 la puso el cliente → ruta "Lo pone el cliente" + material PIEDRA DEL CLIENTE
+  ($0, sin compra ni existencia). Hecho en Pruebas. Las 4 recetas se clonan solo si se vuelve a vender.
+- D42: pantallas modelo = Gerencia → CxC → Cobranza (manda) y Antigüedad de saldos. De Cobranza: colores, ubicación de
+  botones, claridad/orden y tamaño de letra. Guía v2 escrita (docs/GUIA_PANTALLAS.md), NADA aplicado.
+
+DOCUMENTOS
+- Simulacro con el equipo, hojas por persona (Docs): https://claude.ai/code/artifact/573c6fd3-45d9-4aa2-a9de-a9af5e3744e6
+  (incluye a Alejandrina; repasar cuando D40/D41 estén probados, antes de repartir).
+- Ayuda v2: frontend/src/help/ayuda.md (propuesta original en docs/AYUDA_PROPUESTA_ASESOR.md).
+- Revisión tercera ola: docs/REVISION_PANTALLAS_OLA3.md.
+
+PENDIENTE PARA LA PRÓXIMA SESIÓN (en orden)
+1. Gabriel decide: (a) ¿existe comisión de "Dirección global" por venta? (hay 8 de tipo DIRECTOR_GLOBAL en OV-0157);
+   (b) aprobar guía v2: Antigüedad verde o igual a Cobranza (recomiendo igualar), ancho completo en reportes y angosto
+   en formularios (recomiendo aceptar); (c) Seguimiento de OV: dejarla como consulta, corregir el % (hoy cuenta
+   "empacado" como hecho) y agregar fecha de instalación (recomendación del asesor).
+2. Pagar en Pruebas, con la pantalla nueva: comisiones de OV-0157 ($2,380.73) y nómina Piloto 2 y 3 ($6,000), probando
+   Efectivo Dirección y pago dividido; verificar que cuenten como costo.
+3. Con la guía aprobada: tercera ola (común → pantallas del ensayo → catálogos/configuración/Planeación), en `pruebas`.
+4. Aplicar D39 y preparar el pase a main; repasar el documento del simulacro y programar el simulacro con el equipo.
+5. Pendientes con Karina (D27, D28, Viveyuc, Cerámica, Excel 12/10) y con Gerardo (recetas sin instalación).
+
+================================================================
+SÁBADO 17/10/2026 — conversación con el asesor (sin Claude Code)
+================================================================
+- Estimación del asesor: 4 a 6 semanas para tener Valentina al 90% (equipo operando a diario en producción).
+  Orden: decisiones pendientes → tercera ola de pantallas → D39 + pase a main → simulacro con el equipo →
+  correcciones → arranque. El riesgo está en lo que salga del simulacro.
+- Novedades de Claude Code (correo Anthropic): se evaluarán (1) mover la sesión de Claude Code a la nube para
+  apagar la Mac, (2) un hook que bloquee push a main en horario laboral, (3) actualizar Claude Code (ahorro de uso).
+  No se usarán tareas en paralelo sobre el código (solo revisiones de lectura).
+- D43 (APROBADA): asesor en el "?" en tres pasos.
+    Paso 1 (antes del simulacro, sin IA): botón "Reportar un detalle" (usuario, pantalla, documento abierto, fecha,
+      captura opcional) → bandeja Nuevo / Autorizado / Corregido / Descartado; lo autorizado pasa al buzón y lo
+      cerrado al journal.
+    Paso 2 (al pasar a main): agente IA (Haiku) que orienta y capacita con la ayuda v2 filtrada por rol y ayuda a
+      redactar reportes del paso 1.
+    Paso 3 (después del arranque): el agente consulta datos del usuario, solo lectura y con sus permisos.
+    Regla: el agente nunca corrige ni cambia datos; las correcciones las autorizan Gabriel y el asesor.
+- D44 (APROBADA): comisión global SÍ existe; beneficiario hoy: Lic. Gabriel Frías García (gerente general,
+  g.frias.garcia@koloka.com.mx). Se captura en Configuraciones Globales: usuario + porcentaje. Se calcula por cobro
+  igual que la del vendedor, aparece en Comisiones por pagar, se paga con el diálogo D40 y cuenta como costo de OV.
+  D39 la incluye. (Hoy el código la da a todo usuario DIRECTOR activo con global_commission_rate > 0; se cambia.)
+- Contexto aclarado por Gabriel: todo lo que hay hoy en Valentina (incluida producción/main) es periodo de pruebas.
+  El equipo la usa a diario y cada vez más (Ventas cotiza, Administración compras/caja chica/proveedores, Gerencia,
+  Alejandrina CxC/CxP/Bancos/Nóminas), pero se sigue trabajando también de forma manual: no se depende todavía de
+  los datos de Valentina y los errores no causan daño.
+- Pendientes de Gabriel: guía de pantallas v2 §14 y Seguimiento de OV.
+- 20:35 Gabriel aprueba guía v2 §14: (a) Antigüedad igual a Cobranza; (b) reportes ancho completo, formularios max-w-7xl.
+  Antes de las 42 pantallas: piloto en 4 — Antigüedad de saldos, Clientes, Caja chica y Campo (celular). Capturas
+  antes/después; Gabriel ajusta o autoriza. Instrucción en el buzón, después de D44. Pendiente: Seguimiento de OV.
+
+MEJORAS A NUESTRA FORMA DE TRABAJAR (correo de Anthropic, 17/10) — pendientes de implementar, una a la vez
+1. Actualizar Claude Code en la Mac (lo primero; habilita lo demás).
+   - Sesiones largas inactivas se resumen solas antes de expirar la caché → gasta menos uso al retomar.
+   - /usage avisa qué consume más.
+2. Candado para main (hook): antes de cada push, si el destino es `main` en lunes a viernes 8:00–18:00 sin
+   autorización de Gabriel, se bloquea. Con "onFailure": "block", si el hook falla también bloquea.
+   Solo configuración de Claude Code; no toca Valentina.
+3. Mover la sesión de Claude Code a la nube cuando Gabriel salga: sigue atendiendo el buzón con la Mac apagada.
+   Se lleva los cambios sin commit y sin push. Probar primero con una tarea chica; confirmar que en la nube
+   corren el backend y las pruebas como en la Mac.
+4. Instrucciones del buzón más eficientes: pedir subagentes de esfuerzo bajo (o modelo Haiku) para buscar en el
+   código y esfuerzo alto solo para analizar/decidir. Agregar la frase "Time matters here: do not spend time that
+   can be avoided, and the earlier a correct result is obtained, the better." cuando convenga rapidez.
+5. Haiku 5.5 (rápido y barato) para el agente IA del "?" (D43, paso 2), usando los créditos de API del plan.
+NO se usarán: tareas en paralelo sobre el código (riesgo de choques en componentes comunes; solo revisiones de
+lectura), Managed Agents, network secrets.

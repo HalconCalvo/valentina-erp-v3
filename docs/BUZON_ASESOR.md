@@ -8,6 +8,34 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Pendientes
 
+### 17/10 20:35 — Tercera ola: PILOTO de 4 pantallas (hacer DESPUÉS de D44)
+Gabriel aprobó §14 de docs/GUIA_PANTALLAS.md: (a) Antigüedad se iguala a Cobranza (color solo en cifras, sin borde/barra verde);
+(b) reportes a ancho completo, formularios `max-w-7xl`. Antes de tocar las 42, quiere ver un piloto y ajustar o autorizar.
+Aplicar la guía v2 SOLO a estas 4 pantallas, en rama `pruebas`, sin cambiar comportamiento (mismos datos, botones, permisos, flujos):
+1. /finance/aging — Antigüedad de saldos (aplica la decisión a).
+2. /clients — catálogo con formulario (formulario max-w-7xl, botones y modal estándar).
+3. /treasury → Caja chica — pantalla de uso diario de Administración (13 botones nativos, fechas).
+4. /field — vista de celular del líder de cuadrilla (verificar a 390 px de ancho).
+Reglas: no tocar componentes compartidos de forma que cambie otras pantallas; si un elemento común hace falta, crearlo nuevo y usarlo
+solo en estas 4. Tomar capturas antes/después de cada una (escritorio; /field también celular) y dejarlas en docs/piloto_ola3/.
+Reportar en Hechas: commit, rutas, qué cambió en cada una y cualquier punto de la guía que no encajó. NO avanzar con el resto
+hasta que Gabriel y el asesor aprueben.
+
+### 17/10 20:30 — D44 Comisión global en Configuraciones Globales (aprobada por Gabriel)
+Contexto: hoy la comisión DIRECTOR_GLOBAL se genera para TODO usuario con rol DIRECTOR activo y `global_commission_rate > 0`
+(sales_service.py ~185 y ~690, sales_repository.get_directors). Gabriel decide: la comisión global existe y su beneficiario
+es el gerente general, Lic. Gabriel Frías García (g.frias.garcia@koloka.com.mx). Debe capturarse en Configuraciones Globales.
+Hacer, en rama `pruebas`:
+1. GlobalConfig: dos campos nuevos — usuario beneficiario de la comisión global (cualquier usuario activo) y porcentaje.
+   Pantalla Configuraciones Globales: capturarlos (selector de usuario + %). Solo Dirección puede editarlos. Bitácora del cambio.
+2. Cálculo: reemplazar el ciclo sobre directores por ese único beneficiario y ese %. Misma regla que vendedor: por cada cobro,
+   sobre lo cobrado sin IVA. Sin beneficiario o % = 0 → no se genera.
+3. Migración: `users.global_commission_rate` deja de usarse (no borrar la columna aún). No cambiar comisiones ya generadas.
+4. Explicar por qué las 8 DIRECTOR_GLOBAL de OV-0157 no salen en Comisiones por pagar y que salgan (pagables con el diálogo D40,
+   costo de la OV). NO pagarlas ni modificarlas: reportar a quién están asignadas y sus montos; el asesor decide con Gabriel.
+5. D39 debe incluir también las DIRECTOR_GLOBAL anteriores al go-live.
+6. Pruebas + verificación en Pruebas. Reportar en Hechas con commit. Pantallas: solo lo mínimo para capturar; sin restyling.
+
 
 ## Preguntas para el asesor
 
