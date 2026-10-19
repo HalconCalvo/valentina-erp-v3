@@ -306,11 +306,13 @@ const CxcReportPage: React.FC = () => {
         },
         {
             key: 'monto',
+            align: 'right',
             label: 'Monto',
             render: (row) => <span className="block text-right tabular-nums">{formatMoney(row.monto)}</span>,
         },
         {
             key: 'amortized_advance',
+            align: 'right',
             label: 'Ant. aplic.',
             render: (row) => (
                 <span className="block text-right tabular-nums text-slate-600">
@@ -320,16 +322,19 @@ const CxcReportPage: React.FC = () => {
         },
         {
             key: 'abonado',
+            align: 'right',
             label: 'Abonado',
             render: (row) => <span className="block text-right tabular-nums text-emerald-700">{formatMoney(row.abonado)}</span>,
         },
         {
             key: 'saldo',
+            align: 'right',
             label: 'Saldo',
             render: (row) => <span className="block text-right tabular-nums font-bold text-slate-800">{formatMoney(row.saldo)}</span>,
         },
         {
             key: 'antiguedad_dias',
+            align: 'right',
             label: 'Antig.',
             render: (row) => (
                 <span
@@ -343,6 +348,7 @@ const CxcReportPage: React.FC = () => {
         },
         {
             key: 'cobrar',
+            align: 'center',
             label: 'Cobrar',
             render: (row) => (
                 <div className="text-center">
@@ -362,6 +368,21 @@ const CxcReportPage: React.FC = () => {
             ),
         },
     ], [canCharge, handleFolioClick]);
+
+    // Guide v2 §5: titles, client rows and totals live in ONE VTable, so every title sits over its column
+    const groupKey = (row: CxcReportRow) => (row.client_id != null ? String(row.client_id) : `__none__${row.client_name}`);
+    const groupByKey = useMemo(() => new Map(grouped.map((g) => [groupKey(g.rows[0]), g])), [grouped]);
+    const groupedRows = useMemo(() => grouped.flatMap((g) => g.rows), [grouped]);
+    const totals: Record<string, React.ReactNode> = {
+        invoice_folio: (
+            <span className="text-slate-700 uppercase text-xs tracking-wide whitespace-nowrap">Totales ({filteredRows.length} facturas)</span>
+        ),
+        monto: formatMoney(metrics.totalFacturado),
+        amortized_advance: <span className="text-slate-700">{formatMoney(metrics.totalAmortized)}</span>,
+        abonado: <span className="text-emerald-800">{formatMoney(metrics.totalAbonadoCash)}</span>,
+        saldo: <span className="text-amber-800">{formatMoney(metrics.totalSaldo)}</span>,
+    };
+    const tableColumns = cxcColumns.map((col) => ({ ...col, footer: totals[col.key] ?? null }));
 
     return (
         <div className="p-8 w-full pb-24 space-y-6 animate-fadeIn">
@@ -481,8 +502,8 @@ const CxcReportPage: React.FC = () => {
             </div>
 
             <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                {/* H6: column header and client header stay visible while scrolling the report */}
-                <div className="overflow-auto max-h-[75vh]">
+                {/* H6: column header and client header stay visible while scrolling the report (VTable sticky) */}
+                <div>
                     {loading && filteredRows.length === 0 ? (
                         <VTable
                             columns={cxcColumns as unknown as VTableColumn<Record<string, unknown>>[]}
@@ -498,43 +519,23 @@ const CxcReportPage: React.FC = () => {
                             className="border-0 rounded-none shadow-none"
                         />
                     ) : (
-                        <>
-                            <div className="sticky top-0 z-20 flex w-full text-sm bg-slate-50 border-b border-slate-200 text-left">
-                                {cxcColumns.map((col) => (
-                                    <div key={col.key} className="flex-1 p-3 font-bold text-slate-600 min-w-0">
-                                        {col.label}
+                        <VTable
+                            columns={tableColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+                            data={groupedRows as unknown as Record<string, unknown>[]}
+                            className="border-0 rounded-none shadow-none"
+                            headerStyle="report"
+                            maxHeight="75vh"
+                            groupBy={(row) => groupKey(row as unknown as CxcReportRow)}
+                            renderGroupHeader={(key) => {
+                                const group = groupByKey.get(key);
+                                return (
+                                    <div className="flex justify-between items-center">
+                                        <span className="font-black text-indigo-900">{group?.clientName ?? '—'}</span>
+                                        <span className="font-black text-indigo-800 tabular-nums">Debe: {formatMoney(group?.debe ?? 0)}</span>
                                     </div>
-                                ))}
-                            </div>
-                            {grouped.map((group) => (
-                                <div key={`${group.clientId ?? 'x'}-${group.clientName}`}>
-                                    <div className="sticky top-11 z-10 bg-indigo-50 border-y border-indigo-100 px-3 py-3 flex justify-between items-center">
-                                        <span className="font-black text-indigo-900">{group.clientName}</span>
-                                        <span className="font-black text-indigo-800 tabular-nums">
-                                            Debe: {formatMoney(group.debe)}
-                                        </span>
-                                    </div>
-                                    <VTable
-                                        columns={cxcColumns as unknown as VTableColumn<Record<string, unknown>>[]}
-                                        data={group.rows as unknown as Record<string, unknown>[]}
-                                        className="border-0 rounded-none shadow-none [&_thead]:hidden"
-                                        stickyHeader={false}
-                                    />
-                                </div>
-                            ))}
-                            {filteredRows.length > 0 && (
-                                <div className="flex w-full text-sm bg-slate-100 border-t-2 border-slate-300 font-black">
-                                    <div className="flex-[7] p-3 text-slate-700 uppercase text-xs tracking-wide min-w-0">
-                                        Totales ({filteredRows.length} facturas)
-                                    </div>
-                                    <div className="flex-1 p-3 text-right tabular-nums min-w-0">{formatMoney(metrics.totalFacturado)}</div>
-                                    <div className="flex-1 p-3 text-right tabular-nums text-slate-700 min-w-0">{formatMoney(metrics.totalAmortized)}</div>
-                                    <div className="flex-1 p-3 text-right tabular-nums text-emerald-800 min-w-0">{formatMoney(metrics.totalAbonadoCash)}</div>
-                                    <div className="flex-1 p-3 text-right tabular-nums text-amber-800 min-w-0">{formatMoney(metrics.totalSaldo)}</div>
-                                    <div className="flex-[2] min-w-0" />
-                                </div>
-                            )}
-                        </>
+                                );
+                            }}
+                        />
                     )}
                 </div>
             </div>

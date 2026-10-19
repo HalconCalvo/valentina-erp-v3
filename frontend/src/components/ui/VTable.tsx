@@ -6,9 +6,15 @@ import { cn } from '@/lib/utils';
 export interface VTableColumn<T = Record<string, unknown>> {
   key: string;
   label: string;
+  /** Custom header content (e.g. a sort button); the column's title stays `label`. */
+  header?: React.ReactNode;
   render?: (row: T) => React.ReactNode;
   sortable?: boolean;
   width?: string;
+  /** Aligns title and cells of the column together (amounts: 'right'). */
+  align?: 'left' | 'right' | 'center';
+  /** Cell of the totals row (tfoot); the row shows only when some column has one. */
+  footer?: React.ReactNode;
 }
 
 export interface VTableAction<T = Record<string, unknown>> {
@@ -40,11 +46,32 @@ interface VTableProps<T = Record<string, unknown>> {
   /** H6: the header stays visible while the rows scroll inside the table (default 70vh tall). false: no own scroll. */
   stickyHeader?: boolean;
   maxHeight?: string;
+  /** 'report' (guide v2 §5, Cobranza): title text-sm normal case p-3; 'default': text-xs uppercase. */
+  headerStyle?: 'default' | 'report';
+  /** Group rows in one table (titles, group rows and totals share the columns, so they never misalign). */
+  groupBy?: (row: T) => string;
+  renderGroupHeader?: (groupKey: string, rows: T[]) => React.ReactNode;
 }
 
 type SortDirection = 'asc' | 'desc';
 
 const SKELETON_ROWS = 5;
+
+const ALIGN_CLASS = { left: 'text-left', right: 'text-right', center: 'text-center' } as const;
+const HEADER_CLASS = {
+  default: 'bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-500',
+  report: 'bg-slate-50 p-3 text-sm font-bold text-slate-600',
+} as const;
+const GROUP_TOP = { default: 'top-10', report: 'top-11' } as const;
+
+export const groupRows = <T,>(rows: T[], groupBy: (row: T) => string): [string, T[]][] => {
+  const groups = new Map<string, T[]>();
+  rows.forEach((row) => {
+    const key = groupBy(row);
+    groups.set(key, [...(groups.get(key) ?? []), row]);
+  });
+  return Array.from(groups.entries());
+};
 
 const compareValues = (a: unknown, b: unknown): number => {
   if (a == null && b == null) return 0;
@@ -82,7 +109,14 @@ export const VTable = <T extends Record<string, unknown>>({
   onSortedDataChange,
   stickyHeader = true,
   maxHeight = '70vh',
+  headerStyle = 'default',
+  groupBy,
+  renderGroupHeader,
 }: VTableProps<T>) => {
+  const headerClass = HEADER_CLASS[headerStyle];
+  const alignOf = (column: VTableColumn<T>) => ALIGN_CLASS[column.align ?? 'left'];
+  const hasFooter = columns.some((column) => column.footer !== undefined);
+  const columnCount = columns.length + (actions ? 1 : 0);
   const [sortKey, setSortKey] = useState<string | null>(defaultSortKey);
   const [sortDirection, setSortDirection] = useState<SortDirection>(defaultSortDirection);
 
@@ -144,13 +178,13 @@ export const VTable = <T extends Record<string, unknown>>({
               <th
                 key={column.key}
                 style={column.width ? { width: column.width } : undefined}
-                className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500"
+                className={cn(headerClass, alignOf(column))}
               >
-                {column.label}
+                {column.header ?? column.label}
               </th>
             ))}
             {actions && (
-              <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">
+              <th className={cn(headerClass, 'text-left')}>
                 Acciones
               </th>
             )}
@@ -226,26 +260,45 @@ export const VTable = <T extends Record<string, unknown>>({
                   key={column.key}
                   style={column.width ? { width: column.width } : undefined}
                   className={cn(
-                    'bg-slate-50 px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500',
+                    headerClass,
+                    alignOf(column),
                     column.sortable && 'cursor-pointer select-none hover:text-slate-700',
                   )}
                   onClick={() => handleSort(column)}
                 >
-                  <span className="inline-flex items-center">
-                    {column.label}
-                    {renderSortIcon(column)}
-                  </span>
+                  {column.header ?? (
+                    <span className="inline-flex items-center">
+                      {column.label}
+                      {renderSortIcon(column)}
+                    </span>
+                  )}
                 </th>
               ))}
               {actions && (
-                <th className="bg-slate-50 px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">
+                <th className={cn(headerClass, 'text-left')}>
                   Acciones
                 </th>
               )}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {sortedData.map((row, rowIndex) => {
+            {(groupBy ? groupRows(sortedData, groupBy) : [['', sortedData] as [string, T[]]]).map(([groupKey, rows]) => (
+              <React.Fragment key={groupKey || 'all'}>
+                {groupBy && (
+                  <tr>
+                    <td
+                      colSpan={columnCount}
+                      className={cn(
+                        'bg-indigo-50 border-y border-indigo-100 px-3 py-3',
+                        stickyHeader && `sticky z-[5] ${GROUP_TOP[headerStyle]}`,
+                      )}
+                    >
+                      {renderGroupHeader ? renderGroupHeader(groupKey, rows) : groupKey}
+                    </td>
+                  </tr>
+                )}
+            {rows.map((row) => {
+              const rowIndex = sortedData.indexOf(row);
               const rowActions = actions?.(row).filter((action) => !action.hidden) ?? [];
 
               return (
@@ -261,7 +314,7 @@ export const VTable = <T extends Record<string, unknown>>({
                     <td
                       key={column.key}
                       style={column.width ? { width: column.width } : undefined}
-                      className="px-4 py-3 align-middle text-slate-700"
+                      className={cn('px-4 py-3 align-middle text-slate-700', column.align && alignOf(column))}
                     >
                       {column.render
                         ? column.render(row)
@@ -303,7 +356,21 @@ export const VTable = <T extends Record<string, unknown>>({
                 </tr>
               );
             })}
+              </React.Fragment>
+            ))}
           </tbody>
+          {hasFooter && (
+            <tfoot>
+              <tr className="bg-slate-100 border-t-2 border-slate-300 font-black">
+                {columns.map((column) => (
+                  <td key={column.key} className={cn('p-3 tabular-nums', alignOf(column))}>
+                    {column.footer ?? null}
+                  </td>
+                ))}
+                {actions && <td className="p-3" />}
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
     </div>

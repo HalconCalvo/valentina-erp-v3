@@ -335,29 +335,28 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
         return sortableItems;
     }, [filteredInvoices, sortField, sortDirection]);
 
-    const SortableHeader = ({ field, label, align = 'left', className = 'flex-1' }: { field: SortField; label: string; align?: 'left' | 'right' | 'center'; className?: string }) => {
+    // Third-wave pilot (guide v2, Gabriel 17/10): only the /finance/aging page; the embedded panel keeps its look
+    const pilot = variant === 'page';
+
+    /** Sort button inside the VTable title cell, so title and column share the same cell (guide v2 §5). */
+    const sortHeader = (field: SortField, label: string, align: 'left' | 'right' | 'center' = 'left') => {
         const isActive = sortField === field;
-        const alignClass = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left';
+        const activeColor = pilot ? 'text-indigo-600' : 'text-emerald-600';
         return (
-            <div
-                className={`${className} ${ui.headerCell} ${alignClass} cursor-pointer hover:bg-slate-200 transition-colors select-none`}
+            <span
+                role="button"
+                tabIndex={0}
                 onClick={() => handleSort(field)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleSort(field); }}
+                className={`inline-flex items-center gap-1 cursor-pointer select-none hover:text-slate-800 ${align === 'right' ? 'flex-row-reverse' : ''}`}
             >
-                <div
-                    className={`flex items-center gap-1 ${align === 'right' ? 'flex-row-reverse justify-end' : ''} ${align === 'center' ? 'justify-center' : ''} ${align === 'left' ? 'inline-flex' : 'inline-flex'}`}
-                >
-                    <span className={isActive ? (pilot ? 'text-indigo-700' : 'text-emerald-800') : 'text-slate-600 font-bold'}>{label}</span>
-                    {isActive ? (
-                        sortDirection === 'asc' ? (
-                            <ArrowUp size={16} className={pilot ? 'text-indigo-600' : 'text-emerald-600'} />
-                        ) : (
-                            <ArrowDown size={16} className={pilot ? 'text-indigo-600' : 'text-emerald-600'} />
-                        )
-                    ) : (
-                        <ArrowUpDown size={16} className="text-slate-400 hover:text-slate-600" />
-                    )}
-                </div>
-            </div>
+                <span className={isActive ? (pilot ? 'text-indigo-700' : 'text-emerald-800') : undefined}>{label}</span>
+                {isActive ? (
+                    sortDirection === 'asc' ? <ArrowUp size={16} className={activeColor} /> : <ArrowDown size={16} className={activeColor} />
+                ) : (
+                    <ArrowUpDown size={16} className="text-slate-400" />
+                )}
+            </span>
         );
     };
 
@@ -365,6 +364,7 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
         {
             key: 'clientName',
             label: 'Cliente / Proyecto',
+            header: sortHeader('CLIENT', 'Cliente / Proyecto'),
             render: (inv) => (
                 <>
                     <p className="font-bold text-slate-800 text-sm">{inv.clientName}</p>
@@ -391,6 +391,8 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
         {
             key: 'ovDateYmd',
             label: 'Fecha OV',
+            header: sortHeader('OV_DATE', 'Fecha OV'),
+            width: '8rem',
             render: (inv) => (
                 <span className="text-sm text-slate-600 font-medium whitespace-nowrap">
                     {formatDate(inv.ovDateYmd)}
@@ -400,16 +402,25 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
         {
             key: 'orderTotal',
             label: 'Importe OV',
-            render: (inv) => <span className={`block text-right font-bold text-slate-800${variant === 'page' ? ' tabular-nums' : ''}`}>{formatMoney(inv.orderTotal)}</span>,
+            header: sortHeader('ORDER_TOTAL', 'Importe OV', 'right'),
+            width: '9rem',
+            align: 'right',
+            render: (inv) => <span className="block text-right font-bold text-slate-800 tabular-nums">{formatMoney(inv.orderTotal)}</span>,
         },
         {
             key: 'amount',
             label: 'Saldo pendiente',
-            render: (inv) => <span className={`block text-right font-black text-slate-900${variant === 'page' ? ' tabular-nums' : ''}`}>{formatMoney(Number(inv.amount))}</span>,
+            header: sortHeader('BALANCE', 'Saldo pendiente', 'right'),
+            width: '10rem',
+            align: 'right',
+            render: (inv) => <span className="block text-right font-black text-slate-900 tabular-nums">{formatMoney(Number(inv.amount))}</span>,
         },
         {
             key: 'daysOverdue',
             label: 'Vencido',
+            header: sortHeader('OVERDUE', 'Vencido', 'center'),
+            width: '8rem',
+            align: 'center',
             render: (inv) => {
                 const ven = vencidoLabel(inv.daysOverdue);
                 return (
@@ -428,6 +439,8 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
         {
             key: 'action',
             label: 'Acción',
+            width: '9rem',
+            align: 'center',
             render: (inv) => (
                 <div className="text-center">
                     <Button
@@ -443,7 +456,7 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
                 </div>
             ),
         },
-    ], [allowFinanceActions, variant]);
+    ], [allowFinanceActions, sortField, sortDirection, pilot]);
 
     const handleGoBack = () => {
         if (variant === 'embedded') {
@@ -458,8 +471,6 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
         navigate('/finance');
     };
 
-    // Third-wave pilot (guide v2, Gabriel 17/10): only the /finance/aging page; the embedded panel keeps its look
-    const pilot = variant === 'page';
     const outerClass =
         pilot ? 'p-8 w-full pb-24 space-y-6 animate-fadeIn' : 'space-y-6 animate-fadeIn pb-8';
     const ui = pilot
@@ -469,8 +480,6 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
             pill: 'bg-white border border-slate-200 px-4 py-2 rounded-lg shadow-sm flex items-center gap-3 w-full md:w-auto justify-between',
             pillLabel: 'text-xs font-bold text-slate-500 uppercase tracking-wider',
             pillValue: 'font-black text-slate-900 text-xl tabular-nums',
-            headerRow: 'sticky top-0 z-20 flex text-sm text-slate-600 font-bold bg-slate-50 border-b border-slate-200',
-            headerCell: 'p-3',
             loading: 'text-xs text-slate-400 font-bold animate-pulse',
         }
         : {
@@ -479,14 +488,12 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
             pill: 'bg-white border border-emerald-200 px-4 py-2 rounded-lg shadow-sm flex items-center gap-3 w-full md:w-auto justify-between',
             pillLabel: 'text-xs font-bold text-emerald-600 uppercase tracking-wider',
             pillValue: 'font-black text-emerald-900 text-xl',
-            headerRow: 'sticky top-0 z-20 flex text-xs uppercase tracking-wider text-slate-500 font-bold bg-slate-50 border-b border-slate-200',
-            headerCell: 'p-4',
             loading: 'text-xs text-emerald-500 font-bold animate-pulse',
         };
 
     const pageTitle = allowFinanceActions ? 'Antigüedad de Saldos' : 'Cartera Viva (Facturas Pendientes)';
     const pageSubtitle = allowFinanceActions
-        ? 'Toda la cartera viva consolidada. Ejecución operativa.'
+        ? 'Facturas pendientes de cobro'
         : 'Monitorea el estatus de cobro de tus proyectos.';
 
     const backLabel = variant === 'embedded' ? embeddedBackLabel ?? 'Regresar a Tarjetas' : 'Regresar a Cobranza';
@@ -537,16 +544,7 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
                     </div>
                 </div>
 
-                <div className="overflow-auto max-h-[75vh]">
-                    <div className={ui.headerRow}>
-                        <SortableHeader field="CLIENT" label="Cliente / Proyecto" />
-                        <SortableHeader field="OV_DATE" label="Fecha OV" className="w-32 shrink-0" />
-                        <SortableHeader field="ORDER_TOTAL" label="Importe OV" align="right" className="w-36 shrink-0" />
-                        <SortableHeader field="BALANCE" label="Saldo pendiente" align="right" className="w-40 shrink-0" />
-                        <SortableHeader field="OVERDUE" label="Vencido" align="center" className="w-32 shrink-0" />
-                        <div className={`w-36 shrink-0 ${ui.headerCell} text-center`}>Acción</div>
-                    </div>
-                    <VTable
+                <VTable
                         columns={carteraColumns as unknown as VTableColumn<Record<string, unknown>>[]}
                         data={sortedInvoices as unknown as Record<string, unknown>[]}
                         isLoading={isLoading && carteraRows.length === 0}
@@ -555,10 +553,10 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
                                 ? 'No hay órdenes en cartera para tu perfil. Cuando tengas OVs activas aparecerán aquí con saldo o facturas pendientes.'
                                 : 'No hay resultados para tu búsqueda.',
                         }}
-                        className="border-0 shadow-none rounded-none [&_thead]:hidden"
-                        stickyHeader={false}
+                        className="border-0 shadow-none rounded-none"
+                        headerStyle={pilot ? 'report' : 'default'}
+                        maxHeight="75vh"
                     />
-                </div>
             </div>
 
             {selectedOrderForStatement && (
