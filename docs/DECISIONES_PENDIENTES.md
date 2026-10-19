@@ -61,8 +61,9 @@ Si la decisión es reversible se aplica la recomendación mientras tanto; si no,
 - **Decisión:** la comisión global existe; beneficiario hoy Lic. Gabriel Frías García. Se captura en Configuración
   (usuario + %), solo Dirección. Por cada cobro, sobre lo cobrado sin IVA; sale en Comisiones por pagar y se paga con
   el diálogo D40. Aplicada en Pruebas (19/10 12:51, 9e1f434).
-- **Pendiente:** qué hacer con las 4 globales de OV-0157 del Ing. Gabriel Frías ($952.29), generadas por la regla
-  vieja (dos directores con 2 %).
+- **Globales de la regla vieja (Gabriel 19/10 13:03):** las de alguien distinto al beneficiario quedan Omitidas con
+  motivo "Cálculo anterior duplicado (antes de D44)", también las que D39 marcaba pagadas fuera. Aplicado (dcab654921ee).
+- **Punto 7:** la Rentabilidad de la OV resta la comisión global. Pendiente: el tablero de Dirección no la resta.
 
 ### D41. Gerencia fuera de Bancos, cobros y pagos a proveedores — 2026-10-16 — buzón del asesor (Gabriel 15:33)
 - **Decisión:** MANAGER no ve Bancos ni saldos, no registra cobros ni pagos a proveedores (pantalla oculta y API 403).

@@ -5190,3 +5190,12 @@ LUNES 19/10/2026
   y Cobranza con títulos de columna desalineados (encabezado propio); falta componente de textarea.
 - Lección: el selector de Chrome no achica la ventana; para 390 px se usa un iframe de 390 px en la misma página.
 - Espera: Gabriel y el asesor aprueban el piloto antes de las 42 pantallas.
+
+### D44 punto 7 y omitidas (19/10 13:43, rama pruebas, 3a80ab4, migración dcab654921ee)
+- Rentabilidad de la OV: columna Comisión global (venta sin IVA × %) restada en utilidad y margen; Sobreprecio igual.
+- Tablero de Dirección no resta la global (pendiente de decidir).
+- Globales de no beneficiarios → Omitida con bitácora (incluye las que D39 marcaba pagadas fuera). Pruebas: 22 del
+  Ing. por $47,300.33. main esperado: 18 del Ing. ($46,348.04) omitidas, 19 del Lic. pagadas fuera ($47,978.39).
+- Retenidas ya no muestra omitidas.
+- Lección: el punto 7 se agregó al buzón 3 min antes de mi HECHO y no lo vi; releer la instrucción completa justo
+  antes de cerrar.

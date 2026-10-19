@@ -8,20 +8,6 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Pendientes
 
-### 19/10 13:00 — Asesor: D44 punto 7 quedó sin hacer
-Lo agregué a las 12:48 y tu HECHO es de 12:51; no aparece en el reporte ni en el código (OrderStatementModal no tiene
-"Comisión global"). Hazlo DESPUÉS de terminar y reportar el piloto (capturas "después" incluidas). Es el punto 7 de D44 en Hechas.
-Las 4 globales del Ing. Gabriel Frías (id 3) en OV-0157: NO tocarlas todavía; Gabriel decide.
-
-### 19/10 13:03 — Gabriel decidió: globales del Ing. Gabriel Frías = OMITIDAS (hacer después del punto 7)
-Gabriel confirma 2 % para el Lic. Gabriel Frías García (lo cambiará él en Configuración cuando quiera).
-1. Pruebas: las 4 DIRECTOR_GLOBAL del Ing. Gabriel Frías (id 3) en OV-0157 ($952.29) → estado Omitida, motivo
-   "Cálculo anterior duplicado (antes de D44)", con bitácora. Las 4 del Lic. (id 2) quedan por pagar.
-2. D39 en producción: toda DIRECTOR_GLOBAL cuyo beneficiario NO sea el beneficiario configurado en D44 (hoy el Ing.,
-   18 por $46,348.04) se marca Omitida con ese motivo, no "Pagada fuera de Valentina". Las del beneficiario configurado
-   y las de vendedor siguen como D39. Ajusta la migración y sus pruebas; repórtalo con cifras esperadas en main.
-
-
 
 ## Preguntas para el asesor
 
@@ -80,6 +66,38 @@ Gabriel confirma 2 % para el Lic. Gabriel Frías García (lo cambiará él en Co
   - Agrega a tu reporte final la lista de commits pendientes de prueba en pantalla.
 
 ## Hechas
+
+- 19/10 13:00 — Asesor: D44 punto 7 quedó sin hacer
+Lo agregué a las 12:48 y tu HECHO es de 12:51; no aparece en el reporte ni en el código (OrderStatementModal no tiene
+"Comisión global"). Hazlo DESPUÉS de terminar y reportar el piloto (capturas "después" incluidas). Es el punto 7 de D44 en Hechas.
+Las 4 globales del Ing. Gabriel Frías (id 3) en OV-0157: NO tocarlas todavía; Gabriel decide.
+
+### 19/10 13:03 — Gabriel decidió: globales del Ing. Gabriel Frías = OMITIDAS (hacer después del punto 7)
+Gabriel confirma 2 % para el Lic. Gabriel Frías García (lo cambiará él en Configuración cuando quiera).
+1. Pruebas: las 4 DIRECTOR_GLOBAL del Ing. Gabriel Frías (id 3) en OV-0157 ($952.29) → estado Omitida, motivo
+   "Cálculo anterior duplicado (antes de D44)", con bitácora. Las 4 del Lic. (id 2) quedan por pagar.
+2. D39 en producción: toda DIRECTOR_GLOBAL cuyo beneficiario NO sea el beneficiario configurado en D44 (hoy el Ing.,
+   18 por $46,348.04) se marca Omitida con ese motivo, no "Pagada fuera de Valentina". Las del beneficiario configurado
+   y las de vendedor siguen como D39. Ajusta la migración y sus pruebas; repórtalo con cifras esperadas en main.
+HECHO [19/10 13:43, Pruebas, commit 3a80ab4; migración dcab654921ee]:
+- Punto 7: Rayos X → "Rentabilidad (sin IVA)" tiene la columna "Comisión global" = venta sin IVA × % de Configuración
+  (0 si no hay beneficiario) y la resta en Utilidad neta y Margen neto % sobre venta. Sobreprecio % y precios: sin
+  cambio (la global no va en el precio). OV-0157 en Pruebas: venta $47,614.68, costo $31,195.71, comisión incluida
+  $2,380.73, comisión global $952.29 (igual a las 4 del Lic. por pagar), utilidad neta $13,085.94, margen 27.48 %.
+- Tablero de Dirección (4. Rentabilidad, director_dashboard_service): usa la misma fórmula SIN la global (venta − costo
+  − comisión del vendedor), igual en ventas por carril y por cliente. Debería restarla también; NO lo cambié.
+- Omitidas: migración nueva (corre después de D39 y D44): toda DIRECTOR_GLOBAL de alguien distinto al beneficiario
+  configurado → Omitida (payroll_deferred = true, motivo "Cálculo anterior duplicado (antes de D44)" al inicio de las
+  observaciones), con bitácora por campo (change_id d44-omit-…); las que D39 marcó "Pagada fuera de Valentina" vuelven a
+  no pagadas y quedan omitidas. Las de vendedor y del beneficiario no se tocan. Sin beneficiario no hace nada.
+  Las omitidas ya no aparecen en ninguna bandeja (Retenidas también las excluye ahora).
+  Pruebas (verificado): Ing. Gabriel Frías 22 omitidas por $47,300.33 (las 4 de OV-0157 por $952.29 y 18 que D39 había
+  marcado pagadas fuera); Lic. Gabriel Frías García: 4 por pagar $952.29 (OV-0157) y 19 pagadas fuera $47,978.39.
+  Bandeja B. Por Pagar = solo las 4 del Lic.
+  En main (cifras esperadas, base de producción de hoy): D39 marcará pagadas fuera las de vendedor y las 19 del Lic.
+  ($47,978.39); esta migración dejará Omitidas las 18 del Ing. ($46,348.04).
+  Local: sube/baja/sube probado (copia vieja: 17 del Ing. omitidas y vuelven a "pagada fuera" al bajar).
+- Tests: 1 nuevo (omitida fuera de todas las bandejas); backend 373, frontend 48, build OK.
 
 - 17/10 20:35 — Tercera ola: PILOTO de 4 pantallas (hacer DESPUÉS de D44)
 Gabriel aprobó §14 de docs/GUIA_PANTALLAS.md: (a) Antigüedad se iguala a Cobranza (color solo en cifras, sin borde/barra verde);
