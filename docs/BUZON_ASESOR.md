@@ -79,7 +79,7 @@ Gabriel confirma 2 % para el Lic. Gabriel Frías García (lo cambiará él en Co
 2. D39 en producción: toda DIRECTOR_GLOBAL cuyo beneficiario NO sea el beneficiario configurado en D44 (hoy el Ing.,
    18 por $46,348.04) se marca Omitida con ese motivo, no "Pagada fuera de Valentina". Las del beneficiario configurado
    y las de vendedor siguen como D39. Ajusta la migración y sus pruebas; repórtalo con cifras esperadas en main.
-HECHO [19/10 13:43, Pruebas, commit 3a80ab4; migración dcab654921ee]:
+HECHO [19/10 13:41, Pruebas, commit 3a80ab4; migración dcab654921ee]:
 - Punto 7: Rayos X → "Rentabilidad (sin IVA)" tiene la columna "Comisión global" = venta sin IVA × % de Configuración
   (0 si no hay beneficiario) y la resta en Utilidad neta y Margen neto % sobre venta. Sobreprecio % y precios: sin
   cambio (la global no va en el precio). OV-0157 en Pruebas: venta $47,614.68, costo $31,195.71, comisión incluida

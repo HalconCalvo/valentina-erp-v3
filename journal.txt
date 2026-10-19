@@ -5191,7 +5191,7 @@ LUNES 19/10/2026
 - Lección: el selector de Chrome no achica la ventana; para 390 px se usa un iframe de 390 px en la misma página.
 - Espera: Gabriel y el asesor aprueban el piloto antes de las 42 pantallas.
 
-### D44 punto 7 y omitidas (19/10 13:43, rama pruebas, 3a80ab4, migración dcab654921ee)
+### D44 punto 7 y omitidas (19/10 13:41, rama pruebas, 3a80ab4, migración dcab654921ee)
 - Rentabilidad de la OV: columna Comisión global (venta sin IVA × %) restada en utilidad y margen; Sobreprecio igual.
 - Tablero de Dirección no resta la global (pendiente de decidir).
 - Globales de no beneficiarios → Omitida con bitácora (incluye las que D39 marcaba pagadas fuera). Pruebas: 22 del
