@@ -8,18 +8,19 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Pendientes
 
-### 17/10 20:35 — Tercera ola: PILOTO de 4 pantallas (hacer DESPUÉS de D44)
-Gabriel aprobó §14 de docs/GUIA_PANTALLAS.md: (a) Antigüedad se iguala a Cobranza (color solo en cifras, sin borde/barra verde);
-(b) reportes a ancho completo, formularios `max-w-7xl`. Antes de tocar las 42, quiere ver un piloto y ajustar o autorizar.
-Aplicar la guía v2 SOLO a estas 4 pantallas, en rama `pruebas`, sin cambiar comportamiento (mismos datos, botones, permisos, flujos):
-1. /finance/aging — Antigüedad de saldos (aplica la decisión a).
-2. /clients — catálogo con formulario (formulario max-w-7xl, botones y modal estándar).
-3. /treasury → Caja chica — pantalla de uso diario de Administración (13 botones nativos, fechas).
-4. /field — vista de celular del líder de cuadrilla (verificar a 390 px de ancho).
-Reglas: no tocar componentes compartidos de forma que cambie otras pantallas; si un elemento común hace falta, crearlo nuevo y usarlo
-solo en estas 4. Tomar capturas antes/después de cada una (escritorio; /field también celular) y dejarlas en docs/piloto_ola3/.
-Reportar en Hechas: commit, rutas, qué cambió en cada una y cualquier punto de la guía que no encajó. NO avanzar con el resto
-hasta que Gabriel y el asesor aprueben.
+### 19/10 13:00 — Asesor: D44 punto 7 quedó sin hacer
+Lo agregué a las 12:48 y tu HECHO es de 12:51; no aparece en el reporte ni en el código (OrderStatementModal no tiene
+"Comisión global"). Hazlo DESPUÉS de terminar y reportar el piloto (capturas "después" incluidas). Es el punto 7 de D44 en Hechas.
+Las 4 globales del Ing. Gabriel Frías (id 3) en OV-0157: NO tocarlas todavía; Gabriel decide.
+
+### 19/10 13:03 — Gabriel decidió: globales del Ing. Gabriel Frías = OMITIDAS (hacer después del punto 7)
+Gabriel confirma 2 % para el Lic. Gabriel Frías García (lo cambiará él en Configuración cuando quiera).
+1. Pruebas: las 4 DIRECTOR_GLOBAL del Ing. Gabriel Frías (id 3) en OV-0157 ($952.29) → estado Omitida, motivo
+   "Cálculo anterior duplicado (antes de D44)", con bitácora. Las 4 del Lic. (id 2) quedan por pagar.
+2. D39 en producción: toda DIRECTOR_GLOBAL cuyo beneficiario NO sea el beneficiario configurado en D44 (hoy el Ing.,
+   18 por $46,348.04) se marca Omitida con ese motivo, no "Pagada fuera de Valentina". Las del beneficiario configurado
+   y las de vendedor siguen como D39. Ajusta la migración y sus pruebas; repórtalo con cifras esperadas en main.
+
 
 
 ## Preguntas para el asesor
@@ -79,6 +80,54 @@ hasta que Gabriel y el asesor aprueben.
   - Agrega a tu reporte final la lista de commits pendientes de prueba en pantalla.
 
 ## Hechas
+
+- 17/10 20:35 — Tercera ola: PILOTO de 4 pantallas (hacer DESPUÉS de D44)
+Gabriel aprobó §14 de docs/GUIA_PANTALLAS.md: (a) Antigüedad se iguala a Cobranza (color solo en cifras, sin borde/barra verde);
+(b) reportes a ancho completo, formularios `max-w-7xl`. Antes de tocar las 42, quiere ver un piloto y ajustar o autorizar.
+Aplicar la guía v2 SOLO a estas 4 pantallas, en rama `pruebas`, sin cambiar comportamiento (mismos datos, botones, permisos, flujos):
+1. /finance/aging — Antigüedad de saldos (aplica la decisión a).
+2. /clients — catálogo con formulario (formulario max-w-7xl, botones y modal estándar).
+3. /treasury → Caja chica — pantalla de uso diario de Administración (13 botones nativos, fechas).
+4. /field — vista de celular del líder de cuadrilla (verificar a 390 px de ancho).
+Reglas: no tocar componentes compartidos de forma que cambie otras pantallas; si un elemento común hace falta, crearlo nuevo y usarlo
+solo en estas 4. Tomar capturas antes/después de cada una (escritorio; /field también celular) y dejarlas en docs/piloto_ola3/.
+Reportar en Hechas: commit, rutas, qué cambió en cada una y cualquier punto de la guía que no encajó. NO avanzar con el resto
+hasta que Gabriel y el asesor aprueben.
+HECHO [19/10 13:08, Pruebas, commit 33ef0ce]. Capturas antes/después en docs/piloto_ola3/ (escritorio; Campo también a
+390 px, simulado con un marco de 390 px porque la ventana de Chrome no se dejó achicar; sin desborde horizontal).
+Sin cambios de datos, botones, permisos ni flujos. Ningún componente compartido cambió (VTable, Modal, Button intactos;
+los ajustes van por className en estas 4 pantallas).
+1. /finance/aging (AccountsReceivableAgingPanel, solo la página; la versión incrustada en Tesorería y Ventas sigue igual):
+   decisión (a): sin borde ni barra verde, tarjeta y barra en gris, total en gris oscuro; ancho completo (b); títulos de
+   columna en letra normal text-sm (no mayúsculas); orden activo en índigo; dinero con tabular-nums; "Cargando...".
+2. /clients: contenedor max-w-7xl (b); encabezado estándar con ícono; subtítulo de una línea; Importar CSV pasa a botón
+   de contorno y Nuevo Cliente a primario (Button); títulos de columna text-sm; el formulario usa el Modal estándar
+   (título y cerrar del Modal, historial arriba a la derecha, pestañas con Button, pie Cancelar izquierda / Guardar
+   derecha); etiquetas en mayúsculas pequeñas como la guía.
+3. /treasury → Caja chica: encabezado propio estándar (Tesorería oculta el suyo solo en esta sección) con, a la derecha,
+   Configurar Fondo y Registrar Reposición (contorno), Registrar Egreso (primario) y "Regresar a Tesorería"; tres
+   tarjetas blancas (Saldo actual en verde o rojo si está bajo, Fondo, Mínimo para reponer); tabla sin título, Tipo
+   como etiqueta "Egreso"/"Reposición", monto -$600.00 a la derecha; "Ver"/"Subir" sin emojis; modales estándar sin
+   emojis y con pie Cancelar/primario. 13 botones nativos → 0.
+   OJO, corrige la hora: las fechas pasan a DD/MM/AAAA HH:MM en hora de Mérida. Antes salían 6 h adelantadas (p. ej.
+   "09 oct 2026, 03:12 p.m." era 09:12): las 613 horas guardadas están en UTC (todas entre 14:00 y 24:00).
+4. /field (inicio de Campo): título "Mi jornada" con ícono y "nombre · 19/10/2026" (antes "VALENTINA CAMPO" naranja +
+   nombre + 2026-10-19); estado En línea como etiqueta; Carga del camión primario índigo (antes azul nativo), Actualizar
+   contorno sin girar ("Procesando..."), Sincronizar verde; vacío con VEmptyState; tarjetas rounded-xl y etiquetas de
+   estado de la guía; tipo (Muebles/Piedra) en índigo en vez de naranja.
+Puntos de la guía que no encajaron (para decidir antes de las 42):
+- Botón "Nuevo …" / "Registrar …": la guía solo pone botones de contorno en el encabezado. Usé primario (índigo) para la
+  acción principal de la pantalla (Nuevo Cliente, Registrar Egreso, Carga del camión). Propongo agregarlo a §7.
+- "Regresar a …": Clientes y Campo se abren desde el menú, no tienen pantalla de origen; no les puse Regresar.
+- Actualizar: Antigüedad se refresca sola cada 15 s; no agregué botón para no cambiar la pantalla. Caja chica no lo tenía.
+- Antigüedad: los títulos de columna NO se alinean con las columnas (ya pasaba antes; la pantalla dibuja su propio
+  encabezado aparte de la tabla). Se ve en 1_antiguedad_despues.jpg. Arreglarlo es tocar cómo arma la tabla; lo dejo
+  para la ola (la guía §5 ya pide hacerlo dentro de VTable). Cobranza tiene el mismo patrón.
+- textarea nativo (Observaciones, Notas): no hay componente del sistema; se quedó. Propongo crear VTextarea en la ola.
+- Contenedor de Caja chica: quedó max-w-7xl (lo da Tesorería); no es reporte, encaja con (b).
+- Campo en celular: la barra superior de la app (buscador, ?) ocupa espacio; no es parte de la guía.
+- Clientes: el diálogo de borrar dice "Eliminar cliente… no se puede deshacer" (texto viejo); no lo toqué (comportamiento).
+Tests frontend 48, build OK, tsc sin errores nuevos (148, los de antes).
 
 - 17/10 20:30 — D44 Comisión global en Configuraciones Globales (aprobada por Gabriel)
 Contexto: hoy la comisión DIRECTOR_GLOBAL se genera para TODO usuario con rol DIRECTOR activo y `global_commission_rate > 0`

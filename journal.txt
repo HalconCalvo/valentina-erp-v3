@@ -5167,3 +5167,26 @@ lectura), Managed Agents, network secrets.
 - Lección: normalize_commission trata 1 como 100 %; el campo nuevo se guarda en % y se divide entre 100.
 - Pendiente del asesor: las 4 globales de OV-0157 del Ing. Gabriel Frías ($952.29), de la regla vieja.
 - Postgres local 5433 estaba apagado (reinicio de la Mac); se encendió con pg_ctl.
+
+LUNES 19/10/2026
+- 12:42 Gabriel paga en Pruebas las 4 comisiones de vendedor de OV-0157 ($2,380.73). Rentabilidad OV-0157 (Rayos X):
+  venta $47,614.68 − costo $31,195.71 − comisión incluida $2,380.73 = utilidad $14,038.24 (29.48%). El recuadro usa
+  costo y comisión PACTADOS (la instalación ya va en el costo de receta); no cambia al pagar.
+- D44 punto 7 (aprobado): la Rentabilidad de la OV debe restar también la comisión global (columna aparte).
+- Recuadro de Rentabilidad: lo ven DIRECTOR y MANAGER. Gabriel confirma que Karina (Gerencia) sí lo vea:
+  "quiero hacer de Karina mi brazo fuerte". Sus permisos irán creciendo (Bancos más adelante, D41).
+- 13:03 Gabriel: comisión global 2 % al Lic. Gabriel Frías García (la puede cambiar en Configuración). Las globales
+  del Ing. Gabriel Frías (cálculo viejo duplicado) se marcan OMITIDAS: 4 en OV-0157 ($952.29) y, en main vía D39,
+  18 por $46,348.04 (no "pagada antes de Valentina").
+- 12:57 Nómina Piloto: David $3,200 = $1,200 Banco + $2,000 Efectivo Dirección (primero intentó caja chica: saldo
+  insuficiente; el código revierte todo, sin doble salida). Resto de cuadrilla $2,800 pendiente.
+- 13:04 Gabriel paga el resto de la nómina de cuadrilla de Piloto 2 y 3 ($2,800). Nómina de la obra piloto CERRADA
+  ($9,000 en total: P1 $3,000 + P2/P3 $6,000). Pendiente solo: comisiones globales del Lic. en OV-0157 ($952.29).
+
+### Piloto tercera ola (19/10 13:08, rama pruebas, 33ef0ce)
+- Guía v2 en Antigüedad (solo la página), Clientes, Caja chica y Campo (inicio). Capturas en docs/piloto_ola3/.
+- Caja chica: las fechas guardadas están en UTC; la pantalla vieja las mostraba 6 h adelantadas; ahora formatDateTime.
+- No encajó en la guía: primario en el encabezado para la acción principal; Regresar en pantallas de menú; Antigüedad
+  y Cobranza con títulos de columna desalineados (encabezado propio); falta componente de textarea.
+- Lección: el selector de Chrome no achica la ventana; para 390 px se usa un iframe de 390 px en la misma página.
+- Espera: Gabriel y el asesor aprueban el piloto antes de las 42 pantallas.

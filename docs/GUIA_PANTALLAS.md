@@ -1,6 +1,8 @@
 # Guía de pantallas — Valentina ERP
 
-> **Versión 2, 16/10/2026 (D42). PENDIENTE DE APROBACIÓN de Gabriel.** No se aplica a ninguna pantalla hasta que la apruebe.
+> **Versión 2, 16/10/2026 (D42). §14 decidido por Gabriel 17/10 20:35:** (a) Antigüedad igual a Cobranza; (b) reportes a
+> ancho completo, formularios `max-w-7xl`. Piloto en 4 pantallas (19/10, docs/piloto_ola3/); las 42 restantes esperan
+> su aprobación.
 > La versión 1 (aprobada 10/10, D1) tomaba como modelo Valuación, Kárdex e Importación legacy. Gabriel vio
 > /director/legacy-import y no le gustó; las que sí le gustan son **Cobranza** (`/finance/cxc-report`,
 > `modules/finance/pages/CxcReportPage.tsx`) y **Antigüedad de saldos** (`/finance/aging`,
