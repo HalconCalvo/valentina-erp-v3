@@ -258,7 +258,7 @@ const CxcReportPage: React.FC = () => {
         {
             key: 'sales_order_id',
             label: 'OV',
-            render: (row) => <span className="font-mono text-xs text-slate-600">{formatOv(row.sales_order_id)}</span>,
+            render: (row) => <span className="font-mono text-xs text-slate-600 whitespace-nowrap">{formatOv(row.sales_order_id)}</span>,
         },
         {
             key: 'payment_type',
@@ -375,7 +375,7 @@ const CxcReportPage: React.FC = () => {
     const groupedRows = useMemo(() => grouped.flatMap((g) => g.rows), [grouped]);
     const totals: Record<string, React.ReactNode> = {
         invoice_folio: (
-            <span className="text-slate-700 uppercase text-xs tracking-wide whitespace-nowrap">Totales ({filteredRows.length} facturas)</span>
+            <span className="text-slate-700 uppercase text-xs tracking-wide">Totales ({filteredRows.length} facturas)</span>
         ),
         monto: formatMoney(metrics.totalFacturado),
         amortized_advance: <span className="text-slate-700">{formatMoney(metrics.totalAmortized)}</span>,

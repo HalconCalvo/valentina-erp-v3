@@ -60,7 +60,7 @@ const SKELETON_ROWS = 5;
 const ALIGN_CLASS = { left: 'text-left', right: 'text-right', center: 'text-center' } as const;
 const HEADER_CLASS = {
   default: 'bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-500',
-  report: 'bg-slate-50 p-3 text-sm font-bold text-slate-600',
+  report: 'bg-slate-50 p-3 text-sm font-bold text-slate-600 whitespace-nowrap',
 } as const;
 const GROUP_TOP = { default: 'top-10', report: 'top-11' } as const;
 

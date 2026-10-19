@@ -348,7 +348,7 @@ export const AccountsReceivableAgingPanel: React.FC<AccountsReceivableAgingPanel
                 tabIndex={0}
                 onClick={() => handleSort(field)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleSort(field); }}
-                className={`inline-flex items-center gap-1 cursor-pointer select-none hover:text-slate-800 ${align === 'right' ? 'flex-row-reverse' : ''}`}
+                className={`inline-flex items-center gap-1 whitespace-nowrap cursor-pointer select-none hover:text-slate-800 ${align === 'right' ? 'flex-row-reverse' : ''}`}
             >
                 <span className={isActive ? (pilot ? 'text-indigo-700' : 'text-emerald-800') : undefined}>{label}</span>
                 {isActive ? (
