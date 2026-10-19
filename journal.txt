@@ -5199,3 +5199,23 @@ LUNES 19/10/2026
 - Retenidas ya no muestra omitidas.
 - Lección: el punto 7 se agregó al buzón 3 min antes de mi HECHO y no lo vi; releer la instrucción completa justo
   antes de cerrar.
+- 15:56–17:07 Gabriel decide: tablero de Dirección también resta la comisión global; en el pago a proveedor mostrar quién
+  autorizó la OC (la autorización de PAGO existe en el backend pero sus pantallas no están conectadas; Dirección paga directo).
+  Piloto tercera ola aprobado con ajustes: Antigüedad (alinear columnas; subtítulo "Facturas pendientes de cobro"),
+  Clientes (ancho completo, buscador, ajustes de la ventana), Caja chica (ancho completo, Monto alineado, "Subir/Ver" discreto,
+  filtro de fechas y buscador), Campo (nombre del líder como título, "Líder de cuadrilla · cuadrilla", aviso D32).
+  Nueva regla de la guía: listado/catálogo con tabla = ancho completo; ancho angosto solo para formularios.
+
+### Buzón 15:56–17:07 (19/10 17:25, rama pruebas, 541aa36, eed67ad, dea8d10, a6cb2f3)
+- Tablero de Dirección (Rentabilidad, clientes, carriles) resta la comisión global como la OV: OV-0157 27.48 % en ambos.
+- Pago a proveedor muestra "OC-… autorizada por <nombre> el DD/MM/AAAA" o "OC sin autorización registrada".
+- VTable: alineación por columna, encabezado estilo reporte, renglón agrupador y fila de totales en una sola tabla.
+  Antigüedad y Cobranza ya no usan encabezado propio: los títulos no pueden desalinearse.
+- Piloto aprobado con ajustes y hechos: Clientes (ancho completo, buscador sin acentos, historial junto a la X),
+  Caja chica (ancho completo, filtros en pantalla, Subir/Ver discreto), Campo (nombre del líder como título).
+- No existe catálogo de cuadrillas (sin nombre de cuadrilla); "Tu equipo" sale de los ayudantes de las casas del día.
+- No pude capturar Campo con el usuario de David (no entro con contraseñas ajenas); captura con mi sesión.
+- Lección: el encabezado hecho aparte sobre una tabla siempre termina desalineado; títulos dentro de VTable.
+- Lección: una etiqueta de totales en una sola línea ensanchó Folio 110 px y sacó "Debe" de la tarjeta; medir el
+  ancho de la tabla (scrollWidth) en pantalla, no solo verla.
+- Pendiente: Gabriel aprueba para pasar las 42 pantallas; push a main sigue sujeto a CLAUDE.md.

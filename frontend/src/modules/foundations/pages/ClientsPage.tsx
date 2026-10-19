@@ -275,7 +275,7 @@ export default function ClientsPage() {
         </div>
       </div>
 
-      <div className="relative w-full md:w-96">
+      <div className="relative w-full md:w-[32rem]">
         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
           <Search size={18} className="text-slate-400" />
         </div>

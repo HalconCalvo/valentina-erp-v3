@@ -67,6 +67,93 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Hechas
 
+### 19/10 15:56 — Dos cambios aprobados por Gabriel (en `pruebas`)
+1. Tablero de Dirección (4. Rentabilidad) y sus desgloses por carril y por cliente: restar también la comisión global, con la
+   misma fórmula que la Rentabilidad de la OV (punto 7 de D44). Que el margen del tablero y el de la OV coincidan; verificar
+   con OV-0157 (27.48%). No cambiar Sobreprecio ni precios.
+2. Pago a proveedor: donde Dirección (Alejandrina) registra/ejecuta el pago de una factura de proveedor, mostrar
+   "OC-xxx autorizada por <nombre> el DD/MM/AAAA" (datos de authorized_by / authorized_at de la OC ya guardados).
+   Si la factura no tiene OC o la OC no tiene autorizante, mostrar "OC sin autorización registrada". No cambiar cómo se
+   autoriza ni cómo se paga. (Las pantallas PaymentApprovalModal/PaymentExecutionModal no están conectadas: no las conectes.)
+Reportar en Hechas con commit y captura del pago mostrando el autorizante.
+HECHO [19/10 17:25, Pruebas, commit 541aa36; captura docs/piloto_ola3/pago_proveedor_autorizante.jpg]:
+1. Tablero de Dirección → 4. Rentabilidad: total, 5 más y 5 menos rentables, clientes por margen y ventas por carril restan
+   la comisión global (venta sin IVA × % de Configuración; 0 sin beneficiario), igual que la Rentabilidad de la OV. Nueva
+   columna "Comisión global" y la fórmula del encabezado la incluye. En Pruebas OV-0157 = 27.48 % (igual que su Rayos X);
+   margen ponderado 2026: 19.25 %. Sobreprecio y precios sin cambio.
+2. Pago a proveedor (Cuentas por pagar → Pagar): arriba de la ventana dice "OC-M260825222546 autorizada por Ing.Gabriel
+   Frías el 25/08/2026"; si la factura no tiene OC o la OC no tiene autorizante, "OC sin autorización registrada". No cambia
+   cómo se autoriza ni cómo se paga; PaymentApprovalModal/PaymentExecutionModal siguen sin conectar. Probado abriendo la
+   ventana y cerrándola con Cancelar (sin pagar). Tests: backend 375 (+2), frontend OK, build OK.
+
+### 19/10 16:45 — Piloto 1/4 Antigüedad de saldos: Gabriel la aprueba con dos ajustes (en `pruebas`)
+1. Alinear columnas: cada título exactamente sobre su columna (Cliente/Proyecto, Fecha OV, Importe OV, Saldo pendiente,
+   Vencido, Acción); importes a la derecha con tabular-nums; títulos de importes también a la derecha. Verificar a ancho
+   completo en pantalla grande y mediana. Si Cobranza tiene el mismo defecto, corrígelo igual ahí.
+2. Subtítulo (texto exacto de Gabriel): "Facturas pendientes de cobro" en lugar de "Toda la cartera viva consolidada. Ejecución operativa."
+Captura después en docs/piloto_ola3/1_antiguedad_despues_v2.jpg. Reportar en Hechas.
+HECHO [19/10 17:25, Pruebas, commits eed67ad y a6cb2f3; captura 1_antiguedad_despues_v2.jpg]:
+1. Causa: Antigüedad y Cobranza dibujaban los títulos en una fila aparte de la tabla (por eso se movían). Ahora los títulos
+   son los de la propia tabla (VTable): cada uno queda sobre su columna a cualquier ancho. VTable ganó alineación por columna,
+   encabezado estilo reporte, renglón agrupador y fila de totales, todo en una sola tabla (lo que pedía la guía §5).
+   Importes y sus títulos a la derecha con tabular-nums. Verificado en Pruebas a pantalla completa y a 1024 px.
+   Cobranza tenía el mismo defecto: corregida igual (agrupador por cliente con "Debe" y fila de Totales dentro de la tabla).
+2. Subtítulo: "Facturas pendientes de cobro".
+
+### 19/10 16:50 — Piloto 2/4 Clientes: Gabriel la aprueba con tres ajustes (en `pruebas`)
+1. Ancho completo (como antes del piloto): es una tabla/listado, no un formulario. Conservar ícono, subtítulo y botones nuevos.
+   Regla para la guía: pantallas de listado/catálogo con tabla = ancho completo; max-w-7xl solo para páginas que son formulario.
+2. Buscador (como el de Antigüedad): filtra por razón social, RFC, nombre de contacto, correo o teléfono, sin distinguir
+   mayúsculas ni acentos. Solo filtra en pantalla; no cambia datos.
+3. Ventana Editar/Nuevo Cliente: el ícono de historial va en el encabezado junto a la X (quitar la franja vacía); etiquetas de
+   campos en letra normal (no mayúsculas sostenidas), p. ej. "Razón social / nombre del cliente *".
+Capturas en docs/piloto_ola3/2_clientes_despues_v2.jpg y 2_clientes_modal_despues_v2.jpg. Reportar en Hechas.
+HECHO [19/10 17:25, Pruebas, commit dea8d10; capturas 2_clientes_despues_v2.jpg y 2_clientes_modal_despues_v2.jpg]:
+1. Ancho completo; se conservan ícono, subtítulo y botones.
+2. Buscador: razón social, RFC, contactos (nombre, correo, teléfono de los 4), correo y teléfono de la empresa, sin
+   distinguir mayúsculas ni acentos ("alvarez" encuentra "Marisol Álvarez"). Solo filtra en pantalla.
+3. Ventana: el ícono de historial va junto a la X (Modal ganó "acciones del encabezado"); sin la franja vacía; etiquetas
+   en letra normal ("Razón social / nombre del cliente *"). Probado abriendo y cerrando con Cancelar, sin guardar.
+   (El buscador se ensanchó después para que el texto de ayuda se lea completo; sale en el siguiente despliegue.)
+
+### 19/10 17:02 — Piloto 3/4 Caja chica: Gabriel la aprueba con cuatro ajustes (en `pruebas`)
+1. Ancho completo (regla: listado con tabla = ancho completo).
+2. Columna Monto: título alineado a la derecha sobre las cifras (tabular-nums); revisar las demás columnas.
+3. Comprobante: botón discreto (ícono + "Subir" en gris, estilo ghost/link); si el movimiento ya tiene comprobante, "Ver" que lo abre.
+4. Filtros en su propia tarjeta (como Cobranza): rango de fechas (desde/hasta) y buscador por concepto, categoría o quien
+   registró, sin distinguir mayúsculas ni acentos. Solo filtran en pantalla; el saldo y las tarjetas no cambian.
+Respetar D41: Gerencia solo ve (sin botones de registrar/editar/cancelar). Captura en docs/piloto_ola3/3_caja_chica_despues_v2.jpg.
+Reportar en Hechas.
+HECHO [19/10 17:25, Pruebas, commit dea8d10; captura 3_caja_chica_despues_v2.jpg]:
+1. Ancho completo. 2. Monto con su título a la derecha (tabular-nums); las demás columnas son texto a la izquierda.
+3. Comprobante: "Subir" gris con ícono (estilo ghost); si ya tiene, "Ver" con ícono que lo abre.
+4. Tarjeta de filtros: Desde/Hasta (día en hora de Mérida) y buscador por concepto, categoría o quién registró, sin
+   mayúsculas ni acentos; solo en pantalla: saldo y tarjetas no cambian (probado: "pedro" deja solo esos egresos, saldo
+   $164.57 igual). D41 respetado: Gerencia no ve Configurar/Registrar/Editar/Cancelar ni "Subir".
+
+### 19/10 17:07 — Piloto 4/4 Campo: Gabriel la aprueba con dos ajustes (en `pruebas`)
+Gabriel quiere dar realce al nombre del líder "para que se sientan orgullosos de pertenecer al equipo".
+1. Encabezado: el NOMBRE del líder es el título principal (grande, negritas, p. ej. "David Márquez"); debajo, con el ícono del
+   casco en color, "Líder de cuadrilla · <nombre de su cuadrilla>" (si la cuadrilla tiene nombre; si no, solo "Líder de
+   cuadrilla"); después "Mi jornada · DD/MM/AAAA" en gris. Si el usuario no es líder (otro rol), mostrar su nombre y su rol.
+   Mostrar también los integrantes de su cuadrilla en una línea discreta ("Tu equipo: Juan, Pedro…") si el dato existe; si no
+   existe en el modelo, NO lo inventes: repórtalo.
+2. Aviso sin casas (D32): "No hay casas programadas para hoy ni para el siguiente día hábil."
+Captura a 390 px con el usuario de David (david.marquez@koloka.com.mx) en docs/piloto_ola3/4_campo_celular_despues_v2.jpg.
+Reportar en Hechas.
+HECHO [19/10 17:25, Pruebas, commit dea8d10; captura 4_campo_celular_despues_v2_direccion.png]:
+1. Encabezado: el nombre del usuario es el título (grande, negritas); debajo, casco en ámbar + "Líder de cuadrilla"
+   (rol LOGISTICS) o el nombre del rol si es otro; luego "Mi jornada · DD/MM/AAAA" en gris.
+   - Nombre de cuadrilla: NO EXISTE en el modelo (no hay tabla de cuadrillas); no lo inventé. Para mostrarlo habría que
+     crear el catálogo de cuadrillas (decisión de Gabriel).
+   - "Tu equipo": no hay integrantes fijos; sí existen los ayudantes de cada casa (ayudante 1 y 2 de cada asignación).
+     Muestro "Tu equipo: …" con los ayudantes de las casas del día del líder (sin repetir). Si no tiene casas, no sale.
+2. Aviso D32: "No hay casas programadas para hoy ni para el siguiente día hábil."
+- Captura: la tomé a 390 px con MI sesión (Dirección), porque no puedo entrar con la contraseña de David. David (id 10,
+  LOGISTICS) hoy y el siguiente día hábil no tiene casas en Pruebas (sus últimas, 15 y 16/10, terminadas, con Miguel Sosa
+  y Dariel Tun), así que vería su nombre, "Líder de cuadrilla" y el aviso, sin línea de equipo. Para la captura con su
+  usuario: Gabriel o David entran en Pruebas con su cuenta.
+
 - 19/10 13:00 — Asesor: D44 punto 7 quedó sin hacer
 Lo agregué a las 12:48 y tu HECHO es de 12:51; no aparece en el reporte ni en el código (OrderStatementModal no tiene
 "Comisión global"). Hazlo DESPUÉS de terminar y reportar el piloto (capturas "después" incluidas). Es el punto 7 de D44 en Hechas.

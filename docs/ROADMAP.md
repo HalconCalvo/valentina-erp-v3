@@ -248,6 +248,9 @@ la factura completa. Probado en Pruebas con Piloto 1 sin guardar.
 - D41: Gerencia no ve Bancos ni registra cobros ni pagos a proveedores (pantalla y API 403). 17:18: solo ve caja chica,
   no paga nómina ni comisiones, no autoriza pagos a proveedor; el interruptor de pagos de Gerencia queda sin efecto.
 - Piloto tercera ola (33ef0ce): Antigüedad, Clientes, Caja chica y Campo con la guía v2; espera aprobación para las 42.
+- 19/10 (541aa36, eed67ad, dea8d10, a6cb2f3): piloto aprobado con ajustes y hechos en Pruebas; VTable con títulos
+  propios (agrupador y totales) en Antigüedad y Cobranza; tablero de Dirección resta la comisión global; el pago a
+  proveedor muestra quién autorizó la OC. Siguiente: las 42 pantallas cuando Gabriel lo indique.
 - D44 (969c63689777, dcab654921ee): comisión global con un beneficiario y % en Configuración; las globales salen en la
   bandeja; Rentabilidad de la OV la resta; las de la regla vieja (Ing. Gabriel Frías) quedan Omitidas.
 - D42: guía de pantallas versión 2 (modelo Cobranza y Antigüedad) y lista de la tercera ola ajustada; espera aprobación.
