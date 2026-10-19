@@ -39,6 +39,8 @@ interface ModalProps {
   overlayZIndex?: number;
   /** Sin encabezado ni relleno: la ventana trae su propio encabezado (overlay, Escape y bloqueo de scroll siguen aquí). */
   bare?: boolean;
+  /** Icons next to the X in the header (e.g. record history). */
+  headerActions?: React.ReactNode;
 }
 
 const Modal: React.FC<ModalProps> = ({ 
@@ -50,6 +52,7 @@ const Modal: React.FC<ModalProps> = ({
   className = '',
   overlayZIndex = 50,
   bare = false,
+  headerActions,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const [stackEntry, setStackEntry] = useState<{ id: number; zIndex: number } | null>(null);
@@ -119,12 +122,15 @@ const Modal: React.FC<ModalProps> = ({
         {/* Header (Fijo) */}
         <div className="flex justify-between items-center p-4 border-b border-slate-100 shrink-0">
           <h3 className="font-bold text-lg text-slate-800">{title}</h3>
+          <div className="flex items-center gap-1">
+          {headerActions}
           <button 
             onClick={onClose} 
             className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
           >
             <X size={20} />
           </button>
+          </div>
         </div>
 
         {/* Cuerpo (Flexible y Scrolleable) */}

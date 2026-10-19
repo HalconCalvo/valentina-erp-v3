@@ -46,6 +46,14 @@ export const formatDate = (value: string | Date | null | undefined): string => {
     return `${p.day}/${p.month}/${p.year}`;
 };
 
+/** YYYY-MM-DD of the Mérida calendar day (to compare with date filters); '' without a date. */
+export const toBusinessYmd = (value: string | Date | null | undefined): string => {
+    const date = value ? toDate(value) : null;
+    if (!date) return '';
+    const p = parts(date, false);
+    return `${p.year}-${p.month}-${p.day}`;
+};
+
 /** DD/MM/AAAA HH:MM (24 h) in Mérida time. */
 export const formatDateTime = (value: string | Date | null | undefined): string => {
     const date = value ? toDate(value) : null;

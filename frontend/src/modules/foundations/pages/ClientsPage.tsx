@@ -2,7 +2,7 @@ import { useState, useRef, useMemo } from 'react';
 import { useClients, Client } from '../hooks/useClients';
 import { 
   Plus, User, Mail, Phone, 
-  FileText, Users, Building2, Upload
+  FileText, Users, Building2, Upload, Search
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
@@ -15,6 +15,7 @@ import { toast } from '@/components/ui/VToast';
 import { RecordHistoryButton } from '@/components/audit/RecordHistoryButton';
 import axiosClient from '@/api/axios-client';
 import Modal from '@/components/ui/Modal';
+import { matchesSearch } from '@/utils/search';
 
 export default function ClientsPage() {
   const { clients, loading, createClient, updateClient, deleteClient } = useClients();
@@ -42,6 +43,14 @@ export default function ClientsPage() {
   
   const [form, setForm] = useState<Client>(initialForm);
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  // Pilot 2/4 (Gabriel 19/10): on-screen search only; it never changes data
+  const visibleClients = useMemo(() => clients.filter((c) => matchesSearch(
+    searchTerm, c.full_name, c.rfc_tax_id, c.email, c.phone,
+    c.contact_name, c.contact2_name, c.contact3_name, c.contact4_name,
+    c.contact_email, c.contact2_email, c.contact3_email, c.contact4_email,
+    c.contact_phone, c.contact2_phone, c.contact3_phone, c.contact4_phone,
+  )), [clients, searchTerm]);
 
   // --- CONFIGURACIÓN REPORTE EXCEL (COMPLETO) ---
   const mapClientsForExcel = (c: Client) => ({
@@ -129,7 +138,7 @@ export default function ClientsPage() {
 
       return (
           <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-              <h4 className="text-xs font-bold text-slate-500 mb-2 uppercase flex items-center gap-1">
+              <h4 className="text-xs font-bold text-slate-500 mb-2 flex items-center gap-1">
                   <User size={12}/> {label}
               </h4>
               <div className="grid grid-cols-12 gap-2">
@@ -236,9 +245,9 @@ export default function ClientsPage() {
   const tabClass = (tab: 'general' | 'contacts') =>
     `flex-1 rounded-none border-b-2 ${activeTab === tab ? 'border-indigo-600 text-indigo-700 bg-white' : 'border-transparent text-slate-500 hover:text-slate-700'}`;
 
-  // Third-wave pilot (guide v2): catalog with a form → max-w-7xl container, standard header, Button and Modal
+  // Third-wave pilot (guide v2; Gabriel 19/10): list with a table → full width, standard header, Button and Modal
   return (
-    <div className="p-8 max-w-7xl mx-auto pb-24 space-y-6 animate-fadeIn">
+    <div className="p-8 w-full pb-24 space-y-6 animate-fadeIn">
       <Input
         type="file"
         ref={csvInputRef}
@@ -266,12 +275,26 @@ export default function ClientsPage() {
         </div>
       </div>
 
+      <div className="relative w-full md:w-96">
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <Search size={18} className="text-slate-400" />
+        </div>
+        <Input
+          type="text"
+          className="pl-10 text-sm font-medium shadow-sm"
+          placeholder="Buscar por razón social, RFC, contacto, correo o teléfono..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+      </div>
+
       <VTable
         columns={clientColumns as unknown as VTableColumn<Record<string, unknown>>[]}
-        data={clients as unknown as Record<string, unknown>[]}
+        data={visibleClients as unknown as Record<string, unknown>[]}
         isLoading={loading}
-        emptyState={{ title: 'No hay clientes registrados.' }}
-        className="shadow-sm [&_th]:text-sm [&_th]:normal-case [&_th]:tracking-normal [&_th]:text-slate-600 [&_th]:px-3"
+        emptyState={{ title: clients.length === 0 ? 'No hay clientes registrados.' : 'No hay clientes que coincidan con la búsqueda.' }}
+        className="shadow-sm"
+        headerStyle="report"
         actions={(row) => {
           const c = row as unknown as Client;
           return [
@@ -293,12 +316,12 @@ export default function ClientsPage() {
       />
 
       {showModal && (
-        <Modal isOpen size="lg" overlayZIndex={50} onClose={closeModal} title={isEditing ? 'Editar Cliente' : 'Nuevo Cliente'}>
-          {isEditing && form.id && (
-            <div className="flex justify-end -mt-2 mb-2">
-              <RecordHistoryButton tableName="clients_v2" recordId={form.id} label={form.full_name || `Cliente #${form.id}`} />
-            </div>
-          )}
+        <Modal
+          isOpen size="lg" overlayZIndex={50} onClose={closeModal} title={isEditing ? 'Editar Cliente' : 'Nuevo Cliente'}
+          headerActions={isEditing && form.id ? (
+            <RecordHistoryButton tableName="clients_v2" recordId={form.id} label={form.full_name || `Cliente #${form.id}`} />
+          ) : undefined}
+        >
           <div className="flex border-b border-slate-200 bg-slate-50 -mx-6 mb-4">
             <Button type="button" variant="ghost" className={tabClass('general')} onClick={() => setActiveTab('general')}>
               <Building2 size={16}/> Datos Empresa
@@ -365,7 +388,7 @@ export default function ClientsPage() {
         .input-std:focus { border-color: #6366f1; ring: 1px; }
         .input-mini { width: 100%; padding: 0.4rem; border: 1px solid #e2e8f0; border-radius: 0.3rem; font-size: 0.75rem; outline: none; }
         .input-mini:focus { border-color: #6366f1; }
-        .label-std { display: block; font-size: 0.75rem; font-weight: 700; color: #64748b; margin-bottom: 0.25rem; text-transform: uppercase; }
+        .label-std { display: block; font-size: 0.75rem; font-weight: 700; color: #64748b; margin-bottom: 0.25rem; }
       `}</style>
 
       {pendingDeleteId !== null && (

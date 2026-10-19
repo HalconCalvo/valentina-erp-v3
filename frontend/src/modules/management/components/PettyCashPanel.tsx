@@ -13,10 +13,11 @@ import {
   PettyCashMovementUpdate,
   PettyCashCategory,
 } from '../../../types/petty_cash';
-import { formatDateTime, formatMoney } from '@/utils/format';
+import { formatDateTime, formatMoney, toBusinessYmd } from '@/utils/format';
+import { matchesSearch } from '@/utils/search';
 import UiModal from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
-import { ArrowLeft, Wallet } from 'lucide-react';
+import { ArrowLeft, Eye, Search, Upload, Wallet } from 'lucide-react';
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
@@ -104,6 +105,15 @@ export default function PettyCashPanel({ onBack, onRefresh, userRole }: PettyCas
   const receiptRef = useRef<HTMLInputElement>(null);
   const [uploadTarget, setUploadTarget] = useState<number | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
+  // Pilot 3/4 (Gabriel 19/10): filters act on screen only; balance and cards stay the same
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const visibleMovements = useMemo(() => movements.filter((m) => {
+    const day = toBusinessYmd(m.movement_date);
+    return (!dateFrom || day >= dateFrom) && (!dateTo || day <= dateTo)
+      && matchesSearch(searchTerm, m.concept, m.category, m.created_by_name);
+  }), [movements, dateFrom, dateTo, searchTerm]);
 
   // ── DATA LOAD ──────────────────────────────────────────────────────────────
 
@@ -250,6 +260,7 @@ export default function PettyCashPanel({ onBack, onRefresh, userRole }: PettyCas
     {
       key: 'amount',
       label: 'Monto',
+      align: 'right',
       render: (m) => (
         <span className={`block text-right tabular-nums font-bold ${m.movement_type === 'EGRESO' ? 'text-red-600' : 'text-emerald-700'}`}>
           {m.movement_type === 'EGRESO' ? fmt(-m.amount) : fmt(m.amount)}
@@ -266,13 +277,15 @@ export default function PettyCashPanel({ onBack, onRefresh, userRole }: PettyCas
       label: 'Comprobante',
       render: (m) => (
         m.receipt_url ? (
-          <a href={m.receipt_url} target="_blank" rel="noopener noreferrer"
-            className="font-semibold text-indigo-600 hover:text-indigo-800">
-            Ver
+          <a href={m.receipt_url} target="_blank" rel="noopener noreferrer" title="Ver comprobante"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800">
+            <Eye size={14} /> Ver
           </a>
         ) : canOperate ? (
-          <Button type="button" variant="outline" size="sm" onClick={() => { setUploadTarget(m.id); receiptRef.current?.click(); }}>
-            Subir
+          <Button type="button" variant="ghost" size="sm" title="Subir comprobante"
+            className="h-auto px-1.5 py-1 text-xs font-semibold text-slate-500 hover:text-slate-800"
+            onClick={() => { setUploadTarget(m.id); receiptRef.current?.click(); }}>
+            <Upload size={14} /> Subir
           </Button>
         ) : <span className="text-xs text-slate-400">—</span>
       ),
@@ -334,12 +347,36 @@ export default function PettyCashPanel({ onBack, onRefresh, userRole }: PettyCas
         </div>
       )}
 
+      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Desde</label>
+            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Hasta</label>
+            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Buscar</label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search size={18} className="text-slate-400" />
+              </div>
+              <Input type="text" className="pl-10 text-sm font-medium" value={searchTerm}
+                placeholder="Concepto, categoría o quién registró..." onChange={(e) => setSearchTerm(e.target.value)} />
+            </div>
+          </div>
+        </div>
+      </div>
+
       <VTable
         columns={movementColumns as unknown as VTableColumn<Record<string, unknown>>[]}
-        data={movements as unknown as Record<string, unknown>[]}
+        data={visibleMovements as unknown as Record<string, unknown>[]}
         isLoading={loading && movements.length === 0}
-        emptyState={{ title: 'No hay movimientos registrados.' }}
-        className="shadow-sm [&_th]:text-sm [&_th]:normal-case [&_th]:tracking-normal [&_th]:text-slate-600"
+        emptyState={{ title: movements.length === 0 ? 'No hay movimientos registrados.' : 'No hay movimientos con los filtros seleccionados.' }}
+        className="shadow-sm"
+        headerStyle="report"
         actions={canOperate ? (row) => {
           const m = row as unknown as PettyCashMovement;
           if (m.is_cancelled) return [];

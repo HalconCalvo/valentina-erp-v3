@@ -312,26 +312,31 @@ const DirectorDashboard: React.FC = () => {
             { key: 'client_name', label: 'Cliente', render: (row) => <span className="text-slate-600">{row.client_name}</span> },
             {
                 key: 'sales_without_tax',
+                align: 'right',
                 label: 'Venta sin IVA',
                 render: (row) => <span className="block text-right font-bold text-slate-800">{formatMoney(row.sales_without_tax)}</span>,
             },
             {
                 key: 'cost',
+                align: 'right',
                 label: 'Costo',
                 render: (row) => <span className="block text-right text-slate-600">{formatMoney(row.cost)}</span>,
             },
             {
                 key: 'commission',
+                align: 'right',
                 label: 'Comisión',
                 render: (row) => <span className="block text-right text-slate-600">{formatMoney(row.commission)}</span>,
             },
             {
                 key: 'global_commission',
+                align: 'right',
                 label: 'Comisión global',
                 render: (row) => <span className="block text-right text-slate-600">{formatMoney(row.global_commission)}</span>,
             },
             {
                 key: 'net_margin_percent',
+                align: 'right',
                 label: 'Margen neto % sobre venta',
                 render: (row) => (
                     <span className={`block text-right font-black ${(row.net_margin_percent ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
@@ -350,11 +355,13 @@ const DirectorDashboard: React.FC = () => {
             { key: 'orders', label: 'OVs', render: (row) => <span className="block text-center text-slate-600">{row.orders}</span> },
             {
                 key: 'sales_without_tax',
+                align: 'right',
                 label: 'Venta sin IVA',
                 render: (row) => <span className="block text-right font-bold text-emerald-700">{formatMoney(row.sales_without_tax)}</span>,
             },
             {
                 key: 'net_margin_percent',
+                align: 'right',
                 label: 'Margen neto % sobre venta',
                 render: (row) => (
                     <span className={`block text-right font-black ${(row.net_margin_percent ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
@@ -372,11 +379,13 @@ const DirectorDashboard: React.FC = () => {
             { key: 'client_name', label: 'Cliente', render: (row) => <span className="font-bold text-slate-800">{row.client_name}</span> },
             {
                 key: 'collected',
+                align: 'right',
                 label: 'Cobrado en el año (con IVA)',
                 render: (row) => <span className="block text-right text-slate-700">{formatMoney(row.collected)}</span>,
             },
             {
                 key: 'avg_days_to_collect',
+                align: 'right',
                 label: 'Días de factura a cobro',
                 render: (row) => <span className="block text-right font-black text-slate-800">{formatAmount(row.avg_days_to_collect)}</span>,
             },
@@ -389,26 +398,31 @@ const DirectorDashboard: React.FC = () => {
             { key: 'lane', label: 'Carril', render: (row) => <span className="font-bold text-slate-800">{row.lane}</span> },
             {
                 key: 'sales_without_tax',
+                align: 'right',
                 label: 'Venta sin IVA',
                 render: (row) => <span className="block text-right font-bold text-slate-800">{formatMoney(row.sales_without_tax)}</span>,
             },
             {
                 key: 'cost',
+                align: 'right',
                 label: 'Costo',
                 render: (row) => <span className="block text-right text-slate-600">{formatMoney(row.cost)}</span>,
             },
             {
                 key: 'commission',
+                align: 'right',
                 label: 'Comisión',
                 render: (row) => <span className="block text-right text-slate-600">{formatMoney(row.commission)}</span>,
             },
             {
                 key: 'global_commission',
+                align: 'right',
                 label: 'Comisión global',
                 render: (row) => <span className="block text-right text-slate-600">{formatMoney(row.global_commission)}</span>,
             },
             {
                 key: 'net_margin_percent',
+                align: 'right',
                 label: 'Margen neto % sobre venta',
                 render: (row) => (
                     <span className={`block text-right font-black ${(row.net_margin_percent ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
@@ -425,6 +439,7 @@ const DirectorDashboard: React.FC = () => {
             { key: 'label', label: 'Concepto', render: (row) => <span className="text-slate-700">{row.label}</span> },
             {
                 key: 'amount',
+                align: 'right',
                 label: 'Importe',
                 render: (row) => <span className="block text-right font-bold text-slate-800">{formatMoney(row.amount)}</span>,
             },

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { VEmptyState } from '@/components/ui/VEmptyState';
 import { useOfflineSync } from '@/field/useOfflineSync';
 import type { FieldAssignment } from '@/field/field-service';
+import { crewTeamNames, ROLE_NAMES } from '@/modules/field/utils/crew';
 
 function statusBadge(row: FieldAssignment): { label: string; className: string } {
   if (row.signed_received_at) {
@@ -36,9 +37,13 @@ function formatAddress(row: FieldAssignment): string {
 export default function FieldHomePage() {
   const navigate = useNavigate();
   const userName = localStorage.getItem('user_name') || localStorage.getItem('full_name') || 'Instalador';
+  const role = (localStorage.getItem('user_role') || '').toUpperCase().trim();
+  const isLeader = role === 'LOGISTICS';
   const { isOnline, isSyncing, pendingCount, assignments, workday, refresh, flushQueue } = useOfflineSync();
   // H59: how many loads are still waiting (same list as Carga del camión); null = unknown (offline)
   const [loadsPending, setLoadsPending] = useState<number | null>(null);
+  // Helpers of the leader's houses of the day (empty when offline or not a leader)
+  const [team, setTeam] = useState<string[]>([]);
 
   useEffect(() => {
     if (!isOnline) {
@@ -48,7 +53,9 @@ export default function FieldHomePage() {
     let cancelled = false;
     getMyWorkday()
       .then((data) => {
-        if (!cancelled) setLoadsPending(data.items.filter((a) => a.assignment_status === 'SCHEDULED').length);
+        if (cancelled) return;
+        setLoadsPending(data.items.filter((a) => a.assignment_status === 'SCHEDULED').length);
+        setTeam(isLeader ? crewTeamNames(data.items as Parameters<typeof crewTeamNames>[0]) : []);
       })
       .catch(() => {
         if (!cancelled) setLoadsPending(null);
@@ -56,18 +63,23 @@ export default function FieldHomePage() {
     return () => {
       cancelled = true;
     };
-  }, [isOnline, assignments]);
+  }, [isOnline, assignments, isLeader]);
 
   // Third-wave pilot (guide v2, field screens): max-w-lg container, standard header in text-2xl, Button, VEmptyState
   return (
     <div className="max-w-lg mx-auto p-4 pb-24 space-y-4">
       <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-4">
+        {/* Pilot 4/4 (Gabriel 19/10): the leader's name is the title, so the crew feels proud of the team */}
         <div className="min-w-0">
-          <h1 className="text-2xl font-black tracking-tight flex items-center gap-3 text-slate-800">
-            <HardHat className="text-indigo-600 shrink-0" size={28} /> Mi jornada
-          </h1>
-          <p className="text-slate-500 mt-1 font-medium truncate">
-            {userName}{workday ? ` · ${formatWorkday(workday)}` : ''}
+          <h1 className="text-2xl font-black tracking-tight text-slate-900 truncate">{userName}</h1>
+          <p className="mt-1 flex items-center gap-2 text-sm font-bold text-slate-700">
+            <HardHat className="text-amber-500 shrink-0" size={18} /> {ROLE_NAMES[role] ?? role}
+          </p>
+          {team.length > 0 && (
+            <p className="mt-0.5 text-xs text-slate-500 truncate">Tu equipo: {team.join(', ')}</p>
+          )}
+          <p className="mt-1 text-sm text-slate-500 font-medium">
+            Mi jornada{workday ? ` · ${formatWorkday(workday)}` : ''}
           </p>
         </div>
         <span
@@ -115,7 +127,7 @@ export default function FieldHomePage() {
 
       {assignments.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm">
-          <VEmptyState icon={<HardHat />} title="No hay casas programadas para hoy." />
+          <VEmptyState icon={<HardHat />} title="No hay casas programadas para hoy ni para el siguiente día hábil." />
         </div>
       ) : (
         <ul className="space-y-3">

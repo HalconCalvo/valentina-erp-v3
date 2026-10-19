@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatAmount, formatDate, formatDateTime, formatMoney, formatQty } from '@/utils/format';
+import { formatAmount, formatDate, formatDateTime, formatMoney, formatQty, toBusinessYmd } from '@/utils/format';
 
 describe('format', () => {
     it('money always has two decimals and the sign before $', () => {
@@ -19,5 +19,10 @@ describe('format', () => {
         expect(formatDateTime('2026-10-01T05:59:59')).toBe('30/09/2026 23:59');
         expect(formatDate('2026-09-30')).toBe('30/09/2026');
         expect(formatDate(null)).toBe('—');
+    });
+    it('toBusinessYmd gives the Mérida calendar day of a UTC timestamp', () => {
+        expect(toBusinessYmd('2026-10-09T03:12:00')).toBe('2026-10-08');
+        expect(toBusinessYmd('2026-10-09T18:12:00')).toBe('2026-10-09');
+        expect(toBusinessYmd(null)).toBe('');
     });
 });

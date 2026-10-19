@@ -283,9 +283,9 @@ export const TreasuryPage = () => {
   const totalTasksCount = alerts.pending_requisitions + alerts.pending_sales_advances;
 
   return (
-    <div className="p-8 max-w-7xl mx-auto pb-24 space-y-6 animate-fadeIn">
+    <div className={`p-8 pb-24 space-y-6 animate-fadeIn ${activeSection === 'PETTY_CASH' ? 'w-full' : 'max-w-7xl mx-auto'}`}>
       
-      {/* Third-wave pilot: Caja chica draws its own standard header */}
+      {/* Third-wave pilot: Caja chica draws its own standard header and, as a list with a table, uses the full width */}
       {!isSubSectionActive && activeSection !== 'PETTY_CASH' && (
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4">
             <div className="flex items-center gap-3">
