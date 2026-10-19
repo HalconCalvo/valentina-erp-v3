@@ -333,6 +333,7 @@ def get_commissions_payroll_overview_data(session: Session) -> dict:
                 SalesCommission.is_paid == False,  # noqa: E712
                 SalesCommission.is_released == False,  # noqa: E712
                 SalesCommission.is_advance == False,  # noqa: E712  (H67: a collected advance is payable)
+                SalesCommission.payroll_deferred == False,  # noqa: E712  (an omitted one is in no tray)
             )
         ).all()
     )

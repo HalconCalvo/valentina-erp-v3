@@ -262,7 +262,11 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
     // Role-based, not tied to readOnly (that flag only removes finance actions, e.g. Rayos X from the sales monitor).
     const canEditDescription = ['DIRECTOR', 'MANAGER', 'SALES'].includes(userRole);
     const canSeeProfitability = ['DIRECTOR', 'MANAGER'].includes(userRole);
-    const minMarkup = Number(useFoundations()?.config?.min_markup_percent ?? DEFAULT_MIN_MARKUP);
+    const foundationsConfig = useFoundations()?.config;
+    const minMarkup = Number(foundationsConfig?.min_markup_percent ?? DEFAULT_MIN_MARKUP);
+    // D44: global commission = sale without IVA × the percent in Configuración (not part of the price or Sobreprecio %)
+    const globalCommissionPercent = foundationsConfig?.global_commission_user_id
+        ? Number(foundationsConfig?.global_commission_percent ?? 0) : 0;
     const canEditDeliveryDeadline = [
         'DIRECTOR',
         'DIRECCION',
@@ -1821,16 +1825,19 @@ export const OrderStatementModal: React.FC<OrderStatementModalProps> = ({
                         const cost = activeItems.reduce((sum: number, it: any) => sum + Number(it.quantity || 0) * Number(it.frozen_unit_cost || 0), 0);
                         const sales = Number(localOrder.subtotal || 0);
                         const commission = Number(localOrder.commission_amount || 0);
+                        const globalCommission = sales * globalCommissionPercent / 100;
+                        const netProfit = sales - cost - commission - globalCommission;
                         const markup = markupPercent(sales, cost, localOrder.applied_commission_percent);
                         return (
                             <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
                                 <h3 className="text-sm font-black text-slate-700 uppercase tracking-wide mb-3">Rentabilidad (sin IVA)</h3>
-                                <div className="grid grid-cols-2 md:grid-cols-6 gap-3 text-sm">
+                                <div className="grid grid-cols-2 md:grid-cols-7 gap-3 text-sm">
                                     <div><p className="text-[10px] font-bold text-slate-400 uppercase">Venta</p><p className="font-mono font-bold">{formatMoney(sales)}</p></div>
                                     <div><p className="text-[10px] font-bold text-slate-400 uppercase">Costo</p><p className="font-mono font-bold">{formatMoney(cost)}</p></div>
                                     <div><p className="text-[10px] font-bold text-slate-400 uppercase">Comisión incluida</p><p className="font-mono font-bold">{formatMoney(commission)}</p></div>
-                                    <div><p className="text-[10px] font-bold text-slate-400 uppercase">Utilidad neta</p><p className={`font-mono font-bold ${sales - cost - commission >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{formatMoney(sales - cost - commission)}</p></div>
-                                    <div title="(precio sin IVA − costo − comisión) / precio sin IVA"><p className="text-[10px] font-bold text-slate-400 uppercase">Margen neto % sobre venta</p><p className="font-mono font-black">{formatPercent(netMarginPercent(sales, cost, commission))}</p></div>
+                                    <div title={`Venta sin IVA × ${globalCommissionPercent}% (Configuración)`}><p className="text-[10px] font-bold text-slate-400 uppercase">Comisión global</p><p className="font-mono font-bold">{formatMoney(globalCommission)}</p></div>
+                                    <div title="Venta − costo − comisión − comisión global"><p className="text-[10px] font-bold text-slate-400 uppercase">Utilidad neta</p><p className={`font-mono font-bold ${netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{formatMoney(netProfit)}</p></div>
+                                    <div title="(precio sin IVA − costo − comisión − comisión global) / precio sin IVA"><p className="text-[10px] font-bold text-slate-400 uppercase">Margen neto % sobre venta</p><p className="font-mono font-black">{formatPercent(netMarginPercent(sales, cost, commission + globalCommission))}</p></div>
                                     <div title="(precio sin comisión − costo) / costo"><p className="text-[10px] font-bold text-slate-400 uppercase">Sobreprecio %</p><p className={`font-mono font-black ${isBelowMinimum(markup, minMarkup) ? 'text-rose-600' : 'text-emerald-700'}`}>{formatPercent(markup)}</p></div>
                                 </div>
                             </div>

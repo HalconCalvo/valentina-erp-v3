@@ -86,3 +86,23 @@ def test_only_director_sets_an_active_beneficiary_and_a_valid_percent(client_fix
     saved = client_fixture.put(url, headers=auth_header_director, json=ok)
     assert saved.status_code == 200, saved.text
     assert (saved.json()["global_commission_user_id"], saved.json()["global_commission_percent"]) == (beneficiary.id, 2.5)
+
+
+def test_an_omitted_commission_is_in_no_tray(client_fixture, session_fixture, auth_header_director,
+                                             seed_client_and_tax):
+    """D44: the duplicated global commissions are Omitida (payroll_deferred + reason) and leave every tray."""
+    order = create_order_via_quotation(client_fixture, auth_header_director, seed_client_and_tax[0].id,
+                                       seed_client_and_tax[1].id)
+    cxc = CustomerPayment(sales_order_id=order["id"], payment_type=PaymentType.PROGRESS, amount=11600.0,
+                          status=CXCStatus.PAID, invoice_folio="F-1", created_by_user_id=1)
+    session_fixture.add(cxc)
+    session_fixture.commit()
+    omitted = SalesCommission(customer_payment_id=cxc.id, user_id=1, commission_type=CommissionType.DIRECTOR_GLOBAL,
+                              base_amount=10000.0, rate=0.02, commission_amount=200.0, is_advance=False,
+                              is_released=False, payroll_deferred=True,
+                              admin_notes="Cálculo anterior duplicado (antes de D44)")
+    session_fixture.add(omitted)
+    session_fixture.commit()
+    overview = client_fixture.get(f"{API}/sales/commissions/payroll-overview", headers=auth_header_director).json()
+    ids = [r["id"] for tray in ("retained", "payable", "paid") for r in overview[tray]]
+    assert omitted.id not in ids
