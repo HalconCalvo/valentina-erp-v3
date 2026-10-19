@@ -38,6 +38,7 @@ class OrderMarginRead(BaseModel):
     sales_without_tax: float
     cost: float
     commission: float
+    global_commission: float = 0.0  # D44: sales without VAT × configured global percent
     net_margin_percent: Optional[float] = None  # None when the OV has no cost (legacy import without recipe)
 
 
@@ -46,6 +47,7 @@ class ProfitabilityRead(BaseModel):
     sales_without_tax: float
     cost: float
     commission: float
+    global_commission: float = 0.0
     net_margin_percent: Optional[float] = None  # weighted by sales
     orders_without_cost: int
     sales_without_cost: float
@@ -79,6 +81,7 @@ class LaneSalesRead(BaseModel):
     sales_without_tax: float
     cost: float
     commission: float
+    global_commission: float = 0.0
     net_margin_percent: Optional[float] = None
 
 

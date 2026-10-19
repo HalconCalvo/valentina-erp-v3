@@ -52,6 +52,7 @@ export type OrderMarginRow = {
     sales_without_tax: number;
     cost: number;
     commission: number;
+    global_commission: number; // D44: venta sin IVA × % global configurado
     net_margin_percent: number | null;
 }
 
@@ -75,6 +76,7 @@ export type LaneSalesRow = {
     sales_without_tax: number;
     cost: number;
     commission: number;
+    global_commission: number; // D44: venta sin IVA × % global configurado
     net_margin_percent: number | null;
 }
 
@@ -88,7 +90,8 @@ export interface DirectorSummary {
         net: number;
     };
     profitability: {
-        sales_without_tax: number; cost: number; commission: number; net_margin_percent: number | null;
+        sales_without_tax: number; cost: number; commission: number; global_commission: number;
+        net_margin_percent: number | null;
         orders_without_cost: number; sales_without_cost: number;
         most_profitable: OrderMarginRow[]; least_profitable: OrderMarginRow[];
     };

@@ -75,6 +75,8 @@ class PendingInvoiceRead(SQLModel):
     items: Optional[List[Dict[str, Any]]] = []
     po_folio: Optional[str] = None
     authorized_by: Optional[str] = None
+    po_authorizer_name: Optional[str] = None  # who authorized the OC (name only), shown when paying
+    po_authorized_at: Optional[datetime] = None
     expense_notes: Optional[str] = None
 
 class CreditNoteItemCreate(SQLModel):

@@ -2,7 +2,8 @@
 
 - Ventas: sold OVs of the current year, without VAT (tax 0% and 16% alike), against the annual target.
 - Liquidez = Bancos + CxC facturada pendiente + Inventario (raw material, in process, finished) − CxP.
-- Rentabilidad: Margen neto % sobre venta of the year's OVs, weighted (sales − cost − commission) / sales.
+- Rentabilidad: Margen neto % sobre venta of the year's OVs, weighted (sales − cost − commission − global commission)
+  / sales; the global commission (D44) is sales × the configured percent, as in the OV profitability.
 - Cartera: the same pending receivables as Liquidez; the cash flow projection must add up to it.
 - Top clientes: sales of the year; by Margen neto %, by days to pay, and sales by lane (MDF, Piedra).
 """
@@ -26,24 +27,34 @@ LANE_MDF, LANE_STONE, LANE_NONE = "MDF", "Piedra", "Sin receta"
 AGE_LABELS = {"0-30": "0 a 30 días", "31-60": "31 a 60 días", "61-90": "61 a 90 días", "+90": "Más de 90 días"}
 
 
-def _margin(sales: float, cost: float, commission: float) -> Optional[float]:
-    return margin_service.net_margin_percent(sales, cost, commission)
+def _margin(sales: float, cost: float, commission: float, global_commission: float = 0.0) -> Optional[float]:
+    return margin_service.net_margin_percent(sales, cost, commission + global_commission)
+
+
+def global_commission_rate(session: Session) -> float:
+    """D44: configured percent as a rate; 0 without beneficiary."""
+    config = repo.get_global_config(session)
+    if not config or not config.global_commission_user_id:
+        return 0.0
+    return float(config.global_commission_percent or 0.0) / 100
 
 
 def _order_cost(items) -> float:
     return sum(float(i.frozen_unit_cost or 0.0) * float(i.quantity or 0.0) for i in items)
 
 
-def _order_rows(session: Session, orders, items_by_order) -> List[OrderMarginRead]:
+def _order_rows(session: Session, orders, items_by_order, global_rate: float) -> List[OrderMarginRead]:
     names = repo.get_client_names(session, (o.client_id for o in orders))
     rows = []
     for order in orders:
         sales, cost = float(order.subtotal or 0.0), _order_cost(items_by_order.get(order.id, []))
-        commission = float(order.commission_amount or 0.0)
+        commission, global_commission = float(order.commission_amount or 0.0), sales * global_rate
         rows.append(OrderMarginRead(order_id=order.id, folio=f"OV-{str(order.id).zfill(4)}",
                                     client_name=names.get(order.client_id, "—"), sales_without_tax=round(sales, 2),
                                     cost=round(cost, 2), commission=round(commission, 2),
-                                    net_margin_percent=_margin(sales, cost, commission) if cost > 0 else None))
+                                    global_commission=round(global_commission, 2),
+                                    net_margin_percent=_margin(sales, cost, commission, global_commission)
+                                    if cost > 0 else None))
     return rows
 
 
@@ -62,9 +73,11 @@ def profitability(rows: List[OrderMarginRead]) -> ProfitabilityRead:
     sales = sum(r.sales_without_tax for r in costed)
     cost = sum(r.cost for r in costed)
     commission = sum(r.commission for r in costed)
+    global_commission = sum(r.global_commission for r in costed)
     ranked = sorted(costed, key=lambda r: r.net_margin_percent)
     return ProfitabilityRead(sales_without_tax=round(sales, 2), cost=round(cost, 2),
-                             commission=round(commission, 2), net_margin_percent=_margin(sales, cost, commission),
+                             commission=round(commission, 2), global_commission=round(global_commission, 2),
+                             net_margin_percent=_margin(sales, cost, commission, global_commission),
                              orders_without_cost=len(uncosted),
                              sales_without_cost=round(sum(r.sales_without_tax for r in uncosted), 2),
                              most_profitable=ranked[::-1][:TOP], least_profitable=ranked[:TOP])
@@ -99,13 +112,15 @@ def receivables(session: Session, aging) -> ReceivablesRead:
 
 def clients_by_sales(rows: List[OrderMarginRead], orders) -> List[ClientSalesRead]:
     client_of = {o.id: o.client_id for o in orders}
-    totals: Dict[int, dict] = defaultdict(lambda: {"name": "—", "orders": 0, "sales": 0.0, "costed": [0.0, 0.0, 0.0]})
+    totals: Dict[int, dict] = defaultdict(lambda: {"name": "—", "orders": 0, "sales": 0.0,
+                                                   "costed": [0.0, 0.0, 0.0, 0.0]})
     for r in rows:
         t = totals[client_of[r.order_id]]
         t["name"], t["orders"] = r.client_name, t["orders"] + 1
         t["sales"] += r.sales_without_tax
         if r.net_margin_percent is not None:  # the margin only counts OVs with cost
-            t["costed"] = [a + b for a, b in zip(t["costed"], (r.sales_without_tax, r.cost, r.commission))]
+            t["costed"] = [a + b for a, b in zip(t["costed"], (r.sales_without_tax, r.cost, r.commission,
+                                                                     r.global_commission))]
     result = [ClientSalesRead(client_id=cid, client_name=t["name"], orders=t["orders"],
                               sales_without_tax=round(t["sales"], 2), net_margin_percent=_margin(*t["costed"]))
               for cid, t in totals.items()]
@@ -140,12 +155,12 @@ def _stone_share(item, categories: Dict[int, str]) -> Optional[float]:
     return stone / total
 
 
-def sales_by_lane(session: Session, orders, items_by_order) -> List[LaneSalesRead]:
-    """Each recipe line splits between MDF and Piedra by the stone share of its frozen cost; commission follows sales."""
+def sales_by_lane(session: Session, orders, items_by_order, global_rate: float = 0.0) -> List[LaneSalesRead]:
+    """Each recipe line splits between MDF and Piedra by the stone share of its frozen cost; commissions follow sales."""
     all_items = [i for items in items_by_order.values() for i in items]
     categories = repo.get_material_categories(session, (ing.get("material_id") for i in all_items
                                                         for ing in (i.cost_snapshot or {}).get("ingredients") or []))
-    lanes: Dict[str, List[float]] = defaultdict(lambda: [0.0, 0.0, 0.0])
+    lanes: Dict[str, List[float]] = defaultdict(lambda: [0.0, 0.0, 0.0, 0.0])
     for order in orders:
         items = items_by_order.get(order.id, [])
         items_sales = sum(float(i.subtotal_price or 0.0) for i in items)
@@ -158,9 +173,11 @@ def sales_by_lane(session: Session, orders, items_by_order) -> List[LaneSalesRea
                 lanes[lane][0] += sales * part
                 lanes[lane][1] += cost * part
                 lanes[lane][2] += commission * part
+                lanes[lane][3] += sales * global_rate * part
     return [LaneSalesRead(lane=lane, sales_without_tax=round(s, 2), cost=round(c, 2), commission=round(m, 2),
-                          net_margin_percent=_margin(s, c, m) if lane != LANE_NONE else None)
-            for lane, (s, c, m) in sorted(lanes.items(), key=lambda kv: [LANE_MDF, LANE_STONE, LANE_NONE].index(kv[0]))
+                          global_commission=round(g, 2),
+                          net_margin_percent=_margin(s, c, m, g) if lane != LANE_NONE else None)
+            for lane, (s, c, m, g) in sorted(lanes.items(), key=lambda kv: [LANE_MDF, LANE_STONE, LANE_NONE].index(kv[0]))
             if s or c]
 
 
@@ -170,7 +187,8 @@ def get_summary(session: Session, user, year: Optional[int] = None) -> DirectorS
     items_by_order: Dict[int, list] = defaultdict(list)
     for item in repo.get_active_items(session, (o.id for o in orders)):
         items_by_order[item.sales_order_id].append(item)
-    rows = _order_rows(session, orders, items_by_order)
+    global_rate = global_commission_rate(session)
+    rows = _order_rows(session, orders, items_by_order, global_rate)
     aging = analytics_service.get_cxc_aging(session)
     by_sales = clients_by_sales(rows, orders)
     by_margin = sorted((c for c in by_sales if c.net_margin_percent is not None),
@@ -180,4 +198,4 @@ def get_summary(session: Session, user, year: Optional[int] = None) -> DirectorS
         profitability=profitability(rows), receivables=receivables(session, aging),
         top_clients=TopClientsRead(by_sales=by_sales, by_margin=by_margin,
                                    by_payment_speed=clients_by_payment_speed(session, year),
-                                   by_lane=sales_by_lane(session, orders, items_by_order)))
+                                   by_lane=sales_by_lane(session, orders, items_by_order, global_rate)))

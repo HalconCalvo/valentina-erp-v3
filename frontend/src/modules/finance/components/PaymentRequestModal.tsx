@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Calendar, CreditCard, Hash, FileText, Landmark } from 'lucide-react';
+import { X, Calendar, CreditCard, Hash, FileText, Landmark, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import SearchableSelect from '@/components/ui/SearchableSelect';
@@ -7,7 +7,7 @@ import { toast } from '@/components/ui/VToast';
 import { PaymentMethod, PaymentRequestPayload, SupplierPayment, PendingInvoice } from '../../../types/finance';
 import { treasuryService } from '../../../api/treasury-service';
 import { BankAccount } from '../../../types/treasury';
-import { formatMoney } from '@/utils/format';
+import { formatDate, formatMoney } from '@/utils/format';
 import Modal from '@/components/ui/Modal';
 
 interface PaymentRequestModalProps {
@@ -162,6 +162,17 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-6 space-y-5">
+                    {invoice && (invoice.po_folio && invoice.po_authorizer_name ? (
+                        <p className="flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                            <ShieldCheck size={14} />
+                            {invoice.po_folio} autorizada por {invoice.po_authorizer_name}
+                            {invoice.po_authorized_at ? ` el ${formatDate(invoice.po_authorized_at)}` : ''}
+                        </p>
+                    ) : (
+                        <p className="flex items-center gap-2 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                            <ShieldAlert size={14} /> OC sin autorización registrada
+                        </p>
+                    ))}
                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                         <label className="block text-xs font-black uppercase tracking-wide text-slate-500 mb-2">Monto a Pagar</label>
                         <div className="relative">

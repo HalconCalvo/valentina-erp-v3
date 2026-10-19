@@ -32,6 +32,8 @@ export interface PendingInvoice {
     outstanding_balance: number;
     items?: { description: string; qty: number; price: number }[];
     po_folio?: string | null;
+    po_authorizer_name?: string | null; // quien autorizó la OC (Pago a proveedor, Gabriel 19/10)
+    po_authorized_at?: string | null;
     expense_notes?: string | null;
 }
 

@@ -15,7 +15,7 @@ from app.models.inventory import PurchaseOrder
 from app.repositories import supplier_payment_repository as repo
 from app.schemas.finance_schema import AccountsPayableDashboardStats, PendingInvoiceRead, SupplierPaymentRead
 from app.services import payable_service
-from app.services.purchase_service import resolve_po_authorizer_display
+from app.services.purchase_service import resolve_po_authorizer_display, resolve_po_authorizer_user
 from app.services.supplier_payment_service import clean_invoice_folio, reject_pending_requests
 
 DEAD_PO_STATUSES = ["CANCELADA", "RECHAZADA", "DRAFT"]
@@ -136,6 +136,11 @@ def _authorized_by(session: Session, folio: str) -> Optional[str]:
     return resolve_po_authorizer_display(session, po) if po else None
 
 
+def _authorizer_name(session: Session, po: Optional[PurchaseOrder]) -> Optional[str]:
+    user = resolve_po_authorizer_user(session, po) if po else None
+    return (user.full_name or user.email) if user else None
+
+
 def _pending_invoice_row(session: Session, invoice: PurchaseInvoice) -> PendingInvoiceRead:
     folio = clean_invoice_folio(invoice.invoice_number)
     po = _invoice_po(session, folio) if invoice.invoice_number else None
@@ -145,6 +150,7 @@ def _pending_invoice_row(session: Session, invoice: PurchaseInvoice) -> PendingI
         due_date=invoice.due_date, issue_date=invoice.issue_date, total_amount=invoice.total_amount,
         outstanding_balance=invoice.outstanding_balance, items=_po_items(session, po),
         po_folio=po.folio if po else None, authorized_by=_authorized_by(session, folio),
+        po_authorizer_name=_authorizer_name(session, po), po_authorized_at=po.authorized_at if po else None,
         expense_notes=_expense_notes(session, folio if invoice.invoice_number else ""))
 
 

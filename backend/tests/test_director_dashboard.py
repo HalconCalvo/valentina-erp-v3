@@ -86,6 +86,22 @@ def test_summary_cards_agree(client_fixture, session_fixture, auth_header_direct
     assert lanes["Sin receta"]["net_margin_percent"] is None
 
 
+def test_profitability_subtracts_the_global_commission(client_fixture, session_fixture, auth_header_director,
+                                                       seed_client_and_tax):
+    """D44 point 7 (Gabriel 19/10): the dashboard subtracts sales × global percent, like the OV profitability."""
+    _seed(session_fixture, seed_client_and_tax)
+    config = session_fixture.query(GlobalConfig).first()
+    config.global_commission_user_id, config.global_commission_percent = 1, 2.0
+    session_fixture.commit()
+    data = client_fixture.get(URL, headers=auth_header_director).json()
+    profit = data["profitability"]  # (100 - 40 - 5 - 2) / 100
+    assert (profit["global_commission"], profit["net_margin_percent"]) == (2.0, 53.0)
+    assert profit["most_profitable"][0]["global_commission"] == 2.0
+    assert data["top_clients"]["by_sales"][0]["net_margin_percent"] == 53.0
+    lanes = {lane["lane"]: lane for lane in data["top_clients"]["by_lane"]}
+    assert (lanes["MDF"]["global_commission"], lanes["Piedra"]["global_commission"]) == (1.5, 0.5)
+
+
 def test_only_the_director_sees_the_summary(client_fixture, session_fixture, seed_client_and_tax):
     manager = User(email="mgr@dash.local", full_name="Gerente", role=UserRole.MANAGER, is_active=True,
                    hashed_password="x")

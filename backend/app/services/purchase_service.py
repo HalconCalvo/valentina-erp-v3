@@ -36,20 +36,22 @@ OVERHEAD_CATEGORIES = [
 ]
 
 
-def resolve_po_authorizer_display(db: Session, po: PurchaseOrder) -> Optional[str]:
-    user = None
+def resolve_po_authorizer_user(db: Session, po: PurchaseOrder):
+    """The user who authorized the OC: approved_by_user_id, else authorized_by (id or email); None if unknown."""
     approver_id = getattr(po, "approved_by_user_id", None)
-    if approver_id:
-        user = purchase_repo.get_user_by_id(db, approver_id)
-    if not user:
-        raw = getattr(po, "authorized_by", None)
-        if not raw:
-            return None
-        raw_str = str(raw).strip()
-        if raw_str.isdigit():
-            user = purchase_repo.get_user_by_id(db, int(raw_str))
-        if not user:
-            user = purchase_repo.get_user_by_email(db, raw_str)
+    user = purchase_repo.get_user_by_id(db, approver_id) if approver_id else None
+    raw_str = str(getattr(po, "authorized_by", None) or "").strip()
+    if not user and raw_str.isdigit():
+        user = purchase_repo.get_user_by_id(db, int(raw_str))
+    if not user and raw_str:
+        user = purchase_repo.get_user_by_email(db, raw_str)
+    return user
+
+
+def resolve_po_authorizer_display(db: Session, po: PurchaseOrder) -> Optional[str]:
+    if not getattr(po, "approved_by_user_id", None) and not getattr(po, "authorized_by", None):
+        return None
+    user = resolve_po_authorizer_user(db, po)
     if not user:
         return getattr(po, "authorized_by", None)
     name = (getattr(user, "full_name", None) or getattr(user, "email", None) or "Usuario").strip()

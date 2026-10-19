@@ -326,6 +326,11 @@ const DirectorDashboard: React.FC = () => {
                 render: (row) => <span className="block text-right text-slate-600">{formatMoney(row.commission)}</span>,
             },
             {
+                key: 'global_commission',
+                label: 'Comisión global',
+                render: (row) => <span className="block text-right text-slate-600">{formatMoney(row.global_commission)}</span>,
+            },
+            {
                 key: 'net_margin_percent',
                 label: 'Margen neto % sobre venta',
                 render: (row) => (
@@ -396,6 +401,11 @@ const DirectorDashboard: React.FC = () => {
                 key: 'commission',
                 label: 'Comisión',
                 render: (row) => <span className="block text-right text-slate-600">{formatMoney(row.commission)}</span>,
+            },
+            {
+                key: 'global_commission',
+                label: 'Comisión global',
+                render: (row) => <span className="block text-right text-slate-600">{formatMoney(row.global_commission)}</span>,
             },
             {
                 key: 'net_margin_percent',
@@ -1196,7 +1206,7 @@ const DirectorDashboard: React.FC = () => {
                                     </p>
                                 </div>
                                 <p className="text-xs text-slate-500 mt-2">
-                                    (Venta sin IVA {formatMoney(summary.profitability.sales_without_tax)} − costo {formatMoney(summary.profitability.cost)} − comisión {formatMoney(summary.profitability.commission)}) ÷ venta sin IVA.
+                                    (Venta sin IVA {formatMoney(summary.profitability.sales_without_tax)} − costo {formatMoney(summary.profitability.cost)} − comisión {formatMoney(summary.profitability.commission)} − comisión global {formatMoney(summary.profitability.global_commission)}) ÷ venta sin IVA.
                                     {summary.profitability.orders_without_cost > 0 && (
                                         <> Fuera del cálculo: {summary.profitability.orders_without_cost} OVs sin costo (importadas sin receta) por {formatMoney(summary.profitability.sales_without_cost)} sin IVA.</>
                                     )}

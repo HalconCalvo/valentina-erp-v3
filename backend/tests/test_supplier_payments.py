@@ -2,7 +2,7 @@
 
 Characterization tests written before moving this logic out of the finance endpoint (same behavior after the move).
 """
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from sqlmodel import select
 
@@ -12,7 +12,7 @@ from app.models.finance import (CreditNote, InvoiceStatus, PaymentStatus, Purcha
 from app.models.inventory import PurchaseOrder, PurchaseOrderItem
 from app.models.material import ProductionRoute
 from app.models.treasury import BankAccount, BankTransaction
-from app.models.users import UserRole
+from app.models.users import User, UserRole
 from tests.test_purchase_service import _seed_provider_and_material
 from tests.test_supplier_advances import _account, _headers, _invoice
 
@@ -279,3 +279,21 @@ def test_credit_note_return_lowers_stock_and_validates_lines(client_fixture, ses
     session_fixture.commit()
     body["items"] = [{"material_id": consumable.id, "returned_quantity": 1}]
     assert client_fixture.post(f"{API}/credit-notes", headers=admin, json={**body, "folio": "NC-C"}).status_code == 200
+
+
+def test_pending_invoice_says_who_authorized_its_oc(client_fixture, session_fixture):
+    """Gabriel 19/10: paying a supplier invoice shows "OC-xxx autorizada por <nombre> el DD/MM/AAAA"."""
+    provider, _ = _seed_provider_and_material(session_fixture)
+    admin = _headers(session_fixture, UserRole.ADMIN)
+    authorizer = session_fixture.exec(select(User).where(User.role == UserRole.ADMIN)).first()
+    po = _po(session_fixture, provider.id, "OC-0009")
+    po.authorized_by, po.authorized_at = authorizer.email, datetime(2026, 10, 14, 18, 23)
+    session_fixture.add(po)
+    session_fixture.commit()
+    _payable(session_fixture, provider.id, "OC-0009", 116.0, po_id=po.id)
+    invoice = _invoice(session_fixture, provider.id, "OC-OC-0009", 116.0)
+    without_po = _invoice(session_fixture, provider.id, "GASTO-9", 20.0)
+    rows = {r["id"]: r for r in client_fixture.get(f"{API}/invoices/pending", headers=admin).json()}
+    assert (rows[invoice.id]["po_folio"], rows[invoice.id]["po_authorizer_name"],
+            rows[invoice.id]["po_authorized_at"]) == ("OC-0009", authorizer.full_name, "2026-10-14T18:23:00")
+    assert (rows[without_po.id]["po_folio"], rows[without_po.id]["po_authorizer_name"]) == (None, None)
