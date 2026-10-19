@@ -10,6 +10,7 @@ import { GlobalConfig } from '../../../types/foundations';
 import { toast } from '@/components/ui/VToast';
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { useUsers } from '@/hooks/useUsers';
 
 export default function ConfigPage() {
   
@@ -34,6 +35,10 @@ export default function ConfigPage() {
   const [minMarkupInput, setMinMarkupInput] = useState('25');
   const [managerCanPay, setManagerCanPay] = useState(false);  // kept as stored; D41 left it without effect
   const [paidToleranceInput, setPaidToleranceInput] = useState('1.00');
+  // D44: global commission beneficiary (any active user) and percent
+  const { users } = useUsers();
+  const [globalUserId, setGlobalUserId] = useState('');
+  const [globalPercentInput, setGlobalPercentInput] = useState('0');
   // Only Dirección changes the minimum markup (the backend answers 403 otherwise)
   const isDirector = (localStorage.getItem('user_role') || '').toUpperCase() === 'DIRECTOR';
   const [toleranceInput, setToleranceInput] = useState('');
@@ -79,6 +84,8 @@ export default function ConfigPage() {
       setMinMarkupInput(String(config.min_markup_percent ?? 25));
       setManagerCanPay(Boolean(config.manager_can_execute_payments));
       setPaidToleranceInput(Number(config.paid_balance_tolerance ?? 1).toFixed(2));
+      setGlobalUserId(config.global_commission_user_id ? String(config.global_commission_user_id) : '');
+      setGlobalPercentInput(String(config.global_commission_percent ?? 0));
       setToleranceInput(String(Math.round((config.cost_tolerance_percent || 0) * 100)));
       
       setDaysInput(String(config.quote_validity_days || 0));
@@ -156,6 +163,8 @@ export default function ConfigPage() {
           min_markup_percent: Number(minMarkupInput) || 0,
           manager_can_execute_payments: managerCanPay,
           paid_balance_tolerance: Math.max(Number(paidToleranceInput) || 0, 0),
+          global_commission_user_id: globalUserId ? Number(globalUserId) : null,
+          global_commission_percent: Math.max(Number(globalPercentInput) || 0, 0),
         } : {}),
         cost_tolerance_percent: tolerance,
         quote_validity_days: days,
@@ -245,6 +254,22 @@ export default function ConfigPage() {
                         title={isDirector ? undefined : 'Solo Dirección cambia la tolerancia de saldo pagado'}
                         onChange={(e) => setPaidToleranceInput(e.target.value)} className="input-large border-orange-200 focus:border-orange-500" /><span className="unit-label">$</span></div>
                     <p className="text-[11px] text-slate-500 mt-2">Una OV o factura de cliente con saldo igual o menor (con IVA) se da por pagada al registrar abonos y en Saneamiento.</p>
+                </div>
+                <div className="card-std">
+                    <div className="flex items-start justify-between mb-4"><h2 className="text-base font-bold text-slate-700">Comisión global</h2><span className="badge-orange">Dirección</span></div>
+                    <SearchableSelect
+                        items={users.filter((u) => u.is_active)}
+                        value={globalUserId}
+                        onChange={(v) => setGlobalUserId(String(v || ''))}
+                        getLabel={(u) => u.full_name}
+                        getValue={(u) => String(u.id)}
+                        placeholder="Beneficiario..."
+                        disabled={!isDirector}
+                    />
+                    <div className="relative mt-3"><Input type="number" min={0} max={100} step="0.01" value={globalPercentInput} disabled={!isDirector}
+                        title={isDirector ? undefined : 'Solo Dirección cambia la comisión global'}
+                        onChange={(e) => setGlobalPercentInput(e.target.value)} className="input-large border-orange-200 focus:border-orange-500" /><span className="unit-label">%</span></div>
+                    <p className="text-[11px] text-slate-500 mt-2">Por cada cobro, sobre lo cobrado sin IVA, igual que la del vendedor. Sin beneficiario o en 0 % no se genera.</p>
                 </div>
                 <div className="card-std">
                     <div className="flex items-start justify-between mb-4"><h2 className="text-base font-bold text-slate-700">Tolerancia</h2><span className="badge-orange">Seguridad</span></div>

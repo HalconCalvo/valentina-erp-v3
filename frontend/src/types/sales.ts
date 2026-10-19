@@ -190,6 +190,8 @@ export interface PayrollCommissionRow {
   payroll_deferred: boolean;
   /** H68/H69: what the payment confirmation shows */
   seller_id?: number | null;
+  /** D44: SELLER | DIRECTOR_GLOBAL */
+  commission_type?: string | null;
   invoice_folio?: string | null;
   payment_type?: string | null;
   house_names?: string[];

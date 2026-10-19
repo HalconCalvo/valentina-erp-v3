@@ -163,7 +163,8 @@ export default function UsersPage() {
   };
 
   const showCommission = form.role === 'SALES' || form.role === 'DIRECTOR';
-  const showGlobalCommission = form.role === 'DIRECTOR';
+  // D44: the global commission is set in Configuración (one beneficiary); the per-user rate is no longer used
+  const showGlobalCommission = false;
   const showMonthlyQuota = form.role === 'SALES' || form.role === 'VENTAS';
 
   const userColumns = useMemo((): VTableColumn<any>[] => [
@@ -184,7 +185,7 @@ export default function UsersPage() {
                 <Percent size={8}/> {user.commission_rate}%
               </span>
             )}
-            {user.role === 'DIRECTOR' && (user.global_commission_rate ?? 0) > 0 && (
+            {false && user.role === 'DIRECTOR' && (user.global_commission_rate ?? 0) > 0 && (
               <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-300 font-bold font-mono flex items-center gap-0.5" title="Comisión Global por Recaudo">
                 <Shield size={8}/> {user.global_commission_rate}%
               </span>

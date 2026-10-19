@@ -58,6 +58,9 @@ function groupByInstaller(rows: PayrollPaymentRecord[]): Map<number, PayrollPaym
   return m;
 }
 
+/** D44: the global commission (beneficiary set in Configuración) shares the trays with the seller's. */
+const isGlobal = (row: PayrollCommissionRow) => row.commission_type === 'DIRECTOR_GLOBAL';
+
 /** Misma base visual que las tarjetas del tablero en TreasuryPage.tsx */
 const payrollCardShellClass =
   'p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white overflow-hidden group';
@@ -461,7 +464,15 @@ export const PayrollAuditPanel: React.FC<Props> = ({
       {
         key: 'seller',
         label: 'Asesor',
-        render: (row) => row.seller_name || '—',
+        render: (row) => (
+          <span className="inline-flex items-center gap-1">
+            {row.seller_name || '—'}
+            {isGlobal(row) && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border bg-indigo-50 text-indigo-700 border-indigo-200"
+                title="Comisión global (Configuración)">Global</span>
+            )}
+          </span>
+        ),
       },
       {
         key: 'amount',
@@ -1162,7 +1173,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
             ['Vendedor', payComm.rows[0].seller_name || '—'],
             ['Factura', payComm.rows[0].reference_label],
             ['Cobrado sin IVA', payComm.rows[0].base_amount != null ? fmt(payComm.rows[0].base_amount) : '—'],
-            ['% de comisión de la OV', payComm.rows[0].rate != null ? `${(payComm.rows[0].rate * 100).toFixed(2)}%` : '—'],
+            [isGlobal(payComm.rows[0]) ? '% de comisión global' : '% de comisión de la OV', payComm.rows[0].rate != null ? `${(payComm.rows[0].rate * 100).toFixed(2)}%` : '—'],
           ] : [
             ['Vendedor', payComm.rows[0].seller_name || '—'],
             ...payComm.rows.map((r): [string, string] => [r.reference_label, fmt(r.amount)]),

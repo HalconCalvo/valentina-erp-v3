@@ -102,6 +102,8 @@ export interface GlobalConfig {
     min_markup_percent?: number; // Sobreprecio mínimo (%, 25); solo Dirección lo cambia
     manager_can_execute_payments?: boolean; // Gerencia ejecuta pagos (solo Dirección lo cambia)
     paid_balance_tolerance?: number; // D16: saldo (con IVA) que cuenta como pagado; solo Dirección lo cambia
+    global_commission_user_id?: number | null; // D44: beneficiario de la comisión global (solo Dirección)
+    global_commission_percent?: number; // D44: % sobre lo cobrado sin IVA
     cost_tolerance_percent: number;
     quote_validity_days: number;
     default_edgebanding_factor: number;

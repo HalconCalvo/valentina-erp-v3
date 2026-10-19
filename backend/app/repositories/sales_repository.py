@@ -159,12 +159,13 @@ def get_active_instances_by_item(session: Session, item_id: int) -> List[SalesOr
     )
 
 
-def get_directors(session: Session) -> List[User]:
-    return list(
-        session.exec(
-            select(User).where(User.role == UserRole.DIRECTOR, User.is_active == True)  # noqa: E712
-        ).all()
-    )
+def get_global_commission_beneficiary(session: Session) -> Optional[User]:
+    """D44: the active user set in GlobalConfig to receive the global commission (None if unset or inactive)."""
+    config = session.exec(select(GlobalConfig)).first()
+    if not config or not config.global_commission_user_id:
+        return None
+    user = session.get(User, config.global_commission_user_id)
+    return user if user and user.is_active else None
 
 
 def get_cxc_by_id(session: Session, cxc_id: int) -> Optional[CustomerPayment]:
@@ -313,6 +314,10 @@ def get_commissions_by_cxc(session: Session, cxc_id: int) -> List[SalesCommissio
     )
 
 
+# D44: the global commission is paid from the same trays as the seller's
+PAYROLL_COMMISSION_TYPES = (CommissionType.SELLER, CommissionType.DIRECTOR_GLOBAL)
+
+
 def get_commissions_payroll_overview_data(session: Session) -> dict:
     waiting_orders = list(
         session.exec(
@@ -324,7 +329,7 @@ def get_commissions_payroll_overview_data(session: Session) -> dict:
             select(SalesCommission, CustomerPayment)
             .join(CustomerPayment, SalesCommission.customer_payment_id == CustomerPayment.id)
             .where(
-                SalesCommission.commission_type == CommissionType.SELLER,
+                SalesCommission.commission_type.in_(PAYROLL_COMMISSION_TYPES),
                 SalesCommission.is_paid == False,  # noqa: E712
                 SalesCommission.is_released == False,  # noqa: E712
                 SalesCommission.is_advance == False,  # noqa: E712  (H67: a collected advance is payable)
@@ -336,7 +341,7 @@ def get_commissions_payroll_overview_data(session: Session) -> dict:
             select(SalesCommission, CustomerPayment)
             .join(CustomerPayment, SalesCommission.customer_payment_id == CustomerPayment.id)
             .where(
-                SalesCommission.commission_type == CommissionType.SELLER,
+                SalesCommission.commission_type.in_(PAYROLL_COMMISSION_TYPES),
                 SalesCommission.is_paid == False,  # noqa: E712
                 or_(SalesCommission.is_released == True, SalesCommission.is_advance == True),  # noqa: E712
                 SalesCommission.payroll_deferred == False,  # noqa: E712
@@ -347,7 +352,7 @@ def get_commissions_payroll_overview_data(session: Session) -> dict:
         session.exec(
             select(SalesCommission)
             .where(
-                SalesCommission.commission_type == CommissionType.SELLER,
+                SalesCommission.commission_type.in_(PAYROLL_COMMISSION_TYPES),
                 SalesCommission.is_paid == True,  # noqa: E712
             )
             .order_by(SalesCommission.created_at.desc())

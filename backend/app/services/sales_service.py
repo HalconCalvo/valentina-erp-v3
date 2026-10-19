@@ -182,21 +182,8 @@ def collect_retention(session: Session, payment_id: int, current_user: User) -> 
                 released_at=now,
                 admin_notes=ref,
             ))
-        for director in sales_repo.get_directors(session):
-            dir_rate = normalize_commission(director.global_commission_rate or 0.0)
-            if dir_rate > 0:
-                session.add(SalesCommission(
-                    customer_payment_id=payment.id,
-                    user_id=director.id,
-                    commission_type=CommissionType.DIRECTOR_GLOBAL,
-                    base_amount=base_before_tax,
-                    rate=dir_rate,
-                    commission_amount=base_before_tax * dir_rate,
-                    is_advance=False,
-                    is_released=True,
-                    released_at=now,
-                    admin_notes=ref,
-                ))
+        _add_global_commission(session, payment.id, base_before_tax, is_advance=False, is_released=True,
+                               released_at=now, admin_notes=ref)
 
     order_ref = _order_reference(payment.sales_order_id)
     audit_service.log_action(
@@ -686,20 +673,30 @@ def _add_cxc_commissions(
             is_released=is_released,
             released_at=released_at,
         ))
-    for director in sales_repo.get_directors(session):
-        dir_rate = normalize_commission(director.global_commission_rate or 0.0)
-        if dir_rate > 0:
-            session.add(SalesCommission(
-                customer_payment_id=cxc_id,
-                user_id=director.id,
-                commission_type=CommissionType.DIRECTOR_GLOBAL,
-                base_amount=base_before_tax,
-                rate=dir_rate,
-                commission_amount=base_before_tax * dir_rate,
-                is_advance=is_advance,
-                is_released=is_released,
-                released_at=released_at,
-            ))
+    _add_global_commission(session, cxc_id, base_before_tax, is_advance=is_advance, is_released=is_released,
+                           released_at=released_at)
+
+
+def _add_global_commission(session: Session, cxc_id: int, base_before_tax: float, *, is_advance: bool,
+                           is_released: bool, released_at: Optional[datetime], admin_notes: Optional[str] = None) -> None:
+    """D44: one global commission per collection, for the beneficiary and percent set in GlobalConfig."""
+    beneficiary = sales_repo.get_global_commission_beneficiary(session)
+    config = sales_repo.get_global_config(session)
+    rate = float(config.global_commission_percent or 0.0) / 100.0 if config else 0.0  # stored as percent
+    if not beneficiary or rate <= 0:
+        return
+    session.add(SalesCommission(
+        customer_payment_id=cxc_id,
+        user_id=beneficiary.id,
+        commission_type=CommissionType.DIRECTOR_GLOBAL,
+        base_amount=base_before_tax,
+        rate=rate,
+        commission_amount=base_before_tax * rate,
+        is_advance=is_advance,
+        is_released=is_released,
+        released_at=released_at,
+        admin_notes=admin_notes,
+    ))
 
 
 def check_and_release_commissions(session: Session, instance_id: int) -> None:
@@ -1532,12 +1529,16 @@ _PAYMENT_TYPE_LABEL = {PaymentType.ADVANCE: "Anticipo", PaymentType.PROGRESS: "A
                        PaymentType.SETTLEMENT: "Finiquito"}
 
 
+def _commission_type(c: SalesCommission) -> str:
+    return c.commission_type.value if hasattr(c.commission_type, "value") else str(c.commission_type)
+
+
 def _commission_detail(session: Session, c: SalesCommission, cx: Optional[CustomerPayment]) -> dict:
     """H69: "F-Piloto1-01 · Avance · Piloto 1" instead of "Cobro #85"; H68: what the payment confirmation needs."""
     houses = [i.custom_name for i in sales_repo.get_instances_by_cxc(session, cx.id) if not i.is_cancelled] if cx else []
     kind = _PAYMENT_TYPE_LABEL.get(cx.payment_type, str(cx.payment_type)) if cx else None
     label = " · ".join(p for p in [(cx.invoice_folio or "S/F") if cx else None, kind, ", ".join(houses)] if p)
-    return {"seller_id": c.user_id, "invoice_folio": cx.invoice_folio if cx else None, "payment_type": kind,
+    return {"seller_id": c.user_id, "commission_type": _commission_type(c), "invoice_folio": cx.invoice_folio if cx else None, "payment_type": kind,
             "house_names": houses, "base_amount": round(float(c.base_amount or 0.0), 2), "rate": float(c.rate or 0.0),
             "reference_label": label or f"Cobro #{c.customer_payment_id}"}
 
@@ -1584,6 +1585,7 @@ def get_commissions_overview(session: Session) -> CommissionsPayrollOverview:
             amount=float(c.commission_amount),
             days_waiting=_days_waiting(c.created_at),
             reference_label=label,
+            commission_type=_commission_type(c),
             customer_payment_id=cx.id,
             cxc_status=cx.status.value if hasattr(cx.status, "value") else str(cx.status),
             admin_notes=c.admin_notes,

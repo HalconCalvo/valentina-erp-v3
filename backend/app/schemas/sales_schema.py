@@ -439,6 +439,7 @@ class PayrollCommissionRow(BaseModel):
     payroll_deferred: bool = False
     # H68/H69: what the payment confirmation shows (invoice, type, houses, base without IVA, rate)
     seller_id: Optional[int] = None
+    commission_type: Optional[str] = None  # SELLER | DIRECTOR_GLOBAL (D44)
     invoice_folio: Optional[str] = None
     payment_type: Optional[str] = None
     house_names: List[str] = []

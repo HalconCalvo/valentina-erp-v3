@@ -58,6 +58,10 @@ class GlobalConfig(SQLModel, table=True):
     
     # Relaciones
     default_tax_rate_id: Optional[int] = Field(default=None, foreign_key="tax_rates.id")
+    # D44: the global commission goes to ONE beneficiary (any active user) at this percent of every collection
+    # without IVA, like the seller's. No user or 0 % → none is generated. Only DIRECTOR changes them.
+    global_commission_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    global_commission_percent: float = Field(default=0.0, sa_column_kwargs={"server_default": "0"})
     updated_at: datetime = Field(default_factory=datetime.now)
 
     # Configuración SMTP

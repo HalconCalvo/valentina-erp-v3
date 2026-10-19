@@ -12,7 +12,7 @@ from app.core.database import get_session
 from app.core.deps import CurrentUser, SessionDep
 from app.core.permissions import allow, ANY_ROLE, require_roles
 from app.services.cloud_storage import upload_to_gcs  # <--- LA TUBERÍA BLINDADA
-from app.services import material_route_service, inventory_audit_service, inventory_service, inventory_valuation_service, material_service
+from app.services import commission_service, material_route_service, inventory_audit_service, inventory_service, inventory_valuation_service, material_service
 from app.schemas.production_inventory_schema import NegativeStockRead, ValuationSummaryRead
 from app.schemas.inventory_audit_schema import (
     AuditCreate,
@@ -117,6 +117,8 @@ def update_global_config(current_user: CurrentUser, config_in: GlobalConfig, ses
         if float(config_data["paid_balance_tolerance"]) < 0:
             raise HTTPException(status_code=400, detail="La tolerancia de saldo pagado no puede ser negativa.")
     
+    commission_service.check_global_commission_change(session, current_user, db_config, config_data)
+
     # PROTECCIÓN: Evitar borrar el logo si el frontend manda null
     if "logo_path" in config_data:
          if config_data["logo_path"] is None:
