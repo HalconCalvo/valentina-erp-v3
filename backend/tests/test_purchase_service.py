@@ -278,6 +278,18 @@ def test_cancelling_a_line_recalculates_the_po_total(client_fixture, auth_header
     assert session_fixture.get(PurchaseOrder, po_id).total_estimated_amount == 1000.0
 
 
+
+def test_editing_a_line_recalculates_the_po_total(client_fixture, auth_header_director, session_fixture):
+    """Gabriel 20/10 (OC-M261006223132): a quantity edited from 100 to 50 left the OC total with the old 100."""
+    provider, material = _seed_provider_and_material(session_fixture)
+    po_id = _create_draft_po(client_fixture, auth_header_director, provider.id, material.id)  # 10 x 100
+    line = session_fixture.exec(select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po_id)).one()
+    edited = client_fixture.patch(f"{settings.API_V1_STR}/purchases/orders/{po_id}/items/{line.id}",
+                                headers=auth_header_director, json={"quantity_ordered": 5, "expected_unit_cost": 80.0})
+    assert edited.status_code == 200, edited.text
+    session_fixture.expire_all()
+    assert session_fixture.get(PurchaseOrder, po_id).total_estimated_amount == 400.0
+
 def test_removing_a_draft_line_returns_its_requisition_to_compras(client_fixture, auth_header_director,
                                                                  session_fixture):
     """H22: "Quitar partida" is not destructive: the line leaves the draft PO and its requisition is pending again."""

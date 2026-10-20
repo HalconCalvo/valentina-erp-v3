@@ -818,6 +818,10 @@ def update_po_item(
     for field, value in incoming.items():
         setattr(item, field, value)
     db.add(item)
+    db.flush()
+    # Gabriel 20/10: editing quantity or price recalculates the OC total, like removing or cancelling a line (H23)
+    po.total_estimated_amount = _items_total([it for it in purchase_repo.get_po_items(db, po_id) if not it.is_cancelled])
+    db.add(po)
     db.commit()
     db.refresh(item)
     return item
