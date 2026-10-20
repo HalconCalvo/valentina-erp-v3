@@ -91,7 +91,7 @@ export default function QRScanner({ onScan }: QRScannerProps) {
           </Button>
         </div>
       ) : (
-        <p className="text-sm text-gray-500">Apunta la cámara al código QR del bulto</p>
+        <p className="text-sm text-slate-500">Apunta la cámara al código QR del bulto</p>
       )}
       {/* Damaged label or no camera: type the short code printed on the label and the bundle number */}
       <div className="w-full max-w-sm flex gap-2">

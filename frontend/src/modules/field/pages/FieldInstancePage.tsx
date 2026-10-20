@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import SignatureCanvas from 'react-signature-canvas';
-import { ArrowLeft, Camera, Loader2 } from 'lucide-react';
-import { Input } from '@/components/ui/Input';
+import { Camera, Home } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
+import { VEmptyState } from '@/components/ui/VEmptyState';
+import { VPageHeader } from '@/components/ui/VPageHeader';
+import { VTextarea } from '@/components/ui/VTextarea';
 import { toast } from '@/components/ui/VToast';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { useOfflineSync } from '@/field/useOfflineSync';
@@ -135,8 +138,7 @@ export default function FieldInstancePage() {
         setPhotos([]);
         setSignature(null);
       }
-      const time = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
-      setSyncStatus({ kind: 'ok', text: `Sincronizado ✓ ${time}` });
+      setSyncStatus({ kind: 'ok', text: `Sincronizado ${formatDateTime(new Date())}` });
       toast.success('Sincronizado con el servidor.');
       await refresh();
     } catch (error: unknown) {
@@ -163,15 +165,15 @@ export default function FieldInstancePage() {
 
   if (!row) {
     return (
-      <div className="max-w-lg mx-auto py-12 text-center text-slate-500">
-        <p>Instancia no encontrada en la jornada.</p>
-        <button
-          type="button"
-          onClick={() => navigate('/field')}
-          className="mt-4 min-h-12 rounded-xl bg-orange-600 px-6 text-sm font-bold text-white"
-        >
-          Regresar
-        </button>
+      <div className="max-w-lg mx-auto p-4 pb-24 space-y-4">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm">
+          <VEmptyState icon={<Home />} title="Instancia no encontrada en la jornada." />
+          <div className="px-6 pb-8 -mt-6 flex justify-center">
+            <Button type="button" variant="outline" onClick={() => navigate('/field')} className="h-12">
+              Regresar a Mi jornada
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -188,23 +190,19 @@ export default function FieldInstancePage() {
   const blueprintUrl = resolveBlueprintUrl(row.blueprint_path);
 
   return (
-    <div className="max-w-lg mx-auto pb-28">
-      <header className="mb-4 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => navigate('/field')}
-          className="flex min-h-12 min-w-12 items-center justify-center rounded-xl border border-slate-200 bg-white"
-          title="Regresar"
-        >
-          <ArrowLeft size={20} />
-        </button>
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-xl font-black text-slate-900">{row.custom_name}</h1>
-          <p className="text-xs font-bold uppercase text-orange-600">{INSTALL_TYPE[row.type] ?? row.type}</p>
-        </div>
-      </header>
+    // Guide v2 (field screens): max-w-lg container, standard header with "Regresar a Mi jornada" on the right,
+    // Button and VTextarea; same data, camera, signature and offline queue.
+    <div className="max-w-lg mx-auto p-4 pb-40 space-y-4">
+      <VPageHeader
+        variant="field"
+        icon={Home}
+        title={row.custom_name}
+        subtitle={INSTALL_TYPE[row.type] ?? row.type}
+        onBack={() => navigate('/field')}
+        backLabel="Regresar a Mi jornada"
+      />
 
-      <section className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-700 space-y-1">
+      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm text-sm text-slate-700 space-y-1">
         <p>
           <span className="font-bold">OV:</span> {row.sales_order.folio}
         </p>
@@ -220,7 +218,7 @@ export default function FieldInstancePage() {
       </section>
 
       {(row.lanes ?? []).length > 0 && (
-        <section className="mb-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 space-y-1">
+        <section className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm space-y-1">
           {(row.lanes ?? []).map((lane) => (
             <p key={`${lane.lane}-${lane.assignment_id}`} className="text-xs text-slate-600">
               <span className="font-bold text-slate-800">{LANE_LABEL[lane.lane] ?? lane.lane}:</span>{' '}
@@ -230,28 +228,29 @@ export default function FieldInstancePage() {
         </section>
       )}
 
-      <div className="mb-3 flex gap-1 overflow-x-auto pb-1">
+      <div className="flex gap-1 overflow-x-auto pb-1">
         {tabs.map((t) => (
-          <button
+          <Button
             key={t.id}
             type="button"
+            variant="outline"
             onClick={() => setTab(t.id)}
-            className={`min-h-12 shrink-0 rounded-xl px-4 text-sm font-bold ${
-              tab === t.id ? 'bg-orange-600 text-white' : 'bg-slate-100 text-slate-600'
+            className={`h-12 shrink-0 px-4 text-sm font-bold ${
+              tab === t.id ? 'border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-50 hover:text-indigo-700' : 'text-slate-600'
             }`}
           >
             {t.label}
-          </button>
+          </Button>
         ))}
       </div>
 
-      <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 min-h-[200px]">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm min-h-[200px]">
         {tab === 'empaque' && (
           <ul className="space-y-2">
             {row.components.empaque.map((m, i) => (
               <li key={`e-${i}`} className="flex justify-between gap-2 text-sm">
                 <span className="font-medium text-slate-800">{m.name}</span>
-                <span className="shrink-0 font-bold text-slate-600">
+                <span className="shrink-0 font-bold text-slate-600 tabular-nums">
                   {m.quantity} {m.unit}
                 </span>
               </li>
@@ -266,7 +265,7 @@ export default function FieldInstancePage() {
             {row.components.herrajes.map((m, i) => (
               <li key={`h-${i}`} className="flex justify-between gap-2 text-sm">
                 <span className="font-medium text-slate-800">{m.name}</span>
-                <span className="shrink-0 font-bold text-slate-600">
+                <span className="shrink-0 font-bold text-slate-600 tabular-nums">
                   {m.quantity} {m.unit}
                 </span>
               </li>
@@ -302,13 +301,14 @@ export default function FieldInstancePage() {
               className="hidden"
               onChange={(e) => onPhotoSelected(e.target.files?.[0] ?? null)}
             />
-            <button
+            <Button
               type="button"
+              variant="outline"
               onClick={() => photoInputRef.current?.click()}
-              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 text-sm font-bold text-white"
+              className="h-12 w-full text-sm font-bold"
             >
               <Camera size={18} /> Tomar foto
-            </button>
+            </Button>
           </div>
         )}
         {/* H41: step between the photos and the signature, one button per loaded lane. */}
@@ -326,14 +326,14 @@ export default function FieldInstancePage() {
                   </p>
                 </div>
                 {lane.status === 'IN_PROGRESS' && (lane.is_mine || isSupervisor) && (
-                  <button
+                  <Button
                     type="button"
                     disabled={!isOnline}
                     onClick={() => setFinishingLane(lane.assignment_id)}
-                    className="min-h-12 shrink-0 rounded-xl bg-emerald-600 px-4 text-sm font-bold text-white disabled:opacity-40"
+                    className="h-12 shrink-0 px-4 text-sm font-bold bg-emerald-600 hover:bg-emerald-700"
                   >
                     Trabajo terminado
-                  </button>
+                  </Button>
                 )}
               </div>
             ))}
@@ -350,13 +350,14 @@ export default function FieldInstancePage() {
                 <p className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm font-medium text-amber-800">
                   La firma del cliente va después de marcar el trabajo terminado en cada carril de la casa.
                 </p>
-                <button
+                <Button
                   type="button"
+                  variant="outline"
                   onClick={() => setTab('terminado')}
-                  className="min-h-12 w-full rounded-xl bg-emerald-600 text-sm font-bold text-white"
+                  className="h-12 w-full text-sm font-bold"
                 >
                   Ir a Trabajo terminado
-                </button>
+                </Button>
               </div>
             ) : signature ? (
               <div className="space-y-2">
@@ -365,14 +366,15 @@ export default function FieldInstancePage() {
                   Firma guardada en el teléfono. Falta Sincronizar para cerrar la casa.
                 </p>
                 <img src={signature} alt="Firma del cliente" className="max-h-32 rounded-lg border border-slate-200 bg-white" />
-                <button
+                <Button
                   type="button"
+                  variant="outline"
                   disabled={busy}
                   onClick={() => setSignature(null)}
-                  className="min-h-12 w-full rounded-xl border border-slate-300 text-sm font-bold text-slate-700 disabled:opacity-40"
+                  className="h-12 w-full text-sm font-bold"
                 >
                   Volver a firmar
-                </button>
+                </Button>
               </div>
             ) : (
               <>
@@ -384,15 +386,17 @@ export default function FieldInstancePage() {
                   />
                 </div>
                 <div className="flex gap-2">
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
                     onClick={() => sigRef.current?.clear()}
-                    className="min-h-12 flex-1 rounded-xl border border-slate-300 text-sm font-bold text-slate-700"
+                    className="h-12 flex-1 text-sm font-bold"
                   >
                     Limpiar
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    variant="outline"
                     onClick={() => {
                       if (!sigRef.current || sigRef.current.isEmpty()) {
                         toast.warning('Dibuja la firma antes de confirmar.');
@@ -401,20 +405,19 @@ export default function FieldInstancePage() {
                       setSignature(sigRef.current.getTrimmedCanvas().toDataURL('image/png'));
                       toast.success('Firma guardada localmente.');
                     }}
-                    className="min-h-12 flex-1 rounded-xl bg-orange-600 text-sm font-bold text-white"
+                    className="h-12 flex-1 text-sm font-bold border-indigo-300 text-indigo-700"
                   >
                     Confirmar firma
-                  </button>
+                  </Button>
                 </div>
               </>
             )}
             <div>
-              <p className="mb-1 text-xs font-bold uppercase text-slate-500">Notas de obra</p>
-              <Input
+              <label className="block mb-1 text-xs font-bold text-slate-500">Notas de obra</label>
+              <VTextarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Observaciones..."
-                className="min-h-12"
               />
             </div>
           </div>
@@ -428,19 +431,19 @@ export default function FieldInstancePage() {
               busy ? 'text-slate-600' : syncStatus?.kind === 'ok' ? 'text-emerald-700'
                 : syncStatus?.kind === 'error' ? 'text-red-700' : 'text-amber-700'}`}
             >
-              {busy ? 'Sincronizando…' : syncStatus?.text}
+              {busy ? 'Procesando...' : syncStatus?.text}
             </p>
           )}
-          <button
+          {/* The screen's main action: the only colored button */}
+          <Button
             type="button"
             disabled={busy || (!isOnline && !hasLocalPending && pendingCount === 0)}
             onClick={() => void handleSync()}
-            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-orange-600 text-base font-black text-white disabled:opacity-40"
+            className="h-12 w-full text-base font-bold"
           >
-            {busy && <Loader2 size={18} className="animate-spin" />}
-            Sincronizar
-            {!isOnline && pendingCount + (hasLocalPending ? 1 : 0) > 0 ? ` (${pendingCount + (hasLocalPending ? 1 : 0)})` : ''}
-          </button>
+            {busy ? 'Procesando...' : 'Sincronizar'}
+            {!busy && !isOnline && pendingCount + (hasLocalPending ? 1 : 0) > 0 ? ` (${pendingCount + (hasLocalPending ? 1 : 0)})` : ''}
+          </Button>
         </div>
       </div>
       <VConfirmDialog

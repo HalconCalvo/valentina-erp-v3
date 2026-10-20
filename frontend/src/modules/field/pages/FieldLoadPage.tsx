@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   getMyWorkday,
@@ -10,13 +10,21 @@ import QRScanner from '../components/QRScanner';
 import { getLocalTodayDateKey } from '../../planning/hooks/usePlanning';
 import { groupByCrew, isLate } from '../utils/loadGroups';
 import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
+import { VEmptyState } from '@/components/ui/VEmptyState';
+import { VPageHeader } from '@/components/ui/VPageHeader';
+import { formatDate } from '@/utils/format';
+import { AlertTriangle, Ban, HardHat, Layers, Mountain, QrCode, Truck, Wrench } from 'lucide-react';
 
-/** "Hoy" for today's work; otherwise the weekday and date (D32: the next business day is also listed). */
+const WEEKDAYS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
+/** "Hoy" for today's work; otherwise the weekday and DD/MM/AAAA (D32: the next business day is also listed).
+ *  The assignment date is a calendar day: only its YYYY-MM-DD part counts. */
 function workDayLabel(iso: string): string {
-  const day = new Date(iso);
-  const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+  const key = iso.slice(0, 10);
   if (key === getLocalTodayDateKey()) return 'Hoy';
-  return day.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'short' });
+  const [y, m, d] = key.split('-').map(Number);
+  return `${WEEKDAYS[new Date(y, m - 1, d).getDay()]} ${formatDate(key)}`;
 }
 
 /** Campo → Carga del camión: the leader loads the truck scanning a bundle of the house (Gabriel, 12/10: Logística
@@ -148,7 +156,7 @@ export default function FieldLoadPage() {
     setConfirming(true);
     try {
       await scanBundleQR(assignmentId, preview.bundle_qr_uuid);
-      showMessage('🔵🔵 Carga confirmada. Fotos, trabajo terminado y firma: en tus asignaciones de Campo.');
+      showMessage('Carga confirmada. Fotos, trabajo terminado y firma: en tus asignaciones de Campo.');
       setPreview(null);
       setView('detail');
       const list = await load({ silent: true });
@@ -164,52 +172,37 @@ export default function FieldLoadPage() {
     }
   };
 
+  // Guide v2 §6: status labels with border, no emojis
   const statusBadge = (status: string) => {
+    const tone = {
+      slate: 'bg-slate-50 text-slate-700 border-slate-200',
+      indigo: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+      blue: 'bg-blue-50 text-blue-700 border-blue-200',
+      emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    };
     const map: Record<string, { label: string; color: string }> = {
-      SCHEDULED: { label: 'Programado', color: 'bg-gray-200 text-gray-700' },
-      PENDING: { label: 'Por producir', color: 'bg-gray-200 text-gray-700' },
-      IN_PRODUCTION: { label: 'En producción', color: 'bg-indigo-100 text-indigo-700' },
-      CLOSED: { label: '🟢🟢 Firmado', color: 'bg-green-200 text-green-800' },
-      COMPLETED: { label: '🟢🟢 Firmado', color: 'bg-green-200 text-green-800' },
-      IN_PROGRESS: { label: '🔵🔵 Cargada', color: 'bg-blue-100 text-blue-700' },
-      READY: { label: 'Listo', color: 'bg-blue-100 text-blue-700' },
-      CARGADO: { label: '🔵🔵 Cargado', color: 'bg-blue-200 text-blue-800' },
-      INSTALLED: { label: '🟢 Trabajo Terminado', color: 'bg-green-200 text-green-800' },
+      SCHEDULED: { label: 'Programado', color: tone.slate },
+      PENDING: { label: 'Por producir', color: tone.slate },
+      IN_PRODUCTION: { label: 'En producción', color: tone.indigo },
+      CLOSED: { label: 'Firmado', color: tone.emerald },
+      COMPLETED: { label: 'Firmado', color: tone.emerald },
+      IN_PROGRESS: { label: 'Cargada', color: tone.blue },
+      READY: { label: 'Listo', color: tone.blue },
+      CARGADO: { label: 'Cargado', color: tone.blue },
+      INSTALLED: { label: 'Trabajo terminado', color: tone.emerald },
     };
-    const s = map[status] || {
-      label: status,
-      color: 'bg-gray-100 text-gray-600',
-    };
+    const s = map[status] || { label: status, color: tone.slate };
     return (
-      <span className={`px-3 py-1 rounded-full text-sm font-medium ${s.color}`}>
+      <span className={`shrink-0 inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded border ${s.color}`}>
         {s.label}
       </span>
     );
   };
 
-  const Header = ({ title, onBack }: { title: string; onBack?: () => void }) => (
-    <div className="flex items-center gap-3 px-4 py-4 bg-white border-b border-gray-200 sticky -top-3 md:-top-6 z-10 -mx-3 -mt-3 md:-mx-6 md:-mt-6 mb-4">
-      {onBack && (
-        <button
-          type="button"
-          onClick={onBack}
-          className="w-10 h-10 flex items-center justify-center 
-                     rounded-full bg-gray-100 active:bg-gray-200 text-xl"
-        >
-          ←
-        </button>
-      )}
-      <h1 className="text-lg font-bold text-gray-900 flex-1">{title}</h1>
-      <img
-        src="/logo.png"
-        alt="Valentina"
-        className="h-7 opacity-60"
-        onError={(e) => {
-          (e.target as HTMLImageElement).style.display = 'none';
-        }}
-      />
-    </div>
-  );
+  const goToList = () => {
+    setSelected(null);
+    setView('list');
+  };
 
   const renderCard = (a: WorkdayAssignment) => (
     <li key={a.assignment_id}>
@@ -219,74 +212,65 @@ export default function FieldLoadPage() {
           setSelected(a);
           setView('detail');
         }}
-        className="w-full text-left p-4 rounded-2xl bg-white border border-gray-200 shadow-sm active:bg-gray-50"
+        className="w-full text-left p-4 rounded-xl bg-white border border-slate-200 shadow-sm active:bg-slate-50"
       >
-        <div className="flex justify-between items-start gap-2 mb-2">
-          <span className="font-semibold text-gray-900">
-            {a.instance_name}
-          </span>
+        <div className="flex justify-between items-start gap-2 mb-1">
+          <span className="text-base font-bold text-slate-800">{a.instance_name}</span>
           {statusBadge(a.assignment_status)}
         </div>
-        <p className="text-sm text-gray-600 line-clamp-2">
+        <p className="text-sm text-slate-600 line-clamp-2">
           {a.project_name || '—'} · {a.client_name || '—'}
         </p>
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold text-indigo-600">
-            {laneLabel(a.lane)}
-          </p>
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <p className="text-xs font-bold text-indigo-700">{laneLabel(a.lane)}</p>
           {a.assignment_date && (
-            <p className="text-xs font-semibold text-gray-600 capitalize">
+            <p className={`text-xs font-bold ${isLate(a, getLocalTodayDateKey()) ? 'text-red-600' : 'text-slate-600'}`}>
               {isLate(a, getLocalTodayDateKey()) ? 'Atrasada · ' : ''}{workDayLabel(a.assignment_date)}
             </p>
           )}
         </div>
-        {String(userRole ?? '').toUpperCase() !== 'LOGISTICS' &&
-          a.leader_name && (
-            <p className="text-xs text-indigo-600 font-medium mt-1">
-              👷 {a.leader_name}
-            </p>
-          )}
+        {String(userRole ?? '').toUpperCase() !== 'LOGISTICS' && a.leader_name && (
+          <p className="mt-1 flex items-center gap-1 text-xs font-medium text-slate-700">
+            <HardHat size={14} className="text-amber-500" /> {a.leader_name}
+          </p>
+        )}
         {(a.team.helper_1 || a.team.helper_2) && (
-          <div className="flex flex-col gap-0.5">
-            {a.team.helper_1 && (
-              <p className="text-xs text-gray-500">
-                🔧 Ayudante: {a.team.helper_1.name}
+          <div className="mt-0.5 flex flex-col gap-0.5">
+            {[a.team.helper_1, a.team.helper_2].filter(Boolean).map((h) => (
+              <p key={h!.name} className="flex items-center gap-1 text-xs text-slate-500">
+                <Wrench size={12} /> Ayudante: {h!.name}
               </p>
-            )}
-            {a.team.helper_2 && (
-              <p className="text-xs text-gray-500">
-                🔧 Ayudante: {a.team.helper_2.name}
-              </p>
-            )}
+            ))}
           </div>
         )}
       </button>
     </li>
   );
 
-  if (loading && view === 'list' && assignments.length === 0) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh] text-gray-500">
-        Cargando jornada…
-      </div>
-    );
-  }
-
   const laneLabel = (lane: string | null) => {
-    if (lane === 'IM') return '🪵 Instalación MDF';
-    if (lane === 'IP') return '🪨 Instalación Piedra';
+    if (lane === 'IM') return <span className="inline-flex items-center gap-1"><Layers size={14} /> Instalación MDF</span>;
+    if (lane === 'IP') return <span className="inline-flex items-center gap-1"><Mountain size={14} /> Instalación Piedra</span>;
     return lane ?? '—';
   };
 
+  const fieldRow = (label: string, value: ReactNode) => (
+    <p className="flex justify-between gap-3">
+      <span className="text-slate-500">{label}</span>
+      <span className="text-right font-medium text-slate-800">{value}</span>
+    </p>
+  );
+
+  // Guide v2 (field screens): max-w-lg container, standard header with "Regresar a …" on the right, Button,
+  // VEmptyState, status labels; same data, scanner and handlers.
   return (
-    <div ref={pageRef} className="max-w-lg mx-auto pb-12">
+    <div ref={pageRef} className="max-w-lg mx-auto p-4 pb-24 space-y-4">
       {message && (
-        <div className="mb-3 px-4 py-3 rounded-xl bg-emerald-50 text-emerald-900 text-sm border border-emerald-200">
+        <div className="px-4 py-3 rounded-xl bg-emerald-50 text-emerald-800 text-sm font-medium border border-emerald-200">
           {message}
         </div>
       )}
       {error && (
-        <div className="mb-3 px-4 py-3 rounded-xl bg-red-50 text-red-800 text-sm border border-red-200">
+        <div className="px-4 py-3 rounded-xl bg-red-50 text-red-700 text-sm font-medium border border-red-200">
           {error}
         </div>
       )}
@@ -294,16 +278,19 @@ export default function FieldLoadPage() {
       {/* LISTA */}
       {view === 'list' && (
         <>
-          <Header title={pageTitle} />
-          <p className="text-sm text-gray-500 mb-4 px-1">
-            Carga del camión: escanea el QR de un bulto de cada casa.{' '}
-            {isLeader
-              ? 'Salen los trabajos de hoy y del siguiente día hábil.'
-              : 'Por cuadrilla, de la fecha más próxima a la más lejana; las atrasadas al final.'}
-          </p>
-          {assignments.length === 0 ? (
-            <div className="text-center py-16 text-gray-400 text-sm">
-              No hay trabajos pendientes para hoy ni para el siguiente día hábil.
+          <VPageHeader
+            variant="field"
+            icon={Truck}
+            title={pageTitle}
+            subtitle={isLeader ? 'Trabajos de hoy y del siguiente día hábil.' : 'Por cuadrilla; las atrasadas al final.'}
+            loading={loading}
+            onBack={() => navigate('/field')}
+            backLabel="Regresar a Mi jornada"
+          />
+          <p className="text-sm text-slate-500">Escanea el QR de un bulto de cada casa.</p>
+          {loading && assignments.length === 0 ? null : assignments.length === 0 ? (
+            <div className="bg-white border border-slate-200 rounded-xl shadow-sm">
+              <VEmptyState icon={<Truck />} title="No hay trabajos pendientes para hoy ni para el siguiente día hábil." />
             </div>
           ) : (
             isLeader ? (
@@ -315,12 +302,13 @@ export default function FieldLoadPage() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Buscar casa, OV, cliente o líder..."
-                  className="mb-4"
+                  className="h-12"
                 />
                 {groupByCrew(assignments, getLocalTodayDateKey(), search).map((group) => (
-                  <section key={group.leader} className="mb-6">
-                    <h2 className="text-sm font-bold text-gray-700 mb-2 px-1">
-                      👷 {group.leader} · {group.rows.length}
+                  <section key={group.leader} className="space-y-2">
+                    <h2 className="flex items-center gap-2 rounded-lg bg-indigo-50 border border-indigo-100 px-3 py-2 text-sm font-black text-indigo-900">
+                      <HardHat size={16} className="text-amber-500" /> {group.leader}
+                      <span className="ml-auto font-bold text-indigo-700 tabular-nums">{group.rows.length}</span>
                     </h2>
                     <ul className="flex flex-col gap-3">{group.rows.map(renderCard)}</ul>
                   </section>
@@ -334,92 +322,67 @@ export default function FieldLoadPage() {
       {/* DETALLE */}
       {view === 'detail' && selected && (
         <>
-          <Header
+          <VPageHeader
+            variant="field"
+            icon={HardHat}
             title={selected.instance_name}
-            onBack={() => {
-              setSelected(null);
-              setView('list');
-            }}
+            subtitle={selected.order_folio || undefined}
+            onBack={goToList}
+            backLabel="Regresar a Carga del camión"
           />
-          <div className="space-y-4 px-1">
-            <div className="flex flex-wrap gap-2 items-center">
-              <span className="text-xs text-gray-500">Asignación:</span>
-              {statusBadge(selected.assignment_status)}
-              <span className="text-xs text-gray-500 ml-2">Instancia:</span>
-              {statusBadge(selected.instance_status)}
-            </div>
-            <div className="rounded-2xl bg-white border border-gray-200 p-4 space-y-2 text-sm">
-              <p>
-                <span className="text-gray-500">Pedido:</span>{' '}
-                <span className="font-medium">{selected.order_folio || '—'}</span>
-              </p>
-              <p>
-                <span className="text-gray-500">Proyecto:</span>{' '}
-                {selected.project_name || '—'}
-              </p>
-              <p>
-                <span className="text-gray-500">Cliente:</span>{' '}
-                {selected.client_name || '—'}
-              </p>
-              <p>
-                <span className="text-gray-500">Dirección:</span>{' '}
-                {selected.client_address || '—'}
-              </p>
-              <p>
-                <span className="text-gray-500">Evidencia:</span>{' '}
-                {selected.evidence_photos_count} foto(s)
-              </p>
-              <p>
-                <span className="text-gray-500">Firma cliente:</span>{' '}
-                {selected.has_signature ? 'Sí' : 'Pendiente'}
-              </p>
-            </div>
-            <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4 text-sm">
-              <p className="text-sm font-bold text-indigo-600 mb-2">
-                {laneLabel(selected.lane)}
-              </p>
-              <p className="font-medium text-gray-700 mb-2">Equipo</p>
-              <p>Líder: {selected.team.leader.name}</p>
-              {selected.team.helper_1 && (
-                <p>Ayudante 1: {selected.team.helper_1.name}</p>
-              )}
-              {selected.team.helper_2 && (
-                <p>Ayudante 2: {selected.team.helper_2.name}</p>
-              )}
-            </div>
-            <div className="flex flex-col gap-3 pt-2">
-              {selected.assignment_status === 'SCHEDULED' ? (
-                <button
-                  type="button"
-                  onClick={() => setView('qr')}
-                  className="w-full py-4 rounded-2xl bg-blue-600 text-white font-semibold active:bg-blue-700"
-                >
-                  Escanear QR del bulto
-                </button>
-              ) : (
-                <div className="rounded-2xl bg-blue-50 border border-blue-200 p-4 text-sm text-blue-800">
-                  <p className="font-semibold">Ya está cargada.</p>
-                  <p className="mt-1">Las fotos, el trabajo terminado y la firma del cliente se registran en la casa, en Campo.</p>
-                  <button
-                    type="button"
-                    onClick={() => navigate('/field')}
-                    className="mt-3 w-full py-3 rounded-xl bg-blue-600 text-white font-semibold active:bg-blue-700"
-                  >
-                    Ir a mis asignaciones
-                  </button>
-                </div>
-              )}
-            </div>
+          <div className="flex flex-wrap gap-2 items-center text-xs text-slate-500">
+            <span>Asignación:</span>
+            {statusBadge(selected.assignment_status)}
+            <span className="ml-2">Instancia:</span>
+            {statusBadge(selected.instance_status)}
           </div>
+          <div className="rounded-xl bg-white border border-slate-200 shadow-sm p-4 space-y-2 text-sm">
+            {fieldRow('Pedido', selected.order_folio || '—')}
+            {fieldRow('Proyecto', selected.project_name || '—')}
+            {fieldRow('Cliente', selected.client_name || '—')}
+            {fieldRow('Dirección', selected.client_address || '—')}
+            {fieldRow('Evidencia', `${selected.evidence_photos_count} foto(s)`)}
+            {fieldRow('Firma del cliente', selected.has_signature ? 'Sí' : 'Pendiente')}
+          </div>
+          <div className="rounded-xl bg-white border border-slate-200 shadow-sm p-4 space-y-1 text-sm text-slate-700">
+            <p className="text-sm font-bold text-indigo-700 mb-2">{laneLabel(selected.lane)}</p>
+            <p className="font-bold text-slate-800">Equipo</p>
+            <p className="flex items-center gap-1"><HardHat size={14} className="text-amber-500" /> Líder: {selected.team.leader.name}</p>
+            {selected.team.helper_1 && (
+              <p className="flex items-center gap-1"><Wrench size={14} className="text-slate-400" /> Ayudante 1: {selected.team.helper_1.name}</p>
+            )}
+            {selected.team.helper_2 && (
+              <p className="flex items-center gap-1"><Wrench size={14} className="text-slate-400" /> Ayudante 2: {selected.team.helper_2.name}</p>
+            )}
+          </div>
+          {selected.assignment_status === 'SCHEDULED' ? (
+            <Button type="button" onClick={() => setView('qr')} className="h-12 w-full text-sm font-bold">
+              <QrCode size={18} /> Escanear QR del bulto
+            </Button>
+          ) : (
+            <div className="rounded-xl bg-blue-50 border border-blue-200 p-4 text-sm text-blue-800 space-y-3">
+              <div>
+                <p className="font-bold">Ya está cargada.</p>
+                <p className="mt-1">Las fotos, el trabajo terminado y la firma del cliente se registran en la casa, en Campo.</p>
+              </div>
+              <Button type="button" onClick={() => navigate('/field')} className="h-12 w-full text-sm font-bold">
+                Ir a mis asignaciones
+              </Button>
+            </div>
+          )}
         </>
       )}
 
       {/* QR */}
       {view === 'qr' && selected && (
         <>
-          <Header
+          <VPageHeader
+            variant="field"
+            icon={QrCode}
             title="Escanear bulto"
+            subtitle={selected.instance_name}
             onBack={() => setView('detail')}
+            backLabel="Regresar a la casa"
           />
           <QRScanner onScan={(text) => void handleQRScan(text)} />
         </>
@@ -427,64 +390,67 @@ export default function FieldLoadPage() {
 
       {view === 'confirm' && selected && preview && (
         <>
-          <Header
+          <VPageHeader
+            variant="field"
+            icon={Truck}
             title="Confirmar carga"
+            subtitle={preview.instance_name}
             onBack={() => { setPreview(null); setView('detail'); }}
+            backLabel="Regresar a la casa"
           />
-          <div className="p-4 flex flex-col gap-4">
-            <div className="rounded-2xl border border-slate-200 p-4 bg-white">
-              <p className="text-lg font-bold text-slate-800 leading-tight">{preview.instance_name}</p>
-              {preview.cliente && <p className="text-sm text-slate-500 mt-1">{preview.cliente}</p>}
-              {preview.proyecto && <p className="text-sm text-slate-500">{preview.proyecto}</p>}
-            </div>
+          <div className="rounded-xl border border-slate-200 shadow-sm p-4 bg-white">
+            <p className="text-lg font-bold text-slate-800 leading-tight">{preview.instance_name}</p>
+            {preview.cliente && <p className="text-sm text-slate-500 mt-1">{preview.cliente}</p>}
+            {preview.proyecto && <p className="text-sm text-slate-500">{preview.proyecto}</p>}
+          </div>
 
-            <div className="rounded-2xl bg-blue-50 border border-blue-200 p-5 text-center">
-              <p className="text-xs font-bold uppercase tracking-widest text-blue-500">Debes cargar</p>
-              {preview.lane === 'IP' ? (
-                <p className="text-4xl font-black text-blue-700 mt-2">{preview.piezas_piedra} piezas de piedra</p>
-              ) : (
-                <>
-                  <p className="text-4xl font-black text-blue-700 mt-2">{preview.bultos_total} bultos</p>
-                  <p className="text-sm font-semibold text-blue-600 mt-1">
-                    {preview.bultos_mdf} MDF + {preview.bultos_herrajes} Herrajes
-                  </p>
-                </>
-              )}
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 p-4 bg-white">
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Equipo asignado</p>
-              <p className="text-sm font-semibold text-slate-700 mt-1">
-                {(preview.equipo_asignado || []).join(' · ') || '—'}
-              </p>
-            </div>
-
-            {preview.bloqueo && (
-              <div className="rounded-2xl bg-red-50 border border-red-200 p-4 text-red-700 text-sm font-semibold">
-                ⛔ {preview.bloqueo}
-              </div>
-            )}
-
-            {preview.requiere_autorizacion && !preview.bloqueo && (
-              <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 text-amber-800 text-sm font-semibold">
-                ⚠ Esta instancia está asignada a {(preview.equipo_asignado || []).join(' y ')}.
-                <span className="block font-normal mt-1">
-                  Solo su líder confirma la carga; si cambió el equipo, Planeación lo reasigna.
-                </span>
-              </div>
-            )}
-
-            {preview.puede_confirmar && !preview.requiere_autorizacion && (
-              <button
-                type="button"
-                disabled={confirming}
-                onClick={() => void handleConfirmarCarga()}
-                className="w-full py-5 rounded-2xl bg-green-600 text-white text-lg font-bold active:bg-green-700 disabled:opacity-50"
-              >
-                {confirming ? 'Confirmando...' : '✅ Confirmar carga'}
-              </button>
+          <div className="rounded-xl bg-white border border-slate-200 shadow-sm p-5 text-center">
+            <p className="text-xs font-bold text-slate-500">Debes cargar</p>
+            {preview.lane === 'IP' ? (
+              <p className="text-3xl font-black text-indigo-700 mt-2 tabular-nums">{preview.piezas_piedra} piezas de piedra</p>
+            ) : (
+              <>
+                <p className="text-3xl font-black text-indigo-700 mt-2 tabular-nums">{preview.bultos_total} bultos</p>
+                <p className="text-sm font-bold text-slate-600 mt-1">
+                  {preview.bultos_mdf} MDF + {preview.bultos_herrajes} Herrajes
+                </p>
+              </>
             )}
           </div>
+
+          <div className="rounded-xl border border-slate-200 shadow-sm p-4 bg-white">
+            <p className="text-xs font-bold text-slate-500">Equipo asignado</p>
+            <p className="text-sm font-bold text-slate-700 mt-1">
+              {(preview.equipo_asignado || []).join(' · ') || '—'}
+            </p>
+          </div>
+
+          {preview.bloqueo && (
+            <div className="flex gap-2 rounded-xl bg-red-50 border border-red-200 p-4 text-red-700 text-sm font-bold">
+              <Ban size={18} className="shrink-0" /> {preview.bloqueo}
+            </div>
+          )}
+
+          {preview.requiere_autorizacion && !preview.bloqueo && (
+            <div className="flex gap-2 rounded-xl bg-amber-50 border border-amber-200 p-4 text-amber-800 text-sm">
+              <AlertTriangle size={18} className="shrink-0" />
+              <div>
+                <p className="font-bold">Esta instancia está asignada a {(preview.equipo_asignado || []).join(' y ')}.</p>
+                <p className="mt-1">Solo su líder confirma la carga; si cambió el equipo, Planeación lo reasigna.</p>
+              </div>
+            </div>
+          )}
+
+          {preview.puede_confirmar && !preview.requiere_autorizacion && (
+            <Button
+              type="button"
+              disabled={confirming}
+              onClick={() => void handleConfirmarCarga()}
+              className="h-12 w-full text-base font-bold bg-emerald-600 hover:bg-emerald-700"
+            >
+              {confirming ? 'Procesando...' : 'Confirmar carga'}
+            </Button>
+          )}
         </>
       )}
 
