@@ -201,7 +201,8 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     }>({ open: false, orderId: null, folio: '', providerEmail: '' });
     const [sendingEmail, setSendingEmail] = useState(false);
 
-    const [pendingCategory, setPendingCategory] = useState<string>('');
+    // Gabriel 20/10: OCs from requisitions are materials by default (changeable); direct OCs still ask for it
+    const [pendingCategory, setPendingCategory] = useState<string>('MATERIALES');
     const [pendingTaxRate, setPendingTaxRate] = useState<string>('0.16');
     const [categoryError, setCategoryError] = useState<string | null>(null);
     const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);

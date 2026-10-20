@@ -190,3 +190,26 @@ def test_credit_note_return_converts_purchase_units_to_stock_units(client_fixtur
     session_fixture.refresh(material)
     assert material.physical_stock == 1000
     assert response.json()["total_amount"] == 580.0  # 1 millar × $500 + 16%
+
+
+def test_no_automatic_requisition_while_the_material_is_in_a_draft_po(session_fixture):
+    """Gabriel 20/10: at most one automatic requisition per material; none while it sits in an OC not yet authorized,
+    even if that OC does not cover the minimum."""
+    low = Material(sku="F4-DRAFT", name="Tornillo", category="HERRAJE", production_route=ProductionRoute.MATERIAL,
+                   purchase_unit="Pz", usage_unit="Pz", physical_stock=0, min_stock=20)
+    provider = Provider(business_name="Cerrajes", credit_days=0, is_active=True)
+    session_fixture.add_all([low, provider])
+    session_fixture.flush()
+    po = PurchaseOrder(provider_id=provider.id, folio="OC-DRAFT", status="DRAFT")
+    session_fixture.add(po)
+    session_fixture.flush()
+    session_fixture.add(PurchaseOrderItem(purchase_order_id=po.id, material_id=low.id, quantity_ordered=1,
+                                          expected_unit_cost=1))
+    session_fixture.commit()
+    assert PurchaseManager.evaluate_and_create_automatic_requisitions(session_fixture) == 0
+    po.status = "CANCELADA"
+    session_fixture.add(po)
+    session_fixture.commit()
+    assert PurchaseManager.evaluate_and_create_automatic_requisitions(session_fixture) == 1
+    assert PurchaseManager.evaluate_and_create_automatic_requisitions(session_fixture) == 0
+    assert len(session_fixture.exec(select(PurchaseRequisition).where(PurchaseRequisition.material_id == low.id)).all()) == 1

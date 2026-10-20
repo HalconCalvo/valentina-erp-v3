@@ -531,6 +531,12 @@ def has_active_requisition(db: Session, material_id: int) -> bool:
     )).first() is not None
 
 
+def has_draft_po_item(db: Session, material_id: int) -> bool:
+    """The material is already in an OC that is not authorized yet (DRAFT)."""
+    return db.exec(select(PurchaseOrderItem.id).join(PurchaseOrder, PurchaseOrder.id == PurchaseOrderItem.purchase_order_id)
+                   .where(PurchaseOrderItem.material_id == material_id, PurchaseOrder.status == "DRAFT")).first() is not None
+
+
 def get_sales_order_labels(db: Session, order_ids: List[int]) -> Dict[int, str]:
     """{id: "OV-0157 · Project"} for the given sales orders."""
     ids = [i for i in set(order_ids) if i]

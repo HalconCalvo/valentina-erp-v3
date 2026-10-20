@@ -39,7 +39,9 @@ def _create_missing_requisitions(db: Session) -> int:
         transit = transit_by_material.get(material.id, 0.0)
         if float(material.physical_stock or 0.0) + transit > float(material.min_stock or 0.0):
             continue
-        if purchase_repo.has_active_requisition(db, material.id):
+        # At most one automatic requisition per material (Gabriel 20/10): none if one is open or the material is
+        # already in an OC not authorized yet
+        if purchase_repo.has_active_requisition(db, material.id) or purchase_repo.has_draft_po_item(db, material.id):
             continue
         db.add(PurchaseRequisition(
             material_id=material.id, custom_description=purchase_repo.AUTO_REQUISITION_DESCRIPTION,
