@@ -10,30 +10,6 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 > REGLA PARA CLAUDE CODE: al terminar una instrucción, mueve a "Hechas" SOLO ese bloque. Las demás instrucciones se quedan en Pendientes.
 
-### 20/10 16:43 — Generar OC: categoría de gasto prellenada + solicitud duplicada (Gabriel aprobó ambas)
-1. Generar OC (desde solicitudes): "Categoría de gasto" viene prellenada con MATERIALES y se puede cambiar; ya no bloquea el
-   botón. OC directa: se sigue pidiendo obligatoria (puede ser gasolina, servicio, maquila…). No cambiar las categorías ni el
-   reporte semanal de Tesorería.
-2. BUG: en Generar OC, CERRAJES MEXICO SA DE CV muestra dos renglones idénticos del SKU 0502-004 "Tornillo sinker PH plano ngr
-   #8 x 1 1/2", 20 piezas cada uno, ambos "Alarma del sistema". Investigar por qué la alarma de stock mínimo creó dos
-   solicitudes (¿se dispara en cada carga/consulta? ¿falta revisar si ya hay una abierta para ese material?). Corregir para que
-   exista a lo más UNA solicitud automática abierta por material (si ya hay una abierta o en OC no autorizada, no crear otra).
-   En Pruebas: cancelar el duplicado con bitácora y motivo "Duplicado de alarma automática". Reportar la causa y cuántos
-   duplicados había en Pruebas y en producción (solo lectura en producción).
-AVANCE [20/10 17:04, commit 069db2e; queda en Pendientes por el paso de datos]:
-1. Hecho: Generar OC prellena "Categoría de gasto" = MATERIALES (se puede cambiar; ya no bloquea); OC directa sigue vacía y
-   obligatoria. Categorías y reporte semanal sin cambios.
-2. Causa: las dos solicitudes (26 y 27, material 0502-004) se crearon en el MISMO segundo el 04/09/2026 23:25, cuando tres
-   pantallas evaluaban la alarma al mismo tiempo; el candado (un solo cálculo a la vez) se agregó el 10/10 (66f5483), y
-   desde entonces no se repite. Además ahora: a lo más una automática por material — no se crea si ya hay una abierta
-   (pendiente, en compra o aplazada) ni si el material está en una OC sin autorizar (borrador), aunque esa OC no alcance el
-   mínimo. Con test.
-   Duplicados: Pruebas 1 par abierto (26/27); producción 0 abiertos (ese mismo par existe pero ya está cerrado, PROCESADA,
-   porque el stock subió; no hay OC con 40 piezas por él).
-   FALTA: cancelar la 27 en Pruebas con motivo "Duplicado de alarma automática". El modo automático de Claude Code bloqueó
-   la escritura en la base de Pruebas (CLAUDE.md pide aprobación explícita de Gabriel para INSERT/UPDATE). Script listo
-   (verifica que no sea producción, cambia solo la 27 a CANCELADA con bitácora y motivo); en espera de que Gabriel lo apruebe.
-
 
 ## Preguntas para el asesor
 
@@ -93,6 +69,32 @@ AVANCE [20/10 17:04, commit 069db2e; queda en Pendientes por el paso de datos]:
 
 ## Hechas
 
+### 20/10 16:43 — Generar OC: categoría de gasto prellenada + solicitud duplicada (Gabriel aprobó ambas)
+1. Generar OC (desde solicitudes): "Categoría de gasto" viene prellenada con MATERIALES y se puede cambiar; ya no bloquea el
+   botón. OC directa: se sigue pidiendo obligatoria (puede ser gasolina, servicio, maquila…). No cambiar las categorías ni el
+   reporte semanal de Tesorería.
+2. BUG: en Generar OC, CERRAJES MEXICO SA DE CV muestra dos renglones idénticos del SKU 0502-004 "Tornillo sinker PH plano ngr
+   #8 x 1 1/2", 20 piezas cada uno, ambos "Alarma del sistema". Investigar por qué la alarma de stock mínimo creó dos
+   solicitudes (¿se dispara en cada carga/consulta? ¿falta revisar si ya hay una abierta para ese material?). Corregir para que
+   exista a lo más UNA solicitud automática abierta por material (si ya hay una abierta o en OC no autorizada, no crear otra).
+   En Pruebas: cancelar el duplicado con bitácora y motivo "Duplicado de alarma automática". Reportar la causa y cuántos
+   duplicados había en Pruebas y en producción (solo lectura en producción).
+AVANCE [20/10 17:04, commit 069db2e; queda en Pendientes por el paso de datos]:
+1. Hecho: Generar OC prellena "Categoría de gasto" = MATERIALES (se puede cambiar; ya no bloquea); OC directa sigue vacía y
+   obligatoria. Categorías y reporte semanal sin cambios.
+2. Causa: las dos solicitudes (26 y 27, material 0502-004) se crearon en el MISMO segundo el 04/09/2026 23:25, cuando tres
+   pantallas evaluaban la alarma al mismo tiempo; el candado (un solo cálculo a la vez) se agregó el 10/10 (66f5483), y
+   desde entonces no se repite. Además ahora: a lo más una automática por material — no se crea si ya hay una abierta
+   (pendiente, en compra o aplazada) ni si el material está en una OC sin autorizar (borrador), aunque esa OC no alcance el
+   mínimo. Con test.
+   Duplicados: Pruebas 1 par abierto (26/27); producción 0 abiertos (ese mismo par existe pero ya está cerrado, PROCESADA,
+   porque el stock subió; no hay OC con 40 piezas por él).
+   FALTA: cancelar la 27 en Pruebas con motivo "Duplicado de alarma automática". El modo automático de Claude Code bloqueó
+   la escritura en la base de Pruebas (CLAUDE.md pide aprobación explícita de Gabriel para INSERT/UPDATE). Script listo
+   (verifica que no sea producción, cambia solo la 27 a CANCELADA con bitácora y motivo); en espera de que Gabriel lo apruebe.
+HECHO [20/10 17:17, Pruebas]: Gabriel aprobó (20/10). Solicitud 27 cancelada en Pruebas (CANCELADA, bitácora con motivo
+"Duplicado de alarma automática"); la 26 sigue pendiente. Producción: nada que cancelar (0 duplicados abiertos).
+
 ### 20/10 16:53 — Revisar OC-M260807225203 (MIDO MARMOL Y GRANITO) en "En recepción" (Gabriel)
 En pantalla muestra 2 partidas QUA-DUMONT (1/1 recibidas: $14,277.36 y $11,935.13 = $26,212.49) pero el Subtotal dice $50,082.75
 (Total $58,095.99) y la OC sigue como recepción parcial aunque no falta nada visible. Diferencia $23,870.26.
@@ -124,6 +126,10 @@ corregidos (espera aprobación de Gabriel).
 - Propuesta de corrección de datos (requiere tu aprobación; Pruebas y después producción por migración con bitácora):
   OC-M260807225203 total → $26,212.49 y estado → Recibida total; OC-M261006223132 total → $12,445.80. Las cuentas por pagar
   de MIDO NO se tocan hasta que Administración confirme.
+  APROBADO por Gabriel (20/10): Pruebas sí; producción sin escribir, como corrección al pasar a main (igual que D39).
+  HECHO [20/10 17:17]: migración 2ecb8aa6be05 (commit ef773bc), solo esas dos OCs y solo si el total aún no cuadra, bitácora
+  por campo, bajada restaura. Probada en la copia local (subir, bajar, subir, y no cambia lo ya corregido). Pruebas ya la
+  aplicó: MIDO $26,212.49 y Recibida total; CERRAJES $12,445.80. Producción la aplicará al pasar a main.
 
 ### 20/10 16:48 — BUG: "Ver PDF oficial" de la OC no abre (Gabriel)
 Causa probable (revisada por el asesor): PurchaseOrdersModule.openPdf (~979) y AllPurchaseOrdersModule (~331) abren

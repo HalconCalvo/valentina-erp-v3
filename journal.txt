@@ -5276,3 +5276,6 @@ MARTES 20/10/2026
   bloqueó la escritura en la base) y corregir totales/estado de las 2 OCs.
 - Lección: las escrituras en la base de Pruebas también piden aprobación explícita (no basta el buzón); preparar el script
   y pedirla al reportar.
+- 17:17 Gabriel aprobó: solicitud 27 cancelada en Pruebas con bitácora; migración 2ecb8aa6be05 (ef773bc) corrige totales de
+  OC-M260807225203 (y su estado) y OC-M261006223132; Pruebas ya la aplicó, producción al pasar a main (como D39).
+  Las CxP duplicadas de MIDO siguen para Administración.
