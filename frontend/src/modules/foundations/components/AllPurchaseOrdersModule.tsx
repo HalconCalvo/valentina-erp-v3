@@ -9,6 +9,7 @@ import Modal from '@/components/ui/Modal';
 import { ModalFooter } from '@/components/ui/ModalFooter';
 import { VTextarea } from '@/components/ui/VTextarea';
 import { formatDate, formatMoney } from '@/utils/format';
+import { poAuthorizedNote, poCreatedNote } from '../utils/poNotes';
 
 const STATUS_LABELS: Record<string, string> = {
     DRAFT: 'Borrador', AUTORIZADA: 'Autorizada', ENVIADA: 'Enviada', EN_ESPERA_ANTICIPO: 'En espera de anticipo',
@@ -226,13 +227,27 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
             },
             {
                 key: 'created_at',
-                label: 'Fecha',
+                label: 'Creada',
                 sortable: true,
                 sortValue: (row) => (row.created_at ? new Date(String(row.created_at)).getTime() : null),
                 render: (row) => (
                     <span className="text-slate-600 whitespace-nowrap">
                         {row.created_at ? formatDate(String(row.created_at)) : '—'}
                     </span>
+                ),
+            },
+            {
+                key: 'authorized_at',
+                label: 'Autorizada',
+                sortable: true,
+                sortValue: (row) => (row.authorized_at ? new Date(String(row.authorized_at)).getTime() : null),
+                render: (row) => (
+                    row.authorized_at ? (
+                        <span className="text-slate-600 whitespace-nowrap"
+                            title={row.authorized_by_name ? `Por ${String(row.authorized_by_name)}` : undefined}>
+                            {formatDate(String(row.authorized_at))}
+                        </span>
+                    ) : <span className="text-slate-300 text-xs">—</span>
                 ),
             },
             {
@@ -303,7 +318,9 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
                                 <span className="font-mono text-xs text-slate-600">{selected.folio}</span>
                                 <StatusTag status={String(selected.status ?? '')} />
                             </div>
-                            <p className="text-xs text-slate-500 mt-0.5">Fecha: {formatDate(selected.created_at)}</p>
+                            {[poCreatedNote(selected), poAuthorizedNote(selected)].filter(Boolean).map((note) => (
+                                <p key={note} className="text-xs text-slate-500 mt-0.5">{note}</p>
+                            ))}
                         </div>
                         <Button
                             variant="outline"

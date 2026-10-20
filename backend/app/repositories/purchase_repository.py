@@ -378,6 +378,13 @@ def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
     return db.get(User, user_id)
 
 
+def get_user_names(db: Session, user_ids) -> Dict[int, str]:
+    ids = {uid for uid in user_ids if uid}
+    if not ids:
+        return {}
+    return {u.id: (u.full_name or u.email) for u in db.exec(select(User).where(User.id.in_(ids))).all()}
+
+
 def get_user_by_email(db: Session, email: str) -> Optional[User]:
     normalized = (email or "").strip()
     if not normalized:

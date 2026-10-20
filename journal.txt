@@ -5231,3 +5231,35 @@ LUNES 19/10/2026
 - Hallazgos en pantalla corregidos: encabezado angosto en Nueva solicitud; P. unit cortado en recepción; "PIEDRA" en
   mayúsculas; barras con borde oscuro (border-b sin color usa el color por defecto: siempre border-slate-200).
 - Propuestas y dudas en el buzón (Hechas 17:40). Espera aprobación para la tanda 2.
+
+================================================================
+CIERRE DEL DÍA — 19/10/2026 (asesor)
+================================================================
+HECHO HOY EN PRUEBAS
+- D44 comisión global: Configuración → "Comisión global" (beneficiario + %; solo Dirección, con bitácora). Lic. Gabriel Frías
+  García al 2 %. Las globales aparecen en Comisiones por pagar ("Global") y se pagan con el diálogo D40.
+  Las del Ing. Gabriel Frías (cálculo viejo duplicado) quedaron OMITIDAS: 22 en Pruebas ($47,300.33); en main D39 omitirá 18
+  ($46,348.04) y marcará "pagadas fuera de Valentina" las 19 del Lic. ($47,978.39).
+- Rentabilidad: Rayos X y tablero de Dirección restan la comisión global. OV-0157: 27.48 %; margen del año: 19.25 %.
+- Pago a proveedor muestra "OC-… autorizada por … el DD/MM/AAAA". (La autorización de PAGO existe en backend sin pantallas.)
+- Obra piloto: comisiones de vendedor $2,380.73 pagadas (Efectivo Dirección); nómina de cuadrilla completa (David $3,200 =
+  $1,200 Banco + $2,000 Efectivo Dirección; resto $2,800). Por pagar: 4 globales del Lic. ($952.29).
+- Piloto tercera ola aprobado (Antigüedad, Clientes, Caja chica, Campo) con ajustes; Caja chica ordenable por columnas.
+- Reglas nuevas de la guía: listados = ancho completo, formularios angostos; un botón de color por pantalla; columnas
+  principales ordenables; las funciones nuevas se proponen, no se hacen sin aprobación.
+- TANDA 1 terminada en Pruebas (commit 38362c9): componentes base + Diseño, Compras, Andén, Piso de Producción, Campo,
+  Nómina, Pendiente de Facturar. Capturas en docs/ola3_tanda1/.
+- Auto mode de Claude Code configurado: push a main y escrituras a la BD de producción piden permiso.
+- Karina: Gabriel confirma que vea la Rentabilidad ("quiero hacer de Karina mi brazo fuerte").
+
+PARA MAÑANA (en orden)
+1. Gabriel revisa la tanda 1 en Pruebas (Órdenes de compra, Andén, Piso de Producción, Nómina).
+2. Responder las 5 dudas de la tanda 1. Recomendación del asesor: (1) etiquetas chicas en mayúsculas se quedan, como Cobranza;
+   (2) "Confirmar ingreso" en índigo; (3) en Detalle de casa el botón de color es "Confirmar firma", no "Sincronizar";
+   (4) se queda "Mesa de control"; (5) se quedan los números/letras de las tarjetas de hubs.
+   Y aprobar sus 4 propuestas (buscador/filtro en Andén, Actualizar donde falta, buscador estándar de proveedor/SKU, estados de
+   OC en español).
+3. Reiniciar Claude Code para instalar la actualización (/exit y claude --continue).
+4. Tanda 2 (Tesorería, Gerencia, Nómina) y tanda 3 (catálogos y configuración).
+5. Pendientes: Seguimiento de OV; D43 paso 1 ("Reportar un detalle"); catálogo de cuadrillas (después del arranque);
+   pagar las globales del Lic. en OV-0157; mejoras del correo; D39 y pase a main; simulacro con el equipo.

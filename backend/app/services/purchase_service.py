@@ -48,6 +48,14 @@ def resolve_po_authorizer_user(db: Session, po: PurchaseOrder):
     return user
 
 
+def resolve_po_authorizer_name(db: Session, po: PurchaseOrder) -> Optional[str]:
+    """Name only (no role) of who authorized the OC; the stored text when it matches no user."""
+    user = resolve_po_authorizer_user(db, po)
+    if user:
+        return user.full_name or user.email
+    return getattr(po, "authorized_by", None) or None
+
+
 def resolve_po_authorizer_display(db: Session, po: PurchaseOrder) -> Optional[str]:
     if not getattr(po, "approved_by_user_id", None) and not getattr(po, "authorized_by", None):
         return None
@@ -108,6 +116,7 @@ def list_purchase_orders(
 
     order_labels = purchase_repo.get_sales_order_labels(
         db, [it.sales_order_id for items in items_by_po.values() for it in items])
+    creator_names = purchase_repo.get_user_names(db, (o.created_by_user_id for o in orders))
     results: List[dict] = []
     for o in orders:
         prov = prov_map.get(o.provider_id)
@@ -136,6 +145,7 @@ def list_purchase_orders(
             "folio": o.folio,
             "status": o.status,
             "created_at": o.created_at.isoformat() if getattr(o, "created_at", None) else None,
+            "created_by_name": creator_names.get(o.created_by_user_id),
             "provider_name": prov.business_name if prov else "Proveedor Desconocido",
             "provider_email": getattr(prov, "contact_email", None) if prov else None,
             "credit_days": getattr(prov, "credit_days", 0) if prov else 0,
@@ -143,6 +153,7 @@ def list_purchase_orders(
             "tax_rate": o.tax_rate if o.tax_rate is not None else 0.16,
             "items": items_formatted,
             "authorized_by": resolve_po_authorizer_display(db, o),
+            "authorized_by_name": resolve_po_authorizer_name(db, o),
             "authorized_at": o.authorized_at.isoformat() if getattr(o, "authorized_at", None) else None,
             "invoice_folio_reported": getattr(o, "invoice_folio_reported", None),
             "invoice_folios": folios_by_po.get(o.id),

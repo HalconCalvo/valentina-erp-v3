@@ -4,6 +4,8 @@ from app.core.config import settings
 from app.models.foundations import Provider
 from app.models.inventory import PurchaseOrder, PurchaseOrderItem, PurchaseRequisition
 from app.models.material import Material, ProductionRoute
+from app.repositories import purchase_repository as purchase_repo
+from app.services import purchase_service
 from tests.sales_helpers import create_order_via_quotation
 
 
@@ -312,3 +314,19 @@ def test_kardex_shows_the_po_folio_of_a_reception(client_fixture, auth_header_di
                                 headers=auth_header_director).json()
     folio = session_fixture.get(PurchaseOrder, po_id).folio
     assert [e["reference"] for e in kardex["entries"]] == [folio]
+
+
+def test_po_creator_and_authorizer_names(client_fixture, auth_header_director, session_fixture):
+    """Gabriel 20/10: Mesa de control shows "Creada el … por …" and later views "Autorizada por <nombre> el …"
+    (the list endpoint uses PostgreSQL-only SQL, so the two helpers it calls are tested directly)."""
+    provider, material = _seed_provider_and_material(session_fixture)
+    po_id = _create_draft_po(client_fixture, auth_header_director, provider.id, material.id)
+    po = session_fixture.get(PurchaseOrder, po_id)
+    assert purchase_service.resolve_po_authorizer_name(session_fixture, po) is None
+    creator = purchase_repo.get_user_names(session_fixture, [po.created_by_user_id])
+    _authorize_po(client_fixture, auth_header_director, po_id)
+    session_fixture.refresh(po)
+    assert po.authorized_at is not None
+    assert purchase_service.resolve_po_authorizer_name(session_fixture, po) == creator[po.created_by_user_id]
+    po.authorized_by = "Dirección"  # legacy text that matches no user
+    assert purchase_service.resolve_po_authorizer_name(session_fixture, po) == "Dirección"

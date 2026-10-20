@@ -34,6 +34,7 @@ import {
 } from '../../../hooks/usePurchaseOrders';
 import { AllPurchaseOrdersModule } from './AllPurchaseOrdersModule';
 import { formatMoney } from '@/utils/format';
+import { poAuthorizedNote, poCreatedNote } from '../utils/poNotes';
 
 type PendingConfirm =
     | { kind: 'emit'; group: any }
@@ -1270,7 +1271,8 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                         const canEditCategory = ['DIRECTOR', 'MANAGER', 'ADMIN'].includes(role);
                         return (
                             <div key={idx} className={CARD}>
-                                <OrderGroupHeader title={order.provider_name} folio={order.folio}>
+                                <OrderGroupHeader title={order.provider_name} folio={order.folio}
+                                    note={isPartial ? poAuthorizedNote(order) : poCreatedNote(order)}>
                                     {canEditCategory && (
                                         <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
                                             <span>Categoría:</span>
@@ -1418,6 +1420,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 title={order.provider_name}
                                 folio={order.folio}
                                 tag={<span className="inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded border bg-amber-50 text-amber-700 border-amber-200">Anticipo solicitado</span>}
+                                note={poAuthorizedNote(order)}
                                 actions={(
                                     <Button variant="outline" size="sm" onClick={() => openPdf(order.id)}>
                                         <FileText size={14} /> Ver PDF oficial
@@ -1465,7 +1468,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                 <OrderGroupHeader
                                     title={order.provider_name}
                                     folio={order.folio}
-                                    note={`Autorizó: ${order.authorized_by || 'Sistema'}`}
+                                    note={poAuthorizedNote(order)}
                                     actions={(
                                         <Button variant="outline" size="sm" onClick={() => openPdf(order.id)}>
                                             <FileText size={14} /> Ver PDF oficial
