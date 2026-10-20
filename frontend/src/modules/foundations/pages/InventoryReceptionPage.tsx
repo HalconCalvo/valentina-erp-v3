@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-    Truck, CheckCircle2, Save, PackageCheck, Ban, AlertTriangle, Plus, X,
+    Truck, CheckCircle2, Save, PackageCheck, Ban, AlertTriangle, Plus, X, Search,
 } from 'lucide-react';
 import axiosClient from '../../../api/axios-client';
 import { MaterialForm } from '../components/MaterialForm';
@@ -14,6 +14,7 @@ import { formatDate, formatMoney } from '@/utils/format';
 import Modal from '@/components/ui/Modal';
 import { ModalFooter } from '@/components/ui/ModalFooter';
 import { VPageHeader } from '@/components/ui/VPageHeader';
+import { matchesSearch } from '@/utils/search';
 
 type PendingConfirm =
     | { kind: 'cancel' }
@@ -57,6 +58,9 @@ const todayIso = (): string => {
 
 const InventoryReceptionPage: React.FC<InventoryReceptionPageProps> = ({ embedded = false, onSubSectionChange }) => {
     const [incomingPOs, setIncomingPOs] = useState<any[]>([]);
+    // Gabriel 20/10: on-screen search (folio or supplier, no case/accents) and status filter for the list
+    const [poSearch, setPoSearch] = useState('');
+    const [poStatusFilter, setPoStatusFilter] = useState('');
     const [isLoadingPOs, setIsLoadingPOs] = useState(false);
     
     const [selectedPO, setSelectedPO] = useState<any | null>(null);
@@ -567,6 +571,10 @@ const InventoryReceptionPage: React.FC<InventoryReceptionPageProps> = ({ embedde
         },
     ];
 
+    const poStatusKey = (po: any) => (po.status === 'RECIBIDA_PARCIAL' ? 'PARTIAL' : 'TRANSIT');
+    const visiblePOs = incomingPOs.filter((po) => matchesSearch(poSearch, po.folio, po.provider_name)
+        && (!poStatusFilter || (poStatusFilter === 'PREPAID' ? !!po.is_advance : poStatusKey(po) === poStatusFilter)));
+
     if (!selectedPO) {
         return (
             <>
@@ -581,19 +589,50 @@ const InventoryReceptionPage: React.FC<InventoryReceptionPageProps> = ({ embedde
                     />
                 )}
 
+                <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="lg:col-span-2">
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Buscar</label>
+                            <div className="relative">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <Search size={18} className="text-slate-400" />
+                                </div>
+                                <Input type="text" className="pl-10 text-sm font-medium" value={poSearch}
+                                    placeholder="Folio o proveedor..." onChange={(e) => setPoSearch(e.target.value)} />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Estado</label>
+                            <SearchableSelect
+                                items={[
+                                    { value: '', label: 'Todos' },
+                                    { value: 'TRANSIT', label: 'En tránsito' },
+                                    { value: 'PARTIAL', label: 'Entrega parcial' },
+                                    { value: 'PREPAID', label: 'Prepagada' },
+                                ]}
+                                value={poStatusFilter}
+                                onChange={setPoStatusFilter}
+                                getLabel={(o) => o.label}
+                                getValue={(o) => o.value}
+                                placeholder="Todos"
+                            />
+                        </div>
+                    </div>
+                </div>
+
                 <VTable
                     columns={poColumns as unknown as VTableColumn<Record<string, unknown>>[]}
-                    data={incomingPOs as Record<string, unknown>[]}
+                    data={visiblePOs as Record<string, unknown>[]}
                     isLoading={isLoadingPOs}
                     onRowClick={(po) => handleSelectPO(po)}
                     headerStyle="report"
                     className="shadow-sm"
                     maxHeight="75vh"
-                    emptyState={{
+                    emptyState={incomingPOs.length === 0 ? {
                         icon: <CheckCircle2 size={48} />,
                         title: 'Andén despejado',
                         description: 'No hay órdenes de compra en tránsito en este momento.',
-                    }}
+                    } : { title: 'No hay órdenes con los filtros seleccionados.' }}
                 />
             </div>
 
