@@ -8,6 +8,32 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Pendientes
 
+> REGLA PARA CLAUDE CODE: al terminar una instrucción, mueve a "Hechas" SOLO ese bloque. Las demás instrucciones se quedan en Pendientes.
+
+### 20/10 16:43 — Generar OC: categoría de gasto prellenada + solicitud duplicada (Gabriel aprobó ambas)
+1. Generar OC (desde solicitudes): "Categoría de gasto" viene prellenada con MATERIALES y se puede cambiar; ya no bloquea el
+   botón. OC directa: se sigue pidiendo obligatoria (puede ser gasolina, servicio, maquila…). No cambiar las categorías ni el
+   reporte semanal de Tesorería.
+2. BUG: en Generar OC, CERRAJES MEXICO SA DE CV muestra dos renglones idénticos del SKU 0502-004 "Tornillo sinker PH plano ngr
+   #8 x 1 1/2", 20 piezas cada uno, ambos "Alarma del sistema". Investigar por qué la alarma de stock mínimo creó dos
+   solicitudes (¿se dispara en cada carga/consulta? ¿falta revisar si ya hay una abierta para ese material?). Corregir para que
+   exista a lo más UNA solicitud automática abierta por material (si ya hay una abierta o en OC no autorizada, no crear otra).
+   En Pruebas: cancelar el duplicado con bitácora y motivo "Duplicado de alarma automática". Reportar la causa y cuántos
+   duplicados había en Pruebas y en producción (solo lectura en producción).
+AVANCE [20/10 17:04, commit 069db2e; queda en Pendientes por el paso de datos]:
+1. Hecho: Generar OC prellena "Categoría de gasto" = MATERIALES (se puede cambiar; ya no bloquea); OC directa sigue vacía y
+   obligatoria. Categorías y reporte semanal sin cambios.
+2. Causa: las dos solicitudes (26 y 27, material 0502-004) se crearon en el MISMO segundo el 04/09/2026 23:25, cuando tres
+   pantallas evaluaban la alarma al mismo tiempo; el candado (un solo cálculo a la vez) se agregó el 10/10 (66f5483), y
+   desde entonces no se repite. Además ahora: a lo más una automática por material — no se crea si ya hay una abierta
+   (pendiente, en compra o aplazada) ni si el material está en una OC sin autorizar (borrador), aunque esa OC no alcance el
+   mínimo. Con test.
+   Duplicados: Pruebas 1 par abierto (26/27); producción 0 abiertos (ese mismo par existe pero ya está cerrado, PROCESADA,
+   porque el stock subió; no hay OC con 40 piezas por él).
+   FALTA: cancelar la 27 en Pruebas con motivo "Duplicado de alarma automática". El modo automático de Claude Code bloqueó
+   la escritura en la base de Pruebas (CLAUDE.md pide aprobación explícita de Gabriel para INSERT/UPDATE). Script listo
+   (verifica que no sea producción, cambia solo la 27 a CANCELADA con bitácora y motivo); en espera de que Gabriel lo apruebe.
+
 
 ## Preguntas para el asesor
 
@@ -67,6 +93,54 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Hechas
 
+### 20/10 16:53 — Revisar OC-M260807225203 (MIDO MARMOL Y GRANITO) en "En recepción" (Gabriel)
+En pantalla muestra 2 partidas QUA-DUMONT (1/1 recibidas: $14,277.36 y $11,935.13 = $26,212.49) pero el Subtotal dice $50,082.75
+(Total $58,095.99) y la OC sigue como recepción parcial aunque no falta nada visible. Diferencia $23,870.26.
+Investigar en Pruebas (y solo lectura en producción): qué partidas tiene la OC (canceladas, quitadas, sin material, ocultas),
+de dónde sale total_estimated_amount y por qué el estado no pasó a recibida completa. Reportar la causa ANTES de corregir datos.
+Si es un defecto de código (total que no se recalcula al quitar/cancelar partidas, o estado que no se actualiza), proponer la
+corrección. Revisar igual las demás OCs de "En recepción" (p. ej. OC-M260717190517 BODEGA ELECTRONICA XAZE: verificar que su
+subtotal $5,405.00 cuadre con sus partidas).
+HECHO — investigación [20/10 17:04; solo lectura en producción; commit e9053db con la corrección de código]. Datos NO
+corregidos (espera aprobación de Gabriel).
+- OC-M260807225203 (MIDO, id 257), igual en Pruebas y producción: 2 partidas activas (QUARCITA DUMONT 1 × $11,935.13 y
+  1 × $14,277.36 = $26,212.49), ninguna cancelada ni oculta. El total guardado $50,082.75 = $14,277.36 + 3 × $11,935.13: la
+  partida de $11,935.13 se cobró como si fueran 3. Es de agosto, antes de la bitácora automática: no hay rastro de quién
+  cambió la cantidad, pero el patrón es el mismo defecto de abajo (cantidad editada sin recalcular el total).
+  Estado: las 2 partidas están 1/1 recibidas; el código actual la pasaría a "Recibida total" en la siguiente recepción —
+  el estado parcial viene del código de agosto.
+  OJO, dinero: la OC tiene 3 cuentas por pagar del 10/08, todas "PAGADO": #218 folio 4243 $33,123.48 (pagos $33,123.48),
+  #219 folio 4243 $27,689.50 (sin pagos registrados) y #220 folio 04243 $27,689.50 (pagos $27,689.50). La #219 y #220 son el
+  mismo importe con folio 4243/04243 (captura duplicada). Pagado en Valentina: $60,812.98 contra $58,095.99 del total viejo de
+  la OC y $30,406.49 con IVA de lo recibido según las partidas. Recomiendo que Administración lo revise con las facturas
+  físicas de MIDO antes de tocar nada.
+- OC-M260717190517 (BODEGA ELECTRONICA): cuadra, $5,405.00 = sus partidas; 1 partida pendiente real. OC-M260708174748:
+  cuadra ($42,374.00); 1 pendiente real.
+- Revisé TODAS las OCs: hay una más que no cuadra, OC-M261006223132 (CERRAJES, Recibida total): total $15,712.80 contra
+  partidas $12,445.80. La bitácora muestra la causa: el 07/10 18:22 se editó la partida 807 de 100 a 50 piezas
+  (50 × $65.34 = $3,267.00, la diferencia exacta). Su factura 2818 sí es por $12,445.80 + IVA (correcta).
+- Defecto de código (corregido, commit e9053db, con test): editar cantidad o precio de una partida NO recalculaba el total
+  de la OC (H23 solo cubría quitar y cancelar). Ahora se recalcula siempre.
+- Propuesta de corrección de datos (requiere tu aprobación; Pruebas y después producción por migración con bitácora):
+  OC-M260807225203 total → $26,212.49 y estado → Recibida total; OC-M261006223132 total → $12,445.80. Las cuentas por pagar
+  de MIDO NO se tocan hasta que Administración confirme.
+
+### 20/10 16:48 — BUG: "Ver PDF oficial" de la OC no abre (Gabriel)
+Causa probable (revisada por el asesor): PurchaseOrdersModule.openPdf (~979) y AllPurchaseOrdersModule (~331) abren
+`/purchases/orders/{id}/pdf?token=...` con window.open, pero el endpoint usa allow(PURCHASING_ROLES) con el token del encabezado
+Authorization (OAuth2), no por query → 401. Probablemente roto desde los cambios de seguridad (4d0963bd / 4b14c0ff).
+Corregir: descargar el PDF con axiosClient (responseType blob, con el token normal) y abrirlo con un object URL en pestaña nueva
+(o descargarlo si el navegador bloquea la ventana). NO aceptar token por query. Revisar que no haya otros PDF/archivos abiertos
+igual en el frontend. Probar en Pruebas con una OC autorizada (Autorizadas, En espera de anticipo, Todas las OCs). Reportar en Hechas.
+HECHO [20/10 17:04, Pruebas, commit 86bac08]: causa confirmada — el botón abría /purchases/orders/<id>/pdf?token=… con
+window.open y el endpoint solo acepta la sesión en el encabezado Authorization → 401. Ahora "Ver PDF oficial" descarga el PDF
+con axiosClient (blob, sesión normal) y lo abre en pestaña nueva; si el navegador bloquea la pestaña, lo descarga. Utilería
+común utils/openPdf.ts usada en Órdenes de compra (Autorizadas, En espera de anticipo, En recepción) y en Todas las OCs. El
+backend NO acepta token por query (sin cambios). Revisado todo el frontend: no queda ningún "?token=" ni otro archivo del API
+abierto con window.open (Cotizaciones, OV y reportes ya usaban blob; los planos son ligas externas). Probado en Pruebas:
+Autorizadas (OC-M261009174812) y detalle en Todas las OCs (OC 362): se abre el PDF. No hay captura: la extensión no puede
+fotografiar una pestaña blob.
+
 ### 20/10 16:36 — Tanda 1, Órdenes de compra: fechas de la OC (Gabriel)
 1. Mesa de control (por autorizar): en el encabezado de cada OC (renglón índigo, junto al folio) mostrar "Creada el DD/MM/AAAA"
    (y quién la creó, si el dato existe).
@@ -79,24 +153,6 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
    y En recepción.
 NO empezar la tanda 2. Reportar en Hechas con captura.
 
-### 20/10 16:48 — BUG: "Ver PDF oficial" de la OC no abre (Gabriel)
-Causa probable (revisada por el asesor): PurchaseOrdersModule.openPdf (~979) y AllPurchaseOrdersModule (~331) abren
-`/purchases/orders/{id}/pdf?token=...` con window.open, pero el endpoint usa allow(PURCHASING_ROLES) con el token del encabezado
-Authorization (OAuth2), no por query → 401. Probablemente roto desde los cambios de seguridad (4d0963bd / 4b14c0ff).
-Corregir: descargar el PDF con axiosClient (responseType blob, con el token normal) y abrirlo con un object URL en pestaña nueva
-(o descargarlo si el navegador bloquea la ventana). NO aceptar token por query. Revisar que no haya otros PDF/archivos abiertos
-igual en el frontend. Probar en Pruebas con una OC autorizada (Autorizadas, En espera de anticipo, Todas las OCs). Reportar en Hechas.
-
-### 20/10 16:43 — Generar OC: categoría de gasto prellenada + solicitud duplicada (Gabriel aprobó ambas)
-1. Generar OC (desde solicitudes): "Categoría de gasto" viene prellenada con MATERIALES y se puede cambiar; ya no bloquea el
-   botón. OC directa: se sigue pidiendo obligatoria (puede ser gasolina, servicio, maquila…). No cambiar las categorías ni el
-   reporte semanal de Tesorería.
-2. BUG: en Generar OC, CERRAJES MEXICO SA DE CV muestra dos renglones idénticos del SKU 0502-004 "Tornillo sinker PH plano ngr
-   #8 x 1 1/2", 20 piezas cada uno, ambos "Alarma del sistema". Investigar por qué la alarma de stock mínimo creó dos
-   solicitudes (¿se dispara en cada carga/consulta? ¿falta revisar si ya hay una abierta para ese material?). Corregir para que
-   exista a lo más UNA solicitud automática abierta por material (si ya hay una abierta o en OC no autorizada, no crear otra).
-   En Pruebas: cancelar el duplicado con bitácora y motivo "Duplicado de alarma automática". Reportar la causa y cuántos
-   duplicados había en Pruebas y en producción (solo lectura en producción).
 HECHO [20/10 16:46, Pruebas, commit 76f6616; capturas docs/ola3_tanda1/compras_mesa_control_fechas.jpg,
 compras_autorizadas_fechas.jpg y compras_todas_ocs_fechas.jpg]:
 1. Mesa de control: bajo el proveedor y folio, "Creada el 12/10/2026 por Delmy Barrera" (el creador sí existe:

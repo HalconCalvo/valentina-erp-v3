@@ -5268,3 +5268,11 @@ MARTES 20/10/2026
 - 16:46 (76f6616): Órdenes de compra con fechas: "Creada el … por …" en Mesa de control; "Autorizada por … el … HH:MM"
   en vistas posteriores; columnas Creada/Autorizada ordenables en Todas las OCs. El listado de OCs usa SQL solo de
   PostgreSQL (ANY, STRING_AGG): no se prueba por API en SQLite; se prueban sus funciones.
+- 17:04 Buzón 16:43–16:53: Generar OC prellena MATERIALES (069db2e); a lo más una solicitud automática por material, nada
+  si está en OC borrador (069db2e). PDF de OC con axios blob, sin token en URL (86bac08). Editar cantidad/precio de una
+  partida ahora recalcula el total de la OC (e9053db): explicaba OC-M261006223132 (+$3,267.00) y probablemente
+  OC-M260807225203 (MIDO, total con 3 × $11,935.13). MIDO tiene 3 CxP pagadas, dos iguales con folio 4243/04243: pasar
+  a Administración. Pendiente de aprobación de Gabriel: cancelar la solicitud 27 duplicada en Pruebas (el modo automático
+  bloqueó la escritura en la base) y corregir totales/estado de las 2 OCs.
+- Lección: las escrituras en la base de Pruebas también piden aprobación explícita (no basta el buzón); preparar el script
+  y pedirla al reportar.
