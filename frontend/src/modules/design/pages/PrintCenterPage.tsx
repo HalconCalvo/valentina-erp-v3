@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Printer } from 'lucide-react';
+import { Printer } from 'lucide-react';
 import { designService, LabelRequestItem } from '../../../api/design-service';
 import { toast } from '@/components/ui/VToast';
 import { Button } from '@/components/ui/Button';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
+import { VPageHeader } from '@/components/ui/VPageHeader';
 import axiosClient from '@/api/axios-client';
 import { formatDateTime } from '@/utils/format';
 
@@ -148,6 +149,7 @@ export default function PrintCenterPage() {
     {
       key: 'client_name',
       label: 'Cliente',
+      sortable: true,
       render: (row) => (
         <span className="font-medium text-slate-800">{row.client_name}</span>
       ),
@@ -155,10 +157,15 @@ export default function PrintCenterPage() {
     {
       key: 'project_name',
       label: 'Proyecto',
+      sortable: true,
+      render: (row) => (
+        <span className="text-slate-700 max-w-[180px] truncate block" title={row.project_name ?? ''}>{row.project_name || '—'}</span>
+      ),
     },
     {
       key: 'custom_name',
       label: 'Instancia',
+      sortable: true,
       render: (row) => (
         <span className="text-slate-800">{row.custom_name}</span>
       ),
@@ -166,15 +173,19 @@ export default function PrintCenterPage() {
     {
       key: 'is_stone',
       label: 'Tipo',
+      sortable: true,
+      sortValue: (row) => (row.is_stone ? 'Piedra' : 'MDF'),
       render: (row) => (
-        <span className="block text-center">
-          {row.is_stone ? '🪨 Piedra' : '🪵 MDF'}
+        <span className={`inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded border ${row.is_stone
+          ? 'bg-violet-50 text-violet-700 border-violet-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+          {row.is_stone ? 'Piedra' : 'MDF'}
         </span>
       ),
     },
     {
       key: 'declared_bundles',
       label: 'Bultos / piezas',
+      align: 'right',
       render: (row) => (
         <span className="block text-right tabular-nums text-slate-700">
           {row.is_stone ? `${row.stone_pieces ?? 0} piezas` : `${row.declared_bundles} bultos`}
@@ -184,38 +195,35 @@ export default function PrintCenterPage() {
     {
       key: 'printed_at',
       label: 'Impresión',
+      sortable: true,
+      sortValue: (row) => (row.printed_at ? new Date(row.printed_at).getTime() : 0),
       render: (row) => (row.printed_at ? (
         <span className="text-xs text-slate-500">
-          Impresa {formatDateTime(row.printed_at)}{row.printed_by ? ` · ${row.printed_by}` : ''}
+          <span className="inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded border bg-emerald-50 text-emerald-700 border-emerald-200 mr-1">Impresa</span>
+          {formatDateTime(row.printed_at)}{row.printed_by ? ` · ${row.printed_by}` : ''}
         </span>
       ) : (
-        <span className="text-xs font-bold text-amber-700">Pendiente de imprimir</span>
+        <span className="inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded border bg-amber-50 text-amber-700 border-amber-200">
+          Pendiente de imprimir
+        </span>
       )),
     },
     {
       key: 'action',
       label: 'Acción',
       width: '12rem',
+      align: 'center',
       render: (row) => (
         <div className="flex items-center justify-center gap-2">
           {row.is_stone ? (
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => void handleDownloadManifest(row)}
-              className="text-xs"
-            >
-              🪨 Descargar Manifiesto
+            <Button type="button" size="sm" onClick={() => void handleDownloadManifest(row)}
+              className="bg-emerald-600 hover:bg-emerald-700">
+              <Printer size={14} /> Descargar manifiesto
             </Button>
           ) : (
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => void handleGenerateLabels(row)}
-              className="text-xs bg-emerald-600 hover:bg-emerald-700"
-            >
-              <Printer size={14} />
-              🖨️ Descargar Etiquetas
+            <Button type="button" size="sm" onClick={() => void handleGenerateLabels(row)}
+              className="bg-emerald-600 hover:bg-emerald-700">
+              <Printer size={14} /> Descargar etiquetas
             </Button>
           )}
         </div>
@@ -223,48 +231,40 @@ export default function PrintCenterPage() {
     },
   ], [handleDownloadManifest, handleGenerateLabels]);
 
+  // Guide v2 (tanda 1): list → full width, standard header, white KPI card, report table
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-6 pb-24 animate-fadeIn">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4">
-        <div>
-          <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-            <Printer size={32} className="text-indigo-600" /> Centro de impresión
-          </h1>
-          <p className="text-slate-500 mt-1 font-medium">Etiquetas pendientes de generación</p>
+    <div className="p-8 w-full pb-24 space-y-6 animate-fadeIn">
+      <VPageHeader
+        icon={Printer}
+        title="Centro de impresión"
+        subtitle="Etiquetas y manifiestos de piedra pendientes de generar."
+        loading={loading}
+        onBack={() => navigate('/design')}
+        backLabel="Regresar a Diseño e Ingeniería"
+      />
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Etiquetas pendientes</p>
+          <p className="text-2xl font-black tabular-nums mt-1 text-indigo-700">{loading ? '—' : pendingCount}</p>
+          <p className="text-xs text-slate-500 mt-1">Instancias con bultos declarados en producción o empaque</p>
         </div>
-        <Button variant="outline" onClick={() => navigate('/design')}>
-          <ArrowLeft size={18} /> Regresar
-        </Button>
       </div>
 
-      {/* KPI */}
-      <section className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-8 shadow-sm">
-        <p className="text-xs font-bold uppercase tracking-wider text-emerald-700/80 mb-2">
-          Etiquetas pendientes
-        </p>
-        <p className="text-5xl font-black tabular-nums text-emerald-700">{loading ? '—' : pendingCount}</p>
-        <p className="text-sm text-slate-500 mt-2">
-          Instancias con bultos declarados en producción o empaque
-        </p>
-      </section>
+      {error && <p className="text-sm font-bold text-red-600">{error}</p>}
 
-      {/* Bandeja */}
-      <section className="space-y-4">
-        <h2 className="text-sm font-black uppercase tracking-wider text-slate-500">Bandeja de solicitudes</h2>
-
-        {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>
-        )}
-
-        <VTable
-          columns={labelColumns as unknown as VTableColumn<Record<string, unknown>>[]}
-          data={tableData as unknown as Record<string, unknown>[]}
-          isLoading={loading}
-          emptyState={{
-            title: 'No hay solicitudes pendientes',
-          }}
-        />
-      </section>
+      <VTable
+        columns={labelColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+        data={tableData as unknown as Record<string, unknown>[]}
+        isLoading={loading}
+        headerStyle="report"
+        className="shadow-sm"
+        emptyState={{
+          icon: <Printer />,
+          title: 'No hay solicitudes pendientes',
+          description: 'Aquí aparecen las instancias con bultos declarados en producción o empaque.',
+        }}
+      />
     </div>
   );
 }

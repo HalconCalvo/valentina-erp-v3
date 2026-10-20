@@ -7,8 +7,8 @@ import {
     ChevronDown, ChevronRight, Layers, 
     FileText, AlertCircle, CheckCircle2,
     Paperclip, X, FileMinus, Lock,
-    Tag, ArrowLeft, Calculator, Printer, ShieldAlert,
-    Package, RefreshCw, Download, Upload
+    Tag, Calculator, Printer, ShieldAlert,
+    Package, Download, Upload
 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
@@ -17,6 +17,8 @@ import Badge from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { VPageHeader } from '@/components/ui/VPageHeader';
+import { VEmptyState } from '@/components/ui/VEmptyState';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import ExportButton from '@/components/ui/ExportButton';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
@@ -568,9 +570,9 @@ const DesignCatalogPage: React.FC = () => {
     const totalDrafts = masters.filter(m => m.versions?.[0]?.status === VersionStatus.DRAFT || !m.versions?.length).length;
 
     const batchStatusConfig: Record<string, { label: string; color: string }> = {
-        DRAFT:         { label: 'Por Producir',  color: 'bg-gray-100 text-gray-700'   },
-        ON_HOLD:       { label: 'En Espera',     color: 'bg-amber-100 text-amber-700' },
-        IN_PRODUCTION: { label: 'En Producción', color: 'bg-blue-100 text-blue-700'   },
+        DRAFT:         { label: 'Por producir',  color: 'bg-slate-50 text-slate-700 border-slate-200' },
+        ON_HOLD:       { label: 'En espera',     color: 'bg-amber-50 text-amber-700 border-amber-200' },
+        IN_PRODUCTION: { label: 'En producción', color: 'bg-blue-50 text-blue-700 border-blue-200' },
     };
 
     const navigateTo = (view: string) => {
@@ -596,6 +598,19 @@ const DesignCatalogPage: React.FC = () => {
         setViewHistory(h => h.slice(0, -1));
         setCurrentView(prev as any);
     };
+
+    // Guide v2 §12: "Regresar a <nivel anterior>" says where the back button goes
+    const VIEW_NAMES: Record<string, string> = {
+        HOME: 'Diseño e Ingeniería', SIMULATOR_MODULE: 'Simulador y lotes', CATALOG: 'Catálogo de productos',
+        DEFICIT: 'Déficit y mermas', SIMULATOR_BATCHES: 'Lotes de producción',
+    };
+    const backLabel = (() => {
+        if (viewHistory.length === 0 && (isProductionCatalogRoute || (isProduction && currentView === 'CATALOG'))) {
+            return 'Regresar a Producción';
+        }
+        const prev = viewHistory.length ? viewHistory[viewHistory.length - 1] : 'HOME';
+        return `Regresar a ${VIEW_NAMES[prev] ?? 'Diseño e Ingeniería'}`;
+    })();
 
     const handleDeleteBatch = (batchId: number, folio: string) => {
         setPendingConfirm({ kind: 'DELETE_BATCH', batchId, folio });
@@ -759,7 +774,7 @@ const DesignCatalogPage: React.FC = () => {
     };
 
     return (
-        <div className="p-8 max-w-7xl mx-auto space-y-6 pb-24 animate-in fade-in duration-300">
+        <div className={`p-8 pb-24 space-y-6 animate-in fade-in duration-300 ${currentView === 'HOME' ? 'max-w-7xl mx-auto' : 'w-full'}`}>
             <Input type="file" ref={fileInputRef} className="hidden" accept=".pdf,image/*" onChange={handleFileChange} />
             <Input
                 type="file"
@@ -959,29 +974,17 @@ const DesignCatalogPage: React.FC = () => {
             ========================================= */}
             {currentView !== 'HOME' && (
                 <div className="animate-in slide-in-from-right-8 duration-300">
-                    
-                    <div className="flex justify-end mb-6">
-                        <Button variant="outline" onClick={navigateBack}>
-                            <ArrowLeft size={18} /> Regresar
-                        </Button>
-                    </div>
 
                     {/* --- MÓDULO 2: SIMULADOR (vista intermedia 2A / 2B) --- */}
                     {currentView === 'SIMULATOR_MODULE' && (
                         <div className="space-y-6">
-                            <div className="flex justify-between items-center mb-6 
-                        pb-4 border-b border-slate-200">
-                                <div>
-                                    <h2 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-                                        <Calculator size={32} className="text-indigo-600"/>
-                                        Simulador y Creación de Lotes
-                                    </h2>
-                                    <p className="text-slate-500 mt-1 font-medium">
-                                        Agrupa productos pagados, cruza recetas contra inventario 
-                                        y supervisa los lotes enviados a fábrica.
-                                    </p>
-                                </div>
-                            </div>
+                            <VPageHeader
+                                icon={Calculator}
+                                title="Simulador y creación de lotes"
+                                subtitle="Agrupa productos pagados, cruza recetas contra inventario y supervisa los lotes en fábrica."
+                                onBack={navigateBack}
+                                backLabel={backLabel}
+                            />
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
@@ -1005,14 +1008,14 @@ const DesignCatalogPage: React.FC = () => {
                                             <div className="flex justify-between items-start">
                                                 <p className="text-[11px] font-black text-slate-500
                             uppercase tracking-widest">
-                                                    2A. Simulador
+                                                    Simulador
                                                 </p>
                                                 <Calculator size={16} className="text-blue-500" />
                                             </div>
                                             <div>
                                                 <h3 className="text-base font-bold text-slate-700
                              leading-tight">
-                                                    Simulador y<br/>Lotificación
+                                                    Simulador y<br/>lotificación
                                                 </h3>
                                             </div>
                                             <div className="flex items-center justify-between
@@ -1049,14 +1052,14 @@ const DesignCatalogPage: React.FC = () => {
                                             <div className="flex justify-between items-start">
                                                 <p className="text-[11px] font-black text-slate-500
                             uppercase tracking-widest">
-                                                    2B. Ver Lotes
+                                                    Lotes
                                                 </p>
                                                 <Package size={16} className="text-blue-300" />
                                             </div>
                                             <div>
                                                 <h3 className="text-base font-bold text-slate-700
                              leading-tight">
-                                                    Ver Lotes de<br/>Producción
+                                                    Ver lotes de<br/>producción
                                                 </h3>
                                             </div>
                                             <div className="flex items-center justify-between
@@ -1077,19 +1080,18 @@ const DesignCatalogPage: React.FC = () => {
                     {/* --- MÓDULO 1: CATÁLOGO --- */}
                     {currentView === 'CATALOG' && (
                         <div className="space-y-6">
-                            <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-200">
-                                <div>
-                                    <h2 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-                                        <Layers size={32} className="text-indigo-600"/> Catálogo de Ingeniería
-                                        {isProduction && (
-                                            <Badge className="bg-slate-100 text-slate-600 border-slate-200">
-                                                <Lock size={12} className="mr-1"/> LECTURA
-                                            </Badge>
-                                        )}
-                                    </h2>
-                                    <p className="text-slate-500 mt-1 font-medium">Gestión de productos base, explosión de materiales y repositorio de planos.</p>
-                                </div>
-                                <div className="flex gap-3 items-center">
+                            <VPageHeader
+                                icon={Layers}
+                                title="Catálogo de ingeniería"
+                                subtitle="Productos base, explosión de materiales y repositorio de planos."
+                                onBack={navigateBack}
+                                backLabel={backLabel}
+                                actions={<div className="flex flex-wrap gap-3 items-center">
+                                    {isProduction && (
+                                        <Badge className="bg-slate-100 text-slate-600 border-slate-200">
+                                            <Lock size={12} className="mr-1"/> Solo lectura
+                                        </Badge>
+                                    )}
                                     {!isProduction && (
                                         <ExportButton data={masters} fileName="Catalogo_Productos" mapping={mapMastersForExcel} label="Exportar"/>
                                     )}
@@ -1118,8 +1120,8 @@ const DesignCatalogPage: React.FC = () => {
                                             <Plus size={16} className="mr-1" /> Nuevo Producto
                                         </Button>
                                     )}
-                                </div>
-                            </div>
+                                </div>}
+                            />
 
                             {error && <div className="bg-red-50 text-red-700 p-4 rounded-xl border border-red-200 shadow-sm"><AlertCircle size={16} className="inline mr-2"/> {error}</div>}
 
@@ -1228,14 +1230,13 @@ const DesignCatalogPage: React.FC = () => {
                     {/* --- MÓDULO 3: DÉFICIT --- */}
                     {currentView === 'DEFICIT' && (
                         <div className="space-y-6">
-                            <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-200">
-                                <div>
-                                    <h2 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-                                        <ShieldAlert size={32} className="text-indigo-600"/> Control de Déficit y Mermas
-                                    </h2>
-                                    <p className="text-slate-500 mt-1 font-medium">Requisiciones a Compras y buzón de reposición de mermas físicas.</p>
-                                </div>
-                            </div>
+                            <VPageHeader
+                                icon={ShieldAlert}
+                                title="Control de déficit y mermas"
+                                subtitle="Requisiciones a Compras y buzón de reposición de mermas físicas."
+                                onBack={navigateBack}
+                                backLabel={backLabel}
+                            />
                             <Card className="p-12 text-center bg-white border border-slate-200 shadow-sm flex flex-col items-center justify-center">
                                 <ShieldAlert size={48} className="text-orange-300 mb-4"/>
                                 <h3 className="text-xl font-bold text-slate-700">Módulo en Construcción</h3>
@@ -1246,76 +1247,55 @@ const DesignCatalogPage: React.FC = () => {
                     {/* --- MÓDULO 2B: LOTES DE PRODUCCIÓN --- */}
                     {currentView === 'SIMULATOR_BATCHES' && (
                         <div className="space-y-4">
-                            <div className="flex justify-between items-center mb-6 
-                        pb-4 border-b border-slate-200">
-                                <div>
-                                    <h2 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-                                        <Package size={32} className="text-indigo-600"/>
-                                        Lotes de Producción
-                                    </h2>
-                                    <p className="text-slate-500 mt-1 font-medium">
-                                        Lotes vivos enviados a fábrica (DRAFT · EN ESPERA ·
-                                        EN PRODUCCIÓN).
-                                    </p>
-                                </div>
-                                <Button
-                                    variant="outline"
-                                    onClick={loadLiveBatches}
-                                    disabled={loadingLiveBatches}
-                                >
-                                    <RefreshCw size={14} /> {loadingLiveBatches ? 'Procesando...' : 'Actualizar'}
-                                </Button>
-                            </div>
+                            <VPageHeader
+                                icon={Package}
+                                title="Lotes de producción"
+                                subtitle="Lotes vivos en fábrica: por producir, en espera y en producción."
+                                loading={loadingLiveBatches}
+                                onRefresh={loadLiveBatches}
+                                refreshing={loadingLiveBatches}
+                                onBack={navigateBack}
+                                backLabel={backLabel}
+                            />
 
                             {loadingLiveBatches ? (
                                 <div className="flex flex-col gap-4 animate-pulse" aria-label="Cargando lotes...">
                                     {[0, 1, 2].map(i => <div key={i} className="h-24 rounded-xl bg-slate-100" />)}
                                 </div>
                             ) : liveBatches.length === 0 ? (
-                                <Card className="p-12 text-center bg-white border 
-                           border-slate-200 shadow-sm flex flex-col 
-                           items-center justify-center">
-                                    <Package size={48} className="text-blue-200 mb-4"/>
-                                    <h3 className="text-xl font-bold text-slate-700">
-                                        No hay lotes activos en fábrica
-                                    </h3>
-                                    <p className="text-slate-400 text-sm mt-2">
-                                        Los lotes aparecen aquí al crearlos desde el Simulador.
-                                    </p>
-                                </Card>
+                                <div className="bg-white border border-slate-200 rounded-xl shadow-sm">
+                                    <VEmptyState
+                                        icon={<Package />}
+                                        title="No hay lotes activos en fábrica"
+                                        description="Los lotes aparecen aquí al crearlos desde el Simulador."
+                                    />
+                                </div>
                             ) : (
                                 <div className="flex flex-col gap-4">
                                     {liveBatches.map((batch: any) => {
                                         const cfg = batchStatusConfig[batch.status]
-                                            ?? { label: batch.status, color: 'bg-gray-100 text-gray-600' };
+                                            ?? { label: batch.status, color: 'bg-slate-50 text-slate-600 border-slate-200' };
                                         const instanceCount = (batch.instances || []).length;
                                         const isPiedraBatch =
                                             String(batch.batch_type ?? '').toUpperCase() === 'PIEDRA';
                                         return (
                                             <div
                                                 key={batch.id}
-                                                className={`rounded-xl border border-slate-200 shadow-sm overflow-hidden border-l-4 ${
-                                                    isPiedraBatch
-                                                        ? 'bg-violet-50 border-l-violet-400'
-                                                        : 'bg-amber-50 border-l-amber-400'
-                                                }`}
+                                                className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
                                             >
-                                                <div
-                                                    className="flex items-center justify-between 
-                                  px-5 py-3 bg-slate-50 border-b border-slate-200"
-                                                >
+                                                <div className="flex items-center justify-between px-4 py-3 bg-indigo-50 border-b border-indigo-100">
                                                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                                                        <span className="font-black text-slate-800 text-sm">
+                                                        <span className="font-black text-indigo-900 text-sm">
                                                             {batch.folio}
                                                         </span>
                                                         <span
-                                                            className={`text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${
-                                                                String(batch.batch_type ?? '').toUpperCase() === 'PIEDRA'
-                                                                    ? 'bg-violet-100 text-violet-800 border border-violet-300'
-                                                                    : 'bg-amber-100 text-amber-800 border border-amber-300'
+                                                            className={`inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${
+                                                                isPiedraBatch
+                                                                    ? 'bg-violet-50 text-violet-700 border-violet-200'
+                                                                    : 'bg-amber-50 text-amber-700 border-amber-200'
                                                             }`}
                                                         >
-                                                            {batch.batch_type}
+                                                            {isPiedraBatch ? 'Piedra' : 'MDF'}
                                                         </span>
                                                         {instanceCount > 0 && (
                                                             <span className="text-xs text-slate-500 shrink-0">
@@ -1324,8 +1304,7 @@ const DesignCatalogPage: React.FC = () => {
                                                         )}
                                                     </div>
                                                     <div className="flex items-center gap-2 shrink-0">
-                                                        <span className={`text-xs font-bold px-3 py-1 
-                                     rounded-full ${cfg.color}`}>
+                                                        <span className={`inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded border ${cfg.color}`}>
                                                             {cfg.label}
                                                         </span>
                                                         {batch.status === 'DRAFT' && (
@@ -1335,16 +1314,16 @@ const DesignCatalogPage: React.FC = () => {
                                                                 size="xs"
                                                                 onClick={() => handleDeleteBatch(batch.id, batch.folio)}
                                                                 disabled={deletingBatchId === batch.id}
-                                                                className="font-bold border-red-300 text-red-600 bg-red-50 hover:bg-red-100"
+                                                                className="font-bold border-red-200 text-red-600 hover:bg-red-50"
                                                             >
-                                                                {deletingBatchId === batch.id ? 'Deteniendo...' : '🛑 Cancelar Lote'}
+                                                                {deletingBatchId === batch.id ? 'Procesando...' : 'Cancelar lote'}
                                                             </Button>
                                                         )}
                                                     </div>
                                                 </div>
 
                                                 {instanceCount === 0 ? (
-                                                    <p className="px-5 py-3 text-xs text-slate-400 italic">
+                                                    <p className="px-4 py-3 text-xs text-slate-400">
                                                         Sin instancias asignadas.
                                                     </p>
                                                 ) : (
@@ -1352,7 +1331,7 @@ const DesignCatalogPage: React.FC = () => {
                                                         {(batch.instances || []).map((inst: any) => (
                                                             <div
                                                                 key={inst.id}
-                                                                className="px-5 py-3 flex items-center gap-3
+                                                                className="px-4 py-3 flex items-center gap-3
                                                                                  hover:bg-slate-50 transition-colors"
                                                             >
                                                                 {/* OV */}

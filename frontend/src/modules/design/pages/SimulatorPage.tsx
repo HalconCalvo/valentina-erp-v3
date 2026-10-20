@@ -9,22 +9,29 @@ import axiosClient from '@/api/axios-client';
 import { formatQty } from '@/utils/format';
 import { Button } from '@/components/ui/Button';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
-import { Package, CheckSquare, Square, AlertTriangle, ShieldCheck, Factory, Beaker, ArrowLeft, Calculator } from 'lucide-react';
+import { Package, CheckSquare, Square, AlertTriangle, ShieldCheck, Factory, Beaker, Calculator, ChevronDown } from 'lucide-react';
+import { VPageHeader } from '@/components/ui/VPageHeader';
+import { VEmptyState } from '@/components/ui/VEmptyState';
 
-/** Devuelve el emoji del foco según el color del semáforo. */
-function semaphoreDot(color?: string | null): string {
-  switch (color) {
-    case 'RED':         return '🔴';
-    case 'YELLOW':      return '🟡';
-    case 'GRAY':        return '⬜';
-    case 'BLUE':        return '🔵';
-    case 'BLUE_GREEN':  return '🔵🟢';
-    case 'DOUBLE_BLUE': return '🔵🔵';
-    case 'GREEN':       return '🟢';
-    case 'DOUBLE_GREEN':return '🟢🟢';
-    case 'WARRANTY':    return '⚠️';
-    default:            return '⬜';
-  }
+/** Semaphore color as dots (guide v2: no emojis). */
+const DOT_CLASS: Record<string, string> = {
+  RED: 'bg-red-500', YELLOW: 'bg-amber-400', GRAY: 'bg-slate-300', BLUE: 'bg-blue-500', GREEN: 'bg-emerald-500',
+  SCHEDULED: 'bg-violet-500',
+};
+const DOT_PARTS: Record<string, string[]> = {
+  BLUE_GREEN: ['BLUE', 'GREEN'], DOUBLE_BLUE: ['BLUE', 'BLUE'], DOUBLE_GREEN: ['GREEN', 'GREEN'],
+};
+
+function SemaphoreDot({ color }: { color: string }) {
+  if (color === 'WARRANTY') return <AlertTriangle size={12} className="text-amber-500 shrink-0" />;
+  const parts = DOT_PARTS[color] ?? [color];
+  return (
+    <span className="inline-flex items-center gap-0.5 shrink-0">
+      {parts.map((part, i) => (
+        <span key={i} className={`inline-block h-2.5 w-2.5 rounded-full ${DOT_CLASS[part] ?? DOT_CLASS.GRAY}`} />
+      ))}
+    </span>
+  );
 }
 
 /** True si la instancia tiene al menos una fecha programada. */
@@ -38,11 +45,6 @@ function isScheduled(inst: { schedule?: { PM: string | null; PP: string | null; 
 function effectiveSemaphore(inst: { semaphore?: string | null; schedule?: { PM: string | null; PP: string | null; IM: string | null; IP: string | null } | null }): string {
   if (inst.semaphore === 'GRAY' && isScheduled(inst)) return 'SCHEDULED';
   return inst.semaphore ?? 'GRAY';
-}
-
-function semaphoreDotWithScheduled(color: string): string {
-  if (color === 'SCHEDULED') return '🟣';
-  return semaphoreDot(color);
 }
 
 export default function SimulatorPage() {
@@ -322,6 +324,7 @@ export default function SimulatorPage() {
     {
       key: 'name',
       label: 'Material (SKU)',
+      sortable: true,
       render: (mat) => (
         <>
           <span className="font-bold text-slate-800">{mat.name}</span>
@@ -332,39 +335,44 @@ export default function SimulatorPage() {
     {
       key: 'required_qty',
       label: 'Requerido',
-      render: (mat) => <span className="font-mono font-medium text-slate-600 text-right block">{mat.required_qty}</span>,
+      sortable: true,
+      align: 'right',
+      render: (mat) => <span className="tabular-nums font-medium text-slate-600 text-right block">{formatQty(mat.required_qty)}</span>,
     },
     {
       key: 'available_qty',
-      label: 'Existencia Fís.',
-      render: (mat) => <span className="font-mono font-bold text-slate-800 text-right block">{mat.available_qty}</span>,
+      label: 'Existencia física',
+      sortable: true,
+      align: 'right',
+      render: (mat) => <span className="tabular-nums font-bold text-slate-800 text-right block">{formatQty(mat.available_qty)}</span>,
     },
     {
       key: 'status',
-      label: 'Estatus',
+      label: 'Estado',
+      align: 'center',
       render: (mat) => (
         <div className="flex justify-center">
-          {mat.status_color === 'RED' && <span className="bg-red-100 text-red-700 text-[10px] font-bold px-2 py-1 rounded border border-red-200 shadow-sm">FALTANTE CRÍTICO</span>}
-          {mat.status_color === 'YELLOW' && <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-1 rounded border border-amber-200 shadow-sm">FALTANTE MENOR</span>}
-          {mat.client_supplied && <span className="bg-sky-100 text-sky-700 text-[10px] font-bold px-2 py-1 rounded border border-sky-200 shadow-sm">LO PONE EL CLIENTE</span>}
-          {mat.status_color === 'GREEN' && !mat.client_supplied && <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-1 rounded border border-emerald-200 shadow-sm">SUFICIENTE</span>}
+          {mat.status_color === 'RED' && <span className="inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded border bg-red-50 text-red-700 border-red-200">Faltante crítico</span>}
+          {mat.status_color === 'YELLOW' && <span className="inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded border bg-amber-50 text-amber-700 border-amber-200">Faltante menor</span>}
+          {mat.client_supplied && <span className="inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded border bg-sky-50 text-sky-700 border-sky-200">Lo pone el cliente</span>}
+          {mat.status_color === 'GREEN' && !mat.client_supplied && <span className="inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded border bg-emerald-50 text-emerald-700 border-emerald-200">Suficiente</span>}
         </div>
       ),
     },
   ], []);
 
   return (
-    <div className="flex flex-col h-full min-h-0 max-w-7xl mx-auto w-full animate-in fade-in duration-300">
-      <div className="mb-4 shrink-0 flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4">
-        <div>
-          <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-            <Calculator size={32} className="text-indigo-600" /> Simulador y Lotificación
-          </h1>
-          <p className="text-slate-500 mt-1 font-medium">Agrupa productos pagados y cruza recetas contra el inventario físico.</p>
-        </div>
-        <Button variant="outline" onClick={() => navigate('/design')} className="relative z-10">
-          <ArrowLeft size={18} /> Regresar
-        </Button>
+    // Guide v2 (tanda 1): full width, standard header; the two panels keep their layout
+    <div className="flex flex-col h-full min-h-0 w-full p-8 pb-8 gap-6 animate-fadeIn">
+      <div className="shrink-0">
+        <VPageHeader
+          icon={Calculator}
+          title="Simulador y lotificación"
+          subtitle="Agrupa productos pagados y cruza recetas contra el inventario físico."
+          loading={loadingRadar}
+          onBack={() => navigate('/design')}
+          backLabel="Regresar a Diseño e Ingeniería"
+        />
       </div>
 
       <div className="flex flex-1 min-h-0 gap-6 items-stretch">
@@ -372,10 +380,10 @@ export default function SimulatorPage() {
         <div className="w-1/3 min-h-0 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
           <div className="shrink-0 p-4 border-b border-slate-200 bg-slate-50">
             <div className="flex justify-between items-center">
-              <h2 className="text-sm font-black uppercase tracking-wider text-slate-500 flex items-center gap-2">
-                <Package size={18} className="text-slate-500" /> Órdenes Pendientes
+              <h2 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                <Package size={18} className="text-indigo-600" /> Órdenes pendientes
               </h2>
-              <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-bold">
+              <span className="text-xs font-bold text-indigo-700 tabular-nums">
                 {allPendingInstances.length} piezas
               </span>
             </div>
@@ -387,10 +395,7 @@ export default function SimulatorPage() {
                 {[0, 1, 2, 3].map(i => <div key={i} className="h-16 rounded-lg bg-slate-100" />)}
               </div>
             ) : instancesByOrder.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                <Package size={32} className="mb-2 opacity-50"/>
-                <p className="text-sm">No hay órdenes pendientes pagadas.</p>
-              </div>
+              <VEmptyState icon={<Package />} title="No hay órdenes pendientes pagadas." />
             ) : (
               instancesByOrder.map(group => {
                 const isExpanded = expandedOrderIds.has(group.order_id);
@@ -409,10 +414,11 @@ export default function SimulatorPage() {
                     className="border border-slate-200 rounded-lg"
                   >
                     <div className="min-h-12 px-4 py-3.5 bg-slate-50 flex items-center justify-between gap-3">
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
                         onClick={() => toggleOrderExpand(group.order_id)}
-                        className="flex-1 min-w-0 text-left hover:opacity-90 transition"
+                        className="flex-1 min-w-0 h-auto p-0 block text-left font-normal whitespace-normal hover:bg-transparent hover:opacity-90"
                       >
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-mono font-black text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-200 shrink-0 tracking-tight">
@@ -432,7 +438,7 @@ export default function SimulatorPage() {
                             {group.client_name}
                           </p>
                         )}
-                      </button>
+                      </Button>
                       <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                         {(() => {
                           const counts: Record<string, number> = {};
@@ -452,7 +458,7 @@ export default function SimulatorPage() {
                                   className="text-xs flex items-center gap-0.5"
                                   title={`${s.color}: ${s.count}`}
                                 >
-                                  <span className="text-sm leading-none">{semaphoreDotWithScheduled(s.color)}</span>
+                                  <SemaphoreDot color={s.color} />
                                   <span className="text-[10px] font-bold text-slate-600">{s.count}</span>
                                 </span>
                               ))}
@@ -460,10 +466,11 @@ export default function SimulatorPage() {
                           );
                         })()}
                         {mdfCount > 0 && (
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
                             onClick={(e) => toggleOrderMaterialBadge(group.order_id, 'MDF', e)}
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 transition ${
+                            className={`h-auto text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 transition ${
                               activeMaterial === 'MDF'
                                 ? 'bg-amber-100 text-amber-800 border-amber-300 ring-2 ring-amber-500'
                                 : 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200/90'
@@ -471,13 +478,14 @@ export default function SimulatorPage() {
                             title="Ver instancias MDF de esta OV"
                           >
                             MDF {mdfCount}
-                          </button>
+                          </Button>
                         )}
                         {stoneCount > 0 && (
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
                             onClick={(e) => toggleOrderMaterialBadge(group.order_id, 'PIEDRA', e)}
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 transition ${
+                            className={`h-auto text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 transition ${
                               activeMaterial === 'PIEDRA'
                                 ? 'bg-violet-100 text-violet-800 border-violet-300 ring-2 ring-violet-500'
                                 : 'bg-violet-100 text-violet-800 border-violet-300 hover:bg-violet-200/90'
@@ -485,18 +493,19 @@ export default function SimulatorPage() {
                             title="Ver instancias Piedra de esta OV"
                           >
                             Piedra {stoneCount}
-                          </button>
+                          </Button>
                         )}
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
+                          size="icon-xs"
                           onClick={() => toggleOrderExpand(group.order_id)}
-                          className="p-1 text-slate-400 hover:text-slate-600"
+                          className="text-slate-400 hover:text-slate-600"
                           title={isExpanded ? 'Contraer' : 'Expandir'}
+                          aria-label={isExpanded ? 'Contraer' : 'Expandir'}
                         >
-                          <span className={`inline-block transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
-                            ▼
-                          </span>
-                        </button>
+                          <ChevronDown size={16} className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                        </Button>
                       </div>
                     </div>
 
@@ -541,8 +550,8 @@ export default function SimulatorPage() {
                                       onClick={() => toggleSelection(inst.id)}
                                     >
                                       <div className="flex items-center gap-1.5">
-                                        <span className="text-sm leading-none shrink-0" title={`Semáforo: ${effectiveSemaphore(inst)}`}>
-                                          {semaphoreDotWithScheduled(effectiveSemaphore(inst))}
+                                        <span className="leading-none shrink-0" title={`Semáforo: ${effectiveSemaphore(inst)}`}>
+                                          <SemaphoreDot color={effectiveSemaphore(inst)} />
                                         </span>
                                         <span className="text-[10px] font-mono font-bold text-indigo-600 shrink-0">
                                           OV-{String(inst.order_id).padStart(4, '0')}
@@ -572,8 +581,8 @@ export default function SimulatorPage() {
         {/* COLUMNA DERECHA: EL SIMULADOR */}
         <div className="w-2/3 min-h-0 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
           <div className="shrink-0 p-4 border-b border-slate-200 bg-slate-50">
-            <h2 className="text-sm font-black uppercase tracking-wider text-slate-500 flex items-center gap-2">
-              <Factory size={18} className="text-slate-500" /> Configuración del Lote
+            <h2 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+              <Factory size={18} className="text-indigo-600" /> Configuración del lote
             </h2>
           </div>
 
@@ -587,25 +596,26 @@ export default function SimulatorPage() {
                 Usa los badges MDF / Piedra en cada OV para filtrar y definir el tipo de lote.
               </span>
             </p>
+            {/* One colored button per screen: once there is a result, "Crear lote" is the main action */}
             <Button
               type="button"
-              size="lg"
+              variant={simulationResult ? 'outline' : 'default'}
               onClick={handleSimulate}
               disabled={selectedIds.length === 0 || simulating}
-              className="px-8 shadow shrink-0"
+              className="shrink-0"
             >
-              {simulating ? 'Calculando...' : 'Ejecutar Simulación'}
+              {simulating ? 'Procesando...' : 'Ejecutar simulación'}
             </Button>
           </div>
 
           {/* RESULTADOS DE LA SIMULACIÓN */}
           <div className="flex-1 min-h-0 p-6 bg-slate-50 overflow-y-auto">
             {!simulationResult ? (
-              <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm gap-2">
-                <Beaker size={40} className="opacity-20 mb-2" />
-                <p>Selecciona órdenes en el radar y ejecuta el simulador</p>
-                <p>para ver el cruce de inventario.</p>
-              </div>
+              <VEmptyState
+                icon={<Beaker />}
+                title="Sin simulación"
+                description="Selecciona órdenes en el radar y ejecuta el simulador para ver el cruce de inventario."
+              />
             ) : (
               <div className="animate-in slide-in-from-bottom-2">
                 <div className={`p-4 rounded-lg mb-6 flex justify-between items-center gap-4 border shadow-sm ${
@@ -616,7 +626,7 @@ export default function SimulatorPage() {
                   <div className="flex items-center gap-3">
                     {shortages.length > 0 ? <AlertTriangle size={28} className="text-orange-500"/> : <ShieldCheck size={28} className="text-emerald-500" />}
                     <div>
-                      <h3 className="font-black text-lg">
+                      <h3 className="font-bold text-base">
                         {shortages.length > 0 ? 'Falta material núcleo: no se puede crear el lote' : 'Material núcleo completo'}
                       </h3>
                       {shortages.length > 0 ? (
@@ -643,25 +653,25 @@ export default function SimulatorPage() {
                   </div>
 
                   <Button
-                    size="lg"
                     onClick={batchType === 'MDF' ? handleCreateBatch : handleCreateStoneBatch}
                     disabled={creating || shortages.length > 0}
                     title={shortages.length > 0 ? shortages.map(shortageText).join(' · ') : undefined}
-                    className={`px-6 shadow ${batchType === 'PIEDRA' ? 'bg-stone-700 hover:bg-stone-800' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+                    className="shrink-0 bg-emerald-600 hover:bg-emerald-700"
                   >
-                    {!creating && <Factory size={18}/>}
-                    {creating ? 'Creando lote...' : batchType === 'MDF' ? 'Crear Lote MDF' : 'Crear Lote Piedra'}
+                    {!creating && <Factory size={16}/>}
+                    {creating ? 'Procesando...' : batchType === 'MDF' ? 'Crear lote MDF' : 'Crear lote Piedra'}
                   </Button>
                 </div>
 
-                <h4 className="font-bold text-slate-700 mb-3 text-sm flex items-center gap-2"><Beaker size={16} className="text-slate-400"/> Desglose de Receta vs Inventario Físico</h4>
-                <div className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm max-h-[min(28rem,50vh)] overflow-y-auto">
-                  <VTable
-                    columns={materialColumns as unknown as VTableColumn<Record<string, unknown>>[]}
-                    data={(simulationResult.materials || []) as unknown as Record<string, unknown>[]}
-                    className="text-sm [&_tbody_tr]:transition-colors"
-                  />
-                </div>
+                <h4 className="font-bold text-slate-700 mb-3 text-sm flex items-center gap-2"><Beaker size={16} className="text-indigo-600"/> Desglose de receta vs. inventario físico</h4>
+                <VTable
+                  columns={materialColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+                  data={(simulationResult.materials || []) as unknown as Record<string, unknown>[]}
+                  headerStyle="report"
+                  maxHeight="min(28rem,50vh)"
+                  className="shadow-sm"
+                  emptyState={{ icon: <Beaker />, title: 'La simulación no trajo materiales.' }}
+                />
 
               </div>
             )}
