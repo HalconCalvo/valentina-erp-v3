@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Unlock, Lock, Search, Factory, FileSearch, Users, CheckCircle2, FilePlus, RefreshCw } from 'lucide-react';
+import { Unlock, Lock, Search, Factory, FileSearch, Users, CheckCircle2, FilePlus } from 'lucide-react';
 import { salesService } from '../../../api/sales-service';
 import { SalesOrder, CustomerPayment, PendingProgressInstance, InvoicingRightsRead, InvoicingRightAdvanceRow } from '../../../types/sales';
 import { OrderStatementModal } from '../components/OrderStatementModal';
@@ -11,6 +11,27 @@ import { Input } from '@/components/ui/Input';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { formatDate, formatMoney } from '@/utils/format';
 import { Button } from '@/components/ui/Button';
+import { VPageHeader } from '@/components/ui/VPageHeader';
+import { VEmptyState } from '@/components/ui/VEmptyState';
+
+const SEARCH_INPUT = 'pl-10 text-sm font-medium shadow-sm';
+const SearchBox = ({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) => (
+    <div className="relative w-full md:w-96">
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <Search size={18} className="text-slate-400" />
+        </div>
+        <Input type="text" className={SEARCH_INPUT} placeholder={placeholder} value={value}
+            onChange={(e) => onChange(e.target.value)} />
+    </div>
+);
+
+/** White card with the figure in color (guide v2 §3). */
+const Kpi = ({ label, value, tone }: { label: string; value: string; tone: string }) => (
+    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+        <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{label}</p>
+        <p className={`text-2xl font-black tabular-nums mt-1 ${tone}`}>{value}</p>
+    </div>
+);
 
 type VendorRightRow =
     | { kind: 'ADVANCE'; order_id: number; folio: string; client: string; project: string; detail: string; amount: number }
@@ -162,24 +183,28 @@ const PendingToInvoicePage = () => {
         {
             key: 'folio',
             label: 'Folio',
-            render: (row) => <span className="font-bold text-slate-800 text-sm">{String(row.folio)}</span>,
+            sortable: true,
+            render: (row) => <span className="font-mono text-xs text-slate-600">{String(row.folio)}</span>,
         },
         {
             key: 'client',
             label: 'Cliente',
-            render: (row) => <span className="text-xs text-slate-600 font-medium">{String(row.client)}</span>,
+            sortable: true,
+            render: (row) => <span className="font-bold text-slate-800">{String(row.client)}</span>,
         },
         {
             key: 'project',
             label: 'Proyecto',
-            render: (row) => <span className="text-sm text-slate-600">{String(row.project)}</span>,
+            sortable: true,
+            render: (row) => <span className="text-slate-700 max-w-[260px] truncate block" title={String(row.project)}>{String(row.project)}</span>,
         },
         {
             key: 'amount',
             label: 'Monto anticipo (con IVA)',
             sortable: true,
+            align: 'right',
             render: (row) => (
-                <span className="block text-right font-black text-amber-800">
+                <span className="block text-right font-bold text-amber-700 tabular-nums">
                     {formatMoney(Number(row.amount) || 0)}
                 </span>
             ),
@@ -208,26 +233,26 @@ const PendingToInvoicePage = () => {
             key: 'kindSort',
             label: 'Tipo',
             sortable: true,
-            render: (row) => <span className="text-xs font-bold text-slate-600">{String(row.kind)}</span>,
+            render: (row) => <span className="text-slate-600">{String(row.kind)}</span>,
         },
         {
             key: 'folio',
             label: 'Folio',
             sortable: true,
-            render: (row) => <span className="font-bold text-slate-800 text-sm">{String(row.folio)}</span>,
+            render: (row) => <span className="font-mono text-xs text-slate-600">{String(row.folio)}</span>,
         },
         {
             key: 'client',
             label: 'Cliente',
             sortable: true,
-            render: (row) => <span className="text-xs text-slate-600 font-medium">{String(row.client)}</span>,
+            render: (row) => <span className="font-bold text-slate-800">{String(row.client)}</span>,
         },
         {
             key: 'project',
             label: 'Proyecto',
             sortable: true,
             render: (row) => (
-                <span className="text-sm text-slate-600 font-medium flex items-center gap-2">
+                <span className="text-slate-700 flex items-center gap-2">
                     <Factory size={14} className="text-slate-400" />
                     {String(row.project)}
                 </span>
@@ -235,14 +260,12 @@ const PendingToInvoicePage = () => {
         },
         {
             key: 'amount',
-            label: 'Monto',
+            label: 'Monto (con IVA)',
             sortable: true,
+            align: 'right',
             render: (row) => (
-                <span className="block text-right font-black text-indigo-700">
+                <span className="block text-right font-bold text-slate-800 tabular-nums">
                     {formatMoney(Number(row.amount) || 0)}
-                    <span className="ml-1 text-[10px] font-bold text-slate-400">
-                        con IVA
-                    </span>
                 </span>
             ),
         },
@@ -259,109 +282,80 @@ const PendingToInvoicePage = () => {
     };
 
     return (
-        <div className="p-8 max-w-7xl mx-auto pb-24 space-y-6 animate-fadeIn">
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4">
-                <div>
-                    <h1
-                        className="text-3xl font-black tracking-tight flex items-center gap-3 text-slate-800"
-                    >
-                        {canView ? (
-                            <Unlock className="text-indigo-600" size={32} />
-                        ) : (
-                            <Users className="text-indigo-600" size={32} />
-                        )}
-                        {canView ? 'Pendiente de Facturar (Fábrica)' : 'Monitor de Órdenes de Venta'}
-                    </h1>
-                    <p className="text-slate-500 mt-1 font-medium">
-                        {canView
-                            ? 'Lo que ya se puede facturar: anticipos aún sin factura y casas firmadas por el cliente sin factura de avance.'
-                            : 'Lo mismo que ve Cobranza, en vista resumida.'}
-                    </p>
-                </div>
-
-                <div className="flex items-center gap-4">
-                    {isLoading && <span className="text-xs text-slate-400 font-bold animate-pulse">Sincronizando...</span>}
-                    <Button variant="outline" onClick={handleGoBack}>
-                        <ArrowLeft size={16} /> {returnTo === '/sales' ? 'Regresar a Ventas' : 'Regresar a Cobranza'}
-                    </Button>
-                </div>
-            </div>
+        <div className="p-8 w-full pb-24 space-y-6 animate-fadeIn">
+            <VPageHeader
+                icon={canView ? Unlock : Users}
+                title={canView ? 'Pendiente de facturar (fábrica)' : 'Monitor de órdenes de venta'}
+                subtitle={canView
+                    ? 'Anticipos aún sin factura y casas firmadas por el cliente sin factura de avance.'
+                    : 'Lo mismo que ve Cobranza, en vista resumida.'}
+                loading={isLoading}
+                onRefresh={hasAbsolutePower ? loadSalesData : undefined}
+                onBack={handleGoBack}
+                backLabel={returnTo === '/sales' ? 'Regresar a Ventas' : returnTo === '/management' ? 'Regresar a Gerencia' : 'Regresar a Cobranza'}
+            />
 
             {canView && invoicingRights && (
-                <div className="bg-blue-50 border border-blue-200 rounded-xl px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div>
-                        <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Derecho a facturación</p>
-                        <p className="text-xs text-slate-600 mt-0.5">
-                            Anticipos (con IVA): {formatMoney(invoicingRights.advance_pending_total)} + Avances de obra (con IVA):{' '}
-                            {formatMoney(invoicingRights.progress_work_total)}
-                        </p>
-                    </div>
-                    <p className="font-black text-2xl text-blue-900 tabular-nums">{formatMoney(tarjetaBTotal)}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <Kpi label="Anticipos por facturar (con IVA)" value={formatMoney(invoicingRights.advance_pending_total)} tone="text-amber-700" />
+                    <Kpi label="Avances de obra por facturar (con IVA)" value={formatMoney(invoicingRights.progress_work_total)} tone="text-emerald-700" />
+                    <Kpi label="Derecho a facturación (con IVA)" value={formatMoney(tarjetaBTotal)} tone="text-indigo-700" />
                 </div>
             )}
 
             {canView && (
-                <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit">
-                    <Button
-                        variant="ghost"
-                        onClick={() => setProgressTab('ANTICIPOS')}
-                        className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${
-                            progressTab === 'ANTICIPOS' ? 'bg-white shadow text-blue-700' : 'text-slate-500 hover:text-slate-800'
-                        }`}
-                    >
-                        Anticipos Pendientes
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        onClick={() => setProgressTab('AVANCES')}
-                        className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold transition-all ${
-                            progressTab === 'AVANCES' ? 'bg-white shadow text-emerald-700' : 'text-slate-500 hover:text-slate-800'
-                        }`}
-                    >
-                        <CheckCircle2 size={15} />
-                        Avances por Facturar
-                        {pendingProgress.length > 0 && (
-                            <span className="bg-emerald-500 text-white text-xs font-black px-2 py-0.5 rounded-full">{pendingProgress.length}</span>
-                        )}
-                    </Button>
-                </div>
-            )}
-
-            {canView && (
-                <div className="relative w-full max-w-md">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Search size={18} className="text-slate-400" />
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit">
+                        <Button
+                            variant="ghost"
+                            onClick={() => setProgressTab('ANTICIPOS')}
+                            className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${
+                                progressTab === 'ANTICIPOS' ? 'bg-white shadow text-indigo-700' : 'text-slate-500 hover:text-slate-800'
+                            }`}
+                        >
+                            Anticipos pendientes
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            onClick={() => setProgressTab('AVANCES')}
+                            className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold transition-all ${
+                                progressTab === 'AVANCES' ? 'bg-white shadow text-indigo-700' : 'text-slate-500 hover:text-slate-800'
+                            }`}
+                        >
+                            <CheckCircle2 size={15} />
+                            Avances por facturar
+                            {pendingProgress.length > 0 && (
+                                <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-bold px-2 py-0.5 rounded-full tabular-nums">{pendingProgress.length}</span>
+                            )}
+                        </Button>
                     </div>
-                    <Input
-                        type="text"
-                        className="pl-10 pr-3 py-2.5 bg-white border-slate-200 rounded-lg text-sm focus:ring-2 font-medium transition-all shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Buscar cliente, proyecto u OV…"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
+                    <SearchBox value={searchTerm} onChange={setSearchTerm} placeholder="Buscar cliente, proyecto u OV..." />
                 </div>
             )}
 
             {canView && progressTab === 'ANTICIPOS' && (
-                <div className="bg-white rounded-xl border border-amber-200 shadow-md overflow-hidden">
-                    <div className="p-4 border-b border-amber-100 bg-amber-50/50 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="p-4 border-b bg-slate-50 flex flex-col md:flex-row justify-between md:items-center gap-4">
                         <div>
-                            <h2 className="font-black text-slate-800 text-lg flex items-center gap-2">
-                                <Lock size={20} className="text-amber-600" />
+                            <h2 className="font-bold text-slate-800 flex items-center gap-2">
+                                <Lock size={18} className="text-indigo-600" />
                                 Anticipos pendientes (primer pago)
                             </h2>
-                            <p className="text-xs text-slate-600 mt-0.5">
+                            <p className="text-sm text-slate-500 mt-0.5">
                                 OVs esperando anticipo que aún no tienen factura de anticipo. Montos con IVA.
                             </p>
                         </div>
-                        <div className="bg-white border border-amber-200 rounded-lg px-4 py-2 shadow-sm">
-                            <span className="text-xs font-bold uppercase text-amber-700">Total con IVA: </span>
-                            <span className="font-black text-xl text-amber-900">{formatMoney(invoicingRights?.advance_pending_total ?? 0)}</span>
+                        <div className="bg-white border border-slate-200 px-4 py-2 rounded-lg shadow-sm">
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total con IVA: </span>
+                            <span className="font-black text-slate-900 text-xl tabular-nums">{formatMoney(invoicingRights?.advance_pending_total ?? 0)}</span>
                         </div>
                     </div>
                     <div className="overflow-x-auto">
                         <VTable
                             className="border-0 rounded-none shadow-none"
+                            headerStyle="report"
+                            stickyHeader={false}
+                            isLoading={isLoading && !invoicingRights}
                             columns={advancesColumns}
                             data={advancesTableData}
                             emptyState={{
@@ -380,32 +374,33 @@ const PendingToInvoicePage = () => {
             )}
 
             {progressTab === 'AVANCES' && hasAbsolutePower && (
-                <div className="bg-white rounded-xl border border-emerald-200 shadow-md overflow-hidden">
-                    <div className="p-4 border-b border-emerald-100 bg-emerald-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="p-4 border-b bg-slate-50 flex flex-col md:flex-row justify-between md:items-center gap-4">
                         <div>
-                            <h2 className="font-black text-slate-800 text-lg flex items-center gap-2">
-                                <CheckCircle2 size={20} className="text-emerald-600" />
-                                Casas firmadas — derecho a facturar avance
+                            <h2 className="font-bold text-slate-800 flex items-center gap-2">
+                                <CheckCircle2 size={18} className="text-indigo-600" />
+                                Casas firmadas: derecho a facturar avance
                             </h2>
-                            <p className="text-xs text-slate-500 mt-0.5">
-                                Casas con firma del cliente que aún no están en una factura de avance. Montos con IVA (la casa completa; el anticipo se amortiza al facturar).
+                            <p className="text-sm text-slate-500 mt-0.5">
+                                Casas con firma del cliente sin factura de avance. Con IVA (la casa completa; el anticipo se amortiza al facturar).
                             </p>
                         </div>
-                        <div className="flex items-center gap-3">
-                            <div className="bg-white border border-emerald-200 rounded-lg px-4 py-2 shadow-sm">
-                                <span className="text-xs font-bold uppercase text-emerald-700">Total con IVA: </span>
-                                <span className="font-black text-xl text-emerald-900">{formatMoney(invoicingRights?.progress_work_total ?? 0)}</span>
-                            </div>
-                            <Button type="button" variant="ghost" size="icon" onClick={loadSalesData} className="hover:bg-emerald-100" aria-label="Actualizar" title="Actualizar">
-                                <RefreshCw size={16} className="text-slate-400" />
-                            </Button>
+                        <div className="bg-white border border-slate-200 px-4 py-2 rounded-lg shadow-sm">
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total con IVA: </span>
+                            <span className="font-black text-slate-900 text-xl tabular-nums">{formatMoney(invoicingRights?.progress_work_total ?? 0)}</span>
                         </div>
                     </div>
 
                     {filteredProgress.length === 0 ? (
-                        <div className="p-12 text-center text-slate-500 italic">No hay casas firmadas pendientes de facturar.</div>
+                        <VEmptyState icon={<CheckCircle2 />} title="No hay casas firmadas pendientes de facturar." />
                     ) : (
                         <>
+                            <div className="flex text-sm font-bold text-slate-600 bg-slate-50 border-b border-slate-200">
+                                <div className="p-3 pl-11 flex-1">Casa</div>
+                                <div className="p-3 w-48 hidden sm:block">Producto</div>
+                                <div className="p-3 w-32">Firma</div>
+                                <div className="p-3 w-40 text-right">Importe (con IVA)</div>
+                            </div>
                             {Object.entries(
                                 filteredProgress.reduce<Record<string, PendingProgressInstance[]>>((acc, inst) => {
                                     const key = inst.order_folio;
@@ -419,16 +414,17 @@ const PendingToInvoicePage = () => {
                                 const groupSum = instances.reduce((s, i) => s + (Number(i.line_amount) || 0), 0);
                                 return (
                                     <div key={folio} className="border-b border-slate-100 last:border-0">
-                                        <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 bg-slate-50/60">
-                                            <div>
-                                                <span className="font-black text-slate-800 text-sm">{folio}</span>
-                                                <span className="mx-2 text-slate-300">·</span>
-                                                <span className="text-slate-600 text-sm">{instances[0].client_name}</span>
+                                        <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-3 bg-indigo-50 border-y border-indigo-100">
+                                            <div className="min-w-0">
+                                                <span className="font-black text-indigo-900">{folio}</span>
+                                                <span className="mx-2 text-indigo-200">·</span>
+                                                <span className="font-bold text-indigo-900">{instances[0].client_name}</span>
                                                 {instances[0].project_name && (
-                                                    <span className="ml-2 text-xs text-slate-400 italic">{instances[0].project_name}</span>
+                                                    <span className="ml-2 text-sm text-slate-500">{instances[0].project_name}</span>
                                                 )}
-                                                <span className="ml-3 text-xs font-bold text-emerald-700">Subtotal con IVA: {formatMoney(groupSum)}</span>
                                             </div>
+                                            <div className="flex items-center gap-3">
+                                            <span className="font-black text-indigo-800 tabular-nums">Subtotal: {formatMoney(groupSum)}</span>
                                             <Button
                                                 size="sm"
                                                 onClick={() => {
@@ -438,13 +434,15 @@ const PendingToInvoicePage = () => {
                                                 className="bg-emerald-600 hover:bg-emerald-700"
                                             >
                                                 <FilePlus size={14} />
-                                                Registrar Avance
+                                                Registrar avance
                                             </Button>
+                                            </div>
                                         </div>
 
-                                        <div className="divide-y divide-slate-50">
+                                        <div className="divide-y divide-slate-100">
                                             {instances.map((inst) => (
-                                                <div key={inst.instance_id} className="flex flex-wrap items-center gap-3 px-6 py-2.5">
+                                                <div key={inst.instance_id} className="flex items-center text-sm hover:bg-slate-50">
+                                                    <div className="p-3 pl-4 flex-1 flex items-center gap-3 min-w-0">
                                                     <Input
                                                         type="checkbox"
                                                         checked={isOpen ? selectedInstanceIds.includes(inst.instance_id) : true}
@@ -459,17 +457,16 @@ const PendingToInvoicePage = () => {
                                                         className="accent-emerald-600 w-4 h-4"
                                                         disabled={!isOpen}
                                                     />
-                                                    <span className="text-sm font-bold text-slate-700 min-w-0 flex-1 truncate">{inst.custom_name}</span>
-                                                    {inst.item_product_name && (
-                                                        <span className="text-xs text-slate-400 hidden sm:block">{inst.item_product_name}</span>
-                                                    )}
-                                                    <span className="text-xs font-black text-slate-700 tabular-nums">{formatMoney(Number(inst.line_amount) || 0)}</span>
-                                                    <span className="text-xs text-emerald-600 font-bold">🟢🟢</span>
-                                                    {inst.signed_received_at && (
-                                                        <span className="text-xs text-slate-400">
-                                                            {formatDate(inst.signed_received_at)}
+                                                    <span className="font-bold text-slate-700 min-w-0 truncate">{inst.custom_name}</span>
+                                                    </div>
+                                                    <div className="p-3 w-48 hidden sm:block text-xs text-slate-500 truncate">{inst.item_product_name || '—'}</div>
+                                                    <div className="p-3 w-32">
+                                                        <span className="inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded border bg-emerald-50 text-emerald-700 border-emerald-200"
+                                                            title={inst.signed_received_at ? `Firmada el ${formatDate(inst.signed_received_at)}` : 'Firmada'}>
+                                                            {inst.signed_received_at ? formatDate(inst.signed_received_at) : 'Firmada'}
                                                         </span>
-                                                    )}
+                                                    </div>
+                                                    <div className="p-3 w-40 text-right font-bold text-slate-800 tabular-nums">{formatMoney(Number(inst.line_amount) || 0)}</div>
                                                 </div>
                                             ))}
                                         </div>
@@ -494,35 +491,21 @@ const PendingToInvoicePage = () => {
             )}
 
             {!canView && (
-                <div className="bg-white rounded-xl border border-indigo-200 shadow-md overflow-hidden">
-                    <div className="p-4 border-b border-indigo-100 bg-indigo-50/50 flex flex-col md:flex-row justify-between items-start gap-4">
-                        <div className="space-y-1">
-                            <h2 className="text-sm font-black uppercase tracking-wider text-slate-500">Derecho a facturación</h2>
-                            <p className="text-xs text-slate-600 max-w-xl">
-                                Anticipos aún sin factura y casas firmadas sin factura de avance; todo con IVA.
-                            </p>
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="p-4 border-b bg-slate-50 flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div className="bg-white border border-slate-200 px-4 py-2 rounded-lg shadow-sm">
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Derecho a facturación (con IVA): </span>
+                            <span className="font-black text-slate-900 text-xl tabular-nums">{formatMoney(tarjetaBTotal)}</span>
                         </div>
-                        <div className="bg-white border border-indigo-200 px-4 py-2 rounded-lg shadow-sm flex items-center gap-3 w-full md:w-auto justify-between">
-                            <span className="text-xs font-bold uppercase tracking-wider text-indigo-600">Total:</span>
-                            <span className="font-black text-xl text-indigo-900">{formatMoney(tarjetaBTotal)}</span>
-                        </div>
-                        <div className="relative w-full md:w-96">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <Search size={18} className="text-slate-400" />
-                            </div>
-                            <Input
-                                type="text"
-                                className="pl-10 pr-3 py-2.5 bg-white border-slate-200 rounded-lg text-sm focus:ring-2 font-medium transition-all shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                                placeholder="Buscar cliente, proyecto o folio..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
-                        </div>
+                        <SearchBox value={searchTerm} onChange={setSearchTerm} placeholder="Buscar cliente, proyecto o folio..." />
                     </div>
 
                     <div className="overflow-x-auto">
                         <VTable
                             className="border-0 rounded-none shadow-none"
+                            headerStyle="report"
+                            stickyHeader={false}
+                            isLoading={isLoading && !invoicingRights}
                             columns={vendorColumns}
                             data={vendorTableData}
                             emptyState={{
@@ -532,7 +515,7 @@ const PendingToInvoicePage = () => {
                                 row.order_id != null
                                     ? [
                                           {
-                                              label: 'Ver Estatus',
+                                              label: 'Ver estatus',
                                               icon: <FileSearch size={14} />,
                                               onClick: () => openOrderStatement(Number(row.order_id)),
                                           },

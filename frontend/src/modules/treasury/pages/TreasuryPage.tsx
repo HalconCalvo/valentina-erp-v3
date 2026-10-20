@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   Plus, Landmark, ArrowDownRight, ArrowUpRight, Users, 
-  CheckCircle2, Wallet, ArrowLeft, CheckCircle, 
+  CheckCircle2, Wallet, CheckCircle, 
   Bell, Search, TrendingUp, AlertTriangle,
   ShoppingCart, Tag, ArrowRight, Banknote, Receipt
 } from 'lucide-react';
@@ -34,7 +34,7 @@ import { PayrollAuditPanel, type PayrollLevel1 } from '../components/PayrollAudi
 
 // --- UI ---
 import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
+import { VPageHeader } from '@/components/ui/VPageHeader';
 import { toast } from '@/components/ui/VToast';
 import { formatMoney } from '@/utils/format';
 
@@ -261,16 +261,23 @@ export const TreasuryPage = () => {
   }, [isChecker]);
 
 
-  const getSectionTitle = () => {
+  // Guide v2 §2/§12: section title without number, one-line subtitle and "Regresar a <origen>" on the right
+  const getSectionHeader = (): { icon: typeof Landmark; title: string; subtitle: string } => {
     switch(activeSection) {
-        case 'TASKS': return 'Centro de Tareas Pendientes';
-        case 'RECEIVABLES': return 'Cuentas por Cobrar';
-        case 'PAYABLES': return 'Cuentas por Pagar';
-        case 'PETTY_CASH': return 'Caja Chica';
-        case 'OPERATIONAL_EXPENSES': return 'Gastos Operativos';
-        default: return isChecker ? 'Tesorería y Flujo Maestro' : 'Administración Central';
+        case 'TASKS': return { icon: Bell, title: 'Tareas pendientes', subtitle: 'Acciones que esperan a Administración: compras y ventas.' };
+        case 'RECEIVABLES': return { icon: ArrowDownRight, title: 'Cuentas por cobrar', subtitle: 'Anticipos, avances por facturar y antigüedad de saldos.' };
+        case 'PAYABLES': return { icon: ArrowUpRight, title: 'Cuentas por pagar', subtitle: 'Facturas de proveedores por vencimiento.' };
+        case 'PETTY_CASH': return { icon: Wallet, title: 'Caja chica', subtitle: 'Saldo del fondo y sus egresos y reposiciones.' };
+        case 'OPERATIONAL_EXPENSES': return { icon: Receipt, title: 'Gastos operativos', subtitle: 'Renta, luz, teléfono y otros gastos por pagar.' };
+        default: return isChecker
+          ? { icon: Landmark, title: 'Tesorería y flujo maestro', subtitle: 'Visión global de cuentas, autorización de pagos y bóveda.' }
+          : { icon: Landmark, title: 'Administración central', subtitle: 'Gestión operativa: cobranza, facturas y armado de solicitudes de pago.' };
     }
   };
+  const sectionHeader = getSectionHeader();
+  const backLabel = cameFromTasks && activeSection === 'RECEIVABLES' ? 'Regresar a Tareas pendientes' : 'Regresar a Tesorería';
+  // Lists with tables use the full width; the hub of cards and the task tray keep the narrow container
+  const fullWidth = activeSection !== null && activeSection !== 'TASKS';
 
   // ---> SASTRE DE TIPOGRAFÍA <---
   const getCountSize = (count: number) => {
@@ -283,31 +290,17 @@ export const TreasuryPage = () => {
   const totalTasksCount = alerts.pending_requisitions + alerts.pending_sales_advances;
 
   return (
-    <div className={`p-8 pb-24 space-y-6 animate-fadeIn ${activeSection === 'PETTY_CASH' ? 'w-full' : 'max-w-7xl mx-auto'}`}>
+    <div className={`p-8 pb-24 space-y-6 animate-fadeIn ${fullWidth ? 'w-full' : 'max-w-7xl mx-auto'}`}>
       
       {/* Third-wave pilot: Caja chica draws its own standard header and, as a list with a table, uses the full width */}
       {!isSubSectionActive && activeSection !== 'PETTY_CASH' && (
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4">
-            <div className="flex items-center gap-3">
-              <Landmark className="text-indigo-600" size={32} />
-              <div>
-                <h1 className="text-3xl font-black text-slate-800 tracking-tight">{getSectionTitle()}</h1>
-                <p className="text-slate-500 mt-1 font-medium">
-                  {activeSection === null 
-                    ? (isChecker ? 'Visión global de cuentas, autorización de pagos y bóveda.' : 'Gestión operativa: cobranza, facturas y armado de solicitudes de pago.')
-                    : activeSection === 'TASKS'
-                    ? 'Bandeja unificada de acciones requeridas por Administración.'
-                    : 'Gestión detallada y ejecución operativa.'}
-                </p>
-              </div>
-            </div>
-
-            {activeSection !== null && (
-              <Button type="button" variant="outline" onClick={handleRegresar}>
-                <ArrowLeft size={18} /> Regresar
-              </Button>
-            )}
-          </div>
+          <VPageHeader
+            icon={sectionHeader.icon}
+            title={sectionHeader.title}
+            subtitle={sectionHeader.subtitle}
+            onBack={activeSection !== null ? handleRegresar : undefined}
+            backLabel={backLabel}
+          />
       )}
 
       {/* --- NIVEL 1: EL GRID PRINCIPAL UNIFICADO --- */}

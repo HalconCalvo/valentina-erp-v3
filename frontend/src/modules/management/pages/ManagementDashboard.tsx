@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-    ArrowLeft,
     Landmark,
+    LayoutDashboard,
     Plus,
     Wallet,
     Coins,
@@ -22,6 +22,9 @@ import {
 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { VPageHeader } from '@/components/ui/VPageHeader';
+import type { LucideIcon } from 'lucide-react';
 import { toast } from '@/components/ui/VToast';
 import { salesService } from '../../../api/sales-service';
 import {
@@ -251,16 +254,28 @@ const ManagementDashboard: React.FC = () => {
         }
     };
 
-    const getTitle = () => {
-        if (root === null) return 'Administración V4.0';
-        if (root === 'PENDING') return '1. Pendientes (alertas)';
-        if (root === 'BANKS') return '2. Bancos (confidencial)';
-        if (root === 'CXC') return '3. Cuentas por cobrar';
-        if (root === 'OV_FACTURACION') return 'OV y Facturación';
-        if (root === 'CXP') return '4. Cuentas por pagar';
-        if (root === 'PAYROLL') return '5. Nómina';
-        return 'Gerencia';
+    // Guide v2 §2/§12: each level has its own title (no number), a one-line subtitle and "Regresar a <origen>"
+    const getHeader = (): { icon: LucideIcon; title: string; subtitle: string } => {
+        if (root === 'PENDING') return { icon: Bell, title: 'Pendientes', subtitle: 'OCs en espera de firma y anticipos por facturar.' };
+        if (root === 'BANKS') return { icon: Landmark, title: 'Bancos', subtitle: 'Cuentas, saldos y conciliación (confidencial).' };
+        if (root === 'CXC') return { icon: Coins, title: 'Cuentas por cobrar', subtitle: 'Anticipos, avances por facturar y antigüedad de saldos.' };
+        if (root === 'OV_FACTURACION') return { icon: FileText, title: 'OV y facturación', subtitle: 'Órdenes de venta, anticipos y avances.' };
+        if (root === 'CXP') return { icon: TrendingDown, title: 'Cuentas por pagar', subtitle: 'Facturas de proveedores por vencimiento.' };
+        if (root === 'PAYROLL') {
+            if (payrollSub === 'COMMISSIONS') return { icon: Users, title: 'Comisiones', subtitle: 'Comisiones retenidas, por pagar y pagadas.' };
+            if (payrollSub === 'INSTALLATIONS') return { icon: Users, title: 'Destajos', subtitle: 'Pagos de instalación por cuadrilla: sin firma, por pagar y pagados.' };
+            if (payrollSub === 'WEEKLY') return { icon: Users, title: 'Nómina semanal', subtitle: 'Cierre de jueves de costos fijos e histórico.' };
+            return { icon: Users, title: 'Nómina', subtitle: 'Comisiones, destajos de instalación y nómina semanal.' };
+        }
+        return { icon: LayoutDashboard, title: 'Gerencia', subtitle: 'Pendientes, bancos, cobranza, pagos y nómina.' };
     };
+
+    const getBackLabel = () => {
+        if (selectedAccountForDetail) return 'Regresar a Bancos';
+        if (payrollSub !== null) return 'Regresar a Nómina';
+        return 'Regresar a Gerencia';
+    };
+    const header = getHeader();
 
     const totalTasks = alerts.pending_requisitions + alerts.pending_sales_advances;
 
@@ -270,27 +285,15 @@ const ManagementDashboard: React.FC = () => {
         root === 'OV_FACTURACION';
 
     return (
-        <div className="p-8 max-w-7xl mx-auto pb-24 space-y-6 animate-fadeIn">
+        <div className={`p-8 pb-24 space-y-6 animate-fadeIn ${root === null || root === 'PENDING' ? 'max-w-7xl mx-auto' : 'w-full'}`}>
             {!hideOwnHeader && (
-                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4">
-                    <div>
-                        <h1 className="text-3xl font-black text-slate-800 tracking-tight">{getTitle()}</h1>
-                        <p className="text-slate-500 mt-1 font-medium">
-                            {root === null
-                                ? 'Jerarquía operativa: pendientes, bóveda, CXC, CXP y nómina.'
-                                : 'Use «Regresar» para volver al nivel inmediato anterior.'}
-                        </p>
-                    </div>
-                    {root !== null && (
-                        <button
-                            type="button"
-                            onClick={handleRegresar}
-                            className="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-bold hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm"
-                        >
-                            <ArrowLeft size={18} /> Regresar
-                        </button>
-                    )}
-                </div>
+                <VPageHeader
+                    icon={header.icon}
+                    title={header.title}
+                    subtitle={header.subtitle}
+                    onBack={root !== null ? handleRegresar : undefined}
+                    backLabel={getBackLabel()}
+                />
             )}
 
             {root === null && (
@@ -677,13 +680,9 @@ const ManagementDashboard: React.FC = () => {
                                 <h3 className="font-bold text-slate-800 flex items-center gap-2 text-lg">
                                     <Landmark className="text-slate-500" /> Cuentas y conciliación
                                 </h3>
-                                <button
-                                    type="button"
-                                    onClick={() => setIsCreateModalOpen(true)}
-                                    className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-sm transition-colors flex items-center gap-1"
-                                >
+                                <Button type="button" onClick={() => setIsCreateModalOpen(true)}>
                                     <Plus size={16} /> Nueva cuenta
-                                </button>
+                                </Button>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {accounts.map((account) => (

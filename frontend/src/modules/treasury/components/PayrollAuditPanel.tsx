@@ -24,8 +24,10 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
+import { VTextarea } from '@/components/ui/VTextarea';
+import { VEmptyState } from '@/components/ui/VEmptyState';
 import { toast } from '@/components/ui/VToast';
-import { formatDateTime, formatMoney } from '@/utils/format';
+import { formatDate, formatDateTime, formatMoney } from '@/utils/format';
 import { TableActionEditIcon } from '@/lib/tableActionIcons';
 import { PayoutDialog, payoutMethodLabel, type PayoutChoice } from './PayoutDialog';
 
@@ -325,12 +327,15 @@ export const PayrollAuditPanel: React.FC<Props> = ({
     {
       key: 'week_reference_date',
       label: 'Semana (jueves)',
+      sortable: true,
       render: (row) => (
-        <span className="font-medium text-slate-700">{row.week_reference_date.slice(0, 10)}</span>
+        <span className="font-medium text-slate-700">{formatDate(row.week_reference_date.slice(0, 10))}</span>
       ),
     },
     {
       key: 'admin_payroll',
+      align: 'right',
+      sortable: true,
       label: 'Administración',
       render: (row) => {
         const isEd = editingId === row.id;
@@ -345,12 +350,14 @@ export const PayrollAuditPanel: React.FC<Props> = ({
             className="w-28 text-right ml-auto"
           />
         ) : (
-          <span className="block text-right">{fmtMoney(row.admin_payroll)}</span>
+          <span className="block text-right tabular-nums">{fmtMoney(row.admin_payroll)}</span>
         );
       },
     },
     {
       key: 'design_sales_payroll',
+      align: 'right',
+      sortable: true,
       label: 'Diseño/Ventas',
       render: (row) => {
         const isEd = editingId === row.id;
@@ -365,12 +372,14 @@ export const PayrollAuditPanel: React.FC<Props> = ({
             className="w-28 text-right ml-auto"
           />
         ) : (
-          <span className="block text-right">{fmtMoney(row.design_sales_payroll)}</span>
+          <span className="block text-right tabular-nums">{fmtMoney(row.design_sales_payroll)}</span>
         );
       },
     },
     {
       key: 'production_plant_payroll',
+      align: 'right',
+      sortable: true,
       label: 'Producción',
       render: (row) => {
         const isEd = editingId === row.id;
@@ -385,24 +394,28 @@ export const PayrollAuditPanel: React.FC<Props> = ({
             className="w-28 text-right ml-auto"
           />
         ) : (
-          <span className="block text-right">{fmtMoney(row.production_plant_payroll)}</span>
+          <span className="block text-right tabular-nums">{fmtMoney(row.production_plant_payroll)}</span>
         );
       },
     },
     {
       key: 'total',
       label: 'Total',
+      align: 'right',
+      sortable: true,
+      sortValue: (row) => row.admin_payroll + row.design_sales_payroll + row.production_plant_payroll,
       render: (row) => {
         const isEd = editingId === row.id;
         const total = isEd
           ? editVals.admin_payroll + editVals.design_sales_payroll + editVals.production_plant_payroll
           : row.admin_payroll + row.design_sales_payroll + row.production_plant_payroll;
-        return <span className="block text-right font-bold text-slate-800">{fmtMoney(total)}</span>;
+        return <span className="block text-right font-bold text-slate-800 tabular-nums">{fmtMoney(total)}</span>;
       },
     },
     {
       key: 'action',
       label: 'Acción',
+      align: 'center',
       render: (row) => {
         const isEd = editingId === row.id;
         return (
@@ -415,7 +428,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
                   onClick={() => saveEdit(row)}
                   disabled={savingEdit}
                 >
-                  {savingEdit ? 'Guardando...' : 'Guardar'}
+                  {savingEdit ? 'Procesando...' : 'Guardar'}
                 </Button>
                 <Button
                   type="button"
@@ -452,6 +465,8 @@ export const PayrollAuditPanel: React.FC<Props> = ({
       {
         key: 'reference',
         label: 'OV / Referencia',
+        sortable: true,
+        sortValue: (row) => row.sales_order_id,
         render: (row) => (
           <div>
             <p className="font-bold text-slate-800">
@@ -464,6 +479,8 @@ export const PayrollAuditPanel: React.FC<Props> = ({
       {
         key: 'seller',
         label: 'Asesor',
+        sortable: true,
+        sortValue: (row) => row.seller_name || '',
         render: (row) => (
           <span className="inline-flex items-center gap-1">
             {row.seller_name || '—'}
@@ -477,8 +494,10 @@ export const PayrollAuditPanel: React.FC<Props> = ({
       {
         key: 'amount',
         label: 'Monto',
+        align: 'right',
+        sortable: true,
         render: (row) => (
-          <span className="block text-right font-black text-slate-800">{fmt(row.amount)}</span>
+          <span className="block text-right font-bold text-slate-800 tabular-nums">{fmt(row.amount)}</span>
         ),
       },
     ];
@@ -486,6 +505,8 @@ export const PayrollAuditPanel: React.FC<Props> = ({
       columns.push({
         key: 'paid_at',
         label: 'Pagado',
+        sortable: true,
+        sortValue: (row) => (row.paid_at ? new Date(row.paid_at).getTime() : 0),
         render: (row) => (
           <span className="text-xs text-slate-500">
             {row.paid_at ? formatDateTime(row.paid_at) : '—'}
@@ -499,8 +520,10 @@ export const PayrollAuditPanel: React.FC<Props> = ({
       columns.push({
         key: 'days_waiting',
         label: 'Días espera',
+        align: 'right',
+        sortable: true,
         render: (row) => (
-          <span className={`block text-center ${daysWaitingClass(row.days_waiting)}`}>
+          <span className={`block text-right tabular-nums ${daysWaitingClass(row.days_waiting)}`}>
             {row.days_waiting} d
           </span>
         ),
@@ -509,67 +532,54 @@ export const PayrollAuditPanel: React.FC<Props> = ({
     columns.push({
       key: 'action',
       label: 'Acción',
+      align: 'right',
       render: (row) => (
-        <div className="text-center">
-          {canPay && view === 'PAYABLE' && row.id != null && (
-            <Button type="button" size="xs" className="mr-2 bg-emerald-600 hover:bg-emerald-700"
-              disabled={payingCommission} onClick={() => setPayComm({ rows: [row] })}>
-              Pagar
+        <div className="text-right">
+          <div className="inline-flex flex-wrap items-center justify-end gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              title="Consultar la OV"
+              onClick={() => onOrderInspect(row.sales_order_id)}
+            >
+              Rayos X
             </Button>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-xs"
-            title="Consultar la OV"
-            onClick={() => onOrderInspect(row.sales_order_id)}
-          >
-            Rayos X
-          </Button>
-          {canPay && view === 'PAYABLE' && row.id != null && (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                size="xs"
-                className="ml-2 text-orange-700"
-                onClick={() => openCommDefer(row)}
-              >
+            {canPay && view === 'PAYABLE' && row.id != null && (
+              <Button type="button" variant="outline" size="sm" className="text-orange-700"
+                onClick={() => openCommDefer(row)}>
                 <SkipForward size={12} /> Diferir / Omitir
               </Button>
-              {expandedCommDeferKey === commKey(row) && (
-                <div className="mt-3 text-left bg-orange-50/50 p-3 rounded-lg border border-orange-100">
-                  <p className="text-xs font-bold text-orange-900 mb-2">
-                    Motivo del diferimiento u omisión (obligatorio)
-                  </p>
-                  <textarea
-                    className="w-full border border-orange-200 rounded-lg px-3 py-2 text-sm mb-3"
-                    rows={3}
-                    placeholder="Describe la razón para auditoría…"
-                    value={commDeferReason[commKey(row)] ?? ''}
-                    onChange={(e) =>
-                      setCommDeferReason((m) => ({ ...m, [commKey(row)]: e.target.value }))
-                    }
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      className="bg-orange-700 hover:bg-orange-800"
-                      onClick={() => handleDeferCommission(row)}
-                    >
-                      Confirmar omisión
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setExpandedCommDeferKey(null)}
-                    >
-                      Cancelar
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </>
+            )}
+            {canPay && view === 'PAYABLE' && row.id != null && (
+              <Button type="button" size="sm" className="bg-emerald-600 hover:bg-emerald-700"
+                disabled={payingCommission} onClick={() => setPayComm({ rows: [row] })}>
+                Pagar
+              </Button>
+            )}
+          </div>
+          {canPay && view === 'PAYABLE' && row.id != null && expandedCommDeferKey === commKey(row) && (
+            <div className="mt-3 text-left bg-white p-3 rounded-lg border border-orange-200">
+              <p className="text-xs font-bold text-orange-800 mb-2">
+                Motivo del diferimiento u omisión (obligatorio)
+              </p>
+              <VTextarea
+                className="mb-3"
+                placeholder="Describe la razón para auditoría…"
+                value={commDeferReason[commKey(row)] ?? ''}
+                onChange={(e) =>
+                  setCommDeferReason((m) => ({ ...m, [commKey(row)]: e.target.value }))
+                }
+              />
+              <div className="flex justify-between gap-2">
+                <Button size="sm" variant="outline" onClick={() => setExpandedCommDeferKey(null)}>
+                  Cancelar
+                </Button>
+                <Button size="sm" variant="outline" className="border-orange-300 text-orange-700"
+                  onClick={() => handleDeferCommission(row)}>
+                  Confirmar omisión
+                </Button>
+              </div>
+            </div>
           )}
         </div>
       ),
@@ -596,8 +606,10 @@ export const PayrollAuditPanel: React.FC<Props> = ({
         <VTable
           columns={columns as unknown as VTableColumn<Record<string, unknown>>[]}
           data={rows as unknown as Record<string, unknown>[]}
+          isLoading={coOverview === null}
           emptyState={{ title: 'Sin registros en esta bandeja.' }}
           className="shadow-sm"
+          headerStyle="report"
         />
       </div>
     );
@@ -627,7 +639,9 @@ export const PayrollAuditPanel: React.FC<Props> = ({
       {
         key: 'instance',
         label: 'Instalación',
-        render: (r) => payrollInstallationLabel(r),
+        sortable: true,
+        sortValue: (r) => payrollInstallationLabel(r),
+        render: (r) => <span className="font-medium text-slate-800">{payrollInstallationLabel(r)}</span>,
       },
       {
         // D18: days of the recipe's installation line × daily rate
@@ -645,8 +659,11 @@ export const PayrollAuditPanel: React.FC<Props> = ({
       {
         key: 'total',
         label: 'Total',
+        align: 'right',
+        sortable: true,
+        sortValue: (r) => r.total_amount,
         render: (r) => (
-          <span className="block text-right font-bold text-emerald-800">{fmt(r.total_amount)}</span>
+          <span className="block text-right font-bold text-emerald-700 tabular-nums">{fmt(r.total_amount)}</span>
         ),
       },
     ];
@@ -654,8 +671,11 @@ export const PayrollAuditPanel: React.FC<Props> = ({
       cols.push({
         key: 'days_waiting',
         label: 'Días espera',
+        align: 'right',
+        sortable: true,
+        sortValue: (r) => r.days_waiting ?? 0,
         render: (r) => (
-          <span className={`block text-center ${daysWaitingClass(r.days_waiting ?? 0)}`}>
+          <span className={`block text-right tabular-nums ${daysWaitingClass(r.days_waiting ?? 0)}`}>
             {r.days_waiting ?? 0} d
           </span>
         ),
@@ -665,52 +685,46 @@ export const PayrollAuditPanel: React.FC<Props> = ({
       cols.push({
         key: 'payment',
         label: 'Pago',
+        align: 'right',
         render: (r) => (
-          <div className="text-center flex flex-wrap gap-1 justify-center items-center">
-            {canPay && (
-              <Button
-                type="button"
-                size="xs"
-                className="bg-emerald-600 hover:bg-emerald-700"
-                disabled={payingId === r.id}
-                onClick={() => setPayInstall({ rows: [r] })}
-              >
-                {payingId === r.id ? 'Procesando...' : 'Pagar'}
+          <div className="text-right">
+            <div className="inline-flex flex-wrap items-center justify-end gap-2">
+              <Button type="button" variant="outline" size="sm" className="text-orange-700"
+                onClick={() => openInstDefer(r)}>
+                Diferir / Omitir
               </Button>
-            )}
-            <Button
-              type="button"
-              variant="outline"
-              size="xs"
-              className="text-orange-700"
-              onClick={() => openInstDefer(r)}
-            >
-              Diferir / Omitir
-            </Button>
+              {canPay && (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                  disabled={payingId === r.id}
+                  onClick={() => setPayInstall({ rows: [r] })}
+                >
+                  {payingId === r.id ? 'Procesando...' : 'Pagar'}
+                </Button>
+              )}
+            </div>
             {expandedInstDeferId === r.id && (
-              <div className="w-full mt-3 text-left bg-orange-50/50 p-3 rounded-lg border border-orange-100">
-                <p className="text-xs font-bold text-orange-900 mb-2">
+              <div className="w-full mt-3 text-left bg-white p-3 rounded-lg border border-orange-200">
+                <p className="text-xs font-bold text-orange-800 mb-2">
                   Motivo del diferimiento u omisión (obligatorio)
                 </p>
-                <textarea
-                  className="w-full border border-orange-200 rounded-lg px-3 py-2 text-sm mb-3"
-                  rows={3}
+                <VTextarea
+                  className="mb-3"
                   placeholder="Describe la razón para auditoría…"
                   value={instDeferReason[r.id] ?? ''}
                   onChange={(e) =>
                     setInstDeferReason((m) => ({ ...m, [r.id]: e.target.value }))
                   }
                 />
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    className="bg-orange-700 hover:bg-orange-800"
-                    onClick={() => handleDeferInstall(r)}
-                  >
-                    Confirmar omisión
-                  </Button>
+                <div className="flex justify-between gap-2">
                   <Button size="sm" variant="outline" onClick={() => setExpandedInstDeferId(null)}>
                     Cancelar
+                  </Button>
+                  <Button size="sm" variant="outline" className="border-orange-300 text-orange-700"
+                    onClick={() => handleDeferInstall(r)}>
+                    Confirmar omisión
                   </Button>
                 </div>
               </div>
@@ -723,6 +737,8 @@ export const PayrollAuditPanel: React.FC<Props> = ({
       cols.push({
         key: 'paid_at',
         label: 'Pagado',
+        sortable: true,
+        sortValue: (r) => (r.paid_at ? new Date(r.paid_at).getTime() : 0),
         render: (r) => (
           <span className="text-xs text-slate-500">
             {formatDateTime(r.paid_at)}
@@ -734,46 +750,47 @@ export const PayrollAuditPanel: React.FC<Props> = ({
     return cols;
   };
 
+  // Guide v2 §5: one table per tray, one group row per installer (name, subtotal and "Pagar todo")
   const renderInstallationGrouped = (view: SubView) => {
     const rows = installationRows[view];
     const grouped = groupByInstaller(rows);
     const columns = buildInstallationColumns(view);
+    const totalColumns = columns.map((c) => (c.key === 'total'
+      ? { ...c, footer: <span className="text-emerald-800">{fmt(rows.reduce((s, r) => s + r.total_amount, 0))}</span> }
+      : c.key === 'instance' ? { ...c, footer: <span className="text-slate-700 uppercase text-xs tracking-wide">Totales ({rows.length} {rows.length === 1 ? 'pago' : 'pagos'})</span> } : c));
     return (
-      <div className="space-y-8">
-        <p className="text-sm font-black text-slate-700">
+      <div className="space-y-3">
+        <p className="text-sm font-bold text-slate-700">
           {SUB_VIEW_LABEL[view]} · {rows.length} {rows.length === 1 ? 'pago' : 'pagos'}
         </p>
-        {rows.length === 0 && (
-          <div className="p-8 text-center text-slate-500 italic bg-white rounded-xl border shadow-sm">
-            Sin registros en {SUB_VIEW_LABEL[view]}.
-          </div>
-        )}
-        {Array.from(grouped.entries()).map(([uid, list]) => (
-          <div
-            key={uid}
-            className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm"
-          >
-            <div className="bg-slate-100 px-4 py-2 font-black text-slate-800 flex justify-between items-center gap-3">
-              <span>{list[0]?.user_name || `Instalador #${uid}`}</span>
-              <span className="flex items-center gap-3">
-                <span className="text-emerald-700">
-                  {fmt(list.reduce((s, r) => s + r.total_amount, 0))}
+        <VTable
+          columns={(rows.length > 0 ? totalColumns : columns) as unknown as VTableColumn<Record<string, unknown>>[]}
+          data={rows as unknown as Record<string, unknown>[]}
+          isLoading={instOverview === null}
+          emptyState={{ title: `Sin registros en ${SUB_VIEW_LABEL[view]}.` }}
+          className="shadow-sm"
+          headerStyle="report"
+          groupBy={(row) => String((row as unknown as PayrollPaymentRecord).user_id)}
+          renderGroupHeader={(key) => {
+            const list = grouped.get(Number(key)) ?? [];
+            return (
+              <div className="flex justify-between items-center gap-3">
+                <span className="font-black text-indigo-900">{list[0]?.user_name || `Instalador #${key}`}</span>
+                <span className="flex items-center gap-3">
+                  <span className="font-black text-indigo-800 tabular-nums">
+                    {fmt(list.reduce((s, r) => s + r.total_amount, 0))}
+                  </span>
+                  {canPay && view === 'PAYABLE' && list.length > 1 && (
+                    <Button type="button" size="sm" className="bg-emerald-600 hover:bg-emerald-700"
+                      disabled={payingId != null} onClick={() => setPayInstall({ rows: list })}>
+                      Pagar todo a {list[0]?.user_name?.split(' ')[0] || 'instalador'}
+                    </Button>
+                  )}
                 </span>
-                {canPay && view === 'PAYABLE' && list.length > 1 && (
-                  <Button type="button" size="xs" className="bg-emerald-600 hover:bg-emerald-700"
-                    disabled={payingId != null} onClick={() => setPayInstall({ rows: list })}>
-                    Pagar todo a {list[0]?.user_name?.split(' ')[0] || 'instalador'}
-                  </Button>
-                )}
-              </span>
-            </div>
-            <VTable
-              columns={columns as unknown as VTableColumn<Record<string, unknown>>[]}
-              data={list as unknown as Record<string, unknown>[]}
-              className="border-0 rounded-none shadow-none"
-            />
-          </div>
-        ))}
+              </div>
+            );
+          }}
+        />
       </div>
     );
   };
@@ -847,7 +864,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
             </div>
             <div className="ml-16 h-full flex flex-col justify-between pl-2">
               <div className="flex justify-between items-start">
-                <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Nómina Semanal</p>
+                <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Nómina semanal</p>
                 <BarChart3 size={16} className="text-violet-500" />
               </div>
               <div className="flex justify-end">
@@ -896,7 +913,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
                   </div>
                   <div className="flex justify-end">
                     <div className="text-lg font-black text-amber-700 tracking-tight leading-none truncate">
-                      A. Retenidas
+                      Retenidas
                     </div>
                   </div>
                   <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
@@ -921,7 +938,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
                   </div>
                   <div className="flex justify-end">
                     <div className="text-lg font-black text-indigo-600 tracking-tight leading-none truncate">
-                      B. Por Pagar
+                      Por pagar
                     </div>
                   </div>
                   <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
@@ -946,7 +963,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
                   </div>
                   <div className="flex justify-end">
                     <div className="text-lg font-black text-emerald-600 tracking-tight leading-none truncate">
-                      C. Histórico de Pagos
+                      Histórico de pagos
                     </div>
                   </div>
                   <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
@@ -1049,17 +1066,17 @@ export const PayrollAuditPanel: React.FC<Props> = ({
       )}
 
       {level1 === 'WEEKLY' && canCaptureWeeklyFixed && (
-        <Card className="p-6 border border-slate-200 bg-white shadow-sm rounded-xl">
-          <h3 className="font-black text-lg text-slate-800 flex items-center gap-2 mb-4">
-            <BarChart3 size={20} className="text-violet-600" /> Cierre de jueves — costos fijos semanales
+        <Card className="p-6 border border-slate-200 bg-white shadow-sm rounded-xl max-w-4xl">
+          <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2 mb-1">
+            <BarChart3 size={20} className="text-indigo-600" /> Cierre de jueves: costos fijos semanales
           </h3>
           {weeklyLast && (
-            <p className="text-xs text-slate-600 mb-4">
-              Último registro: semana del {weeklyLast.week_reference_date.slice(0, 10)}
+            <p className="text-sm text-slate-500 mb-4">
+              Último registro: semana del {formatDate(weeklyLast.week_reference_date.slice(0, 10))}
             </p>
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <label className="block text-sm font-bold text-slate-700">
+            <label className="block text-xs font-bold text-slate-500">
               Fecha referencia (jueves)
               <Input
                 type="date"
@@ -1068,7 +1085,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
                 onChange={(e) => setWeekly((w) => ({ ...w, week_reference_date: e.target.value }))}
               />
             </label>
-            <label className="block text-sm font-bold text-slate-700">
+            <label className="block text-xs font-bold text-slate-500">
               Nómina Administración
               <Input
                 type="number"
@@ -1079,7 +1096,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
                 }
               />
             </label>
-            <label className="block text-sm font-bold text-slate-700">
+            <label className="block text-xs font-bold text-slate-500">
               Nómina Diseño / Ventas
               <Input
                 type="number"
@@ -1093,7 +1110,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
                 }
               />
             </label>
-            <label className="block text-sm font-bold text-slate-700">
+            <label className="block text-xs font-bold text-slate-500">
               Nómina Producción (Planta)
               <Input
                 type="number"
@@ -1107,28 +1124,30 @@ export const PayrollAuditPanel: React.FC<Props> = ({
                 }
               />
             </label>
-            <label className="block text-sm font-bold text-slate-700 md:col-span-2">
+            <label className="block text-xs font-bold text-slate-500 md:col-span-2">
               Notas del cierre (opcional)
-              <textarea
-                className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+              <VTextarea
+                className="mt-1"
                 rows={2}
                 value={weekly.notes || ''}
                 onChange={(e) => setWeekly((w) => ({ ...w, notes: e.target.value }))}
               />
             </label>
           </div>
-          <Button className="mt-6 bg-violet-700 hover:bg-violet-800" onClick={saveWeekly} disabled={weeklySaving}>
-            {weeklySaving ? 'Guardando...' : 'Guardar cierre semanal'}
-          </Button>
+          <div className="flex justify-end mt-6 pt-4 border-t border-slate-100">
+            <Button onClick={saveWeekly} disabled={weeklySaving}>
+              {weeklySaving ? 'Procesando...' : 'Guardar cierre semanal'}
+            </Button>
+          </div>
         </Card>
       )}
 
       {level1 === 'WEEKLY' && canCaptureWeeklyFixed && (
-        <Card className="p-6 mt-4">
-          <h3 className="text-lg font-black text-slate-800 mb-4">Histórico de nóminas semanales</h3>
+        <Card className="p-6 mt-4 border border-slate-200 bg-white shadow-sm rounded-xl">
+          <h3 className="text-lg font-bold text-slate-800 mb-4">Histórico de nóminas semanales</h3>
           <div className="flex flex-wrap items-end gap-3 mb-4">
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-bold text-slate-600 uppercase">Desde</label>
+              <label className="text-xs font-bold text-slate-500">Desde</label>
               <Input
                 type="date"
                 value={histFrom}
@@ -1137,7 +1156,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-bold text-slate-600 uppercase">Hasta</label>
+              <label className="text-xs font-bold text-slate-500">Hasta</label>
               <Input
                 type="date"
                 value={histTo}
@@ -1145,25 +1164,28 @@ export const PayrollAuditPanel: React.FC<Props> = ({
                 className="text-sm"
               />
             </div>
-            <Button onClick={loadHistory} disabled={!histFrom || !histTo || loadingHistory}
-              className="bg-indigo-600 hover:bg-indigo-700">
-              {loadingHistory ? 'Consultando…' : 'Consultar'}
+            <Button variant="outline" onClick={loadHistory} disabled={!histFrom || !histTo || loadingHistory}>
+              {loadingHistory ? 'Procesando...' : 'Consultar'}
             </Button>
           </div>
 
-          {history.length === 0 ? (
-            <p className="text-sm text-slate-400">Selecciona un rango y consulta el histórico.</p>
-          ) : (
-            <VTable
-              columns={historyColumns as unknown as VTableColumn<Record<string, unknown>>[]}
-              data={history as unknown as Record<string, unknown>[]}
-            />
-          )}
+          <VTable
+            columns={historyColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+            data={history as unknown as Record<string, unknown>[]}
+            isLoading={loadingHistory}
+            emptyState={{ title: 'Selecciona un rango y consulta el histórico.' }}
+            className="shadow-sm"
+            headerStyle="report"
+            defaultSortKey="week_reference_date"
+            defaultSortDirection="desc"
+          />
         </Card>
       )}
 
       {level1 === 'WEEKLY' && !canCaptureWeeklyFixed && (
-        <p className="text-slate-500">Solo personal autorizado puede capturar el cierre semanal.</p>
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm">
+          <VEmptyState title="Solo personal autorizado puede capturar el cierre semanal." />
+        </div>
       )}
 
       {payComm && (
