@@ -35,6 +35,7 @@ import {
 import { AllPurchaseOrdersModule } from './AllPurchaseOrdersModule';
 import { formatMoney } from '@/utils/format';
 import { poAuthorizedNote, poCreatedNote } from '../utils/poNotes';
+import { openApiPdf } from '@/utils/openPdf';
 
 type PendingConfirm =
     | { kind: 'emit'; group: any }
@@ -977,10 +978,10 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         }
     };
 
+    // The endpoint takes the session from the Authorization header (a token in the URL gets 401)
     const openPdf = (orderId: number) => {
-        const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
-        const baseUrl = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:8000';
-        window.open(`${baseUrl}/api/v1/purchases/orders/${orderId}/pdf?token=${token}`, '_blank');
+        openApiPdf(`/purchases/orders/${orderId}/pdf`, `OC_${orderId}.pdf`)
+            .catch(() => toast.error('No se pudo abrir el PDF de la OC.'));
     };
 
     const renderPlanningTable = () => (

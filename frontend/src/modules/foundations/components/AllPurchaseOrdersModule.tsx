@@ -10,6 +10,8 @@ import { ModalFooter } from '@/components/ui/ModalFooter';
 import { VTextarea } from '@/components/ui/VTextarea';
 import { formatDate, formatMoney } from '@/utils/format';
 import { poAuthorizedNote, poCreatedNote } from '../utils/poNotes';
+import { openApiPdf } from '@/utils/openPdf';
+import { toast } from '@/components/ui/VToast';
 
 const STATUS_LABELS: Record<string, string> = {
     DRAFT: 'Borrador', AUTORIZADA: 'Autorizada', ENVIADA: 'Enviada', EN_ESPERA_ANTICIPO: 'En espera de anticipo',
@@ -326,9 +328,8 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
                             variant="outline"
                             size="sm"
                             onClick={() => {
-                                const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
-                                const baseUrl = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:8000';
-                                window.open(`${baseUrl}/api/v1/purchases/orders/${selected.id}/pdf?token=${token}`, '_blank');
+                                openApiPdf(`/purchases/orders/${selected.id}/pdf`, `${selected.folio || 'OC'}.pdf`)
+                                    .catch(() => toast.error('No se pudo abrir el PDF de la OC.'));
                             }}
                         >
                             <FileText size={14} /> Ver PDF oficial
