@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { productionService, getInventoryConflict, type StockShortage } from '../../../api/production-service';
 import axiosClient from '../../../api/axios-client';
 import { ProductionBatch } from '../../../types/production';
-import { Lock, Package, AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, Boxes, Factory, LogOut } from 'lucide-react';
+import { Lock, Package, AlertCircle, ArrowRight, CheckCircle2, Boxes, Factory, LogOut, Home, Search, Eye, Tag, Gem, PackageCheck, ClipboardList, Ruler } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
@@ -14,6 +14,9 @@ import { VTable, VTableColumn } from '@/components/ui/VTable';
 import { ReversalDialog, ShortageDialog, type ReversalInput } from '../components/BatchInventoryDialogs';
 import Modal from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
+import { ModalFooter } from '@/components/ui/ModalFooter';
+import { VEmptyState } from '@/components/ui/VEmptyState';
+import { VPageHeader } from '@/components/ui/VPageHeader';
 import { formatDate, formatQty } from '@/utils/format';
 const STATUS_READY_TO_INSTALL = 'READY_TO_INSTALL'; // batch status (its instances become READY)
 const STATUS_PACKING = 'PACKING';
@@ -41,14 +44,14 @@ function getBatchUrgencyBadge(batch: any): { label: string; className: string } 
   }
   if (hasRed) {
     return {
-      label: '🔴 URGENTE',
-      className: 'bg-red-100 text-red-700 border-red-300',
+      label: 'Urgente',
+      className: 'bg-red-50 text-red-700 border-red-200',
     };
   }
   if (hasYellow) {
     return {
-      label: '🟡 PRÓXIMO',
-      className: 'bg-amber-100 text-amber-700 border-amber-300',
+      label: 'Próximo',
+      className: 'bg-amber-50 text-amber-700 border-amber-200',
     };
   }
   return null;
@@ -544,115 +547,111 @@ export default function ProductionKanbanPage() {
   };
 
   // --- RENDERIZADO DE COLUMNAS HÍBRIDAS ---
+  // Guide v2: white columns and cards with slate borders; color only in labels and counts.
+  const columnClass = 'bg-white border border-slate-200 rounded-xl shadow-sm p-4 flex-shrink-0 flex flex-col h-full min-h-0';
+  const cardClass = 'p-4 rounded-lg bg-white border border-slate-200 shadow-sm transition hover:shadow-md cursor-pointer';
+  const labelClass = 'inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border';
+  const typeLabelClass = (type?: string) => (type || '').toUpperCase() === 'PIEDRA'
+    ? `${labelClass} bg-violet-50 text-violet-700 border-violet-200`
+    : `${labelClass} bg-amber-50 text-amber-700 border-amber-200`;
+  const ovLabelClass = 'inline-block text-[10px] font-mono font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 mr-1';
+  const columnScrollStyle = { maxHeight: 'calc(100vh - 340px)' };
+
+  const renderColumnHeader = (title: string, count: number, icon?: React.ReactNode) => (
+    <div className="flex shrink-0 justify-between items-center mb-4">
+      <h2 className="font-bold text-slate-700 text-sm flex items-center gap-2">{icon}{title}</h2>
+      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 tabular-nums">
+        {count}
+      </span>
+    </div>
+  );
+
+  const renderBatchSummary = (batch: any) => {
+    const summary = getBatchSummary(batch);
+    if (!summary) return null;
+    return (
+      <div className="mt-2 space-y-0.5">
+        {summary.ovs.map((ov: string) => (
+          <span key={ov} className={ovLabelClass}>{ov}</span>
+        ))}
+        {summary.clients[0] && (
+          <p className="text-[10px] text-slate-500 truncate">{summary.clients[0]}</p>
+        )}
+        {summary.projects[0] && (
+          <p className="text-[10px] text-slate-400 truncate">{summary.projects[0]}</p>
+        )}
+        {summary.houses.length > 0 && (
+          <p className="text-xs font-semibold text-slate-700 flex items-center gap-1" title={summary.houses.join(' · ')}>
+            <Home size={12} className="text-slate-400 shrink-0" />
+            <span className="truncate">
+              {summary.houses.slice(0, 4).join(' · ')}{summary.houses.length > 4 ? ` +${summary.houses.length - 4}` : ''}
+            </span>
+          </p>
+        )}
+      </div>
+    );
+  };
+
+  const renderOvGroupSummary = (group: { folio: string; client: string; project: string; instances: any[] }) => (
+    <summary className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border-b border-indigo-100 cursor-pointer list-none hover:bg-indigo-100 transition-colors">
+      <span className="text-xs font-black text-indigo-900">{group.folio}</span>
+      <span className="text-[10px] text-slate-600 flex-1 truncate">{group.project} — {group.client}</span>
+      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white text-indigo-800 border border-indigo-100 shrink-0 tabular-nums">
+        {group.instances.length}
+      </span>
+    </summary>
+  );
+
   const renderColumn1 = () => {
     const status = 'DRAFT';
     const columnBatches = batchesForView.filter(b => b.status === status);
 
     return (
-      <div 
-        className="bg-gray-50 p-4 rounded-xl w-80 flex-shrink-0 flex flex-col h-full min-h-0 border border-gray-200"
+      <div
+        className={`${columnClass} w-80`}
         onDragOver={handleDragOver}
         onDrop={(e) => handleDrop(e, status)}
       >
-        <div className="flex shrink-0 justify-between items-center mb-4">
-          <h2 className="font-bold text-gray-700 uppercase tracking-wide text-sm">1. Lote por Producir</h2>
-          <span className="bg-gray-200 text-gray-600 text-xs font-bold px-2 py-1 rounded-full">{columnBatches.length}</span>
-        </div>
-        <div
-          className="flex flex-col gap-3 overflow-y-auto pr-1"
-          style={{ maxHeight: 'calc(100vh - 260px)' }}
-        >
+        {renderColumnHeader('Lote por producir', columnBatches.length)}
+        <div className="flex flex-col gap-3 overflow-y-auto pr-1" style={columnScrollStyle}>
           {columnBatches.map(batch => {
             const isLocked = !batch.is_payment_cleared;
+            const badge = getBatchUrgencyBadge(batch);
             return (
-              <div 
-                key={batch.id} 
+              <div
+                key={batch.id}
                 draggable={true}
                 onDragStart={(e) => handleDragStart(e, batch.id, isLocked)}
                 onClick={() => setSelectedBatch(batch)}
-                className={`p-4 rounded-lg shadow-sm border border-l-4 transition cursor-pointer hover:shadow-md ${
-                  isLocked
-                    ? 'bg-red-50 border-red-300'
-                    : (batch.batch_type || '').toUpperCase() === 'PIEDRA'
-                      ? 'bg-violet-50 border-violet-100 border-l-violet-500'
-                      : 'bg-amber-50 border-amber-100 border-l-amber-500'
-                }`}
+                className={cardClass}
               >
                 <div className="flex justify-between items-start mb-2">
-                  <span className={`font-bold ${isLocked ? 'text-red-800' : 'text-gray-800'}`}>{batch.folio}</span>
+                  <span className="font-bold text-slate-800">{batch.folio}</span>
                   {isLocked && <Lock size={16} className="text-red-500" title="Anticipo pendiente o Lote vacío" />}
                 </div>
-                {(() => {
-                  const badge = getBatchUrgencyBadge(batch);
-                  if (!badge) return null;
-                  return (
-                    <div className={`text-[10px] font-black px-2 py-1 rounded border flex items-center justify-center mb-2 ${badge.className}`}>
-                      {badge.label}
-                    </div>
-                  );
-                })()}
-
-                {isLocked && (
-                  <div className="text-[10px] font-bold text-red-600 bg-red-100 px-2 py-1 rounded flex items-center gap-1 mb-2">
-                    <AlertCircle size={12} /> Bloqueado por Finanzas
+                {(badge || isLocked) && (
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {badge && <span className={`${labelClass} ${badge.className}`}>{badge.label}</span>}
+                    {isLocked && (
+                      <span className={`${labelClass} bg-red-50 text-red-700 border-red-200`}>
+                        <AlertCircle size={12} /> Bloqueado por Finanzas
+                      </span>
+                    )}
                   </div>
                 )}
 
-                {(() => {
-                  const summary = getBatchSummary(batch);
-                  if (!summary) return null;
-                  return (
-                    <div className="mt-2 space-y-0.5">
-                      {summary.ovs.map((ov: string) => (
-                        <span key={ov}
-                              className="inline-block text-[10px] font-mono
-                                         font-bold text-indigo-600 bg-indigo-50
-                                         px-1.5 py-0.5 rounded border
-                                         border-indigo-100 mr-1">
-                          {ov}
-                        </span>
-                      ))}
-                      {summary.clients[0] && (
-                        <p className="text-[10px] text-slate-500 truncate">
-                          {summary.clients[0]}
-                        </p>
-                      )}
-                      {summary.projects[0] && (
-                        <p className="text-[10px] text-slate-400 truncate">
-                          {summary.projects[0]}
-                        </p>
-                      )}
-                      {summary.houses.length > 0 && (
-                        <p className="text-xs font-semibold text-slate-700" title={summary.houses.join(' · ')}>
-                          🏠 {summary.houses.slice(0, 4).join(' · ')}{summary.houses.length > 4 ? ` +${summary.houses.length - 4}` : ''}
-                        </p>
-                      )}
-                    </div>
-                  );
-                })()}
+                {renderBatchSummary(batch)}
 
-                <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-100/50">
-                  <span className={`text-xs font-semibold px-2 py-1 rounded ${
-                    isLocked
-                      ? 'bg-red-100 text-red-700'
-                      : (batch.batch_type || '').toUpperCase() === 'PIEDRA'
-                        ? 'bg-violet-100 text-violet-700'
-                        : 'bg-amber-100 text-amber-700'
-                  }`}>
-                    {batch.batch_type}
-                  </span>
-                  <span className="text-xs font-medium text-gray-500 flex items-center gap-1">
+                <div className="flex justify-between items-center mt-2 pt-2 border-t border-slate-100">
+                  <span className={typeLabelClass(batch.batch_type)}>{batch.batch_type}</span>
+                  <span className="text-xs font-medium text-slate-500 flex items-center gap-1 tabular-nums">
                     <Package size={12}/> {batch.instances?.length || 0} items
                   </span>
                 </div>
               </div>
             );
           })}
-          {columnBatches.length === 0 && (
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center text-gray-400 text-sm">
-              Fila de espera vacía
-            </div>
-          )}
+          {columnBatches.length === 0 && <VEmptyState icon={<Package />} title="Fila de espera vacía" />}
         </div>
       </div>
     );
@@ -663,89 +662,34 @@ export default function ProductionKanbanPage() {
     const columnBatches = batchesForView.filter(b => b.status === status);
 
     return (
-      <div 
-        className="bg-blue-50/50 p-4 rounded-xl w-80 flex-shrink-0 flex flex-col h-full min-h-0 border border-blue-100"
+      <div
+        className={`${columnClass} w-80`}
         onDragOver={handleDragOver}
         onDrop={(e) => handleDrop(e, status)}
       >
-        <div className="flex shrink-0 justify-between items-center mb-4">
-          <h2 className="font-bold text-blue-800 uppercase tracking-wide text-sm flex items-center gap-2">
-            <ArrowRight size={16} /> 2. En Producción
-          </h2>
-          <span className="bg-blue-200 text-blue-800 text-xs font-bold px-2 py-1 rounded-full">{columnBatches.length}</span>
-        </div>
-        <div
-          className="flex flex-col gap-3 overflow-y-auto pr-1"
-          style={{ maxHeight: 'calc(100vh - 260px)' }}
-        >
+        {renderColumnHeader('En producción', columnBatches.length, <ArrowRight size={16} className="text-indigo-600" />)}
+        <div className="flex flex-col gap-3 overflow-y-auto pr-1" style={columnScrollStyle}>
           {columnBatches.map(batch => (
-            <div 
-              key={batch.id} 
+            <div
+              key={batch.id}
               draggable
               onDragStart={(e) => handleDragStart(e, batch.id, false)}
               onClick={() => setSelectedBatch(batch)}
-              className={`p-4 rounded-lg shadow-sm border border-l-4 hover:shadow-md cursor-pointer ${
-                (batch.batch_type || '').toUpperCase() === 'PIEDRA'
-                  ? 'bg-violet-50 border-violet-100 border-l-violet-500'
-                  : 'bg-amber-50 border-amber-100 border-l-amber-500'
-              }`}
+              className={cardClass}
             >
               <div className="flex justify-between items-start mb-2">
-                <span className="font-bold text-gray-800">{batch.folio}</span>
+                <span className="font-bold text-slate-800">{batch.folio}</span>
               </div>
 
-              {(() => {
-                const summary = getBatchSummary(batch);
-                if (!summary) return null;
-                return (
-                  <div className="mt-2 space-y-0.5">
-                    {summary.ovs.map((ov: string) => (
-                      <span key={ov}
-                            className="inline-block text-[10px] font-mono
-                                       font-bold text-indigo-600 bg-indigo-50
-                                       px-1.5 py-0.5 rounded border
-                                       border-indigo-100 mr-1">
-                        {ov}
-                      </span>
-                    ))}
-                    {summary.clients[0] && (
-                      <p className="text-[10px] text-slate-500 truncate">
-                        {summary.clients[0]}
-                      </p>
-                    )}
-                    {summary.projects[0] && (
-                      <p className="text-[10px] text-slate-400 truncate">
-                        {summary.projects[0]}
-                      </p>
-                    )}
-                    {summary.houses.length > 0 && (
-                      <p className="text-xs font-semibold text-slate-700" title={summary.houses.join(' · ')}>
-                        🏠 {summary.houses.slice(0, 4).join(' · ')}{summary.houses.length > 4 ? ` +${summary.houses.length - 4}` : ''}
-                      </p>
-                    )}
-                  </div>
-                );
-              })()}
+              {renderBatchSummary(batch)}
 
-              <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-100/50">
-                <span className={`text-xs font-semibold px-2 py-1 rounded ${
-                  (batch.batch_type || '').toUpperCase() === 'PIEDRA'
-                    ? 'bg-violet-100 text-violet-700'
-                    : 'bg-amber-100 text-amber-700'
-                }`}>
-                  {batch.batch_type}
-                </span>
-                <span className="text-xs font-medium text-blue-600 flex items-center gap-1">
-                  En proceso...
-                </span>
+              <div className="flex justify-between items-center mt-2 pt-2 border-t border-slate-100">
+                <span className={typeLabelClass(batch.batch_type)}>{batch.batch_type}</span>
+                <span className="text-xs font-medium text-slate-500">En proceso...</span>
               </div>
             </div>
           ))}
-          {columnBatches.length === 0 && (
-            <div className="border-2 border-dashed border-blue-200 rounded-lg p-6 text-center text-blue-400 text-sm">
-              Máquinas detenidas
-            </div>
-          )}
+          {columnBatches.length === 0 && <VEmptyState icon={<Factory />} title="Máquinas detenidas" />}
         </div>
       </div>
     );
@@ -835,7 +779,7 @@ export default function ProductionKanbanPage() {
 
     return (
       <div
-        className="bg-violet-50/60 p-4 rounded-xl w-[22rem] flex-shrink-0 flex flex-col h-full min-h-0 border border-violet-200"
+        className={`${columnClass} w-[22rem]`}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
@@ -847,25 +791,10 @@ export default function ProductionKanbanPage() {
           }
         }}
       >
-        {/* Header */}
-        <div className="flex shrink-0 justify-between items-center mb-4">
-          <h2 className="font-bold text-violet-900 uppercase tracking-wide text-sm flex items-center gap-2">
-            <Boxes size={16} /> 3. En Empaque
-          </h2>
-          <span className="bg-violet-200 text-violet-900 text-xs font-bold px-2 py-1 rounded-full">
-            {allInstances.length}
-          </span>
-        </div>
+        {renderColumnHeader('En empaque', allInstances.length, <Boxes size={16} className="text-indigo-600" />)}
 
-        <div
-          className="flex flex-col gap-3 overflow-y-auto pr-1"
-          style={{ maxHeight: 'calc(100vh - 260px)' }}
-        >
-          {allInstances.length === 0 && (
-            <div className="border-2 border-dashed border-violet-200 rounded-lg p-6 text-center text-violet-500 text-sm">
-              Sin instancias en empaque
-            </div>
-          )}
+        <div className="flex flex-col gap-3 overflow-y-auto pr-1" style={columnScrollStyle}>
+          {allInstances.length === 0 && <VEmptyState icon={<Boxes />} title="Sin instancias en empaque" />}
           {(() => {
             const ovMap = new Map<string, { folio: string; client: string; project: string; instances: any[] }>();
             for (const inst of allInstances) {
@@ -875,12 +804,8 @@ export default function ProductionKanbanPage() {
             }
             const groups = Array.from(ovMap.values()).sort((a, b) => a.folio.localeCompare(b.folio));
             return groups.map(group => (
-              <details key={group.folio} className="rounded-lg border border-violet-200" open={groups.length === 1}>
-                <summary className="flex items-center gap-2 px-3 py-2 bg-violet-100 cursor-pointer list-none hover:bg-violet-200 transition-colors">
-                  <span className="text-xs font-black text-violet-800">{group.folio}</span>
-                  <span className="text-[10px] text-violet-600 flex-1 truncate">{group.project} — {group.client}</span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-200 text-violet-800 shrink-0">{group.instances.length}</span>
-                </summary>
+              <details key={group.folio} className="rounded-lg border border-slate-200 overflow-hidden" open={groups.length === 1}>
+                {renderOvGroupSummary(group)}
                 <div className="flex flex-col gap-3 p-2 bg-white">
                   {group.instances.map((instance: any) => {
             const isStone = instance.batch_type === 'PIEDRA';
@@ -899,32 +824,21 @@ export default function ProductionKanbanPage() {
                   e.dataTransfer.setData('packingInstanceId', String(instance.id));
                   e.dataTransfer.effectAllowed = 'move';
                 }}
-                className={`p-3 rounded-lg shadow-sm border border-l-4 cursor-grab active:cursor-grabbing transition ${
-                  isStone
-                    ? 'bg-violet-50 border-violet-100 border-l-violet-500'
-                    : 'bg-amber-50 border-amber-100 border-l-amber-500'
-                }`}
+                className="p-3 rounded-lg bg-white border border-slate-200 shadow-sm cursor-grab active:cursor-grabbing transition"
               >
                 <div className="flex items-start gap-2 mb-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 mb-0.5">
-                      {instance.order_folio && (
-                        <span className="text-[10px] font-mono font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
-                          {instance.order_folio}
-                        </span>
-                      )}
+                      {instance.order_folio && <span className={ovLabelClass}>{instance.order_folio}</span>}
                       {instance.client_name && (
-                        <span className="text-[10px] text-slate-500 truncate">
-                          {instance.client_name}
-                        </span>
+                        <span className="text-[10px] text-slate-500 truncate">{instance.client_name}</span>
                       )}
                     </div>
-                    <p className="font-bold text-gray-800 text-sm truncate">
-                      {instance.custom_name}
-                    </p>
-                    <p className="text-[10px] text-violet-600 font-medium">
-                      {instance.batch_folio}
-                    </p>
+                    <p className="font-bold text-slate-800 text-sm truncate">{instance.custom_name}</p>
+                    <div className="mt-1 flex items-center gap-2">
+                      <span className={typeLabelClass(instance.batch_type)}>{instance.batch_type}</span>
+                      <span className="text-[10px] text-slate-500 font-medium">{instance.batch_folio}</span>
+                    </div>
                   </div>
                 </div>
 
@@ -932,7 +846,7 @@ export default function ProductionKanbanPage() {
                 {!isStone && (
                   <div className="grid grid-cols-2 gap-2 mb-3">
                     <label className="flex flex-col gap-1">
-                      <span className="text-[10px] font-bold text-gray-500 uppercase">Bultos MDF</span>
+                      <span className="text-xs font-bold text-slate-500">Bultos MDF</span>
                       <Input
                         type="number"
                         min={0}
@@ -943,7 +857,7 @@ export default function ProductionKanbanPage() {
                       />
                     </label>
                     <label className="flex flex-col gap-1">
-                      <span className="text-[10px] font-bold text-gray-500 uppercase">Bultos Herrajes</span>
+                      <span className="text-xs font-bold text-slate-500">Bultos herrajes</span>
                       <Input
                         type="number"
                         min={0}
@@ -958,9 +872,9 @@ export default function ProductionKanbanPage() {
 
                 {/* Piezas de Piedra — solo lotes PIEDRA */}
                 {isStone && (
-                  <div className="mt-2 mb-3 pt-2 border-t border-violet-100">
+                  <div className="mt-2 mb-3 pt-2 border-t border-slate-100">
                     <label className="flex flex-col gap-1">
-                      <span className="text-[10px] font-bold text-gray-500 uppercase">Piezas de Piedra</span>
+                      <span className="text-xs font-bold text-slate-500">Piezas de piedra</span>
                       {/* H52: one button below declares the pieces and requests the manifest */}
                       <Input
                         type="number"
@@ -975,8 +889,9 @@ export default function ProductionKanbanPage() {
 
                 {/* Botón etiquetas */}
                 {labelsDone ? (
-                  <p className="w-full py-2 text-center text-xs font-bold text-emerald-600">
-                    {isStone ? '✓ Piezas declaradas y manifiesto solicitado' : '✓ Etiquetas solicitadas'}
+                  <p className="w-full py-2 flex items-center justify-center gap-1.5 text-xs font-bold text-emerald-700">
+                    <CheckCircle2 size={14} />
+                    {isStone ? 'Piezas declaradas y manifiesto solicitado' : 'Etiquetas solicitadas'}
                   </p>
                 ) : (
                   <Button
@@ -1010,18 +925,20 @@ export default function ProductionKanbanPage() {
                       }
                     }}
                     size="sm"
-                    className="w-full text-xs"
+                    className="w-full text-xs bg-emerald-600 hover:bg-emerald-700"
                   >
                     {requestingLabelsId === instance.id
                       ? 'Procesando...'
-                      : isStone ? '🪨 Declarar y solicitar manifiesto' : '🏷️ Solicitar Etiquetas'}
+                      : isStone
+                        ? <><Gem size={14} /> Declarar y solicitar manifiesto</>
+                        : <><Tag size={14} /> Solicitar etiquetas</>}
                   </Button>
                 )}
 
                 {/* Herrajes: also dispatchable while packing (the batch detail is not reachable from this column) */}
                 {!isStone && (instance.hardware_dispatched ? (
-                  <p className="w-full mt-2 py-1.5 text-center text-xs font-bold text-emerald-700">
-                    ✅ Herrajes surtidos
+                  <p className="w-full mt-2 py-1.5 flex items-center justify-center gap-1.5 text-xs font-bold text-emerald-700">
+                    <CheckCircle2 size={14} /> Herrajes surtidos
                   </p>
                 ) : (
                   <Button
@@ -1030,9 +947,10 @@ export default function ProductionKanbanPage() {
                     size="sm"
                     onClick={() => handleDispatchHardware(instance)}
                     disabled={dispatchingHardware === instance.id}
-                    className="w-full mt-2 text-xs text-orange-700"
+                    className="w-full mt-2 text-xs"
                   >
-                    📦 Marcar herrajes surtidos
+                    <PackageCheck size={14} />
+                    {dispatchingHardware === instance.id ? 'Procesando...' : 'Marcar herrajes surtidos'}
                   </Button>
                 ))}
               </div>
@@ -1052,7 +970,7 @@ export default function ProductionKanbanPage() {
 
     return (
       <div
-        className="bg-emerald-50 p-4 rounded-xl w-80 flex-shrink-0 flex flex-col h-full min-h-0 border border-emerald-200"
+        className={`${columnClass} w-80`}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
@@ -1067,24 +985,10 @@ export default function ProductionKanbanPage() {
           }
         }}
       >
-        <div className="flex shrink-0 justify-between items-center mb-4">
-          <h2 className="font-bold text-emerald-800 uppercase tracking-wide text-sm flex items-center gap-2">
-            <CheckCircle2 size={16} /> 4. Listo para Instalarse
-          </h2>
-          <span className="bg-emerald-200 text-emerald-800 text-xs font-bold px-2 py-1 rounded-full">
-            {allReady.length}
-          </span>
-        </div>
+        {renderColumnHeader('Listo para instalarse', allReady.length, <CheckCircle2 size={16} className="text-indigo-600" />)}
 
-        <div
-          className="flex flex-col gap-3 overflow-y-auto pr-1"
-          style={{ maxHeight: 'calc(100vh - 260px)' }}
-        >
-          {allReady.length === 0 && (
-            <div className="border-2 border-dashed border-emerald-200 rounded-lg p-6 text-center text-emerald-500 text-sm">
-              Andén vacío
-            </div>
-          )}
+        <div className="flex flex-col gap-3 overflow-y-auto pr-1" style={columnScrollStyle}>
+          {allReady.length === 0 && <VEmptyState icon={<CheckCircle2 />} title="Andén vacío" />}
           {(() => {
             const ovMap = new Map<string, { folio: string; client: string; project: string; instances: any[] }>();
             for (const inst of allReady) {
@@ -1094,12 +998,8 @@ export default function ProductionKanbanPage() {
             }
             const groups = Array.from(ovMap.values()).sort((a, b) => a.folio.localeCompare(b.folio));
             return groups.map(group => (
-              <details key={group.folio} className="rounded-lg border border-emerald-200" open={groups.length === 1}>
-                <summary className="flex items-center gap-2 px-3 py-2 bg-emerald-100 cursor-pointer list-none hover:bg-emerald-200 transition-colors">
-                  <span className="text-xs font-black text-emerald-800">{group.folio}</span>
-                  <span className="text-[10px] text-emerald-600 flex-1 truncate">{group.project} — {group.client}</span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-800 shrink-0">{group.instances.length}</span>
-                </summary>
+              <details key={group.folio} className="rounded-lg border border-slate-200 overflow-hidden" open={groups.length === 1}>
+                {renderOvGroupSummary(group)}
                 <div className="flex flex-col gap-3 p-2 bg-white">
                   {group.instances.map((instance: any, idx: number) => {
             const isStoneTrack = instance.track === 'PIEDRA';
@@ -1128,46 +1028,30 @@ export default function ProductionKanbanPage() {
             return (
               <div
                 key={`${instance.id}-${instance.track}-${idx}`}
-                className={`p-3 rounded-lg shadow-sm border border-l-4 ${
-                  (instance.batch_type || '').toUpperCase() === 'PIEDRA'
-                    ? 'bg-violet-50 border-violet-100 border-l-violet-500'
-                    : 'bg-amber-50 border-amber-100 border-l-amber-500'
-                }`}
+                className="p-3 rounded-lg bg-white border border-slate-200 shadow-sm"
               >
                 {/* Badge de track */}
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${
-                    isStoneTrack
-                      ? 'bg-stone-100 text-stone-700 border-stone-300'
-                      : 'bg-emerald-100 text-emerald-700 border-emerald-300'
-                  }`}>
-                    {isStoneTrack ? '🪨 Track Piedra' : '🪵 Track MDF'}
+                  <span className={typeLabelClass(isStoneTrack ? 'PIEDRA' : 'MDF')}>
+                    {isStoneTrack ? 'Track piedra' : 'Track MDF'}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-1.5 mb-1">
-                  {instance.order_folio && (
-                    <span className="text-[10px] font-mono font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
-                      {instance.order_folio}
-                    </span>
-                  )}
+                  {instance.order_folio && <span className={ovLabelClass}>{instance.order_folio}</span>}
                   {instance.client_name && (
-                    <span className="text-[10px] text-slate-500 truncate">
-                      {instance.client_name}
-                    </span>
+                    <span className="text-[10px] text-slate-500 truncate">{instance.client_name}</span>
                   )}
                 </div>
-                <p className="font-bold text-gray-800 text-sm">{instance.custom_name}</p>
-                <p className="text-[10px] text-emerald-600 font-medium mt-0.5">{instance.batch_folio}</p>
+                <p className="font-bold text-slate-800 text-sm">{instance.custom_name}</p>
+                <p className="text-[10px] text-slate-500 font-medium mt-0.5">{instance.batch_folio}</p>
 
                 {otherLabel && (
-                  <p className="text-[10px] text-slate-500 mt-1 italic">
-                    {otherLabel}
-                  </p>
+                  <p className="text-[10px] text-slate-500 mt-1">{otherLabel}</p>
                 )}
 
                 {instance.qr_code && (
-                  <span className="text-xs font-semibold bg-gray-100 text-gray-600 px-2 py-1 rounded mt-2 w-fit block">
+                  <span className="text-xs font-mono font-semibold bg-slate-50 border border-slate-200 text-slate-600 px-2 py-1 rounded mt-2 w-fit block">
                     QR: {instance.qr_code}
                   </span>
                 )}
@@ -1199,63 +1083,68 @@ export default function ProductionKanbanPage() {
     return { ovs, clients, projects, houses };
   };
 
+  // Guide v2: full-width board; MainLayout fixes the height for this route, so the page scrolls inside itself.
   return (
-    <div className="flex flex-col h-[calc(100vh-3.5rem)] -m-6 p-6 min-h-0 overflow-hidden bg-white">
-      <div className="flex shrink-0 flex-col md:flex-row md:items-end justify-between gap-4 mb-8 border-b border-slate-200 pb-4">
-        <div className="flex items-center gap-3">
-          <Factory className="text-indigo-600" size={32} />
+    <div className="h-full overflow-y-auto">
+    <div className="p-8 w-full pb-24 space-y-6 animate-fadeIn">
+      <VPageHeader
+        icon={Factory}
+        title="Piso de producción"
+        subtitle="Control de lotes y despacho a campo."
+        loading={loading}
+        actions={isReadOnly ? (
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border bg-slate-50 text-slate-600 border-slate-200">
+            <Eye size={12} /> Solo lectura
+          </span>
+        ) : undefined}
+        onBack={() => navigate('/production')}
+        backLabel="Regresar a Producción"
+      />
+
+      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
-            <div className="flex items-center">
-              <h1 className="text-3xl font-black text-slate-800 tracking-tight">
-                Piso de Producción
-              </h1>
-              {isReadOnly && (
-                <span className="text-xs font-bold px-2 py-1 rounded-lg
-                                 bg-slate-100 text-slate-500 border
-                                 border-slate-200 ml-2">
-                  👁 Solo Lectura
-                </span>
-              )}
+            <label className="block text-xs font-bold text-slate-500 mb-1">Material</label>
+            <div className="flex flex-wrap gap-2">
+              {(['ALL', 'MDF', 'PIEDRA'] as const).map((key) => (
+                <Button
+                  key={key}
+                  type="button"
+                  variant="outline"
+                  onClick={() => setMaterialFilter(key)}
+                  className={materialFilter === key ? 'border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:text-indigo-800' : undefined}
+                >
+                  {key === 'ALL' ? 'Todos' : key}
+                </Button>
+              ))}
             </div>
-            <p className="text-slate-500 mt-1 font-medium">
-              Control de Lotes y Despacho a Campo
-            </p>
+          </div>
+          <div className="lg:col-span-2">
+            <label className="block text-xs font-bold text-slate-500 mb-1">Buscar</label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search size={18} className="text-slate-400" />
+              </div>
+              <Input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar OV, cliente o casa..."
+                className="pl-10 text-sm font-medium"
+              />
+            </div>
           </div>
         </div>
-        <Button variant="outline" onClick={() => navigate('/production')}>
-          <ArrowLeft size={18} /> Regresar
-        </Button>
-      </div>
-
-      <div className="flex shrink-0 flex-wrap items-center gap-2 mb-6">
-        <span className="text-xs font-bold text-gray-500 uppercase tracking-wide mr-2">Material</span>
-        {(['ALL', 'MDF', 'PIEDRA'] as const).map((key) => (
-          <Button
-            key={key}
-            type="button"
-            variant={materialFilter === key ? 'default' : 'outline'}
-            onClick={() => setMaterialFilter(key)}
-          >
-            {key === 'ALL' ? 'Todos' : key}
-          </Button>
-        ))}
-        <Input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar OV, cliente o casa..."
-          className="ml-auto w-72"
-        />
       </div>
 
       {loading ? (
-        <div className="flex flex-1 min-h-0 items-center justify-center">
-          <p className="text-gray-500 font-medium animate-pulse">Consultando piso de fábrica...</p>
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-12 text-center">
+          <span className="text-sm text-slate-400 font-bold animate-pulse">Cargando...</span>
         </div>
       ) : (
-        <div 
+        <div
           className="flex gap-6 pb-4 overflow-x-auto"
-          style={{ 
+          style={{
             WebkitOverflowScrolling: 'touch',
             scrollSnapType: 'x mandatory'
           }}
@@ -1268,72 +1157,36 @@ export default function ProductionKanbanPage() {
       )}
 
       {selectedBatch && (
-        <Modal isOpen bare size="custom" overlayZIndex={50} onClose={() => setSelectedBatch(null)} className="bg-white rounded-2xl shadow-2xl border
-                       border-slate-200 w-full max-w-2xl mx-4
-                       overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center justify-between
-                            px-6 py-4 bg-slate-50
-                            border-b border-slate-200">
-              <div>
-                <h2 className="text-lg font-black text-slate-800">
-                  {selectedBatch.folio}
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {selectedBatch.batch_type} ·{' '}
-                  {batchStatusLabel(selectedBatch.status)}
-                </p>
-              </div>
-              <div className="flex items-center gap-1">
-                <RecordHistoryButton tableName="production_batches" recordId={selectedBatch.id} label={selectedBatch.folio} />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  title="Cerrar"
-                  onClick={() => setSelectedBatch(null)}
-                  className="text-slate-400 hover:text-slate-600 text-lg leading-none"
-                >
-                  ✕
-                </Button>
-              </div>
-            </div>
-
-            {/* Instancias */}
-            <div className="px-6 py-4 max-h-[60vh] overflow-y-auto">
+        <Modal
+          isOpen
+          size="lg"
+          overlayZIndex={50}
+          onClose={() => setSelectedBatch(null)}
+          title={selectedBatch.folio}
+          subtitle={`${selectedBatch.batch_type} · ${batchStatusLabel(selectedBatch.status)}`}
+          headerActions={
+            <RecordHistoryButton tableName="production_batches" recordId={selectedBatch.id} label={selectedBatch.folio} />
+          }
+          footer={<ModalFooter onCancel={() => setSelectedBatch(null)} cancelLabel="Cerrar" />}
+        >
               {(selectedBatch.instances || []).length === 0 ? (
-                <p className="text-slate-400 text-center py-8 italic">
-                  Sin instancias asignadas.
-                </p>
+                <VEmptyState icon={<Package />} title="Sin instancias asignadas." />
               ) : (
                 <div className="flex flex-col gap-3">
                   {(selectedBatch.instances || []).map((inst: any) => (
-                    <div key={inst.id}
-                         className="bg-slate-50 rounded-xl border
-                                    border-slate-200 overflow-hidden">
+                    <div key={inst.id} className="bg-white rounded-lg border border-slate-200 overflow-hidden">
                       {/* Cabecera instancia */}
                       <div className="px-4 py-3">
                         {/* OV + Cliente */}
                         <div className="flex items-center gap-2 mb-1">
-                          {inst.order_folio && (
-                            <span className="text-[10px] font-mono font-bold
-                                             text-indigo-600 bg-indigo-50
-                                             px-2 py-0.5 rounded border
-                                             border-indigo-100">
-                              {inst.order_folio}
-                            </span>
-                          )}
+                          {inst.order_folio && <span className={ovLabelClass}>{inst.order_folio}</span>}
                           {inst.client_name && (
-                            <span className="text-xs text-slate-500 truncate">
-                              {inst.client_name}
-                            </span>
+                            <span className="text-xs text-slate-500 truncate">{inst.client_name}</span>
                           )}
                         </div>
                         {/* Nombre instancia */}
                         <div className="flex items-center justify-between gap-2">
-                          <p className="font-bold text-slate-800 text-sm">
-                            {inst.custom_name || '—'}
-                          </p>
+                          <p className="font-bold text-slate-800 text-sm">{inst.custom_name || '—'}</p>
                           {!isReadOnly && !LOADED_INSTANCE_STATUSES.includes(inst.production_status) && (
                             <Button
                               type="button"
@@ -1359,22 +1212,14 @@ export default function ProductionKanbanPage() {
                           <div className="mt-1.5 flex flex-col gap-1">
                             {inst.key_materials.map((km: any, idx: number) => (
                               <div key={`${km.sku}-${idx}`} className="flex items-center gap-2 flex-wrap">
-                                <span className="text-[10px] font-bold uppercase
-                                                 tracking-wide text-slate-400">
-                                  {selectedBatch.batch_type === 'PIEDRA'
-                                    ? '🪨 Piedra' : '🪵 Tablero'}
+                                <span className="text-[10px] font-bold text-slate-500">
+                                  {selectedBatch.batch_type === 'PIEDRA' ? 'Piedra' : 'Tablero'}
                                 </span>
-                                <span className="text-xs font-mono text-slate-600
-                                                 bg-white border border-slate-200
-                                                 px-2 py-0.5 rounded">
+                                <span className="text-xs font-mono text-slate-600 bg-white border border-slate-200 px-2 py-0.5 rounded">
                                   {km.sku}
                                 </span>
-                                <span className="text-xs text-slate-600 truncate flex-1">
-                                  {km.name}
-                                </span>
-                                <span className="text-xs font-bold text-slate-700
-                                                 bg-amber-50 border border-amber-200
-                                                 px-2 py-0.5 rounded whitespace-nowrap">
+                                <span className="text-xs text-slate-600 truncate flex-1">{km.name}</span>
+                                <span className="text-xs font-bold text-slate-800 tabular-nums whitespace-nowrap">
                                   {formatQty(km.quantity)} {km.usage_unit}
                                 </span>
                               </div>
@@ -1382,7 +1227,7 @@ export default function ProductionKanbanPage() {
                           </div>
                         )}
                         {/* Acciones: Herrajes y Planos */}
-                        <div className="mt-2 flex items-center gap-2">
+                        <div className="mt-2 flex items-center gap-2 flex-wrap">
                           <Button
                             type="button"
                             variant="outline"
@@ -1391,7 +1236,7 @@ export default function ProductionKanbanPage() {
                             disabled={loadingHerrajesPreview}
                             className="text-xs"
                           >
-                            📋 Herrajes
+                            <ClipboardList size={14} /> {loadingHerrajesPreview ? 'Procesando...' : 'Herrajes'}
                           </Button>
                           <Button
                             type="button"
@@ -1412,13 +1257,11 @@ export default function ProductionKanbanPage() {
                             }}
                             className="text-xs"
                           >
-                            📐 Planos
+                            <Ruler size={14} /> Planos
                           </Button>
                           {inst.hardware_dispatched ? (
-                            <span className="flex items-center gap-1.5 text-xs font-bold
-                                             text-emerald-700 bg-emerald-50 border border-emerald-200
-                                             px-3 py-1.5 rounded-lg">
-                              ✅ Herrajes Surtidos
+                            <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded border bg-emerald-50 text-emerald-700 border-emerald-200">
+                              <CheckCircle2 size={14} /> Herrajes surtidos
                             </span>
                           ) : (
                             <Button
@@ -1427,9 +1270,9 @@ export default function ProductionKanbanPage() {
                               size="sm"
                               onClick={() => handleDispatchHardware(inst)}
                               disabled={dispatchingHardware === inst.id}
-                              className="text-xs text-orange-700"
+                              className="text-xs"
                             >
-                              📦 Marcar Surtido
+                              <PackageCheck size={14} /> {dispatchingHardware === inst.id ? 'Procesando...' : 'Marcar surtido'}
                             </Button>
                           )}
                         </div>
@@ -1438,55 +1281,60 @@ export default function ProductionKanbanPage() {
                   ))}
                 </div>
               )}
-            </div>
-
-            {/* Footer */}
-            <div className="px-6 py-4 border-t border-slate-100
-                            flex justify-end">
-              <Button type="button" variant="outline" onClick={() => setSelectedBatch(null)}>
-                Cerrar
-              </Button>
-            </div>
-          </Modal>
+        </Modal>
       )}
 
       {/* Modal de vista previa de herrajes */}
       {herrajesPreview && (
-        <Modal isOpen bare size="custom" overlayZIndex={60} onClose={() => setHerrajesPreview(null)} className="bg-white rounded-2xl shadow-2xl border border-slate-200
-                       w-full max-w-2xl mx-4 overflow-hidden max-h-[85vh] flex flex-col">
-            {/* Header */}
-            <div className="px-6 py-4 bg-amber-50 border-b border-amber-100 flex items-start justify-between">
-              <div>
-                <h2 className="text-base font-black text-slate-800">
-                  📋 Lista de Herrajes para Instalación
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {herrajesPreview.instName}
-                  {herrajesPreview.orderFolio && ` · ${herrajesPreview.orderFolio}`}
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                title="Cerrar"
-                onClick={() => setHerrajesPreview(null)}
-                className="text-slate-400 hover:text-slate-600 text-lg"
-              >✕</Button>
-            </div>
-
-            {/* Body */}
-            <div className="overflow-y-auto flex-1 px-6 py-4">
-              {herrajesPreview.herrajes.length === 0 ? (
-                <p className="text-slate-400 italic text-sm text-center py-8">
-                  Sin herrajes en la receta de esta instancia.
-                </p>
+        <Modal
+          isOpen
+          size="lg"
+          overlayZIndex={60}
+          onClose={() => setHerrajesPreview(null)}
+          title="Lista de herrajes para instalación"
+          subtitle={`${herrajesPreview.instName}${herrajesPreview.orderFolio ? ` · ${herrajesPreview.orderFolio}` : ''}`}
+          footer={
+            <ModalFooter
+              onCancel={() => setHerrajesPreview(null)}
+              cancelLabel="Cerrar"
+              confirmLabel="Imprimir PDF"
+              disabled={herrajesPreview.herrajes.length === 0}
+              onConfirm={() => {
+                if (herrajesPreview) {
+                  void generateHerrajesPDF({
+                    folio: herrajesPreview.instName,
+                    batch_type: '',
+                    instances: [{
+                      id: herrajesPreview.instId,
+                      custom_name: herrajesPreview.instName,
+                      order_folio: herrajesPreview.orderFolio,
+                      client_name: null,
+                    }],
+                  }, companyConfig, logoBase64);
+                }
+              }}
+            >
+              {herrajesPreview.blueprintPath ? (
+                <a
+                  href={herrajesPreview.blueprintPath}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-800"
+                >
+                  <Ruler size={14} /> Ver plano
+                </a>
               ) : (
+                <span className="text-xs text-slate-400">Sin plano disponible</span>
+              )}
+            </ModalFooter>
+          }
+        >
                 <VTable
                   columns={[
                     {
                       key: 'sku',
                       label: 'SKU',
+                      sortable: true,
                       render: (row) => (
                         <span className="font-mono text-xs text-slate-500">{String(row.sku ?? '')}</span>
                       ),
@@ -1494,6 +1342,7 @@ export default function ProductionKanbanPage() {
                     {
                       key: 'name',
                       label: 'Material',
+                      sortable: true,
                       render: (row) => (
                         <span className="font-medium text-slate-800">{String(row.name ?? '')}</span>
                       ),
@@ -1501,8 +1350,11 @@ export default function ProductionKanbanPage() {
                     {
                       key: 'quantity',
                       label: 'Cantidad',
+                      sortable: true,
+                      align: 'right',
+                      sortValue: (row) => Number(row.quantity ?? 0),
                       render: (row) => (
-                        <span className="block text-right font-bold text-slate-800">{row.quantity == null ? '' : formatQty(Number(row.quantity))}</span>
+                        <span className="block text-right font-bold text-slate-800 tabular-nums">{row.quantity == null ? '' : formatQty(Number(row.quantity))}</span>
                       ),
                     },
                     {
@@ -1515,54 +1367,12 @@ export default function ProductionKanbanPage() {
                     ...h,
                     id: i,
                   }))}
+                  headerStyle="report"
+                  stickyHeader={false}
+                  className="shadow-sm"
+                  emptyState={{ icon: <ClipboardList />, title: 'Sin herrajes en la receta de esta instancia.' }}
                 />
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="px-6 py-4 border-t border-slate-100 flex justify-between items-center gap-3">
-              {herrajesPreview.blueprintPath ? (
-                <a
-                  href={herrajesPreview.blueprintPath}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm
-                             font-bold text-indigo-600 border border-indigo-200
-                             bg-indigo-50 hover:bg-indigo-100 transition"
-                >
-                  📐 Ver Plano
-                </a>
-              ) : (
-                <span className="text-xs text-slate-400 italic">Sin plano disponible</span>
-              )}
-
-              <div className="flex gap-2">
-                <Button type="button" variant="outline" onClick={() => setHerrajesPreview(null)}>
-                  Cerrar
-                </Button>
-                <Button
-                  type="button"
-                  onClick={() => {
-                    if (herrajesPreview) {
-                      void generateHerrajesPDF({
-                        folio: herrajesPreview.instName,
-                        batch_type: '',
-                        instances: [{
-                          id: herrajesPreview.instId,
-                          custom_name: herrajesPreview.instName,
-                          order_folio: herrajesPreview.orderFolio,
-                          client_name: null,
-                        }],
-                      }, companyConfig, logoBase64);
-                    }
-                  }}
-                  disabled={herrajesPreview.herrajes.length === 0}
-                >
-                  🖨️ Imprimir PDF
-                </Button>
-              </div>
-            </div>
-          </Modal>
+        </Modal>
       )}
 
       {pendingDispatchInst && (
@@ -1608,6 +1418,7 @@ export default function ProductionKanbanPage() {
         onConfirm={handleConfirmReversal}
         onClose={() => setReversalState(null)}
       />
+    </div>
     </div>
   );
 }
