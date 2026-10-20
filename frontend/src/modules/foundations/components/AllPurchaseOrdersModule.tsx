@@ -1,12 +1,36 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { PackageCheck, FileText } from 'lucide-react';
+import { FileText, Search } from 'lucide-react';
 import axiosClient from '../../../api/axios-client';
 import { Button } from "@/components/ui/Button";
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VTable, VTableColumn } from '@/components/ui/VTable';
 import Modal from '@/components/ui/Modal';
+import { ModalFooter } from '@/components/ui/ModalFooter';
+import { VTextarea } from '@/components/ui/VTextarea';
 import { formatDate, formatMoney } from '@/utils/format';
+
+const STATUS_LABELS: Record<string, string> = {
+    DRAFT: 'Borrador', AUTORIZADA: 'Autorizada', ENVIADA: 'Enviada', EN_ESPERA_ANTICIPO: 'En espera de anticipo',
+    RECIBIDA_PARCIAL: 'Recibida parcial', RECIBIDA_TOTAL: 'Recibida total', CANCELADA: 'Cancelada',
+};
+const statusLabel = (status: string) => STATUS_LABELS[status] ?? status;
+const STATUS_TONES: Record<string, string> = {
+    DRAFT: 'bg-slate-50 text-slate-700 border-slate-200',
+    AUTORIZADA: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    ENVIADA: 'bg-blue-50 text-blue-700 border-blue-200',
+    EN_ESPERA_ANTICIPO: 'bg-amber-50 text-amber-700 border-amber-200',
+    RECIBIDA_PARCIAL: 'bg-amber-50 text-amber-700 border-amber-200',
+    RECIBIDA_TOTAL: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    CANCELADA: 'bg-red-50 text-red-700 border-red-200',
+};
+
+/** Status tag (guide v2 §6). */
+const StatusTag: React.FC<{ status: string }> = ({ status }) => (
+    <span className={`inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded border whitespace-nowrap ${STATUS_TONES[status] ?? 'bg-slate-50 text-slate-700 border-slate-200'}`}>
+        {statusLabel(status)}
+    </span>
+);
 
 interface AllPurchaseOrdersModuleProps {
     onDetailChange?: (open: boolean) => void;
@@ -89,7 +113,7 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
     const filtered = orders;
 
     const statuses = ['TODOS', 'DRAFT', 'ENVIADA', 'RECIBIDA_PARCIAL', 'RECIBIDA_TOTAL', 'CANCELADA'];
-    const statusOptions = statuses.map((s) => ({ code: s, label: s }));
+    const statusOptions = statuses.map((s) => ({ code: s, label: s === 'TODOS' ? 'Todos' : statusLabel(s) }));
 
     const orderItemColumns: VTableColumn<Record<string, unknown>>[] = useMemo(
         () => [
@@ -97,21 +121,22 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
                 key: 'sku',
                 label: 'SKU',
                 render: (row) => (
-                    <span className="font-black text-indigo-600 text-[11px] uppercase">{String(row.sku ?? '')}</span>
+                    <span className="font-mono text-xs text-indigo-600">{String(row.sku ?? '')}</span>
                 ),
             },
             {
                 key: 'name',
                 label: 'Descripción',
                 render: (row) => (
-                    <span className="font-bold text-slate-700 text-xs uppercase">{String(row.name ?? '')}</span>
+                    <span className="font-medium text-slate-700">{String(row.name ?? '')}</span>
                 ),
             },
             {
                 key: 'qty',
                 label: 'Cant.',
+                align: 'right',
                 render: (row) => (
-                    <span className="text-center block text-xs font-black text-slate-600">
+                    <span className="block text-right tabular-nums font-bold text-slate-700">
                         {String(row.qty ?? row.quantity_ordered ?? 0)}
                     </span>
                 ),
@@ -119,20 +144,20 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
             {
                 key: 'quantity_received',
                 label: 'Recibidas',
+                align: 'right',
                 render: (row) => {
                     const rec = Number(row.quantity_received || 0);
-                    return (
-                        <span className="text-center block text-xs font-black text-emerald-600">
-                            {rec > 0 ? rec : '—'}
-                        </span>
-                    );
+                    return rec > 0
+                        ? <span className="block text-right tabular-nums font-bold text-emerald-700">{rec}</span>
+                        : <span className="block text-right text-slate-300 text-xs">—</span>;
                 },
             },
             {
                 key: 'expected_cost',
-                label: 'P. Unit',
+                label: 'P. unit.',
+                align: 'right',
                 render: (row) => (
-                    <span className="text-center block text-xs font-bold text-slate-400">
+                    <span className="block text-right tabular-nums text-slate-600">
                         {formatMoney(Number(row.expected_cost || 0))}
                     </span>
                 ),
@@ -140,17 +165,16 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
             {
                 key: 'project_name',
                 label: 'Proyecto',
-                render: (row) => (
-                    <span className="text-right block text-[10px] font-black text-rose-600 uppercase">
-                        {String(row.project_name || 'Sin OV')}
-                    </span>
-                ),
+                render: (row) => row.project_name
+                    ? <span className="text-slate-700">{String(row.project_name)}</span>
+                    : <span className="text-slate-400 text-xs">Sin OV</span>,
             },
             {
                 key: 'subtotal',
-                label: 'Importe',
+                label: 'Importe (sin IVA)',
+                align: 'right',
                 render: (row) => (
-                    <span className="text-right block text-xs font-black text-slate-800">
+                    <span className="block text-right tabular-nums font-bold text-slate-800">
                         {formatMoney(Number(row.subtotal || 0))}
                     </span>
                 ),
@@ -158,12 +182,15 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
             {
                 key: 'action',
                 label: 'Acción',
+                align: 'center',
                 render: (row) => {
                     const rec = Number(row.quantity_received || 0);
                     if (rec > 0) {
                         return (
-                            <button
+                            <Button
                                 type="button"
+                                size="sm"
+                                variant="outline"
                                 title="Corregir recepción"
                                 onClick={() => {
                                     setCorrectModal({ item: row });
@@ -171,14 +198,13 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
                                     setReason('');
                                     setError('');
                                 }}
-                                className="text-[9px] font-black text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded px-2 py-1 uppercase tracking-wide transition-colors"
                             >
                                 Corregir
-                            </button>
+                            </Button>
                         );
                     }
                     return (
-                        <span className="text-[9px] font-black uppercase tracking-wide text-slate-300">
+                        <span className="text-xs text-slate-400">
                             {row.is_cancelled ? 'Cancelado' : row.is_fulfilled ? 'Cerrado' : '—'}
                         </span>
                     );
@@ -193,61 +219,62 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
             {
                 key: 'folio',
                 label: 'Folio',
+                sortable: true,
                 render: (row) => (
-                    <span className="font-black text-indigo-600 text-[11px]">{String(row.folio ?? '')}</span>
+                    <span className="font-semibold text-indigo-600 whitespace-nowrap">{String(row.folio ?? '')}</span>
                 ),
             },
             {
                 key: 'created_at',
                 label: 'Fecha',
+                sortable: true,
+                sortValue: (row) => (row.created_at ? new Date(String(row.created_at)).getTime() : null),
                 render: (row) => (
-                    <span className="text-xs font-bold text-slate-500">
-                        {row.created_at
-                            ? formatDate(String(row.created_at))
-                            : '—'}
+                    <span className="text-slate-600 whitespace-nowrap">
+                        {row.created_at ? formatDate(String(row.created_at)) : '—'}
                     </span>
                 ),
             },
             {
                 key: 'provider_name',
                 label: 'Proveedor',
+                sortable: true,
                 render: (row) => (
-                    <span className="text-xs font-bold text-slate-700">{String(row.provider_name ?? '')}</span>
+                    <span className="font-medium text-slate-700">{String(row.provider_name ?? '')}</span>
                 ),
             },
             {
                 key: 'items_count',
                 label: 'Partidas',
+                align: 'right',
+                sortable: true,
+                sortValue: (row) => (Array.isArray(row.items) ? row.items.length : 0),
                 render: (row) => {
                     const items = Array.isArray(row.items) ? row.items : [];
-                    return (
-                        <span className="text-center block text-xs font-black text-slate-600">{items.length}</span>
-                    );
+                    return <span className="block text-right tabular-nums text-slate-600">{items.length}</span>;
                 },
             },
             {
                 key: 'status',
                 label: 'Estado',
-                render: (row) => (
-                    <span className="text-center block text-[9px] font-black uppercase text-slate-500">
-                        {String(row.status ?? '')}
-                    </span>
-                ),
+                sortable: true,
+                render: (row) => <StatusTag status={String(row.status ?? '')} />,
             },
             {
                 key: 'invoice_folios',
                 label: 'Factura(s)',
-                render: (row) => (
-                    <span className="text-center block text-xs font-mono text-slate-600">
-                        {String(row.invoice_folios || '—')}
-                    </span>
-                ),
+                render: (row) => row.invoice_folios
+                    ? <span className="font-mono text-xs text-slate-600">{String(row.invoice_folios)}</span>
+                    : <span className="text-slate-300 text-xs">—</span>,
             },
             {
                 key: 'total_estimated_amount',
-                label: 'Total (c/IVA)',
+                label: 'Total (con IVA)',
+                align: 'right',
+                sortable: true,
+                sortValue: (row) => Number(row.total_estimated_amount || 0) * (1 + Number(row.tax_rate ?? 0.16)),
                 render: (row) => (
-                    <span className="text-right block text-xs font-black text-slate-800">
+                    <span className="block text-right tabular-nums font-bold text-slate-800">
                         {formatMoney(Number(row.total_estimated_amount || 0) * (1 + Number(row.tax_rate ?? 0.16)))}
                     </span>
                 ),
@@ -262,33 +289,32 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
         const rate = Number(selected.tax_rate ?? 0.16);
         const iva = subtotal * rate;
         const total = subtotal + iva;
+        const closeCorrection = () => setCorrectModal(null);
         return (
             <div className="space-y-4">
-                <button onClick={() => setSelected(null)} className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 underline underline-offset-2">← Volver al listado</button>
-                <div className="bg-white rounded-3xl border border-emerald-200 shadow-md overflow-hidden border-t-8 border-t-emerald-500 animate-in slide-in-from-bottom-4 duration-500">
-                    <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-emerald-50/30">
-                        <div className="flex items-center gap-5">
-                            <div className="p-3 rounded-2xl shadow-inner bg-emerald-100 text-emerald-600"><PackageCheck size={24} /></div>
-                            <div>
-                                <h3 className="text-xl font-black text-slate-800 uppercase leading-none">{selected.provider_name}</h3>
-                                <p className="text-[9px] font-black uppercase text-emerald-600 mt-1 tracking-widest leading-none">FOLIO: {selected.folio}</p>
-                                <p className="text-[8px] font-black uppercase text-slate-400 mt-1 tracking-tighter leading-none">ESTADO: {selected.status}</p>
-                                <p className="text-[8px] font-black uppercase text-slate-400 mt-1 tracking-tighter leading-none">
-                                    FECHA: {formatDate(selected.created_at)}
-                                </p>
+                <Button type="button" variant="link" className="h-auto p-0 text-slate-500" onClick={() => setSelected(null)}>
+                    Volver al listado
+                </Button>
+                <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                    <div className="px-4 py-3 bg-indigo-50 border-b border-indigo-100 flex flex-wrap justify-between items-center gap-3">
+                        <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-black text-indigo-900">{selected.provider_name}</span>
+                                <span className="font-mono text-xs text-slate-600">{selected.folio}</span>
+                                <StatusTag status={String(selected.status ?? '')} />
                             </div>
+                            <p className="text-xs text-slate-500 mt-0.5">Fecha: {formatDate(selected.created_at)}</p>
                         </div>
                         <Button
                             variant="outline"
-                            className="text-[9px] font-black uppercase border-slate-200 h-8 hover:bg-slate-100"
+                            size="sm"
                             onClick={() => {
                                 const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
                                 const baseUrl = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:8000';
                                 window.open(`${baseUrl}/api/v1/purchases/orders/${selected.id}/pdf?token=${token}`, '_blank');
                             }}
                         >
-                            <FileText size={14} className="mr-1" />
-                            Ver PDF Oficial
+                            <FileText size={14} /> Ver PDF oficial
                         </Button>
                     </div>
                     <VTable
@@ -297,101 +323,129 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
                             ...item,
                             id: item.id ?? i,
                         }))}
+                        headerStyle="report"
+                        stickyHeader={false}
+                        className="border-0 shadow-none rounded-none"
                     />
-                    <div className="p-8 bg-slate-50/50 flex justify-end items-center border-t border-slate-100">
-                        <div className="w-80 space-y-1 pr-14">
-                            <div className="flex justify-between items-center text-slate-500"><span className="text-[10px] font-black uppercase">Subtotal</span><span className="text-sm font-bold">{formatMoney(subtotal)}</span></div>
-                            <div className="flex justify-between items-center text-slate-500 border-b border-slate-200 pb-2"><span className="text-[10px] font-black uppercase">IVA ({Math.round(rate * 100)}%)</span><span className="text-sm font-bold">{formatMoney(iva)}</span></div>
-                            <div className="flex justify-between items-center pt-2"><span className="text-[11px] font-black text-emerald-600 uppercase">Total</span><span className="text-3xl font-black text-slate-900">{formatMoney(total)}</span></div>
+                    <div className="p-4 flex justify-end border-t border-slate-100">
+                        <div className="w-full sm:w-80 space-y-1 text-sm">
+                            <div className="flex justify-between text-slate-600"><span>Subtotal</span><span className="tabular-nums font-semibold">{formatMoney(subtotal)}</span></div>
+                            <div className="flex justify-between text-slate-600"><span>IVA ({Math.round(rate * 100)}%)</span><span className="tabular-nums font-semibold">{formatMoney(iva)}</span></div>
+                            <div className="flex justify-between items-baseline pt-2 border-t border-slate-200"><span className="font-bold text-slate-700">Total con IVA</span><span className="text-2xl font-black text-slate-900 tabular-nums">{formatMoney(total)}</span></div>
                         </div>
                     </div>
                 </div>
 
                 {correctModal && (
-                    <Modal isOpen bare size="custom" overlayZIndex={50} onClose={() => setCorrectModal(null)} className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
-                            <h3 className="font-black text-slate-800 text-sm uppercase mb-2">Corregir recepción</h3>
-                            <p className="text-xs text-slate-500 mb-4">
-                                {correctModal.item.sku} — registrado como recibido: <b>{Number(correctModal.item.quantity_received || 0)}</b>.
+                    <Modal
+                        isOpen
+                        size="sm"
+                        overlayZIndex={50}
+                        onClose={closeCorrection}
+                        title="Corregir recepción"
+                        subtitle={String(correctModal.item.sku ?? '')}
+                        footer={(
+                            <ModalFooter
+                                onCancel={closeCorrection}
+                                onConfirm={submitCorrection}
+                                confirmLabel="Confirmar corrección"
+                                busy={saving}
+                            />
+                        )}
+                    >
+                        <div className="space-y-4">
+                            <p className="text-sm text-slate-600">
+                                Registrado como recibido: <b className="tabular-nums">{Number(correctModal.item.quantity_received || 0)}</b>.
                                 Indica cuánto llegó realmente. Se revertirá inventario y se ajustará la cuenta por pagar.
                             </p>
-                            {error && <div className="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded px-3 py-2 mb-3">{error}</div>}
-                            <label className="text-[10px] font-black text-slate-400 uppercase">Cantidad realmente recibida</label>
-                            <Input
-                                type="number"
-                                min={0}
-                                value={realQty}
-                                onChange={(e) => setRealQty(e.target.value)}
-                                className="mt-1 mb-3"
-                            />
-                            <label className="text-[10px] font-black text-slate-400 uppercase">Motivo (obligatorio)</label>
-                            <textarea value={reason} onChange={e => setReason(e.target.value)} rows={3}
-                                placeholder="Ej. Se aceptó de más por error, solo llegaron 30"
-                                className="w-full border border-slate-200 rounded p-2 text-xs mt-1 mb-4 outline-none focus:border-indigo-500" />
-                            <div className="flex justify-end gap-3">
-                                <button onClick={() => setCorrectModal(null)} className="text-xs font-black uppercase px-4 py-2 text-slate-500 hover:text-slate-700">Cancelar</button>
-                                <button onClick={submitCorrection} disabled={saving}
-                                    className="text-xs font-black uppercase px-4 py-2 rounded bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50">
-                                    {saving ? 'Corrigiendo...' : 'Confirmar corrección'}
-                                </button>
+                            {error && <p className="text-sm font-bold text-red-600">{error}</p>}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Cantidad realmente recibida</label>
+                                <Input
+                                    type="number"
+                                    min={0}
+                                    value={realQty}
+                                    onChange={(e) => setRealQty(e.target.value)}
+                                />
                             </div>
-                        </Modal>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Motivo (obligatorio)</label>
+                                <VTextarea
+                                    value={reason}
+                                    onChange={e => setReason(e.target.value)}
+                                    rows={3}
+                                    placeholder="Ej. Se aceptó de más por error, solo llegaron 30"
+                                />
+                            </div>
+                        </div>
+                    </Modal>
                 )}
             </div>
         );
     }
 
     return (
-        <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
-            <div className="flex flex-wrap gap-3 mb-4">
-                <Input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Buscar por folio o proveedor..."
-                    className="flex-1 min-w-[200px] text-xs"
-                />
-                <SearchableSelect
-                    items={statusOptions}
-                    value={statusFilter}
-                    onChange={setStatusFilter}
-                    getLabel={(s) => s.label}
-                    getValue={(s) => s.code}
-                    placeholder="Estado..."
-                    className="min-w-[160px] text-xs"
-                />
-                <div className="flex items-center gap-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase">Desde</label>
-                    <Input
-                        type="date"
-                        value={dateFrom}
-                        onChange={(e) => setDateFrom(e.target.value)}
-                        className="text-xs font-bold w-auto"
-                    />
-                    <label className="text-[10px] font-black text-slate-400 uppercase">Hasta</label>
-                    <Input
-                        type="date"
-                        value={dateTo}
-                        onChange={(e) => setDateTo(e.target.value)}
-                        className="text-xs font-bold w-auto"
-                    />
+        <div className="space-y-6">
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">Buscar</label>
+                        <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <Search size={18} className="text-slate-400" />
+                            </div>
+                            <Input
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                placeholder="Folio o proveedor..."
+                                className="pl-10 text-sm"
+                            />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">Estado</label>
+                        <SearchableSelect
+                            items={statusOptions}
+                            value={statusFilter}
+                            onChange={setStatusFilter}
+                            getLabel={(s) => s.label}
+                            getValue={(s) => s.code}
+                            placeholder="Todos"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">Desde</label>
+                        <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">Hasta</label>
+                        <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+                    </div>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-slate-100">
+                    <p className="text-sm text-slate-500">
+                        {loading ? 'Cargando...' : `${filtered.length} órdenes${filtered.length === 200 ? ' (las 200 más recientes; usa la búsqueda o las fechas para ver más)' : ''}`}
+                    </p>
                     {(dateFrom || dateTo) && (
-                        <button type="button" onClick={() => { setDateFrom(''); setDateTo(''); }}
-                            className="text-[10px] font-black text-slate-400 hover:text-slate-600 uppercase underline underline-offset-2">
-                            Limpiar
-                        </button>
+                        <Button type="button" variant="link" size="sm" className="h-auto p-0 text-slate-500"
+                            onClick={() => { setDateFrom(''); setDateTo(''); }}>
+                            Limpiar fechas
+                        </Button>
                     )}
                 </div>
             </div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
-                {loading ? 'Buscando...' : `${filtered.length} órdenes${filtered.length === 200 ? ' (mostrando las 200 más recientes — usa búsqueda o fechas para ver más)' : ''}`}
-            </p>
-            {loading ? <p className="text-xs text-slate-400 py-8 text-center">Cargando órdenes...</p> : (
-                <VTable
-                    columns={orderListColumns}
-                    data={filtered.map((o) => ({ ...o, id: o.id }))}
-                    onRowClick={(row) => setSelected(row)}
-                    emptyState={{ title: 'Sin órdenes que coincidan.' }}
-                />
-            )}
+            <VTable
+                columns={orderListColumns}
+                data={filtered.map((o) => ({ ...o, id: o.id }))}
+                isLoading={loading}
+                onRowClick={(row) => setSelected(row)}
+                emptyState={{ title: 'Sin órdenes que coincidan.' }}
+                headerStyle="report"
+                className="shadow-sm"
+                defaultSortKey="created_at"
+                defaultSortDirection="desc"
+                maxHeight="75vh"
+            />
         </div>
     );
 };

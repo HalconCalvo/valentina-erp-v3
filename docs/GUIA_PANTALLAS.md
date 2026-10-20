@@ -10,6 +10,19 @@
 > abajo está copiado de esas dos pantallas, con clases exactas. Donde las dos difieren, manda **Cobranza**: de ella
 > le gustan los colores, la ubicación de los botones, la claridad y el orden de la información, y el tamaño de letra.
 
+> **Piloto aprobado 19/10 (tercera ola, tanda 1 en curso).** Reglas acordadas ese día, que mandan sobre lo de abajo:
+> - Listado, catálogo o reporte con tabla = **ancho completo**; ancho angosto (`max-w-7xl` o menos) solo en formularios.
+> - **Un solo botón de color** (la acción principal) por pantalla; las demás acciones `outline`, `ghost` o `link`.
+> - Títulos de columna exactamente sobre su columna (dentro de `VTable`); importes y sus títulos a la derecha, `tabular-nums`.
+> - Columnas principales **ordenables** (ver §5).
+> - Sin mayúsculas sostenidas en títulos, etiquetas de campos, botones ni celdas. Fechas DD/MM/AAAA, hora de Mérida. Sin emojis.
+> - Solo apariencia: mismos datos, botones, permisos y flujos. Una función nueva (buscador, filtro) se propone, no se hace.
+>
+> **Componentes (tanda 1):** `VPageHeader` (encabezado de §2 con Actualizar y "Regresar a …"; `variant="field"` para
+> teléfono), `VTextarea` (texto largo), `Modal` con tamaños `sm`…`3xl` y `wide` (sin `custom`), `subtitle` y `footer`,
+> `ModalFooter` (secundario a la izquierda, primario a la derecha), `VTable` con `headerStyle="report"`, `align`,
+> `sortable`/`sortValue`, `groupBy` y `footer`.
+
 ---
 
 ## 1. Estructura de una pantalla (orden de la información)
