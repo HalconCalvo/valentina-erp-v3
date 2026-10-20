@@ -335,7 +335,7 @@ const PendingToInvoicePage = () => {
 
             {canView && progressTab === 'ANTICIPOS' && (
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="p-4 border-b bg-slate-50 flex flex-col md:flex-row justify-between md:items-center gap-4">
+                    <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col md:flex-row justify-between md:items-center gap-4">
                         <div>
                             <h2 className="font-bold text-slate-800 flex items-center gap-2">
                                 <Lock size={18} className="text-indigo-600" />
@@ -375,7 +375,7 @@ const PendingToInvoicePage = () => {
 
             {progressTab === 'AVANCES' && hasAbsolutePower && (
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="p-4 border-b bg-slate-50 flex flex-col md:flex-row justify-between md:items-center gap-4">
+                    <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col md:flex-row justify-between md:items-center gap-4">
                         <div>
                             <h2 className="font-bold text-slate-800 flex items-center gap-2">
                                 <CheckCircle2 size={18} className="text-indigo-600" />
@@ -492,7 +492,7 @@ const PendingToInvoicePage = () => {
 
             {!canView && (
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="p-4 border-b bg-slate-50 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col md:flex-row justify-between items-center gap-4">
                         <div className="bg-white border border-slate-200 px-4 py-2 rounded-lg shadow-sm">
                             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Derecho a facturación (con IVA): </span>
                             <span className="font-black text-slate-900 text-xl tabular-nums">{formatMoney(tarjetaBTotal)}</span>

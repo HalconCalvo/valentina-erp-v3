@@ -428,7 +428,7 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
 
   const labelClass = 'block text-xs font-bold text-slate-500 mb-1';
   const renderNewRequisitionForm = () => (
-    <div className="space-y-6 animate-fadeIn max-w-7xl">
+    <div className="space-y-6 animate-fadeIn">
       {renderSectionHeader('Nueva solicitud', 'Solicitud manual de material o servicio.', Plus)}
 
       <form onSubmit={handleCreateManualReq}

@@ -1114,7 +1114,7 @@ export default function ProductionKanbanPage() {
                   onClick={() => setMaterialFilter(key)}
                   className={materialFilter === key ? 'border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:text-indigo-800' : undefined}
                 >
-                  {key === 'ALL' ? 'Todos' : key}
+                  {key === 'ALL' ? 'Todos' : key === 'PIEDRA' ? 'Piedra' : 'MDF'}
                 </Button>
               ))}
             </div>

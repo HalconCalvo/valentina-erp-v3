@@ -432,7 +432,7 @@ const InventoryReceptionPage: React.FC<InventoryReceptionPageProps> = ({ embedde
                         min="0"
                         step="0.01"
                         disabled={isComplete}
-                        className="h-6 w-20 mx-auto text-center font-black text-xs text-slate-700 focus-visible:ring-indigo-500 disabled:bg-slate-100 disabled:text-slate-400"
+                        className="h-7 w-28 ml-auto text-right tabular-nums font-bold text-xs text-slate-700 focus-visible:ring-indigo-500 disabled:bg-slate-100 disabled:text-slate-400"
                         value={editedPrices[idx] !== undefined ? editedPrices[idx] : String(price)}
                         onChange={(e) => !isComplete && handlePriceChange(idx, e.target.value)}
                     />
