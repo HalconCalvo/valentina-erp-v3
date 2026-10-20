@@ -8,6 +8,22 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Pendientes
 
+### 19/10 17:40 — TERCERA OLA, TANDA 1 (aprobada por Gabriel). (la de 17:38 ya está hecha)
+Piloto aprobado. Aplicar la guía v2 (docs/GUIA_PANTALLAS.md, con todo lo acordado hoy) en este orden, en `pruebas`:
+A. Componentes base (puntos 1 de "Propuesta de orden" en REVISION_PANTALLAS_OLA3.md): Modal estándar sin `custom`, VTable con
+   vacío y carga, encabezado ordenable, encabezado de subnivel y "Regresar a …" de los hubs (Compras, Gerencia, Tesorería, Diseño),
+   componente de texto largo (Observaciones/Notas). Antes de cambiar un componente compartido, lista qué pantallas toca.
+B. Pantallas del ensayo: Diseño (Simulador, Centro de impresión, Lotes), Compras (Solicitud, Órdenes de compra / Mesa de Control,
+   Todas las OCs), Andén (lista y recepción), Piso de Producción, Campo (Carga del camión y Detalle de casa), Gerencia → 5. Nómina,
+   Pendiente de Facturar.
+Reglas (las de hoy): solo apariencia — mismos datos, botones, permisos y flujos; listados/tablas a ancho completo, ancho angosto
+solo en formularios; un solo botón de color (acción principal) por pantalla; títulos sobre su columna, importes a la derecha con
+tabular-nums; columnas principales ordenables; sin mayúsculas sostenidas en títulos ni etiquetas; fechas DD/MM/AAAA y hora de Mérida;
+sin emojis. Si una mejora implica una función nueva (p. ej. buscador o filtro que no existe), NO la hagas: anótala como propuesta.
+Commit por pantalla o grupo pequeño. Capturas antes/después en docs/ola3_tanda1/. Al terminar, reporte en Hechas con lista de
+pantallas, propuestas de funciones nuevas y dudas. NO empezar la tanda 2 hasta que Gabriel apruebe.
+
+
 
 ## Preguntas para el asesor
 
@@ -73,20 +89,6 @@ Orden inicial: Fecha, la más reciente primero. Fechas por fecha real (no por te
 Combina con los filtros. Agregar a la guía: en toda tabla de listado/reporte, las columnas principales son ordenables con ese
 encabezado. Captura en docs/piloto_ola3/3_caja_chica_despues_v3.jpg. Reportar en Hechas.
 
-### 19/10 17:40 — TERCERA OLA, TANDA 1 (aprobada por Gabriel). Hacer DESPUÉS de "Caja chica: ordenar por columnas"
-Piloto aprobado. Aplicar la guía v2 (docs/GUIA_PANTALLAS.md, con todo lo acordado hoy) en este orden, en `pruebas`:
-A. Componentes base (puntos 1 de "Propuesta de orden" en REVISION_PANTALLAS_OLA3.md): Modal estándar sin `custom`, VTable con
-   vacío y carga, encabezado ordenable, encabezado de subnivel y "Regresar a …" de los hubs (Compras, Gerencia, Tesorería, Diseño),
-   componente de texto largo (Observaciones/Notas). Antes de cambiar un componente compartido, lista qué pantallas toca.
-B. Pantallas del ensayo: Diseño (Simulador, Centro de impresión, Lotes), Compras (Solicitud, Órdenes de compra / Mesa de Control,
-   Todas las OCs), Andén (lista y recepción), Piso de Producción, Campo (Carga del camión y Detalle de casa), Gerencia → 5. Nómina,
-   Pendiente de Facturar.
-Reglas (las de hoy): solo apariencia — mismos datos, botones, permisos y flujos; listados/tablas a ancho completo, ancho angosto
-solo en formularios; un solo botón de color (acción principal) por pantalla; títulos sobre su columna, importes a la derecha con
-tabular-nums; columnas principales ordenables; sin mayúsculas sostenidas en títulos ni etiquetas; fechas DD/MM/AAAA y hora de Mérida;
-sin emojis. Si una mejora implica una función nueva (p. ej. buscador o filtro que no existe), NO la hagas: anótala como propuesta.
-Commit por pantalla o grupo pequeño. Capturas antes/después en docs/ola3_tanda1/. Al terminar, reporte en Hechas con lista de
-pantallas, propuestas de funciones nuevas y dudas. NO empezar la tanda 2 hasta que Gabriel apruebe.
 HECHO [19/10 17:39, Pruebas, commit f7804b4; captura docs/piloto_ola3/3_caja_chica_despues_v3.jpg]:
 - Fecha, Categoría, Concepto y Monto ordenables con el encabezado de Antigüedad (flecha gris; activa ↑/↓ en indigo).
   Orden inicial: Fecha, la más reciente primero. Fecha por fecha real; Monto con su signo (egresos negativos, como se

@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ClipboardList, ShoppingCart, Truck, Package, ArrowLeft, ArrowUpRight, Wrench, Target, AlertTriangle, BookOpen, ClipboardCheck, DollarSign } from 'lucide-react';
+import { ClipboardList, ShoppingCart, Truck, Package, ArrowUpRight, Wrench, Target, AlertTriangle, BookOpen, ClipboardCheck, DollarSign } from 'lucide-react';
 import { Card } from "@/components/ui/Card";
 import axiosClient from '../../../api/axios-client';
 import { inventoryService, LowStockMaterialRead } from '@/api/inventory-service';
 import { VEmptyState } from '@/components/ui/VEmptyState';
 import { VTable, VTableColumn } from '@/components/ui/VTable';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { VPageHeader } from '@/components/ui/VPageHeader';
+import type { LucideIcon } from 'lucide-react';
 
 // ---> INYECCIÓN DE LOS MÓDULOS <---
 import { RequisitionsModule } from '../components/RequisitionsModule';
@@ -194,6 +196,18 @@ export const InventoryDashboardPage = () => {
         [],
     );
 
+    // Guide v2 §12: each section shows its own title (no number), one-line subtitle and "Regresar a <hub>"
+    const SECTION_HEADER: Record<Exclude<InventorySection, null>, { icon: LucideIcon; subtitle: string }> = {
+        REQUISITIONS: { icon: ClipboardList, subtitle: 'Stock crítico, solicitudes aplazadas, las tuyas y nuevas.' },
+        PURCHASE_ORDERS: { icon: ShoppingCart, subtitle: 'Generar, autorizar, enviar y dar seguimiento a las OC.' },
+        RECEPTIONS: { icon: Truck, subtitle: 'Recepción de lo que llega contra la OC y la factura.' },
+        INVENTORY_HUB: { icon: Package, subtitle: 'Valuación del inventario y conteo físico.' },
+        PHYSICAL_INVENTORY: { icon: ClipboardCheck, subtitle: 'Sesiones de conteo ciego y su aprobación.' },
+        MATERIALS: { icon: Wrench, subtitle: 'Altas, bajas y cambios de materiales.' },
+        PROVIDERS: { icon: Truck, subtitle: 'Directorio de proveedores.' },
+        LOW_STOCK: { icon: AlertTriangle, subtitle: 'Materiales en o bajo su stock mínimo.' },
+    };
+
     const renderActiveSection = (title: string, component: React.ReactNode) => {
         const isPhysicalWithSub = activeSection === 'PHYSICAL_INVENTORY' && physicalInventorySubSection !== null;
         const handleBack = () => {
@@ -218,18 +232,15 @@ export const InventoryDashboardPage = () => {
             setIsSubSectionActive(false);
             setTargetTab(null);
         };
+        const header = activeSection ? SECTION_HEADER[activeSection] : null;
+        const backLabel = isPhysicalWithSub ? 'Regresar a Inventario físico'
+            : activeSection === 'PHYSICAL_INVENTORY' && inventoryEntryFromHub ? 'Regresar a Inventario'
+            : returnToPath ? 'Regresar' : 'Regresar a Compras y Almacén';
         return (
             <div className="space-y-6 animate-fadeIn">
                 {!isSubSectionActive && (
-                    <div className="flex justify-between items-center border-b border-slate-200 pb-4">
-                        <h2 className="text-3xl font-black text-slate-800 tracking-tight">{title}</h2>
-                        <button
-                            onClick={handleBack}
-                            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 font-bold rounded-lg hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm"
-                        >
-                            <ArrowLeft size={18} /> Regresar
-                        </button>
-                    </div>
+                    <VPageHeader icon={header?.icon} title={title} subtitle={header?.subtitle}
+                        onBack={handleBack} backLabel={backLabel} />
                 )}
                 <div className="mt-2">
                     {component}
@@ -239,13 +250,13 @@ export const InventoryDashboardPage = () => {
     };
 
     return (
-        <div className="p-8 max-w-7xl mx-auto space-y-6 animate-fadeIn pb-24">
+        <div className={`p-8 pb-24 space-y-6 animate-fadeIn ${activeSection ? 'w-full' : 'max-w-7xl mx-auto'}`}>
             
             {!activeSection && (
                 <div className="border-b border-slate-200 pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
                     <div>
                         <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-                            <Package className="text-slate-600" size={32}/> 
+                            <Package className="text-indigo-600" size={32}/> 
                             Compras y Almacén
                         </h1>
                         <p className="text-slate-500 mt-1 font-medium">Solicitudes, órdenes, recepción, inventario, materiales y proveedores.</p>
@@ -364,12 +375,12 @@ export const InventoryDashboardPage = () => {
                 </div>
             ) : (
                 <div className="animate-in fade-in slide-in-from-right-8 duration-500 mt-2">
-                    {activeSection === 'REQUISITIONS' && renderActiveSection('Módulo de Requisiciones', 
+                    {activeSection === 'REQUISITIONS' && renderActiveSection('Solicitudes de compra', 
                         <RequisitionsModule onSubSectionChange={(active) => setIsSubSectionActive(active)} />
                     )}
                     
                     {/* AQUÍ INYECTAMOS EL targetTab AL MÓDULO DE COMPRAS */}
-                    {activeSection === 'PURCHASE_ORDERS' && renderActiveSection('Órdenes de Compra', 
+                    {activeSection === 'PURCHASE_ORDERS' && renderActiveSection('Órdenes de compra', 
                         <PurchaseOrdersModule 
                             onSubSectionChange={(active) => setIsSubSectionActive(active)} 
                             targetTab={targetTab}
@@ -383,7 +394,7 @@ export const InventoryDashboardPage = () => {
                         />
                     )}
                     
-                    {activeSection === 'RECEPTIONS' && renderActiveSection('Recepción y Match a 3 Vías', 
+                    {activeSection === 'RECEPTIONS' && renderActiveSection('Recepción', 
                         <InventoryReceptionPage />
                     )}
 
@@ -446,19 +457,19 @@ export const InventoryDashboardPage = () => {
                         </div>
                     )}
                     
-                    {activeSection === 'PHYSICAL_INVENTORY' && renderActiveSection('Inventario Físico', 
+                    {activeSection === 'PHYSICAL_INVENTORY' && renderActiveSection('Inventario físico', 
                         <PhysicalInventoryModule
                             activeSubSection={physicalInventorySubSection}
                             onSubSectionChange={setPhysicalInventorySubSection}
                         />
                     )}
-                    {activeSection === 'MATERIALS' && renderActiveSection('Catálogo de Materiales',
+                    {activeSection === 'MATERIALS' && renderActiveSection('Materiales',
                         <MaterialsPage />
                     )}
                     {activeSection === 'PROVIDERS' && renderActiveSection('Proveedores',
                         <ProvidersPage />
                     )}
-                    {activeSection === 'LOW_STOCK' && renderActiveSection('Alertas de Stock',
+                    {activeSection === 'LOW_STOCK' && renderActiveSection('Alertas de stock',
                         lowStockItems.length === 0 ? (
                             <VEmptyState
                                 icon={<Package className="text-emerald-300" size={48} />}

@@ -33,7 +33,12 @@ interface ModalProps {
   onClose: () => void;
   title?: string;
   children: React.ReactNode;
-  size?: 'sm' | 'md' | 'lg' | 'xl' | 'custom' | 'fullscreen';
+  /** sm md lg xl 2xl 3xl: max-w-md … max-w-6xl; wide: 95vw up to 1400 px and 90vh (detail screens); custom is legacy. */
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | 'wide' | 'custom' | 'fullscreen';
+  /** One line under the title. */
+  subtitle?: string;
+  /** Fixed footer under the scrolling body (ModalFooter: secondary left, primary right). */
+  footer?: React.ReactNode;
   className?: string;
   /** Por encima de modales anidados (p. ej. confirmaciones sobre InstanceEditModal z-55). */
   overlayZIndex?: number;
@@ -53,6 +58,8 @@ const Modal: React.FC<ModalProps> = ({
   overlayZIndex = 50,
   bare = false,
   headerActions,
+  subtitle,
+  footer,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const [stackEntry, setStackEntry] = useState<{ id: number; zIndex: number } | null>(null);
@@ -94,6 +101,9 @@ const Modal: React.FC<ModalProps> = ({
     md: 'max-w-lg',
     lg: 'max-w-2xl',
     xl: 'max-w-4xl',
+    '2xl': 'max-w-5xl',
+    '3xl': 'max-w-6xl',
+    wide: 'w-[95vw] max-w-[1400px] h-[90vh]',
     custom: '',
     fullscreen: 'w-[98vw] h-[96vh]',
   };
@@ -121,7 +131,10 @@ const Modal: React.FC<ModalProps> = ({
         {bare ? children : (<>
         {/* Header (Fijo) */}
         <div className="flex justify-between items-center p-4 border-b border-slate-100 shrink-0">
-          <h3 className="font-bold text-lg text-slate-800">{title}</h3>
+          <div className="min-w-0">
+            <h3 className="font-bold text-lg text-slate-800">{title}</h3>
+            {subtitle && <p className="text-sm text-slate-500">{subtitle}</p>}
+          </div>
           <div className="flex items-center gap-1">
           {headerActions}
           <button 
@@ -138,6 +151,7 @@ const Modal: React.FC<ModalProps> = ({
         <div className="p-6 overflow-y-auto flex-1 h-full flex flex-col">
           {children}
         </div>
+        {footer && <div className="px-6 pb-4 shrink-0">{footer}</div>}
         </>)}
       </div>
     </div>

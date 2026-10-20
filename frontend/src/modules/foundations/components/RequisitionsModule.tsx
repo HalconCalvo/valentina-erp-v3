@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
-  ArrowLeft,
   ArrowUpRight,
   Clock,
   ClipboardList,
@@ -21,7 +20,10 @@ import { VEmptyState } from '@/components/ui/VEmptyState';
 import { VStatusBadge } from '@/components/ui/VStatusBadge';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
-import { formatDate as formatSharedDate } from '@/utils/format';
+import { VPageHeader } from '@/components/ui/VPageHeader';
+import { VTextarea } from '@/components/ui/VTextarea';
+import { formatDate as formatSharedDate, formatQty } from '@/utils/format';
+import type { LucideIcon } from 'lucide-react';
 
 interface Material {
   id: number;
@@ -145,6 +147,12 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
     return mat ? `[${mat.sku}] ${mat.name}` : `ID: ${req.material_id}`;
   };
 
+  const getMaterialText = (req: Requisition): string => {
+    const mat = getMaterial(req.material_id);
+    return req.custom_description && req.custom_description !== 'REPOSICIÓN AUTOMÁTICA'
+      ? req.custom_description : mat ? `${mat.sku} ${mat.name}` : '';
+  };
+
   const getMaterialUnit = (req: Requisition): string => {
     const mat = getMaterial(req.material_id);
     return mat?.usage_unit ?? '';
@@ -165,11 +173,13 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
       {
         key: 'material',
         label: 'Material',
+        sortable: true,
+        sortValue: (row) => getMaterialText(row),
         render: (row) => (
           <div className="flex flex-col">
             {getMaterialLabel(row)}
             {isAutomaticReq(row) && (
-              <span className="mt-1 text-[9px] font-black uppercase tracking-widest text-blue-400">
+              <span className="mt-1 text-[10px] font-bold text-blue-500">
                 Alarma pausada
               </span>
             )}
@@ -180,9 +190,10 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
         key: 'requested_quantity',
         label: 'Cantidad',
         sortable: true,
+        align: 'right',
         render: (row) => (
-          <span className="font-bold text-slate-800">
-            {row.requested_quantity}
+          <span className="font-bold text-slate-800 tabular-nums">
+            {formatQty(row.requested_quantity)}
             {getMaterialUnit(row) ? ` ${getMaterialUnit(row)}` : ''}
           </span>
         ),
@@ -197,6 +208,7 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
       {
         key: 'status',
         label: 'Estado',
+        sortable: true,
         render: (row) => (
           <VStatusBadge status={row.status} entity="requisition" />
         ),
@@ -205,7 +217,8 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
         key: 'created_at',
         label: 'Fecha de creación',
         sortable: true,
-        render: (row) => formatDate(row.created_at),
+        sortValue: (row) => new Date(row.created_at).getTime(),
+        render: (row) => <span className="text-slate-600">{formatDate(row.created_at)}</span>,
       },
     ],
     [materials],
@@ -288,37 +301,22 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
     }
   };
 
-  const renderSectionHeader = (
-    title: string,
-    description: string,
-    icon: React.ReactNode,
-  ) => (
-    <div className="flex flex-col gap-4 border-b border-slate-100 pb-6 md:flex-row md:items-center md:justify-between">
-      <div>
-        <h3 className="flex items-center gap-2 text-2xl font-black uppercase tracking-tighter text-slate-800">
-          {icon}
-          {title}
-        </h3>
-        <p className="text-sm font-medium italic text-slate-500">{description}</p>
-      </div>
-      <Button
-        onClick={() => setActiveSubSection(null)}
-        variant="outline"
-        className="border-slate-300 px-4 text-[10px] font-black uppercase tracking-widest"
-      >
-        <ArrowLeft size={16} className="mr-2" />
-        Regresar
-      </Button>
-    </div>
+  // Guide v2 §2/§12: each section has the standard header and goes back to the hub of requisitions
+  const renderSectionHeader = (title: string, description: string, icon: LucideIcon) => (
+    <VPageHeader
+      icon={icon}
+      title={title}
+      subtitle={description}
+      loading={isLoading}
+      onRefresh={() => loadData()}
+      onBack={() => setActiveSubSection(null)}
+      backLabel="Regresar a Solicitudes de compra"
+    />
   );
 
   const renderCriticalSection = () => (
-    <Card className="animate-in slide-in-from-right-4 space-y-6 rounded-3xl border-slate-100 bg-white p-8 shadow-xl duration-300">
-      {renderSectionHeader(
-        'Urgentes',
-        'Materiales bajo el punto de reorden.',
-        <AlertTriangle className="text-orange-500" />,
-      )}
+    <div className="space-y-6 animate-fadeIn">
+      {renderSectionHeader('Urgentes', 'Materiales bajo el punto de reorden.', AlertTriangle)}
 
       <VTable
         columns={[
@@ -327,8 +325,8 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
             label: 'Material / SKU',
             sortable: true,
             render: (row: Material) => (
-              <span className="font-bold uppercase text-slate-700">
-                [{row.sku}] {row.name}
+              <span className="font-bold text-slate-700">
+                <span className="font-mono text-xs text-slate-500 mr-2">{row.sku}</span>{row.name}
               </span>
             ),
           },
@@ -336,19 +334,23 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
             key: 'physical_stock',
             label: 'Stock actual',
             sortable: true,
+            align: 'right',
             render: (row: Material) => (
-              <span className="font-black text-orange-600">{row.physical_stock}</span>
+              <span className="font-bold text-amber-700 tabular-nums">{formatQty(row.physical_stock)}</span>
             ),
           },
           {
             key: 'min_stock',
             label: 'Mínimo',
             sortable: true,
+            align: 'right',
             render: (row: Material) => (
-              <span className="text-slate-400">{row.min_stock}</span>
+              <span className="text-slate-500 tabular-nums">{formatQty(row.min_stock)}</span>
             ),
           },
         ]}
+        headerStyle="report"
+        className="shadow-sm"
         data={criticalStock}
         isLoading={isLoading}
         emptyState={{
@@ -363,21 +365,21 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
           },
         ]}
       />
-    </Card>
+    </div>
   );
 
   const renderFrozenSection = () => (
-    <Card className="animate-in slide-in-from-right-4 space-y-6 rounded-3xl border-slate-100 bg-white p-8 shadow-xl duration-300">
-      {renderSectionHeader(
-        'Aplazadas',
-        'Solicitudes en estado APLAZADA.',
-        <Snowflake className="text-slate-400" />,
-      )}
+    <div className="space-y-6 animate-fadeIn">
+      {renderSectionHeader('Aplazadas', 'Solicitudes aplazadas.', Snowflake)}
 
       <VTable
         columns={requisitionColumns}
         data={frozenReqs}
         isLoading={isLoading}
+        headerStyle="report"
+        className="shadow-sm"
+        defaultSortKey="created_at"
+        defaultSortDirection="desc"
         emptyState={{
           icon: <Snowflake size={48} />,
           title: 'Sin solicitudes aplazadas',
@@ -391,21 +393,21 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
           },
         ]}
       />
-    </Card>
+    </div>
   );
 
   const renderMyRequisitionsSection = () => (
-    <Card className="space-y-6 p-6">
-      {renderSectionHeader(
-        'Mis solicitudes',
-        'Requisiciones creadas por ti.',
-        <ClipboardList className="text-purple-500" />,
-      )}
+    <div className="space-y-6 animate-fadeIn">
+      {renderSectionHeader('Mis solicitudes', 'Requisiciones creadas por ti.', ClipboardList)}
 
       <VTable
         columns={requisitionColumns}
         data={myReqs}
         isLoading={isLoading}
+        headerStyle="report"
+        className="shadow-sm"
+        defaultSortKey="created_at"
+        defaultSortDirection="desc"
         emptyState={{
           icon: <ClipboardList size={48} />,
           title: 'Sin solicitudes activas',
@@ -421,22 +423,18 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
           },
         ]}
       />
-    </Card>
+    </div>
   );
 
+  const labelClass = 'block text-xs font-bold text-slate-500 mb-1';
   const renderNewRequisitionForm = () => (
-    <Card className="animate-in slide-in-from-right-4 space-y-6 rounded-3xl border-slate-100 bg-white p-8 shadow-xl duration-300">
-      {renderSectionHeader(
-        'Nueva solicitud',
-        'Solicitud manual de material o servicio.',
-        <Plus className="text-indigo-500" />,
-      )}
+    <div className="space-y-6 animate-fadeIn max-w-7xl">
+      {renderSectionHeader('Nueva solicitud', 'Solicitud manual de material o servicio.', Plus)}
 
-      <form onSubmit={handleCreateManualReq} className="max-w-xl space-y-6">
-        <div className="space-y-1.5">
-          <label className="text-xs font-black uppercase tracking-wider text-slate-500">
-            Material del catálogo
-          </label>
+      <form onSubmit={handleCreateManualReq}
+        className="max-w-xl space-y-4 bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+        <div>
+          <label className={labelClass}>Material del catálogo</label>
           <SearchableSelect
             items={materials}
             value={manualMatId}
@@ -449,10 +447,8 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
         </div>
 
         {!manualMatId && (
-          <div className="space-y-1.5">
-            <label className="text-xs font-black uppercase tracking-wider text-slate-500">
-              Descripción personalizada *
-            </label>
+          <div>
+            <label className={labelClass}>Descripción personalizada *</label>
             <Input
               value={customDescription}
               onChange={(event) => setCustomDescription(event.target.value)}
@@ -463,10 +459,8 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
           </div>
         )}
 
-        <div className="space-y-1.5">
-          <label className="text-xs font-black uppercase tracking-wider text-slate-500">
-            Cantidad *
-          </label>
+        <div>
+          <label className={labelClass}>Cantidad *</label>
           <Input
             type="number"
             min="0.01"
@@ -479,11 +473,9 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
           />
         </div>
 
-        <div className="space-y-1.5">
-          <label className="text-xs font-black uppercase tracking-wider text-slate-500">
-            Notas (opcional)
-          </label>
-          <Input
+        <div>
+          <label className={labelClass}>Notas (opcional)</label>
+          <VTextarea
             value={manualNotes}
             onChange={(event) => setManualNotes(event.target.value)}
             placeholder="Motivo de la solicitud..."
@@ -491,16 +483,13 @@ export const RequisitionsModule: React.FC<RequisitionsModuleProps> = ({ onSubSec
           />
         </div>
 
-        <Button
-          type="submit"
-          disabled={isSaving || isLoading}
-          className="w-full bg-indigo-600 py-3 font-black uppercase tracking-widest text-white hover:bg-indigo-700"
-        >
-          <Plus size={16} className="mr-2" />
-          {isSaving ? 'Creando...' : 'Crear requisición'}
-        </Button>
+        <div className="flex justify-end pt-2 border-t border-slate-100">
+          <Button type="submit" disabled={isSaving || isLoading}>
+            <Plus size={16} /> {isSaving ? 'Procesando...' : 'Crear solicitud'}
+          </Button>
+        </div>
       </form>
-    </Card>
+    </div>
   );
 
   if (activeSubSection === 'CRITICAL') return renderCriticalSection();

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Button } from '@/components/ui/Button';
 
 interface VEmptyStateProps {
   icon?: React.ReactNode;
@@ -31,13 +32,9 @@ export const VEmptyState: React.FC<VEmptyStateProps> = ({
       )}
 
       {action && (
-        <button
-          type="button"
-          onClick={action.onClick}
-          className="mt-6 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-indigo-700"
-        >
+        <Button type="button" onClick={action.onClick} className="mt-6">
           {action.label}
-        </button>
+        </Button>
       )}
     </div>
   );
