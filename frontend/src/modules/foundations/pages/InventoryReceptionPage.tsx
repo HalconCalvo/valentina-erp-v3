@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-    Truck, Package, ArrowLeft, CheckCircle2, 
-    Save, PackageCheck, Ban, AlertTriangle, XCircle, Loader2
+import {
+    Truck, CheckCircle2, Save, PackageCheck, Ban, AlertTriangle, Plus, X,
 } from 'lucide-react';
 import axiosClient from '../../../api/axios-client';
 import { MaterialForm } from '../components/MaterialForm';
 import { Button } from "@/components/ui/Button";
-import { VEmptyState } from '@/components/ui/VEmptyState';
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
@@ -14,6 +12,8 @@ import { VConfirmDialog } from '@/components/ui/VConfirmDialog';
 import { toast } from '@/components/ui/VToast';
 import { formatDate, formatMoney } from '@/utils/format';
 import Modal from '@/components/ui/Modal';
+import { ModalFooter } from '@/components/ui/ModalFooter';
+import { VPageHeader } from '@/components/ui/VPageHeader';
 
 type PendingConfirm =
     | { kind: 'cancel' }
@@ -22,6 +22,16 @@ type PendingConfirm =
     | { kind: 'submitFinancialMismatch' };
 
 type ReceptionRow = { idx: number; item: any };
+
+/** Total with VAT of a PO (same formula the list always used). */
+const poTotalWithTax = (po: any): number => (po?.total_estimated_amount || 0) * (1 + Number(po?.tax_rate ?? 0.16));
+
+interface InventoryReceptionPageProps {
+    /** Inside the Compras hub: the hub draws the section header, so the list hides its own. */
+    embedded?: boolean;
+    /** Tells the hub when a PO is open, so it hides its section header (the reception has its own). */
+    onSubSectionChange?: (isActive: boolean) => void;
+}
 
 const TAX_RATE_OPTIONS = [
     { value: '0.16', label: '16%' },
@@ -45,7 +55,7 @@ const todayIso = (): string => {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-const InventoryReceptionPage: React.FC = () => {
+const InventoryReceptionPage: React.FC<InventoryReceptionPageProps> = ({ embedded = false, onSubSectionChange }) => {
     const [incomingPOs, setIncomingPOs] = useState<any[]>([]);
     const [isLoadingPOs, setIsLoadingPOs] = useState(false);
     
@@ -74,6 +84,10 @@ const InventoryReceptionPage: React.FC = () => {
     const [addedRows, setAddedRows] = useState<Array<{ material_id: number | null; sku: string; name: string; received_qty: string; unit_cost: string; search: string }>>([]);
     const [showMaterialForm, setShowMaterialForm] = useState<{ rowIndex: number; sku: string } | null>(null);
     const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
+
+    useEffect(() => {
+        onSubSectionChange?.(selectedPO !== null);
+    }, [selectedPO, onSubSectionChange]);
 
     useEffect(() => {
         fetchIncomingPOs();
@@ -311,7 +325,7 @@ const InventoryReceptionPage: React.FC = () => {
             label: 'SKU',
             width: '8rem',
             render: ({ item }) => (
-                <span className="font-black text-indigo-600 text-[11px] uppercase">{item.sku || 'S/SKU'}</span>
+                <span className="font-mono text-xs font-semibold text-indigo-600">{item.sku || 'S/SKU'}</span>
             ),
         },
         {
@@ -326,7 +340,7 @@ const InventoryReceptionPage: React.FC = () => {
                         type="text"
                         disabled={isComplete}
                         title={editedDescriptions[idx] !== undefined ? editedDescriptions[idx] : (item.name || '')}
-                        className="w-full min-w-[18rem] font-bold text-xs uppercase bg-transparent border-b border-transparent hover:border-slate-200 focus-visible:border-indigo-500 disabled:text-slate-400 h-7 shadow-none"
+                        className="w-full min-w-[18rem] font-semibold text-sm text-slate-700 bg-transparent border-b border-transparent hover:border-slate-200 focus-visible:border-indigo-500 disabled:text-slate-400 h-7 shadow-none"
                         value={editedDescriptions[idx] !== undefined ? editedDescriptions[idx] : (item.name || '')}
                         onChange={(e) => !isComplete && handleDescriptionChange(idx, e.target.value)}
                     />
@@ -336,17 +350,19 @@ const InventoryReceptionPage: React.FC = () => {
         {
             key: 'ordered',
             label: 'Ordenadas',
+            align: 'right',
             render: ({ item }) => (
-                <span className="block text-center text-xs font-black text-slate-600">{item.qty || 0}</span>
+                <span className="block text-right tabular-nums font-semibold text-slate-700">{item.qty || 0}</span>
             ),
         },
         {
             key: 'already_received',
-            label: 'Ya Recibidas',
+            label: 'Ya recibidas',
+            align: 'right',
             render: ({ item }) => {
                 const alreadyReceived = Number(item.quantity_received || 0);
                 return (
-                    <span className="block text-center text-xs font-bold text-emerald-600">
+                    <span className="block text-right tabular-nums font-semibold text-emerald-700">
                         {alreadyReceived > 0 ? alreadyReceived : '—'}
                     </span>
                 );
@@ -355,23 +371,25 @@ const InventoryReceptionPage: React.FC = () => {
         {
             key: 'pending',
             label: 'Pendientes',
+            align: 'right',
             render: ({ item }) => {
                 const ordered = item.qty || 0;
                 const alreadyReceived = Number(item.quantity_received || 0);
                 const pending = Math.max(ordered - alreadyReceived, 0);
                 const isComplete = alreadyReceived >= ordered;
                 return (
-                    <span className="block text-center text-xs font-black">
+                    <span className="block text-right tabular-nums font-bold">
                         {isComplete
-                            ? <span className="text-emerald-600 font-black">✓ Completo</span>
-                            : <span className="text-amber-600 font-black">{pending}</span>}
+                            ? <span className="text-emerald-700">Completo</span>
+                            : <span className="text-amber-700">{pending}</span>}
                     </span>
                 );
             },
         },
         {
             key: 'this_delivery',
-            label: 'Esta Entrega',
+            label: 'Esta entrega',
+            align: 'center',
             width: '8rem',
             render: ({ idx, item }) => {
                 const ordered = item.qty || 0;
@@ -400,7 +418,8 @@ const InventoryReceptionPage: React.FC = () => {
         },
         {
             key: 'unit_price',
-            label: 'P. Unit',
+            label: 'P. unit.',
+            align: 'center',
             width: '8rem',
             render: ({ idx, item }) => {
                 const price = item.unit_price || item.expected_cost || item.price || 0;
@@ -424,7 +443,7 @@ const InventoryReceptionPage: React.FC = () => {
             key: 'project',
             label: 'Proyecto',
             render: ({ item }) => (
-                <span className="block text-right text-[10px] font-black text-rose-600 uppercase">
+                <span className={`text-xs font-semibold ${item.project_name ? 'text-slate-700' : 'text-slate-400'}`}>
                     {item.project_name || 'Sin OV'}
                 </span>
             ),
@@ -435,7 +454,7 @@ const InventoryReceptionPage: React.FC = () => {
             width: '6rem',
             render: ({ idx, item }) => (
                 (item.is_cancelled || item.is_fulfilled) ? (
-                    <span className="text-[9px] font-black uppercase tracking-wide text-slate-400">
+                    <span className="text-xs font-semibold text-slate-400">
                         {item.is_cancelled ? 'Cancelado' : 'Cerrado'}
                     </span>
                 ) : (
@@ -446,7 +465,7 @@ const InventoryReceptionPage: React.FC = () => {
                             onChange={(e) => setItemsToClose(prev => ({ ...prev, [idx]: e.target.checked }))}
                             className="h-4 w-4 accent-rose-600"
                         />
-                        <span className={`text-[9px] font-black uppercase tracking-wide ${itemsToClose[idx] ? 'text-rose-600' : 'text-slate-400'}`}>
+                        <span className={`text-xs font-semibold whitespace-nowrap ${itemsToClose[idx] ? 'text-red-600' : 'text-slate-500'}`}>
                             No llegará más
                         </span>
                     </label>
@@ -457,6 +476,7 @@ const InventoryReceptionPage: React.FC = () => {
             key: 'importe',
             label: 'Importe',
             width: '10rem',
+            align: 'right',
             render: ({ idx, item }) => {
                 const price = item.unit_price || item.expected_cost || item.price || 0;
                 const ordered = item.qty || 0;
@@ -464,7 +484,7 @@ const InventoryReceptionPage: React.FC = () => {
                 const effectivePrice = editedPrices[idx] !== undefined ? Number(editedPrices[idx]) : price;
                 const total = (thisDelivery > 0 ? thisDelivery : ordered) * effectivePrice;
                 return (
-                    <span className="block text-right text-xs font-black text-slate-800">
+                    <span className="block text-right tabular-nums font-bold text-slate-800">
                         {formatMoney(total)}
                     </span>
                 );
@@ -472,143 +492,151 @@ const InventoryReceptionPage: React.FC = () => {
         },
     ], [receivedItems, editedPrices, editedDescriptions, itemsToClose]);
 
+    // Guide v2 (tanda 1, Andén): the list is a report table; clicking a row or its folio opens the reception
+    const poColumns: VTableColumn<any>[] = [
+        {
+            key: 'folio',
+            label: 'Folio',
+            sortable: true,
+            render: (po) => (
+                <Button type="button" variant="link" onClick={(e) => { e.stopPropagation(); handleSelectPO(po); }}
+                    className="h-auto p-0 font-semibold text-indigo-600 hover:text-indigo-800" title="Abrir la recepción">
+                    {po.folio || 'S/F'}
+                </Button>
+            ),
+        },
+        {
+            key: 'provider_name',
+            label: 'Proveedor',
+            sortable: true,
+            render: (po) => <span className="font-bold text-slate-800">{po.provider_name || 'Proveedor desconocido'}</span>,
+        },
+        {
+            key: 'items',
+            label: 'Partidas',
+            sortable: true,
+            align: 'right',
+            sortValue: (po) => (po.items || []).length,
+            render: (po) => <span className="block text-right tabular-nums text-slate-600">{(po.items || []).length}</span>,
+        },
+        {
+            key: 'status',
+            label: 'Estado',
+            sortable: true,
+            render: (po) => (
+                <div className="flex flex-wrap gap-1">
+                    {po.status === 'RECIBIDA_PARCIAL' ? (
+                        <span className="inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded border bg-amber-50 text-amber-700 border-amber-200">Entrega parcial</span>
+                    ) : (
+                        <span className="inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded border bg-blue-50 text-blue-700 border-blue-200">En tránsito</span>
+                    )}
+                    {po.is_advance && (
+                        <span className="inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded border bg-emerald-50 text-emerald-700 border-emerald-200">Prepagada</span>
+                    )}
+                </div>
+            ),
+        },
+        {
+            key: 'total',
+            label: 'Total con IVA',
+            sortable: true,
+            align: 'right',
+            sortValue: (po) => poTotalWithTax(po),
+            render: (po) => <span className="block text-right tabular-nums font-bold text-slate-800">{formatCurrency(poTotalWithTax(po))}</span>,
+        },
+        {
+            key: 'advance',
+            label: 'Acción',
+            align: 'center',
+            render: (po) => (
+                /* H25: an action (ask Tesorería for an advance payment), not a label of the PO */
+                <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setAdvanceAmount(formatInitialAmount(poTotalWithTax(po)));
+                        setAdvanceModal({ open: true, po });
+                    }}
+                    className="whitespace-nowrap"
+                    title="El proveedor pide anticipo: solicitarlo a Tesorería"
+                >
+                    Solicitar anticipo
+                </Button>
+            ),
+        },
+    ];
+
     if (!selectedPO) {
         return (
             <>
-            <div className="p-8 max-w-7xl mx-auto space-y-6 pb-24 animate-fadeIn">
-                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4">
-                    <div>
-                        <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-                            <Truck size={32} className="text-indigo-600"/> Andén de Descarga
-                        </h1>
-                        <p className="text-slate-500 mt-1 font-medium">Selecciona la Orden de Compra que acaba de llegar para verificarla.</p>
-                    </div>
-                </div>
+            <div className={embedded ? 'space-y-6 animate-fadeIn' : 'p-8 w-full pb-24 space-y-6 animate-fadeIn'}>
+                {!embedded && (
+                    <VPageHeader
+                        icon={Truck}
+                        title="Andén de descarga"
+                        subtitle="Selecciona la orden de compra que acaba de llegar para verificarla."
+                        loading={isLoadingPOs}
+                        onRefresh={fetchIncomingPOs}
+                    />
+                )}
 
-                <div className="space-y-4">
-                    {isLoadingPOs ? (
-                        <div className="space-y-2 animate-pulse">{[0, 1, 2].map((i) => <div key={i} className="h-16 rounded-xl bg-slate-200" />)}</div>
-                    ) : incomingPOs.length === 0 ? (
-                        <div className="bg-white rounded-2xl border border-slate-200">
-                            <VEmptyState icon={<CheckCircle2 size={48} />} title="Andén despejado" description="No hay Órdenes de Compra en tránsito en este momento." />
-                        </div>
-                    ) : (
-                        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                            <div className="bg-slate-50 border-b border-slate-200 p-3 flex justify-between items-center px-6">
-                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Folio y Proveedor</span>
-                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-12">Total (c/IVA)</span>
-                            </div>
-                            <div className="divide-y divide-slate-100">
-                                {incomingPOs.map((po, index) => (
-                                    <div 
-                                        key={po.id || index} 
-                                        onClick={() => handleSelectPO(po)} 
-                                        className="p-4 px-6 cursor-pointer hover:bg-emerald-50/50 flex flex-col md:flex-row items-start md:items-center justify-between transition-colors group"
-                                    >
-                                        <div className="flex items-center gap-4">
-                                            <span className="px-3 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-black uppercase rounded-md tracking-wider border border-emerald-100 min-w-[100px] text-center">
-                                                {po.folio || 'S/F'}
-                                            </span>
-                                            <div>
-                                                <h3 className="font-black text-slate-800 text-base">{po.provider_name || 'Proveedor Desconocido'}</h3>
-                                                <div className="flex items-center gap-3 mt-0.5">
-                                                    <p className="text-slate-500 text-xs flex items-center gap-1">
-                                                        <Package size={12} className="text-slate-400"/> 
-                                                        {(po.items || []).length} Partidas
-                                                    </p>
-                                                    {po.is_advance && (
-                                                        <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 uppercase tracking-widest">Prepagada</span>
-                                                    )}
-                                                    {po.status === 'RECIBIDA_PARCIAL' && (
-                                                        <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 uppercase tracking-widest">Entrega Parcial</span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="flex items-center gap-4 mt-4 md:mt-0 w-full md:w-auto justify-end">
-                                            <div className="text-right">
-                                                <p className="font-black text-emerald-600 text-lg">{formatCurrency((po.total_estimated_amount || 0) * (1 + Number(po.tax_rate ?? 0.16)))}</p>
-                                            </div>
-                                            {/* H25: an action (ask Tesorería for an advance payment), not a label of the PO */}
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    const subtotal = po.total_estimated_amount || 0;
-                                                    setAdvanceAmount(formatInitialAmount(subtotal * (1 + Number(po.tax_rate ?? 0.16))));
-                                                    setAdvanceModal({ open: true, po });
-                                                }}
-                                                className="whitespace-nowrap"
-                                                title="El proveedor pide anticipo: solicitarlo a Tesorería"
-                                            >
-                                                Solicitar anticipo
-                                            </Button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
+                <VTable
+                    columns={poColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+                    data={incomingPOs as Record<string, unknown>[]}
+                    isLoading={isLoadingPOs}
+                    onRowClick={(po) => handleSelectPO(po)}
+                    headerStyle="report"
+                    className="shadow-sm"
+                    maxHeight="75vh"
+                    emptyState={{
+                        icon: <CheckCircle2 size={48} />,
+                        title: 'Andén despejado',
+                        description: 'No hay órdenes de compra en tránsito en este momento.',
+                    }}
+                />
             </div>
 
-            {/* Mini-modal: Registrar Anticipo */}
+            {/* Registrar anticipo */}
             {advanceModal.open && advanceModal.po && (
-                <Modal isOpen bare size="custom" overlayZIndex={200} onClose={() => setAdvanceModal({ open: false, po: null })} className="bg-white rounded-2xl shadow-2xl w-full max-w-sm border-t-4 border-t-orange-400 animate-in zoom-in-95 duration-200">
-                        <div className="p-5 border-b border-slate-100 flex justify-between items-center">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-xl bg-orange-100 text-orange-600">
-                                    <AlertTriangle size={18} strokeWidth={2.5} />
-                                </div>
-                                <div>
-                                    <p className="text-sm font-black text-slate-800 uppercase tracking-tight">Registrar Anticipo</p>
-                                    <p className="text-[10px] font-black text-orange-600 uppercase tracking-widest">{advanceModal.po.folio} — {advanceModal.po.provider_name}</p>
-                                </div>
+                <Modal
+                    isOpen
+                    size="sm"
+                    overlayZIndex={200}
+                    onClose={() => setAdvanceModal({ open: false, po: null })}
+                    title="Registrar anticipo"
+                    subtitle={`${advanceModal.po.folio} — ${advanceModal.po.provider_name}`}
+                    footer={
+                        <ModalFooter
+                            onCancel={() => { setAdvanceModal({ open: false, po: null }); setAdvanceAmount(''); }}
+                            onConfirm={handleRequestAdvance}
+                            confirmLabel="Solicitar anticipo"
+                            busy={advanceLoading}
+                        />
+                    }
+                >
+                    <div className="space-y-4">
+                        <p className="text-sm text-slate-600">
+                            Se generará una factura proforma <strong>ANT-{advanceModal.po.folio}</strong> en Cuentas por Pagar para que Tesorería ejecute el pago.
+                        </p>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Monto del anticipo (con IVA) *</label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">$</span>
+                                <Input
+                                    type="text"
+                                    value={advanceAmount}
+                                    onChange={e => setAdvanceAmount(e.target.value)}
+                                    placeholder="0.00"
+                                    className="pl-7 font-bold tabular-nums text-slate-800"
+                                />
                             </div>
-                            <button onClick={() => setAdvanceModal({ open: false, po: null })} className="text-slate-400 hover:text-slate-600">
-                                <XCircle size={20} />
-                            </button>
-                        </div>
-                        <div className="p-5 space-y-4">
-                            <p className="text-xs text-slate-500 font-bold">
-                                Se generará una factura proforma <strong>ANT-{advanceModal.po.folio}</strong> en Cuentas por Pagar para que Tesorería ejecute el pago.
+                            <p className="text-xs text-slate-500 mt-1">
+                                Total OC con IVA: <span className="tabular-nums font-semibold">{formatCurrency(poTotalWithTax(advanceModal.po))}</span>
                             </p>
-                            <div>
-                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Monto del Anticipo (con IVA) *</label>
-                                <div className="flex items-center border border-slate-200 rounded-lg px-3 py-2 focus-within:border-orange-400 transition-colors">
-                                    <span className="text-sm font-bold text-slate-400 mr-1">$</span>
-                                    <Input
-                                        type="text"
-                                        value={advanceAmount}
-                                        onChange={e => setAdvanceAmount(e.target.value)}
-                                        placeholder="0.00"
-                                        className="border-0 shadow-none focus-visible:ring-0 bg-transparent font-black text-slate-800"
-                                    />
-                                </div>
-                                <p className="text-[10px] text-slate-400 font-bold mt-1">
-                                    Total OC c/IVA: {formatCurrency((advanceModal.po.total_estimated_amount || 0) * (1 + Number(advanceModal.po.tax_rate ?? 0.16)))}
-                                </p>
-                            </div>
                         </div>
-                        <div className="p-5 border-t border-slate-100 flex justify-end gap-3">
-                            <button
-                                onClick={() => { setAdvanceModal({ open: false, po: null }); setAdvanceAmount(''); }}
-                                className="px-4 py-2 text-xs font-black text-slate-500 uppercase border border-slate-200 rounded-lg hover:bg-slate-50"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                onClick={handleRequestAdvance}
-                                disabled={advanceLoading}
-                                className="px-5 py-2 text-xs font-black text-white uppercase bg-orange-500 hover:bg-orange-600 rounded-lg shadow-md flex items-center gap-2 disabled:opacity-50"
-                            >
-                                {advanceLoading ? <Loader2 size={14} className="animate-spin" /> : <AlertTriangle size={14} />}
-                                Solicitar Anticipo
-                            </button>
-                        </div>
-                    </Modal>
+                    </div>
+                </Modal>
             )}
 
             </>
@@ -740,127 +768,100 @@ const InventoryReceptionPage: React.FC = () => {
 
     const confirmDialogProps = getConfirmDialogProps();
 
+    const labelClass = 'block text-xs font-bold text-slate-500 mb-1';
     return (
         <>
-        <div className="animate-in slide-in-from-right-4 duration-300 pb-10">
-            <div className="bg-white rounded-3xl border border-emerald-200 shadow-md overflow-hidden border-t-8 border-t-emerald-500">
-                <div className="p-6 border-b border-slate-100 flex flex-col gap-4 bg-emerald-50/30">
-                    <div className="bg-blue-50 border-2 border-blue-300 rounded-xl px-5 py-4 flex items-center gap-4">
-                        <div className="p-2 rounded-lg bg-blue-100 text-blue-600 shrink-0">
-                            <Truck size={28} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-blue-500">Estás recibiendo una factura de</p>
-                            <h2 className="text-2xl font-black text-blue-900 uppercase leading-tight truncate">{selectedPO.provider_name}</h2>
-                            <p className="text-xs font-bold text-slate-500 mt-0.5">OC: {selectedPO.folio}</p>
-                        </div>
-                        <div className="text-right shrink-0">
-                            <p className="text-[11px] font-black uppercase text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                                ⚠️ Verifica que la factura física<br/>sea de ESTE proveedor
-                            </p>
-                        </div>
-                    </div>
+        <div className={embedded ? 'space-y-6 animate-fadeIn pb-10' : 'p-8 w-full pb-24 space-y-6 animate-fadeIn'}>
+            <VPageHeader
+                icon={PackageCheck}
+                title={selectedPO.provider_name || 'Proveedor desconocido'}
+                subtitle={`OC ${selectedPO.folio} · verifica que la factura física sea de este proveedor`}
+                onBack={() => setSelectedPO(null)}
+                backLabel="Regresar al Andén"
+            />
 
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                    <div className="flex items-center gap-5">
-                        <Button 
-                            onClick={() => setSelectedPO(null)} 
-                            variant="outline" 
-                            className="h-12 w-12 rounded-full border-emerald-200 text-emerald-600 hover:bg-emerald-600 hover:text-white p-0 shadow-sm flex items-center justify-center transition-colors"
-                            title="Regresar al Andén"
-                        >
-                            <ArrowLeft size={20} />
-                        </Button>
-
-                        <div className="p-3 rounded-2xl shadow-inner bg-emerald-100 text-emerald-600">
-                            <PackageCheck size={24} />
-                        </div>
-                        <div>
-                            <h3 className="text-xl font-black text-slate-800 uppercase leading-none">{selectedPO.provider_name}</h3>
-                            <p className="text-[9px] font-black uppercase text-emerald-600 mt-1 tracking-widest leading-none">FOLIO OC: {selectedPO.folio}</p>
-                            <p className="text-[8px] font-black uppercase text-slate-400 mt-1 tracking-tighter leading-none">VALIDACIÓN FÍSICA</p>
-                        </div>
+            {/* Datos de la llegada */}
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label className={labelClass}>Fecha real de llegada *</label>
+                        <Input
+                            type="date"
+                            value={receivedAt}
+                            max={todayIso()}
+                            onChange={(e) => setReceivedAt(e.target.value)}
+                        />
                     </div>
-                    
-                    <div className="flex flex-row items-center gap-3">
-                        <div className="text-left">
-                            <label className="block text-[8px] font-black text-emerald-700 uppercase tracking-widest mb-1">Fecha real de llegada *</label>
+                    <div>
+                        <label className={labelClass}>Factura que trajo el chofer *</label>
+                        <Input
+                            placeholder="Folio"
+                            value={invoiceFolio}
+                            onChange={(e) => { setInvoiceFolio(e.target.value); setFolioWarning(null); }}
+                            onBlur={checkFolioDuplicado}
+                        />
+                    </div>
+                    <div>
+                        <label className={labelClass}>Monto de la factura (con IVA) *</label>
+                        <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">$</span>
                             <Input
-                                type="date"
-                                className="font-black text-[11px] px-3 w-36 bg-white border-emerald-200 rounded-lg text-slate-800 shadow-sm h-8"
-                                value={receivedAt}
-                                max={todayIso()}
-                                onChange={(e) => setReceivedAt(e.target.value)}
+                                className={`pl-7 font-bold tabular-nums ${isFinancialBlocked ? 'border-red-400 text-red-600' : 'text-slate-800'}`}
+                                placeholder="0.00"
+                                value={displayTotal}
+                                onChange={(e) => handleAmountInput(e.target.value)}
+                                onBlur={handleBlur}
+                                onFocus={() => {
+                                    if (invoiceTotal === 0 || invoiceTotal === '') {
+                                        setDisplayTotal('');
+                                        setInvoiceTotal('');
+                                    }
+                                }}
                             />
                         </div>
-                        <div className="text-right">
-                            <label className="block text-[8px] font-black text-emerald-700 uppercase tracking-widest mb-1 text-left">Factura Chofer *</label>
-                            <Input
-                                className="font-black text-[11px] px-3 w-32 bg-white border-emerald-200 rounded-lg text-slate-800 uppercase shadow-sm h-8"
-                                placeholder="Folio"
-                                value={invoiceFolio}
-                                onChange={(e) => { setInvoiceFolio(e.target.value); setFolioWarning(null); }}
-                                onBlur={checkFolioDuplicado}
-                            />
-                            {folioWarning && folioWarning.length > 0 && (
-                                <div className="mt-2 text-[10px] font-black uppercase tracking-wide text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 max-w-md">
-                                    ⚠ Este proveedor ya tiene {folioWarning.length === 1 ? 'una factura' : `${folioWarning.length} facturas`} con ese folio
-                                    {folioWarning.map((c: any, i: number) => (
-                                        <span key={i} className="block font-bold normal-case text-amber-800 mt-1">
-                                            {formatMoney(Number(c.total || 0))} · {c.status}
-                                            {c.fecha ? ` · ${formatDate(c.fecha)}` : ''}
-                                        </span>
-                                    ))}
-                                    <span className="block normal-case font-bold text-amber-600 mt-1">Verifica que no sea un duplicado. Puedes continuar si es correcto.</span>
-                                </div>
-                            )}
-                        </div>
-                        <div className="text-right">
-                            <label className="block text-[8px] font-black text-emerald-700 uppercase tracking-widest mb-1 text-left">Monto (c/IVA) *</label>
-                            <div className="relative">
-                                <span className="absolute left-2 top-1/2 -translate-y-1/2 font-black text-slate-400 text-[10px]">$</span>
-                                <Input
-                                    className={`font-black text-[11px] pl-5 pr-2 w-32 rounded-lg shadow-sm h-8 ${
-                                        isFinancialBlocked
-                                        ? 'border-rose-400 text-rose-600 focus-visible:ring-rose-500'
-                                        : 'border-emerald-200 text-emerald-700 focus-visible:ring-emerald-500'
-                                    }`}
-                                    placeholder="0.00"
-                                    value={displayTotal}
-                                    onChange={(e) => handleAmountInput(e.target.value)}
-                                    onBlur={handleBlur}
-                                    onFocus={() => {
-                                        if (invoiceTotal === 0 || invoiceTotal === '') {
-                                            setDisplayTotal('');
-                                            setInvoiceTotal('');
-                                        }
-                                    }}
-                                />
-                            </div>
-                        </div>
-                    </div>
                     </div>
                 </div>
+                {folioWarning && folioWarning.length > 0 && (
+                    <div className="flex items-start gap-2 text-sm text-amber-700 border-t border-slate-100 pt-3">
+                        <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                        <div>
+                            <p className="font-bold">
+                                Este proveedor ya tiene {folioWarning.length === 1 ? 'una factura' : `${folioWarning.length} facturas`} con ese folio
+                            </p>
+                            {folioWarning.map((c: any, i: number) => (
+                                <p key={i} className="text-xs text-amber-800 tabular-nums">
+                                    {formatMoney(Number(c.total || 0))} · {c.status}
+                                    {c.fecha ? ` · ${formatDate(c.fecha)}` : ''}
+                                </p>
+                            ))}
+                            <p className="text-xs text-amber-600">Verifica que no sea un duplicado. Puedes continuar si es correcto.</p>
+                        </div>
+                    </div>
+                )}
+            </div>
 
+            {/* Partidas de la OC y renglones agregados */}
+            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                 <VTable
                     columns={receptionColumns as unknown as VTableColumn<Record<string, unknown>>[]}
                     data={receptionRows as unknown as Record<string, unknown>[]}
+                    headerStyle="report"
                     className="border-0 rounded-none shadow-none"
+                    stickyHeader={false}
                 />
 
-                <div className="px-8 py-4 border-t border-slate-100">
+                <div className="px-4 py-4 border-t border-slate-100 space-y-2">
                     {addedRows.map((row, i) => (
-                        <div key={i} className="flex items-center gap-3 mb-2">
+                        <div key={i} className="flex items-center gap-3">
                             <div className="relative flex-1">
                                 <Input
                                     type="text"
                                     value={row.search}
                                     onChange={(e) => updateAddedRow(i, { search: e.target.value, material_id: null })}
                                     placeholder="Buscar material por SKU o nombre..."
-                                    className="text-xs"
                                 />
                                 {row.search && !row.material_id && (
-                                    <div className="absolute z-20 bg-white border border-slate-200 rounded shadow-lg w-full max-h-48 overflow-auto mt-1">
+                                    <div className="absolute z-20 bg-white border border-slate-200 rounded-lg shadow-lg w-full max-h-48 overflow-auto mt-1">
                                         {materialsList
                                             .filter((m: any) => {
                                                 const q = row.search.toLowerCase();
@@ -868,22 +869,24 @@ const InventoryReceptionPage: React.FC = () => {
                                             })
                                             .slice(0, 8)
                                             .map((m: any) => (
-                                                <button
+                                                <Button
                                                     key={m.id}
                                                     type="button"
+                                                    variant="ghost"
                                                     onClick={() => selectMaterialForRow(i, m)}
-                                                    className="block w-full text-left text-xs px-3 py-2 hover:bg-indigo-50"
+                                                    className="w-full h-auto justify-start rounded-none text-left text-sm font-normal px-3 py-2 whitespace-normal"
                                                 >
-                                                    <span className="font-black text-indigo-600 uppercase">{m.sku}</span> — {m.name}
-                                                </button>
+                                                    <span className="font-mono text-xs font-semibold text-indigo-600">{m.sku}</span> — {m.name}
+                                                </Button>
                                             ))}
-                                        <button
+                                        <Button
                                             type="button"
+                                            variant="ghost"
                                             onClick={() => setShowMaterialForm({ rowIndex: i, sku: row.search })}
-                                            className="block w-full text-left text-xs px-3 py-2 bg-indigo-50 hover:bg-indigo-100 font-black text-indigo-700 border-t border-indigo-100"
+                                            className="w-full h-auto justify-start rounded-none border-t border-slate-100 text-left text-sm font-semibold text-indigo-700 px-3 py-2"
                                         >
-                                            ＋ Dar de alta material nuevo…
-                                        </button>
+                                            <Plus size={14} /> Dar de alta material nuevo…
+                                        </Button>
                                     </div>
                                 )}
                             </div>
@@ -891,105 +894,100 @@ const InventoryReceptionPage: React.FC = () => {
                                 type="number" min="0" placeholder="Cant."
                                 value={row.received_qty}
                                 onChange={(e) => updateAddedRow(i, { received_qty: e.target.value })}
-                                className="h-8 w-20 text-center text-xs"
+                                className="w-24 text-right tabular-nums"
                             />
                             <Input
-                                type="number" min="0" step="0.01" placeholder="P. Unit"
+                                type="number" min="0" step="0.01" placeholder="P. unit."
                                 value={row.unit_cost}
                                 onChange={(e) => updateAddedRow(i, { unit_cost: e.target.value })}
-                                className="h-8 w-24 text-center text-xs"
+                                className="w-28 text-right tabular-nums"
                             />
-                            <button type="button" onClick={() => removeAddedRow(i)} className="text-rose-500 hover:text-rose-700 text-xs font-black px-2">✕</button>
+                            <Button type="button" variant="ghost" size="icon-sm" onClick={() => removeAddedRow(i)}
+                                title="Quitar renglón" aria-label="Quitar renglón" className="text-red-600 hover:text-red-700">
+                                <X size={16} />
+                            </Button>
                         </div>
                     ))}
-                    <button
-                        type="button"
-                        onClick={addNewRow}
-                        className="text-xs font-black text-indigo-600 hover:text-indigo-800 uppercase tracking-wide"
-                    >
-                        ＋ Agregar renglón
-                    </button>
+                    <Button type="button" variant="ghost" size="sm" onClick={addNewRow}
+                        className="text-indigo-600 hover:text-indigo-800 font-semibold">
+                        <Plus size={14} /> Agregar renglón
+                    </Button>
                 </div>
+            </div>
 
-
-                {hasAdvance && invoiceTotalNum > 0 && invoiceFolio.trim() !== '' && (
-                    <div className="mx-8 mb-4 px-5 py-4 rounded-xl text-sm font-black border-2 flex items-center gap-3 bg-orange-50 text-orange-700 border-orange-400">
-                        <span className="text-2xl">⚠</span>
-                        <div>
-                            <p className="text-sm font-black">
-                                {overpaid
-                                    ? `⚠ La factura (${formatCurrency(invoiceTotalNum)}) es MENOR al anticipo pagado (${formatCurrency(advancePaid)})`
-                                    : saldoConAnticipo <= 0.01
-                                        ? 'Anticipo aplicado — Esta factura quedará PAGADA'
-                                        : `Anticipo aplicado — Saldo por pagar: ${formatCurrency(saldoConAnticipo)}`
-                                }
-                            </p>
-                            <p className="text-xs font-bold opacity-70">
-                                {overpaid
-                                    ? `Diferencia a tu favor: ${formatCurrency(overpaidAmount)} — Verifica antes de confirmar`
-                                    : `Anticipo pagado: ${formatCurrency(advancePaid)} · Factura: ${formatCurrency(invoiceTotalNum)}`
-                                }
-                            </p>
-                        </div>
+            {hasAdvance && invoiceTotalNum > 0 && invoiceFolio.trim() !== '' && (
+                <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex items-start gap-3">
+                    <AlertTriangle size={20} className={`shrink-0 mt-0.5 ${overpaid ? 'text-red-600' : 'text-amber-600'}`} />
+                    <div>
+                        <p className={`text-sm font-bold ${overpaid ? 'text-red-600' : 'text-amber-700'}`}>
+                            {overpaid
+                                ? `La factura (${formatCurrency(invoiceTotalNum)}) es menor al anticipo pagado (${formatCurrency(advancePaid)})`
+                                : saldoConAnticipo <= 0.01
+                                    ? 'Anticipo aplicado: esta factura quedará pagada'
+                                    : `Anticipo aplicado: saldo por pagar ${formatCurrency(saldoConAnticipo)}`
+                            }
+                        </p>
+                        <p className="text-xs text-slate-500 tabular-nums">
+                            {overpaid
+                                ? `Diferencia a tu favor: ${formatCurrency(overpaidAmount)}. Verifica antes de confirmar.`
+                                : `Anticipo pagado: ${formatCurrency(advancePaid)} · Factura: ${formatCurrency(invoiceTotalNum)}`
+                            }
+                        </p>
                     </div>
-                )}
+                </div>
+            )}
 
-                <div className="p-8 bg-slate-50/50 flex justify-between items-center border-t border-slate-100 mt-6">
-                    <div className="flex gap-4">
-                        <Button 
-                            onClick={initiateSubmit} 
-                            disabled={isSubmitting || isCancelling}
-                            className="font-black uppercase text-xs h-12 px-10 shadow-sm transition-colors bg-emerald-600 hover:bg-emerald-700 text-white"
-                        >
-                            <Save size={16} className="mr-3" /> {isSubmitting ? 'Guardando...' : 'Confirmar Ingreso'}
-                        </Button>
-                        
-                        {/* EL NUEVO BOTÓN DE PÁNICO */}
-                        <Button 
-                            onClick={() => setPendingConfirm({ kind: 'cancel' })} 
-                            disabled={isSubmitting || isCancelling} 
+            {/* Acciones y totales */}
+            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6">
+                <div className="flex flex-wrap gap-3">
+                    <Button
+                        onClick={initiateSubmit}
+                        disabled={isSubmitting || isCancelling}
+                    >
+                        <Save size={16} /> {isSubmitting ? 'Procesando...' : 'Confirmar ingreso'}
+                    </Button>
+                    <Button
+                        onClick={() => setPendingConfirm({ kind: 'cancel' })}
+                        disabled={isSubmitting || isCancelling}
+                        variant="outline"
+                    >
+                        <Ban size={16} /> Rechazar y cancelar OC
+                    </Button>
+                    {canDeclare && selectedPO?.status === 'RECIBIDA_PARCIAL' && (
+                        <Button
+                            onClick={() => setPendingConfirm({ kind: 'declareSatisfied' })}
+                            disabled={isSubmitting || declaringSatisfied}
                             variant="outline"
-                            className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300 hover:text-rose-700 font-black uppercase text-[10px] h-12 px-6 shadow-sm transition-all"
                         >
-                            <Ban size={14} className="mr-2" /> Rechazar y Cancelar OC
+                            <CheckCircle2 size={16} /> OC satisfecha
                         </Button>
-                        {canDeclare && selectedPO?.status === 'RECIBIDA_PARCIAL' && (
-                            <Button
-                                onClick={() => setPendingConfirm({ kind: 'declareSatisfied' })}
-                                disabled={isSubmitting || declaringSatisfied}
-                                variant="outline"
-                                className="border-amber-300 text-amber-700 hover:bg-amber-50 font-black uppercase text-[10px] h-12 px-6 shadow-sm transition-all"
-                            >
-                                <CheckCircle2 size={14} className="mr-2" /> OC Satisfecha
-                            </Button>
-                        )}
+                    )}
+                </div>
+                <div className="w-full lg:w-96 space-y-2 text-sm">
+                    <div className="flex justify-between items-center text-slate-600">
+                        <span className="font-semibold">Subtotal</span>
+                        <span className="font-bold tabular-nums">{formatMoney(subtotalCalc)}</span>
                     </div>
-                    <div className="w-80 space-y-1 pr-14">
-                        <div className="flex justify-between items-center text-slate-500">
-                            <span className="text-[10px] font-black uppercase">Subtotal</span>
-                            <span className="text-sm font-bold">{formatMoney(subtotalCalc)}</span>
+                    <div className="flex justify-between items-center gap-3 text-slate-600 border-b border-slate-200 pb-2">
+                        <div className="flex items-center gap-2">
+                            <span className="font-semibold whitespace-nowrap">Tasa de IVA</span>
+                            <SearchableSelect
+                                items={TAX_RATE_OPTIONS}
+                                value={String(taxRate)}
+                                onChange={(v) => setTaxRate(Number(v))}
+                                getLabel={(o) => o.label}
+                                getValue={(o) => o.value}
+                                className="text-xs font-bold w-32"
+                            />
                         </div>
-                        <div className="flex justify-between items-center text-slate-500 border-b border-slate-200 pb-2">
-                            <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-black uppercase">Tasa IVA</span>
-                                <SearchableSelect
-                                    items={TAX_RATE_OPTIONS}
-                                    value={String(taxRate)}
-                                    onChange={(v) => setTaxRate(Number(v))}
-                                    getLabel={(o) => o.label}
-                                    getValue={(o) => o.value}
-                                    className="text-xs font-bold w-32"
-                                />
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <span className="text-[10px] font-black uppercase">IVA ({(taxRate * 100).toFixed(0)}%)</span>
-                                <span className="text-sm font-bold">{formatMoney(ivaCalc)}</span>
-                            </div>
+                        <div className="flex items-center gap-3">
+                            <span className="font-semibold whitespace-nowrap">IVA ({(taxRate * 100).toFixed(0)}%)</span>
+                            <span className="font-bold tabular-nums">{formatMoney(ivaCalc)}</span>
                         </div>
-                        <div className="flex justify-between items-center pt-2">
-                            <span className="text-[11px] font-black text-emerald-600 uppercase">Total Esperado</span>
-                            <span className="text-3xl font-black text-slate-900">{formatMoney(expectedTotal)}</span>
-                        </div>
+                    </div>
+                    <div className="flex justify-between items-center pt-1">
+                        <span className="font-black text-slate-700">Total esperado (con IVA)</span>
+                        <span className="text-2xl font-black text-slate-900 tabular-nums">{formatMoney(expectedTotal)}</span>
                     </div>
                 </div>
             </div>

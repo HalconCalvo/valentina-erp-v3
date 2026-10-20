@@ -395,7 +395,7 @@ export const InventoryDashboardPage = () => {
                     )}
                     
                     {activeSection === 'RECEPTIONS' && renderActiveSection('Recepción', 
-                        <InventoryReceptionPage />
+                        <InventoryReceptionPage embedded onSubSectionChange={(active) => setIsSubSectionActive(active)} />
                     )}
 
                     {activeSection === 'INVENTORY_HUB' && renderActiveSection('Inventario',
