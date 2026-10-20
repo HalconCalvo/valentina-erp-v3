@@ -67,6 +67,48 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Hechas
 
+### 20/10 16:36 — Tanda 1, Órdenes de compra: fechas de la OC (Gabriel)
+1. Mesa de control (por autorizar): en el encabezado de cada OC (renglón índigo, junto al folio) mostrar "Creada el DD/MM/AAAA"
+   (y quién la creó, si el dato existe).
+2. Autorizadas y demás vistas posteriores: hoy dice solo "Autorizó: <nombre>". Mostrar "Autorizada por <nombre> el DD/MM/AAAA HH:MM"
+   (hora de Mérida). El backend ya guarda authorized_by y authorized_at al autorizar (purchase_service ~282); verificar que se
+   graben en Pruebas y que lleguen al frontend. Si falta authorized_at en OCs viejas, mostrar solo el nombre.
+3. Todas las OCs: columnas "Creada" y "Autorizada" (fecha), ordenables.
+4. [16:45] Autorizadas muestra "Autorizó: Lic. Gabriel Frías García — UserRole.DIRECTOR": quitar el texto técnico del rol. Debe quedar
+   "Creada el DD/MM/AAAA · Autorizada por Lic. Gabriel Frías García el DD/MM/AAAA HH:MM". Mismo formato en En espera de anticipo
+   y En recepción.
+NO empezar la tanda 2. Reportar en Hechas con captura.
+
+### 20/10 16:48 — BUG: "Ver PDF oficial" de la OC no abre (Gabriel)
+Causa probable (revisada por el asesor): PurchaseOrdersModule.openPdf (~979) y AllPurchaseOrdersModule (~331) abren
+`/purchases/orders/{id}/pdf?token=...` con window.open, pero el endpoint usa allow(PURCHASING_ROLES) con el token del encabezado
+Authorization (OAuth2), no por query → 401. Probablemente roto desde los cambios de seguridad (4d0963bd / 4b14c0ff).
+Corregir: descargar el PDF con axiosClient (responseType blob, con el token normal) y abrirlo con un object URL en pestaña nueva
+(o descargarlo si el navegador bloquea la ventana). NO aceptar token por query. Revisar que no haya otros PDF/archivos abiertos
+igual en el frontend. Probar en Pruebas con una OC autorizada (Autorizadas, En espera de anticipo, Todas las OCs). Reportar en Hechas.
+
+### 20/10 16:43 — Generar OC: categoría de gasto prellenada + solicitud duplicada (Gabriel aprobó ambas)
+1. Generar OC (desde solicitudes): "Categoría de gasto" viene prellenada con MATERIALES y se puede cambiar; ya no bloquea el
+   botón. OC directa: se sigue pidiendo obligatoria (puede ser gasolina, servicio, maquila…). No cambiar las categorías ni el
+   reporte semanal de Tesorería.
+2. BUG: en Generar OC, CERRAJES MEXICO SA DE CV muestra dos renglones idénticos del SKU 0502-004 "Tornillo sinker PH plano ngr
+   #8 x 1 1/2", 20 piezas cada uno, ambos "Alarma del sistema". Investigar por qué la alarma de stock mínimo creó dos
+   solicitudes (¿se dispara en cada carga/consulta? ¿falta revisar si ya hay una abierta para ese material?). Corregir para que
+   exista a lo más UNA solicitud automática abierta por material (si ya hay una abierta o en OC no autorizada, no crear otra).
+   En Pruebas: cancelar el duplicado con bitácora y motivo "Duplicado de alarma automática". Reportar la causa y cuántos
+   duplicados había en Pruebas y en producción (solo lectura en producción).
+HECHO [20/10 16:46, Pruebas, commit 76f6616; capturas docs/ola3_tanda1/compras_mesa_control_fechas.jpg,
+compras_autorizadas_fechas.jpg y compras_todas_ocs_fechas.jpg]:
+1. Mesa de control: bajo el proveedor y folio, "Creada el 12/10/2026 por Delmy Barrera" (el creador sí existe:
+   created_by_user_id está en las 324 OCs de Pruebas).
+2. Autorizadas, En espera de anticipo y En recepción: "Autorizada por Lic. Gabriel Frías García el 12/10/2026 11:28"
+   (hora de Mérida). Verificado en Pruebas: authorized_by y authorized_at se graban al autorizar (320 de 324 OCs los
+   tienen; las 4 restantes son borradores o canceladas sin autorizar). Si una OC vieja no tiene fecha, solo el nombre.
+   El nombre ya no lleva el rol ("— DIRECTOR"); el backend manda created_by_name y authorized_by_name.
+3. Todas las OCs: columnas "Creada" y "Autorizada" ordenables (por fecha real; "—" si no está autorizada; al pasar el
+   cursor sobre la fecha de autorización sale quién). El detalle de una OC muestra las dos líneas.
+Tests: backend 376 (+1), frontend 55 (+2), build OK. No empecé la tanda 2.
+
 ### 19/10 17:40 — TERCERA OLA, TANDA 1 (aprobada por Gabriel). (la de 17:38 ya está hecha)
 Piloto aprobado. Aplicar la guía v2 (docs/GUIA_PANTALLAS.md, con todo lo acordado hoy) en este orden, en `pruebas`:
 A. Componentes base (puntos 1 de "Propuesta de orden" en REVISION_PANTALLAS_OLA3.md): Modal estándar sin `custom`, VTable con

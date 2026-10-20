@@ -5263,3 +5263,8 @@ PARA MAÑANA (en orden)
 4. Tanda 2 (Tesorería, Gerencia, Nómina) y tanda 3 (catálogos y configuración).
 5. Pendientes: Seguimiento de OV; D43 paso 1 ("Reportar un detalle"); catálogo de cuadrillas (después del arranque);
    pagar las globales del Lic. en OV-0157; mejoras del correo; D39 y pase a main; simulacro con el equipo.
+
+MARTES 20/10/2026
+- 16:46 (76f6616): Órdenes de compra con fechas: "Creada el … por …" en Mesa de control; "Autorizada por … el … HH:MM"
+  en vistas posteriores; columnas Creada/Autorizada ordenables en Todas las OCs. El listado de OCs usa SQL solo de
+  PostgreSQL (ANY, STRING_AGG): no se prueba por API en SQLite; se prueban sus funciones.
