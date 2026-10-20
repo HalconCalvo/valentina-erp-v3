@@ -5221,3 +5221,13 @@ LUNES 19/10/2026
 - Pendiente: Gabriel aprueba para pasar las 42 pantallas; push a main sigue sujeto a CLAUDE.md.
 - 17:39 (f7804b4): Caja chica ordenable (Fecha reciente primero, Categoría, Concepto, Monto con signo); VTable sortValue;
   guía: columnas principales ordenables en toda tabla de listado o reporte.
+
+### Tercera ola, tanda 1 (19/10 18:14, rama pruebas, bff1eac…f39bac4)
+- Componentes base: VPageHeader, VTextarea, ModalFooter, Modal con tamaños estándar/subtítulo/pie; VTable con
+  encabezado de reporte, orden, agrupador y totales (ya de la tarde).
+- Pantallas: Diseño (Simulador, Centro de impresión, Lotes), Compras (Solicitudes, Órdenes de compra y Todas las OCs),
+  Andén, Piso de producción, Campo (carga y casa), Gerencia/Nómina, Pendiente de facturar; encabezados de hubs.
+- Trabajo repartido en 6 bifurcaciones por archivo (sin pisarse); commits por grupo; revisión en pantalla en Pruebas.
+- Hallazgos en pantalla corregidos: encabezado angosto en Nueva solicitud; P. unit cortado en recepción; "PIEDRA" en
+  mayúsculas; barras con borde oscuro (border-b sin color usa el color por defecto: siempre border-slate-200).
+- Propuestas y dudas en el buzón (Hechas 17:40). Espera aprobación para la tanda 2.

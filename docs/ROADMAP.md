@@ -251,6 +251,8 @@ la factura completa. Probado en Pruebas con Piloto 1 sin guardar.
 - 19/10 (541aa36, eed67ad, dea8d10, a6cb2f3): piloto aprobado con ajustes y hechos en Pruebas; VTable con títulos
   propios (agrupador y totales) en Antigüedad y Cobranza; tablero de Dirección resta la comisión global; el pago a
   proveedor muestra quién autorizó la OC. Siguiente: las 42 pantallas cuando Gabriel lo indique.
+- 19/10 tanda 1 de la tercera ola (bff1eac…f39bac4): componentes base y pantallas del ensayo (Diseño, Compras, Andén,
+  Piso de producción, Campo, Nómina, Pendiente de facturar). Espera aprobación para la tanda 2 (catálogos y config.).
 - D44 (969c63689777, dcab654921ee): comisión global con un beneficiario y % en Configuración; las globales salen en la
   bandeja; Rentabilidad de la OV la resta; las de la regla vieja (Ing. Gabriel Frías) quedan Omitidas.
 - D42: guía de pantallas versión 2 (modelo Cobranza y Antigüedad) y lista de la tercera ola ajustada; espera aprobación.

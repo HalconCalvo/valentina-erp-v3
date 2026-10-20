@@ -8,22 +8,6 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Pendientes
 
-### 19/10 17:40 — TERCERA OLA, TANDA 1 (aprobada por Gabriel). (la de 17:38 ya está hecha)
-Piloto aprobado. Aplicar la guía v2 (docs/GUIA_PANTALLAS.md, con todo lo acordado hoy) en este orden, en `pruebas`:
-A. Componentes base (puntos 1 de "Propuesta de orden" en REVISION_PANTALLAS_OLA3.md): Modal estándar sin `custom`, VTable con
-   vacío y carga, encabezado ordenable, encabezado de subnivel y "Regresar a …" de los hubs (Compras, Gerencia, Tesorería, Diseño),
-   componente de texto largo (Observaciones/Notas). Antes de cambiar un componente compartido, lista qué pantallas toca.
-B. Pantallas del ensayo: Diseño (Simulador, Centro de impresión, Lotes), Compras (Solicitud, Órdenes de compra / Mesa de Control,
-   Todas las OCs), Andén (lista y recepción), Piso de Producción, Campo (Carga del camión y Detalle de casa), Gerencia → 5. Nómina,
-   Pendiente de Facturar.
-Reglas (las de hoy): solo apariencia — mismos datos, botones, permisos y flujos; listados/tablas a ancho completo, ancho angosto
-solo en formularios; un solo botón de color (acción principal) por pantalla; títulos sobre su columna, importes a la derecha con
-tabular-nums; columnas principales ordenables; sin mayúsculas sostenidas en títulos ni etiquetas; fechas DD/MM/AAAA y hora de Mérida;
-sin emojis. Si una mejora implica una función nueva (p. ej. buscador o filtro que no existe), NO la hagas: anótala como propuesta.
-Commit por pantalla o grupo pequeño. Capturas antes/después en docs/ola3_tanda1/. Al terminar, reporte en Hechas con lista de
-pantallas, propuestas de funciones nuevas y dudas. NO empezar la tanda 2 hasta que Gabriel apruebe.
-
-
 
 ## Preguntas para el asesor
 
@@ -82,6 +66,65 @@ pantallas, propuestas de funciones nuevas y dudas. NO empezar la tanda 2 hasta q
   - Agrega a tu reporte final la lista de commits pendientes de prueba en pantalla.
 
 ## Hechas
+
+### 19/10 17:40 — TERCERA OLA, TANDA 1 (aprobada por Gabriel). (la de 17:38 ya está hecha)
+Piloto aprobado. Aplicar la guía v2 (docs/GUIA_PANTALLAS.md, con todo lo acordado hoy) en este orden, en `pruebas`:
+A. Componentes base (puntos 1 de "Propuesta de orden" en REVISION_PANTALLAS_OLA3.md): Modal estándar sin `custom`, VTable con
+   vacío y carga, encabezado ordenable, encabezado de subnivel y "Regresar a …" de los hubs (Compras, Gerencia, Tesorería, Diseño),
+   componente de texto largo (Observaciones/Notas). Antes de cambiar un componente compartido, lista qué pantallas toca.
+B. Pantallas del ensayo: Diseño (Simulador, Centro de impresión, Lotes), Compras (Solicitud, Órdenes de compra / Mesa de Control,
+   Todas las OCs), Andén (lista y recepción), Piso de Producción, Campo (Carga del camión y Detalle de casa), Gerencia → 5. Nómina,
+   Pendiente de Facturar.
+Reglas (las de hoy): solo apariencia — mismos datos, botones, permisos y flujos; listados/tablas a ancho completo, ancho angosto
+solo en formularios; un solo botón de color (acción principal) por pantalla; títulos sobre su columna, importes a la derecha con
+tabular-nums; columnas principales ordenables; sin mayúsculas sostenidas en títulos ni etiquetas; fechas DD/MM/AAAA y hora de Mérida;
+sin emojis. Si una mejora implica una función nueva (p. ej. buscador o filtro que no existe), NO la hagas: anótala como propuesta.
+Commit por pantalla o grupo pequeño. Capturas antes/después en docs/ola3_tanda1/. Al terminar, reporte en Hechas con lista de
+pantallas, propuestas de funciones nuevas y dudas. NO empezar la tanda 2 hasta que Gabriel apruebe.
+HECHO [19/10 18:14, Pruebas; commits bff1eac, 775cacd, 89c2003, 837e4e8, a4bd900, 0d77671, 400741f, f39bac4;
+capturas antes/después en docs/ola3_tanda1/]. Solo apariencia: mismos datos, botones, permisos (D41 igual) y flujos.
+A. Componentes base (pantallas que tocan: solo las que los usan; los cambios a Modal, VTable y VEmptyState son
+   compatibles y no cambian ninguna otra pantalla, salvo el botón de VEmptyState, que ahora es el Button estándar —
+   lo usa solo Auditoría "Volver al inicio"):
+   - VPageHeader: encabezado §2 (ícono en el título, subtítulo de una línea, Cargando…, Actualizar y "Regresar a …" a la
+     derecha; variante de teléfono). Hubs con encabezado de sub-nivel y "Regresar a <hub>": Compras, Gerencia,
+     Tesorería, Diseño (títulos sin número; en Nómina el título cambia a Comisiones/Destajos/Nómina semanal).
+   - Modal con tamaños estándar (sm…3xl, wide), subtítulo y pie; ModalFooter (secundario izquierda, primario derecha).
+     En las pantallas de la tanda ya no queda ningún Modal custom (quedan 2 en otras tandas: Proveedores y visor de
+     planos del Catálogo).
+   - VTable: vacío y carga (ya existían), encabezado de reporte, ordenable con flechas de la guía, sortValue,
+     agrupador y fila de totales. VTextarea para texto largo.
+B. Pantallas:
+   - Diseño: Simulador, Centro de impresión (tarjeta KPI blanca, etiquetas en vez de emojis), sub-hub y Lotes.
+   - Compras: Solicitudes (4 sub-vistas y formulario), Órdenes de compra (6 sub-vistas: Generar OC, Mesa de control,
+     Autorizadas, En espera de anticipo, En recepción, Todas las OCs con filtros en tarjeta y tabla ordenable) y sus
+     7 modales.
+   - Andén: lista como tabla ordenable; recepción con el proveedor una sola vez, "Regresar al Andén" a la derecha,
+     "Confirmar ingreso" único botón de color.
+   - Piso de producción: ancho completo con fondo normal, filtros en tarjeta, columnas y tarjetas blancas, sin emojis.
+   - Campo: Carga del camión y Detalle de casa (encabezado de teléfono, slate, etiquetas, sin emojis ni spinners).
+   - Gerencia → Nómina (comisiones con "Pagar" verde en el renglón; destajos en una sola tabla con agrupador y
+     totales; nómina semanal) y Pendiente de facturar (tarjetas blancas, tablas ordenables, agrupador por OV).
+   Probado en Pruebas en pantalla (abriendo ventanas y cerrándolas sin guardar ni pagar). Tests frontend 53, build OK,
+   tipos 147 (antes 148).
+Propuestas de funciones nuevas (NO hechas):
+   1. Andén: buscador por folio/proveedor y filtro por estado.
+   2. Centro de impresión: buscador o filtro; botón Actualizar (la recarga existe, el botón no).
+   3. Simulador, Piso de producción y Gerencia: botón Actualizar en el encabezado (hoy solo cargan al abrir).
+   4. OC directa: proveedor y SKU con SearchableSelect (hoy listas propias que permiten dar de alta nuevos).
+   5. Nombres de estado de OC en español en todo el módulo (hoy solo en Todas las OCs).
+Dudas:
+   1. Guía §3/§4: etiquetas de tarjetas y filtros van en MAYÚSCULAS pequeñas (como Cobranza) y la regla de hoy dice
+      "sin mayúsculas sostenidas en etiquetas". Apliqué: etiquetas de campos de formulario en letra normal; etiquetas
+      pequeñas de tarjetas de cifras y de filtros como Cobranza. ¿Se quedan así o todo en letra normal?
+   2. Botón principal: "Confirmar ingreso" (Andén) pasó de verde a índigo (primario de la guía); "Confirmar carga"
+      (Campo) se queda verde. ¿Ingresos de mercancía en verde o índigo?
+   3. Campo, Detalle de casa: Sincronizar es el único botón de color; "Confirmar firma" queda en contorno.
+   4. "Mesa de control" como título de "Por autorizar" (nombre que ya conocían). ¿Se queda o "Por autorizar"?
+   5. Las tarjetas de los hubs (A–E, 1–8) conservan número y mayúsculas pequeñas (la ayuda las nombra así).
+   6. El Detalle de casa no se pudo ver con datos con mi usuario (Dirección no tiene jornada): revisado solo el aviso
+      "no encontrada"; con la cuenta de un líder se ve la casa.
+NO empiezo la tanda 2 hasta que Gabriel apruebe.
 
 ### 19/10 17:38 — Caja chica: ordenar por columnas (Gabriel)
 Usar el mismo encabezado ordenable de Antigüedad/Cobranza (flechitas ↑↓) en: Fecha, Categoría, Concepto y Monto.
