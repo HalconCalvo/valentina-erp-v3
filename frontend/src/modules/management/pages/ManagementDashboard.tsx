@@ -19,6 +19,9 @@ import {
     FileSpreadsheet,
     Shield,
     Scale,
+    Lock,
+    Unlock,
+    CheckCircle2,
 } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
@@ -45,6 +48,7 @@ import { AccountDetail } from '../../treasury/components/AccountDetail';
 import {
     PayrollAuditPanel,
     type PayrollLevel1,
+    type PayrollTray,
 } from '../../treasury/components/PayrollAuditPanel';
 import { OrderStatementModal } from '../../finance/components/OrderStatementModal';
 import { SalesOrder } from '../../../types/sales';
@@ -79,6 +83,8 @@ const ManagementDashboard: React.FC = () => {
 
     const [root, setRoot] = useState<AdminV4Root>(null);
     const [payrollSub, setPayrollSub] = useState<PayrollLevel1>(null);
+    // Gabriel 20/10: the chosen tray (retenidas, por pagar, pagadas) is its own screen under Comisiones / Destajos
+    const [payrollTray, setPayrollTray] = useState<PayrollTray>(null);
 
     const [recvSubOpen, setRecvSubOpen] = useState(false);
     const [paySubOpen, setPaySubOpen] = useState(false);
@@ -206,6 +212,10 @@ const ManagementDashboard: React.FC = () => {
         if (root !== 'PAYROLL') setPayrollSub(null);
     }, [root]);
 
+    useEffect(() => {
+        setPayrollTray(null);
+    }, [payrollSub]);
+
     // H70: the help's "Ir" opens 5. Nómina at Comisiones or Destajos (/management?nomina=comisiones|destajos)
     useEffect(() => {
         const level = new URLSearchParams(location.search).get('nomina');
@@ -236,6 +246,10 @@ const ManagementDashboard: React.FC = () => {
             setSelectedAccountForDetail(null);
             return;
         }
+        if (payrollTray !== null) {
+            setPayrollTray(null);
+            return;
+        }
         if (payrollSub !== null) {
             setPayrollSub(null);
             return;
@@ -262,8 +276,18 @@ const ManagementDashboard: React.FC = () => {
         if (root === 'OV_FACTURACION') return { icon: FileText, title: 'OV y facturación', subtitle: 'Órdenes de venta, anticipos y avances.' };
         if (root === 'CXP') return { icon: TrendingDown, title: 'Cuentas por pagar', subtitle: 'Facturas de proveedores por vencimiento.' };
         if (root === 'PAYROLL') {
-            if (payrollSub === 'COMMISSIONS') return { icon: Users, title: 'Comisiones', subtitle: 'Comisiones retenidas, por pagar y pagadas.' };
-            if (payrollSub === 'INSTALLATIONS') return { icon: Users, title: 'Destajos', subtitle: 'Pagos de instalación por cuadrilla: sin firma, por pagar y pagados.' };
+            if (payrollSub === 'COMMISSIONS') {
+                if (payrollTray === 'RETAINED') return { icon: Lock, title: 'Comisiones retenidas', subtitle: 'Comisiones que esperan el cobro o la firma que las libera.' };
+                if (payrollTray === 'PAYABLE') return { icon: Unlock, title: 'Comisiones por pagar', subtitle: 'Comisiones liberadas, listas para pagar.' };
+                if (payrollTray === 'PAID') return { icon: CheckCircle2, title: 'Histórico de comisiones', subtitle: 'Comisiones pagadas.' };
+                return { icon: Users, title: 'Comisiones', subtitle: 'Comisiones retenidas, por pagar y pagadas.' };
+            }
+            if (payrollSub === 'INSTALLATIONS') {
+                if (payrollTray === 'RETAINED') return { icon: Lock, title: 'Destajos sin firma', subtitle: 'Instalaciones que esperan la firma del cliente.' };
+                if (payrollTray === 'PAYABLE') return { icon: Unlock, title: 'Destajos por pagar', subtitle: 'Instalaciones con doble verde, listas para pagar.' };
+                if (payrollTray === 'PAID') return { icon: CheckCircle2, title: 'Destajos pagados', subtitle: 'Pagos de instalación ya hechos.' };
+                return { icon: Users, title: 'Destajos', subtitle: 'Pagos de instalación por cuadrilla: sin firma, por pagar y pagados.' };
+            }
             if (payrollSub === 'WEEKLY') return { icon: Users, title: 'Nómina semanal', subtitle: 'Cierre de jueves de costos fijos e histórico.' };
             return { icon: Users, title: 'Nómina', subtitle: 'Comisiones, destajos de instalación y nómina semanal.' };
         }
@@ -272,6 +296,7 @@ const ManagementDashboard: React.FC = () => {
 
     const getBackLabel = () => {
         if (selectedAccountForDetail) return 'Regresar a Bancos';
+        if (payrollTray !== null) return payrollSub === 'INSTALLATIONS' ? 'Regresar a Destajos' : 'Regresar a Comisiones';
         if (payrollSub !== null) return 'Regresar a Nómina';
         return 'Regresar a Gerencia';
     };
@@ -719,6 +744,8 @@ const ManagementDashboard: React.FC = () => {
                     canCaptureWeeklyFixed={canCaptureWeeklyFixed}
                     payrollLevel1={payrollSub}
                     onPayrollLevel1Change={setPayrollSub}
+                    tray={payrollTray}
+                    onTrayChange={setPayrollTray}
                     accounts={accounts}
                     adminV4Labels
                     onOrderInspect={async (orderId) => {

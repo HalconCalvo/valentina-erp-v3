@@ -26,10 +26,15 @@ const SearchBox = ({ value, onChange, placeholder }: { value: string; onChange: 
 );
 
 /** White card with the figure in color (guide v2 §3). */
-const Kpi = ({ label, value, tone }: { label: string; value: string; tone: string }) => (
-    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+const Kpi = ({ label, value, tone, hint, onClick }: { label: string; value: string; tone: string; hint?: string; onClick?: () => void }) => (
+    <div
+        className={`bg-white border border-slate-200 rounded-xl p-4 shadow-sm ${onClick ? 'cursor-pointer hover:shadow-md hover:border-indigo-200 transition' : ''}`}
+        onClick={onClick}
+        role={onClick ? 'button' : undefined}
+    >
         <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{label}</p>
         <p className={`text-2xl font-black tabular-nums mt-1 ${tone}`}>{value}</p>
+        {hint && <p className="text-xs text-slate-500 mt-2">{hint}</p>}
     </div>
 );
 
@@ -56,9 +61,10 @@ const PendingToInvoicePage = () => {
     const [selectedOrderForCharge, setSelectedOrderForCharge] = useState<SalesOrder | null>(null);
     const [existingProgressInvoiceForCharge, setExistingProgressInvoiceForCharge] = useState<CustomerPayment | null>(null);
 
-    const initialProgressTab =
-        (location.state as { progressTab?: string } | null)?.progressTab === 'AVANCES' ? 'AVANCES' : 'ANTICIPOS';
-    const [progressTab, setProgressTab] = useState<'ANTICIPOS' | 'AVANCES'>(initialProgressTab);
+    // Gabriel 20/10: the screen shows only its cards; Anticipos and Avances are each their own screen
+    const stateTab = (location.state as { progressTab?: string } | null)?.progressTab;
+    const initialProgressTab = stateTab === 'AVANCES' || stateTab === 'ANTICIPOS' ? stateTab : null;
+    const [progressTab, setProgressTab] = useState<'ANTICIPOS' | 'AVANCES' | null>(initialProgressTab);
 
     useEffect(() => {
         const t = (location.state as { progressTab?: string } | null)?.progressTab;
@@ -272,6 +278,11 @@ const PendingToInvoicePage = () => {
     ], []);
 
     const handleGoBack = () => {
+        if (canView && progressTab !== null) {
+            setProgressTab(null);
+            setSearchTerm('');
+            return;
+        }
         if (returnTo === '/sales') {
             navigate('/sales');
         } else if (returnTo === '/management') {
@@ -284,51 +295,35 @@ const PendingToInvoicePage = () => {
     return (
         <div className="p-8 w-full pb-24 space-y-6 animate-fadeIn">
             <VPageHeader
-                icon={canView ? Unlock : Users}
-                title={canView ? 'Pendiente de facturar (fábrica)' : 'Monitor de órdenes de venta'}
-                subtitle={canView
-                    ? 'Anticipos aún sin factura y casas firmadas por el cliente sin factura de avance.'
-                    : 'Lo mismo que ve Cobranza, en vista resumida.'}
+                icon={!canView ? Users : progressTab === 'ANTICIPOS' ? Lock : progressTab === 'AVANCES' ? CheckCircle2 : Unlock}
+                title={!canView ? 'Monitor de órdenes de venta'
+                    : progressTab === 'ANTICIPOS' ? 'Anticipos pendientes'
+                    : progressTab === 'AVANCES' ? 'Avances por facturar'
+                    : 'Pendiente de facturar (fábrica)'}
+                subtitle={!canView ? 'Lo mismo que ve Cobranza, en vista resumida.'
+                    : progressTab === 'ANTICIPOS' ? 'OVs esperando anticipo que aún no tienen factura de anticipo. Montos con IVA.'
+                    : progressTab === 'AVANCES' ? 'Casas firmadas por el cliente sin factura de avance. Montos con IVA.'
+                    : 'Anticipos aún sin factura y casas firmadas por el cliente sin factura de avance.'}
                 loading={isLoading}
                 onRefresh={hasAbsolutePower ? loadSalesData : undefined}
                 onBack={handleGoBack}
-                backLabel={returnTo === '/sales' ? 'Regresar a Ventas' : returnTo === '/management' ? 'Regresar a Gerencia' : 'Regresar a Cobranza'}
+                backLabel={canView && progressTab !== null ? 'Regresar a Pendiente de facturar'
+                    : returnTo === '/sales' ? 'Regresar a Ventas' : returnTo === '/management' ? 'Regresar a Gerencia' : 'Regresar a Cobranza'}
             />
 
-            {canView && invoicingRights && (
+            {canView && invoicingRights && progressTab === null && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <Kpi label="Anticipos por facturar (con IVA)" value={formatMoney(invoicingRights.advance_pending_total)} tone="text-amber-700" />
-                    <Kpi label="Avances de obra por facturar (con IVA)" value={formatMoney(invoicingRights.progress_work_total)} tone="text-emerald-700" />
+                    <Kpi label="Anticipos por facturar (con IVA)" value={formatMoney(invoicingRights.advance_pending_total)}
+                        tone="text-amber-700" hint="Ver anticipos pendientes" onClick={() => setProgressTab('ANTICIPOS')} />
+                    <Kpi label="Avances de obra por facturar (con IVA)" value={formatMoney(invoicingRights.progress_work_total)}
+                        tone="text-emerald-700" hint={`Ver avances por facturar (${pendingProgress.length} casas)`}
+                        onClick={() => setProgressTab('AVANCES')} />
                     <Kpi label="Derecho a facturación (con IVA)" value={formatMoney(tarjetaBTotal)} tone="text-indigo-700" />
                 </div>
             )}
 
-            {canView && (
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit">
-                        <Button
-                            variant="ghost"
-                            onClick={() => setProgressTab('ANTICIPOS')}
-                            className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${
-                                progressTab === 'ANTICIPOS' ? 'bg-white shadow text-indigo-700' : 'text-slate-500 hover:text-slate-800'
-                            }`}
-                        >
-                            Anticipos pendientes
-                        </Button>
-                        <Button
-                            variant="ghost"
-                            onClick={() => setProgressTab('AVANCES')}
-                            className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold transition-all ${
-                                progressTab === 'AVANCES' ? 'bg-white shadow text-indigo-700' : 'text-slate-500 hover:text-slate-800'
-                            }`}
-                        >
-                            <CheckCircle2 size={15} />
-                            Avances por facturar
-                            {pendingProgress.length > 0 && (
-                                <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-bold px-2 py-0.5 rounded-full tabular-nums">{pendingProgress.length}</span>
-                            )}
-                        </Button>
-                    </div>
+            {canView && progressTab !== null && (
+                <div className="flex justify-end">
                     <SearchBox value={searchTerm} onChange={setSearchTerm} placeholder="Buscar cliente, proyecto u OV..." />
                 </div>
             )}

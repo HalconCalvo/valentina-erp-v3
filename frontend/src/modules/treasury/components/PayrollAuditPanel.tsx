@@ -33,6 +33,8 @@ import { PayoutDialog, payoutMethodLabel, type PayoutChoice } from './PayoutDial
 
 export type PayrollLevel1 = 'COMMISSIONS' | 'INSTALLATIONS' | 'WEEKLY' | null;
 type SubView = 'RETAINED' | 'PAYABLE' | 'PAID';
+/** Tray chosen inside Comisiones or Destajos; null = the screen of its three cards (Gabriel 20/10). */
+export type PayrollTray = SubView | null;
 
 function daysWaitingClass(days: number): string {
   if (days > 7) return 'text-red-600 font-black';
@@ -77,6 +79,9 @@ interface Props {
   onRefresh: () => void;
   /** Numeración 5.1–5.3 en tablero Administración V4. */
   adminV4Labels?: boolean;
+  /** Navigation rule (Gabriel 20/10): a screen of sub-cards shows only the cards; the chosen tray is its own screen. */
+  tray: PayrollTray;
+  onTrayChange: (tray: PayrollTray) => void;
 }
 
 export const PayrollAuditPanel: React.FC<Props> = ({
@@ -87,13 +92,12 @@ export const PayrollAuditPanel: React.FC<Props> = ({
   onOrderInspect,
   onRefresh,
   adminV4Labels = false,
+  tray,
+  onTrayChange,
 }) => {
   // D41 (17:04): only Dirección pays crew payroll and commissions; Gerencia sees the trays (the API enforces it too)
   const canPay = (localStorage.getItem('user_role') || '').toUpperCase().trim() === 'DIRECTOR';
-  const [commSub, setCommSub] = useState<SubView>('PAYABLE');
   const [payingId, setPayingId] = useState<number | null>(null);
-  // H51: open on "Por pagar" (the tray with actions); "Retenidas" empty looked like the pending rows were gone.
-  const [instSub, setInstSub] = useState<SubView>('PAYABLE');
   const [payInstall, setPayInstall] = useState<{ rows: PayrollPaymentRecord[] } | null>(null);
   const [payComm, setPayComm] = useState<{ rows: PayrollCommissionRow[] } | null>(null);
   const [payingCommission, setPayingCommission] = useState(false);
@@ -895,13 +899,14 @@ export const PayrollAuditPanel: React.FC<Props> = ({
 
   return (
     <div className="space-y-6 animate-in fade-in">
-      {level1 === 'COMMISSIONS' && (
+      {level1 === 'COMMISSIONS' && tray !== null && renderCommissionTable(tray)}
+      {level1 === 'COMMISSIONS' && tray === null && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="w-full relative h-40">
               <Card
-                onClick={() => setCommSub('RETAINED')}
-                className={`${payrollCardShellClass} border-l-amber-500 ${commSub === 'RETAINED' ? 'ring-2 ring-amber-200' : ''}`}
+                onClick={() => onTrayChange('RETAINED')}
+                className={`${payrollCardShellClass} border-l-amber-500`}
               >
                 <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center border-r font-black transition-colors bg-amber-50 text-amber-700 border-amber-100 group-hover:bg-amber-100">
                   <Lock size={24} />
@@ -925,8 +930,8 @@ export const PayrollAuditPanel: React.FC<Props> = ({
             </div>
             <div className="w-full relative h-40">
               <Card
-                onClick={() => setCommSub('PAYABLE')}
-                className={`${payrollCardShellClass} border-l-indigo-500 ${commSub === 'PAYABLE' ? 'ring-2 ring-indigo-200' : ''}`}
+                onClick={() => onTrayChange('PAYABLE')}
+                className={`${payrollCardShellClass} border-l-indigo-500`}
               >
                 <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50 text-indigo-700 border-r border-indigo-100 font-black group-hover:bg-indigo-100 transition-colors">
                   <Unlock size={24} />
@@ -950,8 +955,8 @@ export const PayrollAuditPanel: React.FC<Props> = ({
             </div>
             <div className="w-full relative h-40">
               <Card
-                onClick={() => setCommSub('PAID')}
-                className={`${payrollCardShellClass} border-l-emerald-500 ${commSub === 'PAID' ? 'ring-2 ring-emerald-200' : ''}`}
+                onClick={() => onTrayChange('PAID')}
+                className={`${payrollCardShellClass} border-l-emerald-500`}
               >
                 <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-emerald-50 text-emerald-700 border-r border-emerald-100 font-black group-hover:bg-emerald-100 transition-colors">
                   <CheckCircle size={24} />
@@ -974,19 +979,17 @@ export const PayrollAuditPanel: React.FC<Props> = ({
               </Card>
             </div>
           </div>
-          {commSub === 'RETAINED' && renderCommissionTable('RETAINED')}
-          {commSub === 'PAYABLE' && renderCommissionTable('PAYABLE')}
-          {commSub === 'PAID' && renderCommissionTable('PAID')}
         </div>
       )}
 
-      {level1 === 'INSTALLATIONS' && (
+      {level1 === 'INSTALLATIONS' && tray !== null && renderInstallationGrouped(tray)}
+      {level1 === 'INSTALLATIONS' && tray === null && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="w-full relative h-40">
               <Card
-                onClick={() => setInstSub('RETAINED')}
-                className={`${payrollCardShellClass} border-l-amber-500 ${instSub === 'RETAINED' ? 'ring-2 ring-amber-200' : ''}`}
+                onClick={() => onTrayChange('RETAINED')}
+                className={`${payrollCardShellClass} border-l-amber-500`}
               >
                 <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-amber-50 text-amber-700 border-r border-amber-100 font-black group-hover:bg-amber-100 transition-colors">
                   <Lock size={24} />
@@ -1010,8 +1013,8 @@ export const PayrollAuditPanel: React.FC<Props> = ({
             </div>
             <div className="w-full relative h-40">
               <Card
-                onClick={() => setInstSub('PAYABLE')}
-                className={`${payrollCardShellClass} border-l-emerald-500 ${instSub === 'PAYABLE' ? 'ring-2 ring-emerald-200' : ''}`}
+                onClick={() => onTrayChange('PAYABLE')}
+                className={`${payrollCardShellClass} border-l-emerald-500`}
               >
                 <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-emerald-50 text-emerald-700 border-r border-emerald-100 font-black group-hover:bg-emerald-100 transition-colors">
                   <Unlock size={24} />
@@ -1035,8 +1038,8 @@ export const PayrollAuditPanel: React.FC<Props> = ({
             </div>
             <div className="w-full relative h-40">
               <Card
-                onClick={() => setInstSub('PAID')}
-                className={`${payrollCardShellClass} border-l-slate-400 ${instSub === 'PAID' ? 'ring-2 ring-slate-200' : ''}`}
+                onClick={() => onTrayChange('PAID')}
+                className={`${payrollCardShellClass} border-l-slate-400`}
               >
                 <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-slate-50 text-slate-700 border-r border-slate-200 font-black group-hover:bg-slate-100 transition-colors">
                   <CheckCircle size={24} />
@@ -1059,9 +1062,6 @@ export const PayrollAuditPanel: React.FC<Props> = ({
               </Card>
             </div>
           </div>
-          {instSub === 'RETAINED' && renderInstallationGrouped('RETAINED')}
-          {instSub === 'PAYABLE' && renderInstallationGrouped('PAYABLE')}
-          {instSub === 'PAID' && renderInstallationGrouped('PAID')}
         </div>
       )}
 
