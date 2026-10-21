@@ -10,27 +10,6 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 > REGLA PARA CLAUDE CODE: al terminar una instrucción, mueve a "Hechas" SOLO ese bloque. Las demás instrucciones se quedan en Pendientes.
 
-### 21/10 11:55 — PASE A PRODUCCIÓN (main) AUTORIZADO POR GABRIEL HOY, en horario laboral. Dos fases; NO saltar la fase 1.
-Antes de todo: commit y push a `pruebas` del journal.txt pendiente (cierre del asesor 20/10).
-
-FASE 1 — Preparar y ensayar (sin tocar producción):
-1. Lista en lenguaje sencillo de lo que cambia de main (081b2ab) a pruebas: decisiones/funciones, correcciones, pantallas.
-2. Lista de migraciones que se aplicarán en producción, en orden, y qué hace cada una con datos (D39, D44 omitidas, totales
-   MIDO/CERRAJES, D21, D40, D41, etc.).
-3. Ensayo: copia FRESCA de la base de producción (solo lectura, pg_dump) restaurada en local (neutralizar SMTP como siempre);
-   aplicar todas las migraciones (upgrade head) y verificar cifras esperadas: comisiones marcadas por D39 (Lic. 19 por
-   $47,978.39 pagadas fuera; Ing. 18 por $46,348.04 omitidas; vendedores), totales de las 2 OCs, que la app arranque y que las
-   pantallas principales carguen con esa copia. Reportar cualquier error.
-4. Variables de entorno nuevas que necesite Render producción (si las hay).
-5. Reportar todo en "Hechas" y DETENERTE. El asesor revisa con Gabriel.
-   → FASE 1 HECHA 21/10 12:05 (ver Hechas); falta solo revisar pantallas cuando Gabriel entre en localhost:3000.
-
-FASE 2 — Solo cuando Gabriel escriba "adelante con la fase 2":
-respaldo de la base de producción (pg_dump con fecha en ~/valentina_local/dumps), merge de pruebas a main (fast-forward si se
-puede), push, vigilar el deploy de Render (API y frontend), confirmar que la migración corrió, revisar en producción en pantalla
-(solo leer, sin registrar nada) las cifras del ensayo. Si algo falla: decir cómo regresar (main anterior 081b2ab + respaldo).
-
-
 ## Preguntas para el asesor
 
 - [2026-10-16 15:44] D41, dudas que NO cambié:
@@ -88,6 +67,38 @@ puede), push, vigilar el deploy de Render (API y frontend), confirmar que la mig
   - Agrega a tu reporte final la lista de commits pendientes de prueba en pantalla.
 
 ## Hechas
+
+### 21/10 12:25 — PASE A PRODUCCIÓN, FASE 2. Hecha (falta solo la revisión en pantalla con sesión de Gabriel)
+- Respaldo de producción antes de subir: ~/valentina_local/dumps/prod_respaldo_pre_main_20261021_1216.dump (solo lectura).
+- main 081b2ab → 177faed (avance rápido; el push lo corrió Gabriel porque el permiso de Claude Code bloquea despliegues a producción).
+- Render: migración en producción 2ecb8aa6be05 a las 12:19; API responde; frontend nuevo publicado 12:19.
+- Cifras en producción (consulta de solo lectura) IGUALES al ensayo: globales Lic. 19 · $47,978.39 pagadas fuera; Ing. 18 ·
+  $46,348.04 omitidas; vendedor pagadas fuera Lic. 14 · $57,795.96, Ing. 3 · $32,961.12, Sahía 1 · $300.00; MIDO $26,212.49
+  Recibida total; CERRAJES $12,445.80; bitácora 110 / 72 / 3; beneficiario global Lic., 2 %.
+- Pantalla: producción pide entrar con usuario y contraseña reales; no entro con ellas. Gabriel entra y reviso solo leyendo.
+- Regreso si algo falla: main a 081b2ab (Render despliega) + restaurar el respaldo de arriba (las migraciones tienen bajada
+  probada en el ensayo, sin pérdida de cifras).
+
+### 21/10 11:55 — PASE A PRODUCCIÓN (main) AUTORIZADO POR GABRIEL HOY, en horario laboral. Dos fases; NO saltar la fase 1.
+Antes de todo: commit y push a `pruebas` del journal.txt pendiente (cierre del asesor 20/10).
+
+FASE 1 — Preparar y ensayar (sin tocar producción):
+1. Lista en lenguaje sencillo de lo que cambia de main (081b2ab) a pruebas: decisiones/funciones, correcciones, pantallas.
+2. Lista de migraciones que se aplicarán en producción, en orden, y qué hace cada una con datos (D39, D44 omitidas, totales
+   MIDO/CERRAJES, D21, D40, D41, etc.).
+3. Ensayo: copia FRESCA de la base de producción (solo lectura, pg_dump) restaurada en local (neutralizar SMTP como siempre);
+   aplicar todas las migraciones (upgrade head) y verificar cifras esperadas: comisiones marcadas por D39 (Lic. 19 por
+   $47,978.39 pagadas fuera; Ing. 18 por $46,348.04 omitidas; vendedores), totales de las 2 OCs, que la app arranque y que las
+   pantallas principales carguen con esa copia. Reportar cualquier error.
+4. Variables de entorno nuevas que necesite Render producción (si las hay).
+5. Reportar todo en "Hechas" y DETENERTE. El asesor revisa con Gabriel.
+   → FASE 1 HECHA 21/10 12:05 (ver Hechas); falta solo revisar pantallas cuando Gabriel entre en localhost:3000.
+
+FASE 2 — Solo cuando Gabriel escriba "adelante con la fase 2":
+respaldo de la base de producción (pg_dump con fecha en ~/valentina_local/dumps), merge de pruebas a main (fast-forward si se
+puede), push, vigilar el deploy de Render (API y frontend), confirmar que la migración corrió, revisar en producción en pantalla
+(solo leer, sin registrar nada) las cifras del ensayo. Si algo falla: decir cómo regresar (main anterior 081b2ab + respaldo).
+   → FASE 2 HECHA 21/10 12:25 (ver arriba).
 
 ### 21/10 12:05 — PASE A PRODUCCIÓN, FASE 1 (preparar y ensayar). Hecha salvo la revisión en pantalla (falta que Gabriel entre)
 Antes de todo: journal del 20/10 ya estaba en `pruebas` (d3e614c). Main (081b2ab) → pruebas: 127 commits, avance rápido posible.

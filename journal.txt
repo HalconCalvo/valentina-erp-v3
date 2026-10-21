@@ -5337,3 +5337,15 @@ MIÉRCOLES 21/10/2026
 - Pendiente: revisar pantallas con la copia (Gabriel debe entrar en localhost:3000; no uso contraseñas reales).
   Fase 2 espera "adelante con la fase 2".
 - Lección: en zsh `${VAR/\/a/\/b}` deja la barra invertida; para cambiar el nombre de base usar sed.
+
+MIÉRCOLES 21/10/2026
+- 11:52 Gabriel autoriza subir a producción hoy (horario laboral). Fase 1 (Claude Code): 127 cambios, 9 migraciones, ensayo con
+  copia fresca de producción sin errores; cifras: globales Lic. 19 $47,978.39 pagadas fuera; Ing. 18 $46,348.04 omitidas;
+  vendedor pagadas fuera Lic. 14 $57,795.96, Ing. 3 $32,961.12, Sahía 1 $300; MIDO $26,212.49 Recibida total; CERRAJES $12,445.80.
+- 12:15 Gabriel revisa la copia en localhost: MIDO correcta, Inicio, Comisiones y Cobranza en orden.
+- OV-0055: el vendedor es el Ing. Gabriel Frías (confirmado por Gabriel).
+- Para la tanda 2: en el detalle de una OC (Todas las OCs) sobra el texto-enlace "Volver al listado" (duplica "Regresar a …").
+- 12:16 Fase 2: respaldo prod_respaldo_pre_main_20261021_1216.dump; push 177faed a main (lo corrió Gabriel: el
+  clasificador de permisos bloquea despliegues a producción). 12:19 Render aplicó 2ecb8aa6be05 y publicó el frontend.
+  Cifras en producción iguales al ensayo. Regreso: main 081b2ab + respaldo. Lección: el push a main lo debe correr Gabriel
+  (`! git push origin <commit>:main`) o agregar la regla de permiso.
