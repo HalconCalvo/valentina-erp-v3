@@ -1281,7 +1281,9 @@ const DesignCatalogPage: React.FC = () => {
                                         return (
                                             <div
                                                 key={batch.id}
-                                                className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
+                                                className={`rounded-xl border border-slate-200 shadow-sm overflow-hidden border-l-4 ${
+                                                    isPiedraBatch ? 'bg-violet-50 border-l-violet-500' : 'bg-amber-50 border-l-amber-500'
+                                                }`}
                                             >
                                                 <div className="flex items-center justify-between px-4 py-3 bg-indigo-50 border-b border-indigo-100">
                                                     <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -1291,8 +1293,8 @@ const DesignCatalogPage: React.FC = () => {
                                                         <span
                                                             className={`inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${
                                                                 isPiedraBatch
-                                                                    ? 'bg-violet-50 text-violet-700 border-violet-200'
-                                                                    : 'bg-amber-50 text-amber-700 border-amber-200'
+                                                                    ? 'bg-violet-100 text-violet-700 border-violet-200'
+                                                                    : 'bg-amber-100 text-amber-700 border-amber-200'
                                                             }`}
                                                         >
                                                             {isPiedraBatch ? 'Piedra' : 'MDF'}

@@ -547,13 +547,20 @@ export default function ProductionKanbanPage() {
   };
 
   // --- RENDERIZADO DE COLUMNAS HÍBRIDAS ---
-  // Guide v2: white columns and cards with slate borders; color only in labels and counts.
+  // Guide v2: white columns. Material colors are information and stay (Gabriel 20/10): MDF amber, Piedra violet,
+  // blocked red — on batch and house cards and on the type label.
   const columnClass = 'bg-white border border-slate-200 rounded-xl shadow-sm p-4 flex-shrink-0 flex flex-col h-full min-h-0';
-  const cardClass = 'p-4 rounded-lg bg-white border border-slate-200 shadow-sm transition hover:shadow-md cursor-pointer';
+  const isStoneType = (type?: string) => (type || '').toUpperCase() === 'PIEDRA';
+  const materialCardColor = (type?: string, locked = false) => (locked
+    ? 'bg-red-50 border-red-300'
+    : isStoneType(type) ? 'bg-violet-50 border-violet-100 border-l-violet-500' : 'bg-amber-50 border-amber-100 border-l-amber-500');
+  const cardClass = (type?: string, locked = false) =>
+    `p-4 rounded-lg shadow-sm border border-l-4 transition hover:shadow-md cursor-pointer ${materialCardColor(type, locked)}`;
   const labelClass = 'inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border';
-  const typeLabelClass = (type?: string) => (type || '').toUpperCase() === 'PIEDRA'
-    ? `${labelClass} bg-violet-50 text-violet-700 border-violet-200`
-    : `${labelClass} bg-amber-50 text-amber-700 border-amber-200`;
+  const typeLabelClass = (type?: string, locked = false) => (locked
+    ? `${labelClass} bg-red-100 text-red-700 border-red-200`
+    : isStoneType(type) ? `${labelClass} bg-violet-100 text-violet-700 border-violet-200`
+    : `${labelClass} bg-amber-100 text-amber-700 border-amber-200`);
   const ovLabelClass = 'inline-block text-[10px] font-mono font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 mr-1';
   const columnScrollStyle = { maxHeight: 'calc(100vh - 340px)' };
 
@@ -623,10 +630,10 @@ export default function ProductionKanbanPage() {
                 draggable={true}
                 onDragStart={(e) => handleDragStart(e, batch.id, isLocked)}
                 onClick={() => setSelectedBatch(batch)}
-                className={cardClass}
+                className={cardClass(batch.batch_type, isLocked)}
               >
                 <div className="flex justify-between items-start mb-2">
-                  <span className="font-bold text-slate-800">{batch.folio}</span>
+                  <span className={`font-bold ${isLocked ? 'text-red-800' : 'text-slate-800'}`}>{batch.folio}</span>
                   {isLocked && <Lock size={16} className="text-red-500" title="Anticipo pendiente o Lote vacío" />}
                 </div>
                 {(badge || isLocked) && (
@@ -642,8 +649,8 @@ export default function ProductionKanbanPage() {
 
                 {renderBatchSummary(batch)}
 
-                <div className="flex justify-between items-center mt-2 pt-2 border-t border-slate-100">
-                  <span className={typeLabelClass(batch.batch_type)}>{batch.batch_type}</span>
+                <div className="flex justify-between items-center mt-2 pt-2 border-t border-slate-200/60">
+                  <span className={typeLabelClass(batch.batch_type, isLocked)}>{batch.batch_type}</span>
                   <span className="text-xs font-medium text-slate-500 flex items-center gap-1 tabular-nums">
                     <Package size={12}/> {batch.instances?.length || 0} items
                   </span>
@@ -675,7 +682,7 @@ export default function ProductionKanbanPage() {
               draggable
               onDragStart={(e) => handleDragStart(e, batch.id, false)}
               onClick={() => setSelectedBatch(batch)}
-              className={cardClass}
+              className={cardClass(batch.batch_type)}
             >
               <div className="flex justify-between items-start mb-2">
                 <span className="font-bold text-slate-800">{batch.folio}</span>
@@ -683,7 +690,7 @@ export default function ProductionKanbanPage() {
 
               {renderBatchSummary(batch)}
 
-              <div className="flex justify-between items-center mt-2 pt-2 border-t border-slate-100">
+              <div className="flex justify-between items-center mt-2 pt-2 border-t border-slate-200/60">
                 <span className={typeLabelClass(batch.batch_type)}>{batch.batch_type}</span>
                 <span className="text-xs font-medium text-slate-500">En proceso...</span>
               </div>
@@ -824,7 +831,7 @@ export default function ProductionKanbanPage() {
                   e.dataTransfer.setData('packingInstanceId', String(instance.id));
                   e.dataTransfer.effectAllowed = 'move';
                 }}
-                className="p-3 rounded-lg bg-white border border-slate-200 shadow-sm cursor-grab active:cursor-grabbing transition"
+                className={`p-3 rounded-lg shadow-sm border border-l-4 cursor-grab active:cursor-grabbing transition ${materialCardColor(instance.batch_type)}`}
               >
                 <div className="flex items-start gap-2 mb-3">
                   <div className="flex-1 min-w-0">
@@ -970,7 +977,7 @@ export default function ProductionKanbanPage() {
 
     return (
       <div
-        className={`${columnClass} w-80`}
+        className="bg-emerald-50 p-4 rounded-xl w-80 flex-shrink-0 flex flex-col h-full min-h-0 border border-emerald-200"
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
@@ -985,10 +992,22 @@ export default function ProductionKanbanPage() {
           }
         }}
       >
-        {renderColumnHeader('Listo para instalarse', allReady.length, <CheckCircle2 size={16} className="text-indigo-600" />)}
+        {/* Gabriel 20/10: this column keeps exactly its green of before */}
+        <div className="flex shrink-0 justify-between items-center mb-4">
+          <h2 className="font-bold text-emerald-800 text-sm flex items-center gap-2">
+            <CheckCircle2 size={16} /> Listo para instalarse
+          </h2>
+          <span className="bg-emerald-200 text-emerald-800 text-xs font-bold px-2 py-1 rounded-full tabular-nums">
+            {allReady.length}
+          </span>
+        </div>
 
         <div className="flex flex-col gap-3 overflow-y-auto pr-1" style={columnScrollStyle}>
-          {allReady.length === 0 && <VEmptyState icon={<CheckCircle2 />} title="Andén vacío" />}
+          {allReady.length === 0 && (
+            <div className="border-2 border-dashed border-emerald-200 rounded-lg p-6 text-center text-emerald-500 text-sm">
+              Andén vacío
+            </div>
+          )}
           {(() => {
             const ovMap = new Map<string, { folio: string; client: string; project: string; instances: any[] }>();
             for (const inst of allReady) {
@@ -998,8 +1017,12 @@ export default function ProductionKanbanPage() {
             }
             const groups = Array.from(ovMap.values()).sort((a, b) => a.folio.localeCompare(b.folio));
             return groups.map(group => (
-              <details key={group.folio} className="rounded-lg border border-slate-200 overflow-hidden" open={groups.length === 1}>
-                {renderOvGroupSummary(group)}
+              <details key={group.folio} className="rounded-lg border border-emerald-200 overflow-hidden" open={groups.length === 1}>
+                <summary className="flex items-center gap-2 px-3 py-2 bg-emerald-100 cursor-pointer list-none hover:bg-emerald-200 transition-colors">
+                  <span className="text-xs font-black text-emerald-800">{group.folio}</span>
+                  <span className="text-[10px] text-emerald-600 flex-1 truncate">{group.project} — {group.client}</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-800 shrink-0 tabular-nums">{group.instances.length}</span>
+                </summary>
                 <div className="flex flex-col gap-3 p-2 bg-white">
                   {group.instances.map((instance: any, idx: number) => {
             const isStoneTrack = instance.track === 'PIEDRA';
@@ -1028,7 +1051,7 @@ export default function ProductionKanbanPage() {
             return (
               <div
                 key={`${instance.id}-${instance.track}-${idx}`}
-                className="p-3 rounded-lg bg-white border border-slate-200 shadow-sm"
+                className={`p-3 rounded-lg shadow-sm border border-l-4 ${materialCardColor(instance.batch_type)}`}
               >
                 {/* Badge de track */}
                 <div className="flex items-center justify-between mb-1.5">

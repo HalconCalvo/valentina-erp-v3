@@ -141,6 +141,11 @@ Títulos sin color por módulo y sin números ("5. Nómina" → "Nómina"); sin 
 | Ámbar | pendiente, por cobrar, antigüedad alta | `text-amber-700` / `text-amber-600` |
 | Rojo | en contra, vencido, notas de crédito | `text-red-600`, etiqueta `bg-red-50 text-red-700 border-red-200` |
 El fondo de tarjetas y tablas es blanco; el color va en la cifra o en la etiqueta, no en el bloque.
+- **Excepción, colores de material (Gabriel 20/10): son información y se conservan en todo Valentina**, también como
+  fondo de la tarjeta: MDF = ámbar (`bg-amber-50 border-amber-100 border-l-4 border-l-amber-500`, etiqueta
+  `bg-amber-100 text-amber-700`), Piedra = violeta (`bg-violet-50 border-violet-100 border-l-4 border-l-violet-500`,
+  etiqueta `bg-violet-100 text-violet-700`); bloqueado o urgente = rojo. La columna "Listo para instalarse" del Piso de
+  producción se queda en su verde (`bg-emerald-50 border-emerald-200`, agrupador `bg-emerald-100`).
 
 ## 9. Tamaños de letra
 | Elemento | Tamaño |
