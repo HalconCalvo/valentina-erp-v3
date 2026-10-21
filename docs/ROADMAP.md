@@ -256,6 +256,8 @@ la factura completa. Probado en Pruebas con Piloto 1 sin guardar.
 - 20/10 Compras: fechas de la OC (76f6616), categoría MATERIALES prellenada y una sola solicitud automática por material
   (069db2e), PDF de OC sin token en URL (86bac08), total de OC recalculado al editar partidas (e9053db). Pendiente de
   aprobación: cancelar duplicado 27 en Pruebas y corregir totales de OC-M260807225203 y OC-M261006223132.
+- 20/10 tanda 1 ajustes: filtros del Andén, colores de material, regla de sub-tarjetas (Comisiones, Destajos, Pendiente
+  de facturar). Siguiente con el mismo patrón: /director Liquidez y Eficiencia (tanda 2/3).
 - D44 (969c63689777, dcab654921ee): comisión global con un beneficiario y % en Configuración; las globales salen en la
   bandeja; Rentabilidad de la OV la resta; las de la regla vieja (Ing. Gabriel Frías) quedan Omitidas.
 - D42: guía de pantallas versión 2 (modelo Cobranza y Antigüedad) y lista de la tercera ola ajustada; espera aprobación.

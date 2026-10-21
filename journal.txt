@@ -5279,3 +5279,8 @@ MARTES 20/10/2026
 - 17:17 Gabriel aprobó: solicitud 27 cancelada en Pruebas con bitácora; migración 2ecb8aa6be05 (ef773bc) corrige totales de
   OC-M260807225203 (y su estado) y OC-M261006223132; Pruebas ya la aplicó, producción al pasar a main (como D39).
   Las CxP duplicadas de MIDO siguen para Administración.
+- 18:06 Buzón 18:00 (A, B, C): Andén con buscador y filtro de estado (8a83fec); colores de material restaurados en Piso de
+  producción y Lotes, "Listo para instalarse" en su verde (868c432); regla de sub-tarjetas: Comisiones, Destajos y
+  Pendiente de facturar muestran solo tarjetas y cada bandeja es su pantalla (35e50dc). Guía §8 y §12.
+  OV-0055 en Retenidas = provisional de vendedor (3 %), no global. Lección: los colores de material son información;
+  la regla "color solo en la cifra" no aplica a ellos.

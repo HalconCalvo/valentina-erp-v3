@@ -69,6 +69,81 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Hechas
 
+### 20/10 18:00 — Tres instrucciones de Gabriel (se escribieron 16:59–17:08 y se perdieron del buzón al guardar; hacerlas en este orden)
+
+A. Tanda 1, Andén (aprobado): "Confirmar ingreso" se queda en índigo. En la lista del Andén agregar buscador por folio o proveedor
+   (sin mayúsculas ni acentos) y filtro por estado, en su propia tarjeta de filtros como Cobranza. Solo filtran en pantalla.
+
+B. Tanda 1, Piso de producción — colores. Gabriel: "nos quitó los colores que representan al MDF y a la Piedra, es más fácil con
+   los colores de los lotes". Regla para la guía: los colores de MATERIAL son información y se conservan en todo Valentina:
+   MDF = ámbar, Piedra = violeta (bloqueado/urgente = rojo). Restaurar en tarjetas de lote e instancia lo de antes de la tanda 1
+   (530bb15, ProductionKanbanPage ~573 y ~903): MDF bg-amber-50 border-amber-100 border-l-4 border-l-amber-500; Piedra
+   bg-violet-50 border-violet-100 border-l-4 border-l-violet-500; etiqueta del tipo amber-100/700 y violet-100/700.
+   Revisar si Diseño/Lotes, Campo o Simulador perdieron esos colores y restaurarlos igual.
+   Además: columna "Listo para instalarse" con EXACTAMENTE el verde de antes (530bb15 ~1055–1101): columna bg-emerald-50 borde
+   emerald-200; título text-emerald-800 con CheckCircle2; contador bg-emerald-200 text-emerald-800; vacío punteado emerald-200 y
+   texto emerald-500; cada OV con borde emerald-200, renglón bg-emerald-100 (hover emerald-200), folio emerald-800, proyecto
+   emerald-600, contador bg-emerald-200 text-emerald-800. Sin tonos nuevos. Captura docs/ola3_tanda1/produccion_colores.jpg.
+
+C. Regla de navegación con sub-tarjetas (para TODO Valentina; agregar a la guía). Gabriel no quiere pantallas que muestren
+   sub-tarjetas Y debajo el contenido de la tarjeta elegida (ej. Gerencia → Nómina → Comisiones: Retenidas / Por pagar /
+   Histórico con la tabla abajo).
+   - Una pantalla con sub-tarjetas muestra SOLO las tarjetas.
+   - Clic en una tarjeta → su propia pantalla con encabezado estándar y "Regresar a <pantalla de tarjetas>".
+   1. Aplicarlo ya en las pantallas de la tanda 1 con ese patrón (Comisiones, Destajos, Nómina semanal, Pendiente de facturar,
+      Diseño, Compras, otras). Solo navegación/apariencia: mismos datos, botones, permisos y flujos.
+   2. Listar en el reporte las pantallas de tandas 2 y 3 con el mismo patrón.
+   3. Solo reportar, no cambiar: en Comisiones → Retenidas aparece OV-0055 "Cerrada 17", Ing. Gabriel Frías, $22,782.36,
+      102 días. ¿Vendedor o DIRECTOR_GLOBAL? Si es global del Ing., ¿por qué no quedó omitida con D44? ¿La omisión dejó fuera
+      las retenidas? ¿Cuántas en Pruebas y en producción?
+   Capturas docs/ola3_tanda1/subtarjetas_*.jpg.
+
+Reportar cada letra en Hechas por separado. IMPORTANTE: antes de guardar el buzón, vuelve a leerlo del disco; el asesor
+escribe en él mientras trabajas y al guardar una copia vieja se pierden sus instrucciones.
+HECHO A [20/10 18:06, Pruebas, commit 8a83fec; captura docs/ola3_tanda1/anden_filtros.jpg]: "Confirmar ingreso" queda en
+índigo. Lista del Andén con tarjeta de filtros (como Cobranza): buscador por folio o proveedor sin mayúsculas ni acentos
+("bodega" deja las 3 de BODEGA ELECTRONICA) y filtro Estado (Todos, En tránsito, Entrega parcial, Prepagada). Solo en
+pantalla; si nada coincide: "No hay órdenes con los filtros seleccionados."
+
+HECHO B [20/10 18:06, Pruebas, commit 868c432; captura docs/ola3_tanda1/produccion_colores.jpg]: Piso de producción con los
+colores de material de antes: tarjetas de lote (Por producir, En producción) e instancia (Empaque, Listo) MDF
+bg-amber-50 border-amber-100 border-l-4 border-l-amber-500, Piedra bg-violet-50 border-violet-100 border-l-4
+border-l-violet-500, bloqueado rojo (bg-red-50 border-red-300, folio rojo); etiqueta del tipo amber-100/700 y violet-100/700.
+"Listo para instalarse" con exactamente el verde de 530bb15 (columna, título con CheckCircle2, contador, vacío punteado,
+agrupador por OV con renglón emerald-100/hover emerald-200, folio emerald-800, proyecto emerald-600, contador). Revisados:
+Diseño → Lotes SÍ los había perdido (restaurado igual); Simulador los conservó; Campo no los usaba. Regla en la guía §8.
+
+HECHO C [20/10 18:06, Pruebas, commit 35e50dc; capturas docs/ola3_tanda1/subtarjetas_*.jpg]:
+1. Aplicado en tanda 1 (solo navegación/apariencia):
+   - Gerencia → Nómina → Comisiones: solo las 3 tarjetas; Retenidas / Por pagar / Histórico abren cada una su pantalla
+     ("Comisiones retenidas", "Comisiones por pagar", "Histórico de comisiones") con "Regresar a Comisiones".
+   - Destajos: igual ("Destajos sin firma", "Destajos por pagar", "Destajos pagados", "Regresar a Destajos").
+   - Pendiente de facturar: solo sus tarjetas; "Anticipos por facturar" y "Avances de obra por facturar" abren su pantalla
+     con buscador y tabla ("Regresar a Pendiente de facturar"); la de Derecho a facturación es solo cifra.
+   - Nómina semanal, Diseño y Compras ya cumplían (sus tarjetas se reemplazan por la sección con "Regresar a …").
+   Regla agregada a la guía §12.
+2. Tandas 2 y 3 con el patrón (tarjetas o pestañas que cambian el contenido de abajo):
+   - Tarjetas + contenido: /director → Liquidez (Bancos / CxC / Inventario / CxP con su desglose abajo) y → Eficiencia
+     (Overhead / Nómina producción / Piezas, desgloses abajo). (AccountsPayablePage también, pero es código muerto: sin ruta.)
+   - Pestañas + contenido: Cuentas por cobrar → Archivo maestro (Vigentes / Cerradas / Canceladas); /director/audit
+     (Eventos / Cambios por campo); /inventory/valuation (Materia prima / En proceso / Terminado / Negativas); /planning
+     (Mes / Semana / Día / Agenda) y su panel lateral (Críticos, Alertas…); Rayos X → Entregables (Por instancia / Por casa);
+     Nueva cotización y Agregar partidas (Catálogo / Manual / Reventa); Cliente (General / Contactos).
+   - Duda: Campo → Detalle de casa (tanda 1) tiene pasos en pestañas (Empaque, Herrajes, Plano, Fotos, Trabajo terminado,
+     Firma). Es el flujo de la casa en el teléfono; no lo cambié. ¿Se deja así?
+   - No aplica (filtros de una misma lista): Todos/MDF/Piedra del Piso, Seguimiento de OV, Estado de cuenta y Pagos a
+     proveedor.
+3. OV-0055 "Cerrada 17" en Retenidas (solo reporte, nada cambiado): NO es una comisión guardada ni DIRECTOR_GLOBAL. Es la
+   estimación PROVISIONAL de la comisión de VENDEDOR que Retenidas muestra para cada OV "Esperando anticipo": venta sin IVA
+   $759,412.00 × 3 % = $22,782.36, a nombre del usuario de la OV (Ing. Gabriel Frías, rol DIRECTOR), días desde que se creó
+   la OV (10/07 → 102 d). D44 omite comisiones guardadas; esta no existe hasta que se cobre el anticipo.
+   La omisión de D44 SÍ incluyó las retenidas: las 22 globales guardadas del Ing. están omitidas (19 retenidas $46,919.41 y
+   3 liberadas $380.92); ninguna aparece en bandejas.
+   Provisionales en Retenidas (igual en Pruebas y producción): Ing. Gabriel Frías 1 (OV-0055, $22,782.36); Lic. Gabriel Frías
+   García 3 ($22,231.02: OV-0046, OV-0151, OV-0152).
+   Pregunta para Gabriel: ¿el vendedor de OV-0055 es el Ing.? Si no, se corrige el vendedor de la OV (decisión de negocio).
+   Cuando se cobre el anticipo, se generará su comisión de vendedor al 3 % para quien esté como vendedor.
+
 ### 20/10 16:43 — Generar OC: categoría de gasto prellenada + solicitud duplicada (Gabriel aprobó ambas)
 1. Generar OC (desde solicitudes): "Categoría de gasto" viene prellenada con MATERIALES y se puede cambiar; ya no bloquea el
    botón. OC directa: se sigue pidiendo obligatoria (puede ser gasolina, servicio, maquila…). No cambiar las categorías ni el

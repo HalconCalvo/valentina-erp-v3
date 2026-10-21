@@ -178,6 +178,9 @@ Los montos dicen si son con o sin IVA (en la etiqueta de la tarjeta o de la colu
 Ventas, Dirección, Gerencia, Tesorería, Inventario, Producción y Logística muestran tarjetas de sección. Al entrar a
 una sección, el título cambia al de la sección (sin número) y aparece "Regresar a <hub>" a la derecha, igual que §2.
 Cuenta para la regla de 3 clics: menú → tarjeta → acción.
+- **Sub-tarjetas (Gabriel 20/10, todo Valentina):** una pantalla con tarjetas de navegación muestra SOLO las tarjetas;
+  nunca las tarjetas y abajo el contenido de la elegida. Clic en una tarjeta → su propia pantalla con encabezado estándar
+  (título de esa tarjeta) y "Regresar a <pantalla de tarjetas>". Las tarjetas de cifras sin clic no cuentan.
 
 ## 13. Qué cambió respecto a la versión 1
 - Modelo: Cobranza y Antigüedad (antes Valuación, Kárdex e Importación legacy).
