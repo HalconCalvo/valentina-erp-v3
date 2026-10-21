@@ -10,6 +10,26 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 > REGLA PARA CLAUDE CODE: al terminar una instrucción, mueve a "Hechas" SOLO ese bloque. Las demás instrucciones se quedan en Pendientes.
 
+### 21/10 11:55 — PASE A PRODUCCIÓN (main) AUTORIZADO POR GABRIEL HOY, en horario laboral. Dos fases; NO saltar la fase 1.
+Antes de todo: commit y push a `pruebas` del journal.txt pendiente (cierre del asesor 20/10).
+
+FASE 1 — Preparar y ensayar (sin tocar producción):
+1. Lista en lenguaje sencillo de lo que cambia de main (081b2ab) a pruebas: decisiones/funciones, correcciones, pantallas.
+2. Lista de migraciones que se aplicarán en producción, en orden, y qué hace cada una con datos (D39, D44 omitidas, totales
+   MIDO/CERRAJES, D21, D40, D41, etc.).
+3. Ensayo: copia FRESCA de la base de producción (solo lectura, pg_dump) restaurada en local (neutralizar SMTP como siempre);
+   aplicar todas las migraciones (upgrade head) y verificar cifras esperadas: comisiones marcadas por D39 (Lic. 19 por
+   $47,978.39 pagadas fuera; Ing. 18 por $46,348.04 omitidas; vendedores), totales de las 2 OCs, que la app arranque y que las
+   pantallas principales carguen con esa copia. Reportar cualquier error.
+4. Variables de entorno nuevas que necesite Render producción (si las hay).
+5. Reportar todo en "Hechas" y DETENERTE. El asesor revisa con Gabriel.
+   → FASE 1 HECHA 21/10 12:05 (ver Hechas); falta solo revisar pantallas cuando Gabriel entre en localhost:3000.
+
+FASE 2 — Solo cuando Gabriel escriba "adelante con la fase 2":
+respaldo de la base de producción (pg_dump con fecha en ~/valentina_local/dumps), merge de pruebas a main (fast-forward si se
+puede), push, vigilar el deploy de Render (API y frontend), confirmar que la migración corrió, revisar en producción en pantalla
+(solo leer, sin registrar nada) las cifras del ensayo. Si algo falla: decir cómo regresar (main anterior 081b2ab + respaldo).
+
 
 ## Preguntas para el asesor
 
@@ -68,6 +88,64 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   - Agrega a tu reporte final la lista de commits pendientes de prueba en pantalla.
 
 ## Hechas
+
+### 21/10 12:05 — PASE A PRODUCCIÓN, FASE 1 (preparar y ensayar). Hecha salvo la revisión en pantalla (falta que Gabriel entre)
+Antes de todo: journal del 20/10 ya estaba en `pruebas` (d3e614c). Main (081b2ab) → pruebas: 127 commits, avance rápido posible.
+
+1. QUÉ CAMBIA (en sencillo)
+   Decisiones y funciones:
+   - Comisiones: se pagan desde Gerencia → Nómina → Comisiones con Banco, Efectivo (caja chica) o Efectivo Dirección (D40),
+     o repartido entre ellos; cada cobro genera comisión del vendedor (anticipo y avances) (H57, H65, H67–H69, D37).
+   - D39: todas las comisiones anteriores quedan "Pagada fuera de Valentina". D44: la comisión global es de un solo
+     beneficiario (Lic., 2 %) configurable en Configuración; las globales duplicadas del Ing. quedan "Omitidas"; la
+     rentabilidad de OV y el tablero de Dirección restan la comisión global.
+   - D41: Gerencia ya no ve bancos, no registra cobros ni pagos a proveedor, solo ve caja chica, no paga nómina/comisiones.
+   - D21: ruta "Lo pone el cliente" y material PIEDRA DEL CLIENTE ($0, no se compra ni lleva existencia).
+   - D36/D35: factura de avance por casa completa con IVA y anticipo proporcional amortizado.
+   - D29–D34: bautizo solo Ventas; no se crea lote si falta MDF/piedra; solicitudes ligadas a OV; carga del camión con
+     hoy y el siguiente día hábil.
+   - Ayuda "?" en cada pantalla y buscador "¿En qué te ayudo?" (D38); Costo_OV en el importador; #receta.
+   Correcciones (H): calendario y cuadrillas (H38, H39, H42), centro de impresión (H45, H56), Campo (H37, H40, H41, H43,
+   H60), cobranza y tesorería (H3, H5, H8, H9, H46, H47, H63), compras (H20–H25, H29), producción (H26, H27, H30, H33),
+   costos de receta (H2/H4), cotización (H1). Del 20/10: "Ver PDF oficial" de OC, solicitud automática duplicada,
+   total de OC al editar una partida, categoría MATERIALES al generar OC.
+   Pantallas: guía segunda ola y tanda 1 de la tercera (Antigüedad, Cobranza, Clientes, Caja chica, Campo, Diseño, Compras,
+   Andén, Piso de producción, Gerencia/Nómina, Tesorería, Pendiente de facturar); colores de material; sub-tarjetas;
+   fechas Creada/Autorizada en OCs; filtros del Andén.
+
+2. MIGRACIONES QUE CORRERÁN EN PRODUCCIÓN (producción hoy en w2x3y4z5a6b7), en orden:
+   1) x3y4z5a6b7c8 — campos nuevos: OV en solicitudes y partidas de OC, solicitud de origen, OC en el kardex. Sin cambiar datos.
+   2) y4z5a6b7c8d9 — H56 seguimiento de etiquetas/manifiestos pedidos. Rellena casas con carril pendiente: en producción 0.
+   3) z5a6b7c8d9e0 — forma de pago de comisiones y nómina (campos nuevos). Sin cambiar datos.
+   4) a6b7c8d9e0f1 — D39: TODA comisión no pagada → "Pagada fuera de Valentina", sin movimiento de banco ni caja, con bitácora.
+   5) b7c8d9e0f1a2 — D40 detalle de pago repartido (campo nuevo).
+   6) 5cd6e914c375 — D21 ruta CLIENTE y crea el material PIEDRA DEL CLIENTE.
+   7) 969c63689777 — D44 beneficiario de la global en Configuración: Lic. Gabriel Frías García, 2 %.
+   8) dcab654921ee — D44/D39: globales de quien no es beneficiario (Ing.) regresan a no pagadas y quedan "Omitidas".
+   9) 2ecb8aa6be05 — totales de OC MIDO y CERRAJES (cuentas por pagar NO se tocan).
+
+3. ENSAYO con copia fresca de producción (pg_dump solo lectura 21/10 11:54, base local aparte `valentina_ensayo`, SMTP borrado):
+   upgrade head sin errores. Cifras después:
+   | Comisiones | Antes | Después |
+   |---|---|---|
+   | Lic., globales | 19 · $47,978.39 sin pagar | 19 · $47,978.39 pagadas fuera ✔ |
+   | Ing., globales | 18 · $46,348.04 sin pagar | 18 · $46,348.04 omitidas (no pagadas) ✔ |
+   | Lic., vendedor | 14 · $57,795.96 | pagadas fuera |
+   | Ing., vendedor | 3 · $32,961.12 | pagadas fuera |
+   | Sahía Patrón, vendedor | 1 · $300.00 | pagada fuera |
+   - OC-M260807225203 MIDO: $50,082.75 Recibida parcial → $26,212.49 Recibida total ✔.
+     OC-M261006223132 CERRAJES: $15,712.80 → $12,445.80 ✔.
+   - Bitácora: 110 cambios D39, 72 D44, 3 de OCs. Beneficiario global: Lic., 2 %. PIEDRA DEL CLIENTE creada.
+   - Regreso probado: downgrade completo a w2x3y4z5a6b7 dejó las cifras exactamente como antes; upgrade otra vez igual.
+   - Tests backend 378 ✔, frontend 55 ✔, build ✔, una sola cabeza (2ecb8aa6be05), tsc sin errores nuevos (147, igual que antes).
+   - La app arranca con esa copia (API y pantalla de entrada). FALTA revisar las pantallas principales: es una copia de
+     producción con contraseñas reales y no entro con contraseñas ajenas; Gabriel entra en http://localhost:3000 (está
+     apuntando al ensayo, no a producción) y sigo yo.
+   - Nada de error en el ensayo.
+
+4. VARIABLES DE ENTORNO NUEVAS para Render producción: ninguna (sin cambios en config, dependencias ni variables VITE_).
+
+5. Me detengo aquí. Fase 2 solo con "adelante con la fase 2". Regreso si algo falla: main anterior 081b2ab + respaldo del día.
 
 ### 20/10 18:00 — Tres instrucciones de Gabriel (se escribieron 16:59–17:08 y se perdieron del buzón al guardar; hacerlas en este orden)
 

@@ -5323,3 +5323,17 @@ PARA MAÑANA (en orden)
 5. Aprobar tanda 1 y arrancar tanda 2 (Tesorería, Gerencia, tablero de Dirección con el patrón de sub-tarjetas).
 6. Pendientes generales: pagar globales del Lic. en OV-0157 ($952.29), Seguimiento de OV, D43 paso 1, D39 y pase a main,
    simulacro con el equipo.
+
+================================================================
+MIÉRCOLES 21/10/2026
+================================================================
+12:05 PASE A PRODUCCIÓN — FASE 1 (ensayo, sin tocar producción)
+- main 081b2ab → pruebas: 127 commits, avance rápido. 9 migraciones (w2x3y4z5a6b7 → 2ecb8aa6be05).
+- Copia fresca de producción (pg_dump solo lectura 11:54) en base local aparte `valentina_ensayo`, SMTP borrado.
+  upgrade head sin errores; D39/D44: Lic. 19 globales $47,978.39 pagadas fuera, Ing. 18 $46,348.04 omitidas,
+  vendedores pagados fuera (Lic. 14 $57,795.96, Ing. 3 $32,961.12, Sahía 1 $300); OCs MIDO $26,212.49 (Recibida total) y
+  CERRAJES $12,445.80. Downgrade completo y upgrade de nuevo: cifras idénticas.
+- Tests 378/55, build, una cabeza. Sin variables de entorno nuevas.
+- Pendiente: revisar pantallas con la copia (Gabriel debe entrar en localhost:3000; no uso contraseñas reales).
+  Fase 2 espera "adelante con la fase 2".
+- Lección: en zsh `${VAR/\/a/\/b}` deja la barra invertida; para cambiar el nombre de base usar sed.
