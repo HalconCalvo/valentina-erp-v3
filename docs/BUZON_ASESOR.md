@@ -68,6 +68,67 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Hechas
 
+### 21/10 13:33 — OV-0122 ZENARA y OV-0115 Luna (solo lectura en producción; nada cambiado). Karina NO debe dar "Agregar lo que falta" todavía
+1. QUÉ TIENE HOY OV-0122 EN PRODUCCIÓN (6 facturas, todas de la importación del 21/09):
+   | # | Tipo | Folio | Monto | Anticipo aplicado | NC | Fecha factura | Abono | Estado |
+   |---|---|---|---|---|---|---|---|---|
+   | 43 | Anticipo | 231 | $899,921.04 | — | — | 21/04/2025 | 25/04/2025 $899,921.04 | Pagada ✔ |
+   | 44 | Avance | — | $127,000.00 | 0 | — | 23/06/**2026** | 23/06/2025 $127,000.00 | Pagada |
+   | 45 | Avance | — | $107,000.00 | 0 | — | 11/09/2025 | 11/09/2025 $107,000.00 | Pagada |
+   | 46 | Avance | 448 | $214,767.04 | $107,383.52 | 109 | 29/01/2026 | 30/01/2026 $107,383.52 | Pagada ✔ |
+   | 47 | Avance | — | $214,767.04 | $107,383.52 | 116 | 10/04/2026 | 10/04/2026 $107,383.52 | **Pendiente** |
+   | 48 | Avance | — | $214,767.04 | $107,383.52 | 138 | 28/08/2026 | 28/08/2026 $107,383.52 | **Pendiente** |
+   Contra los datos de Gabriel:
+   - 231 y 448 cuadran.
+   - **47 y 48 SON las facturas 492 y 594** (mismo tipo, fecha, monto, NC 116 / 138 y abono); solo les falta el folio. Su estado
+     dice Pendiente aunque el abono + anticipo aplicado cubren la factura (saldo $0): se quedó así desde la importación del 21/09.
+   - Los dos avances en EFECTIVO están capturados distinto:
+     · 44 (Gabriel: $255,619.92 con anticipo aplicado $127,809.96, cobrado $127,809.96, 23/06/2025): Valentina $127,000.00
+       sin anticipo aplicado, y fecha de factura 23/06/2026 (año equivocado; el abono sí es 2025). Diferencia cobrada $809.96.
+     · 45 (Gabriel: $214,767.04 con anticipo aplicado $107,383.52, cobrado $107,383.52, 11/09/2025): Valentina $107,000.00
+       sin anticipo aplicado. Diferencia cobrada $383.52.
+     Por eso el anticipo restante en Valentina no es el real: faltan $235,193.48 de anticipo aplicado en 44 y 45.
+2. CÓMO EMPAREJA EL IMPORTADOR: primero por folio; si una factura del Excel no encuentra su folio, se empareja con una factura de
+   Valentina SIN folio del mismo tipo, misma fecha y mismo monto (cada una se usa una sola vez). Aquí 492 → #47 y 594 → #48:
+   el emparejamiento fue CORRECTO (son las mismas facturas), no hay defecto y "Agregar lo que falta" NO las duplicaría ni las
+   dejaría faltando. Lo que el reporte dice ("Folio: Valentina — / Excel 492") es justo eso: falta capturar el folio.
+   El importador nunca escribe sobre lo que ya existe, así que el folio no lo pone él.
+   Propuesta (no aplicada): que el reporte lo diga claro: "Falta el folio en Valentina: capturar 492". La regla de emparejar sin
+   folio se queda (con tipo + fecha + monto exactos es la misma factura; sin ella se duplicarían).
+   Para corregir OV-0122 (a mano en la app, con motivo, o como corrección preparada para producción si Gabriel prefiere):
+   folio 492 en #47 y 594 en #48 (quedan Pagadas al recalcular); #44 y #45 con los montos y anticipo aplicado reales y la fecha
+   de #44 a 23/06/2025. Esto lo decide Gabriel; no toqué nada.
+3. OV-0115 "Luna": no se creó desde un Excel; la capturó el Ing. a mano como OV histórica el 11/09 (antes del primer Excel del
+   14/09). Sale como "No viene en el Excel" porque al crear la marca "viene del Excel" se marcaron TODAS las OVs históricas.
+   Es la única así (las otras 19 marcadas sí las creó el Excel de Karina).
+   Propuesta: corrección de datos que le quite la marca solo a OV-0115 (con bitácora y bajada), como D39, aplicada al pasar a
+   main; desde ahí el reporte solo marca OVs que alguna vez vinieron en un Excel. Alternativa: que Karina la incluya en su Excel.
+Me detengo. OJO antes de "Agregar lo que falta": si el Excel trae los dos avances en efectivo con sus montos reales
+($255,619.92 y $214,767.04 sin folio), NO se emparejan con #44/#45 (montos distintos) y el importador los AGREGARÍA como
+facturas nuevas (duplicado). En la vista previa deben verse como "Agrega factura sin folio … " de OV-0122. Si aparecen,
+primero corregir #44/#45 en Valentina (o pasarme el Excel y lo reviso). 492 y 594 no se duplican.
+
+### 21/10 13:35 — Migración de OVs (Excel de Karina, producción): revisar OV-0122 ZENARA ANTES de que Karina agregue (solo lectura)
+Karina validó "plantilla-migracion-ov-con-folio Oct.xlsx" en producción: 0 errores, 31 avisos, 12 diferencias. El reporte marca en
+OV-0122 dos diferencias: "Factura sin folio AVANCE $214,767.04 — Folio: Valentina — / Excel 492" y lo mismo con "Excel 594".
+Datos reales de Gabriel para OV-0122 (total $1,799,842.08):
+- Anticipo fact. 231 $899,921.04, pagado 25/04/2025.
+- Avance fact. 448 $214,767.04, NC 109 $107,383.52 (anticipo), pagada 30/01/2026.
+- Avance fact. 492 $214,767.04, NC 116 $107,383.52, pagada 10/04/2026.
+- Avance fact. 594 $214,767.04, NC 138 $107,383.52, pagada 28/08/2026.
+- Avance en EFECTIVO (sin factura) $255,619.92, anticipo aplicado $127,809.96, pagado 23/06/2025.
+- Avance en EFECTIVO (sin factura) $214,767.04, anticipo aplicado $107,383.52, pagado 11/09/2025.
+(Cuadra: facturado/cobrado $1,457,265.08; falta por facturar $685,154.00 bruto con $342,577.00 de anticipo restante.)
+Hacer (producción SOLO LECTURA; el Excel lo tiene Karina, pídeselo a Gabriel si lo necesitas):
+1. Listar qué CxC/facturas tiene hoy OV-0122 en producción (folio, tipo, monto, NC, abonos, fechas) y compararlo con la lista de arriba.
+2. Explicar cómo empareja el importador una factura del Excel con una de Valentina sin folio. Si 492 y 594 se emparejaron con la
+   factura sin folio (que es el avance en efectivo del 11/09/2025), la importación NO las agregaría y quedarían faltando: es un
+   defecto. Proponer la corrección (una factura sin folio en Valentina no debe absorber facturas con folio del Excel).
+3. Pregunta aparte: OV-0115 "Luna" sale como "No viene en el Excel — revisar" porque se creó directo en Valentina (no es legacy).
+   Proponer que el reporte no marque así las OVs creadas en Valentina.
+Reportar en Hechas y DETENERTE. No cambiar datos de producción. Gabriel le dirá a Karina si puede dar "Agregar lo que falta".
+
+
 ### 21/10 12:25 — PASE A PRODUCCIÓN, FASE 2. Hecha (falta solo la revisión en pantalla con sesión de Gabriel)
 - Respaldo de producción antes de subir: ~/valentina_local/dumps/prod_respaldo_pre_main_20261021_1216.dump (solo lectura).
 - main 081b2ab → 177faed (avance rápido; el push lo corrió Gabriel porque el permiso de Claude Code bloquea despliegues a producción).

@@ -5349,3 +5349,12 @@ MIÉRCOLES 21/10/2026
   clasificador de permisos bloquea despliegues a producción). 12:19 Render aplicó 2ecb8aa6be05 y publicó el frontend.
   Cifras en producción iguales al ensayo. Regreso: main 081b2ab + respaldo. Lección: el push a main lo debe correr Gabriel
   (`! git push origin <commit>:main`) o agregar la regla de permiso.
+- 13:30 Migración OVs (Karina, producción): errores resueltos. "GABRIEL FRIAS" del Excel = Lic. Gabriel Frías García (hijo).
+  OV-0124 PALMAR fue modificada; Karina la corrige. OV-0122 ZENARA: datos reales de Gabriel en el buzón (21/10 13:35); se revisa el
+  emparejamiento de facturas sin folio antes de importar. OV-0115 Luna se creó en Valentina (no viene en el Excel, es normal).
+- 13:33 Buzón OV-0122 ZENARA (solo lectura en producción): las facturas sin folio #47/#48 SON 492/594 (mismo tipo, fecha, monto,
+  NC); el importador las emparejó bien, solo falta capturar el folio; su estado quedó Pendiente con saldo $0 desde el 21/09.
+  Los avances en efectivo #44/#45 están capturados con montos netos ($127,000 / $107,000) sin anticipo aplicado (reales
+  $255,619.92 y $214,767.04 con $127,809.96 y $107,383.52 aplicados) y #44 con fecha 2026. Riesgo: si el Excel trae esos dos
+  con su monto real, el importador los agregaría como nuevos. OV-0115 Luna: histórica capturada a mano el 11/09; la marca
+  "viene del Excel" se puso a todas las históricas; propuesta: quitársela solo a ella con corrección auditada.
